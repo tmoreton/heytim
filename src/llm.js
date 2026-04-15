@@ -27,6 +27,10 @@ const throwIfBad = async (res) => {
 
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
 const MAX_ATTEMPTS = 5;
+const ESC = "\x1b[";
+
+// Clear current line and move to start (for cleaning up spinner before writing)
+const clearLine = () => process.stdout.write(`\r${ESC}K`);
 
 const fetchWithRetry = async (url, init) => {
   for (let attempt = 0; ; attempt++) {
@@ -35,6 +39,7 @@ const fetchWithRetry = async (url, init) => {
       if (res.ok || !RETRY_STATUS.has(res.status) || attempt >= MAX_ATTEMPTS - 1) return res;
       const retryAfter = Number(res.headers.get("retry-after")) || 0;
       const wait = retryAfter * 1000 || backoff(attempt);
+      clearLine();
       process.stderr.write(`  retrying in ${Math.round(wait)}ms (HTTP ${res.status}, attempt ${attempt + 2}/${MAX_ATTEMPTS})\n`);
       await sleep(wait, init.signal);
     } catch (e) {
@@ -43,6 +48,7 @@ const fetchWithRetry = async (url, init) => {
         throw e;
       }
       const wait = backoff(attempt);
+      clearLine();
       process.stderr.write(`  retrying in ${Math.round(wait)}ms (${e.cause?.code || e.message}, attempt ${attempt + 2}/${MAX_ATTEMPTS})\n`);
       await sleep(wait, init.signal);
     }

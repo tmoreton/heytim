@@ -266,8 +266,8 @@ export function statusFooter({ lastPromptTokens, limit, sessionId, model }) {
     const color = pct >= 80 ? "yellow" : pct >= 50 ? "white" : "gray";
     parts.push(c[color](`${(lastPromptTokens / 1000).toFixed(1)}k/${(limit / 1000).toFixed(0)}k (${pct}%)`));
   }
-  if (sessionId) parts.push(c.dim(`session ${sessionId}`));
-  if (model) parts.push(c.dim(model.split("/").pop()));
+  if (sessionId) parts.push(c.dim(`tim --resume ${sessionId}`));
+  if (model) parts.push(c.dim(model));
   if (!parts.length) return;
   console.log(c.dim("  ─ ") + parts.join(c.dim(" · ")));
 }

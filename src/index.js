@@ -3,10 +3,10 @@ import readline from "node:readline";
 import {
   agentTurn,
   getModel,
-  Interrupted,
   resumeSession,
   getSessionId,
 } from "./agent.js";
+import { Interrupted } from "./streaming.js";
 import { isCommand, runCommand } from "./commands.js";
 import { load as loadSession, latest } from "./session.js";
 import { setReadline, setAutoAccept } from "./permissions.js";
@@ -46,7 +46,7 @@ setReadline(rl);
 let currentAbort = null;
 let lastSigintAt = 0;
 
-process.on("SIGINT", () => {
+const handleSigint = () => {
   if (currentAbort && !currentAbort.signal.aborted) {
     currentAbort.abort();
     return;
@@ -61,8 +61,18 @@ process.on("SIGINT", () => {
   lastSigintAt = now;
   console.log();
   ui.info("press Ctrl+C again to exit");
-  rl.prompt();
-});
+  safePrompt();
+};
+
+// readline auto-closes on SIGINT unless the interface has its own listener —
+// register on both so Ctrl+C mid-stream doesn't kill the REPL.
+process.on("SIGINT", handleSigint);
+rl.on("SIGINT", handleSigint);
+rl.on("close", () => process.exit(0));
+
+const safePrompt = () => {
+  if (!rl.closed) rl.prompt();
+};
 
 let buffer = [];
 let inHeredoc = false;
@@ -73,7 +83,7 @@ const flushBuffer = () => {
 };
 
 ui.banner(getModel(), process.cwd());
-rl.prompt();
+safePrompt();
 
 rl.on("line", async (line) => {
   if (inHeredoc) {
@@ -81,7 +91,7 @@ rl.on("line", async (line) => {
       inHeredoc = false;
       const input = flushBuffer();
       if (input) await handle(input);
-      else rl.prompt();
+      else safePrompt();
       return;
     }
     buffer.push(line);
@@ -101,14 +111,14 @@ rl.on("line", async (line) => {
   buffer.push(line);
   const input = flushBuffer();
 
-  if (!input) return rl.prompt();
+  if (!input) return safePrompt();
   if (input === "exit" || input === "quit") {
     ui.exitHint(getSessionId());
     process.exit(0);
   }
   if (isCommand(input)) {
     await runCommand(input);
-    return rl.prompt();
+    return safePrompt();
   }
   await handle(input);
 });
@@ -127,6 +137,6 @@ async function handle(input) {
     }
   } finally {
     currentAbort = null;
-    rl.prompt();
+    safePrompt();
   }
 }

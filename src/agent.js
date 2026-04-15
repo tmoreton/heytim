@@ -2,7 +2,9 @@ import { tools, toolSchemas } from "./tools/index.js";
 import { loadProjectContext } from "./config.js";
 import { createSession, save as saveSession } from "./session.js";
 import { rehydrateReadsFromMessages } from "./tools/fs.js";
-import { complete, stream } from "./llm.js";
+import { complete } from "./llm.js";
+import { streamCompletion, Interrupted } from "./streaming.js";
+import { ToolCache } from "./cache.js";
 import * as ui from "./ui.js";
 
 const DEFAULT_MODEL =
@@ -15,7 +17,7 @@ const state = {
   messages: [],
   session: null,
   usage: { prompt: 0, completion: 0, lastPrompt: 0 },
-  toolCache: new Map(),
+  toolCache: new ToolCache(),
 };
 
 const buildSystem = () => {
@@ -33,6 +35,7 @@ export function resetMessages() {
   state.messages = [{ role: "system", content: buildSystem() }];
   state.session = createSession(state.model);
   state.usage = { prompt: 0, completion: 0, lastPrompt: 0 };
+  state.toolCache.clear();
   rehydrateReadsFromMessages([]);
 }
 resetMessages();
@@ -48,6 +51,7 @@ export function resumeSession(data) {
   };
   if (data.model) state.model = data.model;
   state.usage = data.usage || { prompt: 0, completion: 0, lastPrompt: 0 };
+  state.toolCache.clear();
   rehydrateReadsFromMessages(state.messages);
 }
 
@@ -63,106 +67,6 @@ export const getUsage = () => ({
   pctUsed: Math.round((state.usage.lastPrompt / CONTEXT_LIMIT) * 100),
 });
 
-export class Interrupted extends Error {
-  constructor() {
-    super("interrupted");
-    this.name = "Interrupted";
-  }
-}
-
-async function streamCompletion(signal) {
-  const chunks = stream(
-    {
-      model: state.model,
-      messages: state.messages,
-      tools: toolSchemas,
-      stream_options: { include_usage: true },
-    },
-    { signal },
-  );
-
-  let content = "";
-  const toolAcc = [];
-  let started = false;
-  let usage = null;
-  let lineBuf = "";
-
-  const spin = ui.spinner("thinking");
-  const stopSpinner = () => spin.stop();
-
-  const flushLines = (final = false) => {
-    let idx;
-    while ((idx = lineBuf.indexOf("\n")) !== -1) {
-      const line = lineBuf.slice(0, idx);
-      lineBuf = lineBuf.slice(idx + 1);
-      process.stdout.write("  " + ui.renderMarkdownLine(line) + "\n");
-    }
-    if (final && lineBuf) {
-      process.stdout.write("  " + ui.renderMarkdownLine(lineBuf) + "\n");
-      lineBuf = "";
-    }
-  };
-
-  try {
-    ui.resetMarkdown();
-    for await (const chunk of chunks) {
-      if (signal?.aborted) throw new Interrupted();
-      if (chunk.usage) usage = chunk.usage;
-      const choice = chunk.choices?.[0];
-      if (!choice) continue;
-      const delta = choice.delta || {};
-
-      if (delta.content) {
-        if (!started) {
-          stopSpinner();
-          process.stdout.write(`\n${ui.header()}\n`);
-          started = true;
-        }
-        lineBuf += delta.content;
-        content += delta.content;
-        flushLines();
-      }
-
-      if (delta.tool_calls) {
-        if (!started) stopSpinner();
-        for (const tc of delta.tool_calls) {
-          const i = tc.index ?? 0;
-          toolAcc[i] ||= {
-            id: "",
-            type: "function",
-            function: { name: "", arguments: "" },
-          };
-          if (tc.id) toolAcc[i].id = tc.id;
-          if (tc.function?.name) toolAcc[i].function.name += tc.function.name;
-          if (tc.function?.arguments)
-            toolAcc[i].function.arguments += tc.function.arguments;
-        }
-      }
-
-    }
-  } finally {
-    stopSpinner();
-    flushLines(true);
-  }
-
-  if (started) process.stdout.write("\n");
-  const toolCalls = toolAcc.filter(Boolean);
-
-  if (usage) {
-    state.usage.prompt += usage.prompt_tokens || 0;
-    state.usage.completion += usage.completion_tokens || 0;
-    state.usage.lastPrompt = usage.prompt_tokens || 0;
-  }
-
-  return {
-    message: {
-      role: "assistant",
-      content: content || null,
-      ...(toolCalls.length ? { tool_calls: toolCalls } : {}),
-    },
-  };
-}
-
 export async function agentTurn(userInput, signal) {
   state.messages.push({ role: "user", content: userInput });
 
@@ -170,7 +74,10 @@ export async function agentTurn(userInput, signal) {
     while (true) {
       if (signal?.aborted) throw new Interrupted();
 
-      const { message } = await streamCompletion(signal);
+      const { message } = await streamCompletion(
+        { model: state.model, messages: state.messages, toolSchemas, usage: state.usage },
+        signal
+      );
       state.messages.push(message);
 
       if (!message.tool_calls?.length) {
@@ -195,25 +102,23 @@ export async function agentTurn(userInput, signal) {
           ui.toolCall(name, args);
           const tool = tools[name];
           if (!tool) throw new Error(`Unknown tool: ${name}`);
-          
-          // Simple cache for deterministic reads (read_file, list_files, grep, glob)
-          const cacheable = ["read_file", "list_files", "grep", "glob"].includes(name);
-          const cacheKey = cacheable ? `${name}:${JSON.stringify(args)}` : null;
-          
-          if (cacheKey && state.toolCache.has(cacheKey)) {
-            result = state.toolCache.get(cacheKey);
+
+          result = state.toolCache.get(name, args);
+          if (result !== undefined) {
             ui.toolResult(`(cached) ${String(result).slice(0, 100)}`);
           } else {
             result = await tool.run(args, { signal });
-            if (cacheKey && !String(result).startsWith("ERROR:")) {
-              state.toolCache.set(cacheKey, result);
-              // Keep cache size bounded
-              if (state.toolCache.size > 100) {
-                const firstKey = state.toolCache.keys().next().value;
-                state.toolCache.delete(firstKey);
-              }
-            }
+            state.toolCache.set(name, args, result);
             if (String(result).startsWith("ERROR:")) ui.toolResult(result);
+          }
+
+          // Any successful mutation invalidates the read cache.
+          if (
+            (name === "edit_file" || name === "write_file" || name === "bash") &&
+            !String(result).startsWith("ERROR:") &&
+            !String(result).startsWith("User denied")
+          ) {
+            state.toolCache.clear();
           }
         } catch (e) {
           result = `ERROR: ${e.message}`;
