@@ -1,9 +1,21 @@
 import { spawn, spawnSync } from "node:child_process";
-import fg from "fast-glob";
+import { glob as nodeGlob } from "node:fs/promises";
+import fs from "node:fs";
 
 const hasRg = spawnSync("which", ["rg"]).status === 0;
 
 const MAX_LINES = 500;
+
+const IGNORE = ["**/node_modules/**", "**/.git/**"];
+
+const listFiles = async (pattern, cwd) => {
+  const out = [];
+  for await (const f of nodeGlob(pattern, { cwd, exclude: IGNORE })) {
+    out.push(f);
+    if (out.length >= 10_000) break;
+  }
+  return out;
+};
 
 const runRg = (args) =>
   new Promise((resolve) => {
@@ -54,14 +66,14 @@ export const grep = {
       args.push(pattern, p);
       return runRg(args);
     }
-    // Node fallback via fast-glob + regex scan
-    const files = await fg(glob ? [glob] : ["**/*"], {
-      cwd: p,
-      ignore: ["node_modules/**", ".git/**"],
-      absolute: false,
-    });
-    const re = new RegExp(pattern, case_insensitive ? "i" : "");
-    const fs = await import("node:fs");
+    // Node fallback via fs.glob + regex scan
+    let re;
+    try {
+      re = new RegExp(pattern, case_insensitive ? "i" : "");
+    } catch (e) {
+      return `ERROR: invalid regex: ${e.message}`;
+    }
+    const files = await listFiles(glob || "**/*", p);
     const results = [];
     for (const f of files) {
       let text;
@@ -70,10 +82,11 @@ export const grep = {
       } catch {
         continue;
       }
-      text.split("\n").forEach((line, i) => {
-        if (re.test(line)) results.push(`${f}:${i + 1}:${line}`);
-        if (results.length >= MAX_LINES) return;
-      });
+      const lines = text.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        if (re.test(lines[i])) results.push(`${f}:${i + 1}:${lines[i]}`);
+        if (results.length >= MAX_LINES) break;
+      }
       if (results.length >= MAX_LINES) break;
     }
     return results.length ? results.join("\n") : "(no matches)";
@@ -97,10 +110,7 @@ export const glob = {
     },
   },
   run: async ({ pattern, path: p = "." }) => {
-    const files = await fg([pattern], {
-      cwd: p,
-      ignore: ["node_modules/**", ".git/**"],
-    });
+    const files = await listFiles(pattern, p);
     if (!files.length) return "(no matches)";
     return files.slice(0, MAX_LINES).join("\n");
   },

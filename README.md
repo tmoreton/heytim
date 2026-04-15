@@ -1,6 +1,6 @@
 # tim
 
-**~1,100 lines of JavaScript · zero magic · 2 runtime deps** (`openai`, `fast-glob`)
+**~1,300 lines of JavaScript · zero magic · zero runtime dependencies** (requires Node ≥22)
 
 A minimal, single-developer clone of Claude Code. Runs locally, talks to the Fireworks AI API, uses Kimi K2.5 Turbo, gives the model a handful of file + shell tools, and wraps it in a ReAct loop.
 

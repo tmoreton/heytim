@@ -5,6 +5,7 @@ import {
   getModel,
   Interrupted,
   resumeSession,
+  getSessionId,
 } from "./agent.js";
 import { isCommand, runCommand } from "./commands.js";
 import { load as loadSession, latest } from "./session.js";
@@ -51,6 +52,7 @@ process.on("SIGINT", () => {
   if (now - lastSigintAt < 1500) {
     console.log();
     ui.info("bye.");
+    ui.exitHint(getSessionId());
     process.exit(0);
   }
   lastSigintAt = now;
@@ -97,7 +99,10 @@ rl.on("line", async (line) => {
   const input = flushBuffer();
 
   if (!input) return rl.prompt();
-  if (input === "exit" || input === "quit") process.exit(0);
+  if (input === "exit" || input === "quit") {
+    ui.exitHint(getSessionId());
+    process.exit(0);
+  }
   if (isCommand(input)) {
     await runCommand(input);
     return rl.prompt();

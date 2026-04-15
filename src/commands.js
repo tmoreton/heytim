@@ -6,9 +6,10 @@ import {
   hasProjectContext,
   getUsage,
   compact,
+  getSessionId,
 } from "./agent.js";
 import { list as listSessions } from "./session.js";
-import { c, info, success, error } from "./ui.js";
+import { c, info, success, error, exitHint } from "./ui.js";
 
 const HELP_ROWS = [
   ["/help", "show this help"],
@@ -113,6 +114,7 @@ export async function runCommand(input) {
     }
     case "exit":
     case "quit":
+      exitHint(getSessionId());
       process.exit(0);
     default:
       error(`unknown command: /${cmd} — try /help`);

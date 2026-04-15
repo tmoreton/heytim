@@ -28,9 +28,21 @@ export function save(session, messages, usage) {
 }
 
 export function load(id) {
-  const file = path.join(DIR, `${id}.json`);
-  if (!fs.existsSync(file)) throw new Error(`Session not found: ${id}`);
-  return JSON.parse(fs.readFileSync(file, "utf8"));
+  ensureDir();
+  const exact = path.join(DIR, `${id}.json`);
+  if (fs.existsSync(exact)) return JSON.parse(fs.readFileSync(exact, "utf8"));
+
+  // Prefix match (e.g. user pasted a truncated ID from the status footer).
+  const matches = fs
+    .readdirSync(DIR)
+    .filter((f) => f.endsWith(".json") && f.startsWith(id));
+  if (matches.length === 1)
+    return JSON.parse(fs.readFileSync(path.join(DIR, matches[0]), "utf8"));
+  if (matches.length > 1)
+    throw new Error(
+      `Ambiguous session id "${id}" — matches ${matches.length} sessions. Use /sessions to see full IDs.`,
+    );
+  throw new Error(`Session not found: ${id}`);
 }
 
 export function list() {

@@ -1,8 +1,8 @@
-import OpenAI from "openai";
 import { tools, toolSchemas } from "./tools/index.js";
 import { loadProjectContext } from "./config.js";
 import { createSession, save as saveSession } from "./session.js";
 import { rehydrateReadsFromMessages } from "./tools/fs.js";
+import { complete, stream } from "./llm.js";
 import * as ui from "./ui.js";
 
 const DEFAULT_MODEL =
@@ -15,21 +15,6 @@ const state = {
   messages: [],
   session: null,
   usage: { prompt: 0, completion: 0, lastPrompt: 0 },
-};
-
-let _client = null;
-const getClient = () => {
-  if (_client) return _client;
-  const apiKey = process.env.FIREWORKS_API_KEY;
-  if (!apiKey) {
-    console.error("Set FIREWORKS_API_KEY in your environment.");
-    process.exit(1);
-  }
-  _client = new OpenAI({
-    apiKey,
-    baseURL: "https://api.fireworks.ai/inference/v1",
-  });
-  return _client;
 };
 
 const buildSystem = () => {
@@ -69,6 +54,7 @@ export const getModel = () => state.model;
 export const setModel = (m) => {
   state.model = m;
 };
+export const getSessionId = () => state.session?.id;
 export const hasProjectContext = () => !!loadProjectContext();
 export const getUsage = () => ({
   ...state.usage,
@@ -84,12 +70,11 @@ export class Interrupted extends Error {
 }
 
 async function streamCompletion(signal) {
-  const stream = await getClient().chat.completions.create(
+  const chunks = stream(
     {
       model: state.model,
       messages: state.messages,
       tools: toolSchemas,
-      stream: true,
       stream_options: { include_usage: true },
     },
     { signal },
@@ -99,12 +84,27 @@ async function streamCompletion(signal) {
   const toolAcc = [];
   let started = false;
   let usage = null;
+  let lineBuf = "";
 
   const spin = ui.spinner("thinking");
   const stopSpinner = () => spin.stop();
 
+  const flushLines = (final = false) => {
+    let idx;
+    while ((idx = lineBuf.indexOf("\n")) !== -1) {
+      const line = lineBuf.slice(0, idx);
+      lineBuf = lineBuf.slice(idx + 1);
+      process.stdout.write("  " + ui.renderMarkdownLine(line) + "\n");
+    }
+    if (final && lineBuf) {
+      process.stdout.write("  " + ui.renderMarkdownLine(lineBuf) + "\n");
+      lineBuf = "";
+    }
+  };
+
   try {
-    for await (const chunk of stream) {
+    ui.resetMarkdown();
+    for await (const chunk of chunks) {
       if (signal?.aborted) throw new Interrupted();
       if (chunk.usage) usage = chunk.usage;
       const choice = chunk.choices?.[0];
@@ -114,11 +114,12 @@ async function streamCompletion(signal) {
       if (delta.content) {
         if (!started) {
           stopSpinner();
-          process.stdout.write(`\n${ui.header()}  `);
+          process.stdout.write(`\n${ui.header()}\n`);
           started = true;
         }
-        process.stdout.write(delta.content);
+        lineBuf += delta.content;
         content += delta.content;
+        flushLines();
       }
 
       if (delta.tool_calls) {
@@ -140,9 +141,10 @@ async function streamCompletion(signal) {
     }
   } finally {
     stopSpinner();
+    flushLines(true);
   }
 
-  if (started) process.stdout.write("\n\n");
+  if (started) process.stdout.write("\n");
   const toolCalls = toolAcc.filter(Boolean);
 
   if (usage) {
@@ -193,7 +195,7 @@ export async function agentTurn(userInput, signal) {
           const tool = tools[name];
           if (!tool) throw new Error(`Unknown tool: ${name}`);
           result = await tool.run(args, { signal });
-          ui.toolResult(result);
+          if (String(result).startsWith("ERROR:")) ui.toolResult(result);
         } catch (e) {
           result = `ERROR: ${e.message}`;
           ui.toolResult(result);
@@ -228,7 +230,7 @@ export async function compact() {
     ...middle,
   ];
 
-  const res = await getClient().chat.completions.create({
+  const res = await complete({
     model: state.model,
     messages: summaryPrompt,
   });

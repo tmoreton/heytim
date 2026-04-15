@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { confirm } from "../permissions.js";
+import { editDiff, writeDiff } from "../ui.js";
 
 const resolveSafe = (p) => {
   const cwd = process.cwd();
@@ -119,6 +120,7 @@ export const editFile = {
     if (!ok) return "User denied the edit.";
 
     fs.writeFileSync(abs, updated);
+    editDiff(old_string, new_string);
     return `Edited ${p}`;
   },
 };
@@ -152,6 +154,7 @@ export const writeFile = {
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.writeFileSync(abs, content);
     readFiles.add(abs);
+    writeDiff(content);
     return `Wrote ${content.length} bytes to ${p}`;
   },
 };

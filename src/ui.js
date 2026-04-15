@@ -76,6 +76,63 @@ export function banner(model, cwd) {
   console.log();
 }
 
+// --- Markdown renderer (line-based, streaming-friendly) -------------------
+
+let mdCodeBlock = false;
+
+export const resetMarkdown = () => {
+  mdCodeBlock = false;
+};
+
+const inlineReplace = (line) => {
+  // fenced: skip inline rules inside code blocks
+  if (mdCodeBlock) return c.teal(line);
+  // inline code `x`
+  line = line.replace(/`([^`]+)`/g, (_, t) => c.teal(t));
+  // bold **x**
+  line = line.replace(/\*\*([^*]+)\*\*/g, (_, t) => c.bold(t));
+  // bold __x__
+  line = line.replace(/__([^_]+)__/g, (_, t) => c.bold(t));
+  // links [text](url) → text (dim url)
+  line = line.replace(
+    /\[([^\]]+)\]\(([^)]+)\)/g,
+    (_, t, u) => `${c.bold(t)} ${c.dim(`(${u})`)}`,
+  );
+  return line;
+};
+
+export function renderMarkdownLine(line) {
+  // Toggle fenced code block
+  const fence = line.match(/^(\s*)```/);
+  if (fence) {
+    mdCodeBlock = !mdCodeBlock;
+    return c.dim(line);
+  }
+
+  if (mdCodeBlock) return c.teal(line);
+
+  // Headings
+  const h = line.match(/^(#{1,6})\s+(.*)$/);
+  if (h) {
+    const text = inlineReplace(h[2]);
+    if (h[1].length <= 2) return c.bold(gradient(h[2], START, END));
+    return c.bold(c.white(text));
+  }
+
+  // Blockquote
+  if (/^\s*>\s/.test(line)) {
+    return c.dim(c.italic(line));
+  }
+
+  // List markers
+  const list = line.match(/^(\s*)([-*+]|\d+\.)\s(.*)$/);
+  if (list) {
+    return `${list[1]}${c.teal("•")} ${inlineReplace(list[3])}`;
+  }
+
+  return inlineReplace(line);
+}
+
 // --- Prompt / header -------------------------------------------------------
 
 export const prompt = () => c.bold(c.green("❯ "));
@@ -139,6 +196,27 @@ export function toolResult(result) {
   console.log(`${RETURN} ${c.dim(first)}${suffix}`);
 }
 
+const MAX_DIFF_LINES = 20;
+
+const printDiffBlock = (lines, sign, color) => {
+  const shown = lines.slice(0, MAX_DIFF_LINES);
+  for (const l of shown) console.log(`     ${c[color](sign)} ${c[color](l)}`);
+  if (lines.length > MAX_DIFF_LINES)
+    console.log(c.dim(`     ... (+${lines.length - MAX_DIFF_LINES} more)`));
+};
+
+export function editDiff(oldStr, newStr) {
+  const oldLines = oldStr.split("\n");
+  const newLines = newStr.split("\n");
+  printDiffBlock(oldLines, "-", "red");
+  printDiffBlock(newLines, "+", "green");
+}
+
+export function writeDiff(content) {
+  const lines = content.split("\n");
+  printDiffBlock(lines, "+", "green");
+}
+
 // --- Status footer / warnings ---------------------------------------------
 
 export function statusFooter({ lastPromptTokens, limit, sessionId, model }) {
@@ -148,7 +226,7 @@ export function statusFooter({ lastPromptTokens, limit, sessionId, model }) {
     const color = pct >= 80 ? "yellow" : pct >= 50 ? "white" : "gray";
     parts.push(c[color](`${(lastPromptTokens / 1000).toFixed(1)}k/${(limit / 1000).toFixed(0)}k (${pct}%)`));
   }
-  if (sessionId) parts.push(c.dim(`session ${sessionId.slice(0, 19)}`));
+  if (sessionId) parts.push(c.dim(`session ${sessionId}`));
   if (model) parts.push(c.dim(model.split("/").pop()));
   if (!parts.length) return;
   console.log(c.dim("  ─ ") + parts.join(c.dim(" · ")));
@@ -169,3 +247,11 @@ export function confirmPrompt() {
 export const info = (msg) => console.log(c.dim(`  ${msg}`));
 export const error = (msg) => console.log(c.red(`  ✗ ${msg}`));
 export const success = (msg) => console.log(c.green(`  ✓ ${msg}`));
+
+export function exitHint(sessionId) {
+  if (!sessionId) return;
+  console.log();
+  console.log(c.dim("  resume this session with:"));
+  console.log(`    ${c.teal(`tim --resume ${sessionId}`)}`);
+  console.log();
+}
