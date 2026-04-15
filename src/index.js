@@ -6,7 +6,8 @@ import path from "node:path";
 import os from "node:os";
 
 // Load ~/.tim/.env into process.env (existing env wins)
-const envPath = path.join(os.homedir(), ".tim", ".env");
+const TIM_HOME = path.join(os.homedir(), ".tim");
+const envPath = path.join(TIM_HOME, ".env");
 try {
   for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
     const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/i);
@@ -15,6 +16,10 @@ try {
     if (!process.env[m[1]]) process.env[m[1]] = val;
   }
 } catch {}
+
+// Standard tim dir — agents and tools should write user-specific output here.
+process.env.TIM_DIR ||= TIM_HOME;
+fs.mkdirSync(process.env.TIM_DIR, { recursive: true });
 
 import {
   resumeSession,

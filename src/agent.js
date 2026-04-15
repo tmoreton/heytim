@@ -92,8 +92,15 @@ export function createAgent(profile = null) {
 
   const buildSystem = () => {
     const toolList = Object.keys(tools).join(", ");
+    const paths = `\n\n## tim dir (use for all user-specific output)
+$TIM_DIR (${process.env.TIM_DIR}) is the root for any reports, logs, data,
+or other artifacts you generate for the user. Create a subfolder under it
+when grouping makes sense (e.g. recurring reports for a topic, or by source)
+— otherwise write directly into $TIM_DIR. Use kebab-case for folder names.
+Never write user-specific output to the current working directory unless
+the user is editing files in this project.`;
     if (profile?.systemPrompt) {
-      return `${profile.systemPrompt}\n\nYou are running in ${process.cwd()}. Available tools: ${toolList}.`;
+      return `${profile.systemPrompt}\n\nYou are running in ${process.cwd()}. Available tools: ${toolList}.${paths}`;
     }
     const base = `You are tim, a minimal coding assistant running in ${process.cwd()}.
 You have tools: ${toolList}.
@@ -102,7 +109,7 @@ You have tools: ${toolList}.
 - Use edit_file for surgical changes; write_file only for new files or full rewrites.
 - Keep replies concise. When the task is done, stop calling tools and give a short final answer.`;
     const ctx = loadProjectContext();
-    return ctx ? `${base}\n\n${ctx}` : base;
+    return (ctx ? `${base}\n\n${ctx}` : base) + paths;
   };
 
   const reset = () => {

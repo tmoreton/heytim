@@ -13,6 +13,7 @@ import {
 } from "./agent.js";
 import { list as listSessions } from "./session.js";
 import { loadAgents } from "./agents.js";
+import { setEnv, unsetEnv, listEnv, mask } from "./env.js";
 import { setAutoAccept, isAutoAccept } from "./permissions.js";
 import { c, info, success, error, exitHint } from "./ui.js";
 
@@ -26,6 +27,7 @@ const HELP_ROWS = [
   ["/compact", "summarize older messages to free context"],
   ["/sessions", "list saved sessions"],
   ["/agents", "list available sub-agent profiles"],
+  ["/env", "manage ~/.tim/.env (list | set KEY=VAL | unset KEY)"],
   ["/yolo", "toggle auto-accept for edits and bash (USE WITH CARE)"],
   ["/exit", "quit"],
 ];
@@ -127,6 +129,35 @@ export async function runCommand(input) {
       }
       console.log();
       return;
+    }
+    case "env": {
+      const [sub, ...kvParts] = arg.split(/\s+/);
+      const kv = kvParts.join(" ");
+      if (!sub || sub === "list") {
+        const entries = listEnv();
+        if (!entries.length) return info("(no env vars in ~/.tim/.env)");
+        console.log();
+        const pad = Math.max(...entries.map((e) => e.key.length)) + 2;
+        for (const e of entries)
+          console.log(`  ${c.teal(e.key.padEnd(pad))} ${c.dim(mask(e.value))}`);
+        console.log();
+        return;
+      }
+      if (sub === "set") {
+        const m = kv.match(/^([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/i);
+        if (!m) return error("usage: /env set KEY=value");
+        const val = m[2].replace(/^["'](.*)["']$/, "$1");
+        setEnv(m[1], val);
+        success(`set ${m[1]} (${mask(val)})`);
+        return;
+      }
+      if (sub === "unset") {
+        if (!kv) return error("usage: /env unset KEY");
+        unsetEnv(kv.trim());
+        success(`unset ${kv.trim()}`);
+        return;
+      }
+      return error("usage: /env [list | set KEY=VAL | unset KEY]");
     }
     case "agents": {
       const profiles = Object.values(loadAgents());
