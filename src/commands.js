@@ -8,25 +8,45 @@ import {
   compact,
 } from "./agent.js";
 import { list as listSessions } from "./session.js";
+import { c, info, success, error } from "./ui.js";
 
-const HELP = `Slash commands:
-  /help            show this help
-  /tools           list registered tools
-  /model [id]      show or switch model
-  /clear           reset conversation (starts a new session)
-  /context         show whether TIM.md was loaded
-  /tokens          show token usage
-  /compact         summarize older messages to free context
-  /sessions        list saved sessions
-  /exit            quit
-Input:
-  end a line with \\ to continue
-  """ on its own line toggles a multi-line block
-Flags (at launch):
-  tim                    start fresh
-  tim --resume           resume latest session
-  tim --resume <id>      resume specific session
-  tim --list             list sessions and exit`;
+const HELP_ROWS = [
+  ["/help", "show this help"],
+  ["/tools", "list registered tools"],
+  ["/model [id]", "show or switch model"],
+  ["/clear", "reset conversation (starts a new session)"],
+  ["/context", "show whether TIM.md was loaded"],
+  ["/tokens", "show token usage"],
+  ["/compact", "summarize older messages to free context"],
+  ["/sessions", "list saved sessions"],
+  ["/exit", "quit"],
+];
+
+const INPUT_ROWS = [
+  ["\\ at EOL", "continue on next line"],
+  [`""" line`, "toggle a multi-line block"],
+];
+
+const FLAG_ROWS = [
+  ["tim", "start fresh"],
+  ["tim --resume [id]", "resume latest or by id"],
+  ["tim --list", "list sessions and exit"],
+];
+
+const printRows = (title, rows) => {
+  console.log();
+  console.log("  " + c.bold(c.teal(title)));
+  const pad = Math.max(...rows.map((r) => r[0].length)) + 2;
+  for (const [k, v] of rows)
+    console.log(`    ${c.white(k.padEnd(pad))} ${c.dim(v)}`);
+};
+
+const printHelp = () => {
+  printRows("commands", HELP_ROWS);
+  printRows("input", INPUT_ROWS);
+  printRows("launch flags", FLAG_ROWS);
+  console.log();
+};
 
 export const isCommand = (input) => input.startsWith("/");
 
@@ -36,51 +56,65 @@ export async function runCommand(input) {
 
   switch (cmd) {
     case "help":
-      console.log(HELP);
+      printHelp();
       return;
     case "tools":
-      console.log(Object.keys(tools).join(", "));
+      console.log();
+      for (const name of Object.keys(tools))
+        console.log(`  ${c.teal("•")} ${c.white(name)}`);
+      console.log();
       return;
     case "model":
-      if (!arg) console.log(`model: ${getModel()}`);
+      if (!arg) info(`model: ${getModel()}`);
       else {
         setModel(arg);
-        console.log(`model → ${arg}`);
+        success(`model → ${arg}`);
       }
       return;
     case "clear":
       resetMessages();
-      console.log("(conversation cleared — new session)");
+      success("conversation cleared — new session");
       return;
     case "context":
-      console.log(hasProjectContext() ? "TIM.md loaded" : "no TIM.md found");
+      info(hasProjectContext() ? "TIM.md loaded" : "no TIM.md found");
       return;
     case "tokens": {
       const u = getUsage();
+      const pctColor = u.pctUsed >= 80 ? "yellow" : u.pctUsed >= 50 ? "white" : "gray";
+      console.log();
       console.log(
-        `last prompt: ${u.lastPrompt} / ${u.limit} (${u.pctUsed}%) | total prompt: ${u.prompt} | total completion: ${u.completion}`,
+        `  ${c.dim("last prompt")}  ${c[pctColor](
+          `${u.lastPrompt} / ${u.limit}`,
+        )} ${c.dim(`(${u.pctUsed}%)`)}`,
       );
+      console.log(`  ${c.dim("total in   ")}  ${c.white(u.prompt)}`);
+      console.log(`  ${c.dim("total out  ")}  ${c.white(u.completion)}`);
+      console.log();
       return;
     }
     case "compact": {
-      console.log("compacting...");
+      info("compacting...");
       const msg = await compact();
-      console.log(msg);
+      success(msg);
       return;
     }
     case "sessions": {
       const all = listSessions();
-      if (!all.length) return console.log("(no sessions)");
+      if (!all.length) return info("(no sessions)");
+      console.log();
       for (const s of all.slice(0, 20)) {
         const when = new Date(s.updatedAt).toISOString().replace("T", " ").slice(0, 19);
-        console.log(`  ${s.id}  [${s.turns} turns]  ${when}  ${s.cwd}`);
+        console.log(
+          `  ${c.teal(s.id.slice(0, 19))}  ${c.dim(`[${s.turns} turns]`)}  ${c.dim(when)}  ${c.white(s.cwd)}`,
+        );
       }
+      console.log();
       return;
     }
     case "exit":
     case "quit":
       process.exit(0);
     default:
-      console.log(`unknown command: /${cmd} — try /help`);
+      error(`unknown command: /${cmd} — try /help`);
   }
 }

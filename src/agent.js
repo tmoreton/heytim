@@ -3,6 +3,7 @@ import { tools, toolSchemas } from "./tools/index.js";
 import { loadProjectContext } from "./config.js";
 import { createSession, save as saveSession } from "./session.js";
 import { rehydrateReadsFromMessages } from "./tools/fs.js";
+import * as ui from "./ui.js";
 
 const DEFAULT_MODEL =
   process.env.TIM_MODEL || "accounts/fireworks/routers/kimi-k2p5-turbo";
@@ -33,7 +34,7 @@ const getClient = () => {
 
 const buildSystem = () => {
   const base = `You are tim, a minimal coding assistant running in ${process.cwd()}.
-You have tools: list_files, read_file, edit_file, write_file, bash, grep, glob.
+You have tools: ${Object.keys(tools).join(", ")}.
 - Prefer grep/glob over reading whole directories.
 - You MUST read_file a file before edit_file.
 - Use edit_file for surgical changes; write_file only for new files or full rewrites.
@@ -68,7 +69,6 @@ export const getModel = () => state.model;
 export const setModel = (m) => {
   state.model = m;
 };
-export const getState = () => state;
 export const hasProjectContext = () => !!loadProjectContext();
 export const getUsage = () => ({
   ...state.usage,
@@ -97,42 +97,49 @@ async function streamCompletion(signal) {
 
   let content = "";
   const toolAcc = [];
-  let finishReason = null;
   let started = false;
   let usage = null;
 
-  for await (const chunk of stream) {
-    if (signal?.aborted) throw new Interrupted();
-    if (chunk.usage) usage = chunk.usage;
-    const choice = chunk.choices?.[0];
-    if (!choice) continue;
-    const delta = choice.delta || {};
+  const spin = ui.spinner("thinking");
+  const stopSpinner = () => spin.stop();
 
-    if (delta.content) {
-      if (!started) {
-        process.stdout.write("\ntim> ");
-        started = true;
+  try {
+    for await (const chunk of stream) {
+      if (signal?.aborted) throw new Interrupted();
+      if (chunk.usage) usage = chunk.usage;
+      const choice = chunk.choices?.[0];
+      if (!choice) continue;
+      const delta = choice.delta || {};
+
+      if (delta.content) {
+        if (!started) {
+          stopSpinner();
+          process.stdout.write(`\n${ui.header()}  `);
+          started = true;
+        }
+        process.stdout.write(delta.content);
+        content += delta.content;
       }
-      process.stdout.write(delta.content);
-      content += delta.content;
-    }
 
-    if (delta.tool_calls) {
-      for (const tc of delta.tool_calls) {
-        const i = tc.index ?? 0;
-        toolAcc[i] ||= {
-          id: "",
-          type: "function",
-          function: { name: "", arguments: "" },
-        };
-        if (tc.id) toolAcc[i].id = tc.id;
-        if (tc.function?.name) toolAcc[i].function.name += tc.function.name;
-        if (tc.function?.arguments)
-          toolAcc[i].function.arguments += tc.function.arguments;
+      if (delta.tool_calls) {
+        if (!started) stopSpinner();
+        for (const tc of delta.tool_calls) {
+          const i = tc.index ?? 0;
+          toolAcc[i] ||= {
+            id: "",
+            type: "function",
+            function: { name: "", arguments: "" },
+          };
+          if (tc.id) toolAcc[i].id = tc.id;
+          if (tc.function?.name) toolAcc[i].function.name += tc.function.name;
+          if (tc.function?.arguments)
+            toolAcc[i].function.arguments += tc.function.arguments;
+        }
       }
-    }
 
-    if (choice.finish_reason) finishReason = choice.finish_reason;
+    }
+  } finally {
+    stopSpinner();
   }
 
   if (started) process.stdout.write("\n\n");
@@ -142,12 +149,6 @@ async function streamCompletion(signal) {
     state.usage.prompt += usage.prompt_tokens || 0;
     state.usage.completion += usage.completion_tokens || 0;
     state.usage.lastPrompt = usage.prompt_tokens || 0;
-    const pct = (usage.prompt_tokens || 0) / CONTEXT_LIMIT;
-    if (pct >= 0.8) {
-      console.log(
-        `  ⚠ context ${Math.round(pct * 100)}% full (${usage.prompt_tokens}/${CONTEXT_LIMIT}) — run /compact`,
-      );
-    }
   }
 
   return {
@@ -156,7 +157,6 @@ async function streamCompletion(signal) {
       content: content || null,
       ...(toolCalls.length ? { tool_calls: toolCalls } : {}),
     },
-    finishReason,
   };
 }
 
@@ -170,21 +170,33 @@ export async function agentTurn(userInput, signal) {
       const { message } = await streamCompletion(signal);
       state.messages.push(message);
 
-      if (!message.tool_calls?.length) return;
+      if (!message.tool_calls?.length) {
+        ui.statusFooter({
+          lastPromptTokens: state.usage.lastPrompt,
+          limit: CONTEXT_LIMIT,
+          sessionId: state.session?.id,
+          model: state.model,
+        });
+        if (state.usage.lastPrompt / CONTEXT_LIMIT >= 0.8)
+          ui.info("context filling up — run /compact");
+        return;
+      }
 
       for (const call of message.tool_calls) {
         if (signal?.aborted) throw new Interrupted();
         const { name, arguments: argStr } = call.function;
         let result;
+        let args = {};
         try {
-          const args = JSON.parse(argStr || "{}");
-          const preview = JSON.stringify(args).slice(0, 120);
-          console.log(`  · ${name}(${preview})`);
+          args = JSON.parse(argStr || "{}");
+          ui.toolCall(name, args);
           const tool = tools[name];
           if (!tool) throw new Error(`Unknown tool: ${name}`);
           result = await tool.run(args, { signal });
+          ui.toolResult(result);
         } catch (e) {
           result = `ERROR: ${e.message}`;
+          ui.toolResult(result);
         }
         state.messages.push({
           role: "tool",

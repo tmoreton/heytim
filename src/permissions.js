@@ -1,3 +1,5 @@
+import { warn, confirmPrompt } from "./ui.js";
+
 const sessionAllow = new Set();
 let sharedRl = null;
 
@@ -16,7 +18,6 @@ const keyFor = (tool, args) => {
 const ask = (question) =>
   new Promise((resolve) => {
     if (!sharedRl) {
-      // Fallback: no shared rl (e.g. non-interactive mode) — auto-deny.
       resolve("n");
       return;
     }
@@ -29,9 +30,8 @@ export async function confirm(tool, args, preview) {
   const key = keyFor(tool, args);
   if (sessionAllow.has(key)) return true;
 
-  console.log(`\n  ⚠ ${tool} wants to run:`);
-  console.log(`    ${preview}`);
-  const answer = await ask("  [y]es / [a]lways this session / [n]o > ");
+  warn(tool, preview);
+  const answer = await ask(confirmPrompt());
 
   if (answer === "a" || answer === "always") {
     sessionAllow.add(key);

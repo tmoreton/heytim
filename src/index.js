@@ -7,18 +7,14 @@ import {
   resumeSession,
 } from "./agent.js";
 import { isCommand, runCommand } from "./commands.js";
-import { list as listSessions, load as loadSession, latest } from "./session.js";
+import { load as loadSession, latest } from "./session.js";
 import { setReadline } from "./permissions.js";
+import * as ui from "./ui.js";
 
 // --- argv handling ---
 const argv = process.argv.slice(2);
 if (argv.includes("--list")) {
-  const all = listSessions();
-  if (!all.length) console.log("(no sessions)");
-  for (const s of all) {
-    const when = new Date(s.updatedAt).toISOString().replace("T", " ").slice(0, 19);
-    console.log(`${s.id}  [${s.turns} turns]  ${when}  ${s.cwd}`);
-  }
+  await runCommand("/sessions");
   process.exit(0);
 }
 
@@ -31,14 +27,14 @@ if (resumeIdx !== -1) {
     process.exit(1);
   }
   resumeSession(data);
-  console.log(`resumed ${data.id} (${(data.messages || []).length} messages)`);
+  ui.success(`resumed ${data.id} (${(data.messages || []).length} messages)`);
 }
 
 // --- REPL ---
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
-  prompt: "you> ",
+  prompt: ui.prompt(),
 });
 setReadline(rl);
 
@@ -53,11 +49,13 @@ process.on("SIGINT", () => {
   }
   const now = Date.now();
   if (now - lastSigintAt < 1500) {
-    console.log("\nbye.");
+    console.log();
+    ui.info("bye.");
     process.exit(0);
   }
   lastSigintAt = now;
-  console.log("\n(press Ctrl+C again to exit)");
+  console.log();
+  ui.info("press Ctrl+C again to exit");
   rl.prompt();
 });
 
@@ -69,11 +67,7 @@ const flushBuffer = () => {
   return joined.trim();
 };
 
-console.log(
-  `tim (${getModel()}) in ${process.cwd()}
-Type /help for commands. End a line with \\ to continue; """ toggles a multi-line block.
-`,
-);
+ui.banner(getModel(), process.cwd());
 rl.prompt();
 
 rl.on("line", async (line) => {
@@ -117,9 +111,11 @@ async function handle(input) {
     await agentTurn(input, currentAbort.signal);
   } catch (e) {
     if (e instanceof Interrupted || e?.name === "AbortError") {
-      console.log("\n(interrupted)\n");
+      console.log();
+      ui.info("interrupted");
+      console.log();
     } else {
-      console.error(`error: ${e.message}`);
+      ui.error(e.message);
     }
   } finally {
     currentAbort = null;

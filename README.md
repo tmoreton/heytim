@@ -1,6 +1,8 @@
 # tim
 
-A minimal, single-developer clone of Claude Code. Runs locally, talks to the Fireworks AI API, uses Kimi K2.5 Turbo, gives the model a handful of file + shell tools, and wraps it in a ReAct loop. ~800 lines of JavaScript.
+**~1,100 lines of JavaScript · zero magic · 2 runtime deps** (`openai`, `fast-glob`)
+
+A minimal, single-developer clone of Claude Code. Runs locally, talks to the Fireworks AI API, uses Kimi K2.5 Turbo, gives the model a handful of file + shell tools, and wraps it in a ReAct loop.
 
 The whole point is to be readable. If you want to understand how coding agents work end-to-end, this is a small enough codebase to hold in your head.
 
