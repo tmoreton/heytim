@@ -3,6 +3,9 @@
 // Requires user confirmation before running.
 // Handles stdout/stderr buffering with limits and supports abort signals.
 
+import { spawn } from "node:child_process";
+import { confirm } from "../permissions.js";
+
 const MAX_OUTPUT = 30_000;
 
 const truncate = (s) =>
