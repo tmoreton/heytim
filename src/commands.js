@@ -40,6 +40,12 @@ const FLAG_ROWS = [
   ["tim --yolo", "start with auto-accept on (use with care)"],
 ];
 
+const ATTACHMENT_ROWS = [
+  ["/path/to/image.png", "attach image by path (drag & drop works!)"],
+  ["/path/to/doc.pdf", "attach PDF by path"],
+  ["multiple files", "just include multiple paths in your prompt"],
+];
+
 const printRows = (title, rows) => {
   console.log();
   console.log("  " + c.bold(c.teal(title)));
@@ -51,6 +57,7 @@ const printRows = (title, rows) => {
 const printHelp = () => {
   printRows("commands", HELP_ROWS);
   printRows("input", INPUT_ROWS);
+  printRows("attachments (drag & drop!)", ATTACHMENT_ROWS);
   printRows("launch flags", FLAG_ROWS);
   console.log();
 };

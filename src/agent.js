@@ -2,6 +2,8 @@
 // Manages conversation state, calls the LLM, executes tool calls, caches results.
 // Exports: agentTurn(), compact(), plus session/model/state getters.
 
+import fs from "node:fs";
+import path from "node:path";
 import { tools, toolSchemas } from "./tools/index.js";
 import { loadProjectContext } from "./config.js";
 import { createSession, save as saveSession } from "./session.js";
@@ -10,6 +12,58 @@ import { complete } from "./llm.js";
 import { streamCompletion, Interrupted } from "./streaming.js";
 import { ToolCache } from "./cache.js";
 import * as ui from "./ui.js";
+
+// --- Multimodal helpers ----------------------------------------------------
+
+const encodeFile = (filePath) => {
+  const data = fs.readFileSync(filePath);
+  return data.toString("base64");
+};
+
+const getMimeType = (filePath) => {
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeTypes = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".pdf": "application/pdf",
+  };
+  return mimeTypes[ext] || "application/octet-stream";
+};
+
+const buildUserMessage = (text, attachments) => {
+  if (!attachments || (attachments.images.length === 0 && attachments.pdfs.length === 0)) {
+    return { role: "user", content: text };
+  }
+
+  const content = [{ type: "text", text }];
+
+  // Add images
+  for (const imgPath of attachments.images) {
+    const base64 = encodeFile(imgPath);
+    const mimeType = getMimeType(imgPath);
+    content.push({
+      type: "image_url",
+      image_url: { url: `data:${mimeType};base64,${base64}` },
+    });
+  }
+
+  // Add PDFs (as file data)
+  for (const pdfPath of attachments.pdfs) {
+    const base64 = encodeFile(pdfPath);
+    content.push({
+      type: "file",
+      file: {
+        filename: path.basename(pdfPath),
+        file_data: `data:application/pdf;base64,${base64}`,
+      },
+    });
+  }
+
+  return { role: "user", content };
+};
 
 const DEFAULT_MODEL =
   process.env.TIM_MODEL || "accounts/fireworks/routers/kimi-k2p5-turbo";
@@ -72,8 +126,10 @@ export const getUsage = () => ({
   pctUsed: Math.round((state.usage.lastPrompt / CONTEXT_LIMIT) * 100),
 });
 
-export async function agentTurn(userInput, signal) {
-  state.messages.push({ role: "user", content: userInput });
+export async function agentTurn(userInput, signal, attachments = null) {
+  // Build user message (text-only or multimodal)
+  const userMessage = buildUserMessage(userInput, attachments);
+  state.messages.push(userMessage);
 
   try {
     while (true) {

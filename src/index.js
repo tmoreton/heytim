@@ -3,6 +3,8 @@
 // Delegates commands to commands.js, chat to agent.js.
 
 import readline from "node:readline";
+import fs from "node:fs";
+import path from "node:path";
 import {
   agentTurn,
   getModel,
@@ -15,8 +17,76 @@ import { load as loadSession, latest } from "./session.js";
 import { setReadline, setAutoAccept } from "./permissions.js";
 import * as ui from "./ui.js";
 
+// --- Auto-detect attachments in text --------------------------------------
+
+const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
+const PDF_EXT = ".pdf";
+
+const extractAttachments = (text) => {
+  const images = [];
+  const pdfs = [];
+  // Match quoted paths and bare paths (including spaces in quotes)
+  const pathRegex = /"([^"]+\.(?:png|jpg|jpeg|gif|webp|bmp|pdf))"|'([^']+\.(?:png|jpg|jpeg|gif|webp|bmp|pdf))'|(\S+\.(?:png|jpg|jpeg|gif|webp|bmp|pdf))/gi;
+
+  let match;
+  const found = new Set();
+  while ((match = pathRegex.exec(text)) !== null) {
+    const filePath = match[1] || match[2] || match[3];
+    if (found.has(filePath.toLowerCase())) continue;
+    found.add(filePath.toLowerCase());
+
+    // Resolve relative to cwd
+    const resolved = path.resolve(filePath.replace(/\\/g, '')); // remove escapes
+    if (!fs.existsSync(resolved)) continue;
+
+    const ext = path.extname(resolved).toLowerCase();
+    if (IMAGE_EXTS.has(ext)) {
+      images.push(resolved);
+    } else if (ext === PDF_EXT) {
+      pdfs.push(resolved);
+    }
+  }
+
+  // Remove the paths from the text
+  let cleaned = text;
+  for (const p of found) {
+    const escaped = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    cleaned = cleaned.replace(new RegExp(`["']?${escaped}["']?`, 'gi'), ' ');
+  }
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+  return { text: cleaned, images, pdfs };
+};
+
 // --- argv handling ---
 const argv = process.argv.slice(2);
+
+// Extract attachments from argv
+const attachments = { images: [], pdfs: [] };
+for (let i = argv.length - 1; i >= 0; i--) {
+  if (argv[i] === "--image" && argv[i + 1]) {
+    attachments.images.push(argv[i + 1]);
+    argv.splice(i, 2);
+  } else if (argv[i] === "--pdf" && argv[i + 1]) {
+    attachments.pdfs.push(argv[i + 1]);
+    argv.splice(i, 2);
+  }
+}
+
+// Validate attachment files exist
+for (const img of attachments.images) {
+  if (!fs.existsSync(img)) {
+    console.error(`image not found: ${img}`);
+    process.exit(1);
+  }
+}
+for (const pdf of attachments.pdfs) {
+  if (!fs.existsSync(pdf)) {
+    console.error(`pdf not found: ${pdf}`);
+    process.exit(1);
+  }
+}
+
 if (argv.includes("--list")) {
   await runCommand("/sessions");
   process.exit(0);
@@ -89,8 +159,12 @@ const flushBuffer = () => {
 };
 
 const processInput = async () => {
-  const input = flushBuffer();
-  if (!input) return safePrompt();
+  const rawInput = flushBuffer();
+  if (!rawInput) return safePrompt();
+
+  // Extract any image/pdf paths from the input
+  const { text: input, images, pdfs } = extractAttachments(rawInput);
+
   if (input === "exit" || input === "quit") {
     ui.exitHint(getSessionId());
     process.exit(0);
@@ -99,7 +173,14 @@ const processInput = async () => {
     await runCommand(input);
     return safePrompt();
   }
-  await handle(input);
+
+  // Show detected attachments
+  if (images.length || pdfs.length) {
+    const all = [...images, ...pdfs].map(p => path.basename(p));
+    ui.info(`attached: ${all.join(", ")}`);
+  }
+
+  await handle(input, { images, pdfs });
 };
 
 ui.banner(getModel(), process.cwd());
@@ -138,10 +219,14 @@ rl.on("line", async (line) => {
   flushTimer = setTimeout(processInput, FLUSH_DELAY_MS);
 });
 
-async function handle(input) {
+async function handle(input, extraAttachments = null) {
   currentAbort = new AbortController();
   try {
-    await agentTurn(input, currentAbort.signal);
+    // Merge any extra attachments detected in REPL input
+    const allAttachments = extraAttachments
+      ? { images: extraAttachments.images, pdfs: extraAttachments.pdfs }
+      : { images: [], pdfs: [] };
+    await agentTurn(input, currentAbort.signal, allAttachments);
   } catch (e) {
     if (e instanceof Interrupted || e?.name === "AbortError") {
       console.log();
