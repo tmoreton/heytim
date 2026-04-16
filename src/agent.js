@@ -165,6 +165,7 @@ You have tools: ${toolList}.
           return;
         }
 
+        const pendingAttachments = [];
         for (const call of message.tool_calls) {
           if (signal?.aborted) throw new Interrupted();
           const { name, arguments: argStr } = call.function;
@@ -181,7 +182,15 @@ You have tools: ${toolList}.
               ui.toolResult(`(cached) ${String(result).slice(0, 100)}`);
             } else {
               result = await tool.run(args, { signal });
-              state.toolCache.set(name, args, result);
+              // Tools may return {content, attachImages} to inject a follow-up
+              // multimodal user message so the model sees what it produced.
+              if (result && typeof result === "object" && !Array.isArray(result)) {
+                if (Array.isArray(result.attachImages))
+                  pendingAttachments.push(...result.attachImages);
+                result = result.content ?? "";
+              } else {
+                state.toolCache.set(name, args, result);
+              }
               if (String(result).startsWith("ERROR:")) ui.toolResult(result);
             }
           } catch (e) {
@@ -193,6 +202,21 @@ You have tools: ${toolList}.
             tool_call_id: call.id,
             content: String(result),
           });
+        }
+
+        if (pendingAttachments.length) {
+          const noun = pendingAttachments.length > 1 ? "images" : "image";
+          const content = [
+            { type: "text", text: `(generated ${noun} attached for review)` },
+          ];
+          for (const p of pendingAttachments) {
+            content.push({
+              type: "image_url",
+              image_url: { url: `data:${getMimeType(p)};base64,${encodeFile(p)}` },
+            });
+          }
+          state.messages.push({ role: "user", content });
+          ui.info(`attached ${pendingAttachments.length} generated ${noun} to context`);
         }
       }
     } finally {

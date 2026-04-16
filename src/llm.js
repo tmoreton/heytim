@@ -1,22 +1,17 @@
-// Fireworks AI client (OpenAI-compatible API).
+// LLM client (OpenAI-compatible API). Provider is picked from the model name
+// via providers.js — see that file to add a new backend.
 // complete() for single-shot, stream() for SSE streaming with retry logic.
 
-const BASE_URL = "https://api.fireworks.ai/inference/v1";
+import { pickProvider } from "./providers.js";
 
-const getKey = () => {
-  const k = process.env.FIREWORKS_API_KEY;
-  if (!k) {
-    throw new Error(
-      "FIREWORKS_API_KEY not set. Export it in your shell, or run `/env set FIREWORKS_API_KEY=...`",
-    );
-  }
-  return k;
+const resolveRequest = (body) => {
+  const { provider, model } = pickProvider(body.model);
+  return {
+    url: `${provider.baseUrl}/chat/completions`,
+    headers: provider.headers(),
+    body: { ...body, model },
+  };
 };
-
-const headers = () => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${getKey()}`,
-});
 
 const throwIfBad = async (res) => {
   if (res.ok) return;
@@ -76,10 +71,11 @@ const sleep = (ms, signal) =>
   });
 
 export async function complete(body, { signal } = {}) {
-  const res = await fetchWithRetry(`${BASE_URL}/chat/completions`, {
+  const p = resolveRequest(body);
+  const res = await fetchWithRetry(p.url, {
     method: "POST",
-    headers: headers(),
-    body: JSON.stringify(body),
+    headers: p.headers,
+    body: JSON.stringify(p.body),
     signal,
   });
   await throwIfBad(res);
@@ -87,10 +83,11 @@ export async function complete(body, { signal } = {}) {
 }
 
 export async function* stream(body, { signal } = {}) {
-  const res = await fetchWithRetry(`${BASE_URL}/chat/completions`, {
+  const p = resolveRequest({ ...body, stream: true });
+  const res = await fetchWithRetry(p.url, {
     method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ ...body, stream: true }),
+    headers: p.headers,
+    body: JSON.stringify(p.body),
     signal,
   });
   await throwIfBad(res);
