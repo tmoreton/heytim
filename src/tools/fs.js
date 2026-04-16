@@ -7,6 +7,20 @@ import fs from "node:fs";
 import path from "node:path";
 import { confirm } from "../permissions.js";
 import { editDiff, writeDiff } from "../ui.js";
+import { TIM_SOURCE_ROOT, isInsideTimSource } from "../paths.js";
+import { snapshotFile } from "../history.js";
+
+// Returns an error string if `abs` is inside tim's own source but the user
+// isn't currently working from within the tim directory. Keeps accidental
+// self-edits from other projects from corrupting the install.
+const selfEditGuard = (abs) => {
+  if (!isInsideTimSource(abs)) return null;
+  const cwd = process.cwd();
+  const cwdInsideTim =
+    cwd === TIM_SOURCE_ROOT || cwd.startsWith(TIM_SOURCE_ROOT + path.sep);
+  if (cwdInsideTim) return null;
+  return `ERROR: refusing to modify tim source from outside the tim directory (${TIM_SOURCE_ROOT}). cd into it first if you really mean to edit tim itself.`;
+};
 
 const resolveSafe = (p) => {
   const cwd = process.cwd();
@@ -141,6 +155,8 @@ export const editSchema = {
 
 export async function editRun({ path: p, old_string, new_string, replace_all = false }) {
   const abs = resolveSafe(p);
+  const blocked = selfEditGuard(abs);
+  if (blocked) return blocked;
   if (!readFiles.has(abs))
     return `ERROR: read_file ${p} before editing it.`;
   const original = fs.readFileSync(abs, "utf8");
@@ -164,6 +180,7 @@ export async function editRun({ path: p, old_string, new_string, replace_all = f
   const ok = await confirm("edit_file", { path: p }, `edit ${p}`);
   if (!ok) return "User denied the edit.";
 
+  snapshotFile(abs);
   fs.writeFileSync(abs, updated);
   editDiff(old_string, new_string);
   return `Edited ${p}`;
@@ -189,6 +206,8 @@ export const writeSchema = {
 
 export async function writeRun({ path: p, content }) {
   const abs = resolveSafe(p);
+  const blocked = selfEditGuard(abs);
+  if (blocked) return blocked;
   const exists = fs.existsSync(abs);
   const ok = await confirm(
     "write_file",
@@ -196,6 +215,7 @@ export async function writeRun({ path: p, content }) {
     `${exists ? "overwrite" : "create"} ${p} (${content.length} bytes)`,
   );
   if (!ok) return "User denied the write.";
+  snapshotFile(abs);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, content);
   readFiles.add(abs);

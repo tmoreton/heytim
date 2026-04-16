@@ -14,6 +14,7 @@ import { rehydrateReadsFromMessages } from "./tools/fs.js";
 import { complete, streamCompletion, Interrupted } from "./llm.js";
 import { ToolCache } from "./cache.js";
 import { isPlanMode } from "./permissions.js";
+import { isCwdTimSource } from "./paths.js";
 import * as ui from "./ui.js";
 
 // --- Agent profile loading -------------------------------------------------
@@ -167,8 +168,15 @@ when grouping makes sense (e.g. recurring reports for a topic, or by source)
 — otherwise write directly into $TIM_DIR. Use kebab-case for folder names.
 Never write user-specific output to the current working directory unless
 the user is editing files in this project.`;
+    const selfEdit = isCwdTimSource()
+      ? `\n\n## editing tim itself
+You are in tim's own source directory. Every edit_file / write_file here
+auto-snapshots the pre-edit version to $TIM_DIR/history/<session-ts>/<relpath>
+(relative to tim's root). If the user asks to revert or undo a broken change,
+list that history dir, read_file the snapshot you want, and write_file it back.`
+      : "";
     if (profile?.systemPrompt) {
-      return `${profile.systemPrompt}\n\nYou are running in ${process.cwd()}. Available tools: ${toolList}.${paths}`;
+      return `${profile.systemPrompt}\n\nYou are running in ${process.cwd()}. Available tools: ${toolList}.${paths}${selfEdit}`;
     }
     const base = `You are tim, a minimal coding assistant running in ${process.cwd()}.
 You have tools: ${toolList}.
@@ -177,7 +185,7 @@ You have tools: ${toolList}.
 - Use edit_file for surgical changes; write_file only for new files or full rewrites.
 - Keep replies concise. When the task is done, stop calling tools and give a short final answer.`;
     const ctx = loadProjectContext();
-    return (ctx ? `${base}\n\n${ctx}` : base) + paths;
+    return (ctx ? `${base}\n\n${ctx}` : base) + paths + selfEdit;
   };
 
   const reset = () => {
@@ -336,11 +344,6 @@ You have tools: ${toolList}.
     getModel: () => state.model,
     setModel: (m) => { state.model = m; },
     getSessionId: () => state.session?.id,
-    getUsage: () => ({
-      ...state.usage,
-      limit: CONTEXT_LIMIT,
-      pctUsed: Math.round((state.usage.lastPrompt / CONTEXT_LIMIT) * 100),
-    }),
   };
 }
 
@@ -384,9 +387,5 @@ export const setModel = async (m) => {
 export const getSessionId = async () => {
   await ensureMain();
   return main.getSessionId();
-};
-export const getUsage = async () => {
-  await ensureMain();
-  return main.getUsage();
 };
 export const hasProjectContext = () => !!loadProjectContext();

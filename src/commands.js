@@ -7,7 +7,6 @@ import {
   getModel,
   setModel,
   hasProjectContext,
-  getUsage,
   compact,
   getSessionId,
 } from "./agent.js";
@@ -37,7 +36,6 @@ const HELP_ROWS = [
   ["/model [id]", "show or switch model"],
   ["/clear", "reset conversation (starts a new session)"],
   ["/context", "show whether TIM.md was loaded"],
-  ["/tokens", "show token usage"],
   ["/compact", "summarize older messages to free context"],
   ["/sessions", "list saved sessions"],
   ["/agents", "list available sub-agent profiles"],
@@ -122,20 +120,6 @@ export async function runCommand(input) {
     case "context":
       info(hasProjectContext() ? "TIM.md loaded" : "no TIM.md found");
       return;
-    case "tokens": {
-      const u = await getUsage();
-      const pctColor = u.pctUsed >= 80 ? "yellow" : u.pctUsed >= 50 ? "white" : "gray";
-      console.log();
-      console.log(
-        `  ${c.dim("last prompt")}  ${c[pctColor](
-          `${u.lastPrompt} / ${u.limit}`,
-        )} ${c.dim(`(${u.pctUsed}%)`)}`,
-      );
-      console.log(`  ${c.dim("total in   ")}  ${c.white(u.prompt)}`);
-      console.log(`  ${c.dim("total out  ")}  ${c.white(u.completion)}`);
-      console.log();
-      return;
-    }
     case "compact": {
       info("compacting...");
       const msg = await compact();
