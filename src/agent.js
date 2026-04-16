@@ -9,8 +9,7 @@ import { tools as allTools, toolSchemas as allSchemas } from "./tools/index.js";
 import { loadProjectContext } from "./config.js";
 import { createSession, save as saveSession } from "./session.js";
 import { rehydrateReadsFromMessages } from "./tools/fs.js";
-import { complete } from "./llm.js";
-import { streamCompletion, Interrupted } from "./streaming.js";
+import { complete, streamCompletion, Interrupted } from "./llm.js";
 import { ToolCache } from "./cache.js";
 import * as ui from "./ui.js";
 

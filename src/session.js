@@ -3,7 +3,10 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { timPath } from "./paths.js";
+import os from "node:os";
+
+const timDir = () => process.env.TIM_DIR || path.join(os.homedir(), ".tim");
+const timPath = (...parts) => path.join(timDir(), ...parts);
 
 const DIR = () => timPath("sessions");
 

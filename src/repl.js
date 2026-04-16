@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { agentTurn, getModel, getSessionId } from "./agent.js";
-import { Interrupted } from "./streaming.js";
+import { Interrupted } from "./llm.js";
 import { isCommand, runCommand } from "./commands.js";
 import { setReadline } from "./permissions.js";
 import * as ui from "./ui.js";

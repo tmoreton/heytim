@@ -6,8 +6,10 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { providers } from "../providers.js";
-import { timPath } from "../paths.js";
+import { providers } from "../llm.js";
+import path from "node:path";
+import os from "node:os";
+import fs from "node:fs";
 
 const OPENROUTER = providers.openrouter;
 const MODELS = {
@@ -129,7 +131,8 @@ export const generateImage = {
         return `ERROR: no image in response${textOut ? ` (model said: ${textOut.slice(0, 200)})` : ""}`;
       }
 
-      const dir = timPath("images");
+      const timDir = process.env.TIM_DIR || path.join(os.homedir(), ".tim");
+      const dir = path.join(timDir, "images");
       fs.mkdirSync(dir, { recursive: true });
       const base = slugify(output_name || prompt);
       const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);

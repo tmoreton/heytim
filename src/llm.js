@@ -1,8 +1,48 @@
-// LLM client (OpenAI-compatible API). Provider is picked from the model name
-// via providers.js — see that file to add a new backend.
-// complete() for single-shot, stream() for SSE streaming with retry logic.
+// LLM client with streaming, retry logic, and provider routing.
+// Exports: complete(), stream(), streamCompletion(), Interrupted, pickProvider
 
-import { pickProvider } from "./providers.js";
+import * as ui from "./ui.js";
+
+// --- Provider registry ----------------------------------------------------
+
+const requireKey = (envVar) => {
+  const k = process.env[envVar];
+  if (!k) throw new Error(`${envVar} not set. Run \`/env set ${envVar}=...\``);
+  return k;
+};
+
+export const providers = {
+  fireworks: {
+    baseUrl: "https://api.fireworks.ai/inference/v1",
+    headers: () => ({
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${requireKey("FIREWORKS_API_KEY")}`,
+    }),
+  },
+  openrouter: {
+    baseUrl: "https://openrouter.ai/api/v1",
+    prefix: "openrouter/",
+    headers: () => ({
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${requireKey("OPENROUTER_API_KEY")}`,
+      "HTTP-Referer": "https://github.com/tmoreton/tim",
+      "X-Title": "tim",
+    }),
+  },
+};
+
+const DEFAULT_PROVIDER = providers.fireworks;
+
+export const pickProvider = (model = "") => {
+  for (const cfg of Object.values(providers)) {
+    if (cfg.prefix && model.startsWith(cfg.prefix)) {
+      return { provider: cfg, model: model.slice(cfg.prefix.length) };
+    }
+  }
+  return { provider: DEFAULT_PROVIDER, model };
+};
+
+// --- Request building ------------------------------------------------------
 
 const resolveRequest = (body) => {
   const { provider, model } = pickProvider(body.model);
@@ -13,29 +53,35 @@ const resolveRequest = (body) => {
   };
 };
 
-const throwIfBad = async (res) => {
-  if (res.ok) return;
-  const text = await res.text().catch(() => "");
-  const err = new Error(`API ${res.status}: ${text.slice(0, 300)}`);
-  err.status = res.status;
-  err.retryAfter = Number(res.headers.get("retry-after")) || 0;
-  throw err;
-};
+// --- Retry logic ----------------------------------------------------------
 
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
 const MAX_ATTEMPTS = 5;
 const ESC = "\x1b[";
-
-// Clear current line and move to start (for cleaning up spinner before writing)
 const clearLine = () => process.stdout.write(`\r${ESC}K`);
+
+const backoff = (attempt) => 250 * 2 ** attempt + Math.floor(Math.random() * 250);
+
+const sleep = (ms, signal) =>
+  new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
+    const t = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(t);
+      reject(signal.reason);
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 
 const fetchWithRetry = async (url, init) => {
   for (let attempt = 0; ; attempt++) {
     try {
       const res = await fetch(url, init);
       if (res.ok || !RETRY_STATUS.has(res.status) || attempt >= MAX_ATTEMPTS - 1) return res;
-      const retryAfter = Number(res.headers.get("retry-after")) || 0;
-      const wait = retryAfter * 1000 || backoff(attempt);
+      const wait = (Number(res.headers.get("retry-after")) || 0) * 1000 || backoff(attempt);
       clearLine();
       process.stderr.write(`  retrying in ${Math.round(wait)}ms (HTTP ${res.status}, attempt ${attempt + 2}/${MAX_ATTEMPTS})`);
       await sleep(wait, init.signal);
@@ -54,21 +100,16 @@ const fetchWithRetry = async (url, init) => {
   }
 };
 
-const backoff = (attempt) => 250 * 2 ** attempt + Math.floor(Math.random() * 250);
+const throwIfBad = async (res) => {
+  if (res.ok) return;
+  const text = await res.text().catch(() => "");
+  const err = new Error(`API ${res.status}: ${text.slice(0, 300)}`);
+  err.status = res.status;
+  err.retryAfter = Number(res.headers.get("retry-after")) || 0;
+  throw err;
+};
 
-const sleep = (ms, signal) =>
-  new Promise((resolve, reject) => {
-    if (signal?.aborted) return reject(signal.reason);
-    const t = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(t);
-      reject(signal.reason);
-    };
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
+// --- Complete (non-streaming) ---------------------------------------------
 
 export async function complete(body, { signal } = {}) {
   const p = resolveRequest(body);
@@ -81,6 +122,8 @@ export async function complete(body, { signal } = {}) {
   await throwIfBad(res);
   return res.json();
 }
+
+// --- Stream (SSE generator) -----------------------------------------------
 
 export async function* stream(body, { signal } = {}) {
   const p = resolveRequest({ ...body, stream: true });
@@ -98,27 +141,16 @@ export async function* stream(body, { signal } = {}) {
 
   for await (const chunk of res.body) {
     buffer += decoder.decode(chunk, { stream: true });
-    
-    // Process line by line to handle events split across chunks
     const lines = buffer.split("\n");
-    // Keep the last (potentially incomplete) line in buffer
     buffer = lines.pop() ?? "";
-    
     for (const line of lines) {
       lineBuffer += line;
-      
-      // Empty line means end of SSE event
       if (line === "") {
-        // Parse the accumulated event data
-        const dataMatch = lineBuffer.match(/data: (.+)/);
-        if (dataMatch) {
-          const payload = dataMatch[1].trim();
+        const m = lineBuffer.match(/data: (.+)/);
+        if (m) {
+          const payload = m[1].trim();
           if (payload === "[DONE]") return;
-          try {
-            yield JSON.parse(payload);
-          } catch {
-            // skip malformed chunk
-          }
+          try { yield JSON.parse(payload); } catch {}
         }
         lineBuffer = "";
       } else {
@@ -126,20 +158,102 @@ export async function* stream(body, { signal } = {}) {
       }
     }
   }
-  
-  // Process any remaining data
   if (buffer) {
     lineBuffer += buffer;
-    const dataMatch = lineBuffer.match(/data: (.+)/);
-    if (dataMatch) {
-      const payload = dataMatch[1].trim();
+    const m = lineBuffer.match(/data: (.+)/);
+    if (m) {
+      const payload = m[1].trim();
       if (payload !== "[DONE]") {
-        try {
-          yield JSON.parse(payload);
-        } catch {
-          // skip malformed chunk
-        }
+        try { yield JSON.parse(payload); } catch {}
       }
     }
   }
+}
+
+// --- Streaming completion with UI ----------------------------------------
+
+export class Interrupted extends Error {
+  constructor() {
+    super("interrupted");
+    this.name = "Interrupted";
+  }
+}
+
+export async function streamCompletion({ model, messages, toolSchemas, usage }, signal) {
+  const chunks = stream(
+    { model, messages, tools: toolSchemas, stream_options: { include_usage: true } },
+    { signal }
+  );
+
+  let content = "";
+  const toolAcc = [];
+  let started = false;
+  let responseUsage = null;
+  let lineBuf = "";
+  const spin = ui.spinner("thinking");
+
+  const flushLines = (final = false) => {
+    let idx;
+    while ((idx = lineBuf.indexOf("\n")) !== -1) {
+      process.stdout.write("  " + ui.renderMarkdownLine(lineBuf.slice(0, idx)) + "\n");
+      lineBuf = lineBuf.slice(idx + 1);
+    }
+    if (final && lineBuf) {
+      process.stdout.write("  " + ui.renderMarkdownLine(lineBuf) + "\n");
+      lineBuf = "";
+    }
+  };
+
+  try {
+    ui.resetMarkdown();
+    for await (const chunk of chunks) {
+      if (signal?.aborted) throw new Interrupted();
+      if (chunk.usage) responseUsage = chunk.usage;
+      const choice = chunk.choices?.[0];
+      if (!choice) continue;
+      const delta = choice.delta || {};
+
+      if (delta.content) {
+        if (!started) {
+          spin.stop();
+          process.stdout.write(`\n${ui.header()}\n`);
+          started = true;
+        }
+        lineBuf += delta.content;
+        content += delta.content;
+        flushLines();
+      }
+
+      if (delta.tool_calls) {
+        if (!started) spin.stop();
+        for (const tc of delta.tool_calls) {
+          const i = tc.index ?? 0;
+          toolAcc[i] ||= { id: "", type: "function", function: { name: "", arguments: "" } };
+          if (tc.id) toolAcc[i].id = tc.id;
+          if (tc.function?.name) toolAcc[i].function.name += tc.function.name;
+          if (tc.function?.arguments) toolAcc[i].function.arguments += tc.function.arguments;
+        }
+      }
+    }
+  } finally {
+    spin.stop();
+    flushLines(true);
+  }
+
+  if (started) process.stdout.write("\n");
+  const toolCalls = toolAcc.filter(Boolean);
+
+  if (responseUsage) {
+    usage.prompt += responseUsage.prompt_tokens || 0;
+    usage.completion += responseUsage.completion_tokens || 0;
+    usage.lastPrompt = responseUsage.prompt_tokens || 0;
+  }
+
+  return {
+    message: {
+      role: "assistant",
+      content: content || null,
+      ...(toolCalls.length ? { tool_calls: toolCalls } : {}),
+    },
+  };
 }
