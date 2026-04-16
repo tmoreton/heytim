@@ -1,5 +1,6 @@
 // Custom tool loader - loads user-defined tools from $TIM_DIR/tools/*.js
 // Tools are ES modules that export: schema (OpenAI function spec) and run(args, ctx)
+// Optionally export requiredEnv (string or array of env var names) for conditional loading
 
 import fs from "node:fs";
 import path from "node:path";
@@ -11,6 +12,13 @@ const toolsDir = () => path.join(timDir(), "tools");
 
 // Cache loaded tools
 let customToolsCache = null;
+
+// Check if tool's required env vars are available
+function hasRequiredEnv(required) {
+  if (!required) return true;
+  const vars = Array.isArray(required) ? required : [required];
+  return vars.every(v => process.env[v]);
+}
 
 export function getCustomToolsDir() {
   return toolsDir();
@@ -27,6 +35,7 @@ export async function loadCustomTools() {
   
   const dir = toolsDir();
   const tools = {};
+  const skipped = [];
   
   try {
     const files = fs.readdirSync(dir).filter(f => f.endsWith(".js"));
@@ -43,6 +52,12 @@ export async function loadCustomTools() {
         
         if (!module.schema || !module.run) {
           console.error(`[tim] Tool "${name}" missing schema or run export`);
+          continue;
+        }
+
+        // Skip tools that require env vars that aren't set
+        if (module.requiredEnv && !hasRequiredEnv(module.requiredEnv)) {
+          skipped.push(name);
           continue;
         }
         
@@ -64,6 +79,10 @@ export async function loadCustomTools() {
       } catch (e) {
         console.error(`[tim] Failed to load tool "${name}": ${e.message}`);
       }
+    }
+    
+    if (skipped.length) {
+      console.log(`[tim] Skipped ${skipped.length} tool(s) due to missing env: ${skipped.join(", ")}`);
     }
   } catch {
     // Dir doesn't exist, return empty
@@ -129,6 +148,10 @@ export function deleteTool(name) {
 // Template for new tools
 export const toolTemplate = `// Custom tool: {{name}}
 // Edit this file to implement your tool logic
+
+// Optional: export required env var name(s) to conditionally load this tool
+// export const requiredEnv = "API_KEY_NAME";
+// export const requiredEnv = ["KEY1", "KEY2"]; // for multiple required keys
 
 export const schema = {
   type: "function",

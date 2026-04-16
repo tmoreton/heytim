@@ -2,9 +2,11 @@
 // Manages conversation state, calls the LLM, executes tool calls, caches results.
 // Exports: createAgent() factory + a default instance whose methods are re-exported
 // for backward compatibility (agentTurn, compact, resetMessages, etc).
+// Also exports loadAgents() for loading agent profiles from $TIM_DIR/agents/*.md
 
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { getTools, getToolSchemas } from "./tools/index.js";
 import { loadProjectContext } from "./config.js";
 import { createSession, save as saveSession } from "./session.js";
@@ -13,6 +15,58 @@ import { complete, streamCompletion, Interrupted } from "./llm.js";
 import { ToolCache } from "./cache.js";
 import { isPlanMode } from "./permissions.js";
 import * as ui from "./ui.js";
+
+// --- Agent profile loading -------------------------------------------------
+
+const timDir = () => process.env.TIM_DIR || path.join(os.homedir(), ".tim");
+const timPath = (...parts) => path.join(timDir(), ...parts);
+
+const parseFrontmatter = (src) => {
+  const m = src.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  if (!m) return { meta: {}, body: src.trim() };
+  const meta = {};
+  for (const line of m[1].split("\n")) {
+    const kv = line.match(/^(\w+):\s*(.*)$/);
+    if (!kv) continue;
+    let v = kv[2].trim();
+    if (v.startsWith("[") && v.endsWith("]"))
+      v = v.slice(1, -1).split(",").map((s) => s.trim()).filter(Boolean);
+    meta[kv[1]] = v;
+  }
+  return { meta, body: m[2].trim() };
+};
+
+const readDir = (dir) => {
+  try {
+    return fs.readdirSync(dir).filter((f) => f.endsWith(".md"));
+  } catch {
+    return [];
+  }
+};
+
+export function loadAgents() {
+  const agents = {};
+  const dirs = [
+    timPath("agents"),
+    path.join(process.cwd(), ".tim", "agents"),
+  ];
+  for (const dir of dirs) {
+    for (const file of readDir(dir)) {
+      const full = path.join(dir, file);
+      const { meta, body } = parseFrontmatter(fs.readFileSync(full, "utf8"));
+      const name = meta.name || path.basename(file, ".md");
+      agents[name] = {
+        name,
+        description: meta.description || "",
+        model: meta.model || null,
+        tools: Array.isArray(meta.tools) ? meta.tools : null, // null = all
+        systemPrompt: body,
+        source: full,
+      };
+    }
+  }
+  return agents;
+}
 
 const PLAN_PREFIX =
   "[PLAN MODE] Research freely with read_file / grep / glob / list_files, " +

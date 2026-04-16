@@ -12,7 +12,7 @@ import {
   getSessionId,
 } from "./agent.js";
 import { list as listSessions } from "./session.js";
-import { loadAgents } from "./agents.js";
+import { loadAgents } from "./agent.js";
 import { setEnv, unsetEnv, listEnv, mask } from "./env.js";
 import { setAutoAccept, isAutoAccept, setPlanMode, isPlanMode } from "./permissions.js";
 import { c, info, success, error, exitHint } from "./ui.js";
