@@ -1,7 +1,4 @@
-// The ReAct loop runtime.
-// Manages conversation state, calls the LLM, executes tool calls, caches results.
-// Exports: createAgent() factory + a default instance whose methods are re-exported
-// for backward compatibility (agentTurn, compact, resetMessages, etc).
+// The ReAct loop runtime — manages conversation state, calls the LLM, runs tools.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -387,41 +384,14 @@ You have tools: ${toolList}.
 
 let main = null;
 let mainReady = null;
+const ensureMain = () => (mainReady ||= createAgent().then((a) => { main = a; }));
+const lazy = (m) => async (...args) => { await ensureMain(); return main[m](...args); };
 
-// Lazy init for async createAgent
-function ensureMain() {
-  if (!mainReady) {
-    mainReady = createAgent().then(agent => { main = agent; });
-  }
-  return mainReady;
-}
-
-export const agentTurn = async (input, signal, attachments) => {
-  await ensureMain();
-  return main.turn(input, signal, attachments);
-};
-export const compact = async () => {
-  await ensureMain();
-  return main.compact();
-};
-export const resetMessages = async () => {
-  await ensureMain();
-  return main.reset();
-};
-export const resumeSession = async (data) => {
-  await ensureMain();
-  return main.resume(data);
-};
-export const getModel = async () => {
-  await ensureMain();
-  return main.getModel();
-};
-export const setModel = async (m) => {
-  await ensureMain();
-  return main.setModel(m);
-};
-export const getSessionId = async () => {
-  await ensureMain();
-  return main.getSessionId();
-};
+export const agentTurn     = lazy("turn");
+export const compact       = lazy("compact");
+export const resetMessages = lazy("reset");
+export const resumeSession = lazy("resume");
+export const getModel      = lazy("getModel");
+export const setModel      = lazy("setModel");
+export const getSessionId  = lazy("getSessionId");
 export const hasProjectContext = () => !!loadProjectContext();

@@ -1,7 +1,7 @@
 // spawn_workflow: run a workflow as a short-lived sub-session. The workflow
 // declares which agent owns it (identity, memory, default tools) and adds a
 // task-specific system prompt + optional tool-allowlist override. Results
-// are returned inline to the caller — no knowledge/file side-effects.
+// are returned inline to the caller — no files written on the side.
 
 import { createAgent } from "../react.js";
 import { loadWorkflows } from "../workflows.js";

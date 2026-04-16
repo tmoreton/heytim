@@ -113,6 +113,14 @@ const printHelp = () => {
 // A command is `/word` (optionally followed by args) — not a file path like `/Users/...`.
 export const isCommand = (input) => /^\/[a-zA-Z][a-zA-Z0-9_-]*(\s|$)/.test(input);
 
+const runAndPrintLast = async (sub, task, label) => {
+  await sub.turn(task);
+  const last = sub.state.messages
+    .filter((m) => m.role === "assistant" && !m.tool_calls?.length && m.content).pop();
+  success(`${label} done`);
+  if (last?.content) { console.log(); console.log(last.content); }
+};
+
 export async function runCommand(input) {
   const [cmd, ...rest] = input.slice(1).split(/\s+/);
   const arg = rest.join(" ").trim();
@@ -289,16 +297,7 @@ export async function runCommand(input) {
           : agent.systemPrompt,
       };
       info(`→ running workflow ${workflowName} (agent: ${agent.name})`);
-      const sub = await createAgent(subProfile);
-      await sub.turn(task);
-      const last = sub.state.messages
-        .filter((m) => m.role === "assistant" && !m.tool_calls?.length && m.content)
-        .pop();
-      success(`${workflowName} done`);
-      if (last?.content) {
-        console.log();
-        console.log(last.content);
-      }
+      await runAndPrintLast(await createAgent(subProfile), task, workflowName);
       return;
     }
     case "agent": {
@@ -325,16 +324,7 @@ export async function runCommand(input) {
       }
       if (!task) return error("please provide a task or file path for the agent");
       info(`→ running ${agentName} agent...`);
-      const sub = await createAgent(profile);
-      await sub.turn(task);
-      const last = sub.state.messages
-        .filter((m) => m.role === "assistant" && !m.tool_calls?.length && m.content)
-        .pop();
-      success(`${agentName} done`);
-      if (last?.content) {
-        console.log();
-        console.log(last.content);
-      }
+      await runAndPrintLast(await createAgent(profile), task, agentName);
       return;
     }
     case "yolo":

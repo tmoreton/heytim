@@ -4,6 +4,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import readline from "node:readline";
+import { spawnSync } from "node:child_process";
 
 // Standard tim dir — single root for config, sessions, agents, and any
 // user-specific output. Honors $TIM_DIR override, defaults to ~/.tim.
@@ -34,6 +36,46 @@ import { loadTriggers, writeTrigger, deleteTrigger, triggerExists, getTriggerSta
 import { start } from "./start.js";
 import * as ui from "./ui.js";
 
+// --- helpers ---
+const ask = (rl, q, def) => new Promise((res) => {
+  const hint = def ? ` (${def})` : "";
+  rl.question(`  ${q}${hint}: `, (a) => res(a.trim() || def || ""));
+});
+
+const openPrompt = async (filepath) => {
+  const editor = process.env.EDITOR || process.env.VISUAL;
+  if (!editor) return;
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const ans = await new Promise((res) => rl.question("  Open in editor? (Y/n): ", res));
+  rl.close();
+  if (!ans.trim() || ans.trim().toLowerCase() !== "n") spawnSync(editor, [filepath], { stdio: "inherit" });
+};
+
+const mergeProfile = (agent, workflow) => ({
+  ...agent,
+  tools: workflow.tools || agent.tools,
+  systemPrompt: workflow.systemPrompt
+    ? `${agent.systemPrompt}\n\n## Current task — ${workflow.name}\n\n${workflow.systemPrompt}`
+    : agent.systemPrompt,
+});
+
+const editFile = (filepath) => {
+  spawnSync(process.env.EDITOR || process.env.VISUAL || "vi", [filepath], { stdio: "inherit" });
+};
+
+const runAndPrint = async (sub, task) => {
+  try {
+    await sub.turn(task);
+    const last = sub.state.messages
+      .filter((m) => m.role === "assistant" && !m.tool_calls?.length && m.content).pop();
+    if (last?.content) console.log(last.content);
+    process.exit(0);
+  } catch (e) {
+    console.error(`ERROR: ${e.message}`);
+    process.exit(1);
+  }
+};
+
 // --- argv handling ---
 const argv = process.argv.slice(2);
 
@@ -63,25 +105,20 @@ if (argv[0] === "agent") {
   }
 
   if (sub === "new") {
-    const readline = await import("node:readline");
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    const ask = (q, def) => new Promise(res => {
-      const hint = def ? ` (${def})` : "";
-      rl.question(`  ${q}${hint}: `, ans => res(ans.trim() || def || ""));
-    });
 
     console.log();
     console.log("  Creating a new agent. A memory file will be bootstrapped at $TIM_DIR/memory/<name>.md.\n");
 
-    const agentName   = await ask("Name (kebab-case, e.g. youtube)", name || "");
+    const agentName = await ask(rl, "Name (kebab-case, e.g. youtube)", name || "");
     if (!agentName) { console.error("  name is required"); process.exit(1); }
     if (agentExists(agentName)) {
       console.error(`  agent "${agentName}" already exists at ${getAgentsDir()}/${agentName}.md`);
       process.exit(1);
     }
 
-    const description = await ask("What does it do? (one line)", "");
-    const toolsInput  = await ask("Tools (comma-separated, or 'all')", "all");
+    const description = await ask(rl, "What does it do? (one line)", "");
+    const toolsInput  = await ask(rl, "Tools (comma-separated, or 'all')", "all");
     const tools       = toolsInput === "all" ? "all" : toolsInput;
 
     const defaultPrompt =
@@ -93,8 +130,7 @@ if (argv[0] === "agent") {
       `3. Synthesize results and reply to the user.\n` +
       `4. If you learned something worth keeping across runs, call append_memory.\n`;
 
-    const systemPrompt = await ask("Brief system prompt (or press enter for a starter template)", "");
-
+    const systemPrompt = await ask(rl, "Brief system prompt (or press enter for a starter template)", "");
     rl.close();
 
     const filepath = writeAgentProfile(agentName, {
@@ -104,15 +140,7 @@ if (argv[0] === "agent") {
 
     console.log();
     console.log(`  ✓ created ${filepath}`);
-
-    const { spawnSync } = await import("node:child_process");
-    const editor = process.env.EDITOR || process.env.VISUAL;
-    if (editor) {
-      const { default: readline2 } = await import("node:readline");
-      const rl2 = readline2.createInterface({ input: process.stdin, output: process.stdout });
-      const openIt = await new Promise(res => rl2.question("  Open in editor? (Y/n): ", ans => { rl2.close(); res(!ans.trim() || ans.trim().toLowerCase() !== "n"); }));
-      if (openIt) spawnSync(editor, [filepath], { stdio: "inherit" });
-    }
+    await openPrompt(filepath);
 
     console.log(`\n  Run it: tim run ${agentName} "your task here"`);
     console.log(`  Add a workflow: tim workflow new\n`);
@@ -123,8 +151,7 @@ if (argv[0] === "agent") {
     if (!name) { console.error("usage: tim agent edit <name>"); process.exit(1); }
     const filepath = `${getAgentsDir()}/${name}.md`;
     if (!fs.existsSync(filepath)) { console.error(`agent "${name}" not found`); process.exit(1); }
-    const { spawnSync } = await import("node:child_process");
-    spawnSync(process.env.EDITOR || process.env.VISUAL || "vi", [filepath], { stdio: "inherit" });
+    editFile(filepath);
     console.log(`  ✓ saved ${filepath}`);
     process.exit(0);
   }
@@ -161,17 +188,12 @@ if (argv[0] === "workflow") {
   }
 
   if (sub === "new") {
-    const readline = await import("node:readline");
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    const ask = (q, def) => new Promise(res => {
-      const hint = def ? ` (${def})` : "";
-      rl.question(`  ${q}${hint}: `, ans => res(ans.trim() || def || ""));
-    });
 
     console.log();
     console.log("  Creating a new workflow (task spec for an agent).\n");
 
-    const workflowName = await ask("Name (kebab-case, e.g. youtube-daily-report)", name || "");
+    const workflowName = await ask(rl, "Name (kebab-case, e.g. youtube-daily-report)", name || "");
     if (!workflowName) { console.error("  name is required"); process.exit(1); }
     if (workflowExists(workflowName)) {
       console.error(`  workflow "${workflowName}" already exists at ${getWorkflowsDir()}/${workflowName}.md`);
@@ -182,31 +204,22 @@ if (argv[0] === "workflow") {
     if (!agents.length) { console.error("  no agents — run: tim agent new"); process.exit(1); }
     console.log(`  Available agents: ${agents.join(", ")}`);
 
-    const agent       = await ask("Agent that owns this workflow", agents[0]);
+    const agent = await ask(rl, "Agent that owns this workflow", agents[0]);
     if (!loadAgents()[agent]) { console.error(`  unknown agent: ${agent}`); process.exit(1); }
 
-    const description = await ask("What does this workflow do? (one line)", "");
-    const toolsInput  = await ask("Tools override (comma-separated, or blank for agent defaults)", "");
+    const description = await ask(rl, "What does this workflow do? (one line)", "");
+    const toolsInput  = await ask(rl, "Tools override (comma-separated, or blank for agent defaults)", "");
     const tools       = toolsInput ? toolsInput.split(",").map(s => s.trim()).filter(Boolean) : null;
-    const precheck    = await ask("Precheck tool (optional — skip run if it returns empty)", "");
-    const task        = await ask("Default task prompt (used when fired without override)", "");
-    const systemPrompt = await ask("System prompt extension (task-specific instructions)", "");
-
+    const precheck    = await ask(rl, "Precheck tool (optional — skip run if it returns empty)", "");
+    const task        = await ask(rl, "Default task prompt (used when fired without override)", "");
+    const systemPrompt = await ask(rl, "System prompt extension (task-specific instructions)", "");
     rl.close();
 
     const filepath = writeWorkflow(workflowName, { description, agent, task, precheck: precheck || null, tools, systemPrompt });
 
     console.log();
     console.log(`  ✓ created ${filepath}`);
-
-    const { spawnSync } = await import("node:child_process");
-    const editor = process.env.EDITOR || process.env.VISUAL;
-    if (editor) {
-      const { default: readline2 } = await import("node:readline");
-      const rl2 = readline2.createInterface({ input: process.stdin, output: process.stdout });
-      const openIt = await new Promise(res => rl2.question("  Open in editor? (Y/n): ", ans => { rl2.close(); res(!ans.trim() || ans.trim().toLowerCase() !== "n"); }));
-      if (openIt) spawnSync(editor, [filepath], { stdio: "inherit" });
-    }
+    await openPrompt(filepath);
 
     console.log(`\n  Run it: tim run ${workflowName} "override task (optional)"\n`);
     process.exit(0);
@@ -216,8 +229,7 @@ if (argv[0] === "workflow") {
     if (!name) { console.error("usage: tim workflow edit <name>"); process.exit(1); }
     const filepath = `${getWorkflowsDir()}/${name}.md`;
     if (!fs.existsSync(filepath)) { console.error(`workflow "${name}" not found`); process.exit(1); }
-    const { spawnSync } = await import("node:child_process");
-    spawnSync(process.env.EDITOR || process.env.VISUAL || "vi", [filepath], { stdio: "inherit" });
+    editFile(filepath);
     console.log(`  ✓ saved ${filepath}`);
     process.exit(0);
   }
@@ -318,17 +330,12 @@ if (argv[0] === "schedule") {
   }
 
   if (sub === "add") {
-    const readline = await import("node:readline");
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    const ask = (q, def) => new Promise((res) => {
-      const hint = def ? ` (${def})` : "";
-      rl.question(`  ${q}${hint}: `, (a) => res(a.trim() || def || ""));
-    });
 
     console.log();
     console.log("  Creating a new scheduled trigger.\n");
 
-    const name = await ask("Name (kebab-case, e.g. morning-digest)", argv[2] || "");
+    const name = await ask(rl, "Name (kebab-case, e.g. morning-digest)", argv[2] || "");
     if (!name) { console.error("  name is required"); process.exit(1); }
     if (triggerExists(name)) {
       console.error(`  trigger "${name}" already exists at ${getTriggersDir()}/${name}.md`);
@@ -339,16 +346,13 @@ if (argv[0] === "schedule") {
     if (!workflows.length) { console.error("  no workflows — run: tim workflow new"); process.exit(1); }
 
     console.log(`  Available workflows: ${workflows.join(", ")}`);
-    const workflow = await ask("Workflow to run", workflows[0]);
+    const workflow = await ask(rl, "Workflow to run", workflows[0]);
     if (!loadWorkflows()[workflow]) { console.error(`  unknown workflow: ${workflow}`); process.exit(1); }
 
     console.log(`  Cron examples: "0 7 * * *" (7am daily), "*/5 * * * *" (every 5min), "0 9 * * 1-5" (9am weekdays)`);
-    const schedule = await ask("Schedule (cron expression)", "0 7 * * *");
-
-    const task = await ask("Task override (blank = use workflow's default task)", "");
-
-    const description = await ask("Description (optional)", "");
-
+    const schedule = await ask(rl, "Schedule (cron expression)", "0 7 * * *");
+    const task = await ask(rl, "Task override (blank = use workflow's default task)", "");
+    const description = await ask(rl, "Description (optional)", "");
     rl.close();
 
     const filepath = writeTrigger(name, { schedule, workflow, task, description });
@@ -378,14 +382,7 @@ if (argv[0] === "schedule") {
     const agent = loadAgents()[workflow.agent];
     if (!agent) { console.error(`agent "${workflow.agent}" not found`); process.exit(1); }
     setAutoAccept(true);
-    const subProfile = {
-      ...agent,
-      tools: workflow.tools || agent.tools,
-      systemPrompt: workflow.systemPrompt
-        ? `${agent.systemPrompt}\n\n## Current task — ${workflow.name}\n\n${workflow.systemPrompt}`
-        : agent.systemPrompt,
-    };
-    const sub = await createAgent(subProfile);
+    const sub = await createAgent(mergeProfile(agent, workflow));
     const task = t.task || workflow.task || `Run the ${workflow.name} workflow.`;
     console.log(`→ firing ${name} (${workflow.name} → ${agent.name})`);
     await sub.turn(task);
@@ -414,25 +411,7 @@ if (argv[0] === "run") {
     const agent = loadAgents()[workflow.agent];
     if (!agent) { console.error(`agent "${workflow.agent}" not found`); process.exit(1); }
     const task = taskArg || workflow.task || `Run the ${workflow.name} workflow.`;
-    const subProfile = {
-      ...agent,
-      tools: workflow.tools || agent.tools,
-      systemPrompt: workflow.systemPrompt
-        ? `${agent.systemPrompt}\n\n## Current task — ${workflow.name}\n\n${workflow.systemPrompt}`
-        : agent.systemPrompt,
-    };
-    const sub = await createAgent(subProfile);
-    try {
-      await sub.turn(task);
-      const last = sub.state.messages
-        .filter((m) => m.role === "assistant" && !m.tool_calls?.length && m.content)
-        .pop();
-      if (last?.content) console.log(last.content);
-      process.exit(0);
-    } catch (e) {
-      console.error(`ERROR: ${e.message}`);
-      process.exit(1);
-    }
+    await runAndPrint(await createAgent(mergeProfile(agent, workflow)), task);
   }
 
   const profile = loadAgents()[name];
@@ -444,18 +423,7 @@ if (argv[0] === "run") {
     console.error(`usage: tim run ${name} "<task>"`);
     process.exit(1);
   }
-  const agent = await createAgent(profile);
-  try {
-    await agent.turn(taskArg);
-    const last = agent.state.messages
-      .filter((m) => m.role === "assistant" && !m.tool_calls?.length && m.content)
-      .pop();
-    if (last?.content) console.log(last.content);
-    process.exit(0);
-  } catch (e) {
-    console.error(`ERROR: ${e.message}`);
-    process.exit(1);
-  }
+  await runAndPrint(await createAgent(profile), taskArg);
 }
 
 if (argv.includes("--yolo")) {
