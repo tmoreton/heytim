@@ -7,7 +7,7 @@ const getKey = () => {
   const k = process.env.FIREWORKS_API_KEY;
   if (!k) {
     throw new Error(
-      "FIREWORKS_API_KEY not set. Export it in your shell, or add `FIREWORKS_API_KEY=...` to ~/.tim/.env",
+      "FIREWORKS_API_KEY not set. Export it in your shell, or run `/env set FIREWORKS_API_KEY=...`",
     );
   }
   return k;

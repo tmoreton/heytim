@@ -5,21 +5,20 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-// Load ~/.tim/.env into process.env (existing env wins)
-const TIM_HOME = path.join(os.homedir(), ".tim");
-const envPath = path.join(TIM_HOME, ".env");
+// Standard tim dir — single root for config, sessions, agents, and any
+// user-specific output. Honors $TIM_DIR override, defaults to ~/.tim.
+process.env.TIM_DIR ||= path.join(os.homedir(), ".tim");
+fs.mkdirSync(process.env.TIM_DIR, { recursive: true });
+
+// Load $TIM_DIR/.env into process.env (existing env wins)
 try {
-  for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
+  for (const line of fs.readFileSync(path.join(process.env.TIM_DIR, ".env"), "utf8").split("\n")) {
     const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/i);
     if (!m || line.trim().startsWith("#")) continue;
     const val = m[2].replace(/^["'](.*)["']$/, "$1");
     if (!process.env[m[1]]) process.env[m[1]] = val;
   }
 } catch {}
-
-// Standard tim dir — agents and tools should write user-specific output here.
-process.env.TIM_DIR ||= TIM_HOME;
-fs.mkdirSync(process.env.TIM_DIR, { recursive: true });
 
 import {
   resumeSession,

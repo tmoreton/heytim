@@ -1,9 +1,9 @@
-// Loads agent profiles from ~/.tim/agents/*.md and ./.tim/agents/*.md.
+// Loads agent profiles from $TIM_DIR/agents/*.md and ./.tim/agents/*.md.
 // Project overrides global. Format: YAML-ish frontmatter + markdown body.
 
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { timPath } from "./paths.js";
 
 const parseFrontmatter = (src) => {
   const m = src.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
@@ -31,7 +31,7 @@ const readDir = (dir) => {
 export function loadAgents() {
   const agents = {};
   const dirs = [
-    path.join(os.homedir(), ".tim", "agents"),
+    timPath("agents"),
     path.join(process.cwd(), ".tim", "agents"),
   ];
   for (const dir of dirs) {

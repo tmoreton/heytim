@@ -1,9 +1,9 @@
-// Loads TIM.md context files: global from ~/.tim/TIM.md + local from ./TIM.md.
+// Loads TIM.md context files: global from $TIM_DIR/TIM.md + local from ./TIM.md.
 // Used to build the system prompt in agent.js.
 
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { timPath } from "./paths.js";
 
 const tryRead = (p) => {
   try {
@@ -15,7 +15,7 @@ const tryRead = (p) => {
 
 export function loadProjectContext() {
   const parts = [];
-  const global = tryRead(path.join(os.homedir(), ".tim", "TIM.md"));
+  const global = tryRead(timPath("TIM.md"));
   if (global) parts.push(`# Global TIM.md\n${global}`);
   const local = tryRead(path.join(process.cwd(), "TIM.md"));
   if (local) parts.push(`# Project TIM.md\n${local}`);

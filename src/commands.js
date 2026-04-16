@@ -27,7 +27,7 @@ const HELP_ROWS = [
   ["/compact", "summarize older messages to free context"],
   ["/sessions", "list saved sessions"],
   ["/agents", "list available sub-agent profiles"],
-  ["/env", "manage ~/.tim/.env (list | set KEY=VAL | unset KEY)"],
+  ["/env", "manage $TIM_DIR/.env (list | set KEY=VAL | unset KEY)"],
   ["/yolo", "toggle auto-accept for edits and bash (USE WITH CARE)"],
   ["/exit", "quit"],
 ];
@@ -135,7 +135,7 @@ export async function runCommand(input) {
       const kv = kvParts.join(" ");
       if (!sub || sub === "list") {
         const entries = listEnv();
-        if (!entries.length) return info("(no env vars in ~/.tim/.env)");
+        if (!entries.length) return info("(no env vars in $TIM_DIR/.env)");
         console.log();
         const pad = Math.max(...entries.map((e) => e.key.length)) + 2;
         for (const e of entries)
@@ -162,7 +162,7 @@ export async function runCommand(input) {
     case "agents": {
       const profiles = Object.values(loadAgents());
       if (!profiles.length) {
-        info("no agents found — add markdown files to ~/.tim/agents/ or ./.tim/agents/");
+        info("no agents found — add markdown files to $TIM_DIR/agents/ or ./.tim/agents/");
         return;
       }
       console.log();

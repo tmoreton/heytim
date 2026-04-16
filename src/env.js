@@ -1,11 +1,11 @@
-// Read/write ~/.tim/.env. Values set here are also pushed into process.env
+// Read/write $TIM_DIR/.env. Values set here are also pushed into process.env
 // so they're available to subsequent tool calls in the same session.
 
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { timPath } from "./paths.js";
 
-const ENV_PATH = path.join(os.homedir(), ".tim", ".env");
+const ENV_PATH = () => timPath(".env");
 
 const parse = (src) => {
   const lines = src.split("\n");
@@ -23,14 +23,14 @@ const parse = (src) => {
 };
 
 const read = () => {
-  try { return parse(fs.readFileSync(ENV_PATH, "utf8")); }
+  try { return parse(fs.readFileSync(ENV_PATH(), "utf8")); }
   catch { return []; }
 };
 
 const write = (entries) => {
-  fs.mkdirSync(path.dirname(ENV_PATH), { recursive: true });
+  fs.mkdirSync(path.dirname(ENV_PATH()), { recursive: true });
   const out = entries.map((e) => e.raw !== undefined ? e.raw : `${e.key}=${e.value}`).join("\n");
-  fs.writeFileSync(ENV_PATH, out.endsWith("\n") ? out : out + "\n", { mode: 0o600 });
+  fs.writeFileSync(ENV_PATH(), out.endsWith("\n") ? out : out + "\n", { mode: 0o600 });
 };
 
 export function setEnv(key, value) {

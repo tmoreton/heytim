@@ -1,13 +1,13 @@
-// Session persistence to ~/.tim/sessions/ as JSON files.
+// Session persistence to $TIM_DIR/sessions/ as JSON files.
 // createSession(), save(), load(), list() — load() supports prefix matching for truncated IDs.
 
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { timPath } from "./paths.js";
 
-const DIR = path.join(os.homedir(), ".tim", "sessions");
+const DIR = () => timPath("sessions");
 
-const ensureDir = () => fs.mkdirSync(DIR, { recursive: true });
+const ensureDir = () => fs.mkdirSync(DIR(), { recursive: true });
 
 const newId = () =>
   new Date().toISOString().replace(/[:.]/g, "-").replace(/Z$/, "");
@@ -27,7 +27,7 @@ export function save(session, messages, usage) {
   ensureDir();
   session.updatedAt = Date.now();
   const data = { ...session, messages, usage };
-  fs.writeFileSync(path.join(DIR, `${session.id}.json`), JSON.stringify(data, null, 2));
+  fs.writeFileSync(path.join(DIR(), `${session.id}.json`), JSON.stringify(data, null, 2));
 }
 
 export function load(id) {
@@ -42,7 +42,7 @@ export function load(id) {
     throw new Error("Invalid session ID");
   }
   
-  const exact = path.join(DIR, `${safeId}.json`);
+  const exact = path.join(DIR(), `${safeId}.json`);
   if (fs.existsSync(exact)) {
     try {
       const data = JSON.parse(fs.readFileSync(exact, "utf8"));
@@ -61,17 +61,17 @@ export function load(id) {
 
   // Prefix match (e.g. user pasted a truncated ID from the status footer).
   const matches = fs
-    .readdirSync(DIR)
+    .readdirSync(DIR())
     .filter((f) => f.endsWith(".json") && f.startsWith(safeId));
   if (matches.length === 1)
-    return JSON.parse(fs.readFileSync(path.join(DIR, matches[0]), "utf8"));
+    return JSON.parse(fs.readFileSync(path.join(DIR(), matches[0]), "utf8"));
   if (matches.length > 1)
     throw new Error(
       `Ambiguous session id "${safeId}" — matches ${matches.length} sessions. Use /sessions to see full IDs.`,
     );
-  const recent = fs.readdirSync(DIR)
+  const recent = fs.readdirSync(DIR())
     .filter(f => f.endsWith('.json'))
-    .sort((a, b) => fs.statSync(path.join(DIR, b)).mtimeMs - fs.statSync(path.join(DIR, a)).mtimeMs)
+    .sort((a, b) => fs.statSync(path.join(DIR(), b)).mtimeMs - fs.statSync(path.join(DIR(), a)).mtimeMs)
     .slice(0, 3)
     .map(f => `  ${f.replace('.json', '')}`)
     .join('\n');
@@ -81,10 +81,10 @@ export function load(id) {
 export function list() {
   ensureDir();
   return fs
-    .readdirSync(DIR)
+    .readdirSync(DIR())
     .filter((f) => f.endsWith(".json"))
     .map((f) => {
-      const data = JSON.parse(fs.readFileSync(path.join(DIR, f), "utf8"));
+      const data = JSON.parse(fs.readFileSync(path.join(DIR(), f), "utf8"));
       return {
         id: data.id,
         cwd: data.cwd,
