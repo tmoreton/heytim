@@ -1,52 +1,64 @@
-// spawn_agent tool: delegates a task to a sub-agent defined in .tim/agents/.
-// Runs the sub-agent's loop to completion. If the profile sets `produces`,
-// the final text is auto-written to knowledge by react.js's turn() loop —
-// this tool just reads back the ref and packages it into a structured return.
+// spawn_workflow: run a workflow as a short-lived sub-session. The workflow
+// declares which agent owns it (identity, memory, default tools) and adds a
+// task-specific system prompt + optional tool-allowlist override. Results
+// are returned inline to the caller — no knowledge/file side-effects.
 
 import { createAgent } from "../react.js";
+import { loadWorkflows } from "../workflows.js";
 import { loadAgents } from "../agents.js";
 import * as ui from "../ui.js";
 
 export const schema = {
   type: "function",
   function: {
-    name: "spawn_agent",
+    name: "spawn_workflow",
     description:
-      "Delegate a task to a specialized sub-agent (worker) defined in .tim/agents/. Returns a JSON string with {summary, knowledgeRef, fullText}. When knowledgeRef is non-null, the worker's full output has been written to that knowledge file — prefer read_knowledge on the ref over relying on summary/fullText. Use for research, focused investigation, or any task with a self-contained scope.",
+      "Run a workflow as a sub-session. Workflows are task specs in $TIM_DIR/workflows/ that inherit identity + memory from their parent agent. Returns the workflow's final reply as a string — use it directly, don't expect a side-effect file. Use for research, focused investigation, or any task with a self-contained scope.",
     parameters: {
       type: "object",
       properties: {
-        agent: { type: "string", description: "Name of the agent profile (see /agents)" },
-        task: { type: "string", description: "The task or question for the sub-agent" },
+        workflow: { type: "string", description: "Workflow name (see /workflows)" },
+        task: { type: "string", description: "The task or question for the workflow" },
       },
-      required: ["agent", "task"],
+      required: ["workflow", "task"],
     },
   },
 };
 
-export async function run({ agent, task }, { signal }) {
-  const profiles = loadAgents();
-  const profile = profiles[agent];
-  if (!profile) {
-    const known = Object.keys(profiles).join(", ") || "(none)";
-    return `ERROR: unknown agent "${agent}". Available: ${known}`;
+export async function run({ workflow, task }, { signal }) {
+  const workflows = loadWorkflows();
+  const w = workflows[workflow];
+  if (!w) {
+    const known = Object.keys(workflows).join(", ") || "(none)";
+    return `ERROR: unknown workflow "${workflow}". Available: ${known}`;
   }
 
-  ui.info(`→ spawning ${agent}`);
-  const sub = await createAgent(profile);
+  const agents = loadAgents();
+  const agent = agents[w.agent];
+  if (!agent) {
+    return `ERROR: workflow "${workflow}" references agent "${w.agent}" which does not exist.`;
+  }
+
+  // Compose a sub-profile: agent identity (for memory auto-load) + workflow's
+  // task-specific instructions appended to the agent's base prompt. Tool
+  // allowlist can be narrowed by the workflow.
+  const subProfile = {
+    ...agent,
+    tools: w.tools || agent.tools,
+    systemPrompt: w.systemPrompt
+      ? `${agent.systemPrompt}\n\n## Current task — ${workflow}\n\n${w.systemPrompt}`
+      : agent.systemPrompt,
+  };
+
+  ui.info(`→ spawning workflow ${workflow} (agent: ${w.agent})`);
+  const sub = await createAgent(subProfile);
   await sub.turn(task, signal);
 
   const last = sub.state.messages
     .filter((m) => m.role === "assistant" && !m.tool_calls?.length && m.content)
     .pop();
   const fullText = last?.content || "";
-  const knowledgeRef = sub.state.lastKnowledgeRef || null;
 
-  ui.info(`← ${agent} done${knowledgeRef ? ` (→ ${knowledgeRef})` : ""}`);
-
-  return JSON.stringify({
-    summary: fullText.slice(0, 500),
-    knowledgeRef,
-    fullText: knowledgeRef ? null : fullText,
-  }, null, 2);
+  ui.info(`← ${workflow} done`);
+  return fullText;
 }

@@ -12,6 +12,8 @@ import {
   createAgent,
 } from "./react.js";
 import { loadAgents } from "./agents.js";
+import { loadWorkflows } from "./workflows.js";
+import { readMemory, memoryPath, listMemories } from "./memory.js";
 import { list as listSessions } from "./session.js";
 import { setEnv, unsetEnv, listEnv, mask } from "./env.js";
 import { setAutoAccept, isAutoAccept, setPlanMode, isPlanMode } from "./permissions.js";
@@ -26,7 +28,6 @@ import {
   generateToolTemplate,
   reloadCustomTools,
 } from "./tools/custom.js";
-import { listDomains, listKnowledge } from "./knowledge.js";
 import { getModelCatalog } from "./llm.js";
 
 const HELP_ROWS = [
@@ -41,9 +42,11 @@ const HELP_ROWS = [
   ["/context", "show whether TIM.md was loaded"],
   ["/compact", "summarize older messages to free context"],
   ["/sessions", "list saved sessions"],
-  ["/agents", "list agents grouped by role (director/worker)"],
-  ["/agent <name> [task/file]", "run a sub-agent directly"],
-  ["/knowledge [domain]", "list knowledge domains, or files in a domain"],
+  ["/agents", "list agents"],
+  ["/agent <name> [task/file]", "run an agent directly"],
+  ["/workflows", "list workflows (task specs for agents)"],
+  ["/workflow <name> [task]", "run a workflow"],
+  ["/memory [agent]", "show memory file path (or contents) for an agent"],
   ["/env", "manage $TIM_DIR/.env (list | set KEY=VAL | unset KEY | email)"],
   ["/yolo", "toggle auto-accept for edits and bash (USE WITH CARE)"],
   ["/plan", "toggle plan mode — model drafts a plan, no edits/bash run"],
@@ -78,7 +81,11 @@ const FLAG_ROWS = [
   ["tim agent list", "list all agents"],
   ["tim agent edit <name>", "open agent profile in $EDITOR"],
   ["tim agent delete <name>", "delete an agent profile"],
-  ["tim run <agent> \"task\"", "run an agent headlessly"],
+  ["tim workflow new [name]", "create a new workflow (task spec)"],
+  ["tim workflow list", "list all workflows"],
+  ["tim workflow edit <name>", "open workflow in $EDITOR"],
+  ["tim workflow delete <name>", "delete a workflow"],
+  ["tim run <workflow|agent> \"task\"", "run a workflow or agent headlessly"],
 ];
 
 const ATTACHMENT_ROWS = [
@@ -236,23 +243,62 @@ export async function runCommand(input) {
         info("no agents found — run: tim agent new");
         return;
       }
-      const directors = profiles.filter(p => p.role === "agent");
-      const workers   = profiles.filter(p => p.role === "workflow");
       const pad = Math.max(...profiles.map((p) => p.name.length)) + 2;
-      const printGroup = (label, list) => {
-        if (!list.length) return;
-        console.log(`  ${c.bold(c.teal(label))}`);
-        for (const p of list) {
-          const prod = p.produces ? c.dim(` → ${p.produces.domain}/${p.produces.name}`) : "";
-          const kd   = p.knowledgeDomain ? c.dim(` [${p.knowledgeDomain}]`) : "";
-          console.log(`    ${c.white(p.name.padEnd(pad))} ${c.dim(p.description)}${kd}${prod}`);
-        }
-        console.log();
-      };
       console.log();
-      printGroup("agents", directors);
-      printGroup("workflows", workers);
+      console.log(`  ${c.bold(c.teal("agents"))}`);
+      for (const p of profiles) {
+        console.log(`    ${c.white(p.name.padEnd(pad))} ${c.dim(p.description)}`);
+      }
+      console.log();
       info("create: tim agent new  •  edit: tim agent edit <name>  •  run: tim run <name> \"task\"");
+      return;
+    }
+    case "workflows": {
+      const workflows = Object.values(loadWorkflows());
+      if (!workflows.length) {
+        info("no workflows found — run: tim workflow new");
+        return;
+      }
+      const pad = Math.max(...workflows.map((w) => w.name.length)) + 2;
+      console.log();
+      console.log(`  ${c.bold(c.teal("workflows"))}`);
+      for (const w of workflows) {
+        const agent = c.dim(` [${w.agent}]`);
+        console.log(`    ${c.white(w.name.padEnd(pad))}${agent} ${c.dim(w.description)}`);
+      }
+      console.log();
+      info("create: tim workflow new  •  run: tim run <workflow> \"override task\"");
+      return;
+    }
+    case "workflow": {
+      const [workflowName, ...taskParts] = arg.split(/\s+/);
+      if (!workflowName) return error("usage: /workflow <name> [task]");
+      const workflow = loadWorkflows()[workflowName];
+      if (!workflow) {
+        const known = Object.keys(loadWorkflows()).join(", ") || "(none)";
+        return error(`unknown workflow "${workflowName}". Available: ${known}`);
+      }
+      const agent = loadAgents()[workflow.agent];
+      if (!agent) return error(`workflow "${workflowName}" references agent "${workflow.agent}" which is missing`);
+      const task = taskParts.join(" ").trim() || workflow.task || `Run the ${workflow.name} workflow.`;
+      const subProfile = {
+        ...agent,
+        tools: workflow.tools || agent.tools,
+        systemPrompt: workflow.systemPrompt
+          ? `${agent.systemPrompt}\n\n## Current task — ${workflow.name}\n\n${workflow.systemPrompt}`
+          : agent.systemPrompt,
+      };
+      info(`→ running workflow ${workflowName} (agent: ${agent.name})`);
+      const sub = await createAgent(subProfile);
+      await sub.turn(task);
+      const last = sub.state.messages
+        .filter((m) => m.role === "assistant" && !m.tool_calls?.length && m.content)
+        .pop();
+      success(`${workflowName} done`);
+      if (last?.content) {
+        console.log();
+        console.log(last.content);
+      }
       return;
     }
     case "agent": {
@@ -353,33 +399,27 @@ export async function runCommand(input) {
       }
       return error("usage: /tool [list|create|edit|delete] <name>");
     }
-    case "knowledge": {
+    case "memory": {
       if (!arg) {
-        const domains = listDomains();
+        const mems = listMemories();
         console.log();
-        console.log("  " + c.bold(c.teal("knowledge domains")));
-        if (domains.length) {
-          for (const d of domains) console.log(`  ${c.teal("•")} ${c.white(d)}`);
+        console.log("  " + c.bold(c.teal("agent memory files")));
+        if (mems.length) {
+          for (const m of mems) console.log(`  ${c.teal("•")} ${c.white(m)}  ${c.dim(memoryPath(m))}`);
         } else {
-          console.log(`  ${c.dim("(no domains yet — agents can create them with write_knowledge)")}`);
+          console.log(`  ${c.dim("(no memory files — create an agent with 'tim agent new')")}`);
         }
         console.log();
-        info("use /knowledge <domain> to list files in a domain");
+        info("use /memory <agent> to print that agent's memory contents");
         return;
       }
-      const files = listKnowledge(arg);
-      if (!files.length) return info(`no knowledge files in '${arg}' domain`);
+      const mem = readMemory(arg);
+      if (!mem) return error(`no memory file for agent "${arg}" — create it with 'tim agent new'`);
       console.log();
-      console.log("  " + c.bold(c.teal(`knowledge: ${arg}`)));
-      const pad = Math.max(...files.map((f) => f.name.length)) + 2;
-      for (const f of files) {
-        const auto = f.load === "auto" ? c.yellow(" [auto-load]") : "";
-        const tags = f.tags?.length ? c.dim(` ${f.tags.join(",")}`) : "";
-        const desc = f.description ? c.dim(` — ${f.description}`) : "";
-        console.log(`  ${c.teal("•")} ${c.white(f.name.padEnd(pad))}${auto}${tags}${desc}`);
-      }
+      console.log("  " + c.bold(c.teal(`memory: ${arg}`)) + "  " + c.dim(mem.path));
       console.log();
-      info("agents use read_knowledge to access these files");
+      console.log(mem.body);
+      console.log();
       return;
     }
     case "exit":

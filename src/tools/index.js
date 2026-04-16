@@ -11,7 +11,7 @@ import { loadCustomTools, reloadCustomTools } from "./custom.js";
 
 import * as webFetch from "./web_fetch.js";
 import * as webSearch from "./web_search.js";
-import * as knowledge from "./knowledge.js";
+import * as memory from "./memory.js";
 import * as email from "./email.js";
 import * as image from "./image.js";
 
@@ -25,14 +25,12 @@ const coreToolDefs = {
   bash: { schema: bash.schema, run: bash.run },
   grep: { schema: search.grepSchema, run: search.grepRun },
   glob: { schema: search.globSchema, run: search.globRun },
-  spawn_agent: { schema: spawn.schema, run: spawn.run },
+  spawn_workflow: { schema: spawn.schema, run: spawn.run },
   web_fetch: { schema: webFetch.schema, run: webFetch.run },
   web_search: { schema: webSearch.schema, run: webSearch.run, requiredEnv: webSearch.requiredEnv },
   generate_image: { schema: image.schema, run: image.run, requiredEnv: image.requiredEnv },
-  list_knowledge: { schema: knowledge.listKnowledgeSchema, run: knowledge.listKnowledgeRun },
-  read_knowledge: { schema: knowledge.readKnowledgeSchema, run: knowledge.readKnowledgeRun },
-  write_knowledge: { schema: knowledge.writeKnowledgeSchema, run: knowledge.writeKnowledgeRun },
-  append_knowledge: { schema: knowledge.appendKnowledgeSchema, run: knowledge.appendKnowledgeRun },
+  update_memory: { schema: memory.updateMemorySchema, run: memory.updateMemoryRun },
+  append_memory: { schema: memory.appendMemorySchema, run: memory.appendMemoryRun },
   notify_email: { schema: email.notifyEmailSchema, run: email.notifyEmailRun },
   receive_email: { schema: email.receiveEmailSchema, run: email.receiveEmailRun },
   create_email_inbox: { schema: email.createInboxSchema, run: email.createInboxRun },

@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getTools, getToolSchemas } from "./tools/index.js";
 import { loadProjectContext } from "./config.js";
-import { getInitialKnowledge, formatKnowledgeForContext, appendKnowledge } from "./knowledge.js";
+import { formatMemoryForContext } from "./memory.js";
 import { createSession, save as saveSession } from "./session.js";
 import { rehydrateReadsFromMessages } from "./tools/fs.js";
 import { stream, streamCompletion, Interrupted } from "./llm.js";
@@ -87,8 +87,6 @@ const PARALLEL_SAFE = new Set([
   "glob",
   "web_fetch",
   "web_search",
-  "list_knowledge",
-  "read_knowledge",
 ]);
 const isParallelSafe = (name) => PARALLEL_SAFE.has(name);
 
@@ -100,15 +98,19 @@ const COMPACT_THRESHOLD = 0.6;
 
 // --- Agent factory ---------------------------------------------------------
 
-// Agents always get these tools so orchestration works even when tools: [...] is set.
-const AGENT_BASE_TOOLS = ["spawn_agent", "list_knowledge", "read_knowledge"];
+// Agents always get these tools so orchestration + memory upkeep work even
+// when a profile sets a restrictive `tools: [...]` allowlist.
+const AGENT_BASE_TOOLS = ["spawn_workflow", "update_memory", "append_memory"];
 
 export async function createAgent(profile = null) {
   const allTools = await getTools();
   const allSchemas = await getToolSchemas();
 
   let toolAllowlist = profile?.tools;
-  if (toolAllowlist && profile?.role === "agent") {
+  // Profiles loaded from $TIM_DIR/agents/ are always identity-level agents;
+  // workflows carry their own allowlist when spawned. We always merge base
+  // tools so memory + spawning aren't accidentally excluded.
+  if (toolAllowlist && profile) {
     toolAllowlist = Array.from(new Set([...toolAllowlist, ...AGENT_BASE_TOOLS]));
   }
 
@@ -150,26 +152,27 @@ etc.) are auto-snapshotted to $TIM_DIR/history/<session-ts>/<relpath> before
 writing. If the user asks to revert or undo a broken change there, list that
 history dir, read_file the snapshot you want, and write_file it back.`;
 
-    // Auto-load knowledge for this agent's domain + explicit cross-domain refs
-    const knowledgeDomain = profile?.knowledgeDomain || profile?.name?.split("-")[0];
-    const knowledgeRefs = profile?.knowledgeRefs || [];
-    const autoKnowledge = knowledgeDomain ? getInitialKnowledge(knowledgeDomain, knowledgeRefs) : [];
-    const knowledgeSection = formatKnowledgeForContext(autoKnowledge);
+    // Auto-load the agent's own memory file (per-agent, not per-domain).
+    const memorySection = profile?.name ? formatMemoryForContext(profile.name) : "";
 
-    const agentPreamble = profile?.role === "agent"
-      ? `\n\n## Orchestration (you are an agent)
-- Workflows are specialised sub-agents you dispatch via spawn_agent. Each call
-  returns a JSON string with {summary, knowledgeRef, fullText}. When knowledgeRef
-  is set, read_knowledge on that ref for the full output instead of relying on summary.
-- Durable facts (user goals, preferences, recurring context) live in the
-  knowledge base. Read before you plan; write (write_knowledge / append_knowledge)
-  when you learn something worth keeping across runs.
-- Work iteratively: dispatch a workflow, read its knowledge output, decide the
-  next step, dispatch again. Don't try to plan everything upfront.`
+    const agentPreamble = profile
+      ? `\n\n## Memory + orchestration
+- Your memory file (above) is yours alone. It's auto-loaded at the start of
+  every run so you already have the context. Do not read it with tools.
+- When you learn something durable (a pattern that worked, a stable user
+  preference, a channel-voice observation) call append_memory with a short
+  semantic section heading. Only use update_memory for a full rewrite when
+  the file has drifted.
+- Do NOT save run summaries, daily reports, or activity logs to memory —
+  those belong in your reply to the user (or in an email you send). Memory
+  is for facts worth remembering across runs.
+- Dispatch task-shaped work to workflows via spawn_workflow. Each workflow
+  is a short-lived sub-agent that returns its findings inline — no files
+  written on the side.`
       : "";
 
     if (profile?.systemPrompt) {
-      return `${profile.systemPrompt}${agentPreamble}${knowledgeSection}\n\nYou are running in ${process.cwd()}. Available tools: ${toolList}.${paths}${selfEdit}${customizations}`;
+      return `${profile.systemPrompt}${agentPreamble}${memorySection}\n\nYou are running in ${process.cwd()}. Available tools: ${toolList}.${paths}${selfEdit}${customizations}`;
     }
     const base = `You are tim, a minimal coding assistant running in ${process.cwd()}.
 You have tools: ${toolList}.
@@ -178,7 +181,7 @@ You have tools: ${toolList}.
 - Use edit_file for surgical changes; write_file only for new files or full rewrites.
 - Keep replies concise. When the task is done, stop calling tools and give a short final answer.`;
     const ctx = loadProjectContext();
-    return (ctx ? `${base}\n\n${ctx}` : base) + paths + selfEdit + customizations + knowledgeSection;
+    return (ctx ? `${base}\n\n${ctx}` : base) + paths + selfEdit + customizations + memorySection;
   };
 
   const reset = () => {
@@ -232,18 +235,6 @@ You have tools: ${toolList}.
               await compactFn();
             }
           }
-          // Auto-write worker output to knowledge (fires whether run standalone or via spawn_agent)
-          if (state.profile?.produces && message.content) {
-            const { domain } = state.profile.produces;
-            const resolved = state.profile.produces.name.replace(/\{date\}/g, new Date().toISOString().split("T")[0]);
-            try {
-              appendKnowledge(domain, resolved, `${state.profile.name}`, message.content);
-              state.lastKnowledgeRef = `${domain}/${resolved}`;
-              ui.info(`→ knowledge written: ${state.lastKnowledgeRef}`);
-            } catch (e) {
-              ui.info(`! produces write failed: ${e.message}`);
-            }
-          }
           return;
         }
 
@@ -265,7 +256,7 @@ You have tools: ${toolList}.
             if (result !== undefined) {
               ui.toolResult(`(cached) ${String(result).slice(0, 100)}`);
             } else {
-              const ctx = { signal, toolCache: state.toolCache };
+              const ctx = { signal, toolCache: state.toolCache, agentName: state.profile?.name || null };
               result = await tool.run(args, ctx);
               let cacheDeps;
               if (result && typeof result === "object" && !Array.isArray(result)) {

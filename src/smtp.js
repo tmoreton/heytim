@@ -104,8 +104,12 @@ const dotStuff = (body) =>
 const formatAddrList = (addrs) =>
   (Array.isArray(addrs) ? addrs : [addrs]).filter(Boolean);
 
-const buildMessage = ({ from, to, cc, subject, text, html, attachments = [] }) => {
+const buildMessage = ({ from, to, cc, subject, text, html, attachments = [], replyTo }) => {
   const rand = () => crypto.randomBytes(8).toString("hex");
+  const replyHeaders = replyTo ? [
+    `In-Reply-To: <${replyTo}>`,
+    `References: <${replyTo}>`,
+  ] : [];
 
   if (!attachments.length) {
     // Simple multipart/alternative (no attachments)
@@ -117,6 +121,7 @@ const buildMessage = ({ from, to, cc, subject, text, html, attachments = [] }) =
       `Subject: ${subject}`,
       `Date: ${new Date().toUTCString()}`,
       `Message-ID: <${rand()}@${os.hostname()}>`,
+      ...replyHeaders,
       `MIME-Version: 1.0`,
       `Content-Type: multipart/alternative; boundary="${boundary}"`,
     ].filter(Boolean);
@@ -148,6 +153,7 @@ const buildMessage = ({ from, to, cc, subject, text, html, attachments = [] }) =
     `Subject: ${subject}`,
     `Date: ${new Date().toUTCString()}`,
     `Message-ID: <${rand()}@${os.hostname()}>`,
+    ...replyHeaders,
     `MIME-Version: 1.0`,
     `Content-Type: multipart/related; boundary="${relBoundary}"`,
   ].filter(Boolean);
@@ -208,7 +214,7 @@ const upgradeToTls = (socket, host) =>
 const supportsStartTls = (lines) =>
   lines.some((l) => /^\d{3}[- ]STARTTLS\b/i.test(l));
 
-export async function sendMail({ to, cc, subject, text, html, attachments = [] }) {
+export async function sendMail({ to, cc, subject, text, html, attachments = [], replyTo }) {
   const cfg = smtpConfig();
   const ehloHost = os.hostname() || "localhost";
   let socket = await connect(cfg);
@@ -247,7 +253,7 @@ export async function sendMail({ to, cc, subject, text, html, attachments = [] }
     await send(socket, "DATA");
     await expect(read, 354);
 
-    const message = buildMessage({ from: cfg.from, to, cc, subject, text, html, attachments });
+    const message = buildMessage({ from: cfg.from, to, cc, subject, text, html, attachments, replyTo });
     await send(socket, dotStuff(message));
     await send(socket, ".");
     await expect(read, 250);

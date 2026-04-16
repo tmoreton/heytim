@@ -9,7 +9,7 @@ export const notifyEmailSchema = {
   type: "function",
   function: {
     name: "notify_email",
-    description: "Send email via AgentMail (if AGENTMAIL_API_KEY+AGENTMAIL_INBOX_ID set), Resend API, or custom SMTP. Renders markdown body to HTML with text fallback. Priority: AgentMail > Resend > SMTP. Supports file attachments — images show inline in the email body when referenced as ![alt](cid:filename.png) in the markdown body.",
+    description: "Send email via AgentMail, Resend, or SMTP. Renders markdown body to HTML. Supports file attachments (images show inline via ![alt](cid:filename.png)) and in-thread replies via reply_to.",
     parameters: {
       type: "object",
       properties: {
@@ -30,6 +30,10 @@ export const notifyEmailSchema = {
           type: "array",
           items: { type: "string" },
           description: "Local file paths to attach. Images referenced as cid:<filename> in the body will display inline."
+        },
+        reply_to: {
+          type: "string",
+          description: "Message ID of an email being replied to. When set, the email is sent in the same thread instead of starting a new one. Use the `id` field from receive_email output."
         },
       },
       required: ["to", "subject", "body"],
@@ -136,7 +140,7 @@ function readAttachments(filePaths = []) {
 
 // ============== RESEND IMPLEMENTATION ==============
 
-async function sendViaResend({ to, cc, subject, text, html, attachments = [] }) {
+async function sendViaResend({ to, cc, subject, text, html, attachments = [], replyTo }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error("RESEND_API_KEY not set");
 
@@ -159,6 +163,9 @@ async function sendViaResend({ to, cc, subject, text, html, attachments = [] }) 
       content_id: a.cid,       // enables cid: inline refs in HTML
     }));
   }
+  if (replyTo) {
+    payload.headers = { ...(payload.headers || {}), "In-Reply-To": `<${replyTo}>`, "References": `<${replyTo}>` };
+  }
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -179,14 +186,14 @@ async function sendViaResend({ to, cc, subject, text, html, attachments = [] }) 
 
 // ============== SMTP IMPLEMENTATION ==============
 
-async function sendViaSmtp({ to, cc, subject, text, html, attachments = [] }) {
+async function sendViaSmtp({ to, cc, subject, text, html, attachments = [], replyTo }) {
   getSmtpConfig();
-  return sendSmtpMail({ to, cc, subject, text, html, attachments });
+  return sendSmtpMail({ to, cc, subject, text, html, attachments, replyTo });
 }
 
 // ============== AGENTMAIL IMPLEMENTATION ==============
 
-const AGENTMAIL_BASE_URL = "https://api.agentmail.to/v1";
+const AGENTMAIL_BASE_URL = "https://api.agentmail.to/v0";
 
 function getAgentMailHeaders() {
   const apiKey = process.env.AGENTMAIL_API_KEY;
@@ -233,7 +240,7 @@ async function fetchAgentMail(endpoint, options = {}) {
 
 // ============== AGENTMAIL SEND ==============
 
-async function sendViaAgentMail({ inboxId, to, cc, subject, text, html, attachments = [] }) {
+async function sendViaAgentMail({ inboxId, to, cc, subject, text, html, attachments = [], replyTo }) {
   // AgentMail doesn't support CID inline — embed images as base64 data URIs instead
   let finalHtml = html;
   if (attachments.length) {
@@ -242,7 +249,6 @@ async function sendViaAgentMail({ inboxId, to, cc, subject, text, html, attachme
       .filter(a => isImage(a.contentType))
       .map(a => `<img src="data:${a.contentType};base64,${a.content}" alt="${a.filename}" style="max-width:100%;display:block;margin:8px 0">`)
       .join("\n");
-    // Replace cid: refs in HTML with data URIs
     for (const a of attachments) {
       finalHtml = finalHtml.replace(new RegExp(`cid:${a.cid}`, "g"), `data:${a.contentType};base64,${a.content}`);
     }
@@ -253,17 +259,22 @@ async function sendViaAgentMail({ inboxId, to, cc, subject, text, html, attachme
 
   const payload = { to, subject, text, html: finalHtml };
   if (cc && cc.length > 0) payload.cc = cc;
+  // in_reply_to threads automatically via the send endpoint. Works for both
+  // internally-sent messages and externally-received ones (where AgentMail's
+  // dedicated /reply endpoint 404s because it only knows its own message IDs).
+  if (replyTo) payload.in_reply_to = replyTo;
 
-  return fetchAgentMail(`/inboxes/${inboxId}/messages`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  const result = await fetchAgentMail(
+    `/inboxes/${encodeURIComponent(inboxId)}/messages/send`,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+  return { id: result.message_id, threadId: result.thread_id, ...result };
 }
 
 // ============== TOOL IMPLEMENTATIONS ==============
 
 export async function notifyEmailRun(args) {
-  const { to, cc, subject, body, attachments: attachmentPaths = [] } = args;
+  const { to, cc, subject, body, attachments: attachmentPaths = [], reply_to: replyTo } = args;
 
   const html = markdownToHtml(body);
   const text = markdownToText(body);
@@ -272,16 +283,50 @@ export async function notifyEmailRun(args) {
   if (process.env.AGENTMAIL_API_KEY && process.env.AGENTMAIL_INBOX_ID) {
     const result = await sendViaAgentMail({
       inboxId: process.env.AGENTMAIL_INBOX_ID,
-      to, cc, subject, text, html, attachments,
+      to, cc, subject, text, html, attachments, replyTo,
     });
-    return `Email sent via AgentMail from ${result.from?.address || process.env.AGENTMAIL_INBOX_ID}. ID: ${result.id}`;
+    const thread = replyTo ? " (in-thread reply)" : "";
+    return `Email sent via AgentMail${thread} from ${process.env.AGENTMAIL_INBOX_ID}. ID: ${result.id}`;
   }
   if (process.env.RESEND_API_KEY) {
-    const result = await sendViaResend({ to, cc, subject, text, html, attachments });
+    const result = await sendViaResend({ to, cc, subject, text, html, attachments, replyTo });
     return `Email sent via Resend. ID: ${result.id}`;
   }
-  await sendViaSmtp({ to, cc, subject, text, html, attachments });
+  await sendViaSmtp({ to, cc, subject, text, html, attachments, replyTo });
   return `Email sent via SMTP to ${Array.isArray(to) ? to.join(", ") : to}`;
+}
+
+// AgentMail returns `from` as a display string like 'Name <addr@example.com>'.
+// Extract the raw email address for whitelist matching.
+function extractEmail(fromStr) {
+  if (!fromStr) return "";
+  const m = String(fromStr).match(/<([^>]+)>/);
+  return (m ? m[1] : fromStr).toLowerCase().trim();
+}
+
+// Local processed-message tracking. Avoids the agent re-responding to the same
+// email every minute. AgentMail's API doesn't expose per-message read/unread
+// flags, so we keep our own ledger at $TIM_DIR/email-processed.json.
+import { timPath } from "../paths.js";
+
+const processedPath = () => timPath("email-processed.json");
+
+function loadProcessed() {
+  try {
+    return new Set(JSON.parse(fs.readFileSync(processedPath(), "utf8")));
+  } catch {
+    return new Set();
+  }
+}
+
+function markProcessed(ids) {
+  const set = loadProcessed();
+  for (const id of ids) set.add(id);
+  try {
+    fs.writeFileSync(processedPath(), JSON.stringify([...set]));
+  } catch (e) {
+    console.warn(`[email] couldn't persist processed IDs: ${e.message}`);
+  }
 }
 
 export async function receiveEmailRun(args = {}) {
@@ -295,59 +340,73 @@ export async function receiveEmailRun(args = {}) {
   }
 
   const limit = args.limit || 10;
-  const markAsRead = args.markAsRead !== false;
+  // Set dryRun: true to inspect without marking messages as processed.
+  // Used by the scheduler's precheck so the agent's later call still sees the emails.
+  const dryRun = args.dryRun === true;
 
-  // Fetch unread messages
-  const inbox = await fetchAgentMail(`/inboxes/${inboxId}`);
+  // List messages in the inbox. The list endpoint returns summaries (preview,
+  // not full body); fetch each message individually for full text/html.
+  const list = await fetchAgentMail(`/inboxes/${encodeURIComponent(inboxId)}/messages`);
+  const messages = list.messages || [];
+  if (!messages.length) return { emails: [], message: "No messages in inbox" };
 
-  if (!inbox.messages || inbox.messages.length === 0) {
-    return { emails: [], message: "No new emails in inbox" };
-  }
+  // Only incoming mail — skip anything we sent ourselves.
+  const incoming = messages.filter((m) => !(m.labels || []).includes("sent"));
 
-  // Filter by whitelist and unread status
-  const filtered = inbox.messages
-    .filter(msg => msg.status === "unread" || !markAsRead)
-    .filter(msg => isWhitelisted(msg.from.address))
+  // Whitelist + not-already-processed filter.
+  const processed = loadProcessed();
+  const filtered = incoming
+    .filter((m) => isWhitelisted(extractEmail(m.from)))
+    .filter((m) => !processed.has(m.message_id))
     .slice(0, limit);
 
-  if (filtered.length === 0) {
-    return { emails: [], message: "No new emails from whitelisted senders" };
+  if (!filtered.length) {
+    return {
+      content: "No new emails in the inbox.",
+      emails: [], count: 0, inbox: inboxId,
+    };
   }
 
-  // Mark as read if requested
-  if (markAsRead) {
-    for (const msg of filtered) {
-      try {
-        await fetchAgentMail(`/inboxes/${inboxId}/messages/${msg.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ status: "read" }),
-        });
-      } catch (e) {
-        console.warn(`[email] Failed to mark message ${msg.id} as read:`, e.message);
-      }
+  // Fetch full body for each whitelisted message (list endpoint only gives previews).
+  const emails = await Promise.all(filtered.map(async (m) => {
+    let full = m;
+    try {
+      full = await fetchAgentMail(`/inboxes/${encodeURIComponent(inboxId)}/messages/${encodeURIComponent(m.message_id)}`);
+    } catch (e) {
+      console.warn(`[email] couldn't fetch full body for ${m.message_id}: ${e.message}`);
     }
-  }
-
-  // Format for return
-  const emails = filtered.map(msg => ({
-    id: msg.id,
-    from: msg.from,
-    to: msg.to,
-    subject: msg.subject,
-    body: msg.body?.text || msg.body?.html || "",
-    date: msg.created_at,
-    attachments: (msg.attachments || []).map(a => ({
-      filename: a.filename,
-      contentType: a.content_type,
-      size: a.size,
-    })),
+    return {
+      id: m.message_id,          // pass this to notify_email's reply_to
+      threadId: m.thread_id,
+      from: full.from || m.from,
+      to: full.to || m.to,
+      subject: full.subject || m.subject || "(no subject)",
+      body: full.text || full.extracted_text || m.preview || "",
+      html: full.html || "",
+      date: m.timestamp || m.created_at,
+    };
   }));
 
+  // Mark these IDs processed immediately so parallel polls don't re-serve them.
+  // (Agent will respond in this turn; if it crashes mid-turn, worst case is we
+  // miss a reply — preferable to looping and emailing the same person every minute.)
+  if (!dryRun) markProcessed(emails.map((e) => e.id));
+
+  // Render a human-readable summary as `content` — the ReAct loop passes this
+  // to the LLM. Include the message `id` so the agent can pass it to reply_to.
+  const content = `${emails.length} new email(s):\n\n` + emails.map((e, i) =>
+    `### Email ${i + 1}\n`
+    + `- From: ${e.from}\n`
+    + `- Subject: ${e.subject}\n`
+    + `- Message ID (for reply_to): ${e.id}\n`
+    + `- Thread ID: ${e.threadId}\n`
+    + `- Date: ${e.date}\n\n`
+    + `${e.body.slice(0, 2000)}\n`
+  ).join("\n---\n\n");
+
   return {
-    emails,
-    count: emails.length,
-    inbox: inbox.address,
-    whitelist: getWhitelist(),
+    content,
+    emails, count: emails.length, inbox: inboxId,
   };
 }
 

@@ -25,10 +25,13 @@ import {
   createAgent,
 } from "./react.js";
 import { loadAgents, writeAgentProfile, agentExists, getAgentsDir, deleteAgentProfile } from "./agents.js";
+import { loadWorkflows, writeWorkflow, workflowExists, getWorkflowsDir, deleteWorkflow } from "./workflows.js";
 import { runCommand } from "./commands.js";
 import { load as loadSession, latest } from "./session.js";
 import { setAutoAccept } from "./permissions.js";
 import { startRepl } from "./repl.js";
+import { loadTriggers, writeTrigger, deleteTrigger, triggerExists, getTriggerState, getTriggersDir } from "./triggers.js";
+import { start } from "./start.js";
 import * as ui from "./ui.js";
 
 // --- argv handling ---
@@ -52,9 +55,7 @@ if (argv[0] === "agent") {
       const pad = Math.max(...agents.map(a => a.name.length)) + 2;
       console.log();
       for (const a of agents) {
-        const role = a.role === "agent" ? " [agent]" : " [workflow]";
-        const prod = a.produces ? ` → ${a.produces.domain}/${a.produces.name}` : "";
-        console.log(`  ${a.name.padEnd(pad)} ${role}${prod}  ${a.description}`);
+        console.log(`  ${a.name.padEnd(pad)} ${a.description}`);
       }
       console.log();
     }
@@ -70,9 +71,9 @@ if (argv[0] === "agent") {
     });
 
     console.log();
-    console.log("  Creating a new agent profile.\n");
+    console.log("  Creating a new agent. A memory file will be bootstrapped at $TIM_DIR/memory/<name>.md.\n");
 
-    const agentName   = await ask("Name (kebab-case, e.g. youtube-shorts)", name || "");
+    const agentName   = await ask("Name (kebab-case, e.g. youtube)", name || "");
     if (!agentName) { console.error("  name is required"); process.exit(1); }
     if (agentExists(agentName)) {
       console.error(`  agent "${agentName}" already exists at ${getAgentsDir()}/${agentName}.md`);
@@ -80,26 +81,24 @@ if (argv[0] === "agent") {
     }
 
     const description = await ask("What does it do? (one line)", "");
-    const roleInput   = await ask("Role — agent (orchestrates workflows) or workflow (single task)", "workflow");
-    const role        = roleInput.startsWith("a") ? "agent" : "workflow";
-    const domain      = await ask("Knowledge domain (e.g. youtube, twitter, user — or leave blank)", "");
-    let produces      = "";
-    if (role === "worker") {
-      produces = await ask(`Produces knowledge? (e.g. ${domain || "youtube"}/research-{date} — or leave blank)`, "");
-    }
     const toolsInput  = await ask("Tools (comma-separated, or 'all')", "all");
     const tools       = toolsInput === "all" ? "all" : toolsInput;
 
-    const defaultPrompt = role === "agent"
-      ? `You are the ${agentName} agent.\n\nWhen given a task:\n1. Read relevant knowledge.\n2. Dispatch workflows via spawn_agent.\n3. Read back knowledgeRefs from workflows.\n4. Synthesize and deliver results.\n`
-      : `You are the ${agentName} workflow.\n\nGiven a task, complete it and return a concise markdown summary.\nYour output will be written to knowledge automatically — do not call write_knowledge yourself.\n`;
+    const defaultPrompt =
+      `You are the ${agentName} agent.\n\n` +
+      `Your memory file (auto-loaded) holds durable context for this domain.\n` +
+      `When given a task:\n` +
+      `1. Use the memory already in your context — don't re-read it.\n` +
+      `2. Dispatch task-shaped work via spawn_workflow.\n` +
+      `3. Synthesize results and reply to the user.\n` +
+      `4. If you learned something worth keeping across runs, call append_memory.\n`;
 
-    const systemPrompt = await ask("Brief system prompt (or press enter for a starter template)", defaultPrompt);
+    const systemPrompt = await ask("Brief system prompt (or press enter for a starter template)", "");
 
     rl.close();
 
     const filepath = writeAgentProfile(agentName, {
-      role, description, domain, produces, tools,
+      description, tools,
       systemPrompt: systemPrompt || defaultPrompt,
     });
 
@@ -115,7 +114,8 @@ if (argv[0] === "agent") {
       if (openIt) spawnSync(editor, [filepath], { stdio: "inherit" });
     }
 
-    console.log(`\n  Run it: tim run ${agentName} "your task here"\n`);
+    console.log(`\n  Run it: tim run ${agentName} "your task here"`);
+    console.log(`  Add a workflow: tim workflow new\n`);
     process.exit(0);
   }
 
@@ -140,23 +140,313 @@ if (argv[0] === "agent") {
   process.exit(1);
 }
 
-// Headless: `tim run <agent> "<task>"` — run a profile to completion and exit.
+// tim workflow new|list|edit|delete
+if (argv[0] === "workflow") {
+  const sub = argv[1];
+  const name = argv[2];
+
+  if (!sub || sub === "list") {
+    const workflows = Object.values(loadWorkflows());
+    if (!workflows.length) {
+      console.log("  no workflows — run: tim workflow new");
+    } else {
+      const pad = Math.max(...workflows.map(w => w.name.length)) + 2;
+      console.log();
+      for (const w of workflows) {
+        console.log(`  ${w.name.padEnd(pad)} [agent: ${w.agent}]  ${w.description}`);
+      }
+      console.log();
+    }
+    process.exit(0);
+  }
+
+  if (sub === "new") {
+    const readline = await import("node:readline");
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const ask = (q, def) => new Promise(res => {
+      const hint = def ? ` (${def})` : "";
+      rl.question(`  ${q}${hint}: `, ans => res(ans.trim() || def || ""));
+    });
+
+    console.log();
+    console.log("  Creating a new workflow (task spec for an agent).\n");
+
+    const workflowName = await ask("Name (kebab-case, e.g. youtube-daily-report)", name || "");
+    if (!workflowName) { console.error("  name is required"); process.exit(1); }
+    if (workflowExists(workflowName)) {
+      console.error(`  workflow "${workflowName}" already exists at ${getWorkflowsDir()}/${workflowName}.md`);
+      process.exit(1);
+    }
+
+    const agents = Object.keys(loadAgents());
+    if (!agents.length) { console.error("  no agents — run: tim agent new"); process.exit(1); }
+    console.log(`  Available agents: ${agents.join(", ")}`);
+
+    const agent       = await ask("Agent that owns this workflow", agents[0]);
+    if (!loadAgents()[agent]) { console.error(`  unknown agent: ${agent}`); process.exit(1); }
+
+    const description = await ask("What does this workflow do? (one line)", "");
+    const toolsInput  = await ask("Tools override (comma-separated, or blank for agent defaults)", "");
+    const tools       = toolsInput ? toolsInput.split(",").map(s => s.trim()).filter(Boolean) : null;
+    const precheck    = await ask("Precheck tool (optional — skip run if it returns empty)", "");
+    const task        = await ask("Default task prompt (used when fired without override)", "");
+    const systemPrompt = await ask("System prompt extension (task-specific instructions)", "");
+
+    rl.close();
+
+    const filepath = writeWorkflow(workflowName, { description, agent, task, precheck: precheck || null, tools, systemPrompt });
+
+    console.log();
+    console.log(`  ✓ created ${filepath}`);
+
+    const { spawnSync } = await import("node:child_process");
+    const editor = process.env.EDITOR || process.env.VISUAL;
+    if (editor) {
+      const { default: readline2 } = await import("node:readline");
+      const rl2 = readline2.createInterface({ input: process.stdin, output: process.stdout });
+      const openIt = await new Promise(res => rl2.question("  Open in editor? (Y/n): ", ans => { rl2.close(); res(!ans.trim() || ans.trim().toLowerCase() !== "n"); }));
+      if (openIt) spawnSync(editor, [filepath], { stdio: "inherit" });
+    }
+
+    console.log(`\n  Run it: tim run ${workflowName} "override task (optional)"\n`);
+    process.exit(0);
+  }
+
+  if (sub === "edit") {
+    if (!name) { console.error("usage: tim workflow edit <name>"); process.exit(1); }
+    const filepath = `${getWorkflowsDir()}/${name}.md`;
+    if (!fs.existsSync(filepath)) { console.error(`workflow "${name}" not found`); process.exit(1); }
+    const { spawnSync } = await import("node:child_process");
+    spawnSync(process.env.EDITOR || process.env.VISUAL || "vi", [filepath], { stdio: "inherit" });
+    console.log(`  ✓ saved ${filepath}`);
+    process.exit(0);
+  }
+
+  if (sub === "delete") {
+    if (!name) { console.error("usage: tim workflow delete <name>"); process.exit(1); }
+    if (!deleteWorkflow(name)) { console.error(`workflow "${name}" not found`); process.exit(1); }
+    console.log(`  ✓ deleted ${name}`);
+    process.exit(0);
+  }
+
+  console.error("usage: tim workflow [new|list|edit|delete] [name]");
+  process.exit(1);
+}
+
+// tim env — feature status: which env vars are set, what's missing, what unlocks what.
+if (argv[0] === "env") {
+  const has = (k) => !!process.env[k] && process.env[k].length > 0;
+  const group = (label, req, opt = []) => ({ label, req, opt });
+
+  const features = [
+    group("Web search",       ["TAVILY_API_KEY"]),
+    group("Image generation", ["OPENROUTER_API_KEY"]),
+    group("AgentMail (send + receive, threaded replies)",
+      ["AGENTMAIL_API_KEY", "AGENTMAIL_INBOX_ID"],
+      ["AGENTMAIL_WHITELIST"]),
+    group("Resend (send fallback)",
+      ["RESEND_API_KEY"],
+      ["RESEND_FROM"]),
+    group("SMTP (send fallback)",
+      ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"],
+      ["SMTP_PORT", "SMTP_SECURE", "SMTP_FROM"]),
+    group("YouTube Data API (used by youtube-daily agent)",
+      ["YOUTUBE_API_KEY", "YOUTUBE_CHANNEL_ID"]),
+  ];
+
+  const missingAll = [];
+  console.log();
+  console.log("  Feature status:");
+  console.log();
+  for (const f of features) {
+    const missingReq = f.req.filter((k) => !has(k));
+    const missingOpt = f.opt.filter((k) => !has(k));
+    const symbol = missingReq.length === 0 ? "✓" : "✗";
+    console.log(`  ${symbol} ${f.label}`);
+    for (const k of f.req) {
+      console.log(`      ${has(k) ? "•" : "✗"} ${k}${has(k) ? "" : "   (required)"}`);
+    }
+    for (const k of f.opt) {
+      console.log(`      ${has(k) ? "•" : "·"} ${k}${has(k) ? "" : "   (optional)"}`);
+    }
+    if (missingReq.length) missingAll.push(...missingReq);
+    console.log();
+  }
+
+  if (missingAll.length) {
+    console.log(`  Missing required: ${missingAll.join(", ")}`);
+  } else {
+    console.log(`  All core features configured.`);
+  }
+  console.log();
+  console.log(`  Set vars: edit ${process.env.TIM_DIR}/.env  or run tim, then: /env set KEY=value`);
+  console.log();
+  process.exit(0);
+}
+
+// tim start — long-running loop that fires triggers on their cron schedule.
+// Run in a terminal tab, tmux/screen session, or via nohup for background use.
+if (argv[0] === "start") {
+  await start();
+  // Keep the process alive forever; setInterval inside start keeps ticking,
+  // and SIGINT/SIGTERM handlers call process.exit cleanly.
+  await new Promise(() => {});
+}
+
+// tim schedule list|add|remove|run|install
+if (argv[0] === "schedule") {
+  const sub = argv[1];
+
+  if (!sub || sub === "list") {
+    const triggers = loadTriggers();
+    if (!triggers.length) {
+      console.log("  no triggers — run: tim schedule add <name>");
+    } else {
+      const pad = Math.max(...triggers.map((t) => t.name.length)) + 2;
+      console.log();
+      for (const t of triggers) {
+        const state = getTriggerState(t.name);
+        const last = state?.lastRunAt
+          ? `  last: ${state.lastRunAt.slice(0, 16).replace("T", " ")} [${state.lastStatus}]`
+          : "";
+        const disabled = t.enabled ? "" : " (disabled)";
+        console.log(`  ${t.name.padEnd(pad)} ${t.schedule.padEnd(14)} → ${t.workflow}${disabled}${last}`);
+      }
+      console.log();
+    }
+    process.exit(0);
+  }
+
+  if (sub === "add") {
+    const readline = await import("node:readline");
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const ask = (q, def) => new Promise((res) => {
+      const hint = def ? ` (${def})` : "";
+      rl.question(`  ${q}${hint}: `, (a) => res(a.trim() || def || ""));
+    });
+
+    console.log();
+    console.log("  Creating a new scheduled trigger.\n");
+
+    const name = await ask("Name (kebab-case, e.g. morning-digest)", argv[2] || "");
+    if (!name) { console.error("  name is required"); process.exit(1); }
+    if (triggerExists(name)) {
+      console.error(`  trigger "${name}" already exists at ${getTriggersDir()}/${name}.md`);
+      process.exit(1);
+    }
+
+    const workflows = Object.keys(loadWorkflows());
+    if (!workflows.length) { console.error("  no workflows — run: tim workflow new"); process.exit(1); }
+
+    console.log(`  Available workflows: ${workflows.join(", ")}`);
+    const workflow = await ask("Workflow to run", workflows[0]);
+    if (!loadWorkflows()[workflow]) { console.error(`  unknown workflow: ${workflow}`); process.exit(1); }
+
+    console.log(`  Cron examples: "0 7 * * *" (7am daily), "*/5 * * * *" (every 5min), "0 9 * * 1-5" (9am weekdays)`);
+    const schedule = await ask("Schedule (cron expression)", "0 7 * * *");
+
+    const task = await ask("Task override (blank = use workflow's default task)", "");
+
+    const description = await ask("Description (optional)", "");
+
+    rl.close();
+
+    const filepath = writeTrigger(name, { schedule, workflow, task, description });
+    console.log();
+    console.log(`  ✓ created ${filepath}`);
+    console.log(`\n  Test it: tim schedule run ${name}`);
+    console.log(`  Start watcher: tim start\n`);
+    process.exit(0);
+  }
+
+  if (sub === "remove") {
+    const name = argv[2];
+    if (!name) { console.error("usage: tim schedule remove <name>"); process.exit(1); }
+    if (!deleteTrigger(name)) { console.error(`trigger "${name}" not found`); process.exit(1); }
+    console.log(`  ✓ deleted ${name}`);
+    process.exit(0);
+  }
+
+  if (sub === "run") {
+    const name = argv[2];
+    if (!name) { console.error("usage: tim schedule run <name>"); process.exit(1); }
+    const triggers = loadTriggers();
+    const t = triggers.find((x) => x.name === name);
+    if (!t) { console.error(`trigger "${name}" not found`); process.exit(1); }
+    const workflow = loadWorkflows()[t.workflow];
+    if (!workflow) { console.error(`workflow "${t.workflow}" not found`); process.exit(1); }
+    const agent = loadAgents()[workflow.agent];
+    if (!agent) { console.error(`agent "${workflow.agent}" not found`); process.exit(1); }
+    setAutoAccept(true);
+    const subProfile = {
+      ...agent,
+      tools: workflow.tools || agent.tools,
+      systemPrompt: workflow.systemPrompt
+        ? `${agent.systemPrompt}\n\n## Current task — ${workflow.name}\n\n${workflow.systemPrompt}`
+        : agent.systemPrompt,
+    };
+    const sub = await createAgent(subProfile);
+    const task = t.task || workflow.task || `Run the ${workflow.name} workflow.`;
+    console.log(`→ firing ${name} (${workflow.name} → ${agent.name})`);
+    await sub.turn(task);
+    console.log(`✓ ${name} done`);
+    process.exit(0);
+  }
+
+  console.error("usage: tim schedule [list|add|remove|run] [name]");
+  process.exit(1);
+}
+
+// Headless: `tim run <workflow|agent> "<task>"` — if the name matches a workflow,
+// run it with the task as override (or its default task). Otherwise treat the
+// name as an agent and pass the task through directly.
 if (argv[0] === "run") {
   const name = argv[1];
-  const task = argv.slice(2).join(" ").trim();
-  if (!name || !task) {
-    console.error('usage: tim run <agent> "<task>"');
+  const taskArg = argv.slice(2).join(" ").trim();
+  if (!name) {
+    console.error('usage: tim run <workflow|agent> "<task>"');
     process.exit(1);
   }
+  setAutoAccept(true);
+
+  const workflow = loadWorkflows()[name];
+  if (workflow) {
+    const agent = loadAgents()[workflow.agent];
+    if (!agent) { console.error(`agent "${workflow.agent}" not found`); process.exit(1); }
+    const task = taskArg || workflow.task || `Run the ${workflow.name} workflow.`;
+    const subProfile = {
+      ...agent,
+      tools: workflow.tools || agent.tools,
+      systemPrompt: workflow.systemPrompt
+        ? `${agent.systemPrompt}\n\n## Current task — ${workflow.name}\n\n${workflow.systemPrompt}`
+        : agent.systemPrompt,
+    };
+    const sub = await createAgent(subProfile);
+    try {
+      await sub.turn(task);
+      const last = sub.state.messages
+        .filter((m) => m.role === "assistant" && !m.tool_calls?.length && m.content)
+        .pop();
+      if (last?.content) console.log(last.content);
+      process.exit(0);
+    } catch (e) {
+      console.error(`ERROR: ${e.message}`);
+      process.exit(1);
+    }
+  }
+
   const profile = loadAgents()[name];
   if (!profile) {
-    console.error(`unknown agent: ${name}`);
+    console.error(`unknown workflow or agent: ${name}`);
     process.exit(1);
   }
-  setAutoAccept(true); // headless: no interactive prompts
+  if (!taskArg) {
+    console.error(`usage: tim run ${name} "<task>"`);
+    process.exit(1);
+  }
   const agent = await createAgent(profile);
   try {
-    await agent.turn(task);
+    await agent.turn(taskArg);
     const last = agent.state.messages
       .filter((m) => m.role === "assistant" && !m.tool_calls?.length && m.content)
       .pop();
