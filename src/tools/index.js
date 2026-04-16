@@ -9,6 +9,7 @@ import * as spawn from "./spawn.js";
 import { loadCustomTools, reloadCustomTools } from "./custom.js";
 
 import * as webFetch from "./web_fetch.js";
+import * as knowledge from "./knowledge.js";
 
 // Core built-in tools (universal, no external API keys)
 const coreTools = {
@@ -21,6 +22,13 @@ const coreTools = {
   glob: { schema: search.globSchema, run: search.globRun },
   spawn_agent: { schema: spawn.schema, run: spawn.run },
   web_fetch: { schema: webFetch.schema, run: webFetch.run },
+  list_knowledge_domains: { schema: knowledge.listDomainsSchema, run: knowledge.listDomainsRun },
+  list_knowledge: { schema: knowledge.listKnowledgeSchema, run: knowledge.listKnowledgeRun },
+  search_knowledge: { schema: knowledge.searchKnowledgeSchema, run: knowledge.searchKnowledgeRun },
+  read_knowledge: { schema: knowledge.readKnowledgeSchema, run: knowledge.readKnowledgeRun },
+  read_knowledge_multi: { schema: knowledge.readMultipleKnowledgeSchema, run: knowledge.readMultipleKnowledgeRun },
+  write_knowledge: { schema: knowledge.writeKnowledgeSchema, run: knowledge.writeKnowledgeRun },
+  append_knowledge: { schema: knowledge.appendKnowledgeSchema, run: knowledge.appendKnowledgeRun },
 };
 
 // Merged tools (core + custom)

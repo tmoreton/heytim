@@ -1,7 +1,8 @@
 // spawn_agent tool: delegates a task to a sub-agent defined in .tim/agents/.
 // Runs the sub-agent's loop to completion and returns its final text response.
 
-import { createAgent, loadAgents } from "../agent.js";
+import { createAgent } from "../react.js";
+import { loadAgents } from "../agents.js";
 import * as ui from "../ui.js";
 
 export const schema = {

@@ -23,10 +23,10 @@ try {
 import {
   resumeSession,
   createAgent,
-} from "./agent.js";
+} from "./react.js";
+import { loadAgents } from "./agents.js";
 import { runCommand } from "./commands.js";
 import { load as loadSession, latest } from "./session.js";
-// loadAgents is exported from agent.js (merged from agents.js)
 import { setAutoAccept } from "./permissions.js";
 import { startRepl } from "./repl.js";
 import * as ui from "./ui.js";

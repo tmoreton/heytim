@@ -53,7 +53,7 @@ you> ^C^C       # exit
 
 ## How It Works
 
-**ReAct Loop** (`src/agent.js`): Stream LLM responses, execute any tool calls, feed results back, repeat until done.
+**ReAct Loop** (`src/react.js`): Stream LLM responses, execute any tool calls, feed results back, repeat until done.
 
 **Tools** (`src/tools/`):
 - `list_files`, `read_file`, `edit_file`, `write_file` — filesystem
@@ -73,12 +73,15 @@ you> ^C^C       # exit
 ```
 src/
 ├── index.js      # entry: REPL, slash commands, multi-line input
-├── agent.js      # ReAct loop, streaming, token tracking
+├── react.js      # ReAct loop, streaming, token tracking
+├── agents.js     # load sub-agent profiles from .tim/agents/*.md
 ├── llm.js        # Fireworks API + SSE parser
 ├── ui.js         # ANSI colors, spinner, markdown
-├── commands.js   # /help, /clear, /compact, /yolo, etc
+├── commands.js   # /help, /clear, /compact, /yolo, /plan, etc
 ├── config.js     # loads TIM.md files
-├── permissions.js# confirm prompts
+├── permissions.js# confirm prompts, auto-accept, plan mode
+├── paths.js      # TIM_SOURCE_ROOT + self-edit guard helpers
+├── history.js    # snapshot $TIM_DIR edits before write
 ├── session.js    # save/load sessions
 └── tools/        # fs, bash, search tools
 ```

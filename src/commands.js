@@ -1,5 +1,5 @@
 // CLI commands (/help, /model, /clear, /sessions, etc).
-// Each command mutates state via agent.js or prints status info.
+// Each command mutates state via react.js or prints status info.
 
 import { getTools } from "./tools/index.js";
 import {
@@ -9,9 +9,10 @@ import {
   hasProjectContext,
   compact,
   getSessionId,
-} from "./agent.js";
+  createAgent,
+} from "./react.js";
+import { loadAgents } from "./agents.js";
 import { list as listSessions } from "./session.js";
-import { loadAgents } from "./agent.js";
 import { setEnv, unsetEnv, listEnv, mask } from "./env.js";
 import { setAutoAccept, isAutoAccept, setPlanMode, isPlanMode } from "./permissions.js";
 import { c, info, success, error, exitHint } from "./ui.js";
@@ -25,6 +26,7 @@ import {
   generateToolTemplate,
   reloadCustomTools,
 } from "./tools/custom.js";
+import { listDomains, listKnowledge } from "./knowledge.js";
 
 const HELP_ROWS = [
   ["/help", "show this help"],
@@ -39,6 +41,8 @@ const HELP_ROWS = [
   ["/compact", "summarize older messages to free context"],
   ["/sessions", "list saved sessions"],
   ["/agents", "list available sub-agent profiles"],
+  ["/agent <name> [task/file]", "run a sub-agent directly"],
+  ["/knowledge [domain]", "list knowledge domains, or files in a domain"],
   ["/env", "manage $TIM_DIR/.env (list | set KEY=VAL | unset KEY)"],
   ["/yolo", "toggle auto-accept for edits and bash (USE WITH CARE)"],
   ["/plan", "toggle plan mode — model drafts a plan, no edits/bash run"],
@@ -183,6 +187,58 @@ export async function runCommand(input) {
       console.log();
       return;
     }
+    case "agent": {
+      const [agentName, ...taskParts] = arg.split(/\s+/);
+      let task = taskParts.join(" ").trim();
+      
+      if (!agentName) {
+        error("usage: /agent <name> [task or file path]");
+        return;
+      }
+      
+      const profiles = loadAgents();
+      const profile = profiles[agentName];
+      if (!profile) {
+        const known = Object.keys(profiles).join(", ") || "(none)";
+        error(`unknown agent "${agentName}". Available: ${known}`);
+        return;
+      }
+      
+      // If task looks like a file path, read it
+      if (task && (task.startsWith("/") || task.startsWith("./") || task.startsWith("~"))) {
+        const fs = await import("node:fs");
+        const path = await import("node:path");
+        const os = await import("node:os");
+        const resolved = task.startsWith("~") 
+          ? path.join(os.homedir(), task.slice(1)) 
+          : task;
+        try {
+          task = fs.readFileSync(resolved, "utf8");
+          info(`loaded script from ${resolved}`);
+        } catch (e) {
+          error(`could not read file: ${e.message}`);
+          return;
+        }
+      }
+      
+      if (!task) {
+        error("please provide a task or file path for the agent");
+        return;
+      }
+      
+      ui.info(`→ running ${agentName} agent...`);
+      const sub = await createAgent(profile);
+      await sub.turn(task);
+      const last = sub.state.messages
+        .filter((m) => m.role === "assistant" && !m.tool_calls?.length && m.content)
+        .pop();
+      success(`${agentName} done`);
+      if (last?.content) {
+        console.log();
+        console.log(last.content);
+      }
+      return;
+    }
     case "yolo":
     case "auto": {
       const next = !isAutoAccept();
@@ -258,6 +314,42 @@ export async function runCommand(input) {
       }
       
       error("usage: /tool [list|create|edit|delete] <name>");
+      return;
+    }
+    case "knowledge": {
+      if (!arg) {
+        // List all domains
+        const domains = listDomains();
+        console.log();
+        console.log("  " + c.bold(c.teal("knowledge domains")));
+        if (domains.length) {
+          for (const d of domains) console.log(`  ${c.teal("•")} ${c.white(d)}`);
+        } else {
+          console.log(`  ${c.dim("(no domains yet — agents can create them with write_knowledge)")}`);
+        }
+        console.log();
+        info("use /knowledge <domain> to list files in a domain");
+        return;
+      }
+      
+      // List files in a domain
+      const files = listKnowledge(arg);
+      if (!files.length) {
+        info(`no knowledge files in '${arg}' domain`);
+        return;
+      }
+      
+      console.log();
+      console.log("  " + c.bold(c.teal(`knowledge: ${arg}`)));
+      const pad = Math.max(...files.map(f => f.name.length)) + 2;
+      for (const f of files) {
+        const auto = f.autoLoad ? c.yellow(" [auto-load]") : "";
+        const tags = f.tags?.length ? c.dim(` ${f.tags.join(",")}`) : "";
+        const desc = f.description ? c.dim(` — ${f.description}`) : "";
+        console.log(`  ${c.teal("•")} ${c.white(f.name.padEnd(pad))}${auto}${tags}${desc}`);
+      }
+      console.log();
+      info("agents use read_knowledge to access these files");
       return;
     }
     case "exit":

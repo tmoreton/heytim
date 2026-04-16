@@ -1,0 +1,58 @@
+// Loads sub-agent profiles (definitions) from $TIM_DIR/agents/*.md
+// and .tim/agents/*.md in the current project. Each profile is a markdown
+// file with YAML-style frontmatter. Used by spawn_agent and /agents.
+
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
+
+const timDir = () => process.env.TIM_DIR || path.join(os.homedir(), ".tim");
+const timPath = (...parts) => path.join(timDir(), ...parts);
+
+const parseFrontmatter = (src) => {
+  const m = src.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  if (!m) return { meta: {}, body: src.trim() };
+  const meta = {};
+  for (const line of m[1].split("\n")) {
+    const kv = line.match(/^(\w+):\s*(.*)$/);
+    if (!kv) continue;
+    let v = kv[2].trim();
+    if (v.startsWith("[") && v.endsWith("]"))
+      v = v.slice(1, -1).split(",").map((s) => s.trim()).filter(Boolean);
+    meta[kv[1]] = v;
+  }
+  return { meta, body: m[2].trim() };
+};
+
+const readDir = (dir) => {
+  try {
+    return fs.readdirSync(dir).filter((f) => f.endsWith(".md"));
+  } catch {
+    return [];
+  }
+};
+
+export function loadAgents() {
+  const agents = {};
+  const dirs = [
+    timPath("agents"),
+    path.join(process.cwd(), ".tim", "agents"),
+  ];
+  for (const dir of dirs) {
+    for (const file of readDir(dir)) {
+      const full = path.join(dir, file);
+      const { meta, body } = parseFrontmatter(fs.readFileSync(full, "utf8"));
+      const name = meta.name || path.basename(file, ".md");
+      agents[name] = {
+        name,
+        description: meta.description || "",
+        model: meta.model || null,
+        tools: Array.isArray(meta.tools) ? meta.tools : null, // null = all
+        knowledgeDomain: meta.knowledgeDomain || null,
+        systemPrompt: body,
+        source: full,
+      };
+    }
+  }
+  return agents;
+}
