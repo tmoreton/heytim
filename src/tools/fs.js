@@ -1,7 +1,8 @@
 // File system tools: list, read, edit, write.
-// All paths are resolved relative to process.cwd() and must stay within it.
+// Paths can be anywhere the user's process has access to. Destructive ops
+// still prompt for confirmation (unless /yolo) and tim source gets the
+// selfEditGuard so cross-project mistakes don't corrupt the install.
 // edit_file requires the file to be read first (tracked in readFiles Set).
-// All destructive operations (edit, write) require user confirmation.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -22,17 +23,6 @@ const selfEditGuard = (abs) => {
   return `ERROR: refusing to modify tim source from outside the tim directory (${TIM_SOURCE_ROOT}). cd into it first if you really mean to edit tim itself.`;
 };
 
-// Writes are confined to the workspace so the model can't accidentally
-// clobber files elsewhere (~/.ssh/config, system configs, etc).
-const resolveSafe = (p) => {
-  const cwd = process.cwd();
-  const abs = path.resolve(cwd, p);
-  if (abs !== cwd && !abs.startsWith(cwd + path.sep))
-    throw new Error(`Path outside workspace: ${p}`);
-  return abs;
-};
-
-// Reads are unrestricted — model can inspect anything the user's process can.
 const resolveAny = (p) => path.resolve(process.cwd(), p);
 
 const readFiles = new Set();
@@ -159,7 +149,7 @@ export const editSchema = {
 };
 
 export async function editRun({ path: p, old_string, new_string, replace_all = false }) {
-  const abs = resolveSafe(p);
+  const abs = resolveAny(p);
   const blocked = selfEditGuard(abs);
   if (blocked) return blocked;
   if (!readFiles.has(abs))
@@ -210,7 +200,7 @@ export const writeSchema = {
 };
 
 export async function writeRun({ path: p, content }) {
-  const abs = resolveSafe(p);
+  const abs = resolveAny(p);
   const blocked = selfEditGuard(abs);
   if (blocked) return blocked;
   const exists = fs.existsSync(abs);

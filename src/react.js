@@ -127,9 +127,10 @@ etc.) are auto-snapshotted to $TIM_DIR/history/<session-ts>/<relpath> before
 writing. If the user asks to revert or undo a broken change there, list that
 history dir, read_file the snapshot you want, and write_file it back.`;
 
-    // Auto-load knowledge for this agent's domain
+    // Auto-load knowledge for this agent's domain + explicit cross-domain refs
     const knowledgeDomain = profile?.knowledgeDomain || profile?.name?.split("-")[0];
-    const autoKnowledge = knowledgeDomain ? getInitialKnowledge(knowledgeDomain) : [];
+    const knowledgeRefs = profile?.knowledgeRefs || [];
+    const autoKnowledge = knowledgeDomain ? getInitialKnowledge(knowledgeDomain, knowledgeRefs) : [];
     const knowledgeSection = formatKnowledgeForContext(autoKnowledge);
 
     if (profile?.systemPrompt) {

@@ -13,13 +13,42 @@ const parseFrontmatter = (src) => {
   const m = src.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   if (!m) return { meta: {}, body: src.trim() };
   const meta = {};
-  for (const line of m[1].split("\n")) {
+  const lines = m[1].split("\n");
+  let currentKey = null;
+  let currentArray = null;
+  
+  for (const line of lines) {
+    // Check for array item (starts with - )
+    if (line.match(/^\s+-\s+/) && currentArray !== null) {
+      const item = line.replace(/^\s+-\s+/, "").trim();
+      if (item) currentArray.push(item);
+      continue;
+    }
+    
+    // Check for key: value or key: (start of array)
     const kv = line.match(/^(\w+):\s*(.*)$/);
     if (!kv) continue;
+    
+    const key = kv[1];
     let v = kv[2].trim();
-    if (v.startsWith("[") && v.endsWith("]"))
+    
+    // Inline array [a, b, c]
+    if (v.startsWith("[") && v.endsWith("]")) {
       v = v.slice(1, -1).split(",").map((s) => s.trim()).filter(Boolean);
-    meta[kv[1]] = v;
+      meta[key] = v;
+      currentArray = null;
+    } 
+    // Empty value - might be start of multi-line array
+    else if (v === "") {
+      currentKey = key;
+      currentArray = [];
+      meta[key] = currentArray;
+    } 
+    // Simple value
+    else {
+      meta[key] = v;
+      currentArray = null;
+    }
   }
   return { meta, body: m[2].trim() };
 };
@@ -49,6 +78,7 @@ export function loadAgents() {
         model: meta.model || null,
         tools: Array.isArray(meta.tools) ? meta.tools : null, // null = all
         knowledgeDomain: meta.knowledgeDomain || null,
+        knowledgeRefs: Array.isArray(meta.knowledgeRefs) ? meta.knowledgeRefs : null,
         systemPrompt: body,
         source: full,
       };

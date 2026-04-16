@@ -116,7 +116,7 @@ export function readKnowledge(domain, name) {
 export function readKnowledgeRefs(refs) {
   // refs can be: "domain/name", {domain, name}, or ["domain1/name1", "domain2/name2"]
   const items = [];
-  const list = Array.isArray(refs) ? refs : [refs];
+  const list = Array.isArray(refs) ? refs : refs ? [refs] : [];
   
   for (const ref of list) {
     if (typeof ref === "string") {

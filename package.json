@@ -9,7 +9,9 @@
   "scripts": {
     "start": "node src/index.js"
   },
-  "dependencies": {},
+  "dependencies": {
+    "nodemailer": "^8.0.5"
+  },
   "engines": {
     "node": ">=22"
   }
