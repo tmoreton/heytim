@@ -6,10 +6,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { providers } from "../llm.js";
-import path from "node:path";
 import os from "node:os";
-import fs from "node:fs";
+import { providers } from "../llm.js";
 
 const OPENROUTER = providers.openrouter;
 const MODELS = {
