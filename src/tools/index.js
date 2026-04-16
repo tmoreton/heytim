@@ -7,6 +7,7 @@ import { grep, glob } from "./search.js";
 import { spawnAgent } from "./spawn.js";
 import { webSearch, webFetch } from "./web.js";
 import { generateImage } from "./generate_image.js";
+import { notifyEmail } from "./notify_email.js";
 
 export const tools = {
   list_files: listFiles,
@@ -20,6 +21,7 @@ export const tools = {
   web_search: webSearch,
   web_fetch: webFetch,
   generate_image: generateImage,
+  notify_email: notifyEmail,
 };
 
 export const toolSchemas = Object.values(tools).map((t) => t.schema);
