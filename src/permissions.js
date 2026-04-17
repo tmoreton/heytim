@@ -5,7 +5,7 @@ import { warn, confirmPrompt, info } from "./ui.js";
 
 const sessionAllow = new Set();
 let sharedRl = null;
-let autoAccept = false;
+let autoAccept = process.env.TIM_AUTO_ACCEPT === "1" || process.env.TIM_AUTO_ACCEPT === "true";
 let planMode = false;
 
 export const setReadline = (rl) => {

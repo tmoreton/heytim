@@ -7,7 +7,7 @@ import os from "node:os";
 import { agentTurn, getModel, getSessionId, resetMessages, resumeSession } from "./react.js";
 import { Interrupted } from "./llm.js";
 import { isCommand, runCommand } from "./commands.js";
-import { setReadline } from "./permissions.js";
+import { setReadline, isAutoAccept } from "./permissions.js";
 import * as ui from "./ui.js";
 
 
@@ -241,6 +241,9 @@ export async function startRepl(initialAttachments = null) {
   rl.on("close", () => process.exit(0));
 
   ui.banner(await getModel(), process.cwd());
+  if (isAutoAccept()) {
+    ui.info("⚠ auto-accept ON — edits and bash commands will run without prompting");
+  }
   setupLineHandler(initialAttachments);
   safePrompt();
 

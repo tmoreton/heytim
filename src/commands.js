@@ -46,7 +46,7 @@ const HELP_ROWS = [
   ["/clear", "new session"],
   ["/compact", "summarize old messages"],
   ["/sessions", "saved conversations"],
-  ["/auto", "toggle auto-accept (⚠️ /yolo)"],
+  ["/auto", "toggle auto-accept (set TIM_AUTO_ACCEPT=1 in $TIM_DIR/.env to persist)"],
   ["/plan", "draft without executing"],
   ["/exit", "quit"],
 ];
@@ -68,6 +68,7 @@ const FLAG_ROWS = [
   ["tim --resume [id]", "resume latest session, or by id"],
   ["tim --list", "list saved sessions and exit"],
   ["tim --yolo", "start with auto-accept enabled (use with care)"],
+  ["TIM_AUTO_ACCEPT=1 tim", "default to auto-accept on startup (save in $TIM_DIR/.env)"],
   ["tim agent new [name]", "create a new agent (interactive)"],
   ["tim agent list", "list all agents"],
   ["tim agent edit <name>", "open agent profile in $EDITOR"],
