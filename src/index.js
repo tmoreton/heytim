@@ -34,6 +34,7 @@ import { setAutoAccept } from "./permissions.js";
 import { startRepl } from "./repl.js";
 import { loadTriggers, writeTrigger, deleteTrigger, triggerExists, getTriggerState, getTriggersDir } from "./triggers.js";
 import { start } from "./start.js";
+import { commit as commitHistory } from "./history.js";
 import * as ui from "./ui.js";
 
 // --- helpers ---
@@ -137,6 +138,7 @@ if (argv[0] === "agent") {
       description, tools,
       systemPrompt: systemPrompt || defaultPrompt,
     });
+    commitHistory(`agent new: ${agentName}`);
 
     console.log();
     console.log(`  ✓ created ${filepath}`);
@@ -152,6 +154,7 @@ if (argv[0] === "agent") {
     const filepath = `${getAgentsDir()}/${name}.md`;
     if (!fs.existsSync(filepath)) { console.error(`agent "${name}" not found`); process.exit(1); }
     editFile(filepath);
+    commitHistory(`agent edit: ${name}`);
     console.log(`  ✓ saved ${filepath}`);
     process.exit(0);
   }
@@ -159,6 +162,7 @@ if (argv[0] === "agent") {
   if (sub === "delete") {
     if (!name) { console.error("usage: tim agent delete <name>"); process.exit(1); }
     if (!deleteAgentProfile(name)) { console.error(`agent "${name}" not found`); process.exit(1); }
+    commitHistory(`agent delete: ${name}`);
     console.log(`  ✓ deleted ${name}`);
     process.exit(0);
   }
@@ -216,6 +220,7 @@ if (argv[0] === "workflow") {
     rl.close();
 
     const filepath = writeWorkflow(workflowName, { description, agent, task, precheck: precheck || null, tools, systemPrompt });
+    commitHistory(`workflow new: ${workflowName}`);
 
     console.log();
     console.log(`  ✓ created ${filepath}`);
@@ -230,6 +235,7 @@ if (argv[0] === "workflow") {
     const filepath = `${getWorkflowsDir()}/${name}.md`;
     if (!fs.existsSync(filepath)) { console.error(`workflow "${name}" not found`); process.exit(1); }
     editFile(filepath);
+    commitHistory(`workflow edit: ${name}`);
     console.log(`  ✓ saved ${filepath}`);
     process.exit(0);
   }
@@ -237,6 +243,7 @@ if (argv[0] === "workflow") {
   if (sub === "delete") {
     if (!name) { console.error("usage: tim workflow delete <name>"); process.exit(1); }
     if (!deleteWorkflow(name)) { console.error(`workflow "${name}" not found`); process.exit(1); }
+    commitHistory(`workflow delete: ${name}`);
     console.log(`  ✓ deleted ${name}`);
     process.exit(0);
   }
@@ -353,6 +360,7 @@ if (argv[0] === "schedule") {
     rl.close();
 
     const filepath = writeTrigger(name, { schedule, workflow, task, description });
+    commitHistory(`schedule add: ${name}`);
     console.log();
     console.log(`  ✓ created ${filepath}`);
     console.log(`\n  Test it: tim schedule run ${name}`);
@@ -364,6 +372,7 @@ if (argv[0] === "schedule") {
     const name = argv[2];
     if (!name) { console.error("usage: tim schedule remove <name>"); process.exit(1); }
     if (!deleteTrigger(name)) { console.error(`trigger "${name}" not found`); process.exit(1); }
+    commitHistory(`schedule remove: ${name}`);
     console.log(`  ✓ deleted ${name}`);
     process.exit(0);
   }

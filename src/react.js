@@ -11,6 +11,7 @@ import { stream, streamCompletion, Interrupted } from "./llm.js";
 import { ToolCache } from "./cache.js";
 import { isPlanMode } from "./permissions.js";
 import { isCwdTimSource } from "./paths.js";
+import { commit as commitHistory } from "./history.js";
 import * as ui from "./ui.js";
 
 const PLAN_PREFIX =
@@ -144,10 +145,10 @@ user wants to revert a change, use bash for \`git diff\`, \`git checkout -- <pat
 or \`git log\` to find the prior version.`
       : "";
     const customizations = `\n\n## reverting user customizations
-Edits to files inside $TIM_DIR (your customizations — agents/, tools/, .env,
-etc.) are auto-snapshotted to $TIM_DIR/history/<session-ts>/<relpath> before
-writing. If the user asks to revert or undo a broken change there, list that
-history dir, read_file the snapshot you want, and write_file it back.`;
+$TIM_DIR (agents/, workflows/, tools/, memory/, TIM.md, etc.) is a git repo —
+every turn auto-commits any changes. If the user asks to revert or undo, use
+bash with \`git -C $TIM_DIR log <path>\`, \`git -C $TIM_DIR show <sha>:<path>\`,
+or \`git -C $TIM_DIR checkout <sha> -- <path>\` to restore prior versions.`;
 
     // Auto-load the agent's own memory file (per-agent, not per-domain).
     const memorySection = profile?.name ? formatMemoryForContext(profile.name) : "";
@@ -326,6 +327,7 @@ You have tools: ${toolList}.
       }
     } finally {
       if (state.session) saveSession(state.session, state.messages, state.usage);
+      try { commitHistory(`turn: ${String(userInput).slice(0, 80)}`); } catch {}
     }
   };
 

@@ -9,7 +9,6 @@ import path from "node:path";
 import { confirm } from "../permissions.js";
 import { editDiff, writeDiff } from "../ui.js";
 import { TIM_SOURCE_ROOT, isInsideTimSource } from "../paths.js";
-import { snapshotFile } from "../history.js";
 
 // Returns an error string if `abs` is inside tim's own source but the user
 // isn't currently working from within the tim directory. Keeps accidental
@@ -232,7 +231,6 @@ export async function editRun({ path: p, old_string, new_string, replace_all = f
   const ok = await confirm("edit_file", { path: p }, `edit ${p}`);
   if (!ok) return "User denied the edit.";
 
-  snapshotFile(abs);
   fs.writeFileSync(abs, updated);
   markRead(abs); // refresh mtime snapshot so subsequent edits don't false-positive
   ctx.toolCache?.invalidatePath(abs);
@@ -269,7 +267,6 @@ export async function writeRun({ path: p, content }, ctx = {}) {
     `${exists ? "overwrite" : "create"} ${p} (${content.length} bytes)`,
   );
   if (!ok) return "User denied the write.";
-  snapshotFile(abs);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, content);
   markRead(abs);
