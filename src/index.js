@@ -38,7 +38,6 @@ import { commit as commitHistory } from "./history.js";
 import { disconnectMcpServers } from "./mcp.js";
 import * as ui from "./ui.js";
 
-// --- helpers ---
 const ask = (rl, q, def) => new Promise((res) => {
   const hint = def ? ` (${def})` : "";
   rl.question(`  ${q}${hint}: `, (a) => res(a.trim() || def || ""));
@@ -78,7 +77,6 @@ const runAndPrint = async (sub, task) => {
   }
 };
 
-// --- argv handling ---
 const argv = process.argv.slice(2);
 
 if (argv.includes("--list")) {
@@ -310,14 +308,14 @@ if (argv[0] === "start") {
   await new Promise(() => {});
 }
 
-// tim schedule list|add|remove|run|install
-if (argv[0] === "schedule") {
+// tim trigger list|add|remove|run
+if (argv[0] === "trigger" || argv[0] === "schedule") {
   const sub = argv[1];
 
   if (!sub || sub === "list") {
     const triggers = loadTriggers();
     if (!triggers.length) {
-      console.log("  no triggers — run: tim schedule add <name>");
+      console.log("  no triggers — run: tim trigger add <name>");
     } else {
       const pad = Math.max(...triggers.map((t) => t.name.length)) + 2;
       console.log();
@@ -361,26 +359,26 @@ if (argv[0] === "schedule") {
     rl.close();
 
     const filepath = writeTrigger(name, { schedule, workflow, task, description });
-    commitHistory(`schedule add: ${name}`);
+    commitHistory(`trigger add: ${name}`);
     console.log();
     console.log(`  ✓ created ${filepath}`);
-    console.log(`\n  Test it: tim schedule run ${name}`);
-    console.log(`  Start watcher: tim start\n`);
+    console.log(`\n  Test it: tim trigger run ${name}`);
+    console.log(`  Start scheduler: tim start\n`);
     process.exit(0);
   }
 
   if (sub === "remove") {
     const name = argv[2];
-    if (!name) { console.error("usage: tim schedule remove <name>"); process.exit(1); }
+    if (!name) { console.error("usage: tim trigger remove <name>"); process.exit(1); }
     if (!deleteTrigger(name)) { console.error(`trigger "${name}" not found`); process.exit(1); }
-    commitHistory(`schedule remove: ${name}`);
+    commitHistory(`trigger remove: ${name}`);
     console.log(`  ✓ deleted ${name}`);
     process.exit(0);
   }
 
   if (sub === "run") {
     const name = argv[2];
-    if (!name) { console.error("usage: tim schedule run <name>"); process.exit(1); }
+    if (!name) { console.error("usage: tim trigger run <name>"); process.exit(1); }
     const triggers = loadTriggers();
     const t = triggers.find((x) => x.name === name);
     if (!t) { console.error(`trigger "${name}" not found`); process.exit(1); }
@@ -397,7 +395,7 @@ if (argv[0] === "schedule") {
     process.exit(0);
   }
 
-  console.error("usage: tim schedule [list|add|remove|run] [name]");
+  console.error("usage: tim trigger [list|add|remove|run] [name]");
   process.exit(1);
 }
 

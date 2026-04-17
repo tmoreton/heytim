@@ -179,46 +179,17 @@ class StdioConnection {
   }
 }
 
-// HTTP SSE transport (placeholder for future implementation)
-class HttpConnection {
-  constructor(name, url) {
-    this.name = name;
-    this.url = url;
-    this.tools = [];
-  }
-
-  async connect() {
-    // TODO: Implement SSE transport
-    throw new Error("HTTP SSE transport not yet implemented");
-  }
-
-  async callTool(name, args) {
-    throw new Error("HTTP SSE transport not yet implemented");
-  }
-
-  disconnect() {}
-}
-
 // Connect to all enabled MCP servers
 export async function connectMcpServers() {
   const config = loadMcpConfig();
-  const servers = Object.entries(config.servers || {});
-
-  for (const [name, server] of servers) {
-    if (server.enabled === false) continue;
-    if (connections.has(name)) continue; // Already connected
-
+  for (const [name, server] of Object.entries(config.servers || {})) {
+    if (server.enabled === false || connections.has(name)) continue;
+    if (!server.command) {
+      console.error(`[mcp:${name}] Missing command (only stdio transport supported)`);
+      continue;
+    }
     try {
-      let conn;
-      if (server.url) {
-        conn = new HttpConnection(name, server.url);
-      } else if (server.command) {
-        conn = new StdioConnection(name, server.command, server.args, server.env);
-      } else {
-        console.error(`[mcp:${name}] Missing command or url`);
-        continue;
-      }
-
+      const conn = new StdioConnection(name, server.command, server.args, server.env);
       await conn.connect();
       connections.set(name, conn);
       console.error(`[mcp:${name}] Connected (${conn.tools.length} tools)`);
@@ -226,7 +197,6 @@ export async function connectMcpServers() {
       console.error(`[mcp:${name}] Failed to connect:`, e.message);
     }
   }
-
   return connections;
 }
 
@@ -254,19 +224,4 @@ export function getMcpTools() {
     }
   }
   return tools;
-}
-
-// Get a specific MCP tool
-export function getMcpTool(serverName, toolName) {
-  const conn = connections.get(serverName);
-  if (!conn) return null;
-  const tool = conn.tools.find(t => t.name === toolName);
-  if (!tool) return null;
-  return {
-    server: serverName,
-    name: tool.name,
-    description: tool.description,
-    inputSchema: tool.inputSchema,
-    _call: (args) => conn.callTool(tool.name, args),
-  };
 }

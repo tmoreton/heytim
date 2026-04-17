@@ -3,7 +3,6 @@
 
 import * as ui from "./ui.js";
 
-// --- Provider registry ----------------------------------------------------
 
 const requireKey = (envVar) => {
   const k = process.env[envVar];
@@ -61,7 +60,6 @@ export const getModelCatalog = () =>
     return true;
   });
 
-// --- Request building ------------------------------------------------------
 
 const resolveRequest = (body) => {
   const { provider, model } = pickProvider(body.model);
@@ -72,7 +70,6 @@ const resolveRequest = (body) => {
   };
 };
 
-// --- Retry logic ----------------------------------------------------------
 
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
 const MAX_ATTEMPTS = 5;
@@ -128,7 +125,6 @@ const throwIfBad = async (res) => {
   throw err;
 };
 
-// --- Complete (non-streaming) ---------------------------------------------
 
 export async function complete(body, { signal } = {}) {
   const p = resolveRequest(body);
@@ -142,7 +138,6 @@ export async function complete(body, { signal } = {}) {
   return res.json();
 }
 
-// --- Stream (SSE generator) -----------------------------------------------
 
 export async function* stream(body, { signal } = {}) {
   const p = resolveRequest({ ...body, stream: true });
@@ -189,7 +184,6 @@ export async function* stream(body, { signal } = {}) {
   }
 }
 
-// --- Streaming completion with UI ----------------------------------------
 
 export class Interrupted extends Error {
   constructor() {

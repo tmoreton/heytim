@@ -79,15 +79,11 @@ export async function run({ command, timeout_ms = 120_000 }, ctx = {}) {
       // Can't know what bash touched — blow away the whole tool cache so
       // subsequent read_file/grep/glob see fresh disk state.
       ctx.toolCache?.clear();
-      const status = aborted
-        ? "aborted by user"
-        : timedOut
-          ? " (timed out)"
-          : "";
+      const status = aborted ? " [aborted]" : timedOut ? " [timeout]" : "";
       const parts = [
-        `exit=${code}${status ? ` ${status}` : ""}`,
-        stdout && `--- stdout ---\n${truncate(stdout)}`,
-        stderr && `--- stderr ---\n${truncate(stderr)}`,
+        code === 0 ? `✓${status}` : `exit ${code}${status}`,
+        stdout && truncate(stdout),
+        stderr && `stderr: ${truncate(stderr)}`,
       ].filter(Boolean);
       resolve(parts.join("\n"));
     });

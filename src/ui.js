@@ -46,7 +46,6 @@ export const gradient = (text, [r1, g1, b1], [r2, g2, b2]) => {
     .join("");
 };
 
-// --- Banner ----------------------------------------------------------------
 
 const BANNER = [
   " ████████╗ ██╗ ███╗   ███╗",
@@ -77,7 +76,6 @@ export function banner(model, cwd) {
   console.log();
 }
 
-// --- Markdown renderer (line-based, streaming-friendly) -------------------
 
 let mdCodeBlock = false;
 
@@ -138,12 +136,10 @@ export function renderMarkdownLine(line) {
   return inlineReplace(line);
 }
 
-// --- Prompt / header -------------------------------------------------------
 
 export const prompt = () => c.bold(c.teal("❯ "));
 export const header = () => c.bold(gradient("tim", START, END));
 
-// --- Spinner ---------------------------------------------------------------
 
 const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
@@ -166,14 +162,16 @@ export function spinner(label = "thinking") {
   };
 }
 
-// --- Tool call + result pretty-printers -----------------------------------
 
 const ARROW = c.teal("⏵");
 const RETURN = c.gray("  ↳");
 
 const summarizeArgs = (name, args) => {
   if (!args || typeof args !== "object") return "";
-  if (name === "bash") return args.command || "";
+  if (name === "bash") {
+    const cmd = args.command || "";
+    return cmd.length > 50 ? cmd.slice(0, 47) + "..." : cmd;
+  }
   if (args.path && args.old_string !== undefined)
     return `${args.path} ${c.dim("(edit)")}`;
   if (args.path && args.content !== undefined)
@@ -258,7 +256,6 @@ export function writeDiff(content) {
   printDiffBlock(lines, "+", "green");
 }
 
-// --- Status footer / warnings ---------------------------------------------
 
 export function statusFooter({ lastPromptTokens, limit, sessionId, model }) {
   const parts = [];
@@ -275,15 +272,15 @@ export function statusFooter({ lastPromptTokens, limit, sessionId, model }) {
 
 export function warn(tool, preview) {
   console.log();
+  const display = preview && preview.length > 70 ? preview.slice(0, 67) + "..." : preview;
   console.log(`  ${c.yellow("⚠")}  ${c.bold(tool)} ${c.dim("wants to run:")}`);
-  console.log(`     ${c.white(preview)}`);
+  console.log(`     ${c.white(display)}`);
 }
 
 export function confirmPrompt() {
   return `  ${c.dim("[")}${c.green("y")}${c.dim("]es / [")}${c.teal("a")}${c.dim("]lways / [")}${c.red("n")}${c.dim("]o ❯ ")}`;
 }
 
-// --- Misc ------------------------------------------------------------------
 
 export const info = (msg) => console.log(c.dim(`  ${msg}`));
 export const error = (msg) => console.log(c.red(`  ✗ ${msg}`));

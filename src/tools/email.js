@@ -3,7 +3,6 @@
 
 import { sendMail as sendSmtpMail, smtpConfig as getSmtpConfig } from "../smtp.js";
 
-// ============== SCHEMAS ==============
 
 export const notifyEmailSchema = {
   type: "function",
@@ -91,7 +90,6 @@ export const createInboxSchema = {
   }
 };
 
-// ============== MARKDOWN TO HTML ==============
 
 function markdownToHtml(md) {
   return md
@@ -117,7 +115,6 @@ function markdownToText(md) {
     .replace(/[*_]/g, "");
 }
 
-// ============== ATTACHMENT HELPERS ==============
 
 import fs from "node:fs";
 import path from "node:path";
@@ -138,14 +135,10 @@ function readAttachments(filePaths = []) {
   });
 }
 
-// ============== SMTP IMPLEMENTATION ==============
-
 async function sendViaSmtp({ to, cc, subject, text, html, attachments = [], replyTo }) {
   getSmtpConfig();
   return sendSmtpMail({ to, cc, subject, text, html, attachments, replyTo });
 }
-
-// ============== AGENTMAIL IMPLEMENTATION ==============
 
 const AGENTMAIL_BASE_URL = "https://api.agentmail.to/v0";
 
@@ -192,7 +185,6 @@ async function fetchAgentMail(endpoint, options = {}) {
   return res.json();
 }
 
-// ============== AGENTMAIL SEND ==============
 
 async function sendViaAgentMail({ inboxId, to, cc, subject, text, html, attachments = [], replyTo }) {
   // AgentMail doesn't support CID inline — embed images as base64 data URIs instead
@@ -225,7 +217,6 @@ async function sendViaAgentMail({ inboxId, to, cc, subject, text, html, attachme
   return { id: result.message_id, threadId: result.thread_id, ...result };
 }
 
-// ============== TOOL IMPLEMENTATIONS ==============
 
 export async function notifyEmailRun(args) {
   const { to, cc, subject, body, attachments: attachmentPaths = [], reply_to: replyTo } = args;

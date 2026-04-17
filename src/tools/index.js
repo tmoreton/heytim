@@ -8,14 +8,13 @@ import * as fs from "./fs.js";
 import * as bash from "./bash.js";
 import * as search from "./search.js";
 import * as spawn from "./spawn.js";
-import { loadCustomTools, reloadCustomTools } from "./custom.js";
-import { connectMcpServers, getMcpTools, disconnectMcpServers } from "../mcp.js";
+import { loadCustomTools } from "./custom.js";
+import { connectMcpServers, getMcpTools } from "../mcp.js";
 
 import * as webFetch from "./web_fetch.js";
 import * as webSearch from "./web_search.js";
 import * as memory from "./memory.js";
 import * as email from "./email.js";
-import * as image from "./image.js";
 
 // Core tools. `requiredEnv` (string | string[]) gates registration — tools
 // with missing env vars are silently dropped so the model doesn't see them.
@@ -30,7 +29,6 @@ const coreToolDefs = {
   spawn_workflow: { schema: spawn.schema, run: spawn.run },
   web_fetch: { schema: webFetch.schema, run: webFetch.run },
   web_search: { schema: webSearch.schema, run: webSearch.run, requiredEnv: webSearch.requiredEnv },
-  generate_image: { schema: image.schema, run: image.run, requiredEnv: image.requiredEnv },
   update_memory: { schema: memory.updateMemorySchema, run: memory.updateMemoryRun },
   append_memory: { schema: memory.appendMemorySchema, run: memory.appendMemoryRun },
   notify_email: { schema: email.notifyEmailSchema, run: email.notifyEmailRun },
@@ -97,12 +95,6 @@ export async function getTools() {
 export async function getToolSchemas() {
   const all = await getMergedTools();
   return Object.values(all).map((t) => t.schema);
-}
-
-// Force reload (after creating/editing custom tools, or after env changes).
-export async function refreshTools() {
-  mergedTools = null;
-  return reloadCustomTools();
 }
 
 // Re-exports for fs tracking

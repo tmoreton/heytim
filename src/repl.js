@@ -10,7 +10,6 @@ import { isCommand, runCommand } from "./commands.js";
 import { setReadline } from "./permissions.js";
 import * as ui from "./ui.js";
 
-// --- Auto-detect attachments in text --------------------------------------
 
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
 const PDF_EXT = ".pdf";
@@ -74,7 +73,6 @@ const extractAttachments = (text) => {
   return { text: cleaned, images, pdfs };
 };
 
-// --- REPL state ------------------------------------------------------------
 
 let rl = null;
 let currentAbort = null;
@@ -100,7 +98,6 @@ const safePrompt = () => {
   if (rl && !rl.closed) rl.prompt();
 };
 
-// --- Input processing ------------------------------------------------------
 
 const processInput = async (initialAttachments = null) => {
   const rawInput = flushBuffer();
@@ -170,7 +167,6 @@ const handle = async (input, attachments) => {
   }
 };
 
-// --- Event handlers --------------------------------------------------------
 
 const handleSigint = async () => {
   if (currentAbort && !currentAbort.signal.aborted) {
@@ -230,7 +226,6 @@ const setupLineHandler = (initialAttachments) => {
   });
 };
 
-// --- Public API ------------------------------------------------------------
 
 export async function startRepl(initialAttachments = null) {
   rl = readline.createInterface({

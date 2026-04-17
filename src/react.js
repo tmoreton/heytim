@@ -20,7 +20,6 @@ const PLAN_PREFIX =
   "plan (files to change, what to change, in what order) and stop. The user " +
   "will run /plan to exit plan mode, then tell you to proceed.\n\n";
 
-// --- Multimodal helpers ----------------------------------------------------
 
 const encodeFile = (filePath) => {
   const data = fs.readFileSync(filePath);
@@ -94,7 +93,6 @@ const DEFAULT_MODEL =
 const CONTEXT_LIMIT = Number(process.env.TIM_CONTEXT_LIMIT || 128_000);
 const COMPACT_THRESHOLD = 0.6;
 
-// --- Agent factory ---------------------------------------------------------
 
 // Agents always get these tools so orchestration + memory upkeep work even
 // when a profile sets a restrictive `tools: [...]` allowlist.
@@ -382,7 +380,6 @@ You have tools: ${toolList}.
   };
 }
 
-// --- Default agent + back-compat exports -----------------------------------
 
 let main = null;
 let mainReady = null;

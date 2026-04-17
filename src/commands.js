@@ -26,39 +26,26 @@ import { list as listSessions } from "./session.js";
 import { setEnv, unsetEnv, listEnv, mask } from "./env.js";
 import { setAutoAccept, isAutoAccept, setPlanMode, isPlanMode } from "./permissions.js";
 import { c, info, success, error, exitHint } from "./ui.js";
-import {
-  getCustomToolsDir,
-  ensureToolsDir,
-  listCustomToolNames,
-  readToolSource,
-  writeToolSource,
-  deleteTool,
-  generateToolTemplate,
-  reloadCustomTools,
-} from "./tools/custom.js";
+import { listCustomToolNames } from "./tools/custom.js";
 import { getModelCatalog } from "./llm.js";
 
 const HELP_ROWS = [
-  ["/help", "show this help"],
-  ["/tools", "list tools (core + custom + MCP)"],
-  ["/tool list", "list custom tools"],
-  ["/tool create <name>", "create new custom tool in ~/.tim/tools/"],
-  ["/tool edit <name>", "edit custom tool in $EDITOR"],
-  ["/tool delete <name>", "delete custom tool"],
-  ["/mcp", "manage MCP servers (list | add | remove | enable | disable | reconnect)"],
-  ["/model [id|#]", "list or switch model (alias: /models)"],
-  ["/clear", "reset conversation (starts a new session)"],
-  ["/context", "show whether TIM.md was loaded"],
-  ["/compact", "summarize older messages to free context"],
-  ["/sessions", "list saved sessions"],
+  ["/help", "this help"],
+  ["/tools", "core, custom, and MCP tools"],
+  ["/mcp", "manage MCP servers"],
+  ["/model [#|id]", "show or switch model"],
   ["/agents", "list agents"],
-  ["/agent <name> [task/file]", "run an agent directly"],
-  ["/workflows", "list workflows (task specs for agents)"],
-  ["/workflow <name> [task]", "run a workflow"],
-  ["/memory [agent]", "show memory file path (or contents) for an agent"],
-  ["/env", "manage $TIM_DIR/.env (list | set KEY=VAL | unset KEY | email)"],
-  ["/yolo", "toggle auto-accept for edits and bash (USE WITH CARE)"],
-  ["/plan", "toggle plan mode — model drafts a plan, no edits/bash run"],
+  ["/agent <name>", "run agent (optionally: task or @file)"],
+  ["/workflows", "list workflows"],
+  ["/workflow <name>", "run workflow"],
+  ["/triggers", "scheduled cron triggers"],
+  ["/memory [agent]", "agent memory path/contents"],
+  ["/env", "environment vars"],
+  ["/clear", "new session"],
+  ["/compact", "summarize old messages"],
+  ["/sessions", "saved conversations"],
+  ["/auto", "toggle auto-accept (⚠️ /yolo)"],
+  ["/plan", "draft without executing"],
   ["/exit", "quit"],
 ];
 
@@ -74,31 +61,25 @@ const EMAIL_ENV_HELP = [
   ["SMTP_FROM", "Default sender for SMTP emails"],
 ];
 
-const INPUT_ROWS = [
-  ["\\ at EOL", "continue on next line"],
-  [`""" line`, "toggle a multi-line block"],
-];
-
 const FLAG_ROWS = [
-  ["tim", "start fresh"],
-  ["tim --resume [id]", "resume latest or by id"],
-  ["tim --list", "list sessions and exit"],
-  ["tim --yolo", "start with auto-accept on (use with care)"],
-  ["tim agent new [name]", "create a new agent (guided)"],
+  ["tim", "start fresh interactive session"],
+  ["tim --resume [id]", "resume latest session, or by id"],
+  ["tim --list", "list saved sessions and exit"],
+  ["tim --yolo", "start with auto-accept enabled (use with care)"],
+  ["tim agent new [name]", "create a new agent (interactive)"],
   ["tim agent list", "list all agents"],
   ["tim agent edit <name>", "open agent profile in $EDITOR"],
   ["tim agent delete <name>", "delete an agent profile"],
-  ["tim workflow new [name]", "create a new workflow (task spec)"],
+  ["tim workflow new [name]", "create a new workflow (interactive)"],
   ["tim workflow list", "list all workflows"],
   ["tim workflow edit <name>", "open workflow in $EDITOR"],
   ["tim workflow delete <name>", "delete a workflow"],
+  ["tim trigger list", "list scheduled triggers"],
+  ["tim trigger add <name>", "create a scheduled trigger (interactive)"],
+  ["tim trigger remove <name>", "remove a scheduled trigger"],
+  ["tim trigger run <name>", "run a trigger immediately"],
+  ["tim start", "start the cron scheduler daemon"],
   ["tim run <workflow|agent> \"task\"", "run a workflow or agent headlessly"],
-];
-
-const ATTACHMENT_ROWS = [
-  ["/path/to/image.png", "attach image by path (drag & drop works!)"],
-  ["/path/to/doc.pdf", "attach PDF by path"],
-  ["multiple files", "just include multiple paths in your prompt"],
 ];
 
 const printRows = (title, rows) => {
@@ -111,8 +92,6 @@ const printRows = (title, rows) => {
 
 const printHelp = () => {
   printRows("commands", HELP_ROWS);
-  printRows("input", INPUT_ROWS);
-  printRows("attachments (drag & drop!)", ATTACHMENT_ROWS);
   printRows("launch flags", FLAG_ROWS);
   console.log();
 };
@@ -345,8 +324,8 @@ export async function runCommand(input) {
       await runAndPrintLast(await createAgent(profile), task, agentName);
       return;
     }
-    case "yolo":
-    case "auto": {
+    case "auto":
+    case "yolo": {
       const next = !isAutoAccept();
       setAutoAccept(next);
       if (next)
@@ -365,47 +344,6 @@ export async function runCommand(input) {
         );
       else success("plan mode OFF — ask the model to proceed with the plan");
       return;
-    }
-    case "tool": {
-      const [sub, name] = arg.split(/\s+/);
-      if (!sub || sub === "list") {
-        const custom = await listCustomToolNames();
-        console.log();
-        console.log("  " + c.bold(c.teal("custom tools")));
-        if (custom.length) {
-          for (const n of custom) console.log(`  ${c.teal("•")} ${c.white(n)}`);
-        } else {
-          console.log(`  ${c.dim("(none — create one with /tool create <name>)")}`);
-        }
-        console.log();
-        return;
-      }
-      if (sub === "create") {
-        if (!name) return error("usage: /tool create <name>");
-        ensureToolsDir();
-        const p = writeToolSource(name, generateToolTemplate(name));
-        await reloadCustomTools();
-        success(`created ${p}`);
-        info("edit the file to implement your tool logic");
-        return;
-      }
-      if (sub === "edit") {
-        if (!name) return error("usage: /tool edit <name>");
-        const p = `${getCustomToolsDir()}/${name}.js`;
-        if (!readToolSource(name)) return error(`tool "${name}" not found at ${p}`);
-        const { spawnSync } = await import("node:child_process");
-        spawnSync(process.env.EDITOR || "vi", [p], { stdio: "inherit" });
-        await reloadCustomTools();
-        success(`reloaded ${name}`);
-        return;
-      }
-      if (sub === "delete") {
-        if (!name) return error("usage: /tool delete <name>");
-        if (!deleteTool(name)) return error(`tool "${name}" not found`);
-        success(`deleted ${name}`);
-        return;
-      }
-      return error("usage: /tool [list|create|edit|delete] <name>");
     }
     case "memory": {
       if (!arg) {
@@ -466,16 +404,11 @@ export async function runCommand(input) {
         success(`removed MCP server "${name}"`);
         return;
       }
-      if (sub === "enable") {
-        if (!name) return error("usage: /mcp enable <name>");
-        if (!setMcpServerEnabled(name, true)) return error(`MCP server "${name}" not found`);
-        success(`enabled MCP server "${name}"`);
-        return;
-      }
-      if (sub === "disable") {
-        if (!name) return error("usage: /mcp disable <name>");
-        if (!setMcpServerEnabled(name, false)) return error(`MCP server "${name}" not found`);
-        success(`disabled MCP server "${name}"`);
+      if (sub === "enable" || sub === "disable") {
+        if (!name) return error(`usage: /mcp ${sub} <name>`);
+        const on = sub === "enable";
+        if (!setMcpServerEnabled(name, on)) return error(`MCP server "${name}" not found`);
+        success(`${sub}d MCP server "${name}"`);
         return;
       }
       if (sub === "reconnect") {
@@ -485,6 +418,100 @@ export async function runCommand(input) {
         return;
       }
       return error("usage: /mcp [list|add|remove|enable|disable|reconnect] [args...]");
+    }
+    case "trigger":
+    case "schedule": {
+      const [sub, name] = arg.split(/\s+/);
+      if (!sub || sub === "list") {
+        const { loadTriggers } = await import("./triggers.js");
+        const triggers = loadTriggers();
+        console.log();
+        console.log("  " + c.bold(c.teal("scheduled triggers")));
+        if (triggers.length) {
+          const pad = Math.max(...triggers.map((t) => t.name.length)) + 2;
+          for (const t of triggers) {
+            const status = t.enabled ? c.teal("●") : c.dim("○");
+            console.log(`  ${status} ${c.white(t.name.padEnd(pad))} ${c.dim(t.schedule)}  → ${t.workflow}`);
+          }
+        } else {
+          console.log(`  ${c.dim("(none — add one with /trigger add <name>)")}`);
+        }
+        console.log();
+        info("add, remove, or run triggers; start scheduler with 'tim start'");
+        return;
+      }
+      if (sub === "add") {
+        if (!name) return error("usage: /trigger add <name>");
+        // Delegate to the trigger creation flow
+        const { writeTrigger, triggerExists, getTriggersDir } = await import("./triggers.js");
+        const { loadWorkflows } = await import("./workflows.js");
+        const { loadAgents } = await import("./agents.js");
+        const readline = await import("node:readline");
+        
+        if (triggerExists(name)) return error(`trigger "${name}" already exists`);
+        
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+        const ask = (q, def) => new Promise((res) => rl.question(`  ${q}${def ? ` (${def})` : ""}: `, (a) => res(a.trim() || def || "")));
+        
+        const workflows = Object.keys(loadWorkflows());
+        if (!workflows.length) { rl.close(); return error("no workflows — run: tim workflow new"); }
+        
+        console.log(`  Available workflows: ${workflows.join(", ")}`);
+        const workflow = await ask("Workflow to run", workflows[0]);
+        if (!loadWorkflows()[workflow]) { rl.close(); return error(`unknown workflow: ${workflow}`); }
+        
+        console.log(`  Cron examples: "0 7 * * *" (daily 7am), "*/5 * * * *" (every 5min), "0 9 * * 1-5" (weekdays 9am)`);
+        const schedule = await ask("Schedule (cron expression)", "0 7 * * *");
+        const task = await ask("Task override (blank = use workflow default)", "");
+        const description = await ask("Description (optional)", "");
+        rl.close();
+        
+        const filepath = writeTrigger(name, { schedule, workflow, task, description });
+        success(`created trigger "${name}"`);
+        info(`filepath: ${filepath}`);
+        info(`test: /trigger run ${name} | start scheduler: tim start`);
+        return;
+      }
+      if (sub === "remove") {
+        if (!name) return error("usage: /trigger remove <name>");
+        const { deleteTrigger, triggerExists } = await import("./triggers.js");
+        if (!triggerExists(name)) return error(`trigger "${name}" not found`);
+        deleteTrigger(name);
+        success(`removed scheduled trigger "${name}"`);
+        return;
+      }
+      if (sub === "run") {
+        if (!name) return error("usage: /trigger run <name>");
+        const { loadTriggers, getTriggerState } = await import("./triggers.js");
+        const { loadWorkflows } = await import("./workflows.js");
+        const { loadAgents } = await import("./agents.js");
+        const { setAutoAccept } = await import("./permissions.js");
+        const { createAgent } = await import("./react.js");
+        
+        const triggers = loadTriggers();
+        const t = triggers.find((x) => x.name === name);
+        if (!t) return error(`trigger "${name}" not found`);
+        
+        const workflow = loadWorkflows()[t.workflow];
+        if (!workflow) return error(`workflow "${t.workflow}" not found`);
+        const agent = loadAgents()[workflow.agent];
+        if (!agent) return error(`agent "${workflow.agent}" not found`);
+        
+        setAutoAccept(true);
+        const sub = await createAgent({
+          ...agent,
+          tools: workflow.tools || agent.tools,
+          systemPrompt: workflow.systemPrompt
+            ? `${agent.systemPrompt}\n\n## Current task — ${workflow.name}\n\n${workflow.systemPrompt}`
+            : agent.systemPrompt,
+        });
+        const task = t.task || workflow.task || `Run the ${workflow.name} workflow.`;
+        info(`running trigger "${name}" (${workflow.name} → ${agent.name})`);
+        await sub.turn(task);
+        success(`trigger "${name}" done`);
+        return;
+      }
+      return error("usage: /trigger [list|add|remove|run] [name]");
     }
     case "exit":
     case "quit":
