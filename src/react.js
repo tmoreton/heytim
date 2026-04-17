@@ -7,6 +7,7 @@ import { loadProjectContext } from "./config.js";
 import { formatMemoryForContext } from "./memory.js";
 import { createSession, save as saveSession } from "./session.js";
 import { rehydrateReadsFromMessages } from "./tools/fs.js";
+import { getActiveScratchpad, getScratchpadToolDefs, handleScratchpadTool } from "./tools/swarm.js";
 import { stream, streamCompletion, complete, Interrupted } from "./llm.js";
 import { ToolCache } from "./cache.js";
 import { isPlanMode } from "./permissions.js";
@@ -96,7 +97,7 @@ const COMPACT_THRESHOLD = 0.6;
 
 // Agents always get these tools so orchestration + memory upkeep work even
 // when a profile sets a restrictive `tools: [...]` allowlist.
-const AGENT_BASE_TOOLS = ["spawn_workflow", "update_memory", "append_memory"];
+const AGENT_BASE_TOOLS = ["spawn_workflow", "spawn_swarm", "update_memory", "append_memory"];
 
 export async function createAgent(profile = null) {
   const allTools = await getTools();
@@ -110,12 +111,22 @@ export async function createAgent(profile = null) {
     toolAllowlist = Array.from(new Set([...toolAllowlist, ...AGENT_BASE_TOOLS]));
   }
 
-  const tools = toolAllowlist
+  let tools = toolAllowlist
     ? Object.fromEntries(Object.entries(allTools).filter(([n]) => toolAllowlist.includes(n)))
     : allTools;
-  const toolSchemas = toolAllowlist
+  let toolSchemas = toolAllowlist
     ? Object.values(tools).map((t) => t.schema)
     : allSchemas;
+
+  // Inject swarm scratchpad tools when running inside an active swarm
+  const scratchpad = getActiveScratchpad();
+  if (scratchpad) {
+    const scratchpadTools = Object.fromEntries(
+      getScratchpadToolDefs().map((t) => [t.function.name, { schema: t, run: async (args) => handleScratchpadTool(t.function.name, args) }])
+    );
+    tools = { ...tools, ...scratchpadTools };
+    toolSchemas = [...toolSchemas, ...getScratchpadToolDefs()];
+  }
 
   const state = {
     model: profile?.model || DEFAULT_MODEL,

@@ -42,6 +42,7 @@ tim /env set AGENTMAIL_WHITELIST=...
 | `grep` | regex search file contents |
 | `glob` | find files by pattern |
 | `spawn_workflow` | run sub-agents headlessly |
+| `spawn_swarm` | run multiple agents in parallel with shared scratchpad |
 | `web_fetch` | fetch and extract web pages |
 | `web_search` | web search via Tavily (requires `TAVILY_API_KEY`) |
 | `update_memory` | overwrite agent memory file |
@@ -92,6 +93,7 @@ src/
     ├── bash.js       # shell command execution with timeout
     ├── search.js     # grep and glob search
     ├── spawn.js      # spawn_workflow: run sub-agents headlessly
+    ├── swarm.js      # spawn_swarm: parallel agents with shared scratchpad
     ├── web_fetch.js  # fetch + extract web pages
     ├── web_search.js # Tavily web search
     ├── email.js      # notify_email, receive_email, create_email_inbox
