@@ -12,6 +12,42 @@ import { spawnSync } from "node:child_process";
 process.env.TIM_DIR ||= path.join(os.homedir(), ".tim");
 fs.mkdirSync(process.env.TIM_DIR, { recursive: true });
 
+// Bootstrap global TIM.md if missing (directory conventions, rules)
+const globalTimMd = path.join(process.env.TIM_DIR, "TIM.md");
+if (!fs.existsSync(globalTimMd)) {
+  const defaultTimMd = `# TIM Directory Conventions
+
+**Never create loose files in \`$TIM_DIR\` root.** Everything belongs in a subdirectory.
+
+## Directory Structure
+
+| Folder | Purpose |
+|--------|---------|
+| \`agents/\` | Agent persona definitions (markdown files) |
+| \`data/\` | Small data files (JSON, IDs, tracking data) |
+| \`images/\` | Generated images (auto-saved by \`generate_image\` tool) |
+| \`memory/\` | Persistent user memory per agent (use \`append_memory\` / \`update_memory\`) |
+| \`projects/\` | One-off projects, campaigns, experiments |
+| \`sessions/\` | Auto-logged conversation sessions |
+| \`tools/\` | Custom tool scripts |
+| \`triggers/\` | Trigger definitions & state |
+| \`workflows/\` | Reusable workflow definitions |
+
+## Rules
+
+1. **Projects go in \`projects/{name}/\`** — Multi-file work (YouTube series, campaigns) gets its own subfolder
+2. **Data goes in \`data/\`** — Processed IDs, tracking JSON, etc. (not root)
+3. **Use memory tools** — Call \`append_memory()\` or \`update_memory()\` instead of writing to \`memory/\` directly
+4. **Images auto-save** — \`generate_image()\` already puts files in \`images/\`
+
+## When in doubt
+
+- 1-2 files for a quick task → \`data/\` or \`images/\`
+- 3+ files or a named campaign → \`projects/{kebab-case-name}/\`
+`;
+  fs.writeFileSync(globalTimMd, defaultTimMd);
+}
+
 // Load $TIM_DIR/.env into process.env (existing env wins)
 try {
   for (const line of fs.readFileSync(path.join(process.env.TIM_DIR, ".env"), "utf8").split("\n")) {
