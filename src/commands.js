@@ -13,6 +13,7 @@ import {
 } from "./react.js";
 import { loadAgents } from "./agents.js";
 import { loadWorkflows } from "./workflows.js";
+import { loadTriggers, runTrigger, triggerExists } from "./triggers.js";
 import {
   listMcpServers,
   addMcpServer,
@@ -40,7 +41,8 @@ const HELP_ROWS = [
   ["/workflow <name>", "run workflow"],
   ["/triggers", "scheduled cron triggers"],
   ["/memory [agent]", "agent memory path/contents"],
-  ["/env", "environment vars"],
+  ["/loc", "lines of code (all)"],
+  ["/sloc", "source lines (no comments/blanks)"],
   ["/clear", "new session"],
   ["/compact", "summarize old messages"],
   ["/sessions", "saved conversations"],
@@ -286,15 +288,8 @@ export async function runCommand(input) {
       const agent = loadAgents()[workflow.agent];
       if (!agent) return error(`workflow "${workflowName}" references agent "${workflow.agent}" which is missing`);
       const task = taskParts.join(" ").trim() || workflow.task || `Run the ${workflow.name} workflow.`;
-      const subProfile = {
-        ...agent,
-        tools: workflow.tools || agent.tools,
-        systemPrompt: workflow.systemPrompt
-          ? `${agent.systemPrompt}\n\n## Current task — ${workflow.name}\n\n${workflow.systemPrompt}`
-          : agent.systemPrompt,
-      };
       info(`→ running workflow ${workflowName} (agent: ${agent.name})`);
-      await runAndPrintLast(await createAgent(subProfile), task, workflowName);
+      await runAndPrintLast(await createAgent(mergeProfile(agent, workflow)), task, workflowName);
       return;
     }
     case "agent": {
@@ -423,7 +418,6 @@ export async function runCommand(input) {
     case "schedule": {
       const [sub, name] = arg.split(/\s+/);
       if (!sub || sub === "list") {
-        const { loadTriggers } = await import("./triggers.js");
         const triggers = loadTriggers();
         console.log();
         console.log("  " + c.bold(c.teal("scheduled triggers")));
@@ -442,10 +436,6 @@ export async function runCommand(input) {
       }
       if (sub === "add") {
         if (!name) return error("usage: /trigger add <name>");
-        // Delegate to the trigger creation flow
-        const { writeTrigger, triggerExists, getTriggersDir } = await import("./triggers.js");
-        const { loadWorkflows } = await import("./workflows.js");
-        const { loadAgents } = await import("./agents.js");
         const readline = await import("node:readline");
         
         if (triggerExists(name)) return error(`trigger "${name}" already exists`);
@@ -466,6 +456,7 @@ export async function runCommand(input) {
         const description = await ask("Description (optional)", "");
         rl.close();
         
+        const { writeTrigger } = await import("./triggers.js");
         const filepath = writeTrigger(name, { schedule, workflow, task, description });
         success(`created trigger "${name}"`);
         info(`filepath: ${filepath}`);
@@ -474,44 +465,43 @@ export async function runCommand(input) {
       }
       if (sub === "remove") {
         if (!name) return error("usage: /trigger remove <name>");
-        const { deleteTrigger, triggerExists } = await import("./triggers.js");
         if (!triggerExists(name)) return error(`trigger "${name}" not found`);
+        const { deleteTrigger } = await import("./triggers.js");
         deleteTrigger(name);
         success(`removed scheduled trigger "${name}"`);
         return;
       }
       if (sub === "run") {
         if (!name) return error("usage: /trigger run <name>");
-        const { loadTriggers, getTriggerState } = await import("./triggers.js");
-        const { loadWorkflows } = await import("./workflows.js");
-        const { loadAgents } = await import("./agents.js");
-        const { setAutoAccept } = await import("./permissions.js");
-        const { createAgent } = await import("./react.js");
-        
-        const triggers = loadTriggers();
-        const t = triggers.find((x) => x.name === name);
-        if (!t) return error(`trigger "${name}" not found`);
-        
-        const workflow = loadWorkflows()[t.workflow];
-        if (!workflow) return error(`workflow "${t.workflow}" not found`);
-        const agent = loadAgents()[workflow.agent];
-        if (!agent) return error(`agent "${workflow.agent}" not found`);
-        
-        setAutoAccept(true);
-        const sub = await createAgent({
-          ...agent,
-          tools: workflow.tools || agent.tools,
-          systemPrompt: workflow.systemPrompt
-            ? `${agent.systemPrompt}\n\n## Current task — ${workflow.name}\n\n${workflow.systemPrompt}`
-            : agent.systemPrompt,
-        });
-        const task = t.task || workflow.task || `Run the ${workflow.name} workflow.`;
-        info(`running trigger "${name}" (${workflow.name} → ${agent.name})`);
-        await sub.turn(task);
+        const { getTriggerState } = await import("./triggers.js");
+        info(`running trigger "${name}"...`);
+        try {
+          await runTrigger(name, { log: (msg) => info(msg.replace(/^→ /, "").replace(/^✓ /, "")) });
+        } catch (e) {
+          return error(e.message);
+        }
         success(`trigger "${name}" done`);
         return;
       }
       return error("usage: /trigger [list|add|remove|run] [name]");
+    }
+    case "loc":
+    case "sloc": {
+      const { execSync } = await import("node:child_process");
+      try {
+        const isStrict = cmd === "sloc";
+        let command = 'find src -name "*.js" | xargs wc -l | tail -1';
+        if (isStrict) {
+          command = 'find src -name "*.js" -exec cat {} + | grep -v "^[[:space:]]*\\/\\/" | grep -v "^[[:space:]]*\\/\\*" | grep -v "^[[:space:]]*\\*\\/" | grep -v "^[[:space:]]*$" | wc -l';
+        }
+        const result = execSync(command, { encoding: 'utf8', cwd: process.cwd() });
+        const lines = result.trim().split(/\s+/)[0];
+        const label = isStrict ? "source lines (no comments/blanks)" : "lines of code";
+        success(`${Number(lines).toLocaleString()} ${label}`);
+      } catch {
+        error("could not count lines");
+      }
+      return;
     }
     case "exit":
     case "quit":

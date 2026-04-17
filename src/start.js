@@ -8,7 +8,7 @@
 
 import { loadTriggers, getTriggerState, recordRun } from "./triggers.js";
 import { matches, sameMinute } from "./cron.js";
-import { loadWorkflows } from "./workflows.js";
+import { loadWorkflows, mergeProfile } from "./workflows.js";
 import { loadAgents } from "./agents.js";
 import { createAgent } from "./react.js";
 import { getTools } from "./tools/index.js";
@@ -64,18 +64,7 @@ async function hasWork(precheckTool) {
   }
 }
 
-// Build a sub-profile by composing the workflow's task-specific system prompt
-// on top of its agent's identity prompt. Mirrors spawn_workflow so in-process
-// trigger fires and LLM-initiated spawns produce the same sub-session shape.
-function composeWorkflowProfile(workflow, agent) {
-  return {
-    ...agent,
-    tools: workflow.tools || agent.tools,
-    systemPrompt: workflow.systemPrompt
-      ? `${agent.systemPrompt}\n\n## Current task — ${workflow.name}\n\n${workflow.systemPrompt}`
-      : agent.systemPrompt,
-  };
-}
+
 
 async function fireTrigger(trigger) {
   const workflows = loadWorkflows();
@@ -103,7 +92,7 @@ async function fireTrigger(trigger) {
   const started = ts();
   log(`→ firing ${trigger.name} (${workflow.name} → ${agent.name})`);
   try {
-    const sub = await createAgent(composeWorkflowProfile(workflow, agent));
+    const sub = await createAgent(mergeProfile(agent, workflow));
     await sub.turn(task);
     const finished = ts();
     log(`✓ ${trigger.name} done (${Math.round((new Date(finished) - new Date(started)) / 1000)}s)`);

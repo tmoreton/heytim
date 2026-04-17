@@ -7,6 +7,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { timPath, parseFrontmatter } from "./paths.js";
 import { parseCron } from "./cron.js";
+import { loadWorkflows, mergeProfile } from "./workflows.js";
+import { loadAgents } from "./agents.js";
+import { createAgent } from "./react.js";
+import { setAutoAccept } from "./permissions.js";
 
 export const getTriggersDir = () => timPath("triggers");
 const statePath = () => path.join(getTriggersDir(), "state.json");
@@ -103,4 +107,26 @@ export function recordRun(name, { startedAt, finishedAt, status, error }) {
     lastError: error || null,
   };
   saveState(state);
+}
+
+// Resolve and run a trigger by name. Validates the workflow and agent exist,
+// merges the profile, and executes the task. Used by CLI, REPL, and scheduler.
+export async function runTrigger(name, { log = console.log } = {}) {
+  const triggers = loadTriggers();
+  const t = triggers.find((x) => x.name === name);
+  if (!t) throw new Error(`trigger "${name}" not found`);
+
+  const workflow = loadWorkflows()[t.workflow];
+  if (!workflow) throw new Error(`workflow "${t.workflow}" not found`);
+
+  const agent = loadAgents()[workflow.agent];
+  if (!agent) throw new Error(`agent "${workflow.agent}" not found`);
+
+  setAutoAccept(true);
+  const sub = await createAgent(mergeProfile(agent, workflow));
+  const task = t.task || workflow.task || `Run the ${workflow.name} workflow.`;
+
+  log(`→ firing ${name} (${workflow.name} → ${agent.name})`);
+  await sub.turn(task);
+  log(`✓ ${name} done`);
 }

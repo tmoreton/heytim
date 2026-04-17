@@ -32,7 +32,7 @@ import { runCommand } from "./commands.js";
 import { load as loadSession, latest } from "./session.js";
 import { setAutoAccept } from "./permissions.js";
 import { startRepl } from "./repl.js";
-import { loadTriggers, writeTrigger, deleteTrigger, triggerExists, getTriggerState, getTriggersDir } from "./triggers.js";
+import { loadTriggers, writeTrigger, deleteTrigger, triggerExists, getTriggerState, getTriggersDir, runTrigger } from "./triggers.js";
 import { start } from "./start.js";
 import { commit as commitHistory } from "./history.js";
 import { disconnectMcpServers } from "./mcp.js";
@@ -52,13 +52,7 @@ const openPrompt = async (filepath) => {
   if (!ans.trim() || ans.trim().toLowerCase() !== "n") spawnSync(editor, [filepath], { stdio: "inherit" });
 };
 
-const mergeProfile = (agent, workflow) => ({
-  ...agent,
-  tools: workflow.tools || agent.tools,
-  systemPrompt: workflow.systemPrompt
-    ? `${agent.systemPrompt}\n\n## Current task — ${workflow.name}\n\n${workflow.systemPrompt}`
-    : agent.systemPrompt,
-});
+
 
 const editFile = (filepath) => {
   spawnSync(process.env.EDITOR || process.env.VISUAL || "vi", [filepath], { stdio: "inherit" });
@@ -379,19 +373,12 @@ if (argv[0] === "trigger" || argv[0] === "schedule") {
   if (sub === "run") {
     const name = argv[2];
     if (!name) { console.error("usage: tim trigger run <name>"); process.exit(1); }
-    const triggers = loadTriggers();
-    const t = triggers.find((x) => x.name === name);
-    if (!t) { console.error(`trigger "${name}" not found`); process.exit(1); }
-    const workflow = loadWorkflows()[t.workflow];
-    if (!workflow) { console.error(`workflow "${t.workflow}" not found`); process.exit(1); }
-    const agent = loadAgents()[workflow.agent];
-    if (!agent) { console.error(`agent "${workflow.agent}" not found`); process.exit(1); }
-    setAutoAccept(true);
-    const sub = await createAgent(mergeProfile(agent, workflow));
-    const task = t.task || workflow.task || `Run the ${workflow.name} workflow.`;
-    console.log(`→ firing ${name} (${workflow.name} → ${agent.name})`);
-    await sub.turn(task);
-    console.log(`✓ ${name} done`);
+    try {
+      await runTrigger(name);
+    } catch (e) {
+      console.error(`ERROR: ${e.message}`);
+      process.exit(1);
+    }
     process.exit(0);
   }
 

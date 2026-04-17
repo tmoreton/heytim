@@ -1,14 +1,16 @@
-```
+<p align="center">
+<pre>
 ████████╗ ██╗ ███╗   ███╗
 ╚══██╔══╝ ██║ ████╗ ████║
    ██║    ██║ ██║╚██╔╝██║
    ██║    ██║ ██║ ╚═╝ ██║
    ╚═╝    ╚═╝ ╚═╝     ╚═╝
-```
+</pre>
+</p>
 
-*the minimalist coding companion*
+<p align="center"><i>the minimalist coding companion</i></p>
 
-**~4,992 lines of JavaScript · zero runtime dependencies**
+<p align="center"><b>~4,210 source lines of JavaScript · ZERO runtime dependencies</b></p>
 
 A minimal, single-developer clone of Claude Code. Runs locally, talks to the Fireworks AI API (Kimi K2.5 Turbo), gives the model file + shell tools, and wraps it in a ReAct loop.
 
@@ -22,7 +24,10 @@ The whole point is to be readable—small enough to understand end-to-end.
 git clone <this-repo> TIM && cd TIM
 npm install
 npm link                      # installs the `tim` binary globally
-export FIREWORKS_API_KEY=...   # add to your shell profile
+
+# Set API key (one of the following)
+export FIREWORKS_API_KEY=...  # add to your shell profile
+# OR use /env set FIREWORKS_API_KEY=... inside tim
 ```
 
 Now `tim` runs from anywhere. `cd` into a project, type `tim`, and you're in a REPL.

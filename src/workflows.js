@@ -71,3 +71,15 @@ export function loadWorkflows() {
   }
   return workflows;
 }
+
+// Merge a workflow's task-specific overrides onto its agent's base profile.
+// Returns a new profile with combined tools and systemPrompt for a workflow run.
+export function mergeProfile(agent, workflow) {
+  return {
+    ...agent,
+    tools: workflow.tools || agent.tools,
+    systemPrompt: workflow.systemPrompt
+      ? `${agent.systemPrompt}\n\n## Current task — ${workflow.name}\n\n${workflow.systemPrompt}`
+      : agent.systemPrompt,
+  };
+}
