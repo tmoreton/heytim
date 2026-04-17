@@ -69,7 +69,7 @@ import { load as loadSession, latest } from "./session.js";
 
 import { startRepl } from "./repl.js";
 import { loadTriggers, writeTrigger, deleteTrigger, triggerExists, getTriggerState, getTriggersDir, runTrigger } from "./triggers.js";
-import { start } from "./start.js";
+import { start } from "./server.js";
 import { commit as commitHistory } from "./history.js";
 import { disconnectMcpServers } from "./mcp.js";
 import * as ui from "./ui.js";
@@ -124,7 +124,7 @@ if (argv.includes("--list")) {
 // This must come before the agent subcommand handling
 const agents = loadAgents();
 const firstArgIsAgent = argv[0] && !argv[0].startsWith("-") && ![
-  "agent", "workflow", "trigger", "schedule", "run", "env", "start"
+  "agent", "workflow", "trigger", "schedule", "run", "env", "start", "server"
 ].includes(argv[0]) && agents[argv[0]];
 
 if (firstArgIsAgent) {
@@ -398,13 +398,17 @@ if (argv[0] === "env") {
   process.exit(0);
 }
 
-// tim start — long-running loop that fires triggers on their cron schedule.
-// Run in a terminal tab, tmux/screen session, or via nohup for background use.
-if (argv[0] === "start") {
-  await start();
-  // Keep the process alive forever; setInterval inside start keeps ticking,
-  // and SIGINT/SIGTERM handlers call process.exit cleanly.
-  await new Promise(() => {});
+// tim start / tim server — long-running scheduler + optional HTTP/WebSocket server
+// Both commands do the same thing. Use --tailscale to expose on your Tailscale IP.
+//
+// Examples:
+//   tim start              # Scheduler only, local
+//   tim start --tailscale  # Scheduler + server on Tailscale IP
+//   tim server             # Same as tim start
+//   tim server --tailscale # Same as tim start --tailscale
+if (argv[0] === "start" || argv[0] === "server") {
+  const tailscale = argv.includes("--tailscale");
+  await start({ tailscale });
 }
 
 // tim trigger list|add|remove|run
@@ -538,10 +542,13 @@ if (resumeIdx !== -1) {
   ui.success(`resumed ${data.id} (${(data.messages || []).length} messages)`);
 }
 
-// Cleanup MCP connections on exit
-process.on("SIGINT", () => { disconnectMcpServers(); process.exit(0); });
-process.on("SIGTERM", () => { disconnectMcpServers(); process.exit(0); });
-process.on("exit", () => { disconnectMcpServers(); });
+// Only start REPL if not running a subcommand
+if (!argv[0] || !["agent", "workflow", "trigger", "schedule", "run", "env", "start", "server"].includes(argv[0])) {
+  // Cleanup MCP connections on exit
+  process.on("SIGINT", () => { disconnectMcpServers(); process.exit(0); });
+  process.on("SIGTERM", () => { disconnectMcpServers(); process.exit(0); });
+  process.on("exit", () => { disconnectMcpServers(); });
 
-// Start the REPL
-startRepl();
+  // Start the REPL
+  startRepl();
+}

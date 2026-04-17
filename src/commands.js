@@ -205,14 +205,31 @@ export async function runCommand(input) {
     case "sessions": {
       const all = listSessions();
       if (!all.length) return info("(no sessions)");
-      console.log();
-      for (const s of all.slice(0, 20)) {
-        const when = new Date(s.updatedAt).toISOString().replace("T", " ").slice(0, 19);
-        console.log(
-          `  ${c.teal(s.id.slice(0, 19))}  ${c.dim(`[${s.turns} turns]`)}  ${c.dim(when)}  ${c.white(s.cwd)}`,
-        );
+      
+      // Group by folder
+      const grouped = {};
+      for (const s of all) {
+        if (!grouped[s.folder]) grouped[s.folder] = [];
+        grouped[s.folder].push(s);
       }
+      
       console.log();
+      for (const [folder, sessions] of Object.entries(grouped).slice(0, 5)) {
+        console.log(`  ${c.bold(c.white(folder))}`);
+        for (const s of sessions.slice(0, 5)) {
+          const when = new Date(s.updatedAt).toISOString().replace("T", " ").slice(0, 19);
+          console.log(
+            `    ${c.teal(s.id.slice(0, 19))}  ${c.dim(`[${s.turns} turns]`)}  ${c.dim(when)}`,
+          );
+        }
+        if (sessions.length > 5) {
+          console.log(`    ${c.dim(`... and ${sessions.length - 5} more`)}`);
+        }
+        console.log();
+      }
+      if (Object.keys(grouped).length > 5) {
+        info(`... and ${Object.keys(grouped).length - 5} more folders`);
+      }
       return;
     }
     case "env": {
