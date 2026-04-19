@@ -13,7 +13,27 @@ import { setAutoAccept } from "./permissions.js";
 import { load as loadSession, save as saveSession, list as listSessions, listByFolder } from "./session.js";
 
 const TICK_MS = 30_000;
-const DEFAULT_PORT = 8080;
+const DEFAULT_PORT = Number(process.env.TIM_PORT) || 8080;
+
+function findAvailablePort(startPort, host) {
+  return new Promise((resolve, reject) => {
+    const tryPort = (port) => {
+      const testServer = createServer();
+      testServer.once('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          tryPort(port + 1);
+        } else {
+          reject(err);
+        }
+      });
+      testServer.once('listening', () => {
+        testServer.close(() => resolve(port));
+      });
+      testServer.listen(port, host);
+    };
+    tryPort(startPort);
+  });
+}
 
 const ts = () => new Date().toISOString();
 const log = (...args) => console.log(`[${ts()}]`, ...args);
@@ -467,7 +487,11 @@ export async function start({ tailscale = false } = {}) {
   }
 
   const server = await createHttpServer();
-  await server.listen(bindHost, DEFAULT_PORT);
+  const port = await findAvailablePort(DEFAULT_PORT, bindHost);
+  if (port !== DEFAULT_PORT) {
+    log(`⚠ port ${DEFAULT_PORT} in use — using ${port} instead`);
+  }
+  await server.listen(bindHost, port);
 
   const schedulerHandle = startScheduler();
 
