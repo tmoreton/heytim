@@ -103,11 +103,21 @@ export async function createAgent(profile = null) {
   const allTools = await getTools();
   const allSchemas = await getToolSchemas();
 
-  let toolAllowlist = profile?.tools;
+  // If no profile, check for a 'default' agent to use as base
+  let effectiveProfile = profile;
+  if (!effectiveProfile) {
+    const { loadAgents } = await import("./agents.js");
+    const agents = loadAgents();
+    if (agents.default) {
+      effectiveProfile = agents.default;
+    }
+  }
+
+  let toolAllowlist = effectiveProfile?.tools;
   // Profiles loaded from $TIM_DIR/agents/ are always identity-level agents;
   // workflows carry their own allowlist when spawned. We always merge base
   // tools so memory + spawning aren't accidentally excluded.
-  if (toolAllowlist && profile) {
+  if (toolAllowlist && effectiveProfile) {
     toolAllowlist = Array.from(new Set([...toolAllowlist, ...AGENT_BASE_TOOLS]));
   }
 
@@ -129,12 +139,12 @@ export async function createAgent(profile = null) {
   }
 
   const state = {
-    model: profile?.model || DEFAULT_MODEL,
+    model: effectiveProfile?.model || profile?.model || DEFAULT_MODEL,
     messages: [],
     session: null,
     usage: { prompt: 0, completion: 0, lastPrompt: 0 },
     toolCache: new ToolCache(),
-    profile,
+    profile: effectiveProfile || profile,
     persist: true, // always persist sessions for interactive REPL use
   };
 
@@ -160,9 +170,9 @@ bash with \`git -C $TIM_DIR log <path>\`, \`git -C $TIM_DIR show <sha>:<path>\`,
 or \`git -C $TIM_DIR checkout <sha> -- <path>\` to restore prior versions.`;
 
     // Auto-load the agent's own memory file (per-agent, not per-domain).
-    const memorySection = profile?.name ? formatMemoryForContext(profile.name) : "";
+    const memorySection = effectiveProfile?.name ? formatMemoryForContext(effectiveProfile.name) : "";
 
-    const agentPreamble = profile
+    const agentPreamble = effectiveProfile
       ? `\n\n## Memory + orchestration
 - Your memory file (above) is yours alone. It's auto-loaded at the start of
   every run so you already have the context. Do not read it with tools.
@@ -180,8 +190,8 @@ or \`git -C $TIM_DIR checkout <sha> -- <path>\` to restore prior versions.`;
   use spawn_swarm to run agents in parallel with automatic synthesis.`
       : "";
 
-    if (profile?.systemPrompt) {
-      return `${profile.systemPrompt}${agentPreamble}${memorySection}\n\nYou are running in ${process.cwd()}. Available tools: ${toolList}.${paths}${selfEdit}${customizations}`;
+    if (effectiveProfile?.systemPrompt) {
+      return `${effectiveProfile.systemPrompt}${agentPreamble}${memorySection}\n\nYou are running in ${process.cwd()}. Available tools: ${toolList}.${paths}${selfEdit}${customizations}`;
     }
     const base = `You are tim, a minimal coding assistant running in ${process.cwd()}.
 You have tools: ${toolList}.
@@ -418,6 +428,12 @@ export function setMainAgent(agent) {
 // Check if we're currently in agent mode (vs base tim)
 export function isAgentMode() {
   return main?.state?.profile?.name != null;
+}
+
+// Get the main agent/session state for plan swarm execution
+export async function getMainSession() {
+  await ensureMain();
+  return main?.state || null;
 }
 
 // Switch back to base tim from agent mode

@@ -48,6 +48,9 @@ if (!fs.existsSync(globalTimMd)) {
   fs.writeFileSync(globalTimMd, defaultTimMd);
 }
 
+// Bootstrap default agent on first install (minimal tools for coding)
+await import("./agents.js").then(({ bootstrapDefaultAgent }) => bootstrapDefaultAgent());
+
 // Load $TIM_DIR/.env into process.env (existing env wins)
 try {
   for (const line of fs.readFileSync(path.join(process.env.TIM_DIR, ".env"), "utf8").split("\n")) {

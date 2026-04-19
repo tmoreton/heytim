@@ -362,11 +362,89 @@ export async function runCommand(input) {
     case "plan": {
       const next = !isPlanMode();
       setPlanMode(next);
-      if (next)
+      if (next) {
         console.log(
           `  ${c.teal("◐")}  ${c.bold("plan mode ON")} ${c.dim("— model will draft a plan; edit_file/write_file/bash are blocked")}`,
         );
-      else success("plan mode OFF — ask the model to proceed with the plan");
+        return;
+      }
+      
+      // Exiting plan mode - auto-spawn swarm to execute the plan
+      success("plan mode OFF — spawning swarm to execute the plan");
+      
+      // Get the current session to find the plan
+      const { getMainSession } = await import("./react.js");
+      const session = await getMainSession?.();
+      
+      if (session?.messages) {
+        // Find the last assistant message with a plan (look for numbered lists or "Plan" header)
+        const planMsg = [...session.messages].reverse().find(m => 
+          m.role === "assistant" && 
+          !m.tool_calls?.length &&
+          m.content &&
+          (/^\s*\d+\.|#{1,3}\s+(?:Plan|Steps|Tasks|Execution)/im.test(m.content) ||
+           /(?:step|phase|stage)\s+\d+/i.test(m.content))
+        );
+        
+        if (planMsg?.content) {
+          // Parse plan into tasks
+          const lines = planMsg.content.split('\n');
+          const tasks = [];
+          let currentTask = null;
+          
+          for (const line of lines) {
+            // Match numbered items (1. or 1) or markdown list items (- or *)
+            const match = line.match(/^\s*(?:\d+[.)]|[-*])\s+(.+)$/);
+            if (match) {
+              if (currentTask) tasks.push(currentTask);
+              currentTask = { description: match[1], details: [] };
+            } else if (currentTask && line.trim().startsWith('-')) {
+              currentTask.details.push(line.trim().replace(/^[-\s]+/, ''));
+            } else if (currentTask && line.trim() && !line.match(/^#{1,3}\s/)) {
+              currentTask.details.push(line.trim());
+            }
+          }
+          if (currentTask) tasks.push(currentTask);
+          
+          if (tasks.length > 0) {
+            // Check if we have agents that can help, or create generic worker tasks
+            const agents = loadAgents();
+            const agentNames = Object.keys(agents);
+            
+            // Map tasks to swarm tasks
+            const swarmTasks = tasks.map((t, i) => {
+              // Try to match task to an agent based on keywords
+              const desc = t.description.toLowerCase();
+              let agent = agentNames.find(n => 
+                desc.includes(n.toLowerCase()) || 
+                (agents[n].description && desc.includes(agents[n].description.toLowerCase().split(' ')[0]))
+              );
+              
+              // Default to first available agent or 'default'
+              if (!agent && agentNames.length > 0) agent = agentNames[0];
+              if (!agent) agent = 'default';
+              
+              const fullTask = `${t.description}${t.details.length ? '\nDetails: ' + t.details.join('\n') : ''}`;
+              return { agent, task: fullTask };
+            });
+            
+            // Limit to max 10
+            const limitedTasks = swarmTasks.slice(0, 10);
+            
+            console.log(`  ${c.teal("🐝")}  ${c.dim(`Spawning ${limitedTasks.length} agents to execute plan...`)}`);
+            
+            // Run the swarm
+            const { runSwarm } = await import("./tools/swarm.js");
+            try {
+              const result = await runSwarm(limitedTasks, { synthesize: true });
+              console.log();
+              console.log(result);
+            } catch (e) {
+              error(`Swarm failed: ${e.message}`);
+            }
+          }
+        }
+      }
       return;
     }
     case "memory": {
