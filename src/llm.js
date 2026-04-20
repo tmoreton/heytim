@@ -199,6 +199,8 @@ export async function streamCompletion({ model, messages, toolSchemas, usage }, 
   );
 
   let content = "";
+  let reasoning = "";
+  let reasoningContent = "";
   const toolAcc = [];
   let started = false;
   let responseUsage = null;
@@ -237,6 +239,9 @@ export async function streamCompletion({ model, messages, toolSchemas, usage }, 
         flushLines();
       }
 
+      if (typeof delta.reasoning === "string") reasoning += delta.reasoning;
+      if (typeof delta.reasoning_content === "string") reasoningContent += delta.reasoning_content;
+
       if (delta.tool_calls) {
         if (!started) spin.stop();
         for (const tc of delta.tool_calls) {
@@ -266,6 +271,8 @@ export async function streamCompletion({ model, messages, toolSchemas, usage }, 
     message: {
       role: "assistant",
       content: content || null,
+      ...(reasoning ? { reasoning } : {}),
+      ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
       ...(toolCalls.length ? { tool_calls: toolCalls } : {}),
     },
   };

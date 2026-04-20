@@ -313,7 +313,11 @@ async function createHttpServer() {
         let sub;
         if (sessionId) {
           const data = loadSession(sessionId);
-          if (data) sub = resumeSession(data);
+          if (data) {
+            if (folder || data.cwd) process.chdir(folder || data.cwd);
+            sub = await createAgent(agent);
+            sub.resume(data);
+          }
         }
         if (!sub) {
           if (folder) process.chdir(folder); // Set context for new session
@@ -322,10 +326,11 @@ async function createHttpServer() {
 
         await sub.turn(message);
         const last = sub.state.messages.filter(m => m.role === "assistant" && !m.tool_calls?.length && m.content).pop();
-        const saved = saveSession(sub.state);
+        const sessionData = sub.state.session;
+        if (sessionData) saveSession(sessionData, sub.state.messages, sub.state.usage);
 
         res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
-        res.end(JSON.stringify({ response: last?.content || "", sessionId: saved.id, messages: sub.state.messages }));
+        res.end(JSON.stringify({ response: last?.content || "", sessionId: sessionData?.id, messages: sub.state.messages }));
         return;
       }
 
@@ -381,14 +386,18 @@ async function createHttpServer() {
     try {
       if (sessionId) {
         const data = loadSession(sessionId);
-        if (data) sub = resumeSession(data);
+        if (data) {
+          if (folder || data.cwd) process.chdir(folder || data.cwd);
+          sub = await createAgent(agent);
+          sub.resume(data);
+        }
       }
       if (!sub) {
         if (folder) process.chdir(folder);
         sub = await createAgent(agent);
       }
-      connections.set(socket, { agent: sub, sessionId: sub.state.id });
-      send({ type: "connected", sessionId: sub.state.id, agent: agentName, folder: folder || process.cwd() });
+      connections.set(socket, { agent: sub, sessionId: sub.state.session?.id });
+      send({ type: "connected", sessionId: sub.state.session?.id, agent: agentName, folder: folder || process.cwd() });
     } catch (e) {
       send({ type: "error", error: e.message });
       socket.end();
@@ -424,7 +433,7 @@ async function createHttpServer() {
 
           try {
             await sub.turn(msg.content);
-            saveSession(sub.state);
+            if (sub.state.session) saveSession(sub.state.session, sub.state.messages, sub.state.usage);
             send({ type: "done" });
           } catch (e) {
             send({ type: "error", error: e.message });
