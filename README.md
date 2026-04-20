@@ -1,15 +1,10 @@
-```
-████████╗ ██╗ ███╗   ███╗
-╚══██╔══╝ ██║ ████╗ ████║
-   ██║    ██║ ██║╚██╔╝██║
-   ██║    ██║ ██║ ╚═╝ ██║
-   ╚═╝    ╚═╝ ╚═╝     ╚═╝
-```
-![alt text](tim.svg)
-
-*the minimalist coding companion*
-
-**~4,995 source lines of JavaScript · ZERO runtime dependencies**
+<div align="center">
+  <img src="tim.svg" width="75%" alt="HeyTim">
+  <br>
+  <em>the minimalist coding companion</em>
+  <br><br>
+  <strong>~4,995 source lines of JavaScript · ZERO runtime dependencies</strong>
+</div>
 
 A minimal, single-developer clone of Claude Code. Runs locally, talks to the Fireworks AI API (Kimi K2.5 Turbo), gives the model file + shell tools, and wraps it in a ReAct loop.
 
