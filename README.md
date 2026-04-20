@@ -43,8 +43,6 @@ tim /env set AGENTMAIL_WHITELIST=...
 | `append_memory` | append to agent memory file |
 | `notify_email` | send email (AgentMail or SMTP) |
 | `receive_email` | poll inbox for new emails (AgentMail) |
-| `create_email_inbox` | create new AgentMail inbox |
-| `generate_image` | generate images via OpenRouter (requires `OPENROUTER_API_KEY`) |
 
 ## Agents
 

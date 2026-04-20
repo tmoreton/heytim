@@ -3,6 +3,8 @@
   "version": "0.6.0",
   "description": "Minimal TIM agent framework CLI",
   "type": "module",
+  "license": "Apache-2.0",
+  "author": "Tim Moreton",
   "bin": {
     "tim": "./src/index.js"
   },
