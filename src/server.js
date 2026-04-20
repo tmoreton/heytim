@@ -15,7 +15,7 @@ import { getModelCatalog } from "./llm.js";
 import { qrToANSI } from "./qrcode.js";
 import { getTools } from "./tools/index.js";
 import { setAutoAccept } from "./permissions.js";
-import { load as loadSession, save as saveSession, list as listSessions, listByFolder } from "./session.js";
+import { load as loadSession, save as saveSession, list as listSessions, listByFolder, remove as removeSession } from "./session.js";
 
 const TICK_MS = 30_000;
 const DEFAULT_PORT = Number(process.env.TIM_PORT) || 8080;
@@ -231,6 +231,10 @@ async function fireTrigger(trigger) {
   log(`\x1b[38;2;20;184;166m→\x1b[0m firing ${trigger.name} (${workflow.name} → ${agent.name})`);
   try {
     const sub = await createAgent(mergeProfile(agent, workflow));
+    // Trigger-fired runs shouldn't clutter the chat session history — they're
+    // background automation. Their history already lives in `.tim/triggers/`
+    // via recordRun() below. Turning off persistence keeps the sidebar clean.
+    sub.state.persist = false;
     await sub.turn(task);
     const finished = ts();
     log(`\x1b[38;2;20;184;166m✓\x1b[0m ${trigger.name} done (${Math.round((new Date(finished) - new Date(started)) / 1000)}s)`);
@@ -362,6 +366,14 @@ async function createHttpServer() {
         }
         res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
         res.end(JSON.stringify(session));
+        return;
+      }
+
+      if (path.startsWith("/sessions/") && req.method === "DELETE") {
+        const id = path.split("/")[2] || "";
+        const deleted = removeSession(id);
+        res.writeHead(deleted ? 200 : 404, { "Content-Type": "application/json", ...corsHeaders });
+        res.end(JSON.stringify({ ok: deleted }));
         return;
       }
 

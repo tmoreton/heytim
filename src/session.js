@@ -197,3 +197,24 @@ export function listByFolder() {
 }
 
 export const latest = () => list()[0];
+
+/**
+ * Delete a session by id. Returns true if a matching file was removed.
+ * Traverses every folder since the id uniquely identifies a session.
+ */
+export function remove(id) {
+  const safeId = (id || "").replace(/[\/\\.]/g, "");
+  if (!safeId) return false;
+  const baseDir = DIR();
+  if (!fs.existsSync(baseDir)) return false;
+  for (const folder of fs.readdirSync(baseDir)) {
+    const folderPath = path.join(baseDir, folder);
+    if (!fs.statSync(folderPath).isDirectory()) continue;
+    const filePath = path.join(folderPath, `${safeId}.json`);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      return true;
+    }
+  }
+  return false;
+}
