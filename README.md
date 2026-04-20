@@ -5,7 +5,7 @@
   <br><br>
   <strong>~5,250 source lines of JavaScript · ZERO runtime dependencies</strong>
   <br><br>
-  <p>A minimal, single-developer clone of Claude Code. Runs locally, talks to the Fireworks AI API (Kimi K2.5 Turbo), gives the model file + shell tools, and wraps it in a ReAct loop.</p>
+  <p>A minimal AI coding assistant. Runs locally, works with any LLM provider (Fireworks, OpenRouter, etc.), gives the model file + shell tools, and wraps it in a ReAct loop.</p>
   <p>The whole point is to be readable—small enough to understand end-to-end.</p>
 </div>
 
