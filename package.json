@@ -1,7 +1,7 @@
 {
   "name": "tim",
   "version": "0.6.0",
-  "description": "Minimal Claude Code-style CLI",
+  "description": "Minimal TIM agent framework CLI",
   "type": "module",
   "bin": {
     "tim": "./src/index.js"
