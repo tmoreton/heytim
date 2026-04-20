@@ -3,7 +3,7 @@
   <br>
   <em>the minimalist coding companion</em>
   <br><br>
-  <strong>~4,995 source lines of JavaScript · ZERO runtime dependencies</strong>
+  <strong>~4,853 source lines of JavaScript · ZERO runtime dependencies</strong>
   <br><br>
   <p>A minimal, single-developer clone of Claude Code. Runs locally, talks to the Fireworks AI API (Kimi K2.5 Turbo), gives the model file + shell tools, and wraps it in a ReAct loop.</p>
   <p>The whole point is to be readable—small enough to understand end-to-end.</p>
@@ -37,7 +37,6 @@ tim /env set AGENTMAIL_WHITELIST=...
 | `grep` | regex search file contents |
 | `glob` | find files by pattern |
 | `spawn_workflow` | run sub-agents headlessly |
-| `spawn_swarm` | run multiple agents in parallel with shared scratchpad |
 | `web_fetch` | fetch and extract web pages |
 | `web_search` | web search via Tavily (requires `TAVILY_API_KEY`) |
 | `update_memory` | overwrite agent memory file |
@@ -88,7 +87,6 @@ src/
     ├── bash.js       # shell command execution with timeout
     ├── search.js     # grep and glob search
     ├── spawn.js      # spawn_workflow: run sub-agents headlessly
-    ├── swarm.js      # spawn_swarm: parallel agents with shared scratchpad
     ├── web_fetch.js  # fetch + extract web pages
     ├── web_search.js # Tavily web search
     ├── email.js      # notify_email, receive_email, create_email_inbox

@@ -3,11 +3,15 @@
 
 import { createServer } from "node:http";
 import { execSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import nodePath from "node:path";
 import { loadTriggers, getTriggerState, recordRun } from "./triggers.js";
 import { matches, sameMinute } from "./cron.js";
 import { loadWorkflows, mergeProfile } from "./workflows.js";
 import { loadAgents } from "./agents.js";
 import { createAgent, resumeSession } from "./react.js";
+import { getModelCatalog } from "./llm.js";
 import { getTools } from "./tools/index.js";
 import { setAutoAccept } from "./permissions.js";
 import { load as loadSession, save as saveSession, list as listSessions, listByFolder } from "./session.js";
@@ -253,6 +257,14 @@ async function createHttpServer() {
         return;
       }
 
+      if (path === "/models" && req.method === "GET") {
+        const catalog = getModelCatalog();
+        const current = process.env.TIM_MODEL || catalog[0]?.id || "";
+        res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
+        res.end(JSON.stringify({ current, catalog }));
+        return;
+      }
+
       if (path === "/agents" && req.method === "GET") {
         const agents = Object.values(loadAgents()).map(a => ({ name: a.name, description: a.description, tools: a.tools }));
         res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
@@ -294,7 +306,7 @@ async function createHttpServer() {
 
       if (path === "/chat" && req.method === "POST") {
         const body = await readBody(req);
-        const { agent: agentName, message, sessionId, folder } = body;
+        const { agent: agentName, message, sessionId, folder, model, attachments } = body;
 
         if (!agentName || !message) {
           res.writeHead(400, { "Content-Type": "application/json", ...corsHeaders });
@@ -324,7 +336,29 @@ async function createHttpServer() {
           sub = await createAgent(agent);
         }
 
-        await sub.turn(message);
+        if (model) sub.state.model = model;
+        if (sub.state.session) sub.state.session.agent = agentName;
+
+        let attachmentPaths = null;
+        if (Array.isArray(attachments) && attachments.length > 0) {
+          const tmpDir = fs.mkdtempSync(nodePath.join(os.tmpdir(), "tim-upload-"));
+          const images = [];
+          const pdfs = [];
+          for (const a of attachments) {
+            if (!a?.name || !a?.data) continue;
+            const safeName = String(a.name).replace(/[^a-zA-Z0-9._-]/g, "_") || "file.bin";
+            const filepath = nodePath.join(tmpDir, safeName);
+            fs.writeFileSync(filepath, Buffer.from(a.data, "base64"));
+            if (a.mime === "application/pdf" || safeName.toLowerCase().endsWith(".pdf")) {
+              pdfs.push(filepath);
+            } else {
+              images.push(filepath);
+            }
+          }
+          if (images.length || pdfs.length) attachmentPaths = { images, pdfs };
+        }
+
+        await sub.turn(message, null, attachmentPaths);
         const last = sub.state.messages.filter(m => m.role === "assistant" && !m.tool_calls?.length && m.content).pop();
         const sessionData = sub.state.session;
         if (sessionData) saveSession(sessionData, sub.state.messages, sub.state.usage);
@@ -396,6 +430,7 @@ async function createHttpServer() {
         if (folder) process.chdir(folder);
         sub = await createAgent(agent);
       }
+      if (sub.state.session) sub.state.session.agent = agentName;
       connections.set(socket, { agent: sub, sessionId: sub.state.session?.id });
       send({ type: "connected", sessionId: sub.state.session?.id, agent: agentName, folder: folder || process.cwd() });
     } catch (e) {

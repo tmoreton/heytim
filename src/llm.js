@@ -46,11 +46,12 @@ export const pickProvider = (model = "") => {
 // to /model — this list is just quick-pick shortcuts.
 const MODEL_CATALOG = [
   { id: "accounts/fireworks/routers/kimi-k2p5-turbo", label: "Kimi K2.5 Turbo", provider: "fireworks" },
-  { id: "openrouter/anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5", provider: "openrouter" },
-  { id: "openrouter/anthropic/claude-opus-4.1", label: "Claude Opus 4.1", provider: "openrouter" },
+  { id: "openrouter/anthropic/claude-opus-4.7", label: "Claude Opus 4.7", provider: "openrouter" },
   { id: "openrouter/openai/gpt-5", label: "GPT-5", provider: "openrouter" },
-  { id: "openrouter/google/gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "openrouter" },
-  { id: "openrouter/x-ai/grok-4", label: "Grok 4", provider: "openrouter" },
+  { id: "openrouter/moonshotai/kimi-k2.6", label: "Kimi K2.6", provider: "openrouter" },
+  { id: "openrouter/google/gemini-3-pro", label: "Gemini 3 Pro", provider: "openrouter" },
+  { id: "openrouter/google/gemma-4-31b-it", label: "Gemma 4 31B", provider: "openrouter" },
+  { id: "openrouter/qwen/qwen3.5-122b-a10b", label: "Qwen 3.5 122B", provider: "openrouter" },
 ];
 
 export const getModelCatalog = () =>

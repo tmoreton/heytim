@@ -368,83 +368,7 @@ export async function runCommand(input) {
         );
         return;
       }
-      
-      // Exiting plan mode - auto-spawn swarm to execute the plan
-      success("plan mode OFF — spawning swarm to execute the plan");
-      
-      // Get the current session to find the plan
-      const { getMainSession } = await import("./react.js");
-      const session = await getMainSession?.();
-      
-      if (session?.messages) {
-        // Find the last assistant message with a plan (look for numbered lists or "Plan" header)
-        const planMsg = [...session.messages].reverse().find(m => 
-          m.role === "assistant" && 
-          !m.tool_calls?.length &&
-          m.content &&
-          (/^\s*\d+\.|#{1,3}\s+(?:Plan|Steps|Tasks|Execution)/im.test(m.content) ||
-           /(?:step|phase|stage)\s+\d+/i.test(m.content))
-        );
-        
-        if (planMsg?.content) {
-          // Parse plan into tasks
-          const lines = planMsg.content.split('\n');
-          const tasks = [];
-          let currentTask = null;
-          
-          for (const line of lines) {
-            // Match numbered items (1. or 1) or markdown list items (- or *)
-            const match = line.match(/^\s*(?:\d+[.)]|[-*])\s+(.+)$/);
-            if (match) {
-              if (currentTask) tasks.push(currentTask);
-              currentTask = { description: match[1], details: [] };
-            } else if (currentTask && line.trim().startsWith('-')) {
-              currentTask.details.push(line.trim().replace(/^[-\s]+/, ''));
-            } else if (currentTask && line.trim() && !line.match(/^#{1,3}\s/)) {
-              currentTask.details.push(line.trim());
-            }
-          }
-          if (currentTask) tasks.push(currentTask);
-          
-          if (tasks.length > 0) {
-            // Check if we have agents that can help, or create generic worker tasks
-            const agents = loadAgents();
-            const agentNames = Object.keys(agents);
-            
-            // Map tasks to swarm tasks
-            const swarmTasks = tasks.map((t, i) => {
-              // Try to match task to an agent based on keywords
-              const desc = t.description.toLowerCase();
-              let agent = agentNames.find(n => 
-                desc.includes(n.toLowerCase()) || 
-                (agents[n].description && desc.includes(agents[n].description.toLowerCase().split(' ')[0]))
-              );
-              
-              // Default to first available agent or 'default'
-              if (!agent && agentNames.length > 0) agent = agentNames[0];
-              if (!agent) agent = 'default';
-              
-              const fullTask = `${t.description}${t.details.length ? '\nDetails: ' + t.details.join('\n') : ''}`;
-              return { agent, task: fullTask };
-            });
-            
-            // Limit to max 10
-            const limitedTasks = swarmTasks.slice(0, 10);
-            
-            console.log(`  ${c.teal("🐝")}  ${c.dim(`Spawning ${limitedTasks.length} agents to execute plan...`)}`);
-            
-            // Run the swarm
-            const { runSwarm } = await import("./tools/swarm.js");
-            try {
-              const result = await runSwarm(limitedTasks, { synthesize: true });
-              console.log();
-              console.log(result);
-            } catch (e) {
-              error(`Swarm failed: ${e.message}`);
-            }
-          }
-        }
-      }
+      success("plan mode OFF — ready to execute");
       return;
     }
     case "memory": {
@@ -593,27 +517,48 @@ export async function runCommand(input) {
       return error("usage: /trigger [list|add|remove|run] [name]");
     }
     case "loc": {
-      const { execSync } = await import("node:child_process");
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      
       try {
-        // Count lines in common source directories, or fall back to current dir
-        const srcExists = require("fs").existsSync("src");
+        const srcExists = fs.existsSync("src");
         const searchDir = srcExists ? "src" : ".";
         
-        // Count all source code files (js, ts, html, css, py, rs, go, etc.)
-        // Excludes comments and blank lines
-        const command = `find ${searchDir} -type f \\( -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" -o -name "*.html" -o -name "*.css" -o -name "*.scss" -o -name "*.py" -o -name "*.rs" -o -name "*.go" -o -name "*.java" -o -name "*.c" -o -name "*.cpp" -o -name "*.h" \\) -exec cat {} + 2>/dev/null | grep -v "^[[:space:]]*\\/\\/" | grep -v "^[[:space:]]*\\/\\*" | grep -v "^[[:space:]]*\\*\\/" | grep -v "^[[:space:]]*#" | grep -v "^[[:space:]]*\\-\{3,\}" | grep -v "^[[:space:]]*$" | wc -l`;
+        // Find and count source files
+        const extensions = [".js", ".ts", ".jsx", ".tsx", ".html", ".css", ".scss", ".py", ".rs", ".go", ".java", ".c", ".cpp", ".h"];
+        let totalLines = 0;
+        let fileCount = 0;
         
-        const result = execSync(command, { encoding: 'utf8', cwd: process.cwd() });
-        const lines = result.trim().split(/\s+/)[0];
-        const count = Number(lines);
+        const walkDir = (dir) => {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+              // Skip node_modules, .git, etc.
+              if (!entry.name.startsWith(".") && entry.name !== "node_modules") {
+                walkDir(fullPath);
+              }
+            } else if (extensions.some(ext => entry.name.endsWith(ext))) {
+              const content = fs.readFileSync(fullPath, "utf8");
+              const lines = content.split("\n").filter(line => {
+                const trimmed = line.trim();
+                return trimmed && !trimmed.startsWith("//") && !trimmed.startsWith("/*") && !trimmed.startsWith("*") && !trimmed.startsWith("#");
+              });
+              totalLines += lines.length;
+              fileCount++;
+            }
+          }
+        };
         
-        if (count === 0) {
+        walkDir(searchDir);
+        
+        if (fileCount === 0) {
           info("no source files found — add .js, .html, .css, .py, etc.");
         } else {
-          success(`${count.toLocaleString()} source lines`);
+          success(`${totalLines.toLocaleString()} lines in ${fileCount} files`);
         }
-      } catch {
-        error("could not count lines");
+      } catch (e) {
+        error(`could not count lines: ${e.message}`);
       }
       return;
     }

@@ -135,29 +135,53 @@ export function load(id) {
   throw new Error(`Session not found: ${safeId}\nRecent sessions:\n${recent}`);
 }
 
+/** Extract a display title from a session's first non-system user message. */
+function extractTitle(messages) {
+  for (const m of messages || []) {
+    if (m.role !== "user") continue;
+    let text = "";
+    if (typeof m.content === "string") {
+      text = m.content;
+    } else if (Array.isArray(m.content)) {
+      const part = m.content.find((p) => p && typeof p.text === "string");
+      text = part?.text || "";
+    }
+    // Strip the "[attached files: ...]" prefix that the CLI adds.
+    text = text.replace(/^\[attached files:[^\]]*\]\s*/i, "").trim();
+    if (!text) continue;
+    const firstLine = text.split(/\r?\n/).find((s) => s.trim().length > 0) || text;
+    return firstLine.slice(0, 80).trim();
+  }
+  return null;
+}
+
 export function list() {
   const baseDir = DIR();
   if (!fs.existsSync(baseDir)) return [];
-  
+
   const folders = fs.readdirSync(baseDir).filter(f => fs.statSync(path.join(baseDir, f)).isDirectory());
   const sessions = [];
-  
+
   for (const folder of folders) {
     const files = fs.readdirSync(path.join(baseDir, folder)).filter(f => f.endsWith(".json"));
     for (const f of files) {
       try {
         const data = JSON.parse(fs.readFileSync(path.join(baseDir, folder, f), "utf8"));
+        if (!data.id) continue;
         sessions.push({
           id: data.id,
           folder,
           cwd: data.cwd,
+          agent: data.agent || null,
+          title: extractTitle(data.messages),
+          model: data.model || null,
           updatedAt: data.updatedAt,
           turns: (data.messages || []).filter((m) => m.role === "user").length,
         });
       } catch {}
     }
   }
-  
+
   return sessions.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 

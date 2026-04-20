@@ -15,7 +15,6 @@ import * as webFetch from "./web_fetch.js";
 import * as webSearch from "./web_search.js";
 import * as memory from "./memory.js";
 import * as email from "./email.js";
-import * as swarm from "./swarm.js";
 
 // Core tools. `requiredEnv` (string | string[]) gates registration — tools
 // with missing env vars are silently dropped so the model doesn't see them.
@@ -28,7 +27,6 @@ const coreToolDefs = {
   grep: { schema: search.grepSchema, run: search.grepRun },
   glob: { schema: search.globSchema, run: search.globRun },
   spawn_workflow: { schema: spawn.schema, run: spawn.run },
-  spawn_swarm: { schema: swarm.schema, run: swarm.run },
   web_fetch: { schema: webFetch.schema, run: webFetch.run },
   web_search: { schema: webSearch.schema, run: webSearch.run, requiredEnv: webSearch.requiredEnv },
   update_memory: { schema: memory.updateMemorySchema, run: memory.updateMemoryRun },

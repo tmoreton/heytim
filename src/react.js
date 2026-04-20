@@ -7,7 +7,7 @@ import { loadProjectContext } from "./config.js";
 import { formatMemoryForContext } from "./memory.js";
 import { createSession, save as saveSession } from "./session.js";
 import { rehydrateReadsFromMessages } from "./tools/fs.js";
-import { getActiveScratchpad, getScratchpadToolDefs, handleScratchpadTool } from "./tools/swarm.js";
+
 import { stream, streamCompletion, complete, Interrupted } from "./llm.js";
 import { ToolCache } from "./cache.js";
 import { isPlanMode } from "./permissions.js";
@@ -97,7 +97,7 @@ const COMPACT_THRESHOLD = 0.6;
 
 // Agents always get these tools so orchestration + memory upkeep work even
 // when a profile sets a restrictive `tools: [...]` allowlist.
-const AGENT_BASE_TOOLS = ["spawn_workflow", "spawn_swarm", "update_memory", "append_memory"];
+const AGENT_BASE_TOOLS = ["spawn_workflow", "update_memory", "append_memory"];
 
 export async function createAgent(profile = null) {
   const allTools = await getTools();
@@ -121,22 +121,12 @@ export async function createAgent(profile = null) {
     toolAllowlist = Array.from(new Set([...toolAllowlist, ...AGENT_BASE_TOOLS]));
   }
 
-  let tools = toolAllowlist
+  const tools = toolAllowlist
     ? Object.fromEntries(Object.entries(allTools).filter(([n]) => toolAllowlist.includes(n)))
     : allTools;
-  let toolSchemas = toolAllowlist
+  const toolSchemas = toolAllowlist
     ? Object.values(tools).map((t) => t.schema)
     : allSchemas;
-
-  // Inject swarm scratchpad tools when running inside an active swarm
-  const scratchpad = getActiveScratchpad();
-  if (scratchpad) {
-    const scratchpadTools = Object.fromEntries(
-      getScratchpadToolDefs().map((t) => [t.function.name, { schema: t, run: async (args) => handleScratchpadTool(t.function.name, args) }])
-    );
-    tools = { ...tools, ...scratchpadTools };
-    toolSchemas = [...toolSchemas, ...getScratchpadToolDefs()];
-  }
 
   const state = {
     model: effectiveProfile?.model || profile?.model || DEFAULT_MODEL,
@@ -185,9 +175,7 @@ or \`git -C $TIM_DIR checkout <sha> -- <path>\` to restore prior versions.`;
   is for facts worth remembering across runs.
 - Dispatch task-shaped work to workflows via spawn_workflow. Each workflow
   is a short-lived sub-agent that returns its findings inline — no files
-  written on the side.
-- For parallel tasks (audit codebase, review multiple areas, check several dirs),
-  use spawn_swarm to run agents in parallel with automatic synthesis.`
+  written on the side.`
       : "";
 
     if (effectiveProfile?.systemPrompt) {
@@ -198,7 +186,7 @@ You have tools: ${toolList}.
 - Prefer grep/glob over reading whole directories.
 - You MUST read_file a file before edit_file.
 - Use edit_file for surgical changes; write_file only for new files or full rewrites.
-- For parallel tasks (audit codebase, review multiple areas, check several dirs), use spawn_swarm instead of doing it yourself. Each agent gets a sub-task and results are auto-synthesized.
+
 - Keep replies concise. When the task is done, stop calling tools and give a short final answer.`;
     const ctx = loadProjectContext();
     return (ctx ? `${base}\n\n${ctx}` : base) + paths + selfEdit + customizations + memorySection;
@@ -428,12 +416,6 @@ export function setMainAgent(agent) {
 // Check if we're currently in agent mode (vs base tim)
 export function isAgentMode() {
   return main?.state?.profile?.name != null;
-}
-
-// Get the main agent/session state for plan swarm execution
-export async function getMainSession() {
-  await ensureMain();
-  return main?.state || null;
 }
 
 // Switch back to base tim from agent mode
