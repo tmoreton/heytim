@@ -178,7 +178,6 @@ function looksEmpty(result) {
   if (typeof result === "string") return !result.trim() || result.startsWith("ERROR:");
   if (Array.isArray(result)) return result.length === 0;
   if (typeof result === "object") {
-    if (Array.isArray(result.emails) && result.emails.length === 0) return true;
     if (Array.isArray(result.items) && result.items.length === 0) return true;
     if (Array.isArray(result.messages) && result.messages.length === 0) return true;
     if (result.count === 0) return true;
@@ -196,8 +195,7 @@ async function hasWork(precheckTool) {
       return { work: true };
     }
     const result = await tool.run({ dryRun: true }, { signal: null });
-    const count = Array.isArray(result?.emails) ? result.emails.length
-                : Array.isArray(result?.items)  ? result.items.length
+    const count = Array.isArray(result?.items)  ? result.items.length
                 : Array.isArray(result?.messages) ? result.messages.length
                 : typeof result?.count === "number" ? result.count
                 : null;

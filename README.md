@@ -3,7 +3,7 @@
   <br>
   <em>the minimalist coding companion</em>
   <br><br>
-  <strong>~5,024 source lines of JavaScript · ZERO runtime dependencies</strong>
+  <strong>~5,000 source lines of JavaScript · ZERO runtime dependencies</strong>
   <br><br>
   <p>A minimal AI coding assistant. Runs locally, works with any LLM provider (Fireworks, OpenRouter, etc.), gives the model file + shell tools, and wraps it in a ReAct loop.</p>
   <p>The whole point is to be readable—small enough to understand end-to-end.</p>
@@ -61,7 +61,7 @@ src/
 ├── workflows.js      # Load workflows from .tim/workflows/*.md
 ├── triggers.js       # Scheduled triggers (cron) persistence + state
 ├── cron.js           # Minimal cron expression parser + matcher
-├── start.js          # Scheduler daemon: run triggers on schedule
+
 ├── commands.js       # All slash commands: /help, /model, /agent, /env, etc
 ├── permissions.js    # Confirm prompts, auto-accept (/yolo), plan mode
 ├── ui.js             # ANSI colors, spinner, markdown rendering, banners
@@ -148,7 +148,7 @@ TIM stores all user data, configuration, and state in `~/.tim` (or `$TIM_DIR`):
 | `/sessions` | saved conversations |
 | `/auto` | toggle auto-accept |
 | `/plan` | draft without executing |
-| `/env` | manage env vars (list/set/unset/email) |
+| `/env` | manage env vars (list/set/unset) |
 | `/exit` | quit |
 
 ---

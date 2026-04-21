@@ -1,5 +1,5 @@
-// Tool registry. Core tools are built-in and filtered by required env vars
-// (e.g. generate_image needs OPENROUTER_API_KEY). Custom tools are loaded
+// Tool registry. Core tools are built-in and filtered by required env vars.
+// Custom tools are loaded
 // from $TIM_DIR/tools/*.js and follow the same requiredEnv convention.
 // MCP tools are loaded from external MCP servers configured in $TIM_DIR/mcp.json.
 

@@ -25,7 +25,7 @@ if (!fs.existsSync(globalTimMd)) {
 |--------|---------|
 | \`agents/\` | Agent persona definitions (markdown files) |
 | \`data/\` | Small data files (JSON, IDs, tracking data) |
-| \`images/\` | Generated images (auto-saved by \`generate_image\` tool) |
+| \`images/\` | Saved screenshots and generated images |
 | \`memory/\` | Persistent user memory per agent (use \`append_memory\` / \`update_memory\`) |
 | \`projects/\` | One-off projects, campaigns, experiments |
 | \`sessions/\` | Auto-logged conversation sessions |
@@ -38,7 +38,7 @@ if (!fs.existsSync(globalTimMd)) {
 1. **Projects go in \`projects/{name}/\`** — Multi-file work (YouTube series, campaigns) gets its own subfolder
 2. **Data goes in \`data/\`** — Processed IDs, tracking JSON, etc. (not root)
 3. **Use memory tools** — Call \`append_memory()\` or \`update_memory()\` instead of writing to \`memory/\` directly
-4. **Images auto-save** — \`generate_image()\` already puts files in \`images/\`
+4. **Images auto-save** — screenshots already save to \`images/\`
 
 ## When in doubt
 
@@ -361,9 +361,6 @@ if (argv[0] === "env") {
   const features = [
     group("Web search",       ["TAVILY_API_KEY"]),
     group("Image generation", ["OPENROUTER_API_KEY"]),
-    group("SMTP (send)",
-      ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"],
-      ["SMTP_PORT", "SMTP_SECURE", "SMTP_FROM"]),
     group("YouTube Data API (used by youtube-daily agent)",
       ["YOUTUBE_API_KEY", "YOUTUBE_CHANNEL_ID"]),
   ];

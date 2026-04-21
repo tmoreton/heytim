@@ -8,7 +8,7 @@ import { formatMemoryForContext } from "./memory.js";
 import { createSession, save as saveSession } from "./session.js";
 import { rehydrateReadsFromMessages } from "./tools/fs.js";
 
-import { stream, streamCompletion, complete, Interrupted, getContextLimit } from "./llm.js";
+import { stream, streamCompletion, complete, getContextLimit } from "./llm.js";
 import { ToolCache } from "./cache.js";
 import { isPlanMode } from "./permissions.js";
 import { isCwdTimSource, timPath } from "./paths.js";
@@ -46,7 +46,7 @@ const buildUserMessage = (text, attachments) => {
   }
 
   // Surface the on-disk paths so the model can pass them to tools like
-  // generate_image (reference_images) or read_file. Without this the model
+  // read_file. Without this the model
   // only sees pixels/bytes and has no way to refer to the file by path.
   const allPaths = [...attachments.images, ...attachments.pdfs];
   const pathsNote = `[attached files: ${allPaths.join(", ")}]\n`;
@@ -187,8 +187,8 @@ or \`git -C $TIM_DIR checkout <sha> -- <path>\` to restore prior versions.`;
   semantic section heading. Only use update_memory for a full rewrite when
   the file has drifted.
 - Do NOT save run summaries, daily reports, or activity logs to memory —
-  those belong in your reply to the user (or in an email you send). Memory
-  is for facts worth remembering across runs.
+  those belong in your reply to the user. Memory is for facts worth
+  remembering across runs.
 - Dispatch task-shaped work to workflows via spawn_workflow. Each workflow
   is a short-lived sub-agent that returns its findings inline — no files
   written on the side.`

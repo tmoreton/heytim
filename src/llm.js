@@ -1,5 +1,6 @@
 // LLM client with streaming, retry logic, and provider routing.
-// Exports: complete(), stream(), streamCompletion(), Interrupted, pickProvider
+// Exports: complete(), stream(), streamCompletion(), Interrupted,
+// getContextLimit(), getModelCatalog()
 
 import * as ui from "./ui.js";
 
@@ -10,7 +11,7 @@ const requireKey = (envVar) => {
   return k;
 };
 
-export const providers = {
+const providers = {
   fireworks: {
     baseUrl: "https://api.fireworks.ai/inference/v1",
     headers: () => ({
@@ -32,7 +33,7 @@ export const providers = {
 
 const DEFAULT_PROVIDER = providers.fireworks;
 
-export const pickProvider = (model = "") => {
+const pickProvider = (model = "") => {
   for (const cfg of Object.values(providers)) {
     if (cfg.prefix && model.startsWith(cfg.prefix)) {
       return { provider: cfg, model: model.slice(cfg.prefix.length) };

@@ -41,7 +41,7 @@ const HELP_ROWS = [
   ["/workflow <name>", "run workflow"],
   ["/triggers", "scheduled cron triggers"],
   ["/memory [agent]", "agent memory path/contents"],
-  ["/env [cmd]", "env vars: list, set KEY=VAL, unset KEY, email"],
+  ["/env [cmd]", "env vars: list, set KEY=VAL, unset KEY"],
   ["/loc", "source lines of code"],
   ["/clear", "new session"],
   ["/compact", "summarize old messages"],
@@ -52,15 +52,6 @@ const HELP_ROWS = [
 ];
 
 // Note: tim <agent> starts interactive chat with that agent (not listed in /help to avoid confusion)
-
-const EMAIL_ENV_HELP = [
-  ["SMTP_HOST", "SMTP server hostname"],
-  ["SMTP_USER", "SMTP username"],
-  ["SMTP_PASS", "SMTP password"],
-  ["SMTP_PORT", "SMTP port (default: 587)"],
-  ["SMTP_SECURE", "Force TLS (default: true for port 465)"],
-  ["SMTP_FROM", "Default sender for SMTP emails"],
-];
 
 const FLAG_ROWS = [
   ["tim", "start fresh interactive session"],
@@ -255,18 +246,7 @@ export async function runCommand(input) {
         success(`unset ${kv.trim()}`);
         return;
       }
-      if (sub === "email") {
-        console.log();
-        console.log("  " + c.bold(c.teal("email configuration")));
-        console.log();
-        const pad = Math.max(...EMAIL_ENV_HELP.map((r) => r[0].length)) + 2;
-        for (const [k, v] of EMAIL_ENV_HELP) {
-          console.log(`  ${c.teal(k.padEnd(pad))} ${c.dim(v)}`);
-        }
-        console.log();
-        return;
-      }
-      return error("usage: /env [list | set KEY=VAL | unset KEY | email]");
+      return error("usage: /env [list | set KEY=VAL | unset KEY]");
     }
     case "agents": {
       const profiles = Object.values(loadAgents());
