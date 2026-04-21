@@ -43,6 +43,41 @@ function findAvailablePort(startPort, host) {
 const ts = () => new Date().toISOString();
 const log = (...args) => console.log(`[${ts()}]`, ...args);
 
+// Safely change the daemon's CWD. Validates the target exists and is a
+// directory before calling `process.chdir`. Never throws: if the target is
+// invalid we return false and the caller keeps serving in whatever CWD the
+// daemon is already in, which is far better than 500-ing a live conversation.
+const safeChdir = (target) => {
+  if (!target || typeof target !== "string") return false;
+  try {
+    if (!fs.statSync(target).isDirectory()) return false;
+    process.chdir(target);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// Mobile clients often send just the session's short folder handle (e.g.
+// "heytim-ai"), not an absolute path — they don't know the daemon's
+// filesystem. Look back through recent sessions for one tagged with that
+// folder whose recorded absolute cwd still exists on disk.
+const resolveFolderName = (name) => {
+  if (!name || typeof name !== "string" || nodePath.isAbsolute(name)) return null;
+  try {
+    for (const s of listSessions()) {
+      if (s.folder !== name || !s.cwd) continue;
+      try {
+        if (fs.statSync(s.cwd).isDirectory()) return s.cwd;
+      } catch {}
+    }
+  } catch {}
+  return null;
+};
+
+const chdirForRequest = (folder, sessionCwd) =>
+  safeChdir(folder) || safeChdir(resolveFolderName(folder)) || safeChdir(sessionCwd);
+
 // ============================================================================
 // TAILSCALE DETECTION
 // ============================================================================
@@ -397,13 +432,13 @@ async function createHttpServer() {
         if (sessionId) {
           const data = loadSession(sessionId);
           if (data) {
-            if (folder || data.cwd) process.chdir(folder || data.cwd);
+            chdirForRequest(folder, data.cwd);
             sub = await createAgent(agent);
             sub.resume(data);
           }
         }
         if (!sub) {
-          if (folder) process.chdir(folder); // Set context for new session
+          chdirForRequest(folder);
           sub = await createAgent(agent);
         }
 
@@ -492,13 +527,13 @@ async function createHttpServer() {
       if (sessionId) {
         const data = loadSession(sessionId);
         if (data) {
-          if (folder || data.cwd) process.chdir(folder || data.cwd);
+          chdirForRequest(folder, data.cwd);
           sub = await createAgent(agent);
           sub.resume(data);
         }
       }
       if (!sub) {
-        if (folder) process.chdir(folder);
+        chdirForRequest(folder);
         sub = await createAgent(agent);
       }
       if (sub.state.session) sub.state.session.agent = agentName;
