@@ -202,8 +202,14 @@ You have tools: ${toolList}.
 - Prefer grep/glob over reading whole directories.
 - You MUST read_file a file before edit_file.
 - Use edit_file for surgical changes; write_file only for new files or full rewrites.
+- Keep replies concise. When the task is done, stop calling tools and give a short final answer.
 
-- Keep replies concise. When the task is done, stop calling tools and give a short final answer.`;
+## UI / visual changes
+Any time your edit affects something visible:
+- Get the UI running, then screenshot it — capture_webpage for URLs, capture_desktop for simulators and app windows.
+- Compare to what the user asked for. If it looks off, keep iterating; don't declare done on a bad screenshot.
+- Capture the specific screen/state the user cares about, not just the default.
+- If you can't render it (build error, missing deps, etc.), say so — typechecks aren't visual correctness.`;
     const ctx = loadProjectContext();
     return (ctx ? `${base}\n\n${ctx}` : base) + paths + selfEdit + customizations + memorySection;
   };
