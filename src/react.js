@@ -264,6 +264,7 @@ You have tools: ${toolList}.
 
         if (!message.tool_calls?.length) {
           if (state.persist) {
+            const limit = getContextLimit(state.model);
             ui.statusFooter({
               lastPromptTokens: state.usage.lastPrompt,
               limit,
