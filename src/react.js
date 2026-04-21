@@ -253,7 +253,7 @@ Any time your edit affects something visible:
     rehydrateReadsFromMessages(state.messages);
   };
 
-  const turn = async (userInput, signal, attachments = null) => {
+  const turn = async (userInput, signal, attachments = null, onToken = null) => {
     const text = isPlanMode() ? PLAN_PREFIX + userInput : userInput;
     const userMessage = buildUserMessage(text, attachments);
     state.messages.push(userMessage);
@@ -263,7 +263,7 @@ Any time your edit affects something visible:
         if (signal?.aborted) throw new Interrupted();
 
         const { message } = await streamCompletion(
-          { model: state.model, messages: state.messages, toolSchemas, usage: state.usage },
+          { model: state.model, messages: state.messages, toolSchemas, usage: state.usage, onToken },
           signal
         );
         state.messages.push(message);

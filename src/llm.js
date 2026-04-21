@@ -203,7 +203,7 @@ export class Interrupted extends Error {
   }
 }
 
-export async function streamCompletion({ model, messages, toolSchemas, usage }, signal) {
+export async function streamCompletion({ model, messages, toolSchemas, usage, onToken }, signal) {
   const chunks = stream(
     { model, messages, tools: toolSchemas, stream_options: { include_usage: true } },
     { signal }
@@ -246,6 +246,7 @@ export async function streamCompletion({ model, messages, toolSchemas, usage }, 
         lineBuf += delta.content;
         content += delta.content;
         flushLines();
+        onToken?.(delta.content);
       }
 
       if (delta.tool_calls) {

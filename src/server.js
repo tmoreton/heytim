@@ -3,6 +3,7 @@
 
 import { createServer } from "node:http";
 import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import nodePath from "node:path";
@@ -510,16 +511,45 @@ async function createHttpServer() {
       return;
     }
 
-    socket.write("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n");
+    // Compute Sec-WebSocket-Accept per RFC 6455 so real clients
+    // (URLSessionWebSocketTask, browsers) accept the handshake.
+    const key = req.headers["sec-websocket-key"];
+    if (!key) {
+      socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+    const acceptKey = createHash("sha1")
+      .update(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+      .digest("base64");
+    socket.write(
+      "HTTP/1.1 101 Switching Protocols\r\n" +
+      "Upgrade: websocket\r\n" +
+      "Connection: Upgrade\r\n" +
+      `Sec-WebSocket-Accept: ${acceptKey}\r\n\r\n`
+    );
 
     const send = (data) => {
-      const json = JSON.stringify(data);
-      const payload = Buffer.from(json);
-      const frame = Buffer.alloc(2 + payload.length);
-      frame[0] = 0x81;
-      frame[1] = payload.length;
-      payload.copy(frame, 2);
-      socket.write(frame);
+      const payload = Buffer.from(JSON.stringify(data));
+      const len = payload.length;
+      let header;
+      if (len < 126) {
+        header = Buffer.alloc(2);
+        header[0] = 0x81;
+        header[1] = len;
+      } else if (len < 65536) {
+        header = Buffer.alloc(4);
+        header[0] = 0x81;
+        header[1] = 126;
+        header.writeUInt16BE(len, 2);
+      } else {
+        header = Buffer.alloc(10);
+        header[0] = 0x81;
+        header[1] = 127;
+        header.writeUInt32BE(Math.floor(len / 0x100000000), 2);
+        header.writeUInt32BE(len >>> 0, 6);
+      }
+      socket.write(Buffer.concat([header, payload]));
     };
 
     let sub;
@@ -569,17 +599,12 @@ async function createHttpServer() {
 
         if (msg.type === "message" && msg.content) {
           const onToken = (token) => send({ type: "token", content: token });
-          const originalHandler = sub.onToken;
-          sub.onToken = onToken;
-
           try {
-            await sub.turn(msg.content);
+            await sub.turn(msg.content, undefined, null, onToken);
             if (sub.state.session && sub.state.persist) saveSession(sub.state.session, sub.state.messages, sub.state.usage);
             send({ type: "done" });
           } catch (e) {
             send({ type: "error", error: e.message });
-          } finally {
-            sub.onToken = originalHandler;
           }
         }
       } catch (e) {
