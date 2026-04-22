@@ -90,7 +90,12 @@ export async function run({ path: p = ".", recursive = false, depth = 3, show_hi
   const abs = resolveAny(p);
 
   if (!recursive) {
-    const entries = fs.readdirSync(abs, { withFileTypes: true });
+    let entries;
+    try {
+      entries = fs.readdirSync(abs, { withFileTypes: true });
+    } catch (e) {
+      return { content: `ERROR: ${e.message}` };
+    }
     return {
       content: entries
         .filter((e) => show_hidden || !e.name.startsWith("."))
