@@ -6,9 +6,21 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { timPath, parseFrontmatter } from "./paths.js";
+import { timPath, parseFrontmatter, validateMeta, renderFrontmatter } from "./paths.js";
 
 export const getWorkflowsDir = () => timPath("workflows");
+
+// Schema for workflow frontmatter. `task` is the default user message sent
+// when the workflow fires without an override (used by triggers especially);
+// the body is the system-prompt extension defining HOW to do the task.
+export const WORKFLOW_SCHEMA = {
+  name:        { type: "string", required: true,  doc: "Workflow identifier (kebab-case)" },
+  description: { type: "string", required: false, doc: "One-line description shown in `tim workflow list`" },
+  agent:       { type: "string", required: true,  doc: "Owning agent (must exist in $TIM_DIR/agents/)" },
+  task:        { type: "string", required: false, doc: "Default user message sent when fired without an override (one line)" },
+  precheck:    { type: "string", required: false, doc: "Optional shell command — workflow skips its run if this returns no output" },
+  tools:       { type: "array",  required: false, doc: "Override the agent's tool allowlist for this workflow — e.g. [read_file, web_fetch]" },
+};
 
 export function ensureWorkflowsDir() {
   fs.mkdirSync(getWorkflowsDir(), { recursive: true });
@@ -20,13 +32,14 @@ export function workflowExists(name) {
 
 export function writeWorkflow(name, { description = "", agent, task = "", precheck = null, tools = null, systemPrompt = "" }) {
   ensureWorkflowsDir();
-  const lines = ["---", `name: ${name}`, `description: ${description}`, `agent: ${agent}`];
-  if (precheck) lines.push(`precheck: ${precheck}`);
-  if (Array.isArray(tools) && tools.length) lines.push(`tools: [${tools.join(", ")}]`);
-  if (task) lines.push(`task: ${task.replace(/\n/g, " ")}`);
-  lines.push("---", "", systemPrompt);
+  const meta = {
+    name, description, agent,
+    task: task ? task.replace(/\n/g, " ") : "",
+    precheck: precheck || null,
+    tools: Array.isArray(tools) && tools.length ? tools : null,
+  };
   const filepath = path.join(getWorkflowsDir(), `${name}.md`);
-  fs.writeFileSync(filepath, lines.join("\n") + "\n");
+  fs.writeFileSync(filepath, renderFrontmatter(meta, WORKFLOW_SCHEMA, systemPrompt));
   return filepath;
 }
 
@@ -51,17 +64,16 @@ export function loadWorkflows() {
     const full = path.join(getWorkflowsDir(), file);
     const { meta, body } = parseFrontmatter(fs.readFileSync(full, "utf8"));
     const name = meta.name || path.basename(file, ".md");
-    if (!meta.agent) {
-      console.warn(`[workflows] skipping "${name}": missing agent field`);
-      continue;
-    }
+    const { errors, fatal } = validateMeta({ ...meta, name }, WORKFLOW_SCHEMA);
+    for (const e of errors) console.warn(`[workflows] ${file}: ${e}`);
+    if (fatal) continue;
     workflows[name] = {
       name,
       description: meta.description || "",
       agent: meta.agent,
-      // The workflow body is the detailed system prompt extension (what the
-      // agent should actually do for this task). `task` in frontmatter is a
-      // short one-liner used when scheduling; if absent, the body is the task.
+      // `task` is the default user message sent when the workflow fires
+      // without an override. The body is the system-prompt extension that
+      // defines HOW the agent should approach this kind of task.
       task: typeof meta.task === "string" ? meta.task : "",
       systemPrompt: body,
       precheck: meta.precheck || null,

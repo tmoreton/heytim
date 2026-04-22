@@ -118,6 +118,15 @@ if (argv[0] === "run" || argv.includes("--yolo")) {
   process.env.TIM_AUTO_ACCEPT = "1";
 }
 
+// `tim chat` — a general REPL whose session is filed under "general"
+// regardless of cwd, so it shows up under Chat in the iOS app instead of
+// being grouped with the current project's sessions. Shift the subcommand
+// out so the rest of the dispatch treats it as a bare REPL launch.
+if (argv[0] === "chat") {
+  process.env.TIM_SESSION_FOLDER = "general";
+  argv.shift();
+}
+
 if (argv.includes("--list")) {
   await runCommand("/sessions");
   process.exit(0);

@@ -65,3 +65,8 @@ export async function appendMemoryRun({ section, content }, ctx) {
   appendMemory(agent, section, content);
   return `Appended "${section}" to ${agent} memory.`;
 }
+
+export const tools = {
+  update_memory: { schema: updateMemorySchema, run: updateMemoryRun },
+  append_memory: { schema: appendMemorySchema, run: appendMemoryRun },
+};

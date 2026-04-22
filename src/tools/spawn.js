@@ -62,3 +62,7 @@ export async function run({ workflow, task }, { signal }) {
   ui.info(`← ${workflow} done`);
   return fullText;
 }
+
+export const tools = {
+  spawn_workflow: { schema, run },
+};

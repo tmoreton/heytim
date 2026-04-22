@@ -7,6 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { promisify } from "node:util";
+import { timPath } from "../paths.js";
 
 const execAsync = promisify(exec);
 
@@ -164,9 +165,7 @@ async function captureDesktop(options = {}) {
   const { display = 1, selection = false } = options;
 
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
-  const outputDir = process.env.TIM_DIR
-    ? path.join(process.env.TIM_DIR, "images")
-    : path.join(os.homedir(), ".tim", "images");
+  const outputDir = timPath("images");
 
   fs.mkdirSync(outputDir, { recursive: true });
 
@@ -267,9 +266,7 @@ export async function captureWebpageRun(args) {
   const { url, filename, width = 1280, height = 720, fullPage = false, delay = 0 } = args;
   
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
-  const outputDir = process.env.TIM_DIR 
-    ? path.join(process.env.TIM_DIR, "images")
-    : path.join(os.homedir(), ".tim", "images");
+  const outputDir = timPath("images");
   
   fs.mkdirSync(outputDir, { recursive: true });
   
@@ -305,3 +302,8 @@ export async function captureDesktopRun(args = {}) {
     return `ERROR: ${e.message}`;
   }
 }
+
+export const tools = {
+  capture_webpage: { schema: captureWebpageSchema, run: captureWebpageRun },
+  capture_desktop: { schema: captureDesktopSchema, run: captureDesktopRun },
+};

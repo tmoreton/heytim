@@ -274,3 +274,10 @@ export async function writeRun({ path: p, content }, ctx = {}) {
   writeDiff(content);
   return `Wrote ${content.length} bytes to ${p}`;
 }
+
+export const tools = {
+  list_files: { schema, run },
+  read_file:  { schema: readSchema, run: readRun },
+  edit_file:  { schema: editSchema, run: editRun },
+  write_file: { schema: writeSchema, run: writeRun },
+};

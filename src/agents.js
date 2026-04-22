@@ -5,10 +5,19 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { timPath, parseFrontmatter } from "./paths.js";
+import { timPath, parseFrontmatter, validateMeta, renderFrontmatter } from "./paths.js";
 import { bootstrapMemory } from "./memory.js";
 
 export const getAgentsDir = () => timPath("agents");
+
+// Schema for agent frontmatter. Drives validation on load and the
+// canonical template emitted by writeAgentProfile.
+export const AGENT_SCHEMA = {
+  name:        { type: "string", required: true,  doc: "Agent identifier (kebab-case)" },
+  description: { type: "string", required: false, doc: "One-line description shown in `tim agent list`" },
+  model:       { type: "string", required: false, doc: "Optional model override (e.g. claude-sonnet-4-6)" },
+  tools:       { type: "array",  required: false, doc: "Tool allowlist — e.g. [read_file, bash, append_memory]. Omit for all tools." },
+};
 
 export function ensureAgentsDir() {
   fs.mkdirSync(getAgentsDir(), { recursive: true });
@@ -43,13 +52,14 @@ export function agentExists(name) {
   return fs.existsSync(path.join(getAgentsDir(), `${name}.md`));
 }
 
-export function writeAgentProfile(name, { description = "", tools = null, systemPrompt = "" }) {
+export function writeAgentProfile(name, { description = "", tools = null, model = null, systemPrompt = "" }) {
   ensureAgentsDir();
-  const lines = ["---", `name: ${name}`, `description: ${description}`];
-  if (tools && tools !== "all") lines.push(`tools: [${tools}]`);
-  lines.push("---", "", systemPrompt);
+  const normalizedTools = tools === "all" || !tools ? null
+    : Array.isArray(tools) ? tools
+    : String(tools).split(",").map(s => s.trim()).filter(Boolean);
+  const meta = { name, description, model, tools: normalizedTools };
   const filepath = path.join(getAgentsDir(), `${name}.md`);
-  fs.writeFileSync(filepath, lines.join("\n") + "\n");
+  fs.writeFileSync(filepath, renderFrontmatter(meta, AGENT_SCHEMA, systemPrompt));
   bootstrapMemory(name, { description });
   return filepath;
 }
@@ -71,21 +81,22 @@ const readDir = (dir) => {
 
 export function loadAgents() {
   const agents = {};
-  const dirs = [getAgentsDir(), path.join(process.cwd(), ".tim", "agents")];
-  for (const dir of dirs) {
-    for (const file of readDir(dir)) {
-      const full = path.join(dir, file);
-      const { meta, body } = parseFrontmatter(fs.readFileSync(full, "utf8"));
-      const name = meta.name || path.basename(file, ".md");
-      agents[name] = {
-        name,
-        description: meta.description || "",
-        model: meta.model || null,
-        tools: Array.isArray(meta.tools) ? meta.tools : null, // null = all
-        systemPrompt: body,
-        source: full,
-      };
-    }
+  const dir = getAgentsDir();
+  for (const file of readDir(dir)) {
+    const full = path.join(dir, file);
+    const { meta, body } = parseFrontmatter(fs.readFileSync(full, "utf8"));
+    const name = meta.name || path.basename(file, ".md");
+    const { errors, fatal } = validateMeta({ ...meta, name }, AGENT_SCHEMA);
+    for (const e of errors) console.warn(`[agents] ${file}: ${e}`);
+    if (fatal) continue;
+    agents[name] = {
+      name,
+      description: meta.description || "",
+      model: meta.model || null,
+      tools: Array.isArray(meta.tools) ? meta.tools : null, // null = all
+      systemPrompt: body,
+      source: full,
+    };
   }
   return agents;
 }

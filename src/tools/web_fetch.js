@@ -80,6 +80,10 @@ export async function run({ urls }, ctx = {}) {
       parts.push(`--- ${url} (failed) ---\n${e.message}`);
     }
   }
-  
+
   return truncate(parts.join("\n\n"));
 }
+
+export const tools = {
+  web_fetch: { schema, run },
+};

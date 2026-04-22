@@ -54,3 +54,7 @@ export async function run({ query, max_results = 5, search_depth = "basic" }, ct
     return `ERROR: ${e.message}`;
   }
 }
+
+export const tools = {
+  web_search: { schema, run, requiredEnv },
+};

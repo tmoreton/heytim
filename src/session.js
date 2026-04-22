@@ -32,8 +32,10 @@ function getRepoName(cwd) {
   return null;
 }
 
-/** Get session folder based on CWD */
+/** Get session folder based on CWD. $TIM_SESSION_FOLDER overrides everything
+ *  — used by `tim chat` to file sessions under "general" regardless of cwd. */
 function getSessionFolder(cwd) {
+  if (process.env.TIM_SESSION_FOLDER) return process.env.TIM_SESSION_FOLDER;
   const repo = getRepoName(cwd);
   if (repo) return repo;
   return "general";

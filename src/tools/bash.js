@@ -95,3 +95,7 @@ export async function run({ command, timeout_ms = 120_000 }, ctx = {}) {
     });
   });
 }
+
+export const tools = {
+  bash: { schema, run },
+};

@@ -205,3 +205,8 @@ export async function globRun({ pattern, path: p = "." }) {
   if (!files.length) return { content: "(no matches)", cacheDeps: [abs] };
   return { content: files.slice(0, MAX_LINES).join("\n"), cacheDeps: [abs] };
 }
+
+export const tools = {
+  grep: { schema: grepSchema, run: grepRun },
+  glob: { schema: globSchema, run: globRun },
+};

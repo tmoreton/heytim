@@ -1,58 +1,54 @@
-// Tool registry. Core tools are built-in and filtered by required env vars.
+// Tool registry. Auto-discovers any `src/tools/*.js` that exports a
+// `tools` object — drop a file in this directory and its tools register
+// on next launch. Each entry: { schema, run, requiredEnv? }.
 // MCP tools are loaded from external MCP servers configured in $TIM_DIR/mcp.json.
 
+import nodeFs from "node:fs";
+import nodePath from "node:path";
+import { pathToFileURL, fileURLToPath } from "node:url";
 import { rehydrateReadsFromMessages, markRead } from "./fs.js";
-import * as fs from "./fs.js";
-import * as bash from "./bash.js";
-import * as search from "./search.js";
-import * as spawn from "./spawn.js";
 import { connectMcpServers, getMcpTools } from "../mcp.js";
 
-import * as webFetch from "./web_fetch.js";
-import * as webSearch from "./web_search.js";
-import * as memory from "./memory.js";
-import * as screenshot from "./screenshot.js";
+const __dirname = nodePath.dirname(fileURLToPath(import.meta.url));
 
-// Core tools. `requiredEnv` (string | string[]) gates registration — tools
-// with missing env vars are silently dropped so the model doesn't see them.
-const coreToolDefs = {
-  list_files: { schema: fs.schema, run: fs.run },
-  read_file: { schema: fs.readSchema, run: fs.readRun },
-  edit_file: { schema: fs.editSchema, run: fs.editRun },
-  write_file: { schema: fs.writeSchema, run: fs.writeRun },
-  bash: { schema: bash.schema, run: bash.run },
-  grep: { schema: search.grepSchema, run: search.grepRun },
-  glob: { schema: search.globSchema, run: search.globRun },
-  spawn_workflow: { schema: spawn.schema, run: spawn.run },
-  web_fetch: { schema: webFetch.schema, run: webFetch.run },
-  web_search: { schema: webSearch.schema, run: webSearch.run, requiredEnv: webSearch.requiredEnv },
-  update_memory: { schema: memory.updateMemorySchema, run: memory.updateMemoryRun },
-  append_memory: { schema: memory.appendMemorySchema, run: memory.appendMemoryRun },
-  capture_webpage: { schema: screenshot.captureWebpageSchema, run: screenshot.captureWebpageRun },
-  capture_desktop: { schema: screenshot.captureDesktopSchema, run: screenshot.captureDesktopRun },
-};
-
-const hasRequiredEnv = (required) => {
-  if (!required) return true;
-  const vars = Array.isArray(required) ? required : [required];
+const hasRequiredEnv = (req) => {
+  if (!req) return true;
+  const vars = Array.isArray(req) ? req : [req];
   return vars.every((v) => process.env[v]);
 };
 
-const filterCoreTools = () =>
-  Object.fromEntries(
-    Object.entries(coreToolDefs).filter(([, t]) => hasRequiredEnv(t.requiredEnv)),
+// Scan src/tools/ for files exporting `tools = { name: { schema, run, requiredEnv? } }`.
+// Tools with missing required env vars are silently dropped so the model doesn't see them.
+async function loadCoreTools() {
+  const out = {};
+  const files = nodeFs.readdirSync(__dirname).filter((f) =>
+    f.endsWith(".js") && f !== "index.js"
   );
+  for (const file of files) {
+    try {
+      const mod = await import(pathToFileURL(nodePath.join(__dirname, file)).href);
+      if (!mod.tools) continue;
+      for (const [name, def] of Object.entries(mod.tools)) {
+        if (!def?.schema || !def?.run) continue;
+        if (!hasRequiredEnv(def.requiredEnv)) continue;
+        out[name] = { schema: def.schema, run: def.run };
+      }
+    } catch (e) {
+      console.error(`[tools] failed to load "${file}": ${e.message}`);
+    }
+  }
+  return out;
+}
 
-// Merged tools (filtered core + custom + MCP). Built lazily so env vars from
-// $TIM_DIR/.env are loaded by the time we decide what's registered.
+// Built lazily so env vars from $TIM_DIR/.env are loaded by the time we
+// decide what's registered.
 let mergedTools = null;
 let mcpConnected = false;
 
 async function getMergedTools() {
   if (mergedTools) return mergedTools;
-  const core = filterCoreTools();
+  const core = await loadCoreTools();
 
-  // Connect to MCP servers and add their tools
   if (!mcpConnected) {
     await connectMcpServers();
     mcpConnected = true;
@@ -70,9 +66,7 @@ async function getMergedTools() {
           parameters: tool.inputSchema || { type: "object", properties: {} },
         },
       },
-      run: async (args) => {
-        return await tool._call(args);
-      },
+      run: async (args) => tool._call(args),
       isMcp: true,
       server: tool.server,
       originalName: tool.name,
