@@ -147,12 +147,14 @@ export async function runCommand(input) {
         if (catalog.length) {
           console.log();
           console.log(`  ${c.bold(c.teal("quick-pick"))}`);
+          console.log();
           const pad = Math.max(...catalog.map((m) => m.id.length)) + 2;
           for (const [i, m] of catalog.entries()) {
             const marker = m.id === current ? c.teal(" ← current") : "";
-            console.log(
-              `  ${c.teal(String(i + 1).padStart(2))}. ${c.white(m.id.padEnd(pad))} ${c.dim(m.label)}${marker}`,
-            );
+            const num = c.teal(String(i + 1).padStart(2));
+            const id = c.white(m.id.padEnd(pad));
+            const label = c.dim(m.label);
+            console.log(`  ${num}  ${id}  ${label}${marker}`);
           }
         }
         if (!process.env.OPENROUTER_API_KEY) {
