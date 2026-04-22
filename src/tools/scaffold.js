@@ -13,7 +13,9 @@ export const createAgentSchema = {
   function: {
     name: "create_agent",
     description:
-      "Create a new persistent agent at $TIM_DIR/agents/<name>.md. Agents are long-lived identities with their own memory file, tool allowlist, and system prompt. Use this when the user describes a new persona/role they want to set up. To check what already exists first, list_files on $TIM_DIR/agents (use the absolute path from the system prompt, NOT 'agents' relative to cwd). Fails if the agent already exists — the user must delete it first.",
+      "Create a new persistent agent at $TIM_DIR/agents/<name>.md. Agents are long-lived domain identities (e.g. 'youtube', 'github', 'reddit') with their own memory file, tool allowlist, and system prompt. ONE agent per domain — many workflows under it. " +
+      "Before calling this, list_files on $TIM_DIR/agents (absolute path from the system prompt) to see what exists. If the user's request is a TASK within an existing agent's domain (e.g. 'youtube research', 'youtube thumbnail generator', 'youtube daily report' when a 'youtube' agent already exists), do NOT create a new agent — call create_workflow under that agent instead. " +
+      "Only create a new agent when the request introduces a genuinely new domain that none of the existing agents cover. Fails if the agent already exists — the user must delete it first.",
     parameters: {
       type: "object",
       properties: {
@@ -65,7 +67,9 @@ export const createWorkflowSchema = {
   function: {
     name: "create_workflow",
     description:
-      "Create a new workflow at $TIM_DIR/workflows/<name>.md. Workflows are task specs bound to an owning agent — they inherit the agent's identity and memory and add task-specific instructions. Use this for reusable, self-contained jobs the agent should be able to dispatch via spawn_workflow or that should run on a schedule. To check what already exists first, list_files on $TIM_DIR/workflows (absolute path from the system prompt, NOT relative to cwd). Fails if the workflow already exists or if the owning agent doesn't.",
+      "Create a new workflow at $TIM_DIR/workflows/<name>.md. Workflows are task specs bound to an owning agent — they inherit the agent's identity and memory and add task-specific instructions. " +
+      "This is the right tool when the user is asking for a TASK within an existing agent's domain (researcher / generator / writer / report / pipeline for an existing agent like youtube, github, reddit). The workflow's owning agent provides the domain expertise; the workflow describes how to do this specific job. " +
+      "Before calling this, list_files on $TIM_DIR/workflows to avoid duplicates and on $TIM_DIR/agents to pick the right owner. Fails if the workflow already exists or if the owning agent doesn't.",
     parameters: {
       type: "object",
       properties: {

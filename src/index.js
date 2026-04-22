@@ -25,6 +25,14 @@ if (!fs.existsSync(globalTimMd)) {
 |--------|---------|
 | \`agents/\` | Agent persona definitions (managed via \`create_agent\` / \`tim agent new\`) |
 | \`workflows/\` | Workflow task specs (managed via \`create_workflow\` / \`tim workflow new\`) |
+
+## Agents vs workflows
+
+One agent per domain (\`youtube\`, \`github\`); workflows are tasks within
+that domain (\`youtube-daily-report\`, \`youtube-thumbnail-gen\`). If a
+\`<domain>\` agent already exists, "<domain> <verb-er>" requests are workflows
+under it — not new agents.
+
 | \`triggers/\` | Cron-scheduled workflows |
 | \`memory/\` | Persistent memory per agent (write via \`append_memory\` / \`update_memory\`) |
 | \`sessions/\` | Auto-logged conversation sessions |
