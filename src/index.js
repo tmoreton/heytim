@@ -23,27 +23,30 @@ if (!fs.existsSync(globalTimMd)) {
 
 | Folder | Purpose |
 |--------|---------|
-| \`agents/\` | Agent persona definitions (markdown files) |
-| \`data/\` | Small data files (JSON, IDs, tracking data) |
-| \`images/\` | Saved screenshots and generated images |
-| \`memory/\` | Persistent user memory per agent (use \`append_memory\` / \`update_memory\`) |
-| \`projects/\` | One-off projects, campaigns, experiments |
+| \`agents/\` | Agent persona definitions (managed via \`create_agent\` / \`tim agent new\`) |
+| \`workflows/\` | Workflow task specs (managed via \`create_workflow\` / \`tim workflow new\`) |
+| \`triggers/\` | Cron-scheduled workflows |
+| \`memory/\` | Persistent memory per agent (write via \`append_memory\` / \`update_memory\`) |
 | \`sessions/\` | Auto-logged conversation sessions |
-| \`tools/\` | Custom tool scripts |
-| \`triggers/\` | Trigger definitions & state |
-| \`workflows/\` | Reusable workflow definitions |
+| \`output/\` | All agent-generated artifacts (see rules below) |
 
-## Rules
+## Output rules
 
-1. **Projects go in \`projects/{name}/\`** — Multi-file work (YouTube series, campaigns) gets its own subfolder
-2. **Data goes in \`data/\`** — Processed IDs, tracking JSON, etc. (not root)
-3. **Use memory tools** — Call \`append_memory()\` or \`update_memory()\` instead of writing to \`memory/\` directly
-4. **Images auto-save** — screenshots already save to \`images/\`
+Anything you (the agent) create for the user — reports, drafts, JSON data,
+images, scripts — lives under \`output/<your-agent-name>/\`. Pick a kebab-case
+subfolder that describes the kind of artifact (\`thumbnails/\`, \`scripts/\`,
+\`reports/\`, \`drafts/\`, etc.) so the user can browse what you've made over
+time. For a one-off task that doesn't fit an existing subfolder, use a
+task-slug subfolder: \`output/<agent>/<task-slug>/\`.
 
-## When in doubt
+If you're running without a named agent (bare REPL or \`tim chat\`), use
+\`output/general/...\` instead.
 
-- 1-2 files for a quick task → \`data/\` or \`images/\`
-- 3+ files or a named campaign → \`projects/{kebab-case-name}/\`
+Screenshots from \`capture_webpage\` and \`capture_desktop\` already save to
+\`output/<agent>/images/\` automatically — don't duplicate them elsewhere.
+
+Memory is special: never write to \`memory/\` with \`write_file\` or \`bash\`.
+Use the memory tools.
 `;
   fs.writeFileSync(globalTimMd, defaultTimMd);
 }

@@ -20,6 +20,11 @@ export const isCwdTimSource = () => process.cwd() === TIM_SOURCE_ROOT;
 export const timDir = () => process.env.TIM_DIR || path.join(os.homedir(), ".tim");
 export const timPath = (...parts) => path.join(timDir(), ...parts);
 
+// All agent-generated artifacts live under $TIM_DIR/output/<agent>/. When no
+// agent is in scope (bare REPL, `tim chat`), files go under output/general/.
+export const agentOutputDir = (agentName) =>
+  timPath("output", agentName || "general");
+
 // Parse YAML-ish frontmatter. Supports inline arrays `[a, b, c]` and
 // multi-line `key:\n  - item` lists. Lines starting with `#` are treated
 // as comments and ignored. Anything fancier (nested objects, quoted strings

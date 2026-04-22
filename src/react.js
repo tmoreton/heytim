@@ -11,7 +11,7 @@ import { rehydrateReadsFromMessages } from "./tools/fs.js";
 import { stream, streamCompletion, complete, getContextLimit } from "./llm.js";
 import { ToolCache } from "./cache.js";
 import { isPlanMode } from "./permissions.js";
-import { timPath } from "./paths.js";
+import { timPath, agentOutputDir } from "./paths.js";
 import { commit as commitHistory } from "./history.js";
 import * as ui from "./ui.js";
 
@@ -158,7 +158,8 @@ export async function createAgent(profile = null) {
     const toolList = Object.keys(tools).join(", ");
     const memorySection = effectiveProfile?.name ? formatMemoryForContext(effectiveProfile.name) : "";
     const ctx = loadProjectContext();
-    const tail = `Write user-facing artifacts under $TIM_DIR (${process.env.TIM_DIR}), not cwd. $TIM_DIR is a git repo with auto-commits — use \`git -C $TIM_DIR …\` for revert requests.`;
+    const outDir = agentOutputDir(effectiveProfile?.name);
+    const tail = `Write user-facing artifacts under ${outDir}/<kind>/ (e.g. ${outDir}/reports/, ${outDir}/images/), not cwd. Pick a kebab-case subfolder per artifact kind so the user can browse what you've made over time. $TIM_DIR is a git repo with auto-commits — use \`git -C $TIM_DIR …\` for revert requests.`;
     const agentMemoryNote = effectiveProfile
       ? `Your memory is auto-loaded above — don't read it with tools. Call append_memory for durable facts; spawn_workflow for task-shaped work.`
       : "";

@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { promisify } from "node:util";
-import { timPath } from "../paths.js";
+import { agentOutputDir } from "../paths.js";
 
 const execAsync = promisify(exec);
 
@@ -162,10 +162,10 @@ async function captureDesktopWindows(outputPath, { selection }) {
 }
 
 async function captureDesktop(options = {}) {
-  const { display = 1, selection = false } = options;
+  const { display = 1, selection = false, agentName = null } = options;
 
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
-  const outputDir = timPath("images");
+  const outputDir = path.join(agentOutputDir(agentName), "images");
 
   fs.mkdirSync(outputDir, { recursive: true });
 
@@ -262,11 +262,11 @@ export const captureDesktopSchema = {
   },
 };
 
-export async function captureWebpageRun(args) {
+export async function captureWebpageRun(args, ctx = {}) {
   const { url, filename, width = 1280, height = 720, fullPage = false, delay = 0 } = args;
-  
+
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
-  const outputDir = timPath("images");
+  const outputDir = path.join(agentOutputDir(ctx.agentName), "images");
   
   fs.mkdirSync(outputDir, { recursive: true });
   
@@ -288,11 +288,11 @@ export async function captureWebpageRun(args) {
   }
 }
 
-export async function captureDesktopRun(args = {}) {
+export async function captureDesktopRun(args = {}, ctx = {}) {
   const { display, selection = false, filename } = args;
-  
+
   try {
-    const outputPath = await captureDesktop({ display, selection, filename });
+    const outputPath = await captureDesktop({ display, selection, filename, agentName: ctx.agentName });
     const stats = fs.statSync(outputPath);
     return {
       content: `Screenshot saved: ${outputPath} (${(stats.size / 1024).toFixed(1)} KB)`,
