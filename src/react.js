@@ -8,12 +8,45 @@ import { formatMemoryForContext } from "./memory.js";
 import { createSession, save as saveSession } from "./session.js";
 import { rehydrateReadsFromMessages } from "./tools/fs.js";
 
+import { spawnSync } from "node:child_process";
+
 import { stream, streamCompletion, complete, getContextLimit } from "./llm.js";
 import { ToolCache } from "./cache.js";
 import { isPlanMode } from "./permissions.js";
-import { timPath, agentOutputDir } from "./paths.js";
+import { timPath, agentOutputDir, isCwdTimSource } from "./paths.js";
 import { commit as commitHistory } from "./history.js";
 import * as ui from "./ui.js";
+
+// Snapshot of the cwd for the system prompt. Without this the model sees only
+// a one-line "Running in <cwd>" that gets drowned by $TIM_DIR-heavy guidance,
+// and stops realizing the user's project IS the current directory.
+const buildCwdContext = () => {
+  const cwd = process.cwd();
+  const lines = [`## Working directory: ${cwd}`];
+
+  try {
+    const entries = fs.readdirSync(cwd, { withFileTypes: true })
+      .filter((e) => !e.name.startsWith("."))
+      .slice(0, 30)
+      .map((e) => (e.isDirectory() ? `${e.name}/` : e.name));
+    if (entries.length) lines.push(`Top-level: ${entries.join(", ")}`);
+  } catch {}
+
+  try {
+    const branch = spawnSync("git", ["-C", cwd, "rev-parse", "--abbrev-ref", "HEAD"],
+      { encoding: "utf8" }).stdout.trim();
+    if (branch) lines.push(`Git branch: ${branch}`);
+  } catch {}
+
+  if (isCwdTimSource()) {
+    lines.push(
+      `You are in tim's own source directory — edits here change the CLI itself. ` +
+      `It's git-tracked; use \`git diff\` / \`git checkout -- <path>\` for revert requests.`
+    );
+  }
+
+  return lines.join("\n");
+};
 
 const PLAN_PREFIX =
   "[PLAN MODE] Research freely with read_file / grep / glob / list_files, " +
@@ -164,10 +197,13 @@ export async function createAgent(profile = null) {
       ? `Your memory is auto-loaded above — don't read it with tools. Call append_memory for durable facts; spawn_workflow for task-shaped work.`
       : "";
 
+    const cwdContext = buildCwdContext();
+
     if (effectiveProfile?.systemPrompt) {
       return [
         effectiveProfile.systemPrompt,
-        `Running in ${process.cwd()}. Tools: ${toolList}.`,
+        cwdContext,
+        `Tools: ${toolList}.`,
         agentMemoryNote,
         ctx,
         memorySection,
@@ -177,7 +213,6 @@ export async function createAgent(profile = null) {
 
     const base = `You are tim, a minimal coding assistant. You help users with coding tasks by reading files, executing commands, editing code, and writing new files.
 
-Running in ${process.cwd()}.
 Available tools: ${toolList}.
 
 Guidelines:
@@ -186,7 +221,7 @@ Guidelines:
 - Use edit_file for surgical changes; write_file only for new files or full rewrites
 - Be concise; when the task is done, stop calling tools and give a short final answer`;
 
-    return [base, ctx, memorySection, tail].filter(Boolean).join("\n\n");
+    return [base, cwdContext, ctx, memorySection, tail].filter(Boolean).join("\n\n");
   };
 
   const reset = () => {
