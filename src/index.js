@@ -32,12 +32,12 @@ if (!fs.existsSync(globalTimMd)) {
 
 ## Output rules
 
-Anything you (the agent) create for the user — reports, drafts, JSON data,
-images, scripts — lives under \`output/<your-agent-name>/\`. Pick a kebab-case
-subfolder that describes the kind of artifact (\`thumbnails/\`, \`scripts/\`,
-\`reports/\`, \`drafts/\`, etc.) so the user can browse what you've made over
-time. For a one-off task that doesn't fit an existing subfolder, use a
-task-slug subfolder: \`output/<agent>/<task-slug>/\`.
+Anything you (the agent) create — reports, drafts, JSON data, images, helper
+scripts — lives under \`output/<your-agent-name>/\`. Pick a kebab-case subfolder
+that describes the kind of artifact (\`reports/\`, \`thumbnails/\`, \`drafts/\`,
+\`scripts/\`, etc.) so the user can browse what you've made over time. For a
+one-off task that doesn't fit an existing subfolder, use a task-slug subfolder:
+\`output/<agent>/<task-slug>/\`.
 
 If you're running without a named agent (bare REPL or \`tim chat\`), use
 \`output/general/...\` instead.
@@ -45,8 +45,27 @@ If you're running without a named agent (bare REPL or \`tim chat\`), use
 Screenshots from \`capture_webpage\` and \`capture_desktop\` already save to
 \`output/<agent>/images/\` automatically — don't duplicate them elsewhere.
 
-Memory is special: never write to \`memory/\` with \`write_file\` or \`bash\`.
-Use the memory tools.
+## Reusable scripts
+
+Helper code you write for yourself (a YouTube analytics fetcher, an OAuth
+setup flow, a transcript parser) goes under \`output/<your-agent-name>/scripts/\`.
+Default to Node.js (matches the codebase, no extra runtime). **Before writing
+any new script, \`list_files\` on \`output/<your-agent-name>/scripts/\` to see
+what already exists** — extend or reuse instead of recreating.
+
+Every script needs a header comment so the user can trace what made it:
+
+\`\`\`js
+// Purpose: Fetch yesterday's YouTube channel analytics
+// Usage: node fetch_analytics.js [date]
+// Env: YOUTUBE_API_KEY, YOUTUBE_CHANNEL_ID
+// Created by: youtube agent (workflow: daily-report)
+\`\`\`
+
+## Memory
+
+Never write to \`memory/\` with \`write_file\` or \`bash\`. Use the memory tools
+(\`append_memory\`, \`update_memory\`).
 `;
   fs.writeFileSync(globalTimMd, defaultTimMd);
 }

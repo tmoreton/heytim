@@ -266,14 +266,13 @@ TIM stores all user data, configuration, and state in `~/.tim` (or `$TIM_DIR`):
 ├── triggers/               # Scheduled cron triggers (*.md)
 ├── memory/                 # Agent memory files (*.md)
 ├── sessions/               # Saved conversation history (JSON, grouped by folder)
-└── output/                 # All agent-generated artifacts (see below)
+└── output/                 # All agent-generated artifacts, organized by agent
     ├── youtube/
     │   ├── images/         # screenshots auto-routed here when youtube agent is active
     │   ├── thumbnails/
-    │   └── scripts/
-    ├── research/
-    │   └── reports/
-    └── general/            # bare REPL / `tim chat` (no specific agent)
+    │   ├── reports/
+    │   └── scripts/        # reusable helpers — fetch_analytics.js, setup_oauth.js, ...
+    └── general/            # bare REPL / `tim chat`
 ```
 
 | Path | Purpose |
@@ -285,7 +284,7 @@ TIM stores all user data, configuration, and state in `~/.tim` (or `$TIM_DIR`):
 | `triggers/` | Cron-scheduled workflows. Run by `tim start` daemon |
 | `memory/` | Persistent agent memory. Auto-loaded into context |
 | `sessions/` | Saved REPL conversations. Resume with `tim --resume` or `/sessions` |
-| `output/<agent>/<kind>/` | Everything an agent produces — reports, drafts, images, data. The system prompt tells the model to write here, screenshots auto-route here. |
+| `output/<agent>/<kind>/` | Everything an agent produces — reports, drafts, images, data, reusable scripts. Screenshots auto-route to `images/`. Reusable helpers live in `scripts/` with a header comment noting the creating agent/workflow. |
 
 A project-local `TIM.md` in your cwd is also loaded (after the global one) — use it for project-specific rules.
 

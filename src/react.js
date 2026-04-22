@@ -159,7 +159,7 @@ export async function createAgent(profile = null) {
     const memorySection = effectiveProfile?.name ? formatMemoryForContext(effectiveProfile.name) : "";
     const ctx = loadProjectContext();
     const outDir = agentOutputDir(effectiveProfile?.name);
-    const tail = `Write user-facing artifacts under ${outDir}/<kind>/ (e.g. ${outDir}/reports/, ${outDir}/images/), not cwd. Pick a kebab-case subfolder per artifact kind so the user can browse what you've made over time. $TIM_DIR is a git repo with auto-commits — use \`git -C $TIM_DIR …\` for revert requests.`;
+    const tail = `Write artifacts under ${outDir}/<kind>/ (e.g. ${outDir}/reports/, ${outDir}/images/, ${outDir}/scripts/), not cwd. Pick a kebab-case subfolder per artifact kind so the user can browse what you've made over time. For reusable helper scripts (default to Node.js), list_files ${outDir}/scripts/ first — reuse or extend instead of recreating. Each script needs a header comment with: purpose, usage, env vars, and "Created by: <agent> (workflow: <name>)". $TIM_DIR is a git repo with auto-commits — use \`git -C $TIM_DIR …\` for revert requests.`;
     const agentMemoryNote = effectiveProfile
       ? `Your memory is auto-loaded above — don't read it with tools. Call append_memory for durable facts; spawn_workflow for task-shaped work.`
       : "";
