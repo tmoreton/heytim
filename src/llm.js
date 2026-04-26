@@ -219,16 +219,27 @@ export async function streamCompletion({ model, messages, toolSchemas, usage, on
   let responseUsage = null;
   let lineBuf = "";
   const spin = ui.spinner("thinking");
+  // Secondary spinner while content is buffered but not yet rendered (no newline
+  // received yet to flush a complete line). Without this, the user sees the `tim`
+  // header sitting alone while tokens stream into lineBuf.
+  let writingSpin = null;
 
   const flushLines = (final = false) => {
     let idx;
     while ((idx = lineBuf.indexOf("\n")) !== -1) {
+      writingSpin?.stop();
+      writingSpin = null;
       process.stdout.write("  " + ui.renderMarkdownLine(lineBuf.slice(0, idx)) + "\n");
       lineBuf = lineBuf.slice(idx + 1);
     }
     if (final && lineBuf) {
+      writingSpin?.stop();
+      writingSpin = null;
       process.stdout.write("  " + ui.renderMarkdownLine(lineBuf) + "\n");
       lineBuf = "";
+    }
+    if (started && lineBuf && !writingSpin) {
+      writingSpin = ui.spinner("writing");
     }
   };
 
@@ -254,7 +265,9 @@ export async function streamCompletion({ model, messages, toolSchemas, usage, on
       }
 
       if (delta.tool_calls) {
-        if (!started) spin.stop();
+        // Keep `thinking` spinner running while tool-call args stream in —
+        // they can be long (large edits) and stopping it leaves a blank screen
+        // until the tool printer runs after streamCompletion returns.
         for (const tc of delta.tool_calls) {
           const i = tc.index ?? 0;
           toolAcc[i] ||= { id: "", type: "function", function: { name: "", arguments: "" } };
@@ -266,6 +279,8 @@ export async function streamCompletion({ model, messages, toolSchemas, usage, on
     }
   } finally {
     spin.stop();
+    writingSpin?.stop();
+    writingSpin = null;
     flushLines(true);
   }
 
