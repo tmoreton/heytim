@@ -25,6 +25,10 @@ import { loadTriggers, writeTrigger, deleteTrigger, triggerExists, getTriggerSta
 import { commit as commitHistory } from "@heytim/core/history";
 import * as ui from "@heytim/core/ui";
 
+process.on("unhandledRejection", (reason) => {
+  ui.error(`unhandled: ${reason?.message || String(reason)}`);
+});
+
 const ask = (rl, q, def) => new Promise((res) => {
   const hint = def ? ` (${def})` : "";
   rl.question(`  ${q}${hint}: `, (a) => res(a.trim() || def || ""));

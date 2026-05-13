@@ -173,11 +173,17 @@ const handle = async (input, attachments) => {
       ui.info("interrupted");
       console.log();
     } else {
-      ui.error(e.message);
+      const msg = e?.message || String(e) || "unknown error";
+      ui.error(msg);
     }
   } finally {
     currentAbort = null;
-    await drainOrPrompt();
+    try {
+      await drainOrPrompt();
+    } catch (drainErr) {
+      ui.error(drainErr?.message || String(drainErr));
+      safePrompt();
+    }
   }
 };
 
