@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { bootstrapDefaultAgent } from "./agents.js";
+import { bootstrapUserMemory } from "./memory.js";
 
 const DEFAULT_TIM_MD = `# TIM Directory Conventions
 
@@ -83,6 +84,7 @@ export async function bootstrapTimDir() {
   }
 
   await bootstrapDefaultAgent();
+  bootstrapUserMemory();
 
   try {
     for (const line of fs.readFileSync(path.join(process.env.TIM_DIR, ".env"), "utf8").split("\n")) {

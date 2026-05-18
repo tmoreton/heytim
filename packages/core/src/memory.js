@@ -10,6 +10,7 @@ import path from "node:path";
 import { timPath, parseFrontmatter } from "./paths.js";
 
 export const getMemoryDir = () => timPath("memory");
+export const USER_MEMORY_KEY = "user";
 
 const ensureDir = () => {
   fs.mkdirSync(getMemoryDir(), { recursive: true });
@@ -39,6 +40,37 @@ export function bootstrapMemory(agent, { description = "" } = {}) {
     `only things worth remembering across runs.\n`;
   fs.writeFileSync(p, body);
   return p;
+}
+
+// Global user memory — shared across all sessions regardless of agent.
+export function bootstrapUserMemory() {
+  ensureDir();
+  const p = memoryPath(USER_MEMORY_KEY);
+  if (fs.existsSync(p)) return p;
+  const today = new Date().toISOString().split("T")[0];
+  const body =
+    `---\n` +
+    `agent: ${USER_MEMORY_KEY}\n` +
+    `description: Cross-session memory for the user.\n` +
+    `updated: ${today}\n` +
+    `---\n\n` +
+    `# User Memory\n\n` +
+    `Facts, preferences, and context that should persist across all sessions and agents.\n` +
+    `This memory is loaded into every conversation — base REPL and all agents.\n`;
+  fs.writeFileSync(p, body);
+  return p;
+}
+
+export function readUserMemory() {
+  return readMemory(USER_MEMORY_KEY);
+}
+
+export function updateUserMemory(body) {
+  return updateMemory(USER_MEMORY_KEY, body);
+}
+
+export function appendUserMemory(section, content) {
+  return appendMemory(USER_MEMORY_KEY, section, content);
 }
 
 export function readMemory(agent) {
@@ -97,4 +129,11 @@ export function formatMemoryForContext(agent) {
   const mem = readMemory(agent);
   if (!mem || !mem.body.trim()) return "";
   return `\n\n---\n\n## Your Memory (${agent})\n\n${mem.body}`;
+}
+
+// Format the global user memory for injection into every system prompt.
+export function formatUserMemoryForContext() {
+  const mem = readUserMemory();
+  if (!mem || !mem.body.trim()) return "";
+  return `\n\n---\n\n## User Memory (shared across all sessions)\n\n${mem.body}`;
 }

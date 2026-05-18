@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getTools, getToolSchemas } from "./tools/index.js";
 import { loadProjectContext } from "./config.js";
-import { formatMemoryForContext } from "./memory.js";
+import { formatMemoryForContext, formatUserMemoryForContext } from "./memory.js";
 import { createSession, save as saveSession } from "./session.js";
 import { rehydrateReadsFromMessages } from "./tools/fs.js";
 import { loadSkills } from "./skills.js";
@@ -306,12 +306,13 @@ When a user's task matches a skill description, read_skill BEFORE attempting the
 
   const buildSystem = () => {
     const memorySection = effectiveProfile?.name ? formatMemoryForContext(effectiveProfile.name) : "";
+    const userMemorySection = formatUserMemoryForContext();
     const ctx = loadProjectContext();
     const outDir = agentOutputDir(effectiveProfile?.name);
     const tail = `Write artifacts under ${outDir}/<kind>/ (e.g. ${outDir}/reports/, ${outDir}/images/, ${outDir}/scripts/), not cwd. Pick a kebab-case subfolder per artifact kind so the user can browse what you've made over time. For reusable helper scripts (default to Node.js), list_files ${outDir}/scripts/ first — reuse or extend instead of recreating. Each script needs a header comment with: purpose, usage, env vars, and "Created by: <agent> (workflow: <name>)". $TIM_DIR is a git repo with auto-commits — use \`git -C $TIM_DIR …\` for revert requests.`;
     const agentMemoryNote = effectiveProfile
       ? `Your memory is auto-loaded above — don't read it with tools. Call append_memory for durable facts; spawn_workflow for task-shaped work.`
-      : "";
+      : `User memory is auto-loaded above — shared across all sessions. Call append_memory to remember facts about the user that should persist.`;
 
     const cwdContext = buildCwdContext();
     const toolsBlock = buildToolsBlock();
@@ -328,13 +329,14 @@ When a user's task matches a skill description, read_skill BEFORE attempting the
         agentMemoryNote,
         ctx,
         memorySection,
+        userMemorySection,
         tail,
       ].filter(Boolean).join("\n\n");
     }
 
     const base = `You are tim, a minimal coding assistant. You help users with coding tasks by reading files, executing commands, editing code, and writing new files.`;
 
-    return [base, cwdContext, toolsBlock, skillsBlock, guidelinesBlock, ctx, memorySection, tail].filter(Boolean).join("\n\n");
+    return [base, cwdContext, toolsBlock, skillsBlock, guidelinesBlock, ctx, memorySection, userMemorySection, tail].filter(Boolean).join("\n\n");
   };
 
   const reset = () => {

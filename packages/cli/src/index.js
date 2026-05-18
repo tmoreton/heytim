@@ -22,6 +22,7 @@ import { load as loadSession, latest } from "@heytim/core/session";
 
 import { startRepl } from "./repl.js";
 import { loadTriggers, writeTrigger, deleteTrigger, triggerExists, getTriggerState, getTriggersDir, runTrigger } from "@heytim/core/triggers";
+import { appendUserMemory, USER_MEMORY_KEY } from "@heytim/core/memory";
 import { commit as commitHistory } from "@heytim/core/history";
 import * as ui from "@heytim/core/ui";
 
@@ -586,7 +587,17 @@ if (resumeIdx !== -1) {
   }
 }
 
+// tim remember <text> — quick append to shared user memory
+if (argv[0] === "remember") {
+  const text = argv.slice(1).join(" ").trim();
+  if (!text) { console.error("usage: tim remember <text>"); process.exit(1); }
+  appendUserMemory("Remembered", text);
+  console.log(`  ✓ remembered: ${text}`);
+  console.log(`    stored in ~/.tim/memory/${USER_MEMORY_KEY}.md (loaded into every session)`);
+  process.exit(0);
+}
+
 // Only start REPL if not running a subcommand
-if (!argv[0] || !["agent", "workflow", "trigger", "schedule", "run", "env"].includes(argv[0])) {
+if (!argv[0] || !["agent", "workflow", "trigger", "schedule", "run", "env", "remember"].includes(argv[0])) {
   startRepl();
 }

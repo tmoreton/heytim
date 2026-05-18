@@ -3,14 +3,18 @@
 // modify memory files for other agents. Agents don't need a `read_memory`
 // tool because their memory is auto-loaded into the system prompt.
 
-import { updateMemory, appendMemory, memoryExists } from "../memory.js";
+import {
+  updateMemory, appendMemory, memoryExists,
+  updateUserMemory, appendUserMemory, bootstrapUserMemory,
+  USER_MEMORY_KEY,
+} from "../memory.js";
 
 export const updateMemorySchema = {
   type: "function",
   function: {
     name: "update_memory",
     description:
-      "Rewrite your memory file from scratch. Use only when the existing memory is stale enough that a full replacement is cleaner than appending. Prefer append_memory for new findings.",
+      "Rewrite your memory file from scratch. Use only when the existing memory is stale enough that a full replacement is cleaner than appending. Prefer append_memory for new findings. When no agent context exists, writes to the shared user memory (available across all sessions).",
     parameters: {
       type: "object",
       properties: {
@@ -29,7 +33,7 @@ export const appendMemorySchema = {
   function: {
     name: "append_memory",
     description:
-      "Append a dated section to your memory file. Use for durable findings worth remembering across runs (a title pattern that's working, a stable user preference, a channel-voice observation). Do not use for run summaries or activity logs — those go in your reply to the user.",
+      "Append a dated section to your memory file. Use for durable findings worth remembering across runs (a title pattern that's working, a stable user preference, a channel-voice observation). Do not use for run summaries or activity logs — those go in your reply to the user. When no agent context exists, writes to the shared user memory (available across all sessions).",
     parameters: {
       type: "object",
       properties: {
@@ -48,34 +52,45 @@ export const appendMemorySchema = {
 };
 
 // Both tools read the current agent name from the run context that react.js
-// passes in (ctx.agentName). If it's missing we refuse — memory is per-agent
-// and we will not guess.
+// passes in (ctx.agentName). If no agent context exists, we fall back to the
+// global user memory so the base REPL and all agents can persist cross-session
+// facts.
 export async function updateMemoryRun({ body }, ctx) {
   const agent = ctx?.agentName;
-  if (!agent) return "ERROR: update_memory requires an agent context (sub-agent or main agent with a profile).";
-  if (!memoryExists(agent)) return `ERROR: no memory file for "${agent}" — create the agent first with 'tim agent new'.`;
-  updateMemory(agent, body);
-  return `Updated memory for ${agent}.`;
+  if (agent) {
+    if (!memoryExists(agent)) return `ERROR: no memory file for "${agent}" — create the agent first with 'tim agent new'.`;
+    updateMemory(agent, body);
+    return `Updated memory for ${agent}.`;
+  }
+  // No agent — write to shared user memory
+  bootstrapUserMemory();
+  updateUserMemory(body);
+  return `Updated user memory (shared across all sessions).`;
 }
 
 export async function appendMemoryRun({ section, content }, ctx) {
   const agent = ctx?.agentName;
-  if (!agent) return "ERROR: append_memory requires an agent context.";
-  if (!memoryExists(agent)) return `ERROR: no memory file for "${agent}".`;
-  appendMemory(agent, section, content);
-  return `Appended "${section}" to ${agent} memory.`;
+  if (agent) {
+    if (!memoryExists(agent)) return `ERROR: no memory file for "${agent}".`;
+    appendMemory(agent, section, content);
+    return `Appended "${section}" to ${agent} memory.`;
+  }
+  // No agent — write to shared user memory
+  bootstrapUserMemory();
+  appendUserMemory(section, content);
+  return `Appended "${section}" to user memory (shared across all sessions).`;
 }
 
 export const tools = {
   update_memory: {
     schema: updateMemorySchema, run: updateMemoryRun,
-    promptSnippet: "update_memory: rewrite your agent memory from scratch",
+    promptSnippet: "update_memory: rewrite your agent or user memory from scratch",
   },
   append_memory: {
     schema: appendMemorySchema, run: appendMemoryRun,
-    promptSnippet: "append_memory: append a dated section to your agent memory",
+    promptSnippet: "append_memory: append a dated section to your agent or user memory",
     promptGuidelines: [
-      "Call append_memory for durable findings (stable preferences, patterns, facts worth keeping across runs). Do not log run summaries — those go in your reply.",
+      "Call append_memory for durable findings (stable preferences, patterns, facts worth keeping across runs). Do not log run summaries — those go in your reply. When no agent is active, this writes to shared user memory available across all sessions.",
     ],
   },
 };
