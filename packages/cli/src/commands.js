@@ -16,7 +16,7 @@ import { loadAgents } from "@heytim/core/agents";
 import { loadWorkflows } from "@heytim/core/workflows";
 import { loadSkills } from "@heytim/core/skills";
 import { loadTriggers, runTrigger, triggerExists } from "@heytim/core/triggers";
-import { readMemory, memoryPath, listMemories } from "@heytim/core/memory";
+import { readMemory, memoryPath, listMemories, appendUserMemory, readUserMemory, USER_MEMORY_KEY } from "@heytim/core/memory";
 import { list as listSessions } from "@heytim/core/session";
 import { setEnv, unsetEnv, listEnv, mask } from "@heytim/core/env";
 
@@ -35,6 +35,7 @@ const HELP_ROWS = [
   ["/skills", "list available skills"],
   ["/triggers", "scheduled cron triggers"],
   ["/memory [agent]", "agent memory path/contents"],
+  ["/remember <text>", "remember a fact across all sessions"],
   ["/env [cmd]", "env vars: list, set KEY=VAL, unset KEY"],
   ["/loc", "source lines of code"],
   ["/clear", "new session"],
@@ -51,6 +52,7 @@ const HELP_ROWS = [
 const FLAG_ROWS = [
   ["tim", "start fresh interactive session"],
   ["tim <agent>", "chat interactively with a specific agent"],
+  ["tim remember <text>", "remember a fact across all sessions"],
 
   ["tim --resume [id]", "resume latest session, or by id"],
   ["tim --list", "list saved sessions and exit"],
@@ -102,7 +104,10 @@ const runAndPrintLast = async (sub, task, label) => {
 };
 
 export async function runCommand(input) {
-  const [cmd, ...rest] = input.slice(1).split(/\s+/);
+  // Only process the first line — a buffered multi-line input should not
+  // have subsequent lines swallowed into a command's argument.
+  const firstLine = input.split("\n")[0].trim();
+  const [cmd, ...rest] = firstLine.slice(1).split(/\s+/);
   const arg = rest.join(" ").trim();
 
   switch (cmd) {
@@ -350,23 +355,35 @@ export async function runCommand(input) {
       if (!arg) {
         const mems = listMemories();
         console.log();
-        console.log("  " + c.bold(c.teal("agent memory files")));
+        console.log("  " + c.bold(c.teal("memory files")));
         if (mems.length) {
-          for (const m of mems) console.log(`  ${c.teal("•")} ${c.white(m)}  ${c.dim(memoryPath(m))}`);
+          for (const m of mems) {
+            const isUser = m === USER_MEMORY_KEY;
+            const label = isUser ? c.white("(shared)") : "";
+            console.log(`  ${c.teal("•")} ${c.white(m)}${isUser ? " " + label : ""}  ${c.dim(memoryPath(m))}`);
+          }
         } else {
           console.log(`  ${c.dim("(no memory files — create an agent with 'tim agent new')")}`);
         }
         console.log();
-        info("use /memory <agent> to print that agent's memory contents");
+        info("use /memory <agent> to print contents  •  /remember <text> to add to shared memory");
         return;
       }
       const mem = readMemory(arg);
-      if (!mem) return error(`no memory file for agent "${arg}" — create it with 'tim agent new'`);
+      if (!mem) return error(`no memory file for "${arg}" — create it with 'tim agent new'`);
       console.log();
       console.log("  " + c.bold(c.teal(`memory: ${arg}`)) + "  " + c.dim(mem.path));
       console.log();
       console.log(mem.body);
       console.log();
+      return;
+    }
+    case "remember": {
+      if (!arg) return error("usage: /remember <text> — remember a fact across all sessions");
+      const today = new Date().toISOString().split("T")[0];
+      appendUserMemory("Remembered", arg);
+      success(`remembered: ${arg}`);
+      info("loaded into every session — /memory user to view");
       return;
     }
     case "trigger":
