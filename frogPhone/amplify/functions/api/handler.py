@@ -28,7 +28,7 @@ table = dynamodb.Table(TABLE_NAME)
 invite_access_table = dynamodb.Table(INVITE_TABLE_NAME)
 sqs = boto3.client("sqs")
 catalog = CatalogService(table)
-ALLOWED_COLORS = {"#58BEAA", "#FFAA34", "#6C5CE7", "#3984F6", "#F46A27", "#E95383"}
+ALLOWED_COLORS = {"#007A3D", "#58BEAA", "#FFAA34", "#6C5CE7", "#3984F6", "#F46A27", "#E95383"}
 
 DEFAULT_BOTS = [
     {
