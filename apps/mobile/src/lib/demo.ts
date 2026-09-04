@@ -335,6 +335,30 @@ export const demoMessages = (botId: string): Message[] => [...(messages.get(botI
 
 export const demoGroupMessages = (groupId: string): Message[] => [...(groupMessages.get(groupId) ?? [])];
 
+export const demoClearBotChat = (botId: string): void => {
+  messages.set(botId, []);
+  const now = new Date().toISOString();
+  bots = bots.map((bot) =>
+    bot.id === botId
+      ? { ...bot, lastMessage: 'Ready when you are.', lastMessageAt: now, updatedAt: now }
+      : bot,
+  );
+};
+
+export const demoDeleteBot = (botId: string): void => {
+  bots = bots.filter((bot) => bot.id !== botId);
+  messages.delete(botId);
+  groups = groups.map((group) => ({
+    ...group,
+    bots: group.bots.filter((bot) => bot.id !== botId),
+  }));
+};
+
+export const demoDeleteGroup = (groupId: string): void => {
+  groups = groups.filter((group) => group.id !== groupId);
+  groupMessages.delete(groupId);
+};
+
 export const demoSaveGroup = (draft: GroupDraft, groupId?: string): Group => {
   const now = new Date().toISOString();
   const previous = groups.find((group) => group.id === groupId);

@@ -68,7 +68,8 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
   const [editor, setEditor] = useState<'new' | 'edit' | undefined>();
   const [groupEditor, setGroupEditor] = useState<'new' | 'edit' | undefined>();
   const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
-  const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const [botMenuOpen, setBotMenuOpen] = useState(false);
+  const [pendingBotAction, setPendingBotAction] = useState<'clear' | 'delete'>();
   const [pendingSkillInvite, setPendingSkillInvite] = useState<{ token: string; importKey: string }>();
   const [replyBotId, setReplyBotId] = useState<string | null>();
 
@@ -407,8 +408,40 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
       .catch((value) => Alert.alert('Could not share', value instanceof Error ? value.message : 'Please try again.'));
   };
 
-  const showShareOptions = () => {
-    setShareMenuOpen(true);
+  const showBotOptions = () => {
+    setBotMenuOpen(true);
+  };
+
+  const refreshAfterDeletion = async () => {
+    const next = await api.bootstrap();
+    const nextSelection = chooseAvailableSelection(next, selection);
+    messageRequest.current += 1;
+    setData(next);
+    setMessages([]);
+    setError('');
+    setSelection(nextSelection);
+    setLoadingMessages(Boolean(nextSelection));
+  };
+
+  const runBotDeletion = async () => {
+    if (!selectedBot || !pendingBotAction) return;
+    if (listening) ExpoSpeechRecognitionModule.abort();
+    try {
+      if (pendingBotAction === 'clear') {
+        await api.clearBotChat(selectedBot.id);
+        const next = await api.bootstrap();
+        messageRequest.current += 1;
+        setData(next);
+        setMessages([]);
+        setError('');
+        setLoadingMessages(false);
+        return;
+      }
+      await api.deleteBot(selectedBot.id);
+      await refreshAfterDeletion();
+    } catch (value) {
+      setError(value instanceof Error ? value.message : 'Could not delete that conversation.');
+    }
   };
 
   const installSharedSkill = async () => {
@@ -436,6 +469,13 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
     const next = await api.bootstrap();
     setData(next);
     setSelection((current) => chooseAvailableSelection(next, current));
+  };
+
+  const deleteGroup = async () => {
+    if (!selectedGroup) return;
+    if (listening) ExpoSpeechRecognitionModule.abort();
+    await api.deleteGroup(selectedGroup.id);
+    await refreshAfterDeletion();
   };
 
   const signOut = async () => {
@@ -491,7 +531,7 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
               onToggleDrawer={() => setDrawerOpen((value) => !value)}
               onEditBot={() => setEditor('edit')}
               onEditGroup={() => setGroupEditor('edit')}
-              onShareBot={showShareOptions}
+              onOpenBotMenu={showBotOptions}
             />
 
             {error ? (
@@ -581,6 +621,7 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
           onSave={saveGroup}
           onShare={shareGroup}
           onRemoveMember={removeGroupMember}
+          onDelete={deleteGroup}
         />
       ) : null}
       {skillLibraryOpen ? (
@@ -595,14 +636,33 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
         />
       ) : null}
       <ActionSheet
-        visible={shareMenuOpen}
-        title={`Share ${selectedBot?.name ?? 'FrogBot'}`}
-        message="Choose whether to share the bot setup or include this conversation."
+        visible={botMenuOpen}
+        title={selectedBot?.name ?? 'FrogBot'}
+        message="Share this FrogBot, clear its conversation, or remove it from your team."
         options={[
-          { label: 'Bot setup', onPress: () => share('bot') },
-          { label: 'Conversation', onPress: () => share('chat') },
+          { label: 'Share bot setup', onPress: () => share('bot') },
+          { label: 'Share conversation', onPress: () => share('chat') },
+          { label: 'Clear conversation', destructive: true, onPress: () => setPendingBotAction('clear') },
+          { label: 'Delete bot', destructive: true, onPress: () => setPendingBotAction('delete') },
         ]}
-        onClose={() => setShareMenuOpen(false)}
+        onClose={() => setBotMenuOpen(false)}
+      />
+      <ActionSheet
+        visible={Boolean(pendingBotAction)}
+        title={pendingBotAction === 'delete' ? `Delete ${selectedBot?.name ?? 'this bot'}?` : 'Clear this conversation?'}
+        message={
+          pendingBotAction === 'delete'
+            ? 'This permanently deletes the FrogBot, its direct chat, and removes it from your groups.'
+            : 'This permanently deletes every message in this direct chat but keeps the FrogBot.'
+        }
+        options={[
+          {
+            label: pendingBotAction === 'delete' ? 'Delete bot' : 'Clear conversation',
+            destructive: true,
+            onPress: runBotDeletion,
+          },
+        ]}
+        onClose={() => setPendingBotAction(undefined)}
       />
       <ActionSheet
         visible={Boolean(pendingSkillInvite)}

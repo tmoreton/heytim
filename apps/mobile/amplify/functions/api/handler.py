@@ -12,6 +12,7 @@ from typing import Any
 
 import boto3
 from shared.catalog import CatalogError, CatalogService
+from shared.cleanup import group_invite_records, group_member_ids, has_pending_work
 from shared.group_chat import ALL_BOTS_REPLY_TARGET, select_group_reply_targets
 from shared.invites import invite_token_hash, invite_url
 
@@ -130,6 +131,10 @@ def _turn_pk(user_id: str, bot_id: str) -> str:
     return f"CHAT#{user_id}#{bot_id}"
 
 
+def _user_state_key(user_id: str) -> dict:
+    return {"pk": _user_pk(user_id), "sk": "STATE"}
+
+
 def _group_pk(group_id: str) -> str:
     return f"GROUP#{group_id}"
 
@@ -160,6 +165,24 @@ def _push_token_key(user_id: str, token_id: str) -> dict:
 
 def _push_owner_key(token_id: str) -> dict:
     return {"pk": f"PUSH_TOKEN#{token_id}", "sk": "OWNER"}
+
+
+def _partition_items(partition_key: str, sort_prefix: str | None = None) -> list[dict]:
+    expression = "pk = :pk"
+    values = {":pk": partition_key}
+    if sort_prefix is not None:
+        expression += " AND begins_with(sk, :prefix)"
+        values[":prefix"] = sort_prefix
+    paginator = table.meta.client.get_paginator("query")
+    items = []
+    for page in paginator.paginate(
+        TableName=TABLE_NAME,
+        KeyConditionExpression=expression,
+        ExpressionAttributeValues=values,
+        ConsistentRead=True,
+    ):
+        items.extend(page.get("Items", []))
+    return items
 
 
 def _register_access_invite(
@@ -560,18 +583,32 @@ def _update_group(user_id: str, group_id: str, value: dict) -> dict:
 def _create_group_invite(user_id: str, group_id: str) -> dict:
     _require_group_member(user_id, group_id)
     token = secrets.token_urlsafe(18)
+    token_hash = invite_token_hash(token)
     expires_at = int(datetime.now(UTC).timestamp()) + 30 * 24 * 60 * 60
-    table.put_item(
-        Item={
-            "pk": f"GROUP_INVITE#{token}",
-            "sk": "META",
-            "entity": "GROUP_INVITE",
-            "groupId": group_id,
-            "createdBy": user_id,
-            "createdAt": _now(),
-            "expiresAt": expires_at,
-        }
-    )
+    created_at = _now()
+    with table.batch_writer() as batch:
+        batch.put_item(
+            Item={
+                "pk": f"GROUP_INVITE#{token}",
+                "sk": "META",
+                "entity": "GROUP_INVITE",
+                "groupId": group_id,
+                "createdBy": user_id,
+                "createdAt": created_at,
+                "expiresAt": expires_at,
+            }
+        )
+        batch.put_item(
+            Item={
+                "pk": _group_pk(group_id),
+                "sk": f"INVITE#{token}",
+                "entity": "GROUP_INVITE_POINTER",
+                "token": token,
+                "tokenHash": token_hash,
+                "createdAt": created_at,
+                "expiresAt": expires_at,
+            }
+        )
     _register_access_invite("group", token, user_id, expires_at, group_id)
     return {
         "url": invite_url(PUBLIC_WEB_BASE_URL, "group", token),
@@ -868,11 +905,47 @@ def _remove_group_member(user_id: str, group_id: str, member_id: str) -> dict:
     return {"removed": True}
 
 
+def _delete_group(user_id: str, group_id: str) -> dict:
+    _require_group_member(user_id, group_id, owner=True)
+    items = _partition_items(_group_pk(group_id))
+    if has_pending_work(items):
+        raise ApiError(
+            409, "Wait for the FrogBots to finish before deleting this group"
+        )
+    members = group_member_ids(items)
+    invites = group_invite_records(items)
+    with table.batch_writer() as batch:
+        for item in items:
+            batch.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
+        for member_id in members:
+            batch.delete_item(
+                Key={"pk": _user_pk(member_id), "sk": f"GROUP#{group_id}"}
+            )
+        for token, _token_hash in invites:
+            batch.delete_item(Key={"pk": f"GROUP_INVITE#{token}", "sk": "META"})
+    if invites:
+        with invite_access_table.batch_writer() as batch:
+            for _token, token_hash in invites:
+                batch.delete_item(Key={"tokenHash": token_hash})
+    return {"deleted": True}
+
+
 def _bootstrap(user_id: str) -> dict:
     bots = _list_bots(user_id)
-    if not bots:
+    initialized = table.get_item(Key=_user_state_key(user_id), ConsistentRead=True).get(
+        "Item"
+    )
+    if not bots and not initialized:
         bots = [_put_bot(user_id, _bot_values(user_id, seed)) for seed in DEFAULT_BOTS]
-    else:
+    if not initialized:
+        table.put_item(
+            Item={
+                **_user_state_key(user_id),
+                "entity": "USER_STATE",
+                "initializedAt": _now(),
+            }
+        )
+    if bots:
         migrated = []
         for bot in bots:
             if isinstance(bot.get("skillVersions"), dict):
@@ -921,6 +994,81 @@ def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:
         }
     )
     return _put_bot(user_id, values, bot_id)
+
+
+def _clear_bot_chat(user_id: str, bot_id: str) -> dict:
+    _get_bot(user_id, bot_id)
+    turns = _partition_items(_turn_pk(user_id, bot_id))
+    if has_pending_work(turns):
+        raise ApiError(409, "Wait for this FrogBot to finish before clearing the chat")
+    with table.batch_writer() as batch:
+        for turn in turns:
+            batch.delete_item(Key={"pk": turn["pk"], "sk": turn["sk"]})
+    current = _now()
+    table.update_item(
+        Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot_id)},
+        UpdateExpression="SET lastMessage = :message, lastMessageAt = :now, updatedAt = :now",
+        ExpressionAttributeValues={
+            ":message": "Ready when you are.",
+            ":now": current,
+        },
+    )
+    return {"deleted": True, "deletedTurns": len(turns)}
+
+
+def _delete_bot(user_id: str, bot_id: str) -> dict:
+    _get_bot(user_id, bot_id)
+    turns = _partition_items(_turn_pk(user_id, bot_id))
+    if has_pending_work(turns):
+        raise ApiError(409, "Wait for this FrogBot to finish before deleting it")
+
+    group_bot_keys = []
+    group_meta_updates = []
+    for pointer in _partition_items(_user_pk(user_id), "GROUP#"):
+        group_id = pointer.get("groupId")
+        if not isinstance(group_id, str):
+            continue
+        group_items = _partition_items(_group_pk(group_id))
+        group_bot = next(
+            (
+                item
+                for item in group_items
+                if item.get("entity") == "GROUP_BOT"
+                and item.get("botId") == bot_id
+                and item.get("botOwnerId") == user_id
+            ),
+            None,
+        )
+        if not group_bot:
+            continue
+        if has_pending_work(group_items, bot_id=bot_id):
+            raise ApiError(
+                409,
+                "Wait for this FrogBot to finish its group reply before deleting it",
+            )
+        group_bot_keys.append({"pk": group_bot["pk"], "sk": group_bot["sk"]})
+        meta = next(
+            (item for item in group_items if item.get("entity") == "GROUP"), None
+        )
+        if meta:
+            group_meta_updates.append({**meta, "updatedAt": _now()})
+
+    with table.batch_writer() as batch:
+        for turn in turns:
+            batch.delete_item(Key={"pk": turn["pk"], "sk": turn["sk"]})
+        for key in group_bot_keys:
+            batch.delete_item(Key=key)
+        for meta in group_meta_updates:
+            batch.put_item(Item=meta)
+        batch.delete_item(Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot_id)})
+        batch.put_item(
+            Item={
+                **_user_state_key(user_id),
+                "entity": "USER_STATE",
+                "initializedAt": _now(),
+            }
+        )
+    return {"deleted": True, "deletedTurns": len(turns)}
 
 
 def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
@@ -1230,6 +1378,8 @@ def handler(event: dict, _context: Any) -> dict:
                     user_id, params.get("groupId", ""), params.get("memberId", "")
                 ),
             )
+        if method == "DELETE" and path.startswith("/groups/"):
+            return _response(200, _delete_group(user_id, params.get("groupId", "")))
         if method == "POST" and path == "/bots":
             return _response(201, _create_bot(user_id, _body(event)))
         if method == "PUT" and path.startswith("/bots/"):
@@ -1250,6 +1400,14 @@ def handler(event: dict, _context: Any) -> dict:
             return _response(
                 202, _send_message(user_id, params.get("botId", ""), _body(event))
             )
+        if (
+            method == "DELETE"
+            and path.startswith("/bots/")
+            and path.endswith("/messages")
+        ):
+            return _response(200, _clear_bot_chat(user_id, params.get("botId", "")))
+        if method == "DELETE" and path.startswith("/bots/"):
+            return _response(200, _delete_bot(user_id, params.get("botId", "")))
         if method == "PUT" and path == "/devices/push-token":
             return _response(200, _register_push_token(user_id, _body(event)))
         if method == "DELETE" and path == "/devices/push-token":

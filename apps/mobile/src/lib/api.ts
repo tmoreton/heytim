@@ -3,6 +3,9 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 import { apiUrl } from './cloud';
 import {
   demoBootstrap,
+  demoClearBotChat,
+  demoDeleteBot,
+  demoDeleteGroup,
   demoGetSkill,
   demoImportSkill,
   demoJoinGroup,
@@ -99,6 +102,14 @@ export const createApi = (demo: boolean) => ({
           method: botId ? 'PUT' : 'POST',
           body: JSON.stringify(draft),
         }),
+  clearBotChat: async (botId: string): Promise<void> => {
+    if (demo) return demoClearBotChat(botId);
+    await request(`/bots/${encodeURIComponent(botId)}/messages`, { method: 'DELETE' });
+  },
+  deleteBot: async (botId: string): Promise<void> => {
+    if (demo) return demoDeleteBot(botId);
+    await request(`/bots/${encodeURIComponent(botId)}`, { method: 'DELETE' });
+  },
   sendMessage: async (bot: Bot, text: string): Promise<void> => {
     if (demo) return demoSend(bot, text);
     await request(`/bots/${bot.id}/messages`, { method: 'POST', body: JSON.stringify({ text }) });
@@ -114,6 +125,10 @@ export const createApi = (demo: boolean) => ({
           method: groupId ? 'PUT' : 'POST',
           body: JSON.stringify(draft),
         }),
+  deleteGroup: async (groupId: string): Promise<void> => {
+    if (demo) return demoDeleteGroup(groupId);
+    await request(`/groups/${encodeURIComponent(groupId)}`, { method: 'DELETE' });
+  },
   sendGroupMessage: async (groupId: string, text: string, replyBotId?: string): Promise<void> => {
     if (demo) return demoSendGroup(groupId, text, replyBotId);
     await request(`/groups/${groupId}/messages`, {

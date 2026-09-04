@@ -14,7 +14,7 @@ type Props = {
   onToggleDrawer: () => void;
   onEditBot: () => void;
   onEditGroup: () => void;
-  onShareBot: () => void;
+  onOpenBotMenu: () => void;
 };
 
 export function ConversationHeader({
@@ -27,7 +27,7 @@ export function ConversationHeader({
   onToggleDrawer,
   onEditBot,
   onEditGroup,
-  onShareBot,
+  onOpenBotMenu,
 }: Props) {
   const status = group
     ? listening
@@ -66,11 +66,11 @@ export function ConversationHeader({
           <Identity name={bot.name} status={status} />
           <HeaderAction label="Edit" onPress={onEditBot} />
           <Pressable
-            accessibilityLabel={`Share ${bot.name}`}
+            accessibilityLabel={`${bot.name} actions`}
             accessibilityRole="button"
             style={styles.moreButton}
             hitSlop={10}
-            onPress={onShareBot}>
+            onPress={onOpenBotMenu}>
             <Text style={styles.moreLabel}>...</Text>
           </Pressable>
         </>

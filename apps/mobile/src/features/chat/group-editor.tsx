@@ -25,9 +25,10 @@ type Props = {
   onSave: (draft: GroupDraft) => Promise<void>;
   onShare: () => Promise<string>;
   onRemoveMember: (member: GroupMember) => Promise<void>;
+  onDelete: () => Promise<void>;
 };
 
-export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMember }: Props) {
+export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMember, onDelete }: Props) {
   const editable = !group || group.isOwner;
   const [name, setName] = useState(group?.name ?? '');
   const [botIds, setBotIds] = useState(group?.bots.map((bot) => bot.id) ?? (bots[0] ? [bots[0].id] : []));
@@ -36,6 +37,8 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
   const [inviteUrl, setInviteUrl] = useState('');
   const [error, setError] = useState('');
   const [pendingRemoval, setPendingRemoval] = useState<GroupMember>();
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const displayedBots = editable ? bots : (group?.bots ?? []);
 
   const save = async () => {
@@ -85,6 +88,19 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
       if (leaving) onClose();
     } catch (value) {
       setError(value instanceof Error ? value.message : 'Could not update the group.');
+    }
+  };
+
+  const deleteGroup = async () => {
+    setDeleting(true);
+    setError('');
+    try {
+      await onDelete();
+      onClose();
+    } catch (value) {
+      setError(value instanceof Error ? value.message : 'Could not delete this group.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -198,6 +214,20 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
               })}
             </>
           ) : null}
+          {group?.isOwner ? (
+            <View style={styles.dangerZone}>
+              <Text style={styles.dangerTitle}>Delete group</Text>
+              <Text style={styles.dangerCopy}>Permanently delete this group and its chat for everyone.</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ busy: deleting, disabled: deleting }}
+                disabled={deleting}
+                style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}
+                onPress={() => setDeleteConfirmationOpen(true)}>
+                {deleting ? <ActivityIndicator color="#A53A32" /> : <Text style={styles.deleteText}>Delete group</Text>}
+              </Pressable>
+            </View>
+          ) : null}
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -213,6 +243,13 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
           },
         ]}
         onClose={() => setPendingRemoval(undefined)}
+      />
+      <ActionSheet
+        visible={deleteConfirmationOpen}
+        title={`Delete ${group?.name ?? 'this group'}?`}
+        message="This permanently deletes the group and its full conversation for every member."
+        options={[{ label: 'Delete group', destructive: true, onPress: deleteGroup }]}
+        onClose={() => setDeleteConfirmationOpen(false)}
       />
     </Modal>
   );
@@ -254,6 +291,11 @@ const styles = StyleSheet.create({
   checkActive: { backgroundColor: '#007A3D', borderColor: '#007A3D' },
   checkMark: { color: 'white', fontSize: 14, fontWeight: '800' },
   removeText: { color: '#A53A32', fontSize: 12, fontWeight: '600' },
+  dangerZone: { marginTop: 30, paddingTop: 22, borderTopWidth: 1, borderColor: '#DDDAD2' },
+  dangerTitle: { color: '#52251F', fontSize: 14, fontWeight: '700' },
+  dangerCopy: { color: '#8C6A64', fontSize: 13, lineHeight: 19, marginTop: 5 },
+  deleteButton: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: '#E2B8B1', alignItems: 'center', justifyContent: 'center', marginTop: 13, backgroundColor: '#FFF8F6' },
+  deleteText: { color: '#A53A32', fontSize: 15, fontWeight: '700' },
   error: { color: '#B83C32', marginTop: 16 },
   pressed: { opacity: 0.7 },
 });
