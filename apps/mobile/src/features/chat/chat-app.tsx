@@ -34,6 +34,7 @@ import { ConversationHeader } from './conversation-header';
 import { GroupEditor } from './group-editor';
 import { MessageBubble } from './message-bubble';
 import { ALL_BOTS_REPLY_TARGET, MessageComposer } from './message-composer';
+import { ScheduledTasks } from './scheduled-tasks';
 import { SkillLibrary } from './skill-library';
 import { invitationFromUrl } from '../invites/invitation-url';
 
@@ -69,6 +70,7 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
   const [groupEditor, setGroupEditor] = useState<'new' | 'edit' | undefined>();
   const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
   const [botMenuOpen, setBotMenuOpen] = useState(false);
+  const [scheduleBot, setScheduleBot] = useState<Bot>();
   const [pendingBotAction, setPendingBotAction] = useState<'clear' | 'delete'>();
   const [pendingSkillInvite, setPendingSkillInvite] = useState<{ token: string; importKey: string }>();
   const [replyBotId, setReplyBotId] = useState<string | null>();
@@ -635,11 +637,27 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
           onChanged={loadBootstrap}
         />
       ) : null}
+      {scheduleBot ? (
+        <ScheduledTasks
+          bot={scheduleBot}
+          onClose={() => setScheduleBot(undefined)}
+          onList={api.schedules}
+          onSave={api.saveSchedule}
+          onDelete={api.deleteSchedule}
+          onRun={api.runSchedule}
+          onTriggered={async () => {
+            setMessages([]);
+            setLoadingMessages(true);
+            await loadMessages();
+          }}
+        />
+      ) : null}
       <ActionSheet
         visible={botMenuOpen}
         title={selectedBot?.name ?? 'FrogBot'}
-        message="Share this FrogBot, clear its conversation, or remove it from your team."
+        message="Schedule its work, share it, or manage this conversation."
         options={[
+          { label: 'Scheduled tasks', onPress: () => setScheduleBot(selectedBot) },
           { label: 'Share bot setup', onPress: () => share('bot') },
           { label: 'Share conversation', onPress: () => share('chat') },
           { label: 'Clear conversation', destructive: true, onPress: () => setPendingBotAction('clear') },

@@ -29,6 +29,8 @@ export function MessageBubble({ message, groupMode }: Props) {
       <View style={[styles.column, mine && styles.mineColumn]}>
         {groupMode ? (
           <Text style={[styles.author, mine && styles.mineAuthor]}>{mine ? 'You' : message.authorName}</Text>
+        ) : message.source === 'schedule' ? (
+          <Text style={styles.scheduleLabel}>Scheduled · {message.scheduleName ?? 'Recurring task'}</Text>
         ) : null}
         {botMessage ? <AgentActivity active={message.status === 'pending'} steps={message.activity ?? []} /> : null}
         {message.status !== 'pending' ? (
@@ -60,6 +62,7 @@ const styles = StyleSheet.create({
   mineColumn: { alignItems: 'flex-end' },
   author: { color: '#77736B', fontSize: 10, fontWeight: '600', marginBottom: 3, marginHorizontal: 6 },
   mineAuthor: { color: '#007A3D' },
+  scheduleLabel: { color: '#61766B', fontSize: 10, fontWeight: '700', marginBottom: 4, marginHorizontal: 6 },
   bubble: { maxWidth: '100%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
   assistantBubble: { backgroundColor: '#EFEFEC', borderTopLeftRadius: 6 },
   userBubble: { backgroundColor: '#007A3D', borderBottomRightRadius: 6 },

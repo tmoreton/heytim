@@ -20,11 +20,36 @@ export type Message = {
   authorName?: string;
   authorColor?: string;
   isMine?: boolean;
+  source?: 'schedule';
+  scheduleName?: string;
   text: string;
   activity?: string[];
   createdAt: string;
   status: 'complete' | 'pending' | 'error';
 };
+
+export type ScheduleFrequency = 'daily' | 'weekly';
+
+export type ScheduledTask = {
+  id: string;
+  botId: string;
+  name: string;
+  prompt: string;
+  frequency: ScheduleFrequency;
+  dayOfWeek?: string;
+  time: string;
+  timezone: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastRunAt?: string;
+  lastStatus?: 'pending' | 'complete' | 'error';
+};
+
+export type ScheduledTaskDraft = Pick<
+  ScheduledTask,
+  'name' | 'prompt' | 'frequency' | 'dayOfWeek' | 'time' | 'timezone' | 'enabled'
+>;
 
 export type GroupMember = {
   id: string;

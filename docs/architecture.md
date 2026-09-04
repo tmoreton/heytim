@@ -27,12 +27,23 @@ deployment and permissions simple for this stage of the product. Domain-heavy, i
 testable behavior lives under `amplify/functions/shared`; the API handler validates ownership and
 persists state, while the SQS worker invokes AgentCore and sends final-response notifications.
 
+Daily and weekly bot tasks are stored with the user's other application data. Each task has one EventBridge Scheduler
+schedule that sends only stable identifiers to the existing SQS queue. The worker reloads the current task and bot at
+execution time, creates an idempotent scheduled chat turn, and then follows the same agent and notification path as a
+person-started message. Scheduler retries use the existing dead-letter queue, and schedule names contain hashes rather
+than user identifiers.
+
 The asynchronous request flow is:
 
 ```text
 person sends message -> API persists pending turn -> SQS job -> worker invokes AgentCore
                      -> worker streams activity to DynamoDB -> worker persists final answer
                      -> final-only push notification -> app refreshes the conversation
+```
+
+```text
+EventBridge Scheduler -> SQS scheduled job -> worker reloads task + bot -> scheduled chat turn
+                      -> AgentCore -> final answer in chat -> final-only push notification
 ```
 
 Group rounds use one SQS step per bot. Each later bot receives the group roster, people, shared
@@ -57,6 +68,7 @@ references; secrets and executable integrations stay in reviewed AgentCore Gatew
 - Invitation tokens are random, time-limited, and stored as hashes for sign-up validation.
 - A bot can receive only the reviewed tools and version-pinned skills in its saved configuration.
 - Agent jobs are retried through SQS and failed permanently only after the configured retry limit.
+- Scheduled executions are idempotent by schedule execution ID, use IANA timezones, and never embed bot prompts in EventBridge.
 - User-visible notifications are queued only after the final answer, never for thinking updates.
 
 ## Verification

@@ -27,6 +27,7 @@ Expo app
   |-- Apple on-device speech-to-text
   |-- authenticated HTTP API
         |-- DynamoDB: bot configs, direct chats, shared groups, device tokens, expiring invites
+        |-- EventBridge Scheduler: per-bot daily and weekly tasks
         |-- SQS: durable agent jobs
               |-- Lambda worker
                     |-- AgentCore Runtime -> Strands + Stan
@@ -44,6 +45,7 @@ one at a time so every later bot sees the people, the full bot roster, and earli
 - Email-only Cognito sign-up and sign-in with one-time codes while the US SMS sender is registered
 - Responsive chat UI with a collapsible bot list
 - Push notification when an agent reply completes, with tap-to-open navigation
+- Daily and weekly per-bot tasks in the device's timezone, with pause and run-now controls
 - Apple on-device speech-to-text in the message composer without saved audio
 - Per-bot name, description, prompt, color, tools, and version-pinned skills
 - Shared groups with multiple people and FrogBots, invite links, single-bot replies, and ordered team collaboration rounds

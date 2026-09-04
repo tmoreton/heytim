@@ -4,6 +4,10 @@ This Expo SDK 57 app is the iOS-first FrogBot client. It includes a responsive l
 Amplify Gen 2 backend for native Cognito email OTP authentication, persisted direct and group chats, bot configuration, sharing,
 and push notifications when an agent reply is ready. On Apple devices, the composer also supports on-device dictation.
 
+Each FrogBot can also own simple daily or weekly tasks. EventBridge Scheduler starts the selected bot through the
+same durable agent queue, so the task uses the bot's current prompt, tools, skills, memory, chat history, and final-only
+notification flow. Tasks can be paused, edited, run immediately for testing, or deleted without removing past replies.
+
 Groups can include several people and several FrogBots. Invite links grant access to the live room, each message shows
 whether it came from a person or a bot, and the sender can keep a message human-only, choose one bot, or run an ordered
 team round. Every bot receives the group roster and shared transcript; later bots build on replies already made.

@@ -1,4 +1,15 @@
-import type { Bootstrap, Bot, BotDraft, Group, GroupDraft, Message, SkillDetail, SkillDraft } from './types';
+import type {
+  Bootstrap,
+  Bot,
+  BotDraft,
+  Group,
+  GroupDraft,
+  Message,
+  ScheduledTask,
+  ScheduledTaskDraft,
+  SkillDetail,
+  SkillDraft,
+} from './types';
 
 const timestamp = new Date().toISOString();
 
@@ -69,6 +80,21 @@ let groups: Group[] = [
     updatedAt: timestamp,
     lastMessage: 'I will turn that into the launch checklist.',
     lastMessageAt: timestamp,
+  },
+];
+
+let schedules: ScheduledTask[] = [
+  {
+    id: 'morning-priorities',
+    botId: 'chief',
+    name: 'Morning priorities',
+    prompt: 'Review what we have discussed and give me the three most important priorities for today.',
+    frequency: 'daily',
+    time: '09:00',
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    enabled: true,
+    createdAt: timestamp,
+    updatedAt: timestamp,
   },
 ];
 
@@ -347,6 +373,7 @@ export const demoClearBotChat = (botId: string): void => {
 
 export const demoDeleteBot = (botId: string): void => {
   bots = bots.filter((bot) => bot.id !== botId);
+  schedules = schedules.filter((task) => task.botId !== botId);
   messages.delete(botId);
   groups = groups.map((group) => ({
     ...group,
@@ -402,11 +429,19 @@ export const demoSaveBot = (draft: BotDraft, botId?: string): Bot => {
   return bot;
 };
 
-export const demoSend = (bot: Bot, text: string): void => {
+export const demoSend = (bot: Bot, text: string, task?: ScheduledTask): void => {
   const current = messages.get(bot.id) ?? [];
   const requestId = String(Date.now());
   current.push(
-    { id: `${requestId}-user`, role: 'user', text, createdAt: new Date().toISOString(), status: 'complete' },
+    {
+      id: `${requestId}-user`,
+      role: 'user',
+      text,
+      source: task ? 'schedule' : undefined,
+      scheduleName: task?.name,
+      createdAt: new Date().toISOString(),
+      status: 'complete',
+    },
     { id: `${requestId}-assistant`, role: 'assistant', text: '', createdAt: new Date().toISOString(), status: 'pending' },
   );
   messages.set(bot.id, current);
@@ -425,7 +460,54 @@ export const demoSend = (bot: Bot, text: string): void => {
         ? { ...item, lastMessage: response, lastMessageAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
         : item,
     );
+    if (task) {
+      schedules = schedules.map((item) =>
+        item.id === task.id
+          ? { ...item, lastRunAt: new Date().toISOString(), lastStatus: 'complete', updatedAt: new Date().toISOString() }
+          : item,
+      );
+    }
   }, 900);
+};
+
+export const demoListSchedules = async (botId: string): Promise<ScheduledTask[]> =>
+  schedules.filter((task) => task.botId === botId).map((task) => ({ ...task }));
+
+export const demoSaveSchedule = async (
+  botId: string,
+  draft: ScheduledTaskDraft,
+  scheduleId?: string,
+): Promise<ScheduledTask> => {
+  const current = new Date().toISOString();
+  const previous = schedules.find((task) => task.id === scheduleId && task.botId === botId);
+  const task: ScheduledTask = {
+    ...draft,
+    id: previous?.id ?? `schedule-${Date.now()}`,
+    botId,
+    createdAt: previous?.createdAt ?? current,
+    updatedAt: current,
+    lastRunAt: previous?.lastRunAt,
+    lastStatus: previous?.lastStatus,
+  };
+  schedules = previous
+    ? schedules.map((item) => (item.id === task.id ? task : item))
+    : [task, ...schedules];
+  return { ...task };
+};
+
+export const demoDeleteSchedule = async (botId: string, scheduleId: string): Promise<void> => {
+  schedules = schedules.filter((task) => task.botId !== botId || task.id !== scheduleId);
+};
+
+export const demoRunSchedule = async (botId: string, scheduleId: string): Promise<void> => {
+  const task = schedules.find((item) => item.botId === botId && item.id === scheduleId);
+  const bot = bots.find((item) => item.id === botId);
+  if (!task || !bot) throw new Error('Scheduled task not found.');
+  const current = new Date().toISOString();
+  schedules = schedules.map((item) =>
+    item.id === task.id ? { ...item, lastRunAt: current, lastStatus: 'pending', updatedAt: current } : item,
+  );
+  demoSend(bot, task.prompt, task);
 };
 
 export const demoSendGroup = (groupId: string, text: string, replyBotId?: string): void => {

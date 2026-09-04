@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import boto3
+from boto3.dynamodb.conditions import Attr
 from botocore.config import Config
 from shared.agent_stream import ProgressCallback, read_agent_stream
 from shared.catalog import CatalogService
@@ -17,6 +18,7 @@ from shared.group_chat import (
     group_round_step,
     group_runtime_context,
 )
+from shared.schedules import occurrence_time, scheduled_turn_id
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -55,6 +57,10 @@ def _bot_key(user_id: str, bot_id: str) -> dict:
 
 def _turn_pk(user_id: str, bot_id: str) -> str:
     return f"CHAT#{user_id}#{bot_id}"
+
+
+def _schedule_key(user_id: str, schedule_id: str) -> dict:
+    return {"pk": f"USER#{user_id}", "sk": f"SCHEDULE#{schedule_id}"}
 
 
 def _group_pk(group_id: str) -> str:
@@ -272,13 +278,21 @@ def _send_push_notification(request: dict) -> None:
         "botId": request["botId"],
         "messageId": request.get("messageId") or request.get("turnId", ""),
     }
+    if isinstance(request.get("scheduleId"), str):
+        notification_data["scheduleId"] = request["scheduleId"]
     if isinstance(request.get("groupId"), str):
         notification_data["groupId"] = request["groupId"]
+    task_name = request.get("scheduleName")
+    title = (
+        f"{request['botName']} finished {task_name}"
+        if isinstance(task_name, str) and task_name
+        else f"{request['botName']} replied"
+    )
     messages = [
         {
             "to": item["token"],
             "sound": "default",
-            "title": f"{request['botName']} replied",
+            "title": title,
             "body": _notification_copy(request["answer"]),
             "data": notification_data,
             "channelId": "agent-replies",
@@ -377,24 +391,48 @@ def _check_push_receipts(request: dict) -> None:
 def _queue_reply_notification(
     user_id: str, bot_id: str, turn_key: dict, turn: dict, bot: dict, answer: str
 ) -> None:
+    payload = {
+        "type": "PUSH_NOTIFICATION",
+        "userId": user_id,
+        "botId": bot_id,
+        "botName": bot["name"],
+        "messageId": turn["id"],
+        "answer": answer,
+    }
+    if turn.get("source") == "schedule":
+        payload.update(
+            {
+                "scheduleId": turn.get("scheduleId"),
+                "scheduleName": turn.get("scheduleName"),
+            }
+        )
     sqs.send_message(
         QueueUrl=QUEUE_URL,
-        MessageBody=json.dumps(
-            {
-                "type": "PUSH_NOTIFICATION",
-                "userId": user_id,
-                "botId": bot_id,
-                "botName": bot["name"],
-                "messageId": turn["id"],
-                "answer": answer,
-            }
-        ),
+        MessageBody=json.dumps(payload),
     )
     table.update_item(
         Key=turn_key,
         UpdateExpression="SET notificationQueued = :queued",
         ExpressionAttributeValues={":queued": True},
     )
+
+
+def _update_schedule_result(turn: dict, status: str, completed_at: str) -> None:
+    schedule_id = turn.get("scheduleId")
+    user_id = turn.get("userId")
+    if turn.get("source") != "schedule" or not isinstance(
+        schedule_id, str
+    ) or not isinstance(user_id, str):
+        return
+    try:
+        table.update_item(
+            Key=_schedule_key(user_id, schedule_id),
+            UpdateExpression="SET lastRunAt = :now, lastStatus = :status",
+            ConditionExpression=Attr("pk").exists(),
+            ExpressionAttributeValues={":now": completed_at, ":status": status},
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return
 
 
 def _process_agent_reply(record: dict, request: dict) -> None:
@@ -412,11 +450,22 @@ def _process_agent_reply(record: dict, request: dict) -> None:
         and not turn.get("notificationQueued")
         and turn.get("assistantText")
     ):
+        _update_schedule_result(
+            turn,
+            turn["status"].lower(),
+            turn.get("completedAt", turn["createdAt"]),
+        )
         _queue_reply_notification(
             user_id, bot_id, turn_key, turn, bot, turn["assistantText"]
         )
         return
     if turn.get("status") != "PENDING":
+        if turn.get("status") in {"COMPLETE", "ERROR"}:
+            _update_schedule_result(
+                turn,
+                turn["status"].lower(),
+                turn.get("completedAt", turn["createdAt"]),
+            )
         return
 
     try:
@@ -440,6 +489,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
                 ":now": failed_at,
             },
         )
+        _update_schedule_result(turn, "error", failed_at)
         _queue_reply_notification(user_id, bot_id, turn_key, turn, bot, failure_answer)
         return
 
@@ -464,6 +514,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
         )
     except Exception:
         logger.exception("Could not update the bot preview for turn %s", turn.get("id"))
+    _update_schedule_result(turn, "complete", completed_at)
     _queue_reply_notification(user_id, bot_id, turn_key, turn, bot, answer)
 
 
@@ -615,6 +666,98 @@ def _process_group_agent_round(record: dict, request: dict) -> None:
         )
 
 
+def _request_string(request: dict, key: str, maximum: int = 128) -> str:
+    value = request.get(key)
+    if not isinstance(value, str) or not value or len(value) > maximum:
+        raise ValueError(f"Scheduled job has an invalid {key}")
+    return value
+
+
+def _process_scheduled_agent_reply(record: dict, request: dict) -> None:
+    user_id = _request_string(request, "userId")
+    bot_id = _request_string(request, "botId")
+    schedule_id = _request_string(request, "scheduleId")
+    execution_id = _request_string(request, "executionId")
+    created_at = occurrence_time(request.get("scheduledTime"))
+    turn_id = scheduled_turn_id(schedule_id, execution_id)
+    turn_key = {
+        "pk": _turn_pk(user_id, bot_id),
+        "sk": f"TURN#{created_at}#{turn_id}",
+    }
+    existing_turn = table.get_item(Key=turn_key, ConsistentRead=True).get("Item")
+    if existing_turn:
+        _process_agent_reply(
+            record,
+            {"userId": user_id, "botId": bot_id, "turnKey": turn_key["sk"]},
+        )
+        return
+
+    schedule_item = table.get_item(
+        Key=_schedule_key(user_id, schedule_id), ConsistentRead=True
+    ).get("Item")
+    if (
+        not schedule_item
+        or schedule_item.get("botId") != bot_id
+        or not schedule_item.get("enabled", True)
+    ):
+        return
+
+    turn = {
+        **turn_key,
+        "entity": "TURN",
+        "id": turn_id,
+        "botId": bot_id,
+        "userId": user_id,
+        "userText": schedule_item["prompt"],
+        "createdAt": created_at,
+        "status": "PENDING",
+        "source": "schedule",
+        "scheduleId": schedule_id,
+        "scheduleName": schedule_item["name"],
+        "schedulerExecutionId": execution_id,
+    }
+    created = False
+    try:
+        table.put_item(Item=turn, ConditionExpression=Attr("pk").not_exists())
+        created = True
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        pass
+
+    if created:
+        try:
+            table.update_item(
+                Key=_schedule_key(user_id, schedule_id),
+                UpdateExpression="SET lastRunAt = :now, lastStatus = :status",
+                ConditionExpression=Attr("pk").exists(),
+                ExpressionAttributeValues={
+                    ":now": created_at,
+                    ":status": "pending",
+                },
+            )
+        except table.meta.client.exceptions.ConditionalCheckFailedException:
+            table.delete_item(Key=turn_key)
+            return
+        try:
+            table.update_item(
+                Key=_bot_key(user_id, bot_id),
+                UpdateExpression="SET lastMessage = :message, lastMessageAt = :now, updatedAt = :now",
+                ConditionExpression=Attr("pk").exists(),
+                ExpressionAttributeValues={
+                    ":message": schedule_item["prompt"][:280],
+                    ":now": created_at,
+                },
+            )
+        except table.meta.client.exceptions.ConditionalCheckFailedException:
+            table.delete_item(Key=turn_key)
+            _update_schedule_result(turn, "error", created_at)
+            return
+
+    _process_agent_reply(
+        record,
+        {"userId": user_id, "botId": bot_id, "turnKey": turn_key["sk"]},
+    )
+
+
 def _process(record: dict) -> None:
     request = json.loads(record["body"])
     request_type = request.get("type", "AGENT_REPLY")
@@ -629,6 +772,9 @@ def _process(record: dict) -> None:
         return
     if request_type == "GROUP_AGENT_ROUND":
         _process_group_agent_round(record, request)
+        return
+    if request_type == "SCHEDULED_AGENT_REPLY":
+        _process_scheduled_agent_reply(record, request)
         return
     if request_type != "AGENT_REPLY":
         raise ValueError(f"Unknown job type: {request_type}")

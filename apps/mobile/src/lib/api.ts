@@ -14,6 +14,10 @@ import {
   demoSaveGroup,
   demoSaveBot,
   demoSaveSkill,
+  demoDeleteSchedule,
+  demoListSchedules,
+  demoRunSchedule,
+  demoSaveSchedule,
   demoSend,
   demoSendGroup,
 } from './demo';
@@ -26,6 +30,8 @@ import type {
   Invitation,
   InvitePreview,
   Message,
+  ScheduledTask,
+  ScheduledTaskDraft,
   SkillDetail,
   SkillDraft,
 } from './types';
@@ -113,6 +119,35 @@ export const createApi = (demo: boolean) => ({
   sendMessage: async (bot: Bot, text: string): Promise<void> => {
     if (demo) return demoSend(bot, text);
     await request(`/bots/${bot.id}/messages`, { method: 'POST', body: JSON.stringify({ text }) });
+  },
+  schedules: async (botId: string): Promise<ScheduledTask[]> =>
+    demo
+      ? demoListSchedules(botId)
+      : request<{ schedules: ScheduledTask[] }>(`/bots/${encodeURIComponent(botId)}/schedules`).then(
+          (value) => value.schedules,
+        ),
+  saveSchedule: async (botId: string, draft: ScheduledTaskDraft, scheduleId?: string): Promise<ScheduledTask> =>
+    demo
+      ? demoSaveSchedule(botId, draft, scheduleId)
+      : request<ScheduledTask>(
+          scheduleId
+            ? `/bots/${encodeURIComponent(botId)}/schedules/${encodeURIComponent(scheduleId)}`
+            : `/bots/${encodeURIComponent(botId)}/schedules`,
+          { method: scheduleId ? 'PUT' : 'POST', body: JSON.stringify(draft) },
+        ),
+  deleteSchedule: async (botId: string, scheduleId: string): Promise<void> => {
+    if (demo) return demoDeleteSchedule(botId, scheduleId);
+    await request(
+      `/bots/${encodeURIComponent(botId)}/schedules/${encodeURIComponent(scheduleId)}`,
+      { method: 'DELETE' },
+    );
+  },
+  runSchedule: async (botId: string, scheduleId: string): Promise<void> => {
+    if (demo) return demoRunSchedule(botId, scheduleId);
+    await request(
+      `/bots/${encodeURIComponent(botId)}/schedules/${encodeURIComponent(scheduleId)}/run`,
+      { method: 'POST' },
+    );
   },
   groupMessages: async (groupId: string): Promise<Message[]> =>
     demo

@@ -9,12 +9,16 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import boto3
+from boto3.dynamodb.conditions import Attr
+from botocore.config import Config
 from shared.catalog import CatalogError, CatalogService
 from shared.cleanup import group_invite_records, group_member_ids, has_pending_work
 from shared.group_chat import ALL_BOTS_REPLY_TARGET, select_group_reply_targets
 from shared.invites import invite_token_hash, invite_url
+from shared.schedules import DAYS_OF_WEEK, schedule_expression, scheduler_name
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -22,13 +26,26 @@ logger.setLevel(logging.INFO)
 TABLE_NAME = os.environ["TABLE_NAME"]
 INVITE_TABLE_NAME = os.environ.get("INVITE_TABLE_NAME", TABLE_NAME)
 QUEUE_URL = os.environ["QUEUE_URL"]
+QUEUE_ARN = os.environ["QUEUE_ARN"]
+SCHEDULE_DLQ_ARN = os.environ["SCHEDULE_DLQ_ARN"]
+SCHEDULE_GROUP_NAME = os.environ["SCHEDULE_GROUP_NAME"]
+SCHEDULE_ROLE_ARN = os.environ["SCHEDULE_ROLE_ARN"]
 PUBLIC_WEB_BASE_URL = os.environ.get("PUBLIC_WEB_BASE_URL", "https://frogbot.expo.app")
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)
 invite_access_table = dynamodb.Table(INVITE_TABLE_NAME)
 sqs = boto3.client("sqs")
+scheduler = boto3.client(
+    "scheduler",
+    config=Config(
+        retries={"total_max_attempts": 4, "mode": "adaptive"},
+        connect_timeout=3,
+        read_timeout=10,
+    ),
+)
 catalog = CatalogService(table)
+SCHEDULE_LIMIT = 25
 ALLOWED_COLORS = {
     "#007A3D",
     "#58BEAA",
@@ -135,6 +152,10 @@ def _user_state_key(user_id: str) -> dict:
     return {"pk": _user_pk(user_id), "sk": "STATE"}
 
 
+def _schedule_key(user_id: str, schedule_id: str) -> dict:
+    return {"pk": _user_pk(user_id), "sk": f"SCHEDULE#{schedule_id}"}
+
+
 def _group_pk(group_id: str) -> str:
     return f"GROUP#{group_id}"
 
@@ -225,6 +246,28 @@ def _record_invite_join(kind: str, token: str) -> None:
 def _public_bot(item: dict) -> dict:
     return {
         key: value for key, value in item.items() if key not in {"pk", "sk", "entity"}
+    }
+
+
+def _public_schedule(item: dict) -> dict:
+    return {
+        key: item[key]
+        for key in (
+            "id",
+            "botId",
+            "name",
+            "prompt",
+            "frequency",
+            "dayOfWeek",
+            "time",
+            "timezone",
+            "enabled",
+            "createdAt",
+            "updatedAt",
+            "lastRunAt",
+            "lastStatus",
+        )
+        if key in item
     }
 
 
@@ -370,6 +413,14 @@ def _messages_from_turns(turns: list[dict]) -> list[dict]:
                 "text": turn["userText"],
                 "createdAt": turn["createdAt"],
                 "status": "complete",
+                **(
+                    {
+                        "source": "schedule",
+                        "scheduleName": turn.get("scheduleName", "Scheduled task"),
+                    }
+                    if turn.get("source") == "schedule"
+                    else {}
+                ),
             }
         )
         if turn.get("assistantText"):
@@ -996,6 +1047,182 @@ def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:
     return _put_bot(user_id, values, bot_id)
 
 
+def _schedule_items(user_id: str, bot_id: str | None = None) -> list[dict]:
+    items = _partition_items(_user_pk(user_id), "SCHEDULE#")
+    if bot_id is not None:
+        items = [item for item in items if item.get("botId") == bot_id]
+    return sorted(items, key=lambda item: item.get("createdAt", ""), reverse=True)
+
+
+def _get_schedule(user_id: str, bot_id: str, schedule_id: str) -> dict:
+    item = table.get_item(
+        Key=_schedule_key(user_id, schedule_id), ConsistentRead=True
+    ).get("Item")
+    if not item or item.get("botId") != bot_id:
+        raise ApiError(404, "Scheduled task not found")
+    return item
+
+
+def _schedule_values(value: dict, previous: dict | None = None) -> dict:
+    prior = previous or {}
+    frequency = value.get("frequency", prior.get("frequency", "daily"))
+    if frequency not in {"daily", "weekly"}:
+        raise ApiError(400, "frequency must be daily or weekly")
+
+    time_value = _validate_string(value.get("time", prior.get("time", "09:00")), "time", 5)
+    parts = time_value.split(":")
+    if len(parts) != 2 or not all(part.isdigit() for part in parts):
+        raise ApiError(400, "Enter a valid time")
+    hour, minute = (int(part) for part in parts)
+    if hour > 23 or minute > 59:
+        raise ApiError(400, "Enter a valid time")
+
+    timezone = _validate_string(
+        value.get("timezone", prior.get("timezone", "UTC")), "timezone", 64
+    )
+    try:
+        ZoneInfo(timezone)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ApiError(400, "Choose a valid timezone") from exc
+
+    enabled = value.get("enabled", prior.get("enabled", True))
+    if not isinstance(enabled, bool):
+        raise ApiError(400, "enabled must be true or false")
+
+    values = {
+        "name": _validate_string(value.get("name", prior.get("name")), "name", 64),
+        "prompt": _validate_string(
+            value.get("prompt", prior.get("prompt")), "prompt", 8_000
+        ),
+        "frequency": frequency,
+        "time": f"{hour:02d}:{minute:02d}",
+        "timezone": timezone,
+        "enabled": enabled,
+    }
+    if frequency == "weekly":
+        day_of_week = value.get("dayOfWeek", prior.get("dayOfWeek", "MON"))
+        if day_of_week not in DAYS_OF_WEEK:
+            raise ApiError(400, "Choose a valid day of the week")
+        values["dayOfWeek"] = day_of_week
+    return values
+
+
+def _schedule_target(item: dict) -> dict:
+    return {
+        "Arn": QUEUE_ARN,
+        "RoleArn": SCHEDULE_ROLE_ARN,
+        "Input": json.dumps(
+            {
+                "type": "SCHEDULED_AGENT_REPLY",
+                "userId": item["userId"],
+                "botId": item["botId"],
+                "scheduleId": item["id"],
+                "executionId": "<aws.scheduler.execution-id>",
+                "scheduledTime": "<aws.scheduler.scheduled-time>",
+            },
+            separators=(",", ":"),
+        ),
+        "DeadLetterConfig": {"Arn": SCHEDULE_DLQ_ARN},
+        "RetryPolicy": {
+            "MaximumEventAgeInSeconds": 3_600,
+            "MaximumRetryAttempts": 3,
+        },
+    }
+
+
+def _remote_schedule_request(item: dict) -> dict:
+    return {
+        "Name": item["schedulerName"],
+        "GroupName": SCHEDULE_GROUP_NAME,
+        "Description": "Runs a recurring FrogBot task.",
+        "ScheduleExpression": schedule_expression(
+            item["frequency"], item["time"], item.get("dayOfWeek")
+        ),
+        "ScheduleExpressionTimezone": item["timezone"],
+        "FlexibleTimeWindow": {"Mode": "OFF"},
+        "State": "ENABLED" if item["enabled"] else "DISABLED",
+        "Target": _schedule_target(item),
+    }
+
+
+def _create_remote_schedule(item: dict) -> None:
+    scheduler.create_schedule(**_remote_schedule_request(item))
+
+
+def _update_remote_schedule(item: dict) -> None:
+    try:
+        scheduler.update_schedule(**_remote_schedule_request(item))
+    except scheduler.exceptions.ResourceNotFoundException:
+        _create_remote_schedule(item)
+
+
+def _delete_remote_schedule(item: dict) -> None:
+    try:
+        scheduler.delete_schedule(
+            Name=item["schedulerName"], GroupName=SCHEDULE_GROUP_NAME
+        )
+    except scheduler.exceptions.ResourceNotFoundException:
+        return
+
+
+def _list_schedules(user_id: str, bot_id: str) -> list[dict]:
+    _get_bot(user_id, bot_id)
+    return [_public_schedule(item) for item in _schedule_items(user_id, bot_id)]
+
+
+def _create_schedule(user_id: str, bot_id: str, value: dict) -> dict:
+    _get_bot(user_id, bot_id)
+    if len(_schedule_items(user_id)) >= SCHEDULE_LIMIT:
+        raise ApiError(400, f"You can create up to {SCHEDULE_LIMIT} scheduled tasks")
+    schedule_id = str(uuid.uuid4())
+    current = _now()
+    item = {
+        **_schedule_key(user_id, schedule_id),
+        "entity": "SCHEDULE",
+        "id": schedule_id,
+        "userId": user_id,
+        "botId": bot_id,
+        "schedulerName": scheduler_name(user_id, schedule_id),
+        "createdAt": current,
+        "updatedAt": current,
+        **_schedule_values(value),
+    }
+    table.put_item(Item=item, ConditionExpression=Attr("pk").not_exists())
+    try:
+        _create_remote_schedule(item)
+    except Exception:
+        table.delete_item(Key=_schedule_key(user_id, schedule_id))
+        raise
+    return _public_schedule(item)
+
+
+def _update_schedule(
+    user_id: str, bot_id: str, schedule_id: str, value: dict
+) -> dict:
+    previous = _get_schedule(user_id, bot_id, schedule_id)
+    item = {
+        **previous,
+        **_schedule_values(value, previous),
+        "updatedAt": _now(),
+    }
+    if item["frequency"] == "daily":
+        item.pop("dayOfWeek", None)
+    table.put_item(Item=item)
+    try:
+        _update_remote_schedule(item)
+    except Exception:
+        table.put_item(Item=previous)
+        raise
+    return _public_schedule(item)
+
+
+def _delete_schedule(user_id: str, bot_id: str, schedule_id: str) -> dict:
+    item = _get_schedule(user_id, bot_id, schedule_id)
+    _delete_remote_schedule(item)
+    table.delete_item(Key=_schedule_key(user_id, schedule_id))
+    return {"deleted": True}
+
+
 def _clear_bot_chat(user_id: str, bot_id: str) -> dict:
     _get_bot(user_id, bot_id)
     turns = _partition_items(_turn_pk(user_id, bot_id))
@@ -1019,6 +1246,7 @@ def _clear_bot_chat(user_id: str, bot_id: str) -> dict:
 def _delete_bot(user_id: str, bot_id: str) -> dict:
     _get_bot(user_id, bot_id)
     turns = _partition_items(_turn_pk(user_id, bot_id))
+    schedules = _schedule_items(user_id, bot_id)
     if has_pending_work(turns):
         raise ApiError(409, "Wait for this FrogBot to finish before deleting it")
 
@@ -1053,9 +1281,16 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
         if meta:
             group_meta_updates.append({**meta, "updatedAt": _now()})
 
+    for schedule_item in schedules:
+        _delete_remote_schedule(schedule_item)
+
     with table.batch_writer() as batch:
         for turn in turns:
             batch.delete_item(Key={"pk": turn["pk"], "sk": turn["sk"]})
+        for schedule_item in schedules:
+            batch.delete_item(
+                Key={"pk": schedule_item["pk"], "sk": schedule_item["sk"]}
+            )
         for key in group_bot_keys:
             batch.delete_item(Key=key)
         for meta in group_meta_updates:
@@ -1071,9 +1306,9 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
     return {"deleted": True, "deletedTurns": len(turns)}
 
 
-def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
-    _get_bot(user_id, bot_id)
-    text = _validate_string(value.get("text"), "text", 8_000)
+def _start_bot_turn(
+    user_id: str, bot_id: str, text: str, schedule_item: dict | None = None
+) -> dict:
     turn_id = str(uuid.uuid4())
     current = _now()
     item = {
@@ -1087,12 +1322,46 @@ def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
         "createdAt": current,
         "status": "PENDING",
     }
+    if schedule_item:
+        item.update(
+            {
+                "source": "schedule",
+                "scheduleId": schedule_item["id"],
+                "scheduleName": schedule_item["name"],
+            }
+        )
     table.put_item(Item=item)
-    table.update_item(
-        Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot_id)},
-        UpdateExpression="SET lastMessage = :message, lastMessageAt = :now, updatedAt = :now",
-        ExpressionAttributeValues={":message": text, ":now": current},
-    )
+    if schedule_item:
+        try:
+            table.update_item(
+                Key=_schedule_key(user_id, schedule_item["id"]),
+                UpdateExpression="SET lastRunAt = :now, lastStatus = :status",
+                ConditionExpression=Attr("pk").exists(),
+                ExpressionAttributeValues={":now": current, ":status": "pending"},
+            )
+        except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
+            table.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
+            raise ApiError(404, "Scheduled task not found") from exc
+    try:
+        table.update_item(
+            Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot_id)},
+            UpdateExpression="SET lastMessage = :message, lastMessageAt = :now, updatedAt = :now",
+            ConditionExpression=Attr("pk").exists(),
+            ExpressionAttributeValues={":message": text, ":now": current},
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
+        table.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
+        if schedule_item:
+            try:
+                table.update_item(
+                    Key=_schedule_key(user_id, schedule_item["id"]),
+                    UpdateExpression="SET lastRunAt = :now, lastStatus = :status",
+                    ConditionExpression=Attr("pk").exists(),
+                    ExpressionAttributeValues={":now": current, ":status": "error"},
+                )
+            except table.meta.client.exceptions.ConditionalCheckFailedException:
+                pass
+        raise ApiError(404, "Bot not found") from exc
     try:
         sqs.send_message(
             QueueUrl=QUEUE_URL,
@@ -1106,6 +1375,7 @@ def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
             ),
         )
     except Exception:
+        failed_at = _now()
         table.update_item(
             Key={"pk": item["pk"], "sk": item["sk"]},
             UpdateExpression="SET #status = :status, assistantText = :text, completedAt = :now",
@@ -1113,11 +1383,35 @@ def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
             ExpressionAttributeValues={
                 ":status": "ERROR",
                 ":text": "I could not start that request. Please try again.",
-                ":now": _now(),
+                ":now": failed_at,
             },
         )
+        if schedule_item:
+            try:
+                table.update_item(
+                    Key=_schedule_key(user_id, schedule_item["id"]),
+                    UpdateExpression="SET lastRunAt = :now, lastStatus = :status",
+                    ConditionExpression=Attr("pk").exists(),
+                    ExpressionAttributeValues={":now": failed_at, ":status": "error"},
+                )
+            except table.meta.client.exceptions.ConditionalCheckFailedException:
+                pass
         raise
     return {"turnId": turn_id, "status": "pending"}
+
+
+def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
+    _get_bot(user_id, bot_id)
+    text = _validate_string(value.get("text"), "text", 8_000)
+    return _start_bot_turn(user_id, bot_id, text)
+
+
+def _run_schedule_now(user_id: str, bot_id: str, schedule_id: str) -> dict:
+    schedule_item = _get_schedule(user_id, bot_id, schedule_id)
+    _get_bot(user_id, bot_id)
+    return _start_bot_turn(
+        user_id, bot_id, schedule_item["prompt"], schedule_item
+    )
 
 
 def _register_push_token(user_id: str, value: dict) -> dict:
@@ -1382,6 +1676,44 @@ def handler(event: dict, _context: Any) -> dict:
             return _response(200, _delete_group(user_id, params.get("groupId", "")))
         if method == "POST" and path == "/bots":
             return _response(201, _create_bot(user_id, _body(event)))
+        if method == "GET" and path.endswith("/schedules"):
+            return _response(
+                200,
+                {"schedules": _list_schedules(user_id, params.get("botId", ""))},
+            )
+        if method == "POST" and path.endswith("/schedules"):
+            return _response(
+                201,
+                _create_schedule(user_id, params.get("botId", ""), _body(event)),
+            )
+        if method == "POST" and path.endswith("/run") and "/schedules/" in path:
+            return _response(
+                202,
+                _run_schedule_now(
+                    user_id,
+                    params.get("botId", ""),
+                    params.get("scheduleId", ""),
+                ),
+            )
+        if method == "PUT" and "/schedules/" in path:
+            return _response(
+                200,
+                _update_schedule(
+                    user_id,
+                    params.get("botId", ""),
+                    params.get("scheduleId", ""),
+                    _body(event),
+                ),
+            )
+        if method == "DELETE" and "/schedules/" in path:
+            return _response(
+                200,
+                _delete_schedule(
+                    user_id,
+                    params.get("botId", ""),
+                    params.get("scheduleId", ""),
+                ),
+            )
         if method == "PUT" and path.startswith("/bots/"):
             return _response(
                 200, _update_bot(user_id, params.get("botId", ""), _body(event))

@@ -4,9 +4,10 @@ import { CorsHttpMethod, HttpApi, HttpMethod } from 'aws-cdk-lib/aws-apigatewayv
 import { HttpJwtAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb';
-import { Effect, PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { Code, Function as LambdaFunction, Runtime } from 'aws-cdk-lib/aws-lambda';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
+import { ScheduleGroup } from 'aws-cdk-lib/aws-scheduler';
 import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
 import path from 'node:path';
 
@@ -96,6 +97,14 @@ const jobs = new Queue(stack, 'AgentJobs', {
   retentionPeriod: Duration.days(4),
   deadLetterQueue: { queue: deadLetterQueue, maxReceiveCount: 3 },
 });
+const taskScheduleGroup = new ScheduleGroup(stack, 'TaskSchedules', {
+  removalPolicy: RemovalPolicy.DESTROY,
+});
+const taskScheduleRole = new Role(stack, 'TaskScheduleRole', {
+  assumedBy: new ServicePrincipal('scheduler.amazonaws.com'),
+});
+jobs.grantSendMessages(taskScheduleRole);
+deadLetterQueue.grantSendMessages(taskScheduleRole);
 
 const functionDefaults = {
   runtime: Runtime.PYTHON_3_14,
@@ -111,6 +120,10 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
   environment: {
     ...functionDefaults.environment,
     QUEUE_URL: jobs.queueUrl,
+    QUEUE_ARN: jobs.queueArn,
+    SCHEDULE_DLQ_ARN: deadLetterQueue.queueArn,
+    SCHEDULE_GROUP_NAME: taskScheduleGroup.scheduleGroupName,
+    SCHEDULE_ROLE_ARN: taskScheduleRole.roleArn,
     INVITE_TABLE_NAME: inviteAccess.tableName,
     PUBLIC_WEB_BASE_URL: 'https://frogbot.expo.app',
     CAPABILITY_CATALOG_URL:
@@ -138,6 +151,15 @@ inviteAccess.grantReadWriteData(apiFunction);
 table.grantReadWriteData(workerFunction);
 jobs.grantSendMessages(apiFunction);
 jobs.grantSendMessages(workerFunction);
+taskScheduleGroup.grantWriteSchedules(apiFunction);
+taskScheduleGroup.grantDeleteSchedules(apiFunction);
+apiFunction.addToRolePolicy(
+  new PolicyStatement({
+    actions: ['iam:PassRole'],
+    resources: [taskScheduleRole.roleArn],
+    conditions: { StringEquals: { 'iam:PassedToService': 'scheduler.amazonaws.com' } },
+  }),
+);
 workerFunction.addEventSource(
   new SqsEventSource(jobs, {
     batchSize: 1,
@@ -186,6 +208,11 @@ for (const [method, routePath] of [
   [HttpMethod.GET, '/bots/{botId}/messages'],
   [HttpMethod.POST, '/bots/{botId}/messages'],
   [HttpMethod.DELETE, '/bots/{botId}/messages'],
+  [HttpMethod.GET, '/bots/{botId}/schedules'],
+  [HttpMethod.POST, '/bots/{botId}/schedules'],
+  [HttpMethod.PUT, '/bots/{botId}/schedules/{scheduleId}'],
+  [HttpMethod.DELETE, '/bots/{botId}/schedules/{scheduleId}'],
+  [HttpMethod.POST, '/bots/{botId}/schedules/{scheduleId}/run'],
   [HttpMethod.POST, '/groups'],
   [HttpMethod.PUT, '/groups/{groupId}'],
   [HttpMethod.DELETE, '/groups/{groupId}'],
