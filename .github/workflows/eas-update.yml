@@ -38,7 +38,7 @@ jobs:
           cache-dependency-path: apps/mobile/package-lock.json
 
       - name: Set up EAS
-        uses: expo/expo-github-action@v8
+        uses: expo/expo-github-action@v9
         with:
           eas-version: 23.2.0
           token: ${{ secrets.EXPO_TOKEN }}
