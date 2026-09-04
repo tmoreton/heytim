@@ -48,3 +48,9 @@ jobs:
 
       - name: Publish production update
         run: eas update --channel production --environment production --message "main@${{ github.sha }}" --non-interactive
+
+      - name: Build web app
+        run: npm run build:web
+
+      - name: Publish production website
+        run: eas deploy --prod --environment production --non-interactive

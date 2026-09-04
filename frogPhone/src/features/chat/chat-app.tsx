@@ -351,7 +351,7 @@ export function ChatApp({ demo, onSignedOut }: Props) {
         <View style={styles.profileDot} />
         <View style={styles.profileText}>
           <Text style={styles.profileTitle}>{demo ? 'Preview mode' : 'Your account'}</Text>
-          <Text style={styles.profileSubtitle}>{demo ? 'Local sample data' : 'Phone code sign-in'}</Text>
+          <Text style={styles.profileSubtitle}>{demo ? 'Local sample data' : 'Email code sign-in'}</Text>
         </View>
         <Pressable hitSlop={12} onPress={signOut}>
           <Text style={styles.signOut}>Log out</Text>

@@ -107,9 +107,10 @@ npx expo-doctor
 ## Mobile releases
 
 The production EAS build profile listens to the `production` update channel. The GitHub Actions workflow at
-`.github/workflows/eas-update.yml` publishes an EAS Update after every push to `main`; the Expo credential is stored
-as the repository secret `EXPO_TOKEN`. Expo's fingerprint runtime policy prevents an update from reaching an
-incompatible native build.
+`.github/workflows/eas-update.yml` publishes both an EAS Update and the static Expo website after every push to
+`main`; the Expo credential is stored as the repository secret `EXPO_TOKEN`. Expo's fingerprint runtime policy
+prevents an update from reaching an incompatible native build. On web, `/` is the public landing page and `/app`
+opens the same passwordless FrogBot experience used by the native app.
 
 ## Key locations
 

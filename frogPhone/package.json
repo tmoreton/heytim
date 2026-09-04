@@ -36,6 +36,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "build:web": "expo export --platform web",
+    "deploy:web": "npm run build:web && eas deploy --prod --non-interactive",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "backend:install": "npm install --prefix amplify",
