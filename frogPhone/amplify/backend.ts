@@ -59,6 +59,21 @@ const inviteAccess = new Table(backend.auth.stack, 'InviteAccess', {
 });
 backend.preSignUp.addEnvironment('INVITE_TABLE_NAME', inviteAccess.tableName);
 inviteAccess.grantReadData(backend.preSignUp.resources.lambda);
+backend.preSignUp.resources.lambda.addToRolePolicy(
+  new PolicyStatement({
+    actions: ['cognito-idp:AdminGetUser'],
+    // Referencing the pool construct here would create a cycle because the
+    // pool already depends on this trigger. Runtime input limits lookups to
+    // the invoking pool in this account and region.
+    resources: [
+      backend.auth.stack.formatArn({
+        service: 'cognito-idp',
+        resource: 'userpool',
+        resourceName: '*',
+      }),
+    ],
+  }),
+);
 
 const table = new Table(stack, 'Data', {
   partitionKey: { name: 'pk', type: AttributeType.STRING },
