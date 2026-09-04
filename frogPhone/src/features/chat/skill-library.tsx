@@ -36,7 +36,7 @@ type Props = {
 export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, onChanged }: Props) {
   const [selected, setSelected] = useState<SkillDetail>();
   const [draft, setDraft] = useState<SkillDraft>(emptyDraft);
-  const [mode, setMode] = useState<'list' | 'view' | 'edit' | 'new'>('list');
+  const [mode, setMode] = useState<'list' | 'view' | 'edit' | 'copy' | 'new'>('list');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -64,6 +64,18 @@ export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, 
       visibility: selected.visibility === 'link' ? 'link' : 'private',
     });
     setMode('edit');
+  };
+
+  const startCustomize = () => {
+    if (!selected) return;
+    setDraft({
+      name: `${selected.name} copy`,
+      description: selected.description,
+      instructions: selected.instructions,
+      requiredToolIds: selected.requiredToolIds,
+      visibility: 'private',
+    });
+    setMode('copy');
   };
 
   const startNew = () => {
@@ -120,7 +132,7 @@ export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, 
 
   const back = () => {
     setError('');
-    setMode(mode === 'edit' || mode === 'new' ? (selected ? 'view' : 'list') : 'list');
+    setMode(mode === 'edit' || mode === 'copy' || mode === 'new' ? (selected ? 'view' : 'list') : 'list');
   };
 
   return (
@@ -130,12 +142,14 @@ export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, 
           <Pressable hitSlop={12} onPress={mode === 'list' ? onClose : back}>
             <Text style={styles.headerAction}>{mode === 'list' ? 'Close' : 'Back'}</Text>
           </Pressable>
-          <Text style={styles.title}>{mode === 'list' ? 'Skills' : mode === 'new' ? 'New skill' : selected?.name}</Text>
+          <Text style={styles.title}>
+            {mode === 'list' ? 'Skills' : mode === 'new' ? 'New skill' : mode === 'copy' ? 'Customize skill' : selected?.name}
+          </Text>
           {mode === 'list' ? (
             <Pressable hitSlop={12} onPress={startNew}>
               <Text style={[styles.headerAction, styles.primary]}>New</Text>
             </Pressable>
-          ) : mode === 'edit' || mode === 'new' ? (
+          ) : mode === 'edit' || mode === 'copy' || mode === 'new' ? (
             <Pressable hitSlop={12} disabled={busy} onPress={save}>
               {busy ? <ActivityIndicator color="#007A3D" /> : <Text style={[styles.headerAction, styles.primary]}>Save</Text>}
             </Pressable>
@@ -166,7 +180,14 @@ export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, 
               ))}
             </>
           ) : mode === 'view' ? (
-            <SkillView skill={selected} tools={tools} busy={busy} onEdit={startEdit} onShare={share} />
+            <SkillView
+              skill={selected}
+              tools={tools}
+              busy={busy}
+              onEdit={startEdit}
+              onCustomize={startCustomize}
+              onShare={share}
+            />
           ) : (
             <SkillForm draft={draft} tools={tools} onChange={setDraft} />
           )}
@@ -182,12 +203,14 @@ function SkillView({
   tools,
   busy,
   onEdit,
+  onCustomize,
   onShare,
 }: {
   skill?: SkillDetail;
   tools: Capability[];
   busy: boolean;
   onEdit: () => void;
+  onCustomize: () => void;
   onShare: () => void;
 }) {
   if (!skill || busy) return <ActivityIndicator style={styles.loader} color="#007A3D" />;
@@ -219,11 +242,9 @@ function SkillView({
         </>
       ) : null}
       <View style={styles.actionRow}>
-        {skill.editable ? (
-          <Pressable style={[styles.button, styles.secondaryButton]} onPress={onEdit}>
-            <Text style={styles.secondaryButtonText}>Edit</Text>
-          </Pressable>
-        ) : null}
+        <Pressable style={[styles.button, styles.secondaryButton]} onPress={skill.editable ? onEdit : onCustomize}>
+          <Text style={styles.secondaryButtonText}>{skill.editable ? 'Edit' : 'Customize'}</Text>
+        </Pressable>
         <Pressable style={[styles.button, styles.primaryButton]} onPress={onShare}>
           <Text style={styles.primaryButtonText}>Share link</Text>
         </Pressable>

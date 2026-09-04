@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FrogBot SMS opt-in</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f4f2ec;
+        color: #171714;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 393px;
+        height: 852px;
+        margin: 0;
+        overflow: hidden;
+        background: #f4f2ec;
+      }
+
+      body {
+        position: relative;
+      }
+
+      .status-bar {
+        position: absolute;
+        z-index: 2;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 46px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 7px 25px 0 27px;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: -0.2px;
+      }
+
+      .status-icons {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12px;
+        letter-spacing: -0.5px;
+      }
+
+      main {
+        width: 393px;
+        min-height: 852px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 50px 22px 34px;
+      }
+
+      .brand {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 18px;
+      }
+
+      .brand img {
+        width: 66px;
+        height: 58px;
+        object-fit: contain;
+        margin-bottom: 6px;
+      }
+
+      .brand h1 {
+        margin: 0;
+        color: #11110f;
+        font-size: 29px;
+        line-height: 34px;
+        font-weight: 800;
+        letter-spacing: -1px;
+      }
+
+      .brand p {
+        margin: 4px 0 0;
+        color: #77736b;
+        font-size: 13px;
+        line-height: 18px;
+      }
+
+      .card {
+        align-self: stretch;
+        border: 1px solid #e7e3da;
+        border-radius: 24px;
+        background: #ffffff;
+        padding: 21px;
+        box-shadow: 0 18px 44px rgba(25, 24, 18, 0.07);
+      }
+
+      .eyebrow {
+        margin: 0 0 7px;
+        color: #007a3d;
+        font-size: 10px;
+        line-height: 14px;
+        font-weight: 800;
+        letter-spacing: 1.15px;
+      }
+
+      h2 {
+        margin: 0;
+        color: #171714;
+        font-size: 23px;
+        line-height: 28px;
+        font-weight: 750;
+        letter-spacing: -0.55px;
+      }
+
+      .intro {
+        margin: 5px 0 16px;
+        color: #77736b;
+        font-size: 13px;
+        line-height: 19px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 7px;
+        color: #37352f;
+        font-size: 12px;
+        line-height: 16px;
+        font-weight: 650;
+      }
+
+      .phone-field {
+        height: 52px;
+        display: flex;
+        align-items: center;
+        border: 1px solid #dedad1;
+        border-radius: 15px;
+        background: #faf9f6;
+        color: #171714;
+        font-size: 15px;
+      }
+
+      .country-code {
+        height: 26px;
+        display: flex;
+        align-items: center;
+        padding: 0 12px 0 14px;
+        border-right: 1px solid #dedad1;
+        font-weight: 650;
+      }
+
+      .placeholder {
+        padding-left: 12px;
+        color: #9b978f;
+      }
+
+      .consent {
+        display: grid;
+        grid-template-columns: 21px 1fr;
+        gap: 9px;
+        margin-top: 14px;
+        padding: 13px;
+        border: 1px solid #dedad1;
+        border-radius: 14px;
+        background: #fbfbf9;
+      }
+
+      .checkbox {
+        width: 20px;
+        height: 20px;
+        border: 1.5px solid #77736b;
+        border-radius: 5px;
+        background: #ffffff;
+      }
+
+      .consent p {
+        margin: 0;
+        color: #4f4c45;
+        font-size: 10.5px;
+        line-height: 15px;
+      }
+
+      .consent > div {
+        min-width: 0;
+      }
+
+      .policy-links {
+        margin-top: 7px !important;
+        color: #006b35 !important;
+        font-weight: 650;
+        overflow-wrap: anywhere;
+      }
+
+      .button {
+        height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 14px;
+        border-radius: 15px;
+        background: #b8d5c6;
+        color: #ffffff;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .privacy-note {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        margin-top: 14px;
+        padding-top: 13px;
+        border-top: 1px solid #eeeae2;
+        color: #8a857c;
+        font-size: 10.5px;
+        line-height: 14px;
+        text-align: center;
+      }
+
+      .privacy-dot {
+        width: 6px;
+        height: 6px;
+        flex: 0 0 auto;
+        border-radius: 50%;
+        background: #007a3d;
+      }
+
+      .footer {
+        margin: 14px 0 0;
+        color: #9b978f;
+        font-size: 10px;
+        line-height: 14px;
+        text-align: center;
+      }
+
+      .home-indicator {
+        position: absolute;
+        bottom: 8px;
+        left: 50%;
+        width: 126px;
+        height: 5px;
+        transform: translateX(-50%);
+        border-radius: 3px;
+        background: #171714;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="status-bar" aria-hidden="true">
+      <span>9:41</span>
+      <span class="status-icons">5G &nbsp; 100%</span>
+    </div>
+
+    <main>
+      <section class="brand">
+        <img src="../../frogPhone/assets/images/frogbot-foreground.png" alt="FrogBot frog logo" />
+        <h1>FrogBot</h1>
+        <p>Your small team of capable AI coworkers.</p>
+      </section>
+
+      <section class="card" aria-label="FrogBot SMS sign-in consent form">
+        <p class="eyebrow">PASSWORDLESS SIGN IN</p>
+        <h2>Sign in with your phone</h2>
+        <p class="intro">Enter your mobile number and we’ll send a six-digit verification code. No password needed.</p>
+
+        <label for="phone">Mobile phone number</label>
+        <div class="phone-field" id="phone">
+          <span class="country-code">+1</span>
+          <span class="placeholder">(201) 555-0123</span>
+        </div>
+
+        <div class="consent">
+          <span class="checkbox" aria-hidden="true"></span>
+          <div>
+            <p>I agree to receive FrogBot one-time passcode texts at the number above. One message per login attempt; message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for help. Consent is not a condition of purchase.</p>
+            <p class="policy-links">Privacy: frogbot.expo.app/privacy<br />Terms: frogbot.expo.app/terms<br />Support: hello@reactnativenerd.com</p>
+          </div>
+        </div>
+
+        <div class="button">Agree &amp; continue</div>
+
+        <div class="privacy-note">
+          <span class="privacy-dot"></span>
+          <span>Transactional verification codes only. No marketing messages.</span>
+        </div>
+      </section>
+
+      <p class="footer">FrogBot securely verifies your account using a one-time code.</p>
+    </main>
+
+    <div class="home-indicator" aria-hidden="true"></div>
+  </body>
+</html>

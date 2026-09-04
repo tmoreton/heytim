@@ -21,7 +21,21 @@
       "lifecycleConfiguration": {
         "idleRuntimeSessionTimeout": 900,
         "maxLifetime": 7200
-      }
+      },
+      "connections": [
+        {
+          "id": "codeInterpreter",
+          "to": {
+            "type": "codeInterpreter"
+          }
+        },
+        {
+          "id": "browser",
+          "to": {
+            "type": "browser"
+          }
+        }
+      ]
     }
   ],
   "memories": [],

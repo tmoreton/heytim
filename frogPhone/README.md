@@ -5,7 +5,8 @@ Amplify Gen 2 backend for native Cognito email OTP authentication, persisted dir
 and push notifications when an agent reply is ready. On Apple devices, the composer also supports on-device dictation.
 
 Groups can include several people and several FrogBots. Invite links grant access to the live room, each message shows
-whether it came from a person or a bot, and the sender explicitly chooses one bot to reply or keeps a message human-only.
+whether it came from a person or a bot, and the sender can keep a message human-only, choose one bot, or run an ordered
+team round. Every bot receives the group roster and shared transcript; later bots build on replies already made.
 
 ## Run the interface locally
 

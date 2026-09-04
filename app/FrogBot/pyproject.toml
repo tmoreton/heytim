@@ -14,8 +14,12 @@ dependencies = [
     "botocore[crt] >= 1.35.0",
     "mcp-proxy-for-aws >= 1.6.0, < 2.0.0",
     "strands-agents >= 1.54.0, < 2.0.0",
-    "strands-agents-stan @ git+https://github.com/strands-agents/stan.git@6ba1843a42ead5027e6896ffb21a7cc7cf95b9a8#subdirectory=stan-py",
+    "strands-agents-tools[agent_core_browser,agent_core_code_interpreter] >= 0.2.0, < 1.0.0",
+    "strands-agents-stan",
 ]
+
+[tool.uv.sources]
+strands-agents-stan = { path = "vendor/strands_agents_stan-0.0.1.dev48+g6ba1843a4-py3-none-any.whl" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]

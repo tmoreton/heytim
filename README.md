@@ -22,7 +22,8 @@ Expo app
 
 The request path is asynchronous so a long agent turn is not limited by an HTTP request timeout.
 The app polls only while a response is pending. DynamoDB is the source of truth for chat history;
-the worker derives a stable AgentCore session ID from the user and bot IDs.
+the worker derives a stable AgentCore session ID from the user and bot IDs. In a team round, bots reply
+one at a time so every later bot sees the people, the full bot roster, and earlier bot contributions.
 
 ## What is included
 
@@ -31,7 +32,7 @@ the worker derives a stable AgentCore session ID from the user and bot IDs.
 - Push notification when an agent reply completes, with tap-to-open navigation
 - Apple on-device speech-to-text in the message composer without saved audio
 - Per-bot name, description, prompt, color, tools, and version-pinned skills
-- Shared groups with multiple people and FrogBots, invite links, and an explicit bot-reply selector
+- Shared groups with multiple people and FrogBots, invite links, single-bot replies, and ordered team collaboration rounds
 - A skill library for creating, editing, and sharing reusable ways of working
 - Three starter bots, three reviewed starter skills, and a dynamically refreshed capability catalog
 - Bot snapshots, conversation snapshots, and live group invitations with 30-day links

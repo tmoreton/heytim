@@ -13,6 +13,7 @@ from typing import Any
 import boto3
 
 from shared.catalog import CatalogError, CatalogService
+from shared.group_chat import ALL_BOTS_REPLY_TARGET, select_group_reply_targets
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -119,7 +120,7 @@ def _group_pk(group_id: str) -> str:
 
 
 def _group_message_sk(created_at: str, message_id: str, order: int = 0) -> str:
-    return f"MESSAGE#{created_at}#{order}#{message_id}"
+    return f"MESSAGE#{created_at}#{order:02d}#{message_id}"
 
 
 def _display_name(event: dict) -> str:
@@ -553,11 +554,8 @@ def _send_group_message(user_id: str, display_name: str, group_id: str, value: d
     reply_bot_id = value.get("replyBotId")
     if reply_bot_id is not None and (not isinstance(reply_bot_id, str) or not reply_bot_id):
         raise ApiError(400, "replyBotId must identify a bot in this group")
-    group_bot = next(
-        (item for item in items if item.get("entity") == "GROUP_BOT" and item.get("botId") == reply_bot_id),
-        None,
-    )
-    if reply_bot_id and not group_bot:
+    reply_bots = select_group_reply_targets(items, reply_bot_id)
+    if reply_bot_id and not reply_bots:
         raise ApiError(400, "Choose a bot that belongs to this group")
 
     current = _now()
@@ -574,53 +572,69 @@ def _send_group_message(user_id: str, display_name: str, group_id: str, value: d
         "createdAt": current,
         "status": "COMPLETE",
     }
-    reply = None
-    if group_bot:
+    replies = []
+    for order, group_bot in enumerate(reply_bots, start=1):
         reply_id = str(uuid.uuid4())
-        reply = {
+        replies.append({
             "pk": _group_pk(group_id),
-            "sk": _group_message_sk(current, reply_id, 1),
+            "sk": _group_message_sk(current, reply_id, order),
             "entity": "GROUP_MESSAGE",
             "id": reply_id,
             "authorType": "bot",
-            "authorId": reply_bot_id,
+            "authorId": group_bot["botId"],
             "authorName": group_bot["name"],
             "authorColor": group_bot.get("color", "#007A3D"),
             "botOwnerId": group_bot["botOwnerId"],
+            "roundId": message_id,
+            "roundPosition": order,
+            "roundSize": len(reply_bots),
             "text": "",
             "createdAt": current,
             "status": "PENDING",
-        }
+        })
     with table.batch_writer() as batch:
         batch.put_item(Item=message)
-        if reply:
+        for reply in replies:
             batch.put_item(Item=reply)
         batch.put_item(Item={**meta, "lastMessage": text, "lastMessageAt": current, "updatedAt": current})
 
-    if reply:
+    if replies:
         try:
             sqs.send_message(
                 QueueUrl=QUEUE_URL,
                 MessageBody=json.dumps(
                     {
-                        "type": "GROUP_AGENT_REPLY",
+                        "type": "GROUP_AGENT_ROUND",
                         "requestedBy": user_id,
                         "groupId": group_id,
-                        "botId": reply_bot_id,
-                        "botOwnerId": group_bot["botOwnerId"],
-                        "replyKey": reply["sk"],
+                        "replyTarget": ALL_BOTS_REPLY_TARGET if reply_bot_id == ALL_BOTS_REPLY_TARGET else "bot",
+                        "replies": [
+                            {
+                                "botId": reply["authorId"],
+                                "botOwnerId": reply["botOwnerId"],
+                                "replyKey": reply["sk"],
+                            }
+                            for reply in replies
+                        ],
                     }
                 ),
             )
         except Exception:
-            table.update_item(
-                Key={"pk": reply["pk"], "sk": reply["sk"]},
-                UpdateExpression="SET #status = :error, #text = :text",
-                ExpressionAttributeNames={"#status": "status", "#text": "text"},
-                ExpressionAttributeValues={":error": "ERROR", ":text": "I could not start that request. Please try again."},
-            )
+            with table.batch_writer() as batch:
+                for reply in replies:
+                    batch.put_item(
+                        Item={
+                            **reply,
+                            "status": "ERROR",
+                            "text": "I could not start that request. Please try again.",
+                        }
+                    )
             raise
-    return {"messageId": message_id, "replyId": reply.get("id") if reply else None}
+    return {
+        "messageId": message_id,
+        "replyId": replies[0]["id"] if replies else None,
+        "replyIds": [reply["id"] for reply in replies],
+    }
 
 
 def _remove_group_member(user_id: str, group_id: str, member_id: str) -> dict:

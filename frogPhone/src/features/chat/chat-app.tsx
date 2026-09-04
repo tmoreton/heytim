@@ -43,6 +43,7 @@ type Props = {
 
 type Selection = { kind: 'bot' | 'group'; id: string };
 type DrawerItem = { kind: 'group'; value: Group } | { kind: 'bot'; value: Bot };
+const ALL_BOTS_REPLY_TARGET = 'all';
 const MESSAGE_REFRESH_MS = 900;
 
 const friendlyDate = (value: string) => {
@@ -83,11 +84,18 @@ export function ChatApp({ demo, onSignedOut }: Props) {
   const selectedGroup = selection?.kind === 'group' ? data?.groups.find((group) => group.id === selection.id) : undefined;
   const selected = selectedBot ?? selectedGroup;
   const pending = messages.some((message) => message.status === 'pending');
+  const pendingBotCount = messages.filter(
+    (message) => message.status === 'pending' && message.authorType === 'bot',
+  ).length;
   const activeReplyBotId = replyBotId === null
     ? undefined
+    : replyBotId === ALL_BOTS_REPLY_TARGET && selectedGroup?.bots.length
+      ? ALL_BOTS_REPLY_TARGET
     : selectedGroup?.bots.some((bot) => bot.id === replyBotId)
       ? replyBotId
-      : selectedGroup?.bots[0]?.id;
+      : selectedGroup && selectedGroup.bots.length > 1
+        ? ALL_BOTS_REPLY_TARGET
+        : selectedGroup?.bots[0]?.id;
 
   const chooseAvailableSelection = useCallback((next: Bootstrap, current?: Selection): Selection | undefined => {
     if (current?.kind === 'bot' && next.bots.some((bot) => bot.id === current.id)) return current;
@@ -556,7 +564,9 @@ export function ChatApp({ demo, onSignedOut }: Props) {
                       {listening
                         ? 'Listening...'
                         : pending
-                          ? 'A FrogBot is working...'
+                          ? pendingBotCount > 1
+                            ? `${pendingBotCount} FrogBots are working...`
+                            : 'A FrogBot is working...'
                           : `${selectedGroup.members.length} people · ${selectedGroup.bots.length} bots`}
                     </Text>
                   </View>
@@ -608,7 +618,7 @@ export function ChatApp({ demo, onSignedOut }: Props) {
                     <View style={styles.emptyState}>
                       <GroupAvatar group={selectedGroup} size={76} />
                       <Text style={styles.emptyTitle}>Welcome to {selectedGroup.name}</Text>
-                      <Text style={styles.emptyCopy}>Write to the group, then choose a FrogBot when you want one to answer.</Text>
+                      <Text style={styles.emptyCopy}>Write to everyone, ask one FrogBot, or let the whole team collaborate in one shared round.</Text>
                     </View>
                   ) : selectedBot ? (
                     <View style={styles.emptyState}>
@@ -635,6 +645,14 @@ export function ChatApp({ demo, onSignedOut }: Props) {
                     <PersonAvatar name="People" size={22} />
                     <Text style={[styles.replyChipText, !activeReplyBotId && styles.replyChipTextActive]}>People only</Text>
                   </Pressable>
+                  {selectedGroup.bots.length > 1 ? (
+                    <Pressable
+                      style={[styles.replyChip, activeReplyBotId === ALL_BOTS_REPLY_TARGET && styles.replyChipActive]}
+                      onPress={() => setReplyBotId(ALL_BOTS_REPLY_TARGET)}>
+                      <GroupAvatar group={selectedGroup} size={22} />
+                      <Text style={[styles.replyChipText, activeReplyBotId === ALL_BOTS_REPLY_TARGET && styles.replyChipTextActive]}>Team replies</Text>
+                    </Pressable>
+                  ) : null}
                   {selectedGroup.bots.map((bot) => {
                     const active = activeReplyBotId === bot.id;
                     return (

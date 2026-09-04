@@ -13,6 +13,7 @@ from botocore.config import Config
 
 from shared.agent_stream import ProgressCallback, read_agent_stream
 from shared.catalog import CatalogService
+from shared.group_chat import group_history_from_items, group_round_step, group_runtime_context
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -81,32 +82,31 @@ def _get_history(user_id: str, bot_id: str) -> list[dict]:
     return messages
 
 
-def _append_history(messages: list[dict], role: str, text: str) -> None:
-    if messages and messages[-1]["role"] == role:
-        previous = messages[-1]["content"][0]["text"]
-        messages[-1]["content"] = [{"text": f"{previous}\n{text}"}]
-        return
-    messages.append({"role": role, "content": [{"text": text}]})
-
-
 def _get_group_history(group_id: str, bot_id: str) -> list[dict]:
     items = table.query(
         KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
         ExpressionAttributeValues={":pk": _group_pk(group_id), ":prefix": "MESSAGE#"},
         ScanIndexForward=False,
         Limit=40,
+        ConsistentRead=True,
     ).get("Items", [])
-    messages: list[dict] = []
-    for item in reversed(items):
-        text = item.get("text")
-        if item.get("status") != "COMPLETE" or not isinstance(text, str) or not text.strip():
-            continue
-        author_name = item.get("authorName", "Participant")
-        if item.get("authorType") == "bot" and item.get("authorId") == bot_id:
-            _append_history(messages, "assistant", text)
-        else:
-            _append_history(messages, "user", f"[{author_name}]: {text}")
-    return messages
+    return group_history_from_items(items, bot_id)
+
+
+def _get_group_context(group_id: str, bot_id: str, round_position: int, round_size: int) -> dict:
+    meta = table.get_item(Key={"pk": _group_pk(group_id), "sk": "META"}, ConsistentRead=True).get("Item")
+    if not meta:
+        raise ValueError("Group no longer exists")
+    items = [meta]
+    for prefix in ("BOT#", "USER#"):
+        items.extend(
+            table.query(
+                KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+                ExpressionAttributeValues={":pk": _group_pk(group_id), ":prefix": prefix},
+                ConsistentRead=True,
+            ).get("Items", [])
+        )
+    return group_runtime_context(meta, items, bot_id, round_position, round_size)
 
 
 def _invoke(
@@ -116,6 +116,7 @@ def _invoke(
     *,
     history: list[dict] | None = None,
     session_scope: str | None = None,
+    group_context: dict | None = None,
     on_progress: ProgressCallback | None = None,
 ) -> str:
     session_id = hashlib.sha256((session_scope or f"{user_id}:{bot_id}").encode()).hexdigest()
@@ -132,16 +133,20 @@ def _invoke(
     tool_ids = list(dict.fromkeys(bot.get("toolIds", [])))
     for skill in resolved_skills:
         tool_ids.extend(tool_id for tool_id in skill.get("requiredToolIds", []) if tool_id not in tool_ids)
+    resolved_tools = catalog.resolve_tools_for_runtime(tool_ids)
     payload = {
         "messages": history if history is not None else _get_history(user_id, bot_id),
         "bot": {
             "name": bot["name"],
             "prompt": bot["prompt"],
             "toolIds": tool_ids,
+            "tools": resolved_tools,
             "skillIds": bot.get("skillIds", []),
             "skills": resolved_skills,
         },
     }
+    if group_context is not None:
+        payload["group"] = group_context
     response = agentcore.invoke_agent_runtime(
         agentRuntimeArn=AGENT_RUNTIME_ARN,
         qualifier=AGENT_RUNTIME_QUALIFIER,
@@ -418,7 +423,7 @@ def _queue_group_reply_notifications(group_id: str, reply_key: dict, reply: dict
     )
 
 
-def _process_group_agent_reply(record: dict, request: dict) -> None:
+def _process_group_agent_reply(record: dict, request: dict, *, notify: bool = True) -> str | None:
     group_id = request["groupId"]
     bot_id = request["botId"]
     reply_key = {"pk": _group_pk(group_id), "sk": request["replyKey"]}
@@ -430,18 +435,22 @@ def _process_group_agent_reply(record: dict, request: dict) -> None:
     if not bot:
         raise ValueError("Source bot no longer exists")
     if reply.get("status") in {"COMPLETE", "ERROR"} and not reply.get("notificationQueued") and reply.get("text"):
-        _queue_group_reply_notifications(group_id, reply_key, reply, bot, reply["text"])
-        return
+        if notify:
+            _queue_group_reply_notifications(group_id, reply_key, reply, bot, reply["text"])
+        return reply["text"]
     if reply.get("status") != "PENDING":
-        return
+        return None
 
     try:
+        round_position = int(request.get("roundPosition", reply.get("roundPosition", 1)))
+        round_size = int(request.get("roundSize", reply.get("roundSize", 1)))
         answer = _invoke(
             bot_owner_id,
             bot_id,
             bot,
             history=_get_group_history(group_id, bot_id),
             session_scope=f"group:{group_id}:bot:{bot_id}",
+            group_context=_get_group_context(group_id, bot_id, round_position, round_size),
             on_progress=_progress_updater(reply_key),
         )
     except Exception:
@@ -456,8 +465,9 @@ def _process_group_agent_reply(record: dict, request: dict) -> None:
             ExpressionAttributeNames={"#status": "status", "#text": "text"},
             ExpressionAttributeValues={":error": "ERROR", ":answer": answer, ":now": datetime.now(UTC).isoformat(timespec="milliseconds")},
         )
-        _queue_group_reply_notifications(group_id, reply_key, reply, bot, answer)
-        return
+        if notify:
+            _queue_group_reply_notifications(group_id, reply_key, reply, bot, answer)
+        return answer
 
     completed_at = datetime.now(UTC).isoformat(timespec="milliseconds")
     table.update_item(
@@ -475,7 +485,30 @@ def _process_group_agent_reply(record: dict, request: dict) -> None:
         )
     except Exception:
         logger.exception("Could not update the group preview for reply %s", reply.get("id"))
-    _queue_group_reply_notifications(group_id, reply_key, reply, bot, answer)
+    if notify:
+        _queue_group_reply_notifications(group_id, reply_key, reply, bot, answer)
+    return answer
+
+
+def _process_group_agent_round(record: dict, request: dict) -> None:
+    replies = request.get("replies")
+    index = request.get("nextReplyIndex", 0)
+    reply, final_reply = group_round_step(replies, index)
+    _process_group_agent_reply(
+        record,
+        {
+            **request,
+            **reply,
+            "roundPosition": index + 1,
+            "roundSize": len(replies),
+        },
+        notify=final_reply,
+    )
+    if not final_reply:
+        sqs.send_message(
+            QueueUrl=QUEUE_URL,
+            MessageBody=json.dumps({**request, "nextReplyIndex": index + 1}),
+        )
 
 
 def _process(record: dict) -> None:
@@ -489,6 +522,9 @@ def _process(record: dict) -> None:
         return
     if request_type == "GROUP_AGENT_REPLY":
         _process_group_agent_reply(record, request)
+        return
+    if request_type == "GROUP_AGENT_ROUND":
+        _process_group_agent_round(record, request)
         return
     if request_type != "AGENT_REPLY":
         raise ValueError(f"Unknown job type: {request_type}")

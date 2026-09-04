@@ -90,7 +90,6 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
     SKILL_SHARE_BASE_URL: 'frogbot://skill',
     CAPABILITY_CATALOG_URL:
       'https://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json',
-    AVAILABLE_TOOL_IDS: 'web,web_search,calculator,current_time',
   },
 });
 
@@ -98,7 +97,7 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
   ...functionDefaults,
   handler: 'worker.handler.handler',
   code: Code.fromAsset(path.resolve('amplify/functions')),
-  timeout: Duration.minutes(4),
+  timeout: Duration.minutes(6),
   environment: {
     ...functionDefaults.environment,
     AGENT_RUNTIME_ARN: runtimeArn,
@@ -106,7 +105,6 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
     QUEUE_URL: jobs.queueUrl,
     CAPABILITY_CATALOG_URL:
       'https://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json',
-    AVAILABLE_TOOL_IDS: 'web,web_search,calculator,current_time',
   },
 });
 

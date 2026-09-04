@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 import unittest
 from contextlib import contextmanager
+from decimal import Decimal
 
 import shared.catalog as catalog_module
 from shared.catalog import CatalogService
@@ -102,6 +103,26 @@ class CatalogServiceTests(unittest.TestCase):
         self.assertFalse(imported["editable"])
         self.assertEqual(imported["relationship"], "installed")
         self.assertEqual(imported["requiredToolIds"], ["current_time"])
+
+    def test_all_catalog_tools_are_visible_and_resolve_to_reviewed_runtime_bindings(self) -> None:
+        tools = self.catalog.list_tools()
+        self.assertEqual(len(tools), sum(tool["enabled"] for tool in catalog_module.FALLBACK_TOOLS))
+
+        resolved = self.catalog.resolve_tools_for_runtime(["delegate", "web_search", "calculator"])
+        self.assertEqual(
+            resolved,
+            [
+                {"id": "delegate", "runtime": {"kind": "stan_subagent", "name": "generalist"}},
+                {"id": "web_search", "runtime": {"kind": "gateway", "operations": ["WebSearch"]}},
+                {"id": "calculator", "runtime": {"kind": "local", "name": "calculator"}},
+            ],
+        )
+
+    def test_runtime_resolves_dynamodb_decimal_skill_versions(self) -> None:
+        skill = self.catalog.resolve_for_runtime({"planner": Decimal("1")})
+
+        self.assertEqual(skill[0]["id"], "planner")
+        self.assertEqual(skill[0]["version"], 1)
 
     def test_catalog_removes_stale_listings_but_keeps_immutable_versions(self) -> None:
         stale = {

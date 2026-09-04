@@ -106,6 +106,138 @@ let skills: SkillDetail[] = [
     visibility: 'public',
     editable: false,
   },
+  {
+    id: 'deep-research',
+    version: 1,
+    name: 'Deep Research',
+    description: 'Break down broad questions and produce a sourced, decision-ready synthesis.',
+    instructions: 'Plan the research, delegate independent threads, verify material claims, and lead with the conclusion.',
+    requiredToolIds: ['web', 'web_search', 'task_list', 'delegate'],
+    source: 'official',
+    visibility: 'public',
+    editable: false,
+  },
+  {
+    id: 'analyst',
+    version: 1,
+    name: 'Analyst',
+    description: 'Compare options, test assumptions, and turn evidence into a recommendation.',
+    instructions: 'Use consistent criteria, state assumptions, test scenarios, and recommend one path.',
+    requiredToolIds: ['calculator'],
+    source: 'official',
+    visibility: 'public',
+    editable: false,
+  },
+  {
+    id: 'data-analyst',
+    version: 1,
+    name: 'Data Analyst',
+    description: 'Inspect data, calculate results, and verify conclusions with executable code.',
+    instructions: 'Inspect data quality, use executable analysis, verify the key result, and distinguish evidence from interpretation.',
+    requiredToolIds: ['calculator', 'code_interpreter'],
+    source: 'official',
+    visibility: 'public',
+    editable: false,
+  },
+  {
+    id: 'editor',
+    version: 1,
+    name: 'Editor',
+    description: 'Improve clarity, structure, and tone while preserving the author\'s meaning.',
+    instructions: 'Preserve meaning, lead with the point, remove repetition, and return the finished revision first.',
+    requiredToolIds: [],
+    source: 'official',
+    visibility: 'public',
+    editable: false,
+  },
+  {
+    id: 'brainstormer',
+    version: 1,
+    name: 'Brainstormer',
+    description: 'Generate distinct ideas, pressure-test them, and identify the strongest directions.',
+    instructions: 'Generate distinct strategies, remove duplicates, pressure-test the strongest, and suggest cheap experiments.',
+    requiredToolIds: [],
+    source: 'official',
+    visibility: 'public',
+    editable: false,
+  },
+  {
+    id: 'teacher',
+    version: 1,
+    name: 'Teacher',
+    description: 'Explain difficult subjects at the learner\'s level and check understanding.',
+    instructions: 'Build a clear mental model, define jargon, use a concrete example, and check understanding.',
+    requiredToolIds: [],
+    source: 'official',
+    visibility: 'public',
+    editable: false,
+  },
+  {
+    id: 'browser-research',
+    version: 1,
+    name: 'Browser Research',
+    description: 'Investigate interactive or multi-page websites and report traceable findings.',
+    instructions: 'Search first, browse only when navigation is needed, avoid unrequested actions, and link the pages inspected.',
+    requiredToolIds: ['browser', 'web_search'],
+    source: 'official',
+    visibility: 'public',
+    editable: false,
+  },
+  {
+    id: 'fact-checker',
+    version: 1,
+    name: 'Fact Checker',
+    description: 'Check concrete claims against reliable sources and explain the verdict.',
+    instructions: 'Test each claim against primary sources, label the verdict, explain limitations, and link the evidence.',
+    requiredToolIds: ['web', 'web_search'],
+    source: 'official',
+    visibility: 'public',
+    editable: false,
+  },
+  {
+    id: 'meeting-prep',
+    version: 1,
+    name: 'Meeting Prep',
+    description: 'Turn a meeting goal and attendee context into a focused briefing.',
+    instructions: 'Clarify the outcome, research relevant public context, prepare an agenda and questions, and end with a checklist.',
+    requiredToolIds: ['web_search'],
+    source: 'official',
+    visibility: 'public',
+    editable: false,
+  },
+  {
+    id: 'product-manager',
+    version: 1,
+    name: 'Product Manager',
+    description: 'Shape product ideas into user problems, decisions, and testable requirements.',
+    instructions: 'Start with the user problem, define the smallest valuable scope, surface risks, and recommend the next experiment.',
+    requiredToolIds: [],
+    source: 'official',
+    visibility: 'public',
+    editable: false,
+  },
+  {
+    id: 'project-manager',
+    version: 1,
+    name: 'Project Manager',
+    description: 'Organize an outcome into owners, milestones, risks, and a maintained action list.',
+    instructions: 'Define completion, track concrete tasks and dependencies, surface blockers, and keep the action list current.',
+    requiredToolIds: ['task_list'],
+    source: 'official',
+    visibility: 'public',
+    editable: false,
+  },
+  {
+    id: 'summarizer',
+    version: 1,
+    name: 'Summarizer',
+    description: 'Compress long material into an accurate summary tailored to the reader.',
+    instructions: 'Lead with the central conclusion, preserve exact facts and qualifications, and remove repetition without inventing context.',
+    requiredToolIds: [],
+    source: 'official',
+    visibility: 'public',
+    editable: false,
+  },
 ];
 
 const messages = new Map<string, Message[]>([
@@ -189,6 +321,12 @@ export const demoBootstrap = (): Bootstrap => ({
     { id: 'web_search', name: 'Web search', description: 'Search the live web and return relevant sources.' },
     { id: 'calculator', name: 'Calculator', description: 'Do exact arithmetic.' },
     { id: 'current_time', name: 'World clock', description: 'Check time by timezone.' },
+    { id: 'x_search', name: 'X / Twitter search', description: 'Search recent public posts on X.' },
+    { id: 'youtube_search', name: 'YouTube research', description: 'Find videos and inspect metadata and comments.' },
+    { id: 'task_list', name: 'Task tracker', description: 'Keep a live checklist during longer work.' },
+    { id: 'delegate', name: 'Focused delegate', description: 'Hand a focused subtask to a fresh agent.' },
+    { id: 'code_interpreter', name: 'Code interpreter', description: 'Run code in an isolated AgentCore sandbox.' },
+    { id: 'browser', name: 'Interactive browser', description: 'Navigate and interact with websites.' },
   ],
   skills: skills.map(({ instructions: _instructions, ...skill }) => skill),
 });
@@ -281,10 +419,12 @@ export const demoSendGroup = (groupId: string, text: string, replyBotId?: string
     status: 'complete',
   });
   const group = groups.find((item) => item.id === groupId);
-  const bot = group?.bots.find((item) => item.id === replyBotId);
-  if (bot) {
+  const replyBots = replyBotId === 'all'
+    ? (group?.bots ?? [])
+    : (group?.bots.filter((item) => item.id === replyBotId) ?? []);
+  replyBots.forEach((bot, index) => {
     current.push({
-      id: `${requestId}-assistant`,
+      id: `${requestId}-assistant-${index}`,
       role: 'assistant',
       authorType: 'bot',
       authorId: bot.id,
@@ -294,26 +434,28 @@ export const demoSendGroup = (groupId: string, text: string, replyBotId?: string
       createdAt: new Date().toISOString(),
       status: 'pending',
     });
-  }
+  });
   groupMessages.set(groupId, current);
   groups = groups.map((item) =>
     item.id === groupId ? { ...item, lastMessage: text, lastMessageAt: new Date().toISOString() } : item,
   );
-  if (!bot) return;
-  setTimeout(() => {
-    const answer = `I am on it as ${bot.name}. I will keep the group aligned and bring back the next concrete decision.`;
-    groupMessages.set(
-      groupId,
-      (groupMessages.get(groupId) ?? []).map((message) =>
-        message.id === `${requestId}-assistant`
-          ? { ...message, text: answer, status: 'complete', createdAt: new Date().toISOString() }
-          : message,
-      ),
-    );
-    groups = groups.map((item) =>
-      item.id === groupId ? { ...item, lastMessage: answer, lastMessageAt: new Date().toISOString() } : item,
-    );
-  }, 900);
+  replyBots.forEach((bot, index) => {
+    setTimeout(() => {
+      const prior = index > 0 ? ` Building on ${replyBots[index - 1].name}'s contribution,` : '';
+      const answer = `${bot.name} here.${prior} I will contribute from my role: ${bot.tagline}`;
+      groupMessages.set(
+        groupId,
+        (groupMessages.get(groupId) ?? []).map((message) =>
+          message.id === `${requestId}-assistant-${index}`
+            ? { ...message, text: answer, status: 'complete', createdAt: new Date().toISOString() }
+            : message,
+        ),
+      );
+      groups = groups.map((item) =>
+        item.id === groupId ? { ...item, lastMessage: answer, lastMessageAt: new Date().toISOString() } : item,
+      );
+    }, 700 + index * 500);
+  });
 };
 
 export const demoGetSkill = async (skillId: string): Promise<SkillDetail> => {

@@ -10,6 +10,7 @@ import urllib.error
 import urllib.request
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -26,22 +27,89 @@ MAX_SKILL_INSTRUCTIONS = 20_000
 SYNC_SECONDS = 300
 ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 TOOL_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_]{0,63}$")
-AVAILABLE_TOOL_IDS = {
-    value.strip()
-    for value in os.environ.get(
-        "AVAILABLE_TOOL_IDS",
-        "web,web_search,calculator,current_time",
-    ).split(",")
-    if value.strip()
+RUNTIME_NAME_PATTERN = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]{0,127}$")
+RUNTIME_NAMES = {
+    "agentcore": {"browser", "code_interpreter"},
+    "local": {"calculator", "current_time"},
+    "stan_builtin": {"web_fetch"},
+    "stan_plugin": {"todos"},
+    "stan_subagent": {"generalist"},
 }
 
 FALLBACK_TOOLS = [
-    {"id": "web", "name": "Web reader", "description": "Open and summarize a specific web page.", "enabled": True},
-    {"id": "web_search", "name": "Web search", "description": "Search the live web and return relevant sources.", "enabled": True},
-    {"id": "calculator", "name": "Calculator", "description": "Do exact arithmetic safely.", "enabled": True},
-    {"id": "current_time", "name": "World clock", "description": "Check the current time in any timezone.", "enabled": True},
-    {"id": "x_search", "name": "X / Twitter search", "description": "Search recent public posts on X.", "enabled": True},
-    {"id": "youtube_search", "name": "YouTube research", "description": "Find public videos and inspect metadata and comments.", "enabled": True},
+    {
+        "id": "web",
+        "name": "Web reader",
+        "description": "Open and summarize a specific web page.",
+        "runtime": {"kind": "stan_builtin", "name": "web_fetch"},
+        "enabled": True,
+    },
+    {
+        "id": "web_search",
+        "name": "Web search",
+        "description": "Search the live web and return relevant sources.",
+        "runtime": {"kind": "gateway", "operations": ["WebSearch"]},
+        "enabled": True,
+    },
+    {
+        "id": "calculator",
+        "name": "Calculator",
+        "description": "Do exact arithmetic safely.",
+        "runtime": {"kind": "local", "name": "calculator"},
+        "enabled": True,
+    },
+    {
+        "id": "current_time",
+        "name": "World clock",
+        "description": "Check the current time in any timezone.",
+        "runtime": {"kind": "local", "name": "current_time"},
+        "enabled": True,
+    },
+    {
+        "id": "x_search",
+        "name": "X / Twitter search",
+        "description": "Search recent public posts on X.",
+        "runtime": {"kind": "gateway", "operations": ["x_search_recent"]},
+        "enabled": False,
+    },
+    {
+        "id": "youtube_search",
+        "name": "YouTube research",
+        "description": "Find public videos and inspect metadata and comments.",
+        "runtime": {
+            "kind": "gateway",
+            "operations": ["youtube_search", "youtube_video_details", "youtube_comments"],
+        },
+        "enabled": False,
+    },
+    {
+        "id": "task_list",
+        "name": "Task tracker",
+        "description": "Keep a live checklist during longer, multi-step work.",
+        "runtime": {"kind": "stan_plugin", "name": "todos"},
+        "enabled": True,
+    },
+    {
+        "id": "delegate",
+        "name": "Focused delegate",
+        "description": "Hand a focused subtask to a fresh agent and bring back its conclusion.",
+        "runtime": {"kind": "stan_subagent", "name": "generalist"},
+        "enabled": True,
+    },
+    {
+        "id": "code_interpreter",
+        "name": "Code interpreter",
+        "description": "Run Python, JavaScript, or TypeScript in an isolated AgentCore sandbox.",
+        "runtime": {"kind": "agentcore", "name": "code_interpreter"},
+        "enabled": True,
+    },
+    {
+        "id": "browser",
+        "name": "Interactive browser",
+        "description": "Open websites, navigate pages, interact with controls, and extract visible information.",
+        "runtime": {"kind": "agentcore", "name": "browser"},
+        "enabled": True,
+    },
 ]
 
 FALLBACK_SKILLS = [
@@ -158,6 +226,27 @@ def _validate_tool_ids(value: Any, allowed: set[str]) -> list[str]:
     return unique
 
 
+def _validate_runtime_binding(value: Any) -> dict:
+    if not isinstance(value, dict):
+        raise CatalogError("tool runtime binding is required")
+    kind = value.get("kind")
+    if kind == "gateway":
+        operations = value.get("operations")
+        if (
+            not isinstance(operations, list)
+            or not 1 <= len(operations) <= 8
+            or len(set(operations)) != len(operations)
+            or any(not isinstance(operation, str) or not RUNTIME_NAME_PATTERN.fullmatch(operation) for operation in operations)
+        ):
+            raise CatalogError("gateway tool operations are invalid")
+        return {"kind": kind, "operations": operations}
+    allowed_names = RUNTIME_NAMES.get(kind)
+    name = value.get("name")
+    if not allowed_names or name not in allowed_names:
+        raise CatalogError("tool runtime binding is unsupported")
+    return {"kind": kind, "name": name}
+
+
 def _public_skill(item: dict) -> dict:
     keys = (
         "id",
@@ -192,7 +281,7 @@ class CatalogService:
 
     def _sync_remote(self) -> None:
         catalog = _fetch_json(CATALOG_URL)
-        if catalog.get("schemaVersion") != 1 or catalog.get("repository") != ALLOWED_REPOSITORY:
+        if catalog.get("schemaVersion") != 2 or catalog.get("repository") != ALLOWED_REPOSITORY:
             raise CatalogError("Capability catalog source is not trusted")
         release = catalog.get("release")
         if not isinstance(release, str) or not re.fullmatch(r"skills-v[0-9]+", release):
@@ -202,23 +291,25 @@ class CatalogService:
         if not isinstance(raw_tools, list) or not isinstance(raw_skills, list):
             raise CatalogError("Capability catalog lists are invalid")
 
-        tools = []
+        parsed_tools = []
         for raw in raw_tools:
-            if not isinstance(raw, dict) or raw.get("enabled") is not True:
-                continue
-            tools.append(
+            if not isinstance(raw, dict):
+                raise CatalogError("Capability catalog tool is invalid")
+            parsed_tools.append(
                 {
                     "id": _validate_tool_id(raw.get("id")),
                     "name": _validate_text(raw.get("name"), "tool name", 80),
                     "description": _validate_text(raw.get("description"), "tool description", 240),
                     "provider": str(raw.get("provider", "frogbot"))[:80],
                     "credential": str(raw.get("credential", ""))[:80],
-                    "enabled": True,
+                    "runtime": _validate_runtime_binding(raw.get("runtime")),
+                    "enabled": raw.get("enabled") is True,
                 }
             )
-        tool_ids = {item["id"] for item in tools}
-        if len(tool_ids) != len(tools):
+        tool_ids = {item["id"] for item in parsed_tools}
+        if len(tool_ids) != len(parsed_tools):
             raise CatalogError("Capability catalog tool IDs must be unique")
+        tools = [item for item in parsed_tools if item["enabled"]]
 
         skills = []
         for raw in raw_skills:
@@ -308,7 +399,7 @@ class CatalogService:
             (
                 {key: item[key] for key in ("id", "name", "description") if key in item}
                 for item in items
-                if item.get("id") in AVAILABLE_TOOL_IDS
+                if item.get("enabled") is True
             ),
             key=lambda item: item["name"].lower(),
         )
@@ -323,11 +414,12 @@ class CatalogService:
             KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
             ExpressionAttributeValues={":pk": f"USER#{user_id}", ":prefix": "SKILL#"},
         ).get("Items", [])
+        available_tool_ids = {item["id"] for item in self.list_tools()}
         by_id = {
             item["id"]: _public_skill(item)
             for item in official + library
             if isinstance(item.get("id"), str)
-            and set(item.get("requiredToolIds", [])).issubset(AVAILABLE_TOOL_IDS)
+            and set(item.get("requiredToolIds", [])).issubset(available_tool_ids)
         }
         return sorted(by_id.values(), key=lambda item: (item.get("source") != "official", item["name"].lower()))
 
@@ -348,16 +440,19 @@ class CatalogService:
         if len(unique) > MAX_SKILLS_PER_BOT:
             raise CatalogError(f"A bot can use at most {MAX_SKILLS_PER_BOT} skills")
         existing = existing or {}
+        available_tool_ids = {item["id"] for item in self.list_tools()}
         pinned: dict[str, int] = {}
         for skill_id in unique:
             _validate_id(skill_id, "skill id")
             listing = self._accessible_listing(user_id, skill_id)
             if not listing:
                 raise CatalogError(f"Unknown skill: {skill_id}")
-            if not set(listing.get("requiredToolIds", [])).issubset(AVAILABLE_TOOL_IDS):
+            if not set(listing.get("requiredToolIds", [])).issubset(available_tool_ids):
                 raise CatalogError(f"Skill is not available yet: {skill_id}")
             old_version = existing.get(skill_id)
-            pinned[skill_id] = int(old_version) if isinstance(old_version, (int, float)) else int(listing["version"])
+            pinned[skill_id] = (
+                int(old_version) if isinstance(old_version, (int, float, Decimal)) else int(listing["version"])
+            )
             if not self.get_version(skill_id, pinned[skill_id]):
                 pinned[skill_id] = int(listing["version"])
         return pinned
@@ -373,6 +468,21 @@ class CatalogService:
         if len(unique) > MAX_TOOLS_PER_BOT:
             raise CatalogError(f"A bot can use at most {MAX_TOOLS_PER_BOT} tools")
         return unique
+
+    def resolve_tools_for_runtime(self, tool_ids: Any) -> list[dict]:
+        selected = self.validate_tools(tool_ids)
+        items = self.table.query(
+            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+            ExpressionAttributeValues={":pk": "SYSTEM#TOOLS", ":prefix": "TOOL#"},
+        ).get("Items", [])
+        by_id = {item.get("id"): item for item in items}
+        resolved = []
+        for tool_id in selected:
+            item = by_id.get(tool_id)
+            if not item:
+                raise CatalogError(f"Tool is unavailable: {tool_id}")
+            resolved.append({"id": tool_id, "runtime": _validate_runtime_binding(item.get("runtime"))})
+        return resolved
 
     def get_version(self, skill_id: str, version: int) -> dict | None:
         return self.table.get_item(
@@ -497,7 +607,7 @@ class CatalogService:
             return []
         resolved = []
         for skill_id, version in list(skill_versions.items())[:MAX_SKILLS_PER_BOT]:
-            if not isinstance(skill_id, str) or not isinstance(version, (int, float)):
+            if not isinstance(skill_id, str) or not isinstance(version, (int, float, Decimal)):
                 continue
             item = self.get_version(skill_id, int(version))
             if not item:
