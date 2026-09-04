@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +20,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BotAvatar } from '@/components/bot-avatar';
 import { endSession } from '@/lib/auth';
 import { createApi } from '@/lib/api';
+import {
+  consumeInitialNotificationBotId,
+  registerForReplyNotifications,
+  subscribeToNotificationReplies,
+} from '@/lib/notifications';
 import type { Bootstrap, Bot, BotDraft, Message } from '@/lib/types';
 
 import { BotEditor } from './bot-editor';
@@ -44,6 +50,8 @@ export function ChatApp({ demo, onSignedOut }: Props) {
   const api = useMemo(() => createApi(demo), [demo]);
   const list = useRef<FlatList<Message>>(null);
   const importedTokens = useRef(new Set<string>());
+  const dictationBase = useRef('');
+  const pushToken = useRef<string | null>(null);
   const [data, setData] = useState<Bootstrap>();
   const [selectedId, setSelectedId] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -52,11 +60,29 @@ export function ChatApp({ demo, onSignedOut }: Props) {
   const [draft, setDraft] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
+  const [listening, setListening] = useState(false);
   const [error, setError] = useState('');
   const [editor, setEditor] = useState<'new' | 'edit' | undefined>();
 
   const selected = data?.bots.find((bot) => bot.id === selectedId);
   const pending = messages.some((message) => message.status === 'pending');
+
+  useSpeechRecognitionEvent('start', () => setListening(true));
+  useSpeechRecognitionEvent('end', () => setListening(false));
+  useSpeechRecognitionEvent('result', (event) => {
+    const transcript = event.results[0]?.transcript?.trim();
+    if (!transcript) return;
+    setDraft(dictationBase.current ? `${dictationBase.current} ${transcript}` : transcript);
+  });
+  useSpeechRecognitionEvent('error', (event) => {
+    setListening(false);
+    if (event.error === 'aborted') return;
+    if (event.error === 'not-allowed') {
+      setError('Allow microphone and speech recognition access in Settings to dictate messages.');
+      return;
+    }
+    setError('On-device dictation is not available for this device or language.');
+  });
 
   const loadBootstrap = useCallback(async () => {
     try {
@@ -108,6 +134,36 @@ export function ChatApp({ demo, onSignedOut }: Props) {
     return () => clearInterval(timer);
   }, [loadMessages, pending]);
 
+  useEffect(() => {
+    if (demo) return;
+    let active = true;
+    const openBot = (botId: string) => {
+      if (!active) return;
+      setMessages([]);
+      setLoadingMessages(true);
+      setSelectedId(botId);
+      setDrawerOpen(false);
+    };
+
+    registerForReplyNotifications()
+      .then(async (token) => {
+        if (!active || !token) return;
+        pushToken.current = token;
+        await api.registerPushToken(token);
+      })
+      .catch((value) => console.warn('Could not register for reply notifications.', value));
+    consumeInitialNotificationBotId()
+      .then((botId) => {
+        if (botId) openBot(botId);
+      })
+      .catch((value) => console.warn('Could not read the initial notification.', value));
+    const subscription = subscribeToNotificationReplies(openBot);
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, [api, demo]);
+
   const importUrl = useCallback(
     async (url: string | null) => {
       if (!url) return;
@@ -140,6 +196,7 @@ export function ChatApp({ demo, onSignedOut }: Props) {
   }, [importUrl]);
 
   const selectBot = (bot: Bot) => {
+    if (listening) ExpoSpeechRecognitionModule.abort();
     setMessages([]);
     setLoadingMessages(true);
     setSelectedId(bot.id);
@@ -160,6 +217,7 @@ export function ChatApp({ demo, onSignedOut }: Props) {
     const text = draft.trim();
     if (!text || !selected || sending || pending) return;
     setSending(true);
+    if (listening) ExpoSpeechRecognitionModule.stop();
     setDraft('');
     try {
       await api.sendMessage(selected, text);
@@ -169,6 +227,39 @@ export function ChatApp({ demo, onSignedOut }: Props) {
       setError(value instanceof Error ? value.message : 'Could not send that message.');
     } finally {
       setSending(false);
+    }
+  };
+
+  const toggleDictation = async () => {
+    if (listening) {
+      ExpoSpeechRecognitionModule.stop();
+      return;
+    }
+    if (Platform.OS !== 'ios') return;
+    try {
+      if (!ExpoSpeechRecognitionModule.isRecognitionAvailable() || !ExpoSpeechRecognitionModule.supportsOnDeviceRecognition()) {
+        setError('On-device dictation is not available for this device or language.');
+        return;
+      }
+      const permissions = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!permissions.granted) {
+        setError('Allow microphone and speech recognition access in Settings to dictate messages.');
+        return;
+      }
+      dictationBase.current = draft.trimEnd();
+      setError('');
+      ExpoSpeechRecognitionModule.start({
+        lang: Intl.DateTimeFormat().resolvedOptions().locale || 'en-US',
+        interimResults: true,
+        continuous: false,
+        requiresOnDeviceRecognition: true,
+        addsPunctuation: true,
+        iosTaskHint: 'dictation',
+        recordingOptions: { persist: false },
+      });
+    } catch {
+      setListening(false);
+      setError('On-device dictation could not start. Please check the app permissions in Settings.');
     }
   };
 
@@ -195,7 +286,18 @@ export function ChatApp({ demo, onSignedOut }: Props) {
   };
 
   const signOut = async () => {
-    if (!demo) await endSession();
+    if (listening) ExpoSpeechRecognitionModule.abort();
+    if (!demo) {
+      const token = pushToken.current;
+      if (token) {
+        try {
+          await api.unregisterPushToken(token);
+        } catch (value) {
+          console.warn('Could not unregister the push token.', value);
+        }
+      }
+      await endSession();
+    }
     onSignedOut();
   };
 
@@ -277,7 +379,7 @@ export function ChatApp({ demo, onSignedOut }: Props) {
                       {selected.name}
                     </Text>
                     <Text numberOfLines={1} style={styles.headerStatus}>
-                      {pending ? 'Working...' : 'Ready'}
+                      {listening ? 'Listening...' : pending ? 'Working...' : 'Ready'}
                     </Text>
                   </View>
                   <Pressable style={styles.headerAction} hitSlop={10} onPress={() => setEditor('edit')}>
@@ -329,12 +431,26 @@ export function ChatApp({ demo, onSignedOut }: Props) {
                   style={styles.composerInput}
                   value={draft}
                   onChangeText={setDraft}
-                  placeholder={selected ? `Message ${selected.name}` : 'Choose a bot'}
+                  placeholder={listening ? 'Listening...' : selected ? `Message ${selected.name}` : 'Choose a bot'}
                   placeholderTextColor="#9C9991"
                   multiline
                   maxLength={8000}
                   editable={Boolean(selected) && !pending}
                 />
+                {Platform.OS === 'ios' ? (
+                  <Pressable
+                    accessibilityLabel={listening ? 'Stop dictation' : 'Dictate message'}
+                    style={({ pressed }) => [
+                      styles.micButton,
+                      listening && styles.micButtonActive,
+                      (!selected || pending || sending) && styles.micButtonDisabled,
+                      pressed && styles.pressed,
+                    ]}
+                    disabled={!selected || pending || sending}
+                    onPress={toggleDictation}>
+                    <MicIcon active={listening} />
+                  </Pressable>
+                ) : null}
                 <Pressable
                   accessibilityLabel="Send message"
                   style={({ pressed }) => [
@@ -392,6 +508,17 @@ function MessageBubble({ message }: { message: Message }) {
       <View style={[styles.bubble, assistant ? styles.assistantBubble : styles.userBubble, message.status === 'error' && styles.errorBubble]}>
         <Text style={[styles.messageText, assistant ? styles.assistantText : styles.userText]}>{message.text}</Text>
       </View>
+    </View>
+  );
+}
+
+function MicIcon({ active }: { active: boolean }) {
+  return (
+    <View style={styles.micIcon}>
+      <View style={[styles.micCapsule, active && styles.micStrokeActive]} />
+      <View style={[styles.micCradle, active && styles.micStrokeActive]} />
+      <View style={[styles.micStem, active && styles.micFillActive]} />
+      <View style={[styles.micFoot, active && styles.micFillActive]} />
     </View>
   );
 }
@@ -457,6 +584,16 @@ const styles = StyleSheet.create({
   composerWrap: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6, backgroundColor: '#FBFBF9', alignItems: 'center' },
   composer: { maxWidth: 780, width: '100%', minHeight: 51, maxHeight: 130, borderRadius: 20, borderWidth: 1, borderColor: '#DCD9D2', backgroundColor: 'white', flexDirection: 'row', alignItems: 'flex-end', paddingLeft: 14, paddingRight: 6, paddingVertical: 6 },
   composerInput: { flex: 1, minHeight: 38, maxHeight: 112, color: '#22211E', fontSize: 15, lineHeight: 20, paddingTop: 9, paddingBottom: 8 },
+  micButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', marginRight: 2 },
+  micButtonActive: { backgroundColor: '#007A3D' },
+  micButtonDisabled: { opacity: 0.4 },
+  micIcon: { width: 18, height: 22, alignItems: 'center' },
+  micCapsule: { width: 8, height: 12, borderRadius: 5, borderWidth: 1.6, borderColor: '#4F4C45' },
+  micCradle: { position: 'absolute', top: 7, width: 15, height: 9, borderLeftWidth: 1.6, borderRightWidth: 1.6, borderBottomWidth: 1.6, borderColor: '#4F4C45', borderBottomLeftRadius: 8, borderBottomRightRadius: 8 },
+  micStem: { position: 'absolute', top: 15, width: 1.6, height: 4, backgroundColor: '#4F4C45' },
+  micFoot: { position: 'absolute', top: 19, width: 8, height: 1.6, borderRadius: 1, backgroundColor: '#4F4C45' },
+  micStrokeActive: { borderColor: 'white' },
+  micFillActive: { backgroundColor: 'white' },
   sendButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#007A3D', alignItems: 'center', justifyContent: 'center' },
   sendDisabled: { backgroundColor: '#B8D5C6' },
   sendLabel: { color: 'white', fontSize: 22, fontWeight: '700', marginTop: -3 },

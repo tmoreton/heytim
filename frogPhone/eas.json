@@ -7,21 +7,25 @@
     "development": {
       "node": "22.23.2",
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "development"
     },
     "preview": {
       "node": "22.23.2",
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "preview"
     },
     "preview-simulator": {
       "extends": "preview",
       "ios": {
         "simulator": true
-      }
+      },
+      "channel": "preview-simulator"
     },
     "production": {
       "node": "22.23.2",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "channel": "production"
     }
   },
   "submit": {

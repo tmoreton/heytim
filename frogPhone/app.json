@@ -35,6 +35,20 @@
           "image": "./assets/images/frogbot-foreground.png",
           "imageWidth": 76
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#007A3D",
+          "defaultChannel": "agent-replies"
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow FrogBot to hear you while you dictate a message.",
+          "speechRecognitionPermission": "Allow FrogBot to turn your speech into text on this device."
+        }
       ]
     ],
     "experiments": {
@@ -47,6 +61,12 @@
         "projectId": "040c2a82-3c96-494a-aec0-1084b05e6d1a"
       }
     },
-    "owner": "reactnativenerd"
+    "owner": "reactnativenerd",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/040c2a82-3c96-494a-aec0-1084b05e6d1a"
+    }
   }
 }

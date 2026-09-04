@@ -39,6 +39,14 @@ export const createApi = (demo: boolean) => ({
     if (demo) return demoSend(bot, text);
     await request(`/bots/${bot.id}/messages`, { method: 'POST', body: JSON.stringify({ text }) });
   },
+  registerPushToken: async (token: string): Promise<void> => {
+    if (demo) return;
+    await request('/devices/push-token', { method: 'PUT', body: JSON.stringify({ token }) });
+  },
+  unregisterPushToken: async (token: string): Promise<void> => {
+    if (demo) return;
+    await request('/devices/push-token', { method: 'DELETE', body: JSON.stringify({ token }) });
+  },
   share: async (botId: string, scope: 'bot' | 'chat'): Promise<string> => {
     if (demo) return `frogbot://share/demo-${scope}-${botId}`;
     return request<{ url: string }>('/shares', {

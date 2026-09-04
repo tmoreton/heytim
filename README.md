@@ -10,12 +10,13 @@ serverless chat API.
 ```text
 Expo app
   |-- Cognito SMS code sign-in
+  |-- Apple on-device speech-to-text
   |-- authenticated HTTP API
-        |-- DynamoDB: bot configs, conversations, expiring shares
+        |-- DynamoDB: bot configs, conversations, device tokens, expiring shares
         |-- SQS: durable agent jobs
               |-- Lambda worker
-                    |-- AgentCore Runtime
-                          |-- Strands + Stan
+                    |-- AgentCore Runtime -> Strands + Stan
+                    |-- Expo Push Service -> APNs
 ```
 
 The request path is asynchronous so a long agent turn is not limited by an HTTP request timeout.
@@ -26,10 +27,13 @@ the worker derives a stable AgentCore session ID from the user and bot IDs.
 
 - Phone-only Cognito sign-up and sign-in with a six-digit SMS code
 - Responsive chat UI with a collapsible bot list
+- Push notification when an agent reply completes, with tap-to-open navigation
+- Apple on-device speech-to-text in the message composer without saved audio
 - Per-bot name, description, prompt, color, tools, and skills
 - Three starter bots and three packaged Stan skills
 - Bot-only and bot-plus-conversation sharing with 30-day links
 - DynamoDB persistence, an encrypted SQS queue, retries, and a dead-letter queue
+- Expo over-the-air updates on the production channel, automatically published after changes land on `main`
 - A local preview mode that works before AWS is connected
 
 ## Local preview
@@ -65,9 +69,10 @@ account and region.
 
 ### 2. Prepare passwordless SMS
 
-Configure an origination identity in AWS End User Messaging SMS in `us-east-1`. While the account is
-in the SMS sandbox, add each test phone as a verified destination. Request SMS production access before
-inviting general TestFlight users.
+Request and register a US toll-free origination number in AWS End User Messaging SMS in `us-east-1`. While the
+account is in the SMS sandbox, messages can reach only verified test destinations and only after an origination
+identity exists. Request SMS production access before inviting general TestFlight users. US carrier registration
+also requires a documented opt-in flow, public privacy policy and terms, and accurate legal business details.
 
 ### 3. Deploy the app backend
 
@@ -98,6 +103,13 @@ npm run backend:typecheck
 npm run lint
 npx expo-doctor
 ```
+
+## Mobile releases
+
+The production EAS build profile listens to the `production` update channel. The GitHub Actions workflow at
+`.github/workflows/eas-update.yml` publishes an EAS Update after every push to `main`; the Expo credential is stored
+as the repository secret `EXPO_TOKEN`. Expo's fingerprint runtime policy prevents an update from reaching an
+incompatible native build.
 
 ## Key locations
 

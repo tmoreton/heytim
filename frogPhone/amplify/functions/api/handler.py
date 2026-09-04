@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -122,6 +123,18 @@ def _turn_pk(user_id: str, bot_id: str) -> str:
     return f"CHAT#{user_id}#{bot_id}"
 
 
+def _push_token_id(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _push_token_key(user_id: str, token_id: str) -> dict:
+    return {"pk": _user_pk(user_id), "sk": f"PUSH#{token_id}"}
+
+
+def _push_owner_key(token_id: str) -> dict:
+    return {"pk": f"PUSH_TOKEN#{token_id}", "sk": "OWNER"}
+
+
 def _public_bot(item: dict) -> dict:
     return {key: value for key, value in item.items() if key not in {"pk", "sk", "entity"}}
 
@@ -145,6 +158,17 @@ def _validate_ids(value: Any, field: str, allowed: set[str]) -> list[str]:
     if unknown:
         raise ApiError(400, f"Unknown {field}: {', '.join(sorted(unknown))}")
     return unique
+
+
+def _validate_push_token(value: Any) -> str:
+    token = _validate_string(value, "token", 256)
+    valid_prefix = token.startswith("ExpoPushToken[") or token.startswith("ExponentPushToken[")
+    if not valid_prefix or not token.endswith("]"):
+        raise ApiError(400, "token must be a valid Expo push token")
+    token_value = token[token.index("[") + 1 : -1]
+    if not token_value or not all(character.isalnum() or character in "-_" for character in token_value):
+        raise ApiError(400, "token must be a valid Expo push token")
+    return token
 
 
 def _bot_values(value: dict, previous: dict | None = None) -> dict:
@@ -289,7 +313,9 @@ def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
     try:
         sqs.send_message(
             QueueUrl=QUEUE_URL,
-            MessageBody=json.dumps({"userId": user_id, "botId": bot_id, "turnKey": item["sk"]}),
+            MessageBody=json.dumps(
+                {"type": "AGENT_REPLY", "userId": user_id, "botId": bot_id, "turnKey": item["sk"]}
+            ),
         )
     except Exception:
         table.update_item(
@@ -304,6 +330,51 @@ def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
         )
         raise
     return {"turnId": turn_id, "status": "pending"}
+
+
+def _register_push_token(user_id: str, value: dict) -> dict:
+    token = _validate_push_token(value.get("token"))
+    token_id = _push_token_id(token)
+    owner_key = _push_owner_key(token_id)
+    previous_owner = table.get_item(Key=owner_key, ConsistentRead=True).get("Item", {}).get("userId")
+    current = _now()
+    expires_at = int(datetime.now(UTC).timestamp()) + 180 * 24 * 60 * 60
+
+    with table.batch_writer() as batch:
+        if isinstance(previous_owner, str) and previous_owner and previous_owner != user_id:
+            batch.delete_item(Key=_push_token_key(previous_owner, token_id))
+        batch.put_item(
+            Item={
+                **_push_token_key(user_id, token_id),
+                "entity": "PUSH_TOKEN",
+                "tokenId": token_id,
+                "expoPushToken": token,
+                "updatedAt": current,
+                "expiresAt": expires_at,
+            }
+        )
+        batch.put_item(
+            Item={
+                **owner_key,
+                "entity": "PUSH_TOKEN_OWNER",
+                "userId": user_id,
+                "updatedAt": current,
+                "expiresAt": expires_at,
+            }
+        )
+    return {"registered": True}
+
+
+def _unregister_push_token(user_id: str, value: dict) -> dict:
+    token = _validate_push_token(value.get("token"))
+    token_id = _push_token_id(token)
+    owner_key = _push_owner_key(token_id)
+    owner = table.get_item(Key=owner_key, ConsistentRead=True).get("Item", {}).get("userId")
+    with table.batch_writer() as batch:
+        batch.delete_item(Key=_push_token_key(user_id, token_id))
+        if owner == user_id:
+            batch.delete_item(Key=owner_key)
+    return {"registered": False}
 
 
 def _create_share(user_id: str, value: dict) -> dict:
@@ -384,6 +455,10 @@ def handler(event: dict, _context: Any) -> dict:
             return _response(200, {"messages": _messages_from_turns(_list_turns(user_id, bot_id))})
         if method == "POST" and path.endswith("/messages"):
             return _response(202, _send_message(user_id, params.get("botId", ""), _body(event)))
+        if method == "PUT" and path == "/devices/push-token":
+            return _response(200, _register_push_token(user_id, _body(event)))
+        if method == "DELETE" and path == "/devices/push-token":
+            return _response(200, _unregister_push_token(user_id, _body(event)))
         if method == "POST" and path == "/shares":
             return _response(201, _create_share(user_id, _body(event)))
         if method == "POST" and path.startswith("/shares/") and path.endswith("/import"):

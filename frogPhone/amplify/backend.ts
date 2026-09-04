@@ -26,6 +26,10 @@ const { cfnUserPool, cfnUserPoolClient } = backend.auth.resources.cfnResources;
 cfnUserPool.overrideLogicalId('FrogBotPhoneUserPool');
 cfnUserPoolClient.overrideLogicalId('FrogBotPhoneUserPoolClient');
 cfnUserPool.userPoolTier = 'ESSENTIALS';
+// Username attributes already create Cognito's standard phone_number schema.
+// Omitting the generated schema prevents CloudFormation from re-submitting that
+// immutable attribute as a new custom attribute on later updates.
+cfnUserPool.schema = undefined;
 cfnUserPool.addPropertyOverride('Policies.SignInPolicy.AllowedFirstAuthFactors', [
   'PASSWORD',
   'SMS_OTP',
@@ -81,12 +85,14 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
     ...functionDefaults.environment,
     AGENT_RUNTIME_ARN: runtimeArn,
     AGENT_RUNTIME_QUALIFIER: process.env.FROGBOT_AGENT_RUNTIME_QUALIFIER ?? 'DEFAULT',
+    QUEUE_URL: jobs.queueUrl,
   },
 });
 
 table.grantReadWriteData(apiFunction);
 table.grantReadWriteData(workerFunction);
 jobs.grantSendMessages(apiFunction);
+jobs.grantSendMessages(workerFunction);
 workerFunction.addEventSource(
   new SqsEventSource(jobs, {
     batchSize: 1,
@@ -105,7 +111,13 @@ const httpApi = new HttpApi(stack, 'HttpApi', {
   corsPreflight: {
     allowOrigins: ['*'],
     allowHeaders: ['authorization', 'content-type'],
-    allowMethods: [CorsHttpMethod.GET, CorsHttpMethod.POST, CorsHttpMethod.PUT, CorsHttpMethod.OPTIONS],
+    allowMethods: [
+      CorsHttpMethod.GET,
+      CorsHttpMethod.POST,
+      CorsHttpMethod.PUT,
+      CorsHttpMethod.DELETE,
+      CorsHttpMethod.OPTIONS,
+    ],
   },
 });
 const authorizer = new HttpJwtAuthorizer(
@@ -121,6 +133,8 @@ for (const [method, routePath] of [
   [HttpMethod.PUT, '/bots/{botId}'],
   [HttpMethod.GET, '/bots/{botId}/messages'],
   [HttpMethod.POST, '/bots/{botId}/messages'],
+  [HttpMethod.PUT, '/devices/push-token'],
+  [HttpMethod.DELETE, '/devices/push-token'],
   [HttpMethod.POST, '/shares'],
   [HttpMethod.POST, '/shares/{token}/import'],
 ] as const) {

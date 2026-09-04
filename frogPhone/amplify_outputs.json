@@ -5,9 +5,7 @@
     "user_pool_client_id": "7kpbcpdco48cavcv2l5gc442cf",
     "identity_pool_id": "us-east-1:d2250201-180d-44e2-836c-0bbe06ca41f1",
     "mfa_methods": [],
-    "standard_required_attributes": [
-      "phone_number"
-    ],
+    "standard_required_attributes": [],
     "username_attributes": [
       "phone_number"
     ],
