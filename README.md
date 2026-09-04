@@ -39,6 +39,8 @@ The request path is asynchronous so a long agent turn is not limited by an HTTP 
 The app polls only while a response is pending. DynamoDB is the source of truth for chat history;
 the worker derives a stable AgentCore session ID from the user and bot IDs. In a team round, bots reply
 one at a time so every later bot sees the people, the full bot roster, and earlier bot contributions.
+The first bot coordinates the round, specialists add distinct perspectives, and the coordinator returns
+one final synthesized team answer.
 
 ## What is included
 

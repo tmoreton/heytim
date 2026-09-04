@@ -5,10 +5,21 @@ import { BotAvatar } from './bot-avatar';
 
 type Props = {
   active: boolean;
+  waiting?: boolean;
   steps: string[];
+  label?: string;
+  botName?: string;
+  botColor?: string;
 };
 
-export function AgentActivity({ active, steps }: Props) {
+export function AgentActivity({
+  active,
+  waiting = false,
+  steps,
+  label,
+  botName = 'FrogBot',
+  botColor = '#007A3D',
+}: Props) {
   const [bounce] = useState(() => new Animated.Value(0));
   const [expanded, setExpanded] = useState(false);
 
@@ -44,15 +55,26 @@ export function AgentActivity({ active, steps }: Props) {
     ],
   };
 
+  if (waiting) {
+    return (
+      <View accessibilityLabel={`${botName} is waiting`} style={[styles.activeCard, styles.waitingCard]}>
+        <BotAvatar color={botColor} name={botName} size={28} />
+        <View style={styles.activeCopy}>
+          <Text style={styles.waitingLabel}>{label ?? 'Waiting for the previous teammate'}</Text>
+        </View>
+      </View>
+    );
+  }
+
   if (active) {
     const latest = steps.at(-1);
     return (
       <View accessibilityLiveRegion="polite" style={styles.activeCard}>
         <Animated.View style={frogStyle}>
-          <BotAvatar color="#665CE7" name="Working" size={28} />
+          <BotAvatar color={botColor} name={botName} size={28} />
         </Animated.View>
         <View style={styles.activeCopy}>
-          <Text style={styles.activeLabel}>{latest ? 'Working through it' : 'Thinking'}</Text>
+          <Text style={styles.activeLabel}>{label ?? (latest ? 'Working through it' : 'Thinking')}</Text>
           {latest ? (
             <Text numberOfLines={3} style={styles.activeStep}>
               {latest}
@@ -73,7 +95,7 @@ export function AgentActivity({ active, steps }: Props) {
         accessibilityState={{ expanded }}
         style={({ pressed }) => [styles.completedButton, pressed && styles.pressed]}
         onPress={() => setExpanded((value) => !value)}>
-        <BotAvatar color="#665CE7" name="Work log" size={22} />
+        <BotAvatar color={botColor} name={botName} size={22} />
         <Text style={styles.completedLabel}>{steps.length === 1 ? '1 step completed' : `${steps.length} steps completed`}</Text>
         <Text style={[styles.chevron, expanded && styles.chevronExpanded]}>›</Text>
       </Pressable>
@@ -107,6 +129,8 @@ const styles = StyleSheet.create({
   },
   activeCopy: { flex: 1 },
   activeLabel: { color: '#007A3D', fontSize: 12, fontWeight: '700' },
+  waitingCard: { backgroundColor: '#FAFAF8', borderColor: '#E6E3DC' },
+  waitingLabel: { color: '#77736B', fontSize: 12, fontWeight: '600' },
   activeStep: { color: '#615E57', fontSize: 12, lineHeight: 17, marginTop: 2 },
   completedWrap: { maxWidth: 430, marginBottom: 5 },
   completedButton: {

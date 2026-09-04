@@ -3,7 +3,7 @@ from __future__ import annotations
 
 def has_pending_work(items: list[dict], *, bot_id: str | None = None) -> bool:
     return any(
-        item.get("status") == "PENDING"
+        item.get("status") in {"PENDING", "WAITING"}
         and (bot_id is None or item.get("authorId") == bot_id)
         for item in items
     )

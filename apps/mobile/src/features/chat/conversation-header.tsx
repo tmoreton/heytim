@@ -9,7 +9,8 @@ type Props = {
   group?: Group;
   listening: boolean;
   pending: boolean;
-  pendingBotCount: number;
+  activeBotName?: string;
+  waitingBotCount: number;
   topInset: number;
   onToggleDrawer: () => void;
   onEditBot: () => void;
@@ -22,7 +23,8 @@ export function ConversationHeader({
   group,
   listening,
   pending,
-  pendingBotCount,
+  activeBotName,
+  waitingBotCount,
   topInset,
   onToggleDrawer,
   onEditBot,
@@ -33,9 +35,7 @@ export function ConversationHeader({
     ? listening
       ? 'Listening...'
       : pending
-        ? pendingBotCount > 1
-          ? `${pendingBotCount} FrogBots are working...`
-          : 'A FrogBot is working...'
+        ? `${activeBotName ?? 'A FrogBot'} is working${waitingBotCount ? ` · ${waitingBotCount} waiting` : ''}`
         : `${group.members.length} people · ${group.bots.length} bots`
     : listening
       ? 'Listening...'

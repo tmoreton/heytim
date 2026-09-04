@@ -4,6 +4,7 @@ import unittest
 
 from shared.group_chat import (
     group_history_from_items,
+    plan_group_reply_round,
     group_round_step,
     group_runtime_context,
     select_group_reply_targets,
@@ -39,7 +40,15 @@ class GroupChatTests(unittest.TestCase):
         context = group_runtime_context(self.items[0], self.items, "research", 2, 2)
         self.assertEqual(context["name"], "Launch room")
         self.assertEqual(context["people"], [{"name": "Taylor", "role": "owner"}])
-        self.assertEqual(context["round"], {"position": 2, "size": 2})
+        self.assertEqual(
+            context["round"],
+            {
+                "position": 2,
+                "size": 2,
+                "role": "solo",
+                "coordinatorName": "Research Scout",
+            },
+        )
         self.assertEqual(
             [bot["name"] for bot in context["bots"]], ["Chief", "Research Scout"]
         )
@@ -53,6 +62,24 @@ class GroupChatTests(unittest.TestCase):
         self.assertFalse(first_is_final)
         self.assertEqual(second["botId"], "research")
         self.assertTrue(second_is_final)
+
+    def test_team_round_returns_to_coordinator_for_final_answer(self) -> None:
+        bots = select_group_reply_targets(self.items, "all")
+        replies = plan_group_reply_round(bots, coordinated=True)
+        self.assertEqual(
+            [(reply["botId"], reply["roundRole"]) for reply in replies],
+            [
+                ("chief", "lead"),
+                ("research", "contributor"),
+                ("chief", "synthesizer"),
+            ],
+        )
+
+    def test_single_bot_round_stays_single(self) -> None:
+        bots = select_group_reply_targets(self.items, "research")
+        replies = plan_group_reply_round(bots, coordinated=False)
+        self.assertEqual(len(replies), 1)
+        self.assertEqual(replies[0]["roundRole"], "solo")
 
     def test_later_bot_sees_people_and_earlier_bot_replies(self) -> None:
         transcript = [

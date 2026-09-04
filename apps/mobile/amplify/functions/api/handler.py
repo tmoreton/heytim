@@ -16,7 +16,11 @@ from boto3.dynamodb.conditions import Attr
 from botocore.config import Config
 from shared.catalog import CatalogError, CatalogService
 from shared.cleanup import group_invite_records, group_member_ids, has_pending_work
-from shared.group_chat import ALL_BOTS_REPLY_TARGET, select_group_reply_targets
+from shared.group_chat import (
+    ALL_BOTS_REPLY_TARGET,
+    plan_group_reply_round,
+    select_group_reply_targets,
+)
 from shared.invites import invite_token_hash, invite_url
 from shared.schedules import DAYS_OF_WEEK, schedule_expression, scheduler_name
 
@@ -831,6 +835,10 @@ def _list_group_messages(user_id: str, group_id: str, limit: int = 100) -> list[
                     "createdAt": item.get("createdAt"),
                     "status": str(item.get("status", "COMPLETE")).lower(),
                     "activity": item.get("activity", []),
+                    "roundId": item.get("roundId"),
+                    "roundPosition": item.get("roundPosition"),
+                    "roundSize": item.get("roundSize"),
+                    "roundRole": item.get("roundRole"),
                 }.items()
                 if value is not None
             }
@@ -848,9 +856,14 @@ def _send_group_message(
         not isinstance(reply_bot_id, str) or not reply_bot_id
     ):
         raise ApiError(400, "replyBotId must identify a bot in this group")
-    reply_bots = select_group_reply_targets(items, reply_bot_id)
-    if reply_bot_id and not reply_bots:
+    selected_reply_bots = select_group_reply_targets(items, reply_bot_id)
+    if reply_bot_id and not selected_reply_bots:
         raise ApiError(400, "Choose a bot that belongs to this group")
+    coordinated = (
+        reply_bot_id == ALL_BOTS_REPLY_TARGET and len(selected_reply_bots) > 1
+    )
+    reply_bots = plan_group_reply_round(selected_reply_bots, coordinated)
+    coordinator_bot_id = reply_bots[0]["botId"] if reply_bots else None
 
     current = _now()
     message_id = str(uuid.uuid4())
@@ -883,9 +896,11 @@ def _send_group_message(
                 "roundId": message_id,
                 "roundPosition": order,
                 "roundSize": len(reply_bots),
+                "roundRole": group_bot["roundRole"],
+                "coordinatorBotId": coordinator_bot_id,
                 "text": "",
                 "createdAt": current,
-                "status": "PENDING",
+                "status": "PENDING" if order == 1 else "WAITING",
             }
         )
     with table.batch_writer() as batch:
@@ -918,6 +933,8 @@ def _send_group_message(
                                 "botId": reply["authorId"],
                                 "botOwnerId": reply["botOwnerId"],
                                 "replyKey": reply["sk"],
+                                "roundRole": reply["roundRole"],
+                                "coordinatorBotId": reply["coordinatorBotId"],
                             }
                             for reply in replies
                         ],

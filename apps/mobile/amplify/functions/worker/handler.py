@@ -108,7 +108,12 @@ def _get_group_history(group_id: str, bot_id: str) -> list[dict]:
 
 
 def _get_group_context(
-    group_id: str, bot_id: str, round_position: int, round_size: int
+    group_id: str,
+    bot_id: str,
+    round_position: int,
+    round_size: int,
+    round_role: str,
+    coordinator_bot_id: str | None,
 ) -> dict:
     meta = table.get_item(
         Key={"pk": _group_pk(group_id), "sk": "META"}, ConsistentRead=True
@@ -127,7 +132,15 @@ def _get_group_context(
                 ConsistentRead=True,
             ).get("Items", [])
         )
-    return group_runtime_context(meta, items, bot_id, round_position, round_size)
+    return group_runtime_context(
+        meta,
+        items,
+        bot_id,
+        round_position,
+        round_size,
+        round_role,
+        coordinator_bot_id,
+    )
 
 
 def _invoke(
@@ -584,6 +597,10 @@ def _process_group_agent_reply(
             request.get("roundPosition", reply.get("roundPosition", 1))
         )
         round_size = int(request.get("roundSize", reply.get("roundSize", 1)))
+        round_role = str(request.get("roundRole", reply.get("roundRole", "solo")))
+        coordinator_bot_id = request.get(
+            "coordinatorBotId", reply.get("coordinatorBotId")
+        )
         answer = _invoke(
             bot_owner_id,
             bot_id,
@@ -591,7 +608,12 @@ def _process_group_agent_reply(
             history=_get_group_history(group_id, bot_id),
             session_scope=f"group:{group_id}:bot:{bot_id}",
             group_context=_get_group_context(
-                group_id, bot_id, round_position, round_size
+                group_id,
+                bot_id,
+                round_position,
+                round_size,
+                round_role,
+                coordinator_bot_id,
             ),
             on_progress=_progress_updater(reply_key),
         )
@@ -645,10 +667,26 @@ def _process_group_agent_reply(
     return answer
 
 
+def _activate_group_reply(group_id: str, reply_key: str) -> None:
+    """Move a queued team contribution into the visible working state."""
+    try:
+        table.update_item(
+            Key={"pk": _group_pk(group_id), "sk": reply_key},
+            UpdateExpression="SET #status = :pending",
+            ConditionExpression="#status = :waiting",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={":pending": "PENDING", ":waiting": "WAITING"},
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        # The first reply starts as pending, and retried jobs may already be complete.
+        return
+
+
 def _process_group_agent_round(record: dict, request: dict) -> None:
     replies = request.get("replies")
     index = request.get("nextReplyIndex", 0)
     reply, final_reply = group_round_step(replies, index)
+    _activate_group_reply(request["groupId"], reply["replyKey"])
     _process_group_agent_reply(
         record,
         {

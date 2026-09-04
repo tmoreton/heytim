@@ -525,10 +525,17 @@ export const demoSendGroup = (groupId: string, text: string, replyBotId?: string
     status: 'complete',
   });
   const group = groups.find((item) => item.id === groupId);
-  const replyBots = replyBotId === 'all'
-    ? (group?.bots ?? [])
+  const selectedBots = replyBotId === 'all'
+    ? [...(group?.bots ?? [])].sort((left, right) => left.name.localeCompare(right.name))
     : (group?.bots.filter((item) => item.id === replyBotId) ?? []);
-  replyBots.forEach((bot, index) => {
+  const roundBots = replyBotId === 'all' && selectedBots.length > 1
+    ? [
+        { ...selectedBots[0], roundRole: 'lead' as const },
+        ...selectedBots.slice(1).map((bot) => ({ ...bot, roundRole: 'contributor' as const })),
+        { ...selectedBots[0], roundRole: 'synthesizer' as const },
+      ]
+    : selectedBots.map((bot) => ({ ...bot, roundRole: 'solo' as const }));
+  roundBots.forEach((bot, index) => {
     current.push({
       id: `${requestId}-assistant-${index}`,
       role: 'assistant',
@@ -537,30 +544,41 @@ export const demoSendGroup = (groupId: string, text: string, replyBotId?: string
       authorName: bot.name,
       authorColor: bot.color,
       text: '',
+      roundId: requestId,
+      roundPosition: index + 1,
+      roundSize: roundBots.length,
+      roundRole: bot.roundRole,
       createdAt: new Date().toISOString(),
-      status: 'pending',
+      status: index === 0 ? 'pending' : 'waiting',
     });
   });
   groupMessages.set(groupId, current);
   groups = groups.map((item) =>
     item.id === groupId ? { ...item, lastMessage: text, lastMessageAt: new Date().toISOString() } : item,
   );
-  replyBots.forEach((bot, index) => {
+  roundBots.forEach((bot, index) => {
     setTimeout(() => {
-      const prior = index > 0 ? ` Building on ${replyBots[index - 1].name}'s contribution,` : '';
-      const answer = `${bot.name} here.${prior} I will contribute from my role: ${bot.tagline}`;
+      const answer = bot.roundRole === 'lead'
+        ? `I’ll coordinate this. My initial approach is to define the outcome, then ask each teammate to strengthen it from their specialty.`
+        : bot.roundRole === 'contributor'
+          ? `Building on ${roundBots[index - 1].name}’s contribution, I’d add this from my role: ${bot.tagline}`
+          : bot.roundRole === 'synthesizer'
+            ? `**Team answer**\n\nWe combined the plan and specialist input into one recommendation: start with the smallest useful outcome, verify the important facts, and then take the clearest next action.`
+            : `I’ll handle this from my role: ${bot.tagline}`;
       groupMessages.set(
         groupId,
         (groupMessages.get(groupId) ?? []).map((message) =>
           message.id === `${requestId}-assistant-${index}`
             ? { ...message, text: answer, status: 'complete', createdAt: new Date().toISOString() }
-            : message,
+            : message.id === `${requestId}-assistant-${index + 1}` && message.status === 'waiting'
+              ? { ...message, status: 'pending' }
+              : message,
         ),
       );
       groups = groups.map((item) =>
         item.id === groupId ? { ...item, lastMessage: answer, lastMessageAt: new Date().toISOString() } : item,
       );
-    }, 700 + index * 500);
+    }, 800 + index * 800);
   });
 };
 

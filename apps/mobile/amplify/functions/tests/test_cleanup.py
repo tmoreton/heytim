@@ -10,9 +10,11 @@ class CleanupTests(unittest.TestCase):
         items = [
             {"status": "COMPLETE", "authorId": "chief"},
             {"status": "PENDING", "authorId": "research"},
+            {"status": "WAITING", "authorId": "writer"},
         ]
         self.assertTrue(has_pending_work(items))
         self.assertTrue(has_pending_work(items, bot_id="research"))
+        self.assertTrue(has_pending_work(items, bot_id="writer"))
         self.assertFalse(has_pending_work(items, bot_id="chief"))
 
     def test_cleanup_metadata_ignores_unrelated_items(self) -> None:

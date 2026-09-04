@@ -11,6 +11,7 @@ notification flow. Tasks can be paused, edited, run immediately for testing, or 
 Groups can include several people and several FrogBots. Invite links grant access to the live room, each message shows
 whether it came from a person or a bot, and the sender can keep a message human-only, choose one bot, or run an ordered
 team round. Every bot receives the group roster and shared transcript; later bots build on replies already made.
+The first bot coordinates the round and returns after the specialist turns with one final team answer.
 
 ## Run the interface locally
 

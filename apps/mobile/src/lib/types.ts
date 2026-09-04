@@ -24,8 +24,12 @@ export type Message = {
   scheduleName?: string;
   text: string;
   activity?: string[];
+  roundId?: string;
+  roundPosition?: number;
+  roundSize?: number;
+  roundRole?: 'solo' | 'lead' | 'contributor' | 'synthesizer';
   createdAt: string;
-  status: 'complete' | 'pending' | 'error';
+  status: 'complete' | 'waiting' | 'pending' | 'error';
 };
 
 export type ScheduleFrequency = 'daily' | 'weekly';

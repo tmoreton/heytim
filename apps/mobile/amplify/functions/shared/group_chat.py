@@ -4,6 +4,9 @@ from typing import Any
 
 ALL_BOTS_REPLY_TARGET = "all"
 MAX_GROUP_CONTEXT_PEOPLE = 50
+MAX_GROUP_BOTS = 12
+MAX_GROUP_ROUND_REPLIES = MAX_GROUP_BOTS + 1
+ROUND_ROLES = {"solo", "lead", "contributor", "synthesizer"}
 
 
 def group_bots(items: list[dict]) -> list[dict]:
@@ -26,9 +29,30 @@ def select_group_reply_targets(items: list[dict], target: str | None) -> list[di
     return [bot for bot in bots if bot.get("botId") == target]
 
 
+def plan_group_reply_round(bots: list[dict], coordinated: bool) -> list[dict]:
+    """Create a bounded team round with one final coordinator synthesis."""
+    if not bots:
+        return []
+    if not coordinated or len(bots) == 1:
+        return [{**bots[0], "roundRole": "solo"}]
+
+    coordinator = bots[0]
+    return [
+        {**coordinator, "roundRole": "lead"},
+        *({**bot, "roundRole": "contributor"} for bot in bots[1:]),
+        {**coordinator, "roundRole": "synthesizer"},
+    ]
+
+
 def group_round_step(replies: Any, index: Any) -> tuple[dict, bool]:
-    if not isinstance(replies, list) or not replies or len(replies) > 12:
-        raise ValueError("Group agent round must contain between 1 and 12 replies")
+    if (
+        not isinstance(replies, list)
+        or not replies
+        or len(replies) > MAX_GROUP_ROUND_REPLIES
+    ):
+        raise ValueError(
+            f"Group agent round must contain between 1 and {MAX_GROUP_ROUND_REPLIES} replies"
+        )
     if (
         isinstance(index, bool)
         or not isinstance(index, int)
@@ -47,7 +71,11 @@ def group_runtime_context(
     current_bot_id: str,
     round_position: int,
     round_size: int,
+    round_role: str = "solo",
+    coordinator_bot_id: str | None = None,
 ) -> dict:
+    if round_role not in ROUND_ROLES:
+        raise ValueError("Group round role is invalid")
     people = sorted(
         (
             {
@@ -68,11 +96,20 @@ def group_runtime_context(
         }
         for item in group_bots(items)
     ]
+    coordinator = next(
+        (bot for bot in bots if bot["id"] == coordinator_bot_id),
+        next((bot for bot in bots if bot["isCurrent"]), bots[0]),
+    )
     return {
         "name": str(meta.get("name", "Group"))[:64],
         "people": people,
         "bots": bots,
-        "round": {"position": round_position, "size": round_size},
+        "round": {
+            "position": round_position,
+            "size": round_size,
+            "role": round_role,
+            "coordinatorName": coordinator["name"],
+        },
     }
 
 

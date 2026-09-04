@@ -78,9 +78,12 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
   const selectedBot = selection?.kind === 'bot' ? data?.bots.find((bot) => bot.id === selection.id) : undefined;
   const selectedGroup = selection?.kind === 'group' ? data?.groups.find((group) => group.id === selection.id) : undefined;
   const selected = selectedBot ?? selectedGroup;
-  const pending = messages.some((message) => message.status === 'pending');
-  const pendingBotCount = messages.filter(
+  const pending = messages.some((message) => message.status === 'pending' || message.status === 'waiting');
+  const activeBotName = messages.find(
     (message) => message.status === 'pending' && message.authorType === 'bot',
+  )?.authorName;
+  const waitingBotCount = messages.filter(
+    (message) => message.status === 'waiting' && message.authorType === 'bot',
   ).length;
   const activeReplyBotId = replyBotId === null
     ? undefined
@@ -98,6 +101,10 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
     if (next.groups[0]) return { kind: 'group', id: next.groups[0].id };
     if (next.bots[0]) return { kind: 'bot', id: next.bots[0].id };
     return undefined;
+  }, []);
+
+  const scrollToLatest = useCallback(() => {
+    requestAnimationFrame(() => list.current?.scrollToEnd({ animated: true }));
   }, []);
 
   useSpeechRecognitionEvent('start', () => setListening(true));
@@ -528,7 +535,8 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
               group={selectedGroup}
               listening={listening}
               pending={pending}
-              pendingBotCount={pendingBotCount}
+              activeBotName={activeBotName}
+              waitingBotCount={waitingBotCount}
               topInset={insets.top}
               onToggleDrawer={() => setDrawerOpen((value) => !value)}
               onEditBot={() => setEditor('edit')}
@@ -559,7 +567,7 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
                 data={messages}
                 keyExtractor={(message) => message.id}
                 contentContainerStyle={[styles.messages, messages.length === 0 && styles.emptyMessages]}
-                onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })}
+                onContentSizeChange={scrollToLatest}
                 ListEmptyComponent={
                   selectedGroup ? (
                     <View style={styles.emptyState}>
@@ -705,7 +713,7 @@ const styles = StyleSheet.create({
   errorText: { flex: 1, color: '#9E342A', fontSize: 13 },
   errorDismiss: { color: '#9E342A', fontSize: 21 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  messages: { paddingHorizontal: 14, paddingTop: 24, paddingBottom: 18, maxWidth: 780, width: '100%', alignSelf: 'center' },
+  messages: { paddingHorizontal: 14, paddingTop: 24, paddingBottom: 42, maxWidth: 780, width: '100%', alignSelf: 'center' },
   emptyMessages: { flexGrow: 1, justifyContent: 'center' },
   emptyState: { alignItems: 'center', paddingHorizontal: 34, marginTop: -30 },
   emptyTitle: { color: '#201F1B', fontSize: 22, fontWeight: '800', letterSpacing: -0.4, marginTop: 18 },
