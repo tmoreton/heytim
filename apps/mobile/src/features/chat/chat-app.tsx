@@ -620,6 +620,7 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
           skills={data?.skills ?? []}
           onClose={() => setEditor(undefined)}
           onSave={saveBot}
+          onLoadSkill={api.skill}
         />
       ) : null}
       {groupEditor ? (

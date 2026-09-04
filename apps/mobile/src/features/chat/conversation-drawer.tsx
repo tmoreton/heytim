@@ -137,8 +137,8 @@ export function ConversationDrawer({
             <Text style={styles.libraryMarkText}>S</Text>
           </View>
           <View style={styles.profileText}>
-            <Text style={styles.profileTitle}>Skill library</Text>
-            <Text style={styles.profileSubtitle}>Create and share ways of working</Text>
+            <Text style={styles.profileTitle}>Skills & tools</Text>
+            <Text style={styles.profileSubtitle}>See what bots know and can do</Text>
           </View>
           <Text style={styles.libraryChevron}>›</Text>
         </Pressable>

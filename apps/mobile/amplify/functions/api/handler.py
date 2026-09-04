@@ -312,15 +312,25 @@ def _bot_values(user_id: str, value: dict, previous: dict | None = None) -> dict
         skill_versions = catalog.validate_and_pin(
             user_id, skill_ids, previous.get("skillVersions")
         )
-        tool_ids = catalog.validate_tools(
-            value.get("toolIds", previous.get("toolIds", []))
-        )
         required_tools = []
         for skill_id, version in skill_versions.items():
             skill = catalog.get_version(skill_id, version)
             if skill:
                 required_tools.extend(skill.get("requiredToolIds", []))
-        tool_ids = catalog.validate_tools([*tool_ids, *required_tools])
+        if "toolIds" in value:
+            extra_tool_ids = catalog.validate_tools(value.get("toolIds"))
+        elif isinstance(previous.get("extraToolIds"), list):
+            extra_tool_ids = catalog.validate_tools(previous["extraToolIds"])
+        else:
+            required_tool_set = set(required_tools)
+            extra_tool_ids = catalog.validate_tools(
+                [
+                    tool_id
+                    for tool_id in previous.get("toolIds", [])
+                    if tool_id not in required_tool_set
+                ]
+            )
+        tool_ids = catalog.validate_tools([*extra_tool_ids, *required_tools])
     except CatalogError as exc:
         raise ApiError(400, str(exc)) from exc
     return {
@@ -338,6 +348,7 @@ def _bot_values(user_id: str, value: dict, previous: dict | None = None) -> dict
         ),
         "color": color,
         "toolIds": tool_ids,
+        "extraToolIds": extra_tool_ids,
         "skillIds": list(skill_versions),
         "skillVersions": skill_versions,
     }
@@ -372,6 +383,7 @@ def _put_bot(user_id: str, values: dict, bot_id: str | None = None) -> dict:
                 "prompt",
                 "color",
                 "toolIds",
+                "extraToolIds",
                 "skillIds",
                 "skillVersions",
             )
@@ -1016,17 +1028,23 @@ def _bootstrap(user_id: str) -> dict:
     if bots:
         migrated = []
         for bot in bots:
-            if isinstance(bot.get("skillVersions"), dict):
+            if isinstance(bot.get("skillVersions"), dict) and isinstance(
+                bot.get("extraToolIds"), list
+            ):
                 migrated.append(bot)
                 continue
-            values = _bot_values(user_id, bot, bot)
+            values = _bot_values(user_id, {}, bot)
             table.update_item(
                 Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot["id"])},
-                UpdateExpression="SET skillVersions = :versions, skillIds = :skills, toolIds = :tools",
+                UpdateExpression=(
+                    "SET skillVersions = :versions, skillIds = :skills, "
+                    "toolIds = :tools, extraToolIds = :extraTools"
+                ),
                 ExpressionAttributeValues={
                     ":versions": values["skillVersions"],
                     ":skills": values["skillIds"],
                     ":tools": values["toolIds"],
+                    ":extraTools": values["extraToolIds"],
                 },
             )
             migrated.append(
@@ -1034,7 +1052,12 @@ def _bootstrap(user_id: str) -> dict:
                     **bot,
                     **{
                         key: values[key]
-                        for key in ("skillVersions", "skillIds", "toolIds")
+                        for key in (
+                            "skillVersions",
+                            "skillIds",
+                            "toolIds",
+                            "extraToolIds",
+                        )
                     },
                 }
             )
@@ -1564,7 +1587,14 @@ def _import_share(user_id: str, token: str) -> dict:
         except CatalogError as exc:
             raise ApiError(400, str(exc)) from exc
     source = share["snapshot"]["bot"]
-    values = _bot_values(user_id, {**source, "name": f"{source['name'][:43]} copy"})
+    values = _bot_values(
+        user_id,
+        {
+            **source,
+            "name": f"{source['name'][:43]} copy",
+            "toolIds": source.get("extraToolIds", source.get("toolIds", [])),
+        },
+    )
     bot = _put_bot(user_id, values)
     for source_turn in share["snapshot"].get("turns", []):
         current = source_turn.get("createdAt", _now())

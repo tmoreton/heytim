@@ -36,6 +36,13 @@ export function MessageComposer({
   onSend,
 }: Props) {
   const unavailable = !selectedName || pending || sending;
+  const replyHint = group
+    ? activeReplyBotId === ALL_BOTS_REPLY_TARGET
+      ? 'Team replies · bots work in sequence, then one combines the answer.'
+      : activeReplyBotId
+        ? `${group.bots.find((bot) => bot.id === activeReplyBotId)?.name ?? 'One FrogBot'} will reply.`
+        : 'People only · no FrogBot will reply.'
+    : 'Bots can make mistakes. Check important work.';
   return (
     <View style={[styles.wrap, { paddingBottom: 6 + bottomInset }]}>
       {group ? (
@@ -108,7 +115,7 @@ export function MessageComposer({
           {sending ? <ActivityIndicator color="white" size="small" /> : <Text style={styles.sendLabel}>↑</Text>}
         </Pressable>
       </View>
-      <Text style={styles.hint}>Bots can make mistakes. Check important work.</Text>
+      <Text style={styles.hint}>{replyHint}</Text>
     </View>
   );
 }

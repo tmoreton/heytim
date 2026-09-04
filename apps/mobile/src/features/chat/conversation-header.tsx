@@ -36,7 +36,7 @@ export function ConversationHeader({
       ? 'Listening...'
       : pending
         ? `${activeBotName ?? 'A FrogBot'} is working${waitingBotCount ? ` · ${waitingBotCount} waiting` : ''}`
-        : `${group.members.length} people · ${group.bots.length} bots`
+        : `${group.members.length} ${group.members.length === 1 ? 'person' : 'people'} · ${group.bots.length} ${group.bots.length === 1 ? 'bot' : 'bots'}`
     : listening
       ? 'Listening...'
       : pending

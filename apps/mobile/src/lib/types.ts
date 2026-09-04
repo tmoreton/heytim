@@ -5,6 +5,7 @@ export type Bot = {
   color: string;
   prompt: string;
   toolIds: string[];
+  extraToolIds?: string[];
   skillIds: string[];
   createdAt: string;
   updatedAt: string;
@@ -105,6 +106,7 @@ export type Capability = {
   id: string;
   name: string;
   description: string;
+  provider?: 'stan' | 'frogbot' | 'agentcore' | 'agentcore-gateway' | string;
 };
 
 export type Skill = Capability & {

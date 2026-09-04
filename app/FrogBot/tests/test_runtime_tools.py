@@ -63,6 +63,9 @@ def test_catalog_bindings_select_stan_features_and_local_tools(monkeypatch) -> N
     assert config.builtin_tools == ["web_fetch"]
     assert config.builtin_plugins == ["todos"]
     assert config.builtin_subagents == ["generalist"]
+    assert "does not need to name a skill or tool" in config.instructions
+    assert "activate it with the skills tool" in config.instructions
+    assert "actually activated or called it" in config.instructions
 
 
 def test_catalog_binding_rejects_unreviewed_runtime_features() -> None:

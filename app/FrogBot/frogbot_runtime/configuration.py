@@ -40,7 +40,12 @@ def bot_configuration(payload: dict, session_id: str = "unknown") -> BotConfigur
     capabilities = resolve_capabilities(bot, session_id)
     instructions = (
         f"Your name is {name.strip()}. You are one member of the user's team of AI assistants.\n\n"
-        f"Your role and working preferences:\n{prompt.strip()}"
+        f"Your role and working preferences:\n{prompt.strip()}\n\n"
+        "Capability use:\n"
+        "- The user does not need to name a skill or tool.\n"
+        "- When an available skill clearly matches the request, activate it with the skills tool before doing the work.\n"
+        "- Use available tools when they materially improve accuracy or are required by an activated skill.\n"
+        "- Do not claim to have used a skill or tool unless you actually activated or called it."
     )
     group_instructions = collaboration_instructions(payload.get("group"))
     if group_instructions:

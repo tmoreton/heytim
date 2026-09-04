@@ -134,6 +134,19 @@ class CatalogServiceTests(unittest.TestCase):
         self.assertEqual(
             len(tools), sum(tool["enabled"] for tool in catalog_module.FALLBACK_TOOLS)
         )
+        self.assertEqual(
+            {tool["id"]: tool["provider"] for tool in tools},
+            {
+                "web": "stan",
+                "web_search": "agentcore-gateway",
+                "calculator": "frogbot",
+                "current_time": "frogbot",
+                "task_list": "stan",
+                "delegate": "stan",
+                "code_interpreter": "agentcore",
+                "browser": "agentcore",
+            },
+        )
 
         resolved = self.catalog.resolve_tools_for_runtime(
             ["delegate", "web_search", "calculator"]

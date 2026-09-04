@@ -118,7 +118,7 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo, invitation, inviteP
                   <Text numberOfLines={1} style={styles.inviteTitle}>{invitePreview.title}</Text>
                   <Text numberOfLines={1} style={styles.inviteMeta}>
                     {invitePreview.kind === 'group'
-                      ? `${invitePreview.peopleCount ?? 1} people · ${invitePreview.bots.length} FrogBots`
+                      ? `${invitePreview.peopleCount ?? 1} ${(invitePreview.peopleCount ?? 1) === 1 ? 'person' : 'people'} · ${invitePreview.bots.length} ${invitePreview.bots.length === 1 ? 'FrogBot' : 'FrogBots'}`
                       : invitePreview.description}
                   </Text>
                 </View>

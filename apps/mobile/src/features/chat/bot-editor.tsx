@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 
 import { BotAvatar } from '@/components/bot-avatar';
-import type { Bot, BotDraft, Capability } from '@/lib/types';
+import type { Bot, BotDraft, Capability, Skill, SkillDetail } from '@/lib/types';
 
 const COLORS = ['#007A3D', '#FFAA34', '#6C5CE7', '#3984F6', '#F46A27', '#E95383'];
 
@@ -29,12 +29,23 @@ const emptyDraft: BotDraft = {
 type Props = {
   bot?: Bot;
   tools: Capability[];
-  skills: Capability[];
+  skills: Skill[];
   onClose: () => void;
   onSave: (draft: BotDraft) => Promise<void>;
+  onLoadSkill: (skillId: string) => Promise<SkillDetail>;
 };
 
-export function BotEditor({ bot, tools, skills, onClose, onSave }: Props) {
+const extraToolsForBot = (bot: Bot, skills: Skill[]) => {
+  if (bot.extraToolIds) return bot.extraToolIds;
+  const required = new Set(
+    skills
+      .filter((skill) => bot.skillIds.includes(skill.id))
+      .flatMap((skill) => skill.requiredToolIds),
+  );
+  return bot.toolIds.filter((toolId) => !required.has(toolId));
+};
+
+export function BotEditor({ bot, tools, skills, onClose, onSave, onLoadSkill }: Props) {
   const [draft, setDraft] = useState<BotDraft>(() =>
     bot
       ? {
@@ -42,24 +53,68 @@ export function BotEditor({ bot, tools, skills, onClose, onSave }: Props) {
           tagline: bot.tagline,
           prompt: bot.prompt,
           color: bot.color,
-          toolIds: bot.toolIds,
+          toolIds: extraToolsForBot(bot, skills),
           skillIds: bot.skillIds,
         }
       : emptyDraft,
   );
+  const [skillDetails, setSkillDetails] = useState<Record<string, SkillDetail>>({});
+  const [expandedSkillId, setExpandedSkillId] = useState<string>();
+  const [loadingSkillId, setLoadingSkillId] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const toggle = (field: 'toolIds' | 'skillIds', id: string) => {
+  const selectedSkills = skills.filter((skill) => draft.skillIds.includes(skill.id));
+  const requiredByTool = new Map<string, string[]>();
+  selectedSkills.forEach((skill) => {
+    skill.requiredToolIds.forEach((toolId) => {
+      requiredByTool.set(toolId, [...(requiredByTool.get(toolId) ?? []), skill.name]);
+    });
+  });
+  const effectiveToolCount = new Set([...draft.toolIds, ...requiredByTool.keys()]).size;
+
+  const toggleTool = (id: string) => {
+    if (requiredByTool.has(id)) return;
     setDraft((current) => ({
       ...current,
-      [field]: current[field].includes(id) ? current[field].filter((value) => value !== id) : [...current[field], id],
+      toolIds: current.toolIds.includes(id)
+        ? current.toolIds.filter((value) => value !== id)
+        : [...current.toolIds, id],
     }));
+  };
+
+  const toggleSkill = (id: string) => {
+    setDraft((current) => ({
+      ...current,
+      skillIds: current.skillIds.includes(id)
+        ? current.skillIds.filter((value) => value !== id)
+        : [...current.skillIds, id],
+    }));
+  };
+
+  const toggleSkillDetails = async (skill: Skill) => {
+    if (expandedSkillId === skill.id) {
+      setExpandedSkillId(undefined);
+      return;
+    }
+    setExpandedSkillId(skill.id);
+    setError('');
+    if (skillDetails[skill.id]) return;
+    setLoadingSkillId(skill.id);
+    try {
+      const detail = await onLoadSkill(skill.id);
+      setSkillDetails((current) => ({ ...current, [skill.id]: detail }));
+    } catch (value) {
+      setExpandedSkillId(undefined);
+      setError(value instanceof Error ? value.message : 'Could not load the full skill.');
+    } finally {
+      setLoadingSkillId(undefined);
+    }
   };
 
   const save = async () => {
     if (!draft.name.trim() || !draft.prompt.trim()) {
-      setError('Give your bot a name and a role.');
+      setError('Give your bot a name and a prompt.');
       return;
     }
     setSaving(true);
@@ -82,7 +137,12 @@ export function BotEditor({ bot, tools, skills, onClose, onSave }: Props) {
             <Text style={styles.headerAction}>Cancel</Text>
           </Pressable>
           <Text style={styles.title}>{bot ? 'Edit bot' : 'New bot'}</Text>
-          <Pressable accessibilityRole="button" accessibilityState={{ busy: saving, disabled: saving }} hitSlop={12} disabled={saving} onPress={save}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ busy: saving, disabled: saving }}
+            hitSlop={12}
+            disabled={saving}
+            onPress={save}>
             {saving ? <ActivityIndicator color="#007A3D" /> : <Text style={[styles.headerAction, styles.save]}>Save</Text>}
           </Pressable>
         </View>
@@ -105,7 +165,7 @@ export function BotEditor({ bot, tools, skills, onClose, onSave }: Props) {
                 style={styles.taglineInput}
                 value={draft.tagline}
                 onChangeText={(tagline) => setDraft((value) => ({ ...value, tagline }))}
-                placeholder="One-line description"
+                placeholder="What this bot is best at"
                 placeholderTextColor="#A4A098"
                 maxLength={120}
               />
@@ -126,33 +186,121 @@ export function BotEditor({ bot, tools, skills, onClose, onSave }: Props) {
             ))}
           </View>
 
-          <Text style={styles.label}>Role and instructions</Text>
+          <Text style={styles.label}>Bot prompt</Text>
+          <Text style={styles.sectionSubtitle}>Always applied. Define its role, priorities, tone, and boundaries.</Text>
           <TextInput
-            accessibilityLabel="Bot role and instructions"
+            accessibilityLabel="Full bot prompt"
             style={styles.promptInput}
             value={draft.prompt}
             onChangeText={(prompt) => setDraft((value) => ({ ...value, prompt }))}
-            placeholder="What should this bot be great at? How should it work with you?"
+            placeholder="Act as my… Always… Never… Keep responses…"
             placeholderTextColor="#A4A098"
             multiline
             textAlignVertical="top"
             maxLength={12000}
           />
+          <Text style={styles.characterCount}>{draft.prompt.length.toLocaleString()} / 12,000</Text>
 
-          <CapabilitySection
-            title="Tools"
-            subtitle="Actions this bot can take"
-            items={tools}
-            selected={draft.toolIds}
-            onToggle={(id) => toggle('toolIds', id)}
-          />
-          <CapabilitySection
-            title="Skills"
-            subtitle="Ways this bot knows how to work"
-            items={skills}
-            selected={draft.skillIds}
-            onToggle={(id) => toggle('skillIds', id)}
-          />
+          <View style={styles.guide}>
+            <Text style={styles.guideTitle}>What happens when you chat</Text>
+            <Text style={styles.guideText}>The prompt is always active. The model then chooses a matching skill and calls its full instructions. It uses an available tool only when the request needs it.</Text>
+            <Text style={styles.guideStrong}>Ask normally—you do not need special commands.</Text>
+          </View>
+
+          <View style={styles.sectionHeading}>
+            <View>
+              <Text style={styles.label}>Skills</Text>
+              <Text style={styles.sectionSubtitle}>Playbooks this bot can activate automatically</Text>
+            </View>
+            <Text style={styles.count}>{draft.skillIds.length} selected</Text>
+          </View>
+          {skills.map((skill) => {
+            const active = draft.skillIds.includes(skill.id);
+            const expanded = expandedSkillId === skill.id;
+            const detail = skillDetails[skill.id];
+            return (
+              <View key={skill.id} style={[styles.capability, active && styles.capabilityActive]}>
+                <View style={styles.capabilityTop}>
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: active }}
+                    hitSlop={8}
+                    style={[styles.check, active && styles.checkActive]}
+                    onPress={() => toggleSkill(skill.id)}>
+                    {active ? <Text style={styles.checkMark}>✓</Text> : null}
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: active }}
+                    style={styles.capabilityText}
+                    onPress={() => toggleSkill(skill.id)}>
+                    <Text style={styles.capabilityName}>{skill.name}</Text>
+                    <Text style={styles.capabilityDescription}>{skill.description}</Text>
+                    <Text style={styles.capabilityMeta}>
+                      {skill.requiredToolIds.length
+                        ? `Adds ${skill.requiredToolIds.length} required ${skill.requiredToolIds.length === 1 ? 'tool' : 'tools'}`
+                        : 'No tools required'}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded }}
+                    hitSlop={8}
+                    style={styles.detailsButton}
+                    onPress={() => toggleSkillDetails(skill)}>
+                    {loadingSkillId === skill.id ? (
+                      <ActivityIndicator color="#007A3D" size="small" />
+                    ) : (
+                      <Text style={styles.detailsButtonText}>{expanded ? 'Hide' : 'View'}</Text>
+                    )}
+                  </Pressable>
+                </View>
+                {expanded && detail ? (
+                  <View style={styles.skillDetail}>
+                    <Text style={styles.skillDetailLabel}>Full instructions</Text>
+                    <Text selectable style={styles.skillInstructions}>{detail.instructions}</Text>
+                    <Text style={styles.skillDetailLabel}>Required tools</Text>
+                    <Text style={styles.skillToolList}>
+                      {detail.requiredToolIds.length
+                        ? detail.requiredToolIds.map((id) => tools.find((tool) => tool.id === id)?.name ?? id).join(' · ')
+                        : 'None'}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+
+          <View style={styles.sectionHeading}>
+            <View>
+              <Text style={styles.label}>Extra tools</Text>
+              <Text style={styles.sectionSubtitle}>Additional actions this bot may use when helpful</Text>
+            </View>
+            <Text style={styles.count}>{effectiveToolCount} available</Text>
+          </View>
+          {tools.map((tool) => {
+            const requiredBy = requiredByTool.get(tool.id) ?? [];
+            const required = requiredBy.length > 0;
+            const active = required || draft.toolIds.includes(tool.id);
+            return (
+              <Pressable
+                key={tool.id}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: active, disabled: required }}
+                disabled={required}
+                style={[styles.tool, active && styles.capabilityActive, required && styles.requiredTool]}
+                onPress={() => toggleTool(tool.id)}>
+                <View style={[styles.check, active && styles.checkActive]}>{active ? <Text style={styles.checkMark}>✓</Text> : null}</View>
+                <View style={styles.capabilityText}>
+                  <Text style={styles.capabilityName}>{tool.name}</Text>
+                  <Text style={styles.capabilityDescription}>{tool.description}</Text>
+                  <Text style={[styles.capabilityMeta, required && styles.requiredMeta]}>
+                    {required ? `Required by ${requiredBy.join(', ')}` : 'The model calls this automatically when needed'}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -160,56 +308,9 @@ export function BotEditor({ bot, tools, skills, onClose, onSave }: Props) {
   );
 }
 
-function CapabilitySection({
-  title,
-  subtitle,
-  items,
-  selected,
-  onToggle,
-}: {
-  title: string;
-  subtitle: string;
-  items: Capability[];
-  selected: string[];
-  onToggle: (id: string) => void;
-}) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.label}>{title}</Text>
-      <Text style={styles.sectionSubtitle}>{subtitle}</Text>
-      {items.map((item) => {
-        const active = selected.includes(item.id);
-        return (
-          <Pressable
-            key={item.id}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: active }}
-            style={[styles.capability, active && styles.capabilityActive]}
-            onPress={() => onToggle(item.id)}>
-            <View style={[styles.check, active && styles.checkActive]}>{active ? <Text style={styles.checkMark}>✓</Text> : null}</View>
-            <View style={styles.capabilityText}>
-              <Text style={styles.capabilityName}>{item.name}</Text>
-              <Text style={styles.capabilityDescription}>{item.description}</Text>
-            </View>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#F8F7F3' },
-  header: {
-    minHeight: 58,
-    paddingHorizontal: 18,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: '#DDDAD2',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'white',
-  },
+  header: { minHeight: 58, paddingHorizontal: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#DDDAD2', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FBFBF9' },
   title: { fontSize: 16, fontWeight: '700', color: '#171714' },
   headerAction: { color: '#5D5A54', fontSize: 16 },
   save: { color: '#007A3D', fontWeight: '700' },
@@ -222,36 +323,33 @@ const styles = StyleSheet.create({
   colorRow: { flexDirection: 'row', gap: 12, marginBottom: 26 },
   color: { width: 32, height: 32, borderRadius: 16, borderWidth: 3, borderColor: '#F8F7F3' },
   colorSelected: { borderColor: '#007A3D' },
-  promptInput: {
-    minHeight: 148,
-    padding: 15,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#DDDAD2',
-    backgroundColor: 'white',
-    color: '#24231F',
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  section: { marginTop: 26 },
-  sectionSubtitle: { color: '#858179', fontSize: 13, marginTop: -4, marginBottom: 10 },
-  capability: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'center',
-    padding: 13,
-    borderRadius: 14,
-    marginBottom: 8,
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#E4E1DA',
-  },
+  promptInput: { minHeight: 190, padding: 15, borderRadius: 15, borderWidth: 1, borderColor: '#DDDAD2', backgroundColor: 'white', color: '#24231F', fontSize: 15, lineHeight: 21 },
+  characterCount: { color: '#9B978F', fontSize: 11, textAlign: 'right', marginTop: 5 },
+  guide: { padding: 16, borderRadius: 17, backgroundColor: '#E9F4EE', borderWidth: 1, borderColor: '#CBE2D5', marginTop: 24 },
+  guideTitle: { color: '#173E2A', fontSize: 15, fontWeight: '800' },
+  guideText: { color: '#567162', fontSize: 13, lineHeight: 19, marginTop: 5 },
+  guideStrong: { color: '#007A3D', fontSize: 12, fontWeight: '800', marginTop: 8 },
+  sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginTop: 28 },
+  sectionSubtitle: { color: '#858179', fontSize: 13, lineHeight: 18, marginTop: -4, marginBottom: 10 },
+  count: { color: '#007A3D', fontSize: 11, fontWeight: '700', marginTop: 2 },
+  capability: { padding: 13, borderRadius: 14, marginBottom: 8, backgroundColor: 'white', borderWidth: 1, borderColor: '#E4E1DA' },
+  capabilityTop: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  tool: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 13, borderRadius: 14, marginBottom: 8, backgroundColor: 'white', borderWidth: 1, borderColor: '#E4E1DA' },
   capabilityActive: { borderColor: '#8AB99F', backgroundColor: '#EAF5EF' },
-  check: { width: 22, height: 22, borderRadius: 7, borderWidth: 1, borderColor: '#C9C5BD', alignItems: 'center' },
+  requiredTool: { opacity: 0.92 },
+  check: { width: 22, height: 22, borderRadius: 7, borderWidth: 1, borderColor: '#C9C5BD', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   checkActive: { backgroundColor: '#007A3D', borderColor: '#007A3D' },
   checkMark: { color: 'white', fontSize: 14, fontWeight: '800' },
-  capabilityText: { flex: 1 },
-  capabilityName: { fontSize: 15, color: '#24231F', fontWeight: '600' },
-  capabilityDescription: { fontSize: 13, color: '#858179', marginTop: 2 },
+  capabilityText: { flex: 1, minWidth: 0 },
+  capabilityName: { fontSize: 15, color: '#24231F', fontWeight: '700' },
+  capabilityDescription: { fontSize: 13, lineHeight: 18, color: '#77736B', marginTop: 2 },
+  capabilityMeta: { fontSize: 10.5, lineHeight: 15, color: '#99958C', marginTop: 5 },
+  requiredMeta: { color: '#007A3D', fontWeight: '700' },
+  detailsButton: { minWidth: 46, minHeight: 30, alignItems: 'center', justifyContent: 'center' },
+  detailsButtonText: { color: '#007A3D', fontSize: 12, fontWeight: '800' },
+  skillDetail: { borderTopWidth: 1, borderColor: '#CFE0D6', marginTop: 13, paddingTop: 13 },
+  skillDetailLabel: { color: '#466454', fontSize: 10, fontWeight: '800', letterSpacing: 0.55, textTransform: 'uppercase', marginBottom: 5, marginTop: 4 },
+  skillInstructions: { color: '#302F2A', fontSize: 13, lineHeight: 20 },
+  skillToolList: { color: '#007A3D', fontSize: 12, lineHeight: 18, fontWeight: '700' },
   error: { color: '#B83C32', marginTop: 16 },
 });

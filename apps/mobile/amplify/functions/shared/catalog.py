@@ -44,6 +44,7 @@ FALLBACK_TOOLS = [
         "id": "web",
         "name": "Web reader",
         "description": "Open and summarize a specific web page.",
+        "provider": "stan",
         "runtime": {"kind": "stan_builtin", "name": "web_fetch"},
         "enabled": True,
     },
@@ -51,6 +52,7 @@ FALLBACK_TOOLS = [
         "id": "web_search",
         "name": "Web search",
         "description": "Search the live web and return relevant sources.",
+        "provider": "agentcore-gateway",
         "runtime": {"kind": "gateway", "operations": ["WebSearch"]},
         "enabled": True,
     },
@@ -58,6 +60,7 @@ FALLBACK_TOOLS = [
         "id": "calculator",
         "name": "Calculator",
         "description": "Do exact arithmetic safely.",
+        "provider": "frogbot",
         "runtime": {"kind": "local", "name": "calculator"},
         "enabled": True,
     },
@@ -65,6 +68,7 @@ FALLBACK_TOOLS = [
         "id": "current_time",
         "name": "World clock",
         "description": "Check the current time in any timezone.",
+        "provider": "frogbot",
         "runtime": {"kind": "local", "name": "current_time"},
         "enabled": True,
     },
@@ -72,6 +76,8 @@ FALLBACK_TOOLS = [
         "id": "x_search",
         "name": "X / Twitter search",
         "description": "Search recent public posts on X.",
+        "provider": "agentcore-gateway",
+        "credential": "FrogBotXApi",
         "runtime": {"kind": "gateway", "operations": ["x_search_recent"]},
         "enabled": False,
     },
@@ -79,6 +85,8 @@ FALLBACK_TOOLS = [
         "id": "youtube_search",
         "name": "YouTube research",
         "description": "Find public videos and inspect metadata and comments.",
+        "provider": "agentcore-gateway",
+        "credential": "FrogBotYouTubeApi",
         "runtime": {
             "kind": "gateway",
             "operations": [
@@ -93,6 +101,7 @@ FALLBACK_TOOLS = [
         "id": "task_list",
         "name": "Task tracker",
         "description": "Keep a live checklist during longer, multi-step work.",
+        "provider": "stan",
         "runtime": {"kind": "stan_plugin", "name": "todos"},
         "enabled": True,
     },
@@ -100,6 +109,7 @@ FALLBACK_TOOLS = [
         "id": "delegate",
         "name": "Focused delegate",
         "description": "Hand a focused subtask to a fresh agent and bring back its conclusion.",
+        "provider": "stan",
         "runtime": {"kind": "stan_subagent", "name": "generalist"},
         "enabled": True,
     },
@@ -107,6 +117,7 @@ FALLBACK_TOOLS = [
         "id": "code_interpreter",
         "name": "Code interpreter",
         "description": "Run Python, JavaScript, or TypeScript in an isolated AgentCore sandbox.",
+        "provider": "agentcore",
         "runtime": {"kind": "agentcore", "name": "code_interpreter"},
         "enabled": True,
     },
@@ -114,6 +125,7 @@ FALLBACK_TOOLS = [
         "id": "browser",
         "name": "Interactive browser",
         "description": "Open websites, navigate pages, interact with controls, and extract visible information.",
+        "provider": "agentcore",
         "runtime": {"kind": "agentcore", "name": "browser"},
         "enabled": True,
     },
@@ -126,7 +138,17 @@ FALLBACK_SKILLS = [
         "name": "Planner",
         "description": "Turn goals into practical next steps.",
         "requiredToolIds": [],
-        "instructions": "Turn a goal into a concise, ordered plan. State assumptions, dependencies, risks, and the next concrete action.",
+        "instructions": """# Planner
+
+Turn an outcome into a short plan that can be acted on immediately.
+
+1. Restate the desired outcome and any hard constraints.
+2. Identify the smallest useful milestone.
+3. Order the work by dependency and risk.
+4. Call out the one decision or missing fact that could materially change the plan.
+5. End with the next concrete action.
+
+Prefer five useful steps over a long generic checklist.""",
         "source": "official",
         "visibility": "public",
         "editable": False,
@@ -137,7 +159,18 @@ FALLBACK_SKILLS = [
         "name": "Researcher",
         "description": "Investigate questions and synthesize evidence.",
         "requiredToolIds": ["web", "web_search"],
-        "instructions": "Research the question using reliable sources. Separate facts from inference, cite sources, and call out uncertainty.",
+        "instructions": """# Researcher
+
+Research claims before presenting them as fact.
+
+1. Clarify the question, timeframe, and decision it supports.
+2. Prefer primary and authoritative sources.
+3. Compare more than one source when the claim is consequential or disputed.
+4. Separate directly supported facts from inference.
+5. Cite the source URL next to the claim it supports.
+6. State important uncertainty and what would resolve it.
+
+Do not pad the answer with search process. Lead with the useful conclusion.""",
         "source": "official",
         "visibility": "public",
         "editable": False,
@@ -148,7 +181,17 @@ FALLBACK_SKILLS = [
         "name": "Writer",
         "description": "Draft polished, audience-aware copy.",
         "requiredToolIds": [],
-        "instructions": "Create usable, audience-aware writing. Preserve supplied facts, prefer clear language, and match the requested voice.",
+        "instructions": """# Writer
+
+Produce writing that is ready to use.
+
+1. Preserve the user's facts, intent, and level of certainty.
+2. Match the audience and requested channel.
+3. Lead with the point and remove throat-clearing.
+4. Prefer concrete language and natural sentence rhythm.
+5. Return the finished draft before optional notes.
+
+Ask a question only when a missing detail would materially change the result.""",
         "source": "official",
         "visibility": "public",
         "editable": False,
@@ -462,7 +505,11 @@ class CatalogService:
         ).get("Items", [])
         return sorted(
             (
-                {key: item[key] for key in ("id", "name", "description") if key in item}
+                {
+                    key: item[key]
+                    for key in ("id", "name", "description", "provider")
+                    if key in item
+                }
                 for item in items
                 if item.get("enabled") is True
             ),
