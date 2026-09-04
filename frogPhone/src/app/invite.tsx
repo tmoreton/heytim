@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { ActivityIndicator, Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -11,6 +11,9 @@ import type { Invitation, InviteKind, InvitePreview } from '@/lib/types';
 
 const frog = require('../../assets/images/frogbot-foreground.png');
 const inviteKinds = new Set<InviteKind>(['bot', 'chat', 'group', 'skill']);
+const subscribeToHydration = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 const firstParam = (value: string | string[] | undefined): string =>
   Array.isArray(value) ? value[0] ?? '' : value ?? '';
@@ -18,14 +21,16 @@ const firstParam = (value: string | string[] | undefined): string =>
 export default function InvitePage() {
   const params = useLocalSearchParams<{ kind?: string | string[]; token?: string | string[] }>();
   const { width } = useWindowDimensions();
+  const hydrated = useSyncExternalStore(subscribeToHydration, getClientSnapshot, getServerSnapshot);
   const [preview, setPreview] = useState<InvitePreview>();
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState('');
   const invitation = useMemo<Invitation | undefined>(() => {
+    if (!hydrated) return undefined;
     const kind = firstParam(params.kind) as InviteKind;
     const token = firstParam(params.token);
     return inviteKinds.has(kind) && token ? { kind, token } : undefined;
-  }, [params.kind, params.token]);
+  }, [hydrated, params.kind, params.token]);
 
   useEffect(() => {
     if (!invitation) return;
@@ -50,7 +55,7 @@ export default function InvitePage() {
   const deepLink = invitation
     ? `frogbot://invite?kind=${invitation.kind}&token=${encodeURIComponent(invitation.token)}`
     : 'frogbot://';
-  const visibleError = invitation ? error : 'This invitation link is incomplete.';
+  const visibleError = hydrated ? (invitation ? error : 'This invitation link is incomplete.') : '';
   const label = preview?.kind === 'group' ? 'GROUP INVITE' : preview?.kind === 'skill' ? 'SHARED SKILL' : 'FROGBOT INVITE';
   const cardWidth = Math.min(720, Math.max(280, width - 40));
 
