@@ -1,0 +1,37 @@
+{
+  "auth": {
+    "user_pool_id": "us-east-1_MxFy8Drct",
+    "aws_region": "us-east-1",
+    "user_pool_client_id": "7kpbcpdco48cavcv2l5gc442cf",
+    "identity_pool_id": "us-east-1:d2250201-180d-44e2-836c-0bbe06ca41f1",
+    "mfa_methods": [],
+    "standard_required_attributes": [
+      "phone_number"
+    ],
+    "username_attributes": [
+      "phone_number"
+    ],
+    "user_verification_types": [
+      "phone_number"
+    ],
+    "groups": [],
+    "mfa_configuration": "NONE",
+    "password_policy": {
+      "min_length": 8,
+      "require_lowercase": true,
+      "require_numbers": true,
+      "require_symbols": true,
+      "require_uppercase": true
+    },
+    "unauthenticated_identities_enabled": true,
+    "passwordless": {
+      "email_otp_enabled": false,
+      "sms_otp_enabled": true
+    }
+  },
+  "version": "1.5",
+  "custom": {
+    "apiUrl": "https://6zsrnchqr6.execute-api.us-east-1.amazonaws.com",
+    "shareBaseUrl": "frogbot://share"
+  }
+}

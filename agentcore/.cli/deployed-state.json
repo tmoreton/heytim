@@ -1,0 +1,17 @@
+{
+  "targets": {
+    "development": {
+      "resources": {
+        "runtimes": {
+          "FrogBot": {
+            "runtimeId": "FrogBot_FrogBot-ywb3PlFut2",
+            "runtimeArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:runtime/FrogBot_FrogBot-ywb3PlFut2",
+            "roleArn": "arn:aws:iam::188757775631:role/AgentCore-FrogBot-develop-ApplicationAgentFrogBotRu-LxB9yUG7ijl3"
+          }
+        },
+        "stackName": "AgentCore-FrogBot-development",
+        "deployHash": "028be379aa554f57"
+      }
+    }
+  }
+}
