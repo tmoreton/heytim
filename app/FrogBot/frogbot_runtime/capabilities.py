@@ -1,0 +1,338 @@
+from __future__ import annotations
+
+import ast
+import operator
+import os
+import re
+import shutil
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from strands import tool
+from strands.tools.mcp.mcp_client import MCPClient
+from strands.vended_plugins.skills import AgentSkills, Skill
+from strands_tools.browser import AgentCoreBrowser
+from strands_tools.code_interpreter import AgentCoreCodeInterpreter
+
+MAX_SKILL_INSTRUCTIONS_CHARS = 20_000
+MAX_SKILLS = 12
+MAX_TOOLS = 12
+RUNTIME_ROOT = Path(__file__).resolve().parents[1]
+SKILL_ROOT = RUNTIME_ROOT / "skill_catalog"
+GATEWAY_URL = os.environ.get("FROGBOT_GATEWAY_URL") or os.environ.get(
+    "AGENTCORE_GATEWAY_FROGBOTTOOLS_URL", ""
+)
+AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+
+_BINARY_OPERATORS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+}
+_UNARY_OPERATORS = {ast.UAdd: operator.pos, ast.USub: operator.neg}
+
+
+def _evaluate_number(node: ast.AST) -> int | float:
+    if (
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, (int, float))
+        and not isinstance(node.value, bool)
+    ):
+        return node.value
+    if isinstance(node, ast.BinOp) and type(node.op) in _BINARY_OPERATORS:
+        left = _evaluate_number(node.left)
+        right = _evaluate_number(node.right)
+        if isinstance(node.op, ast.Pow) and abs(right) > 12:
+            raise ValueError("Exponent is too large")
+        return _BINARY_OPERATORS[type(node.op)](left, right)
+    if isinstance(node, ast.UnaryOp) and type(node.op) in _UNARY_OPERATORS:
+        return _UNARY_OPERATORS[type(node.op)](_evaluate_number(node.operand))
+    raise ValueError("Expression contains an unsupported operation")
+
+
+@tool
+def calculate(expression: str) -> str:
+    """Evaluate arithmetic using numbers, parentheses, and +, -, *, /, //, %, or **."""
+    if not isinstance(expression, str):
+        raise TypeError("expression must be a string")
+    if not expression.strip() or len(expression) > 200:
+        raise ValueError("expression must be non-empty and at most 200 characters")
+    result = _evaluate_number(ast.parse(expression, mode="eval").body)
+    if abs(float(result)) > 1e100:
+        raise ValueError("Result is too large")
+    return str(result)
+
+
+@tool
+def current_time(timezone: str = "UTC") -> str:
+    """Return the current date and time in an IANA timezone such as UTC or America/New_York."""
+    if not isinstance(timezone, str):
+        raise TypeError("timezone must be a string")
+    if len(timezone) > 64:
+        raise ValueError("timezone must be at most 64 characters")
+    try:
+        now = datetime.now(ZoneInfo(timezone))
+    except ZoneInfoNotFoundError as exc:
+        raise ValueError(f"Unknown timezone: {timezone}") from exc
+    return now.isoformat(timespec="seconds")
+
+
+CUSTOM_TOOLS = {"calculator": calculate, "current_time": current_time}
+STAN_BUILTIN_TOOLS = {"web_fetch"}
+STAN_PLUGINS = {"todos"}
+STAN_SUBAGENTS = {"generalist"}
+AGENTCORE_TOOLS = {"browser", "code_interpreter"}
+LEGACY_TOOL_BINDINGS = {
+    "web": {"kind": "stan_builtin", "name": "web_fetch"},
+    "web_search": {"kind": "gateway", "operations": ["WebSearch"]},
+    "calculator": {"kind": "local", "name": "calculator"},
+    "current_time": {"kind": "local", "name": "current_time"},
+    "x_search": {"kind": "gateway", "operations": ["x_search_recent"]},
+    "youtube_search": {
+        "kind": "gateway",
+        "operations": ["youtube_search", "youtube_video_details", "youtube_comments"],
+    },
+    "task_list": {"kind": "stan_plugin", "name": "todos"},
+    "delegate": {"kind": "stan_subagent", "name": "generalist"},
+    "code_interpreter": {"kind": "agentcore", "name": "code_interpreter"},
+    "browser": {"kind": "agentcore", "name": "browser"},
+}
+SKILLS = {
+    "researcher": SKILL_ROOT / "researcher",
+    "writer": SKILL_ROOT / "writer",
+    "planner": SKILL_ROOT / "planner",
+}
+
+
+@dataclass(frozen=True)
+class CapabilityConfiguration:
+    tools: list[Any]
+    builtin_tools: list[str]
+    plugins: list[Any]
+    skill_paths: list[str]
+    builtin_plugins: list[str]
+    builtin_subagents: list[str]
+
+
+def _prepare_playwright_driver() -> None:
+    import playwright
+
+    source = Path(playwright.__file__).resolve().parent / "driver" / "node"
+    if not source.is_file():
+        raise RuntimeError("Playwright driver is missing")
+    if not os.access(source, os.X_OK):
+        try:
+            source.chmod(source.stat().st_mode | 0o111)
+        except OSError:
+            target = Path("/tmp/frogbot-playwright-node")
+            if not target.is_file() or target.stat().st_size != source.stat().st_size:
+                shutil.copyfile(source, target)
+            target.chmod(0o700)
+            source = target
+    if not os.access(source, os.X_OK):
+        raise RuntimeError("Playwright driver is not executable")
+    os.environ["PLAYWRIGHT_NODEJS_PATH"] = str(source)
+
+
+def dynamic_skills(bot: dict) -> list[Skill]:
+    raw_skills = bot.get("skills")
+    if raw_skills is None:
+        return []
+    if not isinstance(raw_skills, list) or len(raw_skills) > MAX_SKILLS:
+        raise ValueError(f"bot.skills must be a list with at most {MAX_SKILLS} items")
+
+    skills = []
+    seen = set()
+    for raw in raw_skills:
+        if not isinstance(raw, dict):
+            raise TypeError("each bot skill must be an object")
+        skill_id = raw.get("id")
+        name = raw.get("name")
+        description = raw.get("description")
+        instructions = raw.get("instructions")
+        if not isinstance(skill_id, str) or not re.fullmatch(
+            r"[a-z0-9][a-z0-9-]{0,63}", skill_id
+        ):
+            raise ValueError("bot skill id is invalid")
+        if skill_id in seen:
+            raise ValueError(f"bot skill id is duplicated: {skill_id}")
+        if not isinstance(name, str) or not name.strip() or len(name) > 80:
+            raise ValueError(f"bot skill name is invalid: {skill_id}")
+        if (
+            not isinstance(description, str)
+            or not description.strip()
+            or len(description) > 240
+        ):
+            raise ValueError(f"bot skill description is invalid: {skill_id}")
+        if (
+            not isinstance(instructions, str)
+            or not instructions.strip()
+            or len(instructions) > MAX_SKILL_INSTRUCTIONS_CHARS
+        ):
+            raise ValueError(f"bot skill instructions are invalid: {skill_id}")
+        seen.add(skill_id)
+        skills.append(
+            Skill(
+                name=skill_id,
+                description=description.strip(),
+                instructions=instructions.strip(),
+                metadata={
+                    "display_name": name.strip(),
+                    "version": int(raw.get("version", 1)),
+                },
+            )
+        )
+    return skills
+
+
+def tool_bindings(bot: dict) -> list[dict]:
+    raw_bindings = bot.get("tools")
+    if raw_bindings is None:
+        raw_ids = bot.get("toolIds", [])
+        if not isinstance(raw_ids, list) or not all(
+            isinstance(value, str) for value in raw_ids
+        ):
+            raise TypeError("bot.toolIds must be a list of strings")
+        unknown = set(raw_ids) - set(LEGACY_TOOL_BINDINGS)
+        if unknown:
+            raise ValueError(f"Unknown tool ids: {', '.join(sorted(unknown))}")
+        raw_bindings = [
+            {"id": tool_id, "runtime": LEGACY_TOOL_BINDINGS[tool_id]}
+            for tool_id in raw_ids
+        ]
+    if not isinstance(raw_bindings, list) or len(raw_bindings) > MAX_TOOLS:
+        raise ValueError(f"bot.tools must be a list with at most {MAX_TOOLS} items")
+
+    bindings = []
+    seen = set()
+    for raw in raw_bindings:
+        if not isinstance(raw, dict):
+            raise TypeError("each bot tool must be an object")
+        tool_id = raw.get("id")
+        runtime = raw.get("runtime")
+        if not isinstance(tool_id, str) or not re.fullmatch(
+            r"[a-z0-9][a-z0-9_]{0,63}", tool_id
+        ):
+            raise ValueError("bot tool id is invalid")
+        if tool_id in seen:
+            raise ValueError(f"bot tool id is duplicated: {tool_id}")
+        if not isinstance(runtime, dict):
+            raise TypeError(f"bot tool runtime is invalid: {tool_id}")
+
+        kind = runtime.get("kind")
+        if kind == "gateway":
+            operations = runtime.get("operations")
+            if (
+                not isinstance(operations, list)
+                or not 1 <= len(operations) <= 8
+                or len(set(operations)) != len(operations)
+                or any(
+                    not isinstance(operation, str)
+                    or not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_]{0,127}", operation)
+                    for operation in operations
+                )
+            ):
+                raise ValueError(f"gateway operations are invalid: {tool_id}")
+            binding = {"id": tool_id, "kind": kind, "operations": operations}
+        else:
+            name = runtime.get("name")
+            allowed = {
+                "agentcore": AGENTCORE_TOOLS,
+                "local": set(CUSTOM_TOOLS),
+                "stan_builtin": STAN_BUILTIN_TOOLS,
+                "stan_plugin": STAN_PLUGINS,
+                "stan_subagent": STAN_SUBAGENTS,
+            }.get(kind)
+            if not allowed or name not in allowed:
+                raise ValueError(f"bot tool runtime is unsupported: {tool_id}")
+            binding = {"id": tool_id, "kind": kind, "name": name}
+        seen.add(tool_id)
+        bindings.append(binding)
+    return bindings
+
+
+def _gateway_client(operations: list[str]) -> MCPClient | None:
+    if not operations:
+        return None
+    if not GATEWAY_URL:
+        raise ValueError("One or more selected tools are not configured")
+
+    from mcp_proxy_for_aws.client import aws_iam_streamablehttp_client
+
+    allowed = [re.compile(rf".*___{re.escape(operation)}$") for operation in operations]
+    return MCPClient(
+        lambda: aws_iam_streamablehttp_client(
+            endpoint=GATEWAY_URL,
+            aws_region=AWS_REGION,
+            aws_service="bedrock-agentcore",
+        ),
+        tool_filters={"allowed": allowed},
+        continue_on_error=False,
+        startup_timeout=15,
+        application_name="FrogBot",
+    )
+
+
+def resolve_capabilities(bot: dict, session_id: str) -> CapabilityConfiguration:
+    bindings = tool_bindings(bot)
+    skills = dynamic_skills(bot)
+    tools = [CUSTOM_TOOLS[item["name"]] for item in bindings if item["kind"] == "local"]
+
+    if any(
+        item["kind"] == "agentcore" and item["name"] == "code_interpreter"
+        for item in bindings
+    ):
+        interpreter = AgentCoreCodeInterpreter(
+            region=AWS_REGION, session_name=f"frogbot-{session_id}"
+        )
+        tools.append(interpreter.code_interpreter)
+    if any(
+        item["kind"] == "agentcore" and item["name"] == "browser" for item in bindings
+    ):
+        _prepare_playwright_driver()
+        tools.append(AgentCoreBrowser(region=AWS_REGION).browser)
+
+    gateway_operations = list(
+        dict.fromkeys(
+            operation
+            for item in bindings
+            if item["kind"] == "gateway"
+            for operation in item["operations"]
+        )
+    )
+    gateway_client = _gateway_client(gateway_operations)
+    if gateway_client:
+        tools.append(gateway_client)
+
+    skill_ids = bot.get("skillIds", [])
+    if not isinstance(skill_ids, list) or not all(
+        isinstance(value, str) for value in skill_ids
+    ):
+        raise TypeError("bot.skillIds must be a list of strings")
+    unknown_skills = (
+        set() if bot.get("skills") is not None else set(skill_ids) - set(SKILLS)
+    )
+    if unknown_skills:
+        raise ValueError(f"Unknown skill ids: {', '.join(sorted(unknown_skills))}")
+
+    return CapabilityConfiguration(
+        tools=tools,
+        builtin_tools=[
+            item["name"] for item in bindings if item["kind"] == "stan_builtin"
+        ],
+        plugins=[AgentSkills(skills=skills, strict=True)] if skills else [],
+        skill_paths=[] if skills else [str(SKILLS[skill_id]) for skill_id in skill_ids],
+        builtin_plugins=[
+            item["name"] for item in bindings if item["kind"] == "stan_plugin"
+        ],
+        builtin_subagents=[
+            item["name"] for item in bindings if item["kind"] == "stan_subagent"
+        ],
+    )

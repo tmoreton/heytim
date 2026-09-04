@@ -17,7 +17,7 @@ def collaboration_instructions(value: Any) -> str:
     if value is None:
         return ""
     if not isinstance(value, dict):
-        raise ValueError("group must be an object")
+        raise TypeError("group must be an object")
 
     name = _text(value.get("name"), "group.name", 64)
     raw_people = value.get("people", [])
@@ -28,12 +28,12 @@ def collaboration_instructions(value: Any) -> str:
     if not isinstance(raw_bots, list) or not raw_bots or len(raw_bots) > MAX_BOTS:
         raise ValueError(f"group.bots must contain between 1 and {MAX_BOTS} bots")
     if not isinstance(raw_round, dict):
-        raise ValueError("group.round must be an object")
+        raise TypeError("group.round must be an object")
 
     people = []
     for person in raw_people:
         if not isinstance(person, dict):
-            raise ValueError("each group person must be an object")
+            raise TypeError("each group person must be an object")
         people.append(
             {
                 "name": _text(person.get("name"), "group person name", 40),
@@ -45,7 +45,7 @@ def collaboration_instructions(value: Any) -> str:
     current_count = 0
     for bot in raw_bots:
         if not isinstance(bot, dict):
-            raise ValueError("each group bot must be an object")
+            raise TypeError("each group bot must be an object")
         is_current = bot.get("isCurrent") is True
         current_count += int(is_current)
         tagline = bot.get("tagline", "")

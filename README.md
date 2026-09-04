@@ -5,6 +5,20 @@ each bot supplies its own prompt, enabled tools, enabled skills, and stable sess
 provides a Grokbot-style chat interface, while Amplify provisions passwordless email-code sign-in and the
 serverless chat API.
 
+## Repository layout
+
+```text
+apps/mobile/        Expo app and the Amplify backend it calls
+app/FrogBot/        AgentCore runtime entrypoint and its runtime-only modules
+agentcore/           Declarative AgentCore resources and reviewed gateway schemas
+docs/                Operational forms and architecture notes
+```
+
+`apps/mobile` is an independent Expo project, so run Expo, EAS, Amplify, and npm commands from
+that directory. `app/FrogBot` remains at AgentCore's conventional code location; `agentcore.json`
+is still the source of truth for deployed agent resources. The maintained boundary and request-flow
+guide is in [`docs/architecture.md`](docs/architecture.md).
+
 ## Architecture
 
 ```text
@@ -45,7 +59,7 @@ one at a time so every later bot sees the people, the full bot roster, and earli
 The preview uses sample data and does not call AWS.
 
 ```bash
-cd frogPhone
+cd apps/mobile
 npm install
 npm run ios
 ```
@@ -81,7 +95,7 @@ also requires a documented opt-in flow, public privacy policy and terms, and acc
 ### 3. Deploy the app backend
 
 ```bash
-cd frogPhone
+cd apps/mobile
 nvm use
 npm install
 npm run backend:install
@@ -89,7 +103,7 @@ export FROGBOT_AGENT_RUNTIME_ARN='arn:aws:bedrock-agentcore:us-east-1:1887577756
 npm run sandbox -- --once --identifier frogbot --profile YOUR_AWS_PROFILE
 ```
 
-Amplify writes the real Cognito and API values to `frogPhone/amplify_outputs.json`. Keep the sandbox
+Amplify writes the real Cognito and API values to `apps/mobile/amplify_outputs.json`. Keep the sandbox
 running during active development by omitting `--once`, then start the app in another terminal with
 `npm run ios`. Expo SDK 57 requires Node 22.13 or newer; the pinned Node 22 line also avoids the
 Amplify CLI incompatibility seen under Node 25.
@@ -117,11 +131,8 @@ honest and prevents a bot from being saved with a tool that cannot run.
 
 ```bash
 agentcore validate
-cd frogPhone
-npm run typecheck
-npm run backend:typecheck
-npm run lint
-npx expo-doctor
+cd apps/mobile
+npm run verify
 ```
 
 ## Mobile releases
@@ -134,11 +145,12 @@ opens the same passwordless FrogBot experience used by the native app.
 
 ## Key locations
 
-- `app/FrogBot/main.py` - AgentCore entrypoint and per-bot Stan configuration
+- `app/FrogBot/main.py` - small AgentCore runtime entrypoint
+- `app/FrogBot/frogbot_runtime/` - request validation and per-bot capability assembly
 - `app/FrogBot/skill_catalog/` - selectable bot skills
 - `agentcore/gateway/` - reviewed external tool schemas
 - `agentcore/agentcore.json` - AgentCore source-of-truth configuration
-- `frogPhone/src/features/` - authentication and chat UI
-- `frogPhone/amplify/backend.ts` - Cognito, API, DynamoDB, SQS, and Lambda infrastructure
-- `frogPhone/amplify/functions/` - authenticated API and AgentCore worker
+- `apps/mobile/src/features/` - authentication, invitations, chat UI, and editors
+- `apps/mobile/amplify/backend.ts` - Cognito, API, DynamoDB, SQS, and Lambda infrastructure
+- `apps/mobile/amplify/functions/` - authenticated API, shared domain logic, and AgentCore worker
 - [frogbot-capabilities](https://github.com/tmoreton/frogbot-capabilities) - versioned public skill and tool catalog

@@ -18,6 +18,12 @@ dependencies = [
     "strands-agents-stan",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest >= 8.4.0, < 9.0.0",
+    "ruff >= 0.14.0, < 1.0.0",
+]
+
 [tool.uv.sources]
 strands-agents-stan = { path = "vendor/strands_agents_stan-0.0.1.dev48+g6ba1843a4-py3-none-any.whl" }
 
