@@ -2,14 +2,14 @@
 
 FrogBot is a small iOS-first AI team app. One Amazon Bedrock AgentCore runtime serves every bot;
 each bot supplies its own prompt, enabled tools, enabled skills, and stable session ID. The Expo app
-provides a Grokbot-style chat interface, while Amplify provisions passwordless SMS sign-in and the
+provides a Grokbot-style chat interface, while Amplify provisions passwordless email-code sign-in and the
 serverless chat API.
 
 ## Architecture
 
 ```text
 Expo app
-  |-- Cognito SMS code sign-in
+  |-- Cognito email code sign-in
   |-- Apple on-device speech-to-text
   |-- authenticated HTTP API
         |-- DynamoDB: bot configs, conversations, device tokens, expiring shares
@@ -25,7 +25,7 @@ the worker derives a stable AgentCore session ID from the user and bot IDs.
 
 ## What is included
 
-- Phone-only Cognito sign-up and sign-in with a six-digit SMS code
+- Email-only Cognito sign-up and sign-in with one-time codes while the US SMS sender is registered
 - Responsive chat UI with a collapsible bot list
 - Push notification when an agent reply completes, with tap-to-open navigation
 - Apple on-device speech-to-text in the message composer without saved audio

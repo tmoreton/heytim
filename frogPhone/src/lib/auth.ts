@@ -11,33 +11,19 @@ import {
   signUp,
 } from 'aws-amplify/auth';
 
-export type PhoneCodeSession = {
-  phoneNumber: string;
+export type EmailCodeSession = {
+  email: string;
   purpose: 'signIn' | 'signUp';
 };
 
-export type PhoneCodeStart = PhoneCodeSession | { phoneNumber: string; purpose: 'signedIn' };
+export type EmailCodeStart = EmailCodeSession | { email: string; purpose: 'signedIn' };
 
-export const normalizePhoneNumber = (rawPhoneNumber: string): string => {
-  const trimmed = rawPhoneNumber.trim();
-  const digits = trimmed.replace(/\D/g, '');
-  const phoneNumber = trimmed.startsWith('+')
-    ? `+${digits}`
-    : digits.length === 10
-      ? `+1${digits}`
-      : digits.length === 11 && digits.startsWith('1')
-        ? `+${digits}`
-        : '';
-
-  if (!/^\+[1-9]\d{7,14}$/.test(phoneNumber)) {
-    throw new Error('Enter a valid phone number, including the country code.');
+export const normalizeEmail = (rawEmail: string): string => {
+  const email = rawEmail.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Enter a valid email address.');
   }
-  return phoneNumber;
-};
-
-export const formatPhoneNumber = (phoneNumber: string): string => {
-  const match = phoneNumber.match(/^\+1(\d{3})(\d{3})(\d{4})$/);
-  return match ? `+1 (${match[1]}) ${match[2]}-${match[3]}` : phoneNumber;
+  return email;
 };
 
 export const hasSession = async (): Promise<boolean> => {
@@ -51,52 +37,52 @@ export const hasSession = async (): Promise<boolean> => {
 
 const hasErrorName = (value: unknown, name: string): value is Error => value instanceof Error && value.name === name;
 
-const beginSignIn = async (phoneNumber: string): Promise<PhoneCodeStart> => {
+const beginSignIn = async (email: string): Promise<EmailCodeStart> => {
   const result = await signIn({
-    username: phoneNumber,
+    username: email,
     options: {
       authFlowType: 'USER_AUTH',
-      preferredChallenge: 'SMS_OTP',
+      preferredChallenge: 'EMAIL_OTP',
     },
   });
 
-  if (result.isSignedIn) return { phoneNumber, purpose: 'signedIn' };
-  if (result.nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_SMS_CODE') {
-    return { phoneNumber, purpose: 'signIn' };
+  if (result.isSignedIn) return { email, purpose: 'signedIn' };
+  if (result.nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE') {
+    return { email, purpose: 'signIn' };
   }
-  throw new Error('SMS code sign-in is not available for this account.');
+  throw new Error('Email code sign-in is not available for this account.');
 };
 
-export const beginPhoneCode = async (rawPhoneNumber: string): Promise<PhoneCodeStart> => {
-  const phoneNumber = normalizePhoneNumber(rawPhoneNumber);
+export const beginEmailCode = async (rawEmail: string): Promise<EmailCodeStart> => {
+  const email = normalizeEmail(rawEmail);
 
   try {
     const result = await signUp({
-      username: phoneNumber,
+      username: email,
       options: {
-        userAttributes: { phone_number: phoneNumber },
+        userAttributes: { email },
         autoSignIn: { authFlowType: 'USER_AUTH' },
       },
     });
 
     if (result.nextStep.signUpStep === 'CONFIRM_SIGN_UP') {
-      return { phoneNumber, purpose: 'signUp' };
+      return { email, purpose: 'signUp' };
     }
-    return beginSignIn(phoneNumber);
+    return beginSignIn(email);
   } catch (value) {
     if (!hasErrorName(value, 'UsernameExistsException')) throw value;
   }
 
   try {
-    return await beginSignIn(phoneNumber);
+    return await beginSignIn(email);
   } catch (value) {
     if (!hasErrorName(value, 'UserNotConfirmedException')) throw value;
-    await resendSignUpCode({ username: phoneNumber });
-    return { phoneNumber, purpose: 'signUp' };
+    await resendSignUpCode({ username: email });
+    return { email, purpose: 'signUp' };
   }
 };
 
-export const finishPhoneCode = async (session: PhoneCodeSession, code: string): Promise<void> => {
+export const finishEmailCode = async (session: EmailCodeSession, code: string): Promise<void> => {
   if (session.purpose === 'signIn') {
     const result = await confirmSignIn({ challengeResponse: code.trim() });
     if (!result.isSignedIn) throw new Error('That code did not work.');
@@ -104,15 +90,15 @@ export const finishPhoneCode = async (session: PhoneCodeSession, code: string): 
   }
 
   const result = await confirmSignUp({
-    username: session.phoneNumber,
+    username: session.email,
     confirmationCode: code.trim(),
   });
   if (result.nextStep.signUpStep !== 'COMPLETE_AUTO_SIGN_IN') {
-    throw new Error('Your phone number is confirmed. Request a new code to sign in.');
+    throw new Error('Your email is confirmed. Request a new code to sign in.');
   }
 
   const signedIn = await autoSignIn();
-  if (!signedIn.isSignedIn) throw new Error('Your phone number is confirmed. Request a new code to sign in.');
+  if (!signedIn.isSignedIn) throw new Error('Your email is confirmed. Request a new code to sign in.');
 };
 
 export const endSession = (): Promise<void> => signOut();

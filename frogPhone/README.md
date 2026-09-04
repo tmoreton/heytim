@@ -1,7 +1,7 @@
 # FrogBot mobile app
 
 This Expo SDK 57 app is the iOS-first FrogBot client. It includes a responsive local preview and an
-Amplify Gen 2 backend for native Cognito SMS OTP authentication, persisted chats, bot configuration, sharing,
+Amplify Gen 2 backend for native Cognito email OTP authentication, persisted chats, bot configuration, sharing,
 and push notifications when an agent reply is ready. On Apple devices, the composer also supports on-device dictation.
 
 ## Run the interface locally
@@ -15,8 +15,8 @@ Choose **Preview the app** when AWS has not been connected yet.
 
 ## Connect AWS
 
-Deploy the AgentCore runtime first. Cognito uses AWS End User Messaging SMS to deliver phone codes, so configure
-an origination identity, verify test destinations while sandboxed, and request production access before launch.
+Deploy the AgentCore runtime first. FrogBot currently uses Cognito email codes so TestFlight users can sign in while
+the registered AWS toll-free SMS sender is under carrier review.
 Then deploy:
 
 ```bash

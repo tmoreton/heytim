@@ -10,7 +10,7 @@ import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
 import path from 'node:path';
 
-import { auth } from './auth/resource';
+import { auth, emailCodeMessage } from './auth/resource';
 
 const backend = defineBackend({ auth });
 const stack = backend.createStack('FrogBotApp');
@@ -21,20 +21,33 @@ if (!runtimeArn) {
 }
 
 const { cfnUserPool, cfnUserPoolClient } = backend.auth.resources.cfnResources;
-// Cognito username attributes are immutable after creation. This logical ID
-// intentionally replaces the original email pool with a phone-only pool.
-cfnUserPool.overrideLogicalId('FrogBotPhoneUserPool');
-cfnUserPoolClient.overrideLogicalId('FrogBotPhoneUserPoolClient');
+// Cognito username attributes are immutable after creation. These logical IDs
+// intentionally replace the phone-only pool with the current email-only pool.
+cfnUserPool.overrideLogicalId('FrogBotEmailUserPool');
+cfnUserPoolClient.overrideLogicalId('FrogBotEmailUserPoolClient');
 cfnUserPool.userPoolTier = 'ESSENTIALS';
-// Username attributes already create Cognito's standard phone_number schema.
-// Omitting the generated schema prevents CloudFormation from re-submitting that
-// immutable attribute as a new custom attribute on later updates.
+cfnUserPool.emailConfiguration = {
+  emailSendingAccount: 'DEVELOPER',
+  sourceArn: `arn:aws:ses:${stack.region}:${stack.account}:identity/inboxai.cc`,
+  from: 'FrogBot <no-reply@inboxai.cc>',
+};
+// Username attributes already create Cognito's standard email schema. Omitting
+// the generated schema prevents CloudFormation from re-submitting that immutable
+// attribute as a new custom attribute on later updates.
 cfnUserPool.schema = undefined;
 cfnUserPool.addPropertyOverride('Policies.SignInPolicy.AllowedFirstAuthFactors', [
   'PASSWORD',
-  'SMS_OTP',
+  'EMAIL_OTP',
 ]);
 cfnUserPoolClient.explicitAuthFlows = ['ALLOW_REFRESH_TOKEN_AUTH', 'ALLOW_USER_AUTH'];
+
+cfnUserPool.emailAuthenticationSubject = 'Your FrogBot sign-in code';
+cfnUserPool.emailAuthenticationMessage = emailCodeMessage('{####}');
+cfnUserPool.verificationMessageTemplate = {
+  defaultEmailOption: 'CONFIRM_WITH_CODE',
+  emailSubject: 'Your FrogBot verification code',
+  emailMessage: emailCodeMessage('{####}'),
+};
 
 const table = new Table(stack, 'Data', {
   partitionKey: { name: 'pk', type: AttributeType.STRING },

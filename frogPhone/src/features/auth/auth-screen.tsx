@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { beginPhoneCode, finishPhoneCode, formatPhoneNumber, type PhoneCodeSession } from '@/lib/auth';
+import { beginEmailCode, finishEmailCode, type EmailCodeSession } from '@/lib/auth';
 
 type Props = {
   cloudReady: boolean;
@@ -22,27 +22,28 @@ type Props = {
 };
 
 export function AuthScreen({ cloudReady, onSignedIn, onDemo }: Props) {
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-  const [phoneCodeSession, setPhoneCodeSession] = useState<PhoneCodeSession>();
-  const [focusedField, setFocusedField] = useState<'phone' | 'code'>();
+  const [emailCodeSession, setEmailCodeSession] = useState<EmailCodeSession>();
+  const [focusedField, setFocusedField] = useState<'email' | 'code'>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const codeInput = useRef<TextInput>(null);
-  const codeSent = Boolean(phoneCodeSession);
+  const codeSent = Boolean(emailCodeSession);
+  const expectedCodeLength = emailCodeSession?.purpose === 'signIn' ? 8 : 6;
 
   const start = async () => {
     if (!cloudReady) return;
     setBusy(true);
     setError('');
     try {
-      const result = await beginPhoneCode(phoneNumber);
-      setPhoneNumber(result.phoneNumber);
+      const result = await beginEmailCode(email);
+      setEmail(result.email);
       if (result.purpose === 'signedIn') {
         onSignedIn();
         return;
       }
-      setPhoneCodeSession(result);
+      setEmailCodeSession(result);
       setTimeout(() => codeInput.current?.focus(), 100);
     } catch (value) {
       setError(value instanceof Error ? value.message : 'Could not send a code.');
@@ -52,14 +53,14 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo }: Props) {
   };
 
   const confirm = async () => {
-    if (!phoneCodeSession || code.length !== 6) {
-      setError('Enter the six-digit code from your text message.');
+    if (!emailCodeSession || code.length !== expectedCodeLength) {
+      setError(`Enter the ${expectedCodeLength}-digit code from your email.`);
       return;
     }
     setBusy(true);
     setError('');
     try {
-      await finishPhoneCode(phoneCodeSession, code);
+      await finishEmailCode(emailCodeSession, code);
       onSignedIn();
     } catch (value) {
       setError(value instanceof Error ? value.message : 'That code did not work.');
@@ -92,53 +93,53 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo }: Props) {
             <Text style={styles.cardTitle}>{codeSent ? 'Check your messages' : 'Welcome back'}</Text>
             <Text style={styles.cardCopy}>
               {codeSent
-                ? `We sent a six-digit code to ${formatPhoneNumber(phoneNumber)}.`
-                : 'Enter your phone number. No password needed.'}
+                ? `We sent a ${expectedCodeLength}-digit code to ${email}.`
+                : 'Enter your email address. No password needed.'}
             </Text>
 
             {codeSent ? (
               <View style={styles.fieldGroup}>
                 <View style={styles.labelRow}>
                   <Text style={styles.fieldLabel}>Verification code</Text>
-                  <Text style={styles.fieldHint}>6 digits</Text>
+                  <Text style={styles.fieldHint}>{expectedCodeLength} digits</Text>
                 </View>
                 <TextInput
                   ref={codeInput}
-                  accessibilityLabel="Six-digit verification code"
+                  accessibilityLabel={`${expectedCodeLength}-digit verification code`}
                   style={[styles.input, styles.codeInput, focusedField === 'code' && styles.inputFocused]}
                   value={code}
                   onChangeText={(value) => {
-                    setCode(value.replace(/\D/g, '').slice(0, 6));
+                    setCode(value.replace(/\D/g, '').slice(0, expectedCodeLength));
                     setError('');
                   }}
                   onFocus={() => setFocusedField('code')}
                   onBlur={() => setFocusedField(undefined)}
-                  placeholder="000000"
+                  placeholder={'0'.repeat(expectedCodeLength)}
                   placeholderTextColor="#B7B4AC"
                   keyboardType="number-pad"
                   textContentType="oneTimeCode"
                   autoComplete="one-time-code"
-                  maxLength={6}
+                  maxLength={expectedCodeLength}
                 />
               </View>
             ) : (
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>Phone number</Text>
+                <Text style={styles.fieldLabel}>Email address</Text>
                 <TextInput
-                  accessibilityLabel="Phone number"
-                  style={[styles.input, focusedField === 'phone' && styles.inputFocused]}
-                  value={phoneNumber}
+                  accessibilityLabel="Email address"
+                  style={[styles.input, focusedField === 'email' && styles.inputFocused]}
+                  value={email}
                   onChangeText={(value) => {
-                    setPhoneNumber(value);
+                    setEmail(value);
                     setError('');
                   }}
-                  onFocus={() => setFocusedField('phone')}
+                  onFocus={() => setFocusedField('email')}
                   onBlur={() => setFocusedField(undefined)}
-                  placeholder="+1 555 123 4567"
+                  placeholder="you@example.com"
                   placeholderTextColor="#A6A39C"
-                  keyboardType="phone-pad"
-                  textContentType="telephoneNumber"
-                  autoComplete="tel"
+                  keyboardType="email-address"
+                  textContentType="emailAddress"
+                  autoComplete="email"
                   autoCapitalize="none"
                   autoCorrect={false}
                   returnKeyType="go"
@@ -165,11 +166,11 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo }: Props) {
               <Pressable
                 accessibilityRole="button"
                 onPress={() => {
-                  setPhoneCodeSession(undefined);
+                  setEmailCodeSession(undefined);
                   setCode('');
                   setError('');
                 }}>
-                <Text style={styles.secondaryLabel}>Use a different phone number</Text>
+                <Text style={styles.secondaryLabel}>Use a different email address</Text>
               </Pressable>
             ) : null}
 
@@ -186,7 +187,7 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo }: Props) {
 
             <View style={styles.assurance}>
               <View style={styles.assuranceDot} />
-              <Text style={styles.assuranceText}>A private SMS code. Nothing to remember.</Text>
+              <Text style={styles.assuranceText}>A private email code. Nothing to remember.</Text>
             </View>
           </View>
 
