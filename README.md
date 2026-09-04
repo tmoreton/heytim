@@ -12,7 +12,7 @@ Expo app
   |-- Cognito email code sign-in
   |-- Apple on-device speech-to-text
   |-- authenticated HTTP API
-        |-- DynamoDB: bot configs, conversations, device tokens, expiring shares
+        |-- DynamoDB: bot configs, direct chats, shared groups, device tokens, expiring invites
         |-- SQS: durable agent jobs
               |-- Lambda worker
                     |-- AgentCore Runtime -> Strands + Stan
@@ -31,9 +31,10 @@ the worker derives a stable AgentCore session ID from the user and bot IDs.
 - Push notification when an agent reply completes, with tap-to-open navigation
 - Apple on-device speech-to-text in the message composer without saved audio
 - Per-bot name, description, prompt, color, tools, and version-pinned skills
+- Shared groups with multiple people and FrogBots, invite links, and an explicit bot-reply selector
 - A skill library for creating, editing, and sharing reusable ways of working
 - Three starter bots, three reviewed starter skills, and a dynamically refreshed capability catalog
-- Bot-only and bot-plus-conversation sharing with 30-day links
+- Bot snapshots, conversation snapshots, and live group invitations with 30-day links
 - DynamoDB persistence, an encrypted SQS queue, retries, and a dead-letter queue
 - Expo over-the-air updates on the production channel, automatically published after changes land on `main`
 - A local preview mode that works before AWS is connected

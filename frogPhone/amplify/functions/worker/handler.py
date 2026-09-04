@@ -52,6 +52,10 @@ def _turn_pk(user_id: str, bot_id: str) -> str:
     return f"CHAT#{user_id}#{bot_id}"
 
 
+def _group_pk(group_id: str) -> str:
+    return f"GROUP#{group_id}"
+
+
 def _push_token_key(user_id: str, token_id: str) -> dict:
     return {"pk": f"USER#{user_id}", "sk": f"PUSH#{token_id}"}
 
@@ -73,6 +77,34 @@ def _get_history(user_id: str, bot_id: str) -> list[dict]:
             messages.append({"role": "user", "content": [{"text": turn["userText"]}]})
         if turn.get("assistantText") and turn.get("status") == "COMPLETE":
             messages.append({"role": "assistant", "content": [{"text": turn["assistantText"]}]})
+    return messages
+
+
+def _append_history(messages: list[dict], role: str, text: str) -> None:
+    if messages and messages[-1]["role"] == role:
+        previous = messages[-1]["content"][0]["text"]
+        messages[-1]["content"] = [{"text": f"{previous}\n{text}"}]
+        return
+    messages.append({"role": role, "content": [{"text": text}]})
+
+
+def _get_group_history(group_id: str, bot_id: str) -> list[dict]:
+    items = table.query(
+        KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+        ExpressionAttributeValues={":pk": _group_pk(group_id), ":prefix": "MESSAGE#"},
+        ScanIndexForward=False,
+        Limit=40,
+    ).get("Items", [])
+    messages: list[dict] = []
+    for item in reversed(items):
+        text = item.get("text")
+        if item.get("status") != "COMPLETE" or not isinstance(text, str) or not text.strip():
+            continue
+        author_name = item.get("authorName", "Participant")
+        if item.get("authorType") == "bot" and item.get("authorId") == bot_id:
+            _append_history(messages, "assistant", text)
+        else:
+            _append_history(messages, "user", f"[{author_name}]: {text}")
     return messages
 
 
@@ -112,8 +144,15 @@ def _read_agent_text(response: dict) -> str:
     return result
 
 
-def _invoke(user_id: str, bot_id: str, bot: dict) -> str:
-    session_id = hashlib.sha256(f"{user_id}:{bot_id}".encode()).hexdigest()
+def _invoke(
+    user_id: str,
+    bot_id: str,
+    bot: dict,
+    *,
+    history: list[dict] | None = None,
+    session_scope: str | None = None,
+) -> str:
+    session_id = hashlib.sha256((session_scope or f"{user_id}:{bot_id}").encode()).hexdigest()
     skill_versions = bot.get("skillVersions")
     if not isinstance(skill_versions, dict):
         catalog.sync_official()
@@ -128,7 +167,7 @@ def _invoke(user_id: str, bot_id: str, bot: dict) -> str:
     for skill in resolved_skills:
         tool_ids.extend(tool_id for tool_id in skill.get("requiredToolIds", []) if tool_id not in tool_ids)
     payload = {
-        "messages": _get_history(user_id, bot_id),
+        "messages": history if history is not None else _get_history(user_id, bot_id),
         "bot": {
             "name": bot["name"],
             "prompt": bot["prompt"],
@@ -204,13 +243,19 @@ def _send_push_notification(request: dict) -> None:
     tokens = _push_tokens(user_id)
     if not tokens:
         return
+    notification_data = {
+        "botId": request["botId"],
+        "messageId": request.get("messageId") or request.get("turnId", ""),
+    }
+    if isinstance(request.get("groupId"), str):
+        notification_data["groupId"] = request["groupId"]
     messages = [
         {
             "to": item["token"],
             "sound": "default",
             "title": f"{request['botName']} replied",
             "body": _notification_copy(request["answer"]),
-            "data": {"botId": request["botId"], "turnId": request["turnId"]},
+            "data": notification_data,
             "channelId": "agent-replies",
         }
         for item in tokens
@@ -286,7 +331,7 @@ def _queue_reply_notification(user_id: str, bot_id: str, turn_key: dict, turn: d
                 "userId": user_id,
                 "botId": bot_id,
                 "botName": bot["name"],
-                "turnId": turn["id"],
+                "messageId": turn["id"],
                 "answer": answer,
             }
         ),
@@ -360,6 +405,96 @@ def _process_agent_reply(record: dict, request: dict) -> None:
     _queue_reply_notification(user_id, bot_id, turn_key, turn, bot, answer)
 
 
+def _queue_group_reply_notifications(group_id: str, reply_key: dict, reply: dict, bot: dict, answer: str) -> None:
+    members = table.query(
+        KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+        ExpressionAttributeValues={":pk": _group_pk(group_id), ":prefix": "USER#"},
+        Limit=100,
+    ).get("Items", [])
+    for member in members:
+        user_id = member.get("userId")
+        if not isinstance(user_id, str):
+            continue
+        sqs.send_message(
+            QueueUrl=QUEUE_URL,
+            MessageBody=json.dumps(
+                {
+                    "type": "PUSH_NOTIFICATION",
+                    "userId": user_id,
+                    "groupId": group_id,
+                    "botId": bot["id"],
+                    "botName": bot["name"],
+                    "messageId": reply["id"],
+                    "answer": answer,
+                }
+            ),
+        )
+    table.update_item(
+        Key=reply_key,
+        UpdateExpression="SET notificationQueued = :queued",
+        ExpressionAttributeValues={":queued": True},
+    )
+
+
+def _process_group_agent_reply(record: dict, request: dict) -> None:
+    group_id = request["groupId"]
+    bot_id = request["botId"]
+    reply_key = {"pk": _group_pk(group_id), "sk": request["replyKey"]}
+    reply = table.get_item(Key=reply_key, ConsistentRead=True).get("Item")
+    if not reply:
+        return
+    bot_owner_id = reply.get("botOwnerId") or request["botOwnerId"]
+    bot = table.get_item(Key=_bot_key(bot_owner_id, bot_id), ConsistentRead=True).get("Item")
+    if not bot:
+        raise ValueError("Source bot no longer exists")
+    if reply.get("status") in {"COMPLETE", "ERROR"} and not reply.get("notificationQueued") and reply.get("text"):
+        _queue_group_reply_notifications(group_id, reply_key, reply, bot, reply["text"])
+        return
+    if reply.get("status") != "PENDING":
+        return
+
+    try:
+        answer = _invoke(
+            bot_owner_id,
+            bot_id,
+            bot,
+            history=_get_group_history(group_id, bot_id),
+            session_scope=f"group:{group_id}:bot:{bot_id}",
+        )
+    except Exception:
+        logger.exception("Agent request failed for group reply %s", reply.get("id"))
+        receive_count = int(record.get("attributes", {}).get("ApproximateReceiveCount", "1"))
+        if receive_count < 3:
+            raise
+        answer = "I could not finish that request. Please try again."
+        table.update_item(
+            Key=reply_key,
+            UpdateExpression="SET #status = :error, #text = :answer, completedAt = :now",
+            ExpressionAttributeNames={"#status": "status", "#text": "text"},
+            ExpressionAttributeValues={":error": "ERROR", ":answer": answer, ":now": datetime.now(UTC).isoformat(timespec="milliseconds")},
+        )
+        _queue_group_reply_notifications(group_id, reply_key, reply, bot, answer)
+        return
+
+    completed_at = datetime.now(UTC).isoformat(timespec="milliseconds")
+    table.update_item(
+        Key=reply_key,
+        UpdateExpression="SET #status = :complete, #text = :answer, completedAt = :now",
+        ConditionExpression="#status = :pending",
+        ExpressionAttributeNames={"#status": "status", "#text": "text"},
+        ExpressionAttributeValues={":complete": "COMPLETE", ":pending": "PENDING", ":answer": answer, ":now": completed_at},
+    )
+    try:
+        table.update_item(
+            Key={"pk": _group_pk(group_id), "sk": "META"},
+            UpdateExpression="SET lastMessage = :answer, lastMessageAt = :now, updatedAt = :now",
+            ExpressionAttributeValues={":answer": answer[:280], ":now": completed_at},
+        )
+    except Exception:
+        logger.exception("Could not update the group preview for reply %s", reply.get("id"))
+    _queue_group_reply_notifications(group_id, reply_key, reply, bot, answer)
+
+
 def _process(record: dict) -> None:
     request = json.loads(record["body"])
     request_type = request.get("type", "AGENT_REPLY")
@@ -368,6 +503,9 @@ def _process(record: dict) -> None:
         return
     if request_type == "PUSH_RECEIPTS":
         _check_push_receipts(request)
+        return
+    if request_type == "GROUP_AGENT_REPLY":
+        _process_group_agent_reply(record, request)
         return
     if request_type != "AGENT_REPLY":
         raise ValueError(f"Unknown job type: {request_type}")

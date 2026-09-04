@@ -1,4 +1,4 @@
-import type { Bootstrap, Bot, BotDraft, Message, SkillDetail, SkillDraft } from './types';
+import type { Bootstrap, Bot, BotDraft, Group, GroupDraft, Message, SkillDetail, SkillDraft } from './types';
 
 const timestamp = new Date().toISOString();
 
@@ -40,6 +40,34 @@ let bots: Bot[] = [
     createdAt: timestamp,
     updatedAt: timestamp,
     lastMessage: 'The launch note is tightened and ready to send.',
+    lastMessageAt: timestamp,
+  },
+];
+
+let groups: Group[] = [
+  {
+    id: 'launch-room',
+    name: 'Launch crew',
+    ownerId: 'demo-user',
+    currentUserId: 'demo-user',
+    isOwner: true,
+    members: [
+      { id: 'demo-user', name: 'You', role: 'owner' },
+      { id: 'jordan', name: 'Jordan', role: 'member' },
+    ],
+    bots: [
+      { id: 'chief', ownerId: 'demo-user', name: 'Chief', tagline: bots[0].tagline, color: bots[0].color },
+      {
+        id: 'draft-partner',
+        ownerId: 'demo-user',
+        name: 'Draft Partner',
+        tagline: bots[2].tagline,
+        color: bots[2].color,
+      },
+    ],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    lastMessage: 'I will turn that into the launch checklist.',
     lastMessageAt: timestamp,
   },
 ];
@@ -119,8 +147,43 @@ const messages = new Map<string, Message[]>([
   ],
 ]);
 
+const groupMessages = new Map<string, Message[]>([
+  [
+    'launch-room',
+    [
+      {
+        id: 'group-human',
+        role: 'user',
+        authorType: 'user',
+        authorId: 'jordan',
+        authorName: 'Jordan',
+        isMine: false,
+        text: 'Can we turn today\'s decisions into a launch plan?',
+        createdAt: timestamp,
+        status: 'complete',
+      },
+      {
+        id: 'group-bot',
+        role: 'assistant',
+        authorType: 'bot',
+        authorId: 'chief',
+        authorName: 'Chief',
+        authorColor: bots[0].color,
+        text: 'Yes. I will turn that into the launch checklist and call out the decisions that still need an owner.',
+        createdAt: timestamp,
+        status: 'complete',
+      },
+    ],
+  ],
+]);
+
 export const demoBootstrap = (): Bootstrap => ({
   bots: [...bots],
+  groups: groups.map((group) => ({
+    ...group,
+    members: [...group.members],
+    bots: [...group.bots],
+  })),
   tools: [
     { id: 'web', name: 'Web reader', description: 'Open and summarize links.' },
     { id: 'web_search', name: 'Web search', description: 'Search the live web and return relevant sources.' },
@@ -131,6 +194,35 @@ export const demoBootstrap = (): Bootstrap => ({
 });
 
 export const demoMessages = (botId: string): Message[] => [...(messages.get(botId) ?? [])];
+
+export const demoGroupMessages = (groupId: string): Message[] => [...(groupMessages.get(groupId) ?? [])];
+
+export const demoSaveGroup = (draft: GroupDraft, groupId?: string): Group => {
+  const now = new Date().toISOString();
+  const previous = groups.find((group) => group.id === groupId);
+  const selectedBots = draft.botIds
+    .map((id) => bots.find((bot) => bot.id === id))
+    .filter((bot): bot is Bot => Boolean(bot))
+    .map((bot) => ({ id: bot.id, ownerId: 'demo-user', name: bot.name, tagline: bot.tagline, color: bot.color }));
+  const group: Group = {
+    id: previous?.id ?? `group-${Date.now()}`,
+    name: draft.name,
+    ownerId: previous?.ownerId ?? 'demo-user',
+    currentUserId: 'demo-user',
+    isOwner: true,
+    members: previous?.members ?? [{ id: 'demo-user', name: 'You', role: 'owner' }],
+    bots: selectedBots,
+    createdAt: previous?.createdAt ?? now,
+    updatedAt: now,
+    lastMessage: previous?.lastMessage ?? 'Start the conversation.',
+    lastMessageAt: previous?.lastMessageAt ?? now,
+  };
+  groups = previous ? groups.map((item) => (item.id === group.id ? group : item)) : [group, ...groups];
+  if (!groupMessages.has(group.id)) groupMessages.set(group.id, []);
+  return group;
+};
+
+export const demoJoinGroup = (_token: string): Group => ({ ...groups[0], members: [...groups[0].members], bots: [...groups[0].bots] });
 
 export const demoSaveBot = (draft: BotDraft, botId?: string): Bot => {
   const now = new Date().toISOString();
@@ -170,6 +262,56 @@ export const demoSend = (bot: Bot, text: string): void => {
       item.id === bot.id
         ? { ...item, lastMessage: response, lastMessageAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
         : item,
+    );
+  }, 900);
+};
+
+export const demoSendGroup = (groupId: string, text: string, replyBotId?: string): void => {
+  const current = groupMessages.get(groupId) ?? [];
+  const requestId = String(Date.now());
+  current.push({
+    id: `${requestId}-user`,
+    role: 'user',
+    authorType: 'user',
+    authorId: 'demo-user',
+    authorName: 'You',
+    isMine: true,
+    text,
+    createdAt: new Date().toISOString(),
+    status: 'complete',
+  });
+  const group = groups.find((item) => item.id === groupId);
+  const bot = group?.bots.find((item) => item.id === replyBotId);
+  if (bot) {
+    current.push({
+      id: `${requestId}-assistant`,
+      role: 'assistant',
+      authorType: 'bot',
+      authorId: bot.id,
+      authorName: bot.name,
+      authorColor: bot.color,
+      text: '',
+      createdAt: new Date().toISOString(),
+      status: 'pending',
+    });
+  }
+  groupMessages.set(groupId, current);
+  groups = groups.map((item) =>
+    item.id === groupId ? { ...item, lastMessage: text, lastMessageAt: new Date().toISOString() } : item,
+  );
+  if (!bot) return;
+  setTimeout(() => {
+    const answer = `I am on it as ${bot.name}. I will keep the group aligned and bring back the next concrete decision.`;
+    groupMessages.set(
+      groupId,
+      (groupMessages.get(groupId) ?? []).map((message) =>
+        message.id === `${requestId}-assistant`
+          ? { ...message, text: answer, status: 'complete', createdAt: new Date().toISOString() }
+          : message,
+      ),
+    );
+    groups = groups.map((item) =>
+      item.id === groupId ? { ...item, lastMessage: answer, lastMessageAt: new Date().toISOString() } : item,
     );
   }, 900);
 };

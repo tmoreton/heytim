@@ -8,6 +8,8 @@ import {
   Linking,
   Platform,
   Pressable,
+  ScrollView,
+  SectionList,
   Share,
   StyleSheet,
   Text,
@@ -18,22 +20,27 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BotAvatar } from '@/components/bot-avatar';
+import { GroupAvatar, PersonAvatar } from '@/components/participant-avatar';
 import { endSession } from '@/lib/auth';
 import { createApi } from '@/lib/api';
 import {
-  consumeInitialNotificationBotId,
+  consumeInitialNotificationTarget,
   registerForReplyNotifications,
   subscribeToNotificationReplies,
 } from '@/lib/notifications';
-import type { Bootstrap, Bot, BotDraft, Message } from '@/lib/types';
+import type { Bootstrap, Bot, BotDraft, Group, GroupDraft, GroupMember, Message } from '@/lib/types';
 
 import { BotEditor } from './bot-editor';
+import { GroupEditor } from './group-editor';
 import { SkillLibrary } from './skill-library';
 
 type Props = {
   demo: boolean;
   onSignedOut: () => void;
 };
+
+type Selection = { kind: 'bot' | 'group'; id: string };
+type DrawerItem = { kind: 'group'; value: Group } | { kind: 'bot'; value: Bot };
 
 const friendlyDate = (value: string) => {
   const date = new Date(value);
@@ -54,7 +61,7 @@ export function ChatApp({ demo, onSignedOut }: Props) {
   const dictationBase = useRef('');
   const pushToken = useRef<string | null>(null);
   const [data, setData] = useState<Bootstrap>();
-  const [selectedId, setSelectedId] = useState('');
+  const [selection, setSelection] = useState<Selection>();
   const [messages, setMessages] = useState<Message[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(wide);
   const [search, setSearch] = useState('');
@@ -64,10 +71,27 @@ export function ChatApp({ demo, onSignedOut }: Props) {
   const [listening, setListening] = useState(false);
   const [error, setError] = useState('');
   const [editor, setEditor] = useState<'new' | 'edit' | undefined>();
+  const [groupEditor, setGroupEditor] = useState<'new' | 'edit' | undefined>();
   const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
+  const [replyBotId, setReplyBotId] = useState<string | null>();
 
-  const selected = data?.bots.find((bot) => bot.id === selectedId);
+  const selectedBot = selection?.kind === 'bot' ? data?.bots.find((bot) => bot.id === selection.id) : undefined;
+  const selectedGroup = selection?.kind === 'group' ? data?.groups.find((group) => group.id === selection.id) : undefined;
+  const selected = selectedBot ?? selectedGroup;
   const pending = messages.some((message) => message.status === 'pending');
+  const activeReplyBotId = replyBotId === null
+    ? undefined
+    : selectedGroup?.bots.some((bot) => bot.id === replyBotId)
+      ? replyBotId
+      : selectedGroup?.bots[0]?.id;
+
+  const chooseAvailableSelection = useCallback((next: Bootstrap, current?: Selection): Selection | undefined => {
+    if (current?.kind === 'bot' && next.bots.some((bot) => bot.id === current.id)) return current;
+    if (current?.kind === 'group' && next.groups.some((group) => group.id === current.id)) return current;
+    if (next.groups[0]) return { kind: 'group', id: next.groups[0].id };
+    if (next.bots[0]) return { kind: 'bot', id: next.bots[0].id };
+    return undefined;
+  }, []);
 
   useSpeechRecognitionEvent('start', () => setListening(true));
   useSpeechRecognitionEvent('end', () => setListening(false));
@@ -90,45 +114,47 @@ export function ChatApp({ demo, onSignedOut }: Props) {
     try {
       const next = await api.bootstrap();
       setData(next);
-      setSelectedId((current) => (next.bots.some((bot) => bot.id === current) ? current : next.bots[0]?.id ?? ''));
+      setSelection((current) => chooseAvailableSelection(next, current));
     } catch (value) {
       setError(value instanceof Error ? value.message : 'Could not load your bots.');
     }
-  }, [api]);
+  }, [api, chooseAvailableSelection]);
 
   const loadMessages = useCallback(async () => {
-    if (!selectedId) return;
+    if (!selection) return;
     try {
-      setMessages(await api.messages(selectedId));
+      setMessages(
+        selection.kind === 'group' ? await api.groupMessages(selection.id) : await api.messages(selection.id),
+      );
       setError('');
     } catch (value) {
       setError(value instanceof Error ? value.message : 'Could not load this conversation.');
     } finally {
       setLoadingMessages(false);
     }
-  }, [api, selectedId]);
+  }, [api, selection]);
 
   useEffect(() => {
     api
       .bootstrap()
       .then((next) => {
         setData(next);
-        setSelectedId((current) => (next.bots.some((bot) => bot.id === current) ? current : next.bots[0]?.id ?? ''));
+        setSelection((current) => chooseAvailableSelection(next, current));
       })
       .catch((value) => setError(value instanceof Error ? value.message : 'Could not load your bots.'));
-  }, [api]);
+  }, [api, chooseAvailableSelection]);
 
   useEffect(() => {
-    if (!selectedId) return;
-    api
-      .messages(selectedId)
+    if (!selection) return;
+    const request = selection.kind === 'group' ? api.groupMessages(selection.id) : api.messages(selection.id);
+    request
       .then((next) => {
         setMessages(next);
         setError('');
       })
       .catch((value) => setError(value instanceof Error ? value.message : 'Could not load this conversation.'))
       .finally(() => setLoadingMessages(false));
-  }, [api, selectedId]);
+  }, [api, selection]);
 
   useEffect(() => {
     if (!pending) return;
@@ -139,11 +165,17 @@ export function ChatApp({ demo, onSignedOut }: Props) {
   useEffect(() => {
     if (demo) return;
     let active = true;
-    const openBot = (botId: string) => {
+    const openConversation = (target: { botId?: string; groupId?: string }) => {
       if (!active) return;
+      const next = target.groupId
+        ? { kind: 'group' as const, id: target.groupId }
+        : target.botId
+          ? { kind: 'bot' as const, id: target.botId }
+          : undefined;
+      if (!next) return;
       setMessages([]);
       setLoadingMessages(true);
-      setSelectedId(botId);
+      setSelection(next);
       setDrawerOpen(false);
     };
 
@@ -154,12 +186,12 @@ export function ChatApp({ demo, onSignedOut }: Props) {
         await api.registerPushToken(token);
       })
       .catch((value) => console.warn('Could not register for reply notifications.', value));
-    consumeInitialNotificationBotId()
-      .then((botId) => {
-        if (botId) openBot(botId);
+    consumeInitialNotificationTarget()
+      .then((target) => {
+        if (target) openConversation(target);
       })
       .catch((value) => console.warn('Could not read the initial notification.', value));
-    const subscription = subscribeToNotificationReplies(openBot);
+    const subscription = subscribeToNotificationReplies(openConversation);
     return () => {
       active = false;
       subscription.remove();
@@ -170,22 +202,36 @@ export function ChatApp({ demo, onSignedOut }: Props) {
     async (url: string | null) => {
       if (!url) return;
       let token = '';
-      let kind: 'bot' | 'skill' = 'bot';
+      let kind: 'bot' | 'skill' | 'group' = 'bot';
       try {
         const parsed = new URL(url);
-        if (parsed.hostname === 'skill' || parsed.pathname.includes('/skill/')) kind = 'skill';
+        if (parsed.hostname === 'group' || parsed.pathname.includes('/group/')) kind = 'group';
+        else if (parsed.hostname === 'skill' || parsed.pathname.includes('/skill/')) kind = 'skill';
         token =
-          parsed.hostname === 'share' || parsed.hostname === 'skill'
+          parsed.hostname === 'share' || parsed.hostname === 'skill' || parsed.hostname === 'group'
             ? parsed.pathname.replace(/^\//, '')
-            : parsed.pathname.split(kind === 'skill' ? '/skill/' : '/share/')[1] ?? '';
+            : parsed.pathname.split(kind === 'skill' ? '/skill/' : kind === 'group' ? '/group/' : '/share/')[1] ?? '';
       } catch {
-        kind = url.includes('/skill/') ? 'skill' : 'bot';
-        token = url.split(kind === 'skill' ? '/skill/' : '/share/')[1] ?? '';
+        kind = url.includes('/group/') ? 'group' : url.includes('/skill/') ? 'skill' : 'bot';
+        token = url.split(kind === 'skill' ? '/skill/' : kind === 'group' ? '/group/' : '/share/')[1] ?? '';
       }
       token = token.split(/[?#]/)[0];
       const importKey = `${kind}:${token}`;
       if (!token || importedTokens.current.has(importKey)) return;
       importedTokens.current.add(importKey);
+      if (kind === 'group') {
+        try {
+          const group = await api.joinGroup(token);
+          await loadBootstrap();
+          setSelection({ kind: 'group', id: group.id });
+          setDrawerOpen(false);
+          Alert.alert('Group joined', `You are now in ${group.name}.`);
+        } catch (value) {
+          importedTokens.current.delete(importKey);
+          Alert.alert('Could not join group', value instanceof Error ? value.message : 'The invite may have expired.');
+        }
+        return;
+      }
       if (kind === 'skill') {
         Alert.alert(
           'Install shared skill?',
@@ -216,7 +262,7 @@ export function ChatApp({ demo, onSignedOut }: Props) {
       try {
         const bot = await api.importShare(token);
         await loadBootstrap();
-        setSelectedId(bot.id);
+        setSelection({ kind: 'bot', id: bot.id });
         Alert.alert('Bot added', `${bot.name} is now on your team.`);
       } catch (value) {
         importedTokens.current.delete(importKey);
@@ -236,18 +282,39 @@ export function ChatApp({ demo, onSignedOut }: Props) {
     if (listening) ExpoSpeechRecognitionModule.abort();
     setMessages([]);
     setLoadingMessages(true);
-    setSelectedId(bot.id);
+    setSelection({ kind: 'bot', id: bot.id });
+    if (!wide) setDrawerOpen(false);
+  };
+
+  const selectGroup = (group: Group) => {
+    if (listening) ExpoSpeechRecognitionModule.abort();
+    setMessages([]);
+    setLoadingMessages(true);
+    setSelection({ kind: 'group', id: group.id });
     if (!wide) setDrawerOpen(false);
   };
 
   const saveBot = async (value: BotDraft) => {
-    const saved = await api.saveBot(value, editor === 'edit' ? selected?.id : undefined);
+    const saved = await api.saveBot(value, editor === 'edit' ? selectedBot?.id : undefined);
     setData((current) => {
       if (!current) return current;
       const exists = current.bots.some((bot) => bot.id === saved.id);
       return { ...current, bots: exists ? current.bots.map((bot) => (bot.id === saved.id ? saved : bot)) : [saved, ...current.bots] };
     });
-    setSelectedId(saved.id);
+    setSelection({ kind: 'bot', id: saved.id });
+  };
+
+  const saveGroup = async (value: GroupDraft) => {
+    const saved = await api.saveGroup(value, groupEditor === 'edit' ? selectedGroup?.id : undefined);
+    setData((current) => {
+      if (!current) return current;
+      const exists = current.groups.some((group) => group.id === saved.id);
+      return {
+        ...current,
+        groups: exists ? current.groups.map((group) => (group.id === saved.id ? saved : group)) : [saved, ...current.groups],
+      };
+    });
+    setSelection({ kind: 'group', id: saved.id });
   };
 
   const send = async () => {
@@ -257,7 +324,8 @@ export function ChatApp({ demo, onSignedOut }: Props) {
     if (listening) ExpoSpeechRecognitionModule.stop();
     setDraft('');
     try {
-      await api.sendMessage(selected, text);
+      if (selectedGroup) await api.sendGroupMessage(selectedGroup.id, text, activeReplyBotId);
+      else if (selectedBot) await api.sendMessage(selectedBot, text);
       await loadMessages();
     } catch (value) {
       setDraft(text);
@@ -301,13 +369,13 @@ export function ChatApp({ demo, onSignedOut }: Props) {
   };
 
   const share = (scope: 'bot' | 'chat') => {
-    if (!selected) return;
+    if (!selectedBot) return;
     api
-      .share(selected.id, scope)
+      .share(selectedBot.id, scope)
       .then((url) =>
         Share.share({
-          title: `Share ${selected.name}`,
-          message: scope === 'chat' ? `Open my conversation with ${selected.name}: ${url}` : `Add ${selected.name} to FrogBot: ${url}`,
+          title: `Share ${selectedBot.name}`,
+          message: scope === 'chat' ? `Open my conversation with ${selectedBot.name}: ${url}` : `Add ${selectedBot.name} to FrogBot: ${url}`,
           url,
         }),
       )
@@ -320,6 +388,19 @@ export function ChatApp({ demo, onSignedOut }: Props) {
       { text: 'Conversation', onPress: () => share('chat') },
       { text: 'Cancel', style: 'cancel' },
     ]);
+  };
+
+  const shareGroup = async () => {
+    if (!selectedGroup) throw new Error('Choose a group first.');
+    return api.shareGroup(selectedGroup.id);
+  };
+
+  const removeGroupMember = async (member: GroupMember) => {
+    if (!selectedGroup) return;
+    await api.removeGroupMember(selectedGroup.id, member.id);
+    const next = await api.bootstrap();
+    setData(next);
+    setSelection((current) => chooseAvailableSelection(next, current));
   };
 
   const signOut = async () => {
@@ -341,6 +422,13 @@ export function ChatApp({ demo, onSignedOut }: Props) {
   const visibleBots = (data?.bots ?? []).filter((bot) =>
     `${bot.name} ${bot.tagline}`.toLowerCase().includes(search.trim().toLowerCase()),
   );
+  const visibleGroups = (data?.groups ?? []).filter((group) =>
+    `${group.name} ${group.lastMessage}`.toLowerCase().includes(search.trim().toLowerCase()),
+  );
+  const drawerSections: { title: string; data: DrawerItem[] }[] = [
+    { title: 'Groups', data: visibleGroups.map((value) => ({ kind: 'group' as const, value })) },
+    { title: 'FrogBots', data: visibleBots.map((value) => ({ kind: 'bot' as const, value })) },
+  ].filter((section) => section.data.length > 0);
 
   const drawer = (
     <View style={styles.drawer}>
@@ -349,7 +437,16 @@ export function ChatApp({ demo, onSignedOut }: Props) {
           <Text style={styles.appName}>FrogBot</Text>
           <Text style={styles.appTagline}>Your AI team</Text>
         </View>
-        <Pressable style={({ pressed }) => [styles.addButton, pressed && styles.pressed]} onPress={() => setEditor('new')}>
+        <Pressable
+          accessibilityLabel="Create bot or group"
+          style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}
+          onPress={() =>
+            Alert.alert('Create new', 'Start a private bot chat or bring people and bots together.', [
+              { text: 'New group', onPress: () => setGroupEditor('new') },
+              { text: 'New bot', onPress: () => setEditor('new') },
+              { text: 'Cancel', style: 'cancel' },
+            ])
+          }>
           <Text style={styles.addLabel}>+</Text>
         </Pressable>
       </View>
@@ -357,28 +454,37 @@ export function ChatApp({ demo, onSignedOut }: Props) {
         value={search}
         onChangeText={setSearch}
         style={styles.search}
-        placeholder="Search bots"
+        placeholder="Search chats"
         placeholderTextColor="#9B978F"
         autoCorrect={false}
       />
-      <FlatList
-        data={visibleBots}
-        keyExtractor={(bot) => bot.id}
+      <SectionList
+        sections={drawerSections}
+        keyExtractor={(item) => `${item.kind}-${item.value.id}`}
         contentContainerStyle={styles.botList}
+        renderSectionHeader={({ section }) => <Text style={styles.sectionLabel}>{section.title}</Text>}
         renderItem={({ item }) => (
           <Pressable
-            style={({ pressed }) => [styles.botRow, selectedId === item.id && styles.botRowSelected, pressed && styles.pressed]}
-            onPress={() => selectBot(item)}>
-            <BotAvatar color={item.color} name={item.name} size={42} />
+            style={({ pressed }) => [
+              styles.botRow,
+              selection?.kind === item.kind && selection.id === item.value.id && styles.botRowSelected,
+              pressed && styles.pressed,
+            ]}
+            onPress={() => (item.kind === 'group' ? selectGroup(item.value) : selectBot(item.value))}>
+            {item.kind === 'group' ? (
+              <GroupAvatar group={item.value} size={42} />
+            ) : (
+              <BotAvatar color={item.value.color} name={item.value.name} size={42} />
+            )}
             <View style={styles.botRowText}>
               <View style={styles.botNameRow}>
                 <Text numberOfLines={1} style={styles.botName}>
-                  {item.name}
+                  {item.value.name}
                 </Text>
-                <Text style={styles.botDate}>{friendlyDate(item.lastMessageAt)}</Text>
+                <Text style={styles.botDate}>{friendlyDate(item.value.lastMessageAt)}</Text>
               </View>
               <Text numberOfLines={1} style={styles.botPreview}>
-                {item.lastMessage}
+                {item.value.lastMessage}
               </Text>
             </View>
           </Pressable>
@@ -421,17 +527,34 @@ export function ChatApp({ demo, onSignedOut }: Props) {
           {wide && drawerOpen ? <View style={styles.wideDrawer}>{drawer}</View> : null}
           <View style={styles.conversation}>
             <View style={styles.header}>
-              <Pressable accessibilityLabel="Toggle bot list" hitSlop={12} style={styles.menuButton} onPress={() => setDrawerOpen((value) => !value)}>
+              <Pressable accessibilityLabel="Toggle chat list" hitSlop={12} style={styles.menuButton} onPress={() => setDrawerOpen((value) => !value)}>
                 <View style={styles.menuLine} />
                 <View style={[styles.menuLine, styles.menuLineShort]} />
               </Pressable>
-              {selected ? (
+              {selectedGroup ? (
                 <>
-                  <BotAvatar color={selected.color} name={selected.name} size={31} />
+                  <GroupAvatar group={selectedGroup} size={34} />
                   <View style={styles.headerIdentity}>
                     <Text numberOfLines={1} style={styles.headerName}>
-                      {selected.name}
+                      {selectedGroup.name}
                     </Text>
+                    <Text numberOfLines={1} style={styles.headerStatus}>
+                      {listening
+                        ? 'Listening...'
+                        : pending
+                          ? 'A FrogBot is working...'
+                          : `${selectedGroup.members.length} people · ${selectedGroup.bots.length} bots`}
+                    </Text>
+                  </View>
+                  <Pressable style={styles.headerAction} hitSlop={10} onPress={() => setGroupEditor('edit')}>
+                    <Text style={styles.headerActionLabel}>Details</Text>
+                  </Pressable>
+                </>
+              ) : selectedBot ? (
+                <>
+                  <BotAvatar color={selectedBot.color} name={selectedBot.name} size={31} />
+                  <View style={styles.headerIdentity}>
+                    <Text numberOfLines={1} style={styles.headerName}>{selectedBot.name}</Text>
                     <Text numberOfLines={1} style={styles.headerStatus}>
                       {listening ? 'Listening...' : pending ? 'Working...' : 'Ready'}
                     </Text>
@@ -467,25 +590,54 @@ export function ChatApp({ demo, onSignedOut }: Props) {
                 contentContainerStyle={[styles.messages, messages.length === 0 && styles.emptyMessages]}
                 onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })}
                 ListEmptyComponent={
-                  selected ? (
+                  selectedGroup ? (
                     <View style={styles.emptyState}>
-                      <BotAvatar color={selected.color} name={selected.name} size={70} />
-                      <Text style={styles.emptyTitle}>Talk to {selected.name}</Text>
-                      <Text style={styles.emptyCopy}>{selected.tagline || 'Start with the outcome you want.'}</Text>
+                      <GroupAvatar group={selectedGroup} size={76} />
+                      <Text style={styles.emptyTitle}>Welcome to {selectedGroup.name}</Text>
+                      <Text style={styles.emptyCopy}>Write to the group, then choose a FrogBot when you want one to answer.</Text>
+                    </View>
+                  ) : selectedBot ? (
+                    <View style={styles.emptyState}>
+                      <BotAvatar color={selectedBot.color} name={selectedBot.name} size={70} />
+                      <Text style={styles.emptyTitle}>Talk to {selectedBot.name}</Text>
+                      <Text style={styles.emptyCopy}>{selectedBot.tagline || 'Start with the outcome you want.'}</Text>
                     </View>
                   ) : null
                 }
-                renderItem={({ item }) => <MessageBubble message={item} />}
+                renderItem={({ item }) => <MessageBubble message={item} groupMode={Boolean(selectedGroup)} />}
               />
             )}
 
             <View style={styles.composerWrap}>
+              {selectedGroup ? (
+                <ScrollView
+                  horizontal
+                  keyboardShouldPersistTaps="handled"
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.replyPicker}>
+                  <Pressable
+                    style={[styles.replyChip, !activeReplyBotId && styles.replyChipActive]}
+                    onPress={() => setReplyBotId(null)}>
+                    <PersonAvatar name="People" size={22} />
+                    <Text style={[styles.replyChipText, !activeReplyBotId && styles.replyChipTextActive]}>People only</Text>
+                  </Pressable>
+                  {selectedGroup.bots.map((bot) => {
+                    const active = activeReplyBotId === bot.id;
+                    return (
+                      <Pressable key={bot.id} style={[styles.replyChip, active && styles.replyChipActive]} onPress={() => setReplyBotId(bot.id)}>
+                        <BotAvatar name={bot.name} color={bot.color} size={22} />
+                        <Text style={[styles.replyChipText, active && styles.replyChipTextActive]}>{bot.name} replies</Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              ) : null}
               <View style={styles.composer}>
                 <TextInput
                   style={styles.composerInput}
                   value={draft}
                   onChangeText={setDraft}
-                  placeholder={listening ? 'Listening...' : selected ? `Message ${selected.name}` : 'Choose a bot'}
+                  placeholder={listening ? 'Listening...' : selected ? `Message ${selected.name}` : 'Choose a chat'}
                   placeholderTextColor="#9C9991"
                   multiline
                   maxLength={8000}
@@ -532,12 +684,23 @@ export function ChatApp({ demo, onSignedOut }: Props) {
 
       {editor ? (
         <BotEditor
-          key={`${editor}-${selected?.id ?? 'new'}`}
-          bot={editor === 'edit' ? selected : undefined}
+          key={`${editor}-${selectedBot?.id ?? 'new'}`}
+          bot={editor === 'edit' ? selectedBot : undefined}
           tools={data?.tools ?? []}
           skills={data?.skills ?? []}
           onClose={() => setEditor(undefined)}
           onSave={saveBot}
+        />
+      ) : null}
+      {groupEditor ? (
+        <GroupEditor
+          key={`${groupEditor}-${selectedGroup?.id ?? 'new'}`}
+          group={groupEditor === 'edit' ? selectedGroup : undefined}
+          bots={data?.bots ?? []}
+          onClose={() => setGroupEditor(undefined)}
+          onSave={saveGroup}
+          onShare={shareGroup}
+          onRemoveMember={removeGroupMember}
         />
       ) : null}
       {skillLibraryOpen ? (
@@ -555,24 +718,34 @@ export function ChatApp({ demo, onSignedOut }: Props) {
   );
 }
 
-function MessageBubble({ message }: { message: Message }) {
-  const assistant = message.role === 'assistant';
-  if (message.status === 'pending') {
-    return (
-      <View style={[styles.bubbleRow, styles.assistantRow]}>
-        <View style={[styles.bubble, styles.assistantBubble, styles.typingBubble]}>
-          <View style={styles.typingDot} />
-          <View style={styles.typingDot} />
-          <View style={styles.typingDot} />
+function MessageBubble({ message, groupMode }: { message: Message; groupMode: boolean }) {
+  const mine = groupMode && message.authorType === 'user' && message.isMine;
+  const assistant = groupMode ? !mine : message.role === 'assistant';
+  const avatar = groupMode ? (
+    message.authorType === 'bot' ? (
+      <BotAvatar name={message.authorName ?? 'FrogBot'} color={message.authorColor ?? '#007A3D'} size={31} />
+    ) : (
+      <PersonAvatar name={message.authorName ?? 'Person'} size={31} />
+    )
+  ) : null;
+  return (
+    <View style={[styles.bubbleRow, assistant ? styles.assistantRow : styles.userRow, groupMode && styles.groupBubbleRow]}>
+      {groupMode && !mine ? avatar : null}
+      <View style={[styles.bubbleColumn, mine && styles.mineBubbleColumn]}>
+        {groupMode ? <Text style={[styles.authorName, mine && styles.authorNameMine]}>{mine ? 'You' : message.authorName}</Text> : null}
+        <View style={[styles.bubble, assistant ? styles.assistantBubble : styles.userBubble, message.status === 'error' && styles.errorBubble, message.status === 'pending' && styles.typingBubble]}>
+          {message.status === 'pending' ? (
+            <>
+              <View style={styles.typingDot} />
+              <View style={styles.typingDot} />
+              <View style={styles.typingDot} />
+            </>
+          ) : (
+            <Text style={[styles.messageText, assistant ? styles.assistantText : styles.userText]}>{message.text}</Text>
+          )}
         </View>
       </View>
-    );
-  }
-  return (
-    <View style={[styles.bubbleRow, assistant ? styles.assistantRow : styles.userRow]}>
-      <View style={[styles.bubble, assistant ? styles.assistantBubble : styles.userBubble, message.status === 'error' && styles.errorBubble]}>
-        <Text style={[styles.messageText, assistant ? styles.assistantText : styles.userText]}>{message.text}</Text>
-      </View>
+      {groupMode && mine ? avatar : null}
     </View>
   );
 }
@@ -600,6 +773,7 @@ const styles = StyleSheet.create({
   addLabel: { color: '#22211D', fontSize: 25, fontWeight: '300', marginTop: -2 },
   search: { height: 42, marginHorizontal: 12, borderRadius: 12, backgroundColor: '#E6E4DF', paddingHorizontal: 13, color: '#1F1E1A', fontSize: 14 },
   botList: { padding: 8, paddingTop: 11 },
+  sectionLabel: { color: '#8B877F', fontSize: 11, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', paddingHorizontal: 9, paddingTop: 9, paddingBottom: 5, backgroundColor: '#F2F1ED' },
   botRow: { flexDirection: 'row', alignItems: 'center', gap: 11, minHeight: 64, paddingHorizontal: 9, borderRadius: 13 },
   botRowSelected: { backgroundColor: '#E4F1EA' },
   botRowText: { flex: 1, minWidth: 0 },
@@ -640,9 +814,14 @@ const styles = StyleSheet.create({
   emptyTitle: { color: '#201F1B', fontSize: 22, fontWeight: '800', letterSpacing: -0.4, marginTop: 18 },
   emptyCopy: { color: '#827E76', fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 7, maxWidth: 340 },
   bubbleRow: { flexDirection: 'row', marginBottom: 8 },
+  groupBubbleRow: { alignItems: 'flex-end', gap: 7 },
   assistantRow: { justifyContent: 'flex-start' },
   userRow: { justifyContent: 'flex-end' },
-  bubble: { maxWidth: '84%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
+  bubbleColumn: { maxWidth: '84%', alignItems: 'flex-start' },
+  mineBubbleColumn: { alignItems: 'flex-end' },
+  authorName: { color: '#77736B', fontSize: 10, fontWeight: '600', marginBottom: 3, marginHorizontal: 6 },
+  authorNameMine: { color: '#007A3D' },
+  bubble: { maxWidth: '100%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
   assistantBubble: { backgroundColor: '#EFEFEC', borderTopLeftRadius: 6 },
   userBubble: { backgroundColor: '#007A3D', borderBottomRightRadius: 6 },
   errorBubble: { backgroundColor: '#F8E6E1' },
@@ -652,6 +831,11 @@ const styles = StyleSheet.create({
   typingBubble: { flexDirection: 'row', gap: 5, paddingHorizontal: 15, paddingVertical: 15 },
   typingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#8E8A82' },
   composerWrap: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6, backgroundColor: '#FBFBF9', alignItems: 'center' },
+  replyPicker: { width: '100%', maxWidth: 780, gap: 7, paddingBottom: 7 },
+  replyChip: { height: 32, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 16, paddingLeft: 5, paddingRight: 10, borderWidth: 1, borderColor: '#DEDAD2', backgroundColor: 'white' },
+  replyChipActive: { borderColor: '#7CAB90', backgroundColor: '#E6F2EB' },
+  replyChipText: { color: '#67635C', fontSize: 12, fontWeight: '600' },
+  replyChipTextActive: { color: '#006B35' },
   composer: { maxWidth: 780, width: '100%', minHeight: 51, maxHeight: 130, borderRadius: 20, borderWidth: 1, borderColor: '#DCD9D2', backgroundColor: 'white', flexDirection: 'row', alignItems: 'flex-end', paddingLeft: 14, paddingRight: 6, paddingVertical: 6 },
   composerInput: { flex: 1, minHeight: 38, maxHeight: 112, color: '#22211E', fontSize: 15, lineHeight: 20, paddingTop: 9, paddingBottom: 8 },
   micButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', marginRight: 2 },

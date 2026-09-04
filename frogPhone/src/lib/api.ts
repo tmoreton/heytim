@@ -5,12 +5,16 @@ import {
   demoBootstrap,
   demoGetSkill,
   demoImportSkill,
+  demoJoinGroup,
   demoMessages,
+  demoGroupMessages,
+  demoSaveGroup,
   demoSaveBot,
   demoSaveSkill,
   demoSend,
+  demoSendGroup,
 } from './demo';
-import type { Bootstrap, Bot, BotDraft, Message, SkillDetail, SkillDraft } from './types';
+import type { Bootstrap, Bot, BotDraft, Group, GroupDraft, Message, SkillDetail, SkillDraft } from './types';
 
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const session = await fetchAuthSession();
@@ -46,6 +50,36 @@ export const createApi = (demo: boolean) => ({
   sendMessage: async (bot: Bot, text: string): Promise<void> => {
     if (demo) return demoSend(bot, text);
     await request(`/bots/${bot.id}/messages`, { method: 'POST', body: JSON.stringify({ text }) });
+  },
+  groupMessages: async (groupId: string): Promise<Message[]> =>
+    demo
+      ? demoGroupMessages(groupId)
+      : request<{ messages: Message[] }>(`/groups/${groupId}/messages`).then((value) => value.messages),
+  saveGroup: async (draft: GroupDraft, groupId?: string): Promise<Group> =>
+    demo
+      ? demoSaveGroup(draft, groupId)
+      : request<Group>(groupId ? `/groups/${groupId}` : '/groups', {
+          method: groupId ? 'PUT' : 'POST',
+          body: JSON.stringify(draft),
+        }),
+  sendGroupMessage: async (groupId: string, text: string, replyBotId?: string): Promise<void> => {
+    if (demo) return demoSendGroup(groupId, text, replyBotId);
+    await request(`/groups/${groupId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ text, replyBotId }),
+    });
+  },
+  shareGroup: async (groupId: string): Promise<string> => {
+    if (demo) return `frogbot://group/demo-${groupId}`;
+    return request<{ url: string }>(`/groups/${groupId}/invites`, { method: 'POST' }).then((value) => value.url);
+  },
+  joinGroup: async (token: string): Promise<Group> => {
+    if (demo) return demoJoinGroup(token);
+    return request<Group>(`/group-invites/${encodeURIComponent(token)}/join`, { method: 'POST' });
+  },
+  removeGroupMember: async (groupId: string, memberId: string): Promise<void> => {
+    if (demo) return;
+    await request(`/groups/${groupId}/members/${encodeURIComponent(memberId)}`, { method: 'DELETE' });
   },
   registerPushToken: async (token: string): Promise<void> => {
     if (demo) return;

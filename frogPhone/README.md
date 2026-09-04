@@ -1,8 +1,11 @@
 # FrogBot mobile app
 
 This Expo SDK 57 app is the iOS-first FrogBot client. It includes a responsive local preview and an
-Amplify Gen 2 backend for native Cognito email OTP authentication, persisted chats, bot configuration, sharing,
+Amplify Gen 2 backend for native Cognito email OTP authentication, persisted direct and group chats, bot configuration, sharing,
 and push notifications when an agent reply is ready. On Apple devices, the composer also supports on-device dictation.
+
+Groups can include several people and several FrogBots. Invite links grant access to the live room, each message shows
+whether it came from a person or a bot, and the sender explicitly chooses one bot to reply or keeps a message human-only.
 
 ## Run the interface locally
 

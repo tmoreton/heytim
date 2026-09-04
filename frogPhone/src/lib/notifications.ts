@@ -38,23 +38,28 @@ export async function registerForReplyNotifications(): Promise<string | null> {
   return (await Notifications.getExpoPushTokenAsync({ projectId })).data;
 }
 
-function botIdFromResponse(response: Notifications.NotificationResponse | null): string | null {
+type NotificationTarget = { botId?: string; groupId?: string };
+
+function targetFromResponse(response: Notifications.NotificationResponse | null): NotificationTarget | null {
   const botId = response?.notification.request.content.data?.botId;
-  return typeof botId === 'string' && botId ? botId : null;
+  const groupId = response?.notification.request.content.data?.groupId;
+  if (typeof groupId === 'string' && groupId) return { groupId };
+  if (typeof botId === 'string' && botId) return { botId };
+  return null;
 }
 
-export async function consumeInitialNotificationBotId(): Promise<string | null> {
+export async function consumeInitialNotificationTarget(): Promise<NotificationTarget | null> {
   if (Platform.OS === 'web') return null;
   const response = await Notifications.getLastNotificationResponseAsync();
-  const botId = botIdFromResponse(response);
-  if (botId) await Notifications.clearLastNotificationResponseAsync();
-  return botId;
+  const target = targetFromResponse(response);
+  if (target) await Notifications.clearLastNotificationResponseAsync();
+  return target;
 }
 
-export function subscribeToNotificationReplies(onBotSelected: (botId: string) => void) {
+export function subscribeToNotificationReplies(onConversationSelected: (target: NotificationTarget) => void) {
   if (Platform.OS === 'web') return { remove: () => undefined };
   return Notifications.addNotificationResponseReceivedListener((response) => {
-    const botId = botIdFromResponse(response);
-    if (botId) onBotSelected(botId);
+    const target = targetFromResponse(response);
+    if (target) onConversationSelected(target);
   });
 }
