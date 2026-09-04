@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import ast
 import operator
+import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -9,6 +11,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from strands import tool
+from strands.tools.mcp.mcp_client import MCPClient
+from strands.vended_plugins.skills import AgentSkills, Skill
 from strands_stan import harness_agent
 
 from model.load import load_model
@@ -19,7 +23,11 @@ log = app.logger
 MAX_HISTORY_MESSAGES = 40
 MAX_MESSAGE_CHARS = 12_000
 MAX_INSTRUCTIONS_CHARS = 12_000
+MAX_SKILL_INSTRUCTIONS_CHARS = 20_000
+MAX_SKILLS = 12
 SKILL_ROOT = Path(__file__).parent / "skill_catalog"
+GATEWAY_URL = os.environ.get("FROGBOT_GATEWAY_URL") or os.environ.get("AGENTCORE_GATEWAY_FROGBOTTOOLS_URL", "")
+AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 _BINARY_OPERATORS = {
     ast.Add: operator.add,
@@ -75,6 +83,11 @@ CUSTOM_TOOLS = {
     "current_time": current_time,
 }
 BUILTIN_TOOLS = {"web": "web_fetch"}
+GATEWAY_TOOL_PATTERNS = {
+    "web_search": r".*___WebSearch$",
+    "x_search": r".*___x_search_recent$",
+    "youtube_search": r".*___youtube_(search|video_details|comments)$",
+}
 SKILLS = {
     "researcher": SKILL_ROOT / "researcher",
     "writer": SKILL_ROOT / "writer",
@@ -138,7 +151,68 @@ def _messages_from_payload(payload: dict) -> list[dict]:
     return messages
 
 
-def _bot_config(payload: dict) -> tuple[str, list[Any], list[str], list[str]]:
+def _dynamic_skills(bot: dict) -> list[Skill]:
+    raw_skills = bot.get("skills")
+    if raw_skills is None:
+        return []
+    if not isinstance(raw_skills, list) or len(raw_skills) > MAX_SKILLS:
+        raise ValueError(f"bot.skills must be a list with at most {MAX_SKILLS} items")
+
+    skills = []
+    seen = set()
+    for raw in raw_skills:
+        if not isinstance(raw, dict):
+            raise ValueError("each bot skill must be an object")
+        skill_id = raw.get("id")
+        name = raw.get("name")
+        description = raw.get("description")
+        instructions = raw.get("instructions")
+        if not isinstance(skill_id, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", skill_id):
+            raise ValueError("bot skill id is invalid")
+        if skill_id in seen:
+            raise ValueError(f"bot skill id is duplicated: {skill_id}")
+        if not isinstance(name, str) or not name.strip() or len(name) > 80:
+            raise ValueError(f"bot skill name is invalid: {skill_id}")
+        if not isinstance(description, str) or not description.strip() or len(description) > 240:
+            raise ValueError(f"bot skill description is invalid: {skill_id}")
+        if not isinstance(instructions, str) or not instructions.strip() or len(instructions) > MAX_SKILL_INSTRUCTIONS_CHARS:
+            raise ValueError(f"bot skill instructions are invalid: {skill_id}")
+        seen.add(skill_id)
+        skills.append(
+            Skill(
+                name=skill_id,
+                description=description.strip(),
+                instructions=instructions.strip(),
+                metadata={"display_name": name.strip(), "version": int(raw.get("version", 1))},
+            )
+        )
+    return skills
+
+
+def _gateway_client(tool_ids: list[str]) -> MCPClient | None:
+    requested = [tool_id for tool_id in tool_ids if tool_id in GATEWAY_TOOL_PATTERNS]
+    if not requested:
+        return None
+    if not GATEWAY_URL:
+        raise ValueError("One or more selected tools are not configured")
+
+    from mcp_proxy_for_aws.client import aws_iam_streamablehttp_client
+
+    allowed = [re.compile(GATEWAY_TOOL_PATTERNS[tool_id]) for tool_id in requested]
+    return MCPClient(
+        lambda: aws_iam_streamablehttp_client(
+            endpoint=GATEWAY_URL,
+            aws_region=AWS_REGION,
+            aws_service="bedrock-agentcore",
+        ),
+        tool_filters={"allowed": allowed},
+        continue_on_error=False,
+        startup_timeout=15,
+        application_name="FrogBot",
+    )
+
+
+def _bot_config(payload: dict) -> tuple[str, list[Any], list[str], list[Any], list[str]]:
     bot = payload.get("bot", {})
     if not isinstance(bot, dict):
         raise ValueError("bot must be an object")
@@ -156,8 +230,9 @@ def _bot_config(payload: dict) -> tuple[str, list[Any], list[str], list[str]]:
     if not isinstance(skill_ids, list) or not all(isinstance(value, str) for value in skill_ids):
         raise ValueError("bot.skillIds must be a list of strings")
 
-    unknown_tools = set(tool_ids) - set(CUSTOM_TOOLS) - set(BUILTIN_TOOLS)
-    unknown_skills = set(skill_ids) - set(SKILLS)
+    unknown_tools = set(tool_ids) - set(CUSTOM_TOOLS) - set(BUILTIN_TOOLS) - set(GATEWAY_TOOL_PATTERNS)
+    dynamic_skills = _dynamic_skills(bot)
+    unknown_skills = set() if bot.get("skills") is not None else set(skill_ids) - set(SKILLS)
     if unknown_tools:
         raise ValueError(f"Unknown tool ids: {', '.join(sorted(unknown_tools))}")
     if unknown_skills:
@@ -168,15 +243,23 @@ def _bot_config(payload: dict) -> tuple[str, list[Any], list[str], list[str]]:
         f"Your role and working preferences:\n{instructions.strip()}"
     )
     tools = [CUSTOM_TOOLS[tool_id] for tool_id in tool_ids if tool_id in CUSTOM_TOOLS]
+    gateway_client = _gateway_client(tool_ids)
+    if gateway_client:
+        tools.append(gateway_client)
     builtin_tools = [BUILTIN_TOOLS[tool_id] for tool_id in tool_ids if tool_id in BUILTIN_TOOLS]
-    skill_paths = [str(SKILLS[skill_id]) for skill_id in skill_ids]
-    return domain_instructions, tools, builtin_tools, skill_paths
+    if dynamic_skills:
+        plugins = [AgentSkills(skills=dynamic_skills, strict=True)]
+        skill_paths = []
+    else:
+        plugins = []
+        skill_paths = [str(SKILLS[skill_id]) for skill_id in skill_ids]
+    return domain_instructions, tools, builtin_tools, plugins, skill_paths
 
 
 @app.entrypoint
 async def invoke(payload, context):
     messages = _messages_from_payload(payload)
-    instructions, tools, builtin_tools, skill_paths = _bot_config(payload)
+    instructions, tools, builtin_tools, plugins, skill_paths = _bot_config(payload)
     session_id = getattr(context, "session_id", "unknown")
     log.info("Invoking FrogBot session %s with %d history messages", session_id, len(messages))
 
@@ -187,6 +270,7 @@ async def invoke(payload, context):
         instructions=instructions,
         tools=tools,
         builtin_tools=builtin_tools,
+        plugins=plugins,
         builtin_plugins=[],
         builtin_subagents=[],
         skills_dir=skill_paths or None,

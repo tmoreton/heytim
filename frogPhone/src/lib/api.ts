@@ -1,8 +1,16 @@
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 import { apiUrl } from './cloud';
-import { demoBootstrap, demoMessages, demoSaveBot, demoSend } from './demo';
-import type { Bootstrap, Bot, BotDraft, Message } from './types';
+import {
+  demoBootstrap,
+  demoGetSkill,
+  demoImportSkill,
+  demoMessages,
+  demoSaveBot,
+  demoSaveSkill,
+  demoSend,
+} from './demo';
+import type { Bootstrap, Bot, BotDraft, Message, SkillDetail, SkillDraft } from './types';
 
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const session = await fetchAuthSession();
@@ -57,5 +65,24 @@ export const createApi = (demo: boolean) => ({
   importShare: async (token: string): Promise<Bot> => {
     if (demo) return demoBootstrap().bots[0];
     return request<Bot>(`/shares/${encodeURIComponent(token)}/import`, { method: 'POST' });
+  },
+  skill: async (skillId: string): Promise<SkillDetail> =>
+    demo ? demoGetSkill(skillId) : request<SkillDetail>(`/skills/${encodeURIComponent(skillId)}`),
+  saveSkill: async (draft: SkillDraft, skillId?: string): Promise<SkillDetail> =>
+    demo
+      ? demoSaveSkill(draft, skillId)
+      : request<SkillDetail>(skillId ? `/skills/${encodeURIComponent(skillId)}` : '/skills', {
+          method: skillId ? 'PUT' : 'POST',
+          body: JSON.stringify(draft),
+        }),
+  shareSkill: async (skillId: string): Promise<string> => {
+    if (demo) return `frogbot://skill/demo-${skillId}`;
+    return request<{ url: string }>(`/skills/${encodeURIComponent(skillId)}/share`, { method: 'POST' }).then(
+      (value) => value.url,
+    );
+  },
+  importSkill: async (token: string): Promise<SkillDetail> => {
+    if (demo) return demoImportSkill(token);
+    return request<SkillDetail>(`/skill-shares/${encodeURIComponent(token)}/import`, { method: 'POST' });
   },
 });

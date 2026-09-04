@@ -12,6 +12,8 @@ from typing import Any
 
 import boto3
 
+from shared.catalog import CatalogError, CatalogService
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -21,19 +23,7 @@ SHARE_BASE_URL = os.environ.get("SHARE_BASE_URL", "frogbot://share")
 
 table = boto3.resource("dynamodb").Table(TABLE_NAME)
 sqs = boto3.client("sqs")
-
-TOOL_CATALOG = [
-    {"id": "web", "name": "Web reader", "description": "Open and summarize links."},
-    {"id": "calculator", "name": "Calculator", "description": "Do exact arithmetic."},
-    {"id": "current_time", "name": "World clock", "description": "Check time by timezone."},
-]
-SKILL_CATALOG = [
-    {"id": "researcher", "name": "Researcher", "description": "Investigate and synthesize evidence."},
-    {"id": "writer", "name": "Writer", "description": "Draft polished, audience-aware copy."},
-    {"id": "planner", "name": "Planner", "description": "Turn goals into practical next steps."},
-]
-ALLOWED_TOOL_IDS = {item["id"] for item in TOOL_CATALOG}
-ALLOWED_SKILL_IDS = {item["id"] for item in SKILL_CATALOG}
+catalog = CatalogService(table)
 ALLOWED_COLORS = {"#58BEAA", "#FFAA34", "#6C5CE7", "#3984F6", "#F46A27", "#E95383"}
 
 DEFAULT_BOTS = [
@@ -150,16 +140,6 @@ def _validate_string(value: Any, field: str, maximum: int, *, required: bool = T
     return clean
 
 
-def _validate_ids(value: Any, field: str, allowed: set[str]) -> list[str]:
-    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        raise ApiError(400, f"{field} must be a list")
-    unique = list(dict.fromkeys(value))
-    unknown = set(unique) - allowed
-    if unknown:
-        raise ApiError(400, f"Unknown {field}: {', '.join(sorted(unknown))}")
-    return unique
-
-
 def _validate_push_token(value: Any) -> str:
     token = _validate_string(value, "token", 256)
     valid_prefix = token.startswith("ExpoPushToken[") or token.startswith("ExponentPushToken[")
@@ -171,18 +151,32 @@ def _validate_push_token(value: Any) -> str:
     return token
 
 
-def _bot_values(value: dict, previous: dict | None = None) -> dict:
+def _bot_values(user_id: str, value: dict, previous: dict | None = None) -> dict:
     previous = previous or {}
+    catalog.sync_official()
     color = value.get("color", previous.get("color", "#58BEAA"))
     if color not in ALLOWED_COLORS:
         raise ApiError(400, "Choose one of the available bot colors")
+    try:
+        skill_ids = value.get("skillIds", previous.get("skillIds", []))
+        skill_versions = catalog.validate_and_pin(user_id, skill_ids, previous.get("skillVersions"))
+        tool_ids = catalog.validate_tools(value.get("toolIds", previous.get("toolIds", [])))
+        required_tools = []
+        for skill_id, version in skill_versions.items():
+            skill = catalog.get_version(skill_id, version)
+            if skill:
+                required_tools.extend(skill.get("requiredToolIds", []))
+        tool_ids = catalog.validate_tools([*tool_ids, *required_tools])
+    except CatalogError as exc:
+        raise ApiError(400, str(exc)) from exc
     return {
         "name": _validate_string(value.get("name", previous.get("name", "")), "name", 48),
         "tagline": _validate_string(value.get("tagline", previous.get("tagline", "")), "tagline", 120, required=False),
         "prompt": _validate_string(value.get("prompt", previous.get("prompt", "")), "prompt", 12_000),
         "color": color,
-        "toolIds": _validate_ids(value.get("toolIds", previous.get("toolIds", [])), "toolIds", ALLOWED_TOOL_IDS),
-        "skillIds": _validate_ids(value.get("skillIds", previous.get("skillIds", [])), "skillIds", ALLOWED_SKILL_IDS),
+        "toolIds": tool_ids,
+        "skillIds": list(skill_versions),
+        "skillVersions": skill_versions,
     }
 
 
@@ -205,7 +199,10 @@ def _put_bot(user_id: str, values: dict, bot_id: str | None = None) -> dict:
         "updatedAt": current,
         "lastMessage": values.get("lastMessage", "Ready when you are."),
         "lastMessageAt": values.get("lastMessageAt", current),
-        **{key: values[key] for key in ("name", "tagline", "prompt", "color", "toolIds", "skillIds")},
+        **{
+            key: values[key]
+            for key in ("name", "tagline", "prompt", "color", "toolIds", "skillIds", "skillVersions")
+        },
     }
     table.put_item(Item=item)
     return _public_bot(item)
@@ -267,17 +264,35 @@ def _messages_from_turns(turns: list[dict]) -> list[dict]:
 def _bootstrap(user_id: str) -> dict:
     bots = _list_bots(user_id)
     if not bots:
-        bots = [_put_bot(user_id, _bot_values(seed)) for seed in DEFAULT_BOTS]
-    return {"bots": bots, "tools": TOOL_CATALOG, "skills": SKILL_CATALOG}
+        bots = [_put_bot(user_id, _bot_values(user_id, seed)) for seed in DEFAULT_BOTS]
+    else:
+        migrated = []
+        for bot in bots:
+            if isinstance(bot.get("skillVersions"), dict):
+                migrated.append(bot)
+                continue
+            values = _bot_values(user_id, bot, bot)
+            table.update_item(
+                Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot["id"])},
+                UpdateExpression="SET skillVersions = :versions, skillIds = :skills, toolIds = :tools",
+                ExpressionAttributeValues={
+                    ":versions": values["skillVersions"],
+                    ":skills": values["skillIds"],
+                    ":tools": values["toolIds"],
+                },
+            )
+            migrated.append({**bot, **{key: values[key] for key in ("skillVersions", "skillIds", "toolIds")}})
+        bots = migrated
+    return {"bots": bots, "tools": catalog.list_tools(), "skills": catalog.list_skills(user_id)}
 
 
 def _create_bot(user_id: str, value: dict) -> dict:
-    return _put_bot(user_id, _bot_values(value))
+    return _put_bot(user_id, _bot_values(user_id, value))
 
 
 def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:
     previous = _get_bot(user_id, bot_id)
-    values = _bot_values(value, previous)
+    values = _bot_values(user_id, value, previous)
     values.update(
         {
             "createdAt": previous["createdAt"],
@@ -383,7 +398,28 @@ def _create_share(user_id: str, value: dict) -> dict:
     if scope not in {"bot", "chat"}:
         raise ApiError(400, "scope must be bot or chat")
     bot = _public_bot(_get_bot(user_id, bot_id))
-    snapshot: dict[str, Any] = {"bot": bot}
+    skill_snapshots = []
+    for skill_id, version in bot.get("skillVersions", {}).items():
+        skill = catalog.get_version(skill_id, int(version))
+        if skill:
+            skill_snapshots.append(
+                {
+                    key: skill[key]
+                    for key in (
+                        "id",
+                        "version",
+                        "name",
+                        "description",
+                        "requiredToolIds",
+                        "source",
+                        "visibility",
+                        "editable",
+                        "ownerId",
+                    )
+                    if key in skill
+                }
+            )
+    snapshot: dict[str, Any] = {"bot": bot, "skills": skill_snapshots}
     if scope == "chat":
         snapshot["turns"] = [
             {key: turn[key] for key in ("id", "userText", "assistantText", "createdAt", "completedAt", "status") if key in turn}
@@ -412,8 +448,13 @@ def _import_share(user_id: str, token: str) -> dict:
     share = table.get_item(Key={"pk": f"SHARE#{token}", "sk": "META"}, ConsistentRead=True).get("Item")
     if not share or int(share.get("expiresAt", 0)) < int(datetime.now(UTC).timestamp()):
         raise ApiError(404, "This share link is invalid or expired")
+    for skill in share["snapshot"].get("skills", []):
+        try:
+            catalog.install_snapshot(user_id, skill)
+        except CatalogError as exc:
+            raise ApiError(400, str(exc)) from exc
     source = share["snapshot"]["bot"]
-    values = _bot_values({**source, "name": f"{source['name'][:43]} copy"})
+    values = _bot_values(user_id, {**source, "name": f"{source['name'][:43]} copy"})
     bot = _put_bot(user_id, values)
     for source_turn in share["snapshot"].get("turns", []):
         current = source_turn.get("createdAt", _now())
@@ -434,6 +475,34 @@ def _import_share(user_id: str, token: str) -> dict:
             }
         )
     return bot
+
+
+def _get_skill(user_id: str, skill_id: str) -> dict:
+    try:
+        return catalog.get_skill(user_id, skill_id)
+    except CatalogError as exc:
+        raise ApiError(404, str(exc)) from exc
+
+
+def _save_skill(user_id: str, value: dict, skill_id: str | None = None) -> dict:
+    try:
+        return catalog.save_skill(user_id, value, skill_id)
+    except CatalogError as exc:
+        raise ApiError(400, str(exc)) from exc
+
+
+def _share_skill(user_id: str, skill_id: str) -> dict:
+    try:
+        return catalog.create_share(user_id, skill_id)
+    except CatalogError as exc:
+        raise ApiError(400, str(exc)) from exc
+
+
+def _import_skill(user_id: str, token: str) -> dict:
+    try:
+        return catalog.import_share(user_id, token)
+    except CatalogError as exc:
+        raise ApiError(404, str(exc)) from exc
 
 
 def handler(event: dict, _context: Any) -> dict:
@@ -463,6 +532,16 @@ def handler(event: dict, _context: Any) -> dict:
             return _response(201, _create_share(user_id, _body(event)))
         if method == "POST" and path.startswith("/shares/") and path.endswith("/import"):
             return _response(201, _import_share(user_id, params.get("token", "")))
+        if method == "POST" and path == "/skills":
+            return _response(201, _save_skill(user_id, _body(event)))
+        if method == "GET" and path.startswith("/skills/"):
+            return _response(200, _get_skill(user_id, params.get("skillId", "")))
+        if method == "PUT" and path.startswith("/skills/") and not path.endswith("/share"):
+            return _response(200, _save_skill(user_id, _body(event), params.get("skillId", "")))
+        if method == "POST" and path.startswith("/skills/") and path.endswith("/share"):
+            return _response(201, _share_skill(user_id, params.get("skillId", "")))
+        if method == "POST" and path.startswith("/skill-shares/") and path.endswith("/import"):
+            return _response(201, _import_skill(user_id, params.get("token", "")))
         raise ApiError(404, "Route not found")
     except ApiError as exc:
         return _response(exc.status_code, {"message": exc.message})

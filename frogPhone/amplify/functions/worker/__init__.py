@@ -1,0 +1,1 @@
+"""FrogBot worker Lambda package."""

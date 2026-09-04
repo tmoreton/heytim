@@ -79,26 +79,33 @@ const functionDefaults = {
 
 const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
   ...functionDefaults,
-  handler: 'handler.handler',
-  code: Code.fromAsset(path.resolve('amplify/functions/api')),
+  handler: 'api.handler.handler',
+  code: Code.fromAsset(path.resolve('amplify/functions')),
   timeout: Duration.seconds(15),
   environment: {
     ...functionDefaults.environment,
     QUEUE_URL: jobs.queueUrl,
     SHARE_BASE_URL: 'frogbot://share',
+    SKILL_SHARE_BASE_URL: 'frogbot://skill',
+    CAPABILITY_CATALOG_URL:
+      'https://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json',
+    AVAILABLE_TOOL_IDS: 'web,web_search,calculator,current_time',
   },
 });
 
 const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
   ...functionDefaults,
-  handler: 'handler.handler',
-  code: Code.fromAsset(path.resolve('amplify/functions/worker')),
+  handler: 'worker.handler.handler',
+  code: Code.fromAsset(path.resolve('amplify/functions')),
   timeout: Duration.minutes(4),
   environment: {
     ...functionDefaults.environment,
     AGENT_RUNTIME_ARN: runtimeArn,
     AGENT_RUNTIME_QUALIFIER: process.env.FROGBOT_AGENT_RUNTIME_QUALIFIER ?? 'DEFAULT',
     QUEUE_URL: jobs.queueUrl,
+    CAPABILITY_CATALOG_URL:
+      'https://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json',
+    AVAILABLE_TOOL_IDS: 'web,web_search,calculator,current_time',
   },
 });
 
@@ -150,6 +157,11 @@ for (const [method, routePath] of [
   [HttpMethod.DELETE, '/devices/push-token'],
   [HttpMethod.POST, '/shares'],
   [HttpMethod.POST, '/shares/{token}/import'],
+  [HttpMethod.POST, '/skills'],
+  [HttpMethod.GET, '/skills/{skillId}'],
+  [HttpMethod.PUT, '/skills/{skillId}'],
+  [HttpMethod.POST, '/skills/{skillId}/share'],
+  [HttpMethod.POST, '/skill-shares/{token}/import'],
 ] as const) {
   httpApi.addRoutes({ path: routePath, methods: [method], integration, authorizer });
 }

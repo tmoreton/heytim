@@ -1,4 +1,4 @@
-import type { Bootstrap, Bot, BotDraft, Message } from './types';
+import type { Bootstrap, Bot, BotDraft, Message, SkillDetail, SkillDraft } from './types';
 
 const timestamp = new Date().toISOString();
 
@@ -41,6 +41,42 @@ let bots: Bot[] = [
     updatedAt: timestamp,
     lastMessage: 'The launch note is tightened and ready to send.',
     lastMessageAt: timestamp,
+  },
+];
+
+let skills: SkillDetail[] = [
+  {
+    id: 'planner',
+    version: 1,
+    name: 'Planner',
+    description: 'Turn goals into practical next steps.',
+    instructions: 'Turn a goal into a concise, ordered plan with assumptions, risks, and a next action.',
+    requiredToolIds: [],
+    source: 'official',
+    visibility: 'public',
+    editable: false,
+  },
+  {
+    id: 'researcher',
+    version: 1,
+    name: 'Researcher',
+    description: 'Investigate questions and synthesize evidence.',
+    instructions: 'Research using reliable sources, separate facts from inference, and explain uncertainty.',
+    requiredToolIds: ['web', 'web_search'],
+    source: 'official',
+    visibility: 'public',
+    editable: false,
+  },
+  {
+    id: 'writer',
+    version: 1,
+    name: 'Writer',
+    description: 'Draft polished, audience-aware copy.',
+    instructions: 'Create usable writing that preserves supplied facts and matches the requested voice.',
+    requiredToolIds: [],
+    source: 'official',
+    visibility: 'public',
+    editable: false,
   },
 ];
 
@@ -87,14 +123,11 @@ export const demoBootstrap = (): Bootstrap => ({
   bots: [...bots],
   tools: [
     { id: 'web', name: 'Web reader', description: 'Open and summarize links.' },
+    { id: 'web_search', name: 'Web search', description: 'Search the live web and return relevant sources.' },
     { id: 'calculator', name: 'Calculator', description: 'Do exact arithmetic.' },
     { id: 'current_time', name: 'World clock', description: 'Check time by timezone.' },
   ],
-  skills: [
-    { id: 'researcher', name: 'Researcher', description: 'Investigate and synthesize evidence.' },
-    { id: 'writer', name: 'Writer', description: 'Draft polished, audience-aware copy.' },
-    { id: 'planner', name: 'Planner', description: 'Turn goals into practical next steps.' },
-  ],
+  skills: skills.map(({ instructions: _instructions, ...skill }) => skill),
 });
 
 export const demoMessages = (botId: string): Message[] => [...(messages.get(botId) ?? [])];
@@ -140,3 +173,27 @@ export const demoSend = (bot: Bot, text: string): void => {
     );
   }, 900);
 };
+
+export const demoGetSkill = async (skillId: string): Promise<SkillDetail> => {
+  const skill = skills.find((item) => item.id === skillId);
+  if (!skill) throw new Error('Skill not found.');
+  return { ...skill };
+};
+
+export const demoSaveSkill = async (draft: SkillDraft, skillId?: string): Promise<SkillDetail> => {
+  const existing = skills.find((item) => item.id === skillId);
+  if (skillId && (!existing || !existing.editable)) throw new Error('Only your own skills can be edited.');
+  const saved: SkillDetail = {
+    ...draft,
+    id: existing?.id ?? `skill-${Date.now()}`,
+    version: (existing?.version ?? 0) + 1,
+    source: 'user',
+    editable: true,
+    relationship: 'owner',
+    updatedAt: new Date().toISOString(),
+  };
+  skills = existing ? skills.map((item) => (item.id === saved.id ? saved : item)) : [...skills, saved];
+  return saved;
+};
+
+export const demoImportSkill = async (_token: string): Promise<SkillDetail> => ({ ...skills[0] });

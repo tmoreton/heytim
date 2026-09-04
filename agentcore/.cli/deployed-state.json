@@ -9,8 +9,22 @@
             "roleArn": "arn:aws:iam::188757775631:role/AgentCore-FrogBot-develop-ApplicationAgentFrogBotRu-LxB9yUG7ijl3"
           }
         },
+        "mcp": {
+          "gateways": {
+            "FrogBotTools": {
+              "gatewayId": "frogbot-frogbottools-qlc9hgypul",
+              "gatewayArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:gateway/frogbot-frogbottools-qlc9hgypul",
+              "gatewayUrl": "https://frogbot-frogbottools-qlc9hgypul.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp",
+              "targets": {
+                "FrogBotWebSearch": {
+                  "targetId": "PEYLQXRA9M"
+                }
+              }
+            }
+          }
+        },
         "stackName": "AgentCore-FrogBot-development",
-        "deployHash": "028be379aa554f57"
+        "deployHash": "3861e143cd6af827"
       }
     }
   }

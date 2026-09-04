@@ -11,6 +11,8 @@ from typing import Any
 import boto3
 from botocore.config import Config
 
+from shared.catalog import CatalogService
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -23,6 +25,7 @@ EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts"
 
 table = boto3.resource("dynamodb").Table(TABLE_NAME)
+catalog = CatalogService(table)
 agentcore = boto3.client(
     "bedrock-agentcore",
     config=Config(
@@ -111,13 +114,27 @@ def _read_agent_text(response: dict) -> str:
 
 def _invoke(user_id: str, bot_id: str, bot: dict) -> str:
     session_id = hashlib.sha256(f"{user_id}:{bot_id}".encode()).hexdigest()
+    skill_versions = bot.get("skillVersions")
+    if not isinstance(skill_versions, dict):
+        catalog.sync_official()
+        skill_versions = catalog.validate_and_pin(user_id, bot.get("skillIds", []))
+        table.update_item(
+            Key=_bot_key(user_id, bot_id),
+            UpdateExpression="SET skillVersions = :versions",
+            ExpressionAttributeValues={":versions": skill_versions},
+        )
+    resolved_skills = catalog.resolve_for_runtime(skill_versions)
+    tool_ids = list(dict.fromkeys(bot.get("toolIds", [])))
+    for skill in resolved_skills:
+        tool_ids.extend(tool_id for tool_id in skill.get("requiredToolIds", []) if tool_id not in tool_ids)
     payload = {
         "messages": _get_history(user_id, bot_id),
         "bot": {
             "name": bot["name"],
             "prompt": bot["prompt"],
-            "toolIds": bot.get("toolIds", []),
+            "toolIds": tool_ids,
             "skillIds": bot.get("skillIds", []),
+            "skills": resolved_skills,
         },
     }
     response = agentcore.invoke_agent_runtime(

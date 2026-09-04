@@ -28,6 +28,7 @@ import {
 import type { Bootstrap, Bot, BotDraft, Message } from '@/lib/types';
 
 import { BotEditor } from './bot-editor';
+import { SkillLibrary } from './skill-library';
 
 type Props = {
   demo: boolean;
@@ -63,6 +64,7 @@ export function ChatApp({ demo, onSignedOut }: Props) {
   const [listening, setListening] = useState(false);
   const [error, setError] = useState('');
   const [editor, setEditor] = useState<'new' | 'edit' | undefined>();
+  const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
 
   const selected = data?.bots.find((bot) => bot.id === selectedId);
   const pending = messages.some((message) => message.status === 'pending');
@@ -168,21 +170,56 @@ export function ChatApp({ demo, onSignedOut }: Props) {
     async (url: string | null) => {
       if (!url) return;
       let token = '';
+      let kind: 'bot' | 'skill' = 'bot';
       try {
         const parsed = new URL(url);
-        token = parsed.hostname === 'share' ? parsed.pathname.replace(/^\//, '') : parsed.pathname.split('/share/')[1] ?? '';
+        if (parsed.hostname === 'skill' || parsed.pathname.includes('/skill/')) kind = 'skill';
+        token =
+          parsed.hostname === 'share' || parsed.hostname === 'skill'
+            ? parsed.pathname.replace(/^\//, '')
+            : parsed.pathname.split(kind === 'skill' ? '/skill/' : '/share/')[1] ?? '';
       } catch {
-        token = url.split('/share/')[1] ?? '';
+        kind = url.includes('/skill/') ? 'skill' : 'bot';
+        token = url.split(kind === 'skill' ? '/skill/' : '/share/')[1] ?? '';
       }
       token = token.split(/[?#]/)[0];
-      if (!token || importedTokens.current.has(token)) return;
-      importedTokens.current.add(token);
+      const importKey = `${kind}:${token}`;
+      if (!token || importedTokens.current.has(importKey)) return;
+      importedTokens.current.add(importKey);
+      if (kind === 'skill') {
+        Alert.alert(
+          'Install shared skill?',
+          'Skills change how your bots work. Only install skills from people you trust.',
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => importedTokens.current.delete(importKey),
+            },
+            {
+              text: 'Install',
+              onPress: async () => {
+                try {
+                  const skill = await api.importSkill(token);
+                  await loadBootstrap();
+                  Alert.alert('Skill added', `${skill.name} is now in your library.`);
+                } catch (value) {
+                  importedTokens.current.delete(importKey);
+                  Alert.alert('Could not open share', value instanceof Error ? value.message : 'The link may have expired.');
+                }
+              },
+            },
+          ],
+        );
+        return;
+      }
       try {
         const bot = await api.importShare(token);
         await loadBootstrap();
         setSelectedId(bot.id);
         Alert.alert('Bot added', `${bot.name} is now on your team.`);
       } catch (value) {
+        importedTokens.current.delete(importKey);
         Alert.alert('Could not open share', value instanceof Error ? value.message : 'The link may have expired.');
       }
     },
@@ -347,15 +384,32 @@ export function ChatApp({ demo, onSignedOut }: Props) {
           </Pressable>
         )}
       />
-      <View style={styles.drawerBottom}>
-        <View style={styles.profileDot} />
-        <View style={styles.profileText}>
-          <Text style={styles.profileTitle}>{demo ? 'Preview mode' : 'Your account'}</Text>
-          <Text style={styles.profileSubtitle}>{demo ? 'Local sample data' : 'Email code sign-in'}</Text>
-        </View>
-        <Pressable hitSlop={12} onPress={signOut}>
-          <Text style={styles.signOut}>Log out</Text>
+      <View style={styles.drawerFooter}>
+        <Pressable
+          style={({ pressed }) => [styles.libraryButton, pressed && styles.pressed]}
+          onPress={() => {
+            setSkillLibraryOpen(true);
+            if (!wide) setDrawerOpen(false);
+          }}>
+          <View style={styles.libraryMark}>
+            <Text style={styles.libraryMarkText}>S</Text>
+          </View>
+          <View style={styles.profileText}>
+            <Text style={styles.profileTitle}>Skill library</Text>
+            <Text style={styles.profileSubtitle}>Create and share ways of working</Text>
+          </View>
+          <Text style={styles.libraryChevron}>›</Text>
         </Pressable>
+        <View style={styles.drawerBottom}>
+          <View style={styles.profileDot} />
+          <View style={styles.profileText}>
+            <Text style={styles.profileTitle}>{demo ? 'Preview mode' : 'Your account'}</Text>
+            <Text style={styles.profileSubtitle}>{demo ? 'Local sample data' : 'Email code sign-in'}</Text>
+          </View>
+          <Pressable hitSlop={12} onPress={signOut}>
+            <Text style={styles.signOut}>Log out</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -486,6 +540,17 @@ export function ChatApp({ demo, onSignedOut }: Props) {
           onSave={saveBot}
         />
       ) : null}
+      {skillLibraryOpen ? (
+        <SkillLibrary
+          skills={data?.skills ?? []}
+          tools={data?.tools ?? []}
+          onClose={() => setSkillLibraryOpen(false)}
+          onLoad={api.skill}
+          onSave={api.saveSkill}
+          onShare={api.shareSkill}
+          onChanged={loadBootstrap}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -542,6 +607,11 @@ const styles = StyleSheet.create({
   botName: { flex: 1, color: '#26251F', fontSize: 15, fontWeight: '600' },
   botDate: { color: '#A09C94', fontSize: 11 },
   botPreview: { color: '#77736B', fontSize: 12, marginTop: 3 },
+  drawerFooter: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: '#D9D6CF' },
+  libraryButton: { minHeight: 62, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 10 },
+  libraryMark: { width: 30, height: 30, borderRadius: 10, backgroundColor: '#E0EDE6', alignItems: 'center', justifyContent: 'center' },
+  libraryMarkText: { color: '#007A3D', fontSize: 13, fontWeight: '900' },
+  libraryChevron: { color: '#969188', fontSize: 22, marginLeft: 2 },
   drawerBottom: { minHeight: 64, borderTopWidth: StyleSheet.hairlineWidth, borderColor: '#D9D6CF', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 10 },
   profileDot: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#007A3D' },
   profileText: { flex: 1 },

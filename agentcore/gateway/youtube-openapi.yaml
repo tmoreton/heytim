@@ -1,0 +1,174 @@
+openapi: 3.0.3
+info:
+  title: FrogBot YouTube Research
+  version: 1.0.0
+  description: Restricted read-only access to public YouTube search and metadata.
+servers:
+  - url: https://www.googleapis.com/youtube/v3
+security:
+  - youtubeApiKey: []
+paths:
+  /search:
+    get:
+      operationId: youtube_search
+      summary: Search YouTube
+      description: Find public YouTube videos matching a query.
+      parameters:
+        - name: part
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [snippet]
+            default: snippet
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [video]
+            default: video
+        - name: maxResults
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 5
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [relevance, date, viewCount, rating]
+            default: relevance
+        - name: publishedAfter
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: videoDuration
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [any, short, medium, long]
+        - name: relevanceLanguage
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 10
+        - name: safeSearch
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [moderate, strict]
+            default: moderate
+      responses:
+        '200':
+          description: Matching public videos.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '403':
+          description: YouTube quota or credential error.
+  /videos:
+    get:
+      operationId: youtube_video_details
+      summary: Get YouTube video details
+      description: Retrieve public metadata and statistics for up to ten video IDs.
+      parameters:
+        - name: part
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: ['snippet,contentDetails,statistics']
+            default: snippet,contentDetails,statistics
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+      responses:
+        '200':
+          description: Public video details.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '403':
+          description: YouTube quota or credential error.
+  /commentThreads:
+    get:
+      operationId: youtube_comments
+      summary: Get public comments for a YouTube video
+      description: Retrieve a small sample of public top-level comments for audience context.
+      parameters:
+        - name: part
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [snippet]
+            default: snippet
+        - name: videoId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: maxResults
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 10
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [relevance, time]
+            default: relevance
+        - name: textFormat
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [plainText]
+            default: plainText
+      responses:
+        '200':
+          description: Public comment threads.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '403':
+          description: Comments are disabled or the quota or credential is unavailable.
+components:
+  securitySchemes:
+    youtubeApiKey:
+      type: apiKey
+      in: query
+      name: key

@@ -29,7 +29,23 @@
   "credentials": [],
   "evaluators": [],
   "onlineEvalConfigs": [],
-  "agentCoreGateways": [],
+  "agentCoreGateways": [
+    {
+      "name": "FrogBotTools",
+      "protocolType": "MCP",
+      "description": "Read-only research tools available to FrogBot agents",
+      "targets": [
+        {
+          "name": "FrogBotWebSearch",
+          "targetType": "connector",
+          "connectorId": "web-search"
+        }
+      ],
+      "authorizerType": "AWS_IAM",
+      "enableSemanticSearch": true,
+      "exceptionLevel": "NONE"
+    }
+  ],
   "policyEngines": [],
   "configBundles": [],
   "abTests": [],
