@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.frogbot.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "Allow FrogBot to select photos you choose to share in a conversation."
       }
     },
     "android": {
