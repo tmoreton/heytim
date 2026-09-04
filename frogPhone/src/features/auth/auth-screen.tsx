@@ -14,14 +14,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { beginEmailCode, finishEmailCode, type EmailCodeSession } from '@/lib/auth';
+import type { Invitation, InvitePreview } from '@/lib/types';
 
 type Props = {
   cloudReady: boolean;
   onSignedIn: () => void;
   onDemo: () => void;
+  invitation?: Invitation;
+  invitePreview?: InvitePreview;
 };
 
-export function AuthScreen({ cloudReady, onSignedIn, onDemo }: Props) {
+export function AuthScreen({ cloudReady, onSignedIn, onDemo, invitation, invitePreview }: Props) {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [emailCodeSession, setEmailCodeSession] = useState<EmailCodeSession>();
@@ -37,7 +40,7 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo }: Props) {
     setBusy(true);
     setError('');
     try {
-      const result = await beginEmailCode(email);
+      const result = await beginEmailCode(email, invitation);
       setEmail(result.email);
       if (result.purpose === 'signedIn') {
         onSignedIn();
@@ -89,13 +92,38 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo }: Props) {
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.eyebrow}>{codeSent ? 'ONE LAST STEP' : 'PASSWORDLESS SIGN IN'}</Text>
-            <Text style={styles.cardTitle}>{codeSent ? 'Check your messages' : 'Welcome back'}</Text>
+            <Text style={styles.eyebrow}>
+              {codeSent ? 'ONE LAST STEP' : invitation ? "YOU'RE INVITED" : 'MEMBER SIGN IN'}
+            </Text>
+            <Text style={styles.cardTitle}>
+              {codeSent ? 'Check your messages' : invitePreview ? `Join ${invitePreview.title}` : 'Welcome back'}
+            </Text>
             <Text style={styles.cardCopy}>
               {codeSent
                 ? `We sent a ${expectedCodeLength}-digit code to ${email}.`
-                : 'Enter your email address. No password needed.'}
+                : invitation
+                  ? 'Use your email to accept this invitation. No password needed.'
+                  : 'Sign in with your email. New accounts need an invitation from a member.'}
             </Text>
+
+            {!codeSent && invitePreview ? (
+              <View style={styles.inviteSummary}>
+                <Image
+                  accessibilityIgnoresInvertColors
+                  resizeMode="contain"
+                  source={require('../../../assets/images/frogbot-foreground.png')}
+                  style={styles.inviteMark}
+                />
+                <View style={styles.inviteSummaryText}>
+                  <Text numberOfLines={1} style={styles.inviteTitle}>{invitePreview.title}</Text>
+                  <Text numberOfLines={1} style={styles.inviteMeta}>
+                    {invitePreview.kind === 'group'
+                      ? `${invitePreview.peopleCount ?? 1} people · ${invitePreview.bots.length} FrogBots`
+                      : invitePreview.description}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
 
             {codeSent ? (
               <View style={styles.fieldGroup}>
@@ -187,7 +215,9 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo }: Props) {
 
             <View style={styles.assurance}>
               <View style={styles.assuranceDot} />
-              <Text style={styles.assuranceText}>A private email code. Nothing to remember.</Text>
+              <Text style={styles.assuranceText}>
+                {invitation ? 'This invite unlocks your FrogBot account.' : 'Existing members can always sign back in.'}
+              </Text>
             </View>
           </View>
 
@@ -223,6 +253,11 @@ const styles = StyleSheet.create({
   eyebrow: { color: '#007A3D', fontSize: 11, fontWeight: '800', letterSpacing: 1.25, marginBottom: 9 },
   cardTitle: { fontSize: 25, fontWeight: '700', color: '#171714', letterSpacing: -0.65 },
   cardCopy: { fontSize: 15, color: '#77736B', lineHeight: 22, marginTop: 7, marginBottom: 22 },
+  inviteSummary: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: '#EAF5EF', borderWidth: 1, borderColor: '#C9E2D4', padding: 12, marginTop: -8, marginBottom: 20 },
+  inviteMark: { width: 38, height: 38, borderRadius: 12 },
+  inviteSummaryText: { flex: 1, minWidth: 0 },
+  inviteTitle: { color: '#154B31', fontSize: 14, fontWeight: '700' },
+  inviteMeta: { color: '#56806A', fontSize: 12, marginTop: 2 },
   fieldGroup: { gap: 9 },
   labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   fieldLabel: { color: '#37352F', fontSize: 13, fontWeight: '600' },

@@ -11,6 +11,8 @@ import {
   signUp,
 } from 'aws-amplify/auth';
 
+import type { Invitation } from './types';
+
 export type EmailCodeSession = {
   email: string;
   purpose: 'signIn' | 'signUp';
@@ -53,8 +55,27 @@ const beginSignIn = async (email: string): Promise<EmailCodeStart> => {
   throw new Error('Email code sign-in is not available for this account.');
 };
 
-export const beginEmailCode = async (rawEmail: string): Promise<EmailCodeStart> => {
+const invitationRequired = (): Error =>
+  new Error('FrogBot is invite-only right now. Open a link shared by a member to create your account.');
+
+export const beginEmailCode = async (
+  rawEmail: string,
+  invitation?: Invitation,
+): Promise<EmailCodeStart> => {
   const email = normalizeEmail(rawEmail);
+
+  if (!invitation) {
+    try {
+      return await beginSignIn(email);
+    } catch (value) {
+      if (hasErrorName(value, 'UserNotConfirmedException')) {
+        await resendSignUpCode({ username: email });
+        return { email, purpose: 'signUp' };
+      }
+      if (hasErrorName(value, 'UserNotFoundException')) throw invitationRequired();
+      throw value;
+    }
+  }
 
   try {
     const result = await signUp({
@@ -62,6 +83,10 @@ export const beginEmailCode = async (rawEmail: string): Promise<EmailCodeStart> 
       options: {
         userAttributes: { email },
         autoSignIn: { authFlowType: 'USER_AUTH' },
+        clientMetadata: {
+          inviteKind: invitation.kind,
+          inviteToken: invitation.token,
+        },
       },
     });
 
@@ -70,6 +95,9 @@ export const beginEmailCode = async (rawEmail: string): Promise<EmailCodeStart> 
     }
     return beginSignIn(email);
   } catch (value) {
+    if (hasErrorName(value, 'UserLambdaValidationException')) {
+      throw new Error('This invitation is no longer valid. Ask a friend for a fresh FrogBot link.');
+    }
     if (!hasErrorName(value, 'UsernameExistsException')) throw value;
   }
 

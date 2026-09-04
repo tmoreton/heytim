@@ -10,9 +10,10 @@ import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
 import path from 'node:path';
 
+import { preSignUp } from './auth/pre-sign-up/resource';
 import { auth, emailCodeMessage } from './auth/resource';
 
-const backend = defineBackend({ auth });
+const backend = defineBackend({ auth, preSignUp });
 const stack = backend.createStack('FrogBotApp');
 
 const runtimeArn = process.env.FROGBOT_AGENT_RUNTIME_ARN;
@@ -48,6 +49,16 @@ cfnUserPool.verificationMessageTemplate = {
   emailSubject: 'Your FrogBot verification code',
   emailMessage: emailCodeMessage('{####}'),
 };
+
+const inviteAccess = new Table(backend.auth.stack, 'InviteAccess', {
+  partitionKey: { name: 'tokenHash', type: AttributeType.STRING },
+  billingMode: BillingMode.PAY_PER_REQUEST,
+  pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
+  timeToLiveAttribute: 'expiresAt',
+  removalPolicy: RemovalPolicy.RETAIN,
+});
+backend.preSignUp.addEnvironment('INVITE_TABLE_NAME', inviteAccess.tableName);
+inviteAccess.grantReadData(backend.preSignUp.resources.lambda);
 
 const table = new Table(stack, 'Data', {
   partitionKey: { name: 'pk', type: AttributeType.STRING },
@@ -85,9 +96,8 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
   environment: {
     ...functionDefaults.environment,
     QUEUE_URL: jobs.queueUrl,
-    SHARE_BASE_URL: 'frogbot://share',
-    GROUP_SHARE_BASE_URL: 'frogbot://group',
-    SKILL_SHARE_BASE_URL: 'frogbot://skill',
+    INVITE_TABLE_NAME: inviteAccess.tableName,
+    PUBLIC_WEB_BASE_URL: 'https://frogbot.expo.app',
     CAPABILITY_CATALOG_URL:
       'https://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json',
   },
@@ -109,6 +119,7 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
 });
 
 table.grantReadWriteData(apiFunction);
+inviteAccess.grantReadWriteData(apiFunction);
 table.grantReadWriteData(workerFunction);
 jobs.grantSendMessages(apiFunction);
 jobs.grantSendMessages(workerFunction);
@@ -146,6 +157,12 @@ const authorizer = new HttpJwtAuthorizer(
 );
 const integration = new HttpLambdaIntegration('ApiIntegration', apiFunction);
 
+httpApi.addRoutes({
+  path: '/public/invites/{kind}/{token}',
+  methods: [HttpMethod.GET],
+  integration,
+});
+
 for (const [method, routePath] of [
   [HttpMethod.GET, '/bootstrap'],
   [HttpMethod.POST, '/bots'],
@@ -175,6 +192,6 @@ for (const [method, routePath] of [
 backend.addOutput({
   custom: {
     apiUrl: httpApi.apiEndpoint,
-    shareBaseUrl: 'frogbot://share',
+    shareBaseUrl: 'https://frogbot.expo.app/invite',
   },
 });

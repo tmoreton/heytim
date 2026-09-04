@@ -33,6 +33,7 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
   const [botIds, setBotIds] = useState(group?.bots.map((bot) => bot.id) ?? (bots[0] ? [bots[0].id] : []));
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState('');
   const [error, setError] = useState('');
   const displayedBots = editable ? bots : (group?.bots ?? []);
 
@@ -58,7 +59,12 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
     setError('');
     try {
       const url = await onShare();
-      await Share.share({ title: `Join ${group?.name ?? name}`, message: `Join my FrogBot group: ${url}`, url });
+      setInviteUrl(url);
+      await Share.share({
+        title: `Join ${group?.name ?? name} on FrogBot`,
+        message: `You're invited to ${group?.name ?? name} on FrogBot. Join the group and meet our AI teammates: ${url}`,
+        url,
+      });
     } catch (value) {
       setError(value instanceof Error ? value.message : 'Could not create an invite.');
     } finally {
@@ -125,9 +131,21 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
           </View>
 
           {group ? (
-            <Pressable style={({ pressed }) => [styles.inviteButton, pressed && styles.pressed]} disabled={sharing} onPress={shareInvite}>
-              {sharing ? <ActivityIndicator color="#007A3D" /> : <Text style={styles.inviteText}>Invite people</Text>}
-            </Pressable>
+            <View style={styles.inviteCard}>
+              <View style={styles.inviteCardTop}>
+                <View style={styles.inviteIcon}>
+                  <GroupAvatar group={group} size={42} />
+                </View>
+                <View style={styles.inviteCardCopy}>
+                  <Text style={styles.inviteCardTitle}>Bring someone into the group</Text>
+                  <Text style={styles.inviteCardSubtitle}>The link previews this group and unlocks a new FrogBot account.</Text>
+                </View>
+              </View>
+              {inviteUrl ? <Text numberOfLines={1} style={styles.inviteUrl}>frogbot.expo.app/invite</Text> : null}
+              <Pressable style={({ pressed }) => [styles.inviteButton, pressed && styles.pressed]} disabled={sharing} onPress={shareInvite}>
+                {sharing ? <ActivityIndicator color="white" /> : <Text style={styles.inviteText}>{inviteUrl ? 'Share again' : 'Share invitation'}</Text>}
+              </Pressable>
+            </View>
           ) : null}
 
           <Text style={styles.label}>FrogBots</Text>
@@ -197,8 +215,15 @@ const styles = StyleSheet.create({
   groupMeta: { color: '#7B776F', fontSize: 13 },
   newGroupMark: { width: 62, height: 62, borderRadius: 22, backgroundColor: '#DCEDE4', alignItems: 'center', justifyContent: 'center' },
   newGroupMarkText: { color: '#007A3D', fontSize: 24, fontWeight: '900' },
-  inviteButton: { height: 48, borderRadius: 15, backgroundColor: '#E1F0E8', alignItems: 'center', justifyContent: 'center', marginBottom: 28 },
-  inviteText: { color: '#007A3D', fontSize: 15, fontWeight: '700' },
+  inviteCard: { backgroundColor: '#EAF5EF', borderWidth: 1, borderColor: '#C9E2D4', borderRadius: 20, padding: 15, marginBottom: 28 },
+  inviteCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  inviteIcon: { width: 50, height: 50, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  inviteCardCopy: { flex: 1, minWidth: 0 },
+  inviteCardTitle: { color: '#163E2A', fontSize: 15, fontWeight: '700' },
+  inviteCardSubtitle: { color: '#5F7D6C', fontSize: 12, lineHeight: 17, marginTop: 3 },
+  inviteUrl: { color: '#58806A', fontSize: 11, fontWeight: '600', marginTop: 13 },
+  inviteButton: { height: 48, borderRadius: 15, backgroundColor: '#007A3D', alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  inviteText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
   label: { fontSize: 14, fontWeight: '700', color: '#24231F', marginBottom: 5 },
   peopleLabel: { marginTop: 27 },
   sectionSubtitle: { color: '#858179', fontSize: 13, marginBottom: 11 },

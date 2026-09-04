@@ -11,19 +11,21 @@ from decimal import Decimal
 from typing import Any
 
 import boto3
-
 from shared.catalog import CatalogError, CatalogService
 from shared.group_chat import ALL_BOTS_REPLY_TARGET, select_group_reply_targets
+from shared.invites import invite_token_hash, invite_url
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 TABLE_NAME = os.environ["TABLE_NAME"]
+INVITE_TABLE_NAME = os.environ.get("INVITE_TABLE_NAME", TABLE_NAME)
 QUEUE_URL = os.environ["QUEUE_URL"]
-SHARE_BASE_URL = os.environ.get("SHARE_BASE_URL", "frogbot://share")
-GROUP_SHARE_BASE_URL = os.environ.get("GROUP_SHARE_BASE_URL", "frogbot://group")
+PUBLIC_WEB_BASE_URL = os.environ.get("PUBLIC_WEB_BASE_URL", "https://frogbot.expo.app")
 
-table = boto3.resource("dynamodb").Table(TABLE_NAME)
+dynamodb = boto3.resource("dynamodb")
+table = dynamodb.Table(TABLE_NAME)
+invite_access_table = dynamodb.Table(INVITE_TABLE_NAME)
 sqs = boto3.client("sqs")
 catalog = CatalogService(table)
 ALLOWED_COLORS = {"#58BEAA", "#FFAA34", "#6C5CE7", "#3984F6", "#F46A27", "#E95383"}
@@ -147,6 +149,38 @@ def _push_owner_key(token_id: str) -> dict:
     return {"pk": f"PUSH_TOKEN#{token_id}", "sk": "OWNER"}
 
 
+def _register_access_invite(
+    kind: str,
+    token: str,
+    created_by: str,
+    expires_at: int,
+    target_id: str,
+) -> None:
+    invite_access_table.put_item(
+        Item={
+            "tokenHash": invite_token_hash(token),
+            "kind": kind,
+            "targetId": target_id,
+            "createdBy": created_by,
+            "createdAt": _now(),
+            "expiresAt": expires_at,
+        }
+    )
+
+
+def _record_invite_join(kind: str, token: str) -> None:
+    try:
+        invite_access_table.update_item(
+            Key={"tokenHash": invite_token_hash(token)},
+            UpdateExpression="SET lastJoinedAt = :now, joinCount = if_not_exists(joinCount, :zero) + :one",
+            ConditionExpression="kind = :kind",
+            ExpressionAttributeValues={":now": _now(), ":zero": 0, ":one": 1, ":kind": kind},
+        )
+    except invite_access_table.meta.client.exceptions.ConditionalCheckFailedException:
+        # Links created before invite-only access remain importable for existing users.
+        return
+
+
 def _public_bot(item: dict) -> dict:
     return {key: value for key, value in item.items() if key not in {"pk", "sk", "entity"}}
 
@@ -164,7 +198,7 @@ def _validate_string(value: Any, field: str, maximum: int, *, required: bool = T
 
 def _validate_push_token(value: Any) -> str:
     token = _validate_string(value, "token", 256)
-    valid_prefix = token.startswith("ExpoPushToken[") or token.startswith("ExponentPushToken[")
+    valid_prefix = token.startswith(("ExpoPushToken[", "ExponentPushToken["))
     if not valid_prefix or not token.endswith("]"):
         raise ApiError(400, "token must be a valid Expo push token")
     token_value = token[token.index("[") + 1 : -1]
@@ -475,7 +509,89 @@ def _create_group_invite(user_id: str, group_id: str) -> dict:
             "expiresAt": expires_at,
         }
     )
-    return {"url": f"{GROUP_SHARE_BASE_URL}/{token}", "expiresAt": expires_at}
+    _register_access_invite("group", token, user_id, expires_at, group_id)
+    return {"url": invite_url(PUBLIC_WEB_BASE_URL, "group", token), "expiresAt": expires_at}
+
+
+def _public_invite_preview(kind: str, token: str) -> dict:
+    kind = _validate_string(kind, "kind", 16)
+    token = _validate_string(token, "invite", 128)
+    if kind == "group":
+        invite = table.get_item(
+            Key={"pk": f"GROUP_INVITE#{token}", "sk": "META"}, ConsistentRead=True
+        ).get("Item")
+        if not invite or int(invite.get("expiresAt", 0)) < int(datetime.now(UTC).timestamp()):
+            raise ApiError(404, "This group invite is invalid or expired")
+        group_id = invite.get("groupId")
+        if not isinstance(group_id, str):
+            raise ApiError(404, "This group invite is invalid")
+        items = _group_items(group_id)
+        meta = next((item for item in items if item.get("sk") == "META"), None)
+        if not meta:
+            raise ApiError(404, "This group no longer exists")
+        bots = [
+            {
+                "name": item["name"],
+                "tagline": item.get("tagline", ""),
+                "color": item.get("color", "#007A3D"),
+            }
+            for item in items
+            if item.get("entity") == "GROUP_BOT"
+        ]
+        members = [item for item in items if item.get("entity") == "GROUP_USER"]
+        inviter = next(
+            (item.get("name") for item in members if item.get("userId") == invite.get("createdBy")),
+            "A friend",
+        )
+        return {
+            "kind": "group",
+            "title": meta["name"],
+            "description": f"{inviter} invited you to chat with friends and FrogBots.",
+            "inviterName": inviter,
+            "peopleCount": len(members),
+            "bots": sorted(bots, key=lambda item: item["name"].lower()),
+            "expiresAt": invite["expiresAt"],
+        }
+
+    if kind in {"bot", "chat"}:
+        share = table.get_item(Key={"pk": f"SHARE#{token}", "sk": "META"}, ConsistentRead=True).get("Item")
+        if not share or int(share.get("expiresAt", 0)) < int(datetime.now(UTC).timestamp()):
+            raise ApiError(404, "This FrogBot invite is invalid or expired")
+        bot = share.get("snapshot", {}).get("bot")
+        if not isinstance(bot, dict):
+            raise ApiError(404, "This FrogBot invite is invalid")
+        return {
+            "kind": kind,
+            "title": bot.get("name", "Shared FrogBot"),
+            "description": bot.get("tagline", "Add this FrogBot to your team."),
+            "bots": [
+                {
+                    "name": bot.get("name", "FrogBot"),
+                    "tagline": bot.get("tagline", ""),
+                    "color": bot.get("color", "#007A3D"),
+                }
+            ],
+            "expiresAt": share["expiresAt"],
+        }
+
+    if kind == "skill":
+        share = table.get_item(
+            Key={"pk": f"SKILL_SHARE#{token}", "sk": "META"}, ConsistentRead=True
+        ).get("Item")
+        if not share or int(share.get("expiresAt", 0)) < int(datetime.now(UTC).timestamp()):
+            raise ApiError(404, "This skill invite is invalid or expired")
+        skill = share.get("snapshot")
+        if not isinstance(skill, dict):
+            raise ApiError(404, "This skill invite is invalid")
+        return {
+            "kind": "skill",
+            "title": skill.get("name", "Shared skill"),
+            "description": skill.get("description", "Add this skill to your FrogBot team."),
+            "bots": [],
+            "expiresAt": share["expiresAt"],
+        }
+
+    raise ApiError(404, "Invite not found")
 
 
 def _join_group(user_id: str, display_name: str, token: str) -> dict:
@@ -512,6 +628,7 @@ def _join_group(user_id: str, display_name: str, token: str) -> dict:
                     "joinedAt": current,
                 }
             )
+        _record_invite_join("group", token)
     return _public_group(user_id, group_id)
 
 
@@ -831,7 +948,9 @@ def _create_share(user_id: str, value: dict) -> dict:
             "expiresAt": expires_at,
         }
     )
-    return {"url": f"{SHARE_BASE_URL}/{token}", "expiresAt": expires_at}
+    invite_kind = "chat" if scope == "chat" else "bot"
+    _register_access_invite(invite_kind, token, user_id, expires_at, bot_id)
+    return {"url": invite_url(PUBLIC_WEB_BASE_URL, invite_kind, token), "expiresAt": expires_at}
 
 
 def _import_share(user_id: str, token: str) -> dict:
@@ -864,6 +983,7 @@ def _import_share(user_id: str, token: str) -> dict:
                 "status": "COMPLETE",
             }
         )
+    _record_invite_join("chat" if share.get("scope") == "chat" else "bot", token)
     return bot
 
 
@@ -883,24 +1003,35 @@ def _save_skill(user_id: str, value: dict, skill_id: str | None = None) -> dict:
 
 def _share_skill(user_id: str, skill_id: str) -> dict:
     try:
-        return catalog.create_share(user_id, skill_id)
+        share = catalog.create_share(user_id, skill_id)
+        _register_access_invite("skill", share["token"], user_id, int(share["expiresAt"]), skill_id)
+        return {key: value for key, value in share.items() if key != "token"}
     except CatalogError as exc:
         raise ApiError(400, str(exc)) from exc
 
 
 def _import_skill(user_id: str, token: str) -> dict:
     try:
-        return catalog.import_share(user_id, token)
+        skill = catalog.import_share(user_id, token)
+        _record_invite_join("skill", token)
+        return skill
     except CatalogError as exc:
         raise ApiError(404, str(exc)) from exc
 
 
 def handler(event: dict, _context: Any) -> dict:
     try:
-        user_id = _user_id(event)
         method = event.get("requestContext", {}).get("http", {}).get("method", "")
         path = event.get("rawPath", "")
         params = event.get("pathParameters") or {}
+
+        if method == "GET" and path.startswith("/public/invites/"):
+            return _response(
+                200,
+                _public_invite_preview(params.get("kind", ""), params.get("token", "")),
+            )
+
+        user_id = _user_id(event)
 
         display_name = _display_name(event)
 

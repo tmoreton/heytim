@@ -1,5 +1,7 @@
 import { defineAuth } from '@aws-amplify/backend';
 
+import { preSignUp } from './pre-sign-up/resource';
+
 export const emailCodeMessage = (code: string): string => `
 <div style="background:#f4f2ec;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#171714">
   <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #e7e3da;border-radius:24px;padding:32px">
@@ -12,6 +14,7 @@ export const emailCodeMessage = (code: string): string => `
 </div>`;
 
 export const auth = defineAuth({
+  triggers: { preSignUp },
   loginWith: {
     email: {
       otpLogin: true,

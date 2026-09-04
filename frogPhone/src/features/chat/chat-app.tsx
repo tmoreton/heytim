@@ -30,7 +30,7 @@ import {
   registerForReplyNotifications,
   subscribeToNotificationReplies,
 } from '@/lib/notifications';
-import type { Bootstrap, Bot, BotDraft, Group, GroupDraft, GroupMember, Message } from '@/lib/types';
+import type { Bootstrap, Bot, BotDraft, Group, GroupDraft, GroupMember, Invitation, InviteKind, Message } from '@/lib/types';
 
 import { BotEditor } from './bot-editor';
 import { GroupEditor } from './group-editor';
@@ -38,6 +38,7 @@ import { SkillLibrary } from './skill-library';
 
 type Props = {
   demo: boolean;
+  invitation?: Invitation;
   onSignedOut: () => void;
 };
 
@@ -56,7 +57,7 @@ const friendlyDate = (value: string) => {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
 
-export function ChatApp({ demo, onSignedOut }: Props) {
+export function ChatApp({ demo, invitation, onSignedOut }: Props) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const wide = width >= 760;
@@ -222,15 +223,19 @@ export function ChatApp({ demo, onSignedOut }: Props) {
     async (url: string | null) => {
       if (!url) return;
       let token = '';
-      let kind: 'bot' | 'skill' | 'group' = 'bot';
+      let kind: InviteKind = 'bot';
       try {
         const parsed = new URL(url);
-        if (parsed.hostname === 'group' || parsed.pathname.includes('/group/')) kind = 'group';
+        const queryKind = parsed.searchParams.get('kind');
+        if (queryKind === 'bot' || queryKind === 'chat' || queryKind === 'group' || queryKind === 'skill') {
+          kind = queryKind;
+        } else if (parsed.hostname === 'group' || parsed.pathname.includes('/group/')) kind = 'group';
         else if (parsed.hostname === 'skill' || parsed.pathname.includes('/skill/')) kind = 'skill';
-        token =
+        token = parsed.searchParams.get('token') ?? (
           parsed.hostname === 'share' || parsed.hostname === 'skill' || parsed.hostname === 'group'
             ? parsed.pathname.replace(/^\//, '')
-            : parsed.pathname.split(kind === 'skill' ? '/skill/' : kind === 'group' ? '/group/' : '/share/')[1] ?? '';
+            : parsed.pathname.split(kind === 'skill' ? '/skill/' : kind === 'group' ? '/group/' : '/share/')[1] ?? ''
+        );
       } catch {
         kind = url.includes('/group/') ? 'group' : url.includes('/skill/') ? 'skill' : 'bot';
         token = url.split(kind === 'skill' ? '/skill/' : kind === 'group' ? '/group/' : '/share/')[1] ?? '';
@@ -293,10 +298,13 @@ export function ChatApp({ demo, onSignedOut }: Props) {
   );
 
   useEffect(() => {
-    Linking.getInitialURL().then(importUrl);
+    const invitationUrl = invitation
+      ? `frogbot://invite?kind=${invitation.kind}&token=${encodeURIComponent(invitation.token)}`
+      : undefined;
+    Linking.getInitialURL().then((url) => importUrl(invitationUrl ?? url));
     const subscription = Linking.addEventListener('url', ({ url }) => importUrl(url));
     return () => subscription.remove();
-  }, [importUrl]);
+  }, [importUrl, invitation]);
 
   const selectBot = (bot: Bot) => {
     if (listening) ExpoSpeechRecognitionModule.abort();

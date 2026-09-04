@@ -32,6 +32,6 @@
   "version": "1.5",
   "custom": {
     "apiUrl": "https://6zsrnchqr6.execute-api.us-east-1.amazonaws.com",
-    "shareBaseUrl": "frogbot://share"
+    "shareBaseUrl": "https://frogbot.expo.app/invite"
   }
 }

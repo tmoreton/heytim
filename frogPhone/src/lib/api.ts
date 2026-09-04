@@ -14,7 +14,18 @@ import {
   demoSend,
   demoSendGroup,
 } from './demo';
-import type { Bootstrap, Bot, BotDraft, Group, GroupDraft, Message, SkillDetail, SkillDraft } from './types';
+import type {
+  Bootstrap,
+  Bot,
+  BotDraft,
+  Group,
+  GroupDraft,
+  Invitation,
+  InvitePreview,
+  Message,
+  SkillDetail,
+  SkillDraft,
+} from './types';
 
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const session = await fetchAuthSession();
@@ -34,7 +45,29 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   return body as T;
 };
 
+const publicRequest = async <T>(path: string): Promise<T> => {
+  const response = await fetch(`${apiUrl}${path}`);
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.message ?? 'The invite could not be opened.');
+  return body as T;
+};
+
 export const createApi = (demo: boolean) => ({
+  invitePreview: async ({ kind, token }: Invitation): Promise<InvitePreview> =>
+    demo
+      ? {
+          kind,
+          token,
+          title: kind === 'group' ? 'Weekend builders' : 'A FrogBot for you',
+          description: 'Taylor invited you to bring people and FrogBots together.',
+          inviterName: 'Taylor',
+          peopleCount: 3,
+          bots: demoBootstrap().groups[0]?.bots ?? [],
+          expiresAt: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+        }
+      : publicRequest<Omit<InvitePreview, 'token'>>(
+          `/public/invites/${encodeURIComponent(kind)}/${encodeURIComponent(token)}`,
+        ).then((value) => ({ ...value, token })),
   bootstrap: async (): Promise<Bootstrap> => (demo ? demoBootstrap() : request<Bootstrap>('/bootstrap')),
   messages: async (botId: string): Promise<Message[]> =>
     demo
@@ -70,7 +103,7 @@ export const createApi = (demo: boolean) => ({
     });
   },
   shareGroup: async (groupId: string): Promise<string> => {
-    if (demo) return `frogbot://group/demo-${groupId}`;
+    if (demo) return `https://frogbot.expo.app/invite?kind=group&token=demo-${groupId}`;
     return request<{ url: string }>(`/groups/${groupId}/invites`, { method: 'POST' }).then((value) => value.url);
   },
   joinGroup: async (token: string): Promise<Group> => {
@@ -90,7 +123,7 @@ export const createApi = (demo: boolean) => ({
     await request('/devices/push-token', { method: 'DELETE', body: JSON.stringify({ token }) });
   },
   share: async (botId: string, scope: 'bot' | 'chat'): Promise<string> => {
-    if (demo) return `frogbot://share/demo-${scope}-${botId}`;
+    if (demo) return `https://frogbot.expo.app/invite?kind=${scope}&token=demo-${scope}-${botId}`;
     return request<{ url: string }>('/shares', {
       method: 'POST',
       body: JSON.stringify({ botId, scope }),
@@ -110,7 +143,7 @@ export const createApi = (demo: boolean) => ({
           body: JSON.stringify(draft),
         }),
   shareSkill: async (skillId: string): Promise<string> => {
-    if (demo) return `frogbot://skill/demo-${skillId}`;
+    if (demo) return `https://frogbot.expo.app/invite?kind=skill&token=demo-${skillId}`;
     return request<{ url: string }>(`/skills/${encodeURIComponent(skillId)}/share`, { method: 'POST' }).then(
       (value) => value.url,
     );

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#F4F2EC"/>
+  <circle cx="1090" cy="70" r="250" fill="#E1EEE7"/>
+  <circle cx="90" cy="610" r="210" fill="#E8DFCC" opacity=".65"/>
+  <rect x="62" y="58" width="1076" height="514" rx="54" fill="#FFFFFF" stroke="#DDD8CC" stroke-width="2"/>
+  <g transform="translate(120 112)">
+    <rect width="188" height="188" rx="56" fill="#007A3D"/>
+    <circle cx="61" cy="72" r="26" fill="#FFFFFF"/>
+    <circle cx="127" cy="72" r="26" fill="#FFFFFF"/>
+    <circle cx="61" cy="72" r="10" fill="#007A3D"/>
+    <circle cx="127" cy="72" r="10" fill="#007A3D"/>
+    <path d="M50 119 Q94 158 138 119" fill="none" stroke="#FFFFFF" stroke-width="15" stroke-linecap="round"/>
+  </g>
+  <text x="354" y="155" font-family="Helvetica,Arial,sans-serif" font-size="34" font-weight="bold" fill="#007A3D">FROGBOT</text>
+  <text x="354" y="239" font-family="Helvetica,Arial,sans-serif" font-size="68" font-weight="bold" fill="#171714">You're invited.</text>
+  <text x="354" y="296" font-family="Helvetica,Arial,sans-serif" font-size="28" fill="#69655D">Friends and AI teammates, together</text>
+  <text x="354" y="333" font-family="Helvetica,Arial,sans-serif" font-size="28" fill="#69655D">in one shared conversation.</text>
+  <g transform="translate(120 394)">
+    <circle cx="48" cy="48" r="48" fill="#7651AF"/>
+    <text x="48" y="61" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="34" font-weight="bold" fill="#FFFFFF">T</text>
+    <circle cx="126" cy="48" r="51" fill="#FFFFFF"/>
+    <circle cx="126" cy="48" r="46" fill="#007A3D"/>
+    <circle cx="112" cy="40" r="8" fill="#FFFFFF"/>
+    <circle cx="140" cy="40" r="8" fill="#FFFFFF"/>
+    <path d="M108 59 Q126 76 144 59" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="204" cy="48" r="51" fill="#FFFFFF"/>
+    <circle cx="204" cy="48" r="46" fill="#FFAA34"/>
+    <circle cx="190" cy="40" r="8" fill="#FFFFFF"/>
+    <circle cx="218" cy="40" r="8" fill="#FFFFFF"/>
+    <path d="M186 59 Q204 76 222 59" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <rect x="855" y="419" width="220" height="74" rx="37" fill="#007A3D"/>
+  <text x="965" y="466" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="24" font-weight="bold" fill="#FFFFFF">Join the group</text>
+  <text x="120" y="536" font-family="Helvetica,Arial,sans-serif" font-size="20" font-weight="bold" fill="#8A867E">frogbot.expo.app</text>
+</svg>

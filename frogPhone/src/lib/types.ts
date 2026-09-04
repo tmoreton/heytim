@@ -56,6 +56,22 @@ export type Group = {
 
 export type GroupDraft = Pick<Group, 'name'> & { botIds: string[] };
 
+export type InviteKind = 'bot' | 'chat' | 'group' | 'skill';
+
+export type Invitation = {
+  kind: InviteKind;
+  token: string;
+};
+
+export type InvitePreview = Invitation & {
+  title: string;
+  description: string;
+  inviterName?: string;
+  peopleCount?: number;
+  bots: Pick<GroupBot, 'name' | 'tagline' | 'color'>[];
+  expiresAt: number;
+};
+
 export type Capability = {
   id: string;
   name: string;

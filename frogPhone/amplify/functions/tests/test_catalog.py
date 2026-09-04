@@ -10,7 +10,7 @@ from shared.catalog import CatalogService
 
 
 class FakeBatch:
-    def __init__(self, table: "FakeTable"):
+    def __init__(self, table: FakeTable):
         self.table = table
 
     def put_item(self, Item: dict) -> None:
@@ -97,7 +97,7 @@ class CatalogServiceTests(unittest.TestCase):
             },
         )
         share = self.catalog.create_share("owner", skill["id"])
-        token = share["url"].rsplit("/", 1)[1]
+        token = share["token"]
         imported = self.catalog.import_share("recipient", token)
 
         self.assertFalse(imported["editable"])
@@ -119,7 +119,7 @@ class CatalogServiceTests(unittest.TestCase):
         )
 
     def test_runtime_resolves_dynamodb_decimal_skill_versions(self) -> None:
-        skill = self.catalog.resolve_for_runtime({"planner": Decimal("1")})
+        skill = self.catalog.resolve_for_runtime({"planner": Decimal(1)})
 
         self.assertEqual(skill[0]["id"], "planner")
         self.assertEqual(skill[0]["version"], 1)

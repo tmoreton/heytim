@@ -39,7 +39,7 @@ export default function LandingPage() {
             <Pressable
               accessibilityRole="link"
               style={({ pressed }) => [styles.loginButton, pressed && styles.pressed]}>
-              <Text style={styles.loginLabel}>Log in</Text>
+              <Text style={styles.loginLabel}>Member login</Text>
             </Pressable>
           </Link>
         </View>
@@ -48,25 +48,25 @@ export default function LandingPage() {
           <View style={styles.heroCopy}>
             <View style={styles.eyebrowPill}>
               <View style={styles.eyebrowDot} />
-              <Text style={styles.eyebrow}>YOUR AI TEAM</Text>
+              <Text style={styles.eyebrow}>INVITE-ONLY AI TEAMS</Text>
             </View>
             <Text accessibilityRole="header" style={styles.title}>
-              A small team that gets things done.
+              Bring your friends. Bring your FrogBots.
             </Text>
             <Text style={styles.subtitle}>
-              Give every bot a role, a personality, and exactly the skills it needs. Then work with them in one calm,
-              simple chat app.
+              Share one conversation with the people you trust and the AI teammates you create. Every invitation opens
+              the group and unlocks FrogBot for someone new.
             </Text>
             <View style={styles.actions}>
               <Link href="/app" asChild>
                 <Pressable
                   accessibilityRole="link"
                   style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-                  <Text style={styles.primaryLabel}>Open FrogBot</Text>
+                  <Text style={styles.primaryLabel}>Member login</Text>
                   <Text style={styles.primaryArrow}>→</Text>
                 </Pressable>
               </Link>
-              <Text style={styles.passwordless}>Passwordless email sign-in</Text>
+              <Text style={styles.passwordless}>New here? Ask a member for an invite.</Text>
             </View>
           </View>
 
@@ -128,7 +128,7 @@ export default function LandingPage() {
         <View style={styles.features}>
           <Feature number="01" title="Distinct teammates" copy="A separate role, prompt, and memory for every bot." />
           <Feature number="02" title="Only the right tools" copy="Choose the tools and skills each teammate can use." />
-          <Feature number="03" title="One shared workspace" copy="Pick up the same conversations on iPhone or the web." />
+          <Feature number="03" title="Invite the next person" copy="One clean link opens the app or a polished web join page." />
         </View>
 
         <View style={styles.footer}>
@@ -141,7 +141,7 @@ export default function LandingPage() {
               Terms
             </Link>
             <Link href="/app" style={styles.footerLink}>
-              Log in
+              Member login
             </Link>
           </View>
         </View>

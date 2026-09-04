@@ -13,6 +13,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
+from shared.invites import invite_url
+
 logger = logging.getLogger(__name__)
 
 CATALOG_URL = os.environ.get(
@@ -20,7 +22,7 @@ CATALOG_URL = os.environ.get(
     "https://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json",
 )
 ALLOWED_REPOSITORY = "tmoreton/frogbot-capabilities"
-SKILL_SHARE_BASE_URL = os.environ.get("SKILL_SHARE_BASE_URL", "frogbot://skill")
+PUBLIC_WEB_BASE_URL = os.environ.get("PUBLIC_WEB_BASE_URL", "https://frogbot.expo.app")
 MAX_SKILLS_PER_BOT = 12
 MAX_TOOLS_PER_BOT = 12
 MAX_SKILL_INSTRUCTIONS = 20_000
@@ -562,7 +564,11 @@ class CatalogService:
                 "expiresAt": expires_at,
             }
         )
-        return {"url": f"{SKILL_SHARE_BASE_URL}/{token}", "expiresAt": expires_at}
+        return {
+            "url": invite_url(PUBLIC_WEB_BASE_URL, "skill", token),
+            "token": token,
+            "expiresAt": expires_at,
+        }
 
     def import_share(self, user_id: str, token: str) -> dict:
         if not isinstance(token, str) or len(token) > 128:

@@ -5,10 +5,16 @@ import { AuthScreen } from '@/features/auth/auth-screen';
 import { ChatApp } from '@/features/chat/chat-app';
 import { hasSession } from '@/lib/auth';
 import { cloudConfigured } from '@/lib/cloud';
+import type { Invitation, InvitePreview } from '@/lib/types';
 
 type AppState = 'loading' | 'signedOut' | 'cloud' | 'demo';
 
-export function AppEntry() {
+type Props = {
+  invitation?: Invitation;
+  invitePreview?: InvitePreview;
+};
+
+export function AppEntry({ invitation, invitePreview }: Props = {}) {
   const [state, setState] = useState<AppState>(cloudConfigured ? 'loading' : 'signedOut');
 
   useEffect(() => {
@@ -24,9 +30,23 @@ export function AppEntry() {
     );
   }
   if (state === 'signedOut') {
-    return <AuthScreen cloudReady={cloudConfigured} onSignedIn={() => setState('cloud')} onDemo={() => setState('demo')} />;
+    return (
+      <AuthScreen
+        cloudReady={cloudConfigured}
+        invitation={invitation}
+        invitePreview={invitePreview}
+        onSignedIn={() => setState('cloud')}
+        onDemo={() => setState('demo')}
+      />
+    );
   }
-  return <ChatApp demo={state === 'demo'} onSignedOut={() => setState('signedOut')} />;
+  return (
+    <ChatApp
+      demo={state === 'demo'}
+      invitation={invitation}
+      onSignedOut={() => setState('signedOut')}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
