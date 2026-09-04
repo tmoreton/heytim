@@ -11,6 +11,7 @@ from typing import Any
 import boto3
 from botocore.config import Config
 
+from shared.agent_stream import ProgressCallback, read_agent_stream
 from shared.catalog import CatalogService
 
 logger = logging.getLogger()
@@ -108,42 +109,6 @@ def _get_group_history(group_id: str, bot_id: str) -> list[dict]:
     return messages
 
 
-def _event_text(value: Any) -> str:
-    if isinstance(value, dict):
-        event = value.get("event", value)
-        delta = event.get("contentBlockDelta", {}).get("delta", {}) if isinstance(event, dict) else {}
-        if isinstance(delta, dict) and isinstance(delta.get("text"), str):
-            return delta["text"]
-        if isinstance(value.get("data"), str):
-            try:
-                return _event_text(json.loads(value["data"]))
-            except json.JSONDecodeError:
-                return ""
-    return ""
-
-
-def _read_agent_text(response: dict) -> str:
-    body = response["response"]
-    chunks: list[str] = []
-    for raw_line in body.iter_lines():
-        if not raw_line:
-            continue
-        line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else str(raw_line)
-        if line.startswith("data:"):
-            line = line[5:].strip()
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        text = _event_text(event)
-        if text:
-            chunks.append(text)
-    result = "".join(chunks).strip()
-    if not result:
-        raise ValueError("AgentCore returned no assistant text")
-    return result
-
-
 def _invoke(
     user_id: str,
     bot_id: str,
@@ -151,6 +116,7 @@ def _invoke(
     *,
     history: list[dict] | None = None,
     session_scope: str | None = None,
+    on_progress: ProgressCallback | None = None,
 ) -> str:
     session_id = hashlib.sha256((session_scope or f"{user_id}:{bot_id}").encode()).hexdigest()
     skill_versions = bot.get("skillVersions")
@@ -184,7 +150,23 @@ def _invoke(
         accept="text/event-stream",
         payload=json.dumps(payload).encode("utf-8"),
     )
-    return _read_agent_text(response)
+    return read_agent_stream(response["response"].iter_lines(), on_progress)
+
+
+def _progress_updater(item_key: dict) -> ProgressCallback:
+    def update(progress: list[str]) -> None:
+        try:
+            table.update_item(
+                Key=item_key,
+                UpdateExpression="SET activity = :activity",
+                ConditionExpression="#status = :pending",
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={":activity": progress, ":pending": "PENDING"},
+            )
+        except Exception:
+            logger.exception("Could not publish agent activity for %s", item_key.get("sk", "unknown"))
+
+    return update
 
 
 def _post_json(url: str, payload: Any) -> dict:
@@ -360,7 +342,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
         return
 
     try:
-        answer = _invoke(user_id, bot_id, bot)
+        answer = _invoke(user_id, bot_id, bot, on_progress=_progress_updater(turn_key))
     except Exception:
         logger.exception("Agent request failed for turn %s", turn.get("id"))
         receive_count = int(record.get("attributes", {}).get("ApproximateReceiveCount", "1"))
@@ -460,6 +442,7 @@ def _process_group_agent_reply(record: dict, request: dict) -> None:
             bot,
             history=_get_group_history(group_id, bot_id),
             session_scope=f"group:{group_id}:bot:{bot_id}",
+            on_progress=_progress_updater(reply_key),
         )
     except Exception:
         logger.exception("Agent request failed for group reply %s", reply.get("id"))

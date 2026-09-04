@@ -21,6 +21,7 @@ export type Message = {
   authorColor?: string;
   isMine?: boolean;
   text: string;
+  activity?: string[];
   createdAt: string;
   status: 'complete' | 'pending' | 'error';
 };

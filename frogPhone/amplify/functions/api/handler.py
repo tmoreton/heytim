@@ -243,6 +243,7 @@ def _list_turns(user_id: str, bot_id: str, limit: int = 100) -> list[dict]:
         ExpressionAttributeValues={":pk": _turn_pk(user_id, bot_id), ":prefix": "TURN#"},
         ScanIndexForward=False,
         Limit=limit,
+        ConsistentRead=True,
     ).get("Items", [])
     return sorted(items, key=lambda item: item["createdAt"])
 
@@ -267,6 +268,7 @@ def _messages_from_turns(turns: list[dict]) -> list[dict]:
                     "text": turn["assistantText"],
                     "createdAt": turn.get("completedAt", turn["createdAt"]),
                     "status": turn.get("status", "complete").lower(),
+                    "activity": turn.get("activity", []),
                 }
             )
         elif turn.get("status") == "PENDING":
@@ -277,6 +279,7 @@ def _messages_from_turns(turns: list[dict]) -> list[dict]:
                     "text": "",
                     "createdAt": turn["createdAt"],
                     "status": "pending",
+                    "activity": turn.get("activity", []),
                 }
             )
     return messages
@@ -536,6 +539,7 @@ def _list_group_messages(user_id: str, group_id: str, limit: int = 100) -> list[
                     "text": item.get("text", ""),
                     "createdAt": item.get("createdAt"),
                     "status": str(item.get("status", "COMPLETE")).lower(),
+                    "activity": item.get("activity", []),
                 }.items()
                 if value is not None
             }

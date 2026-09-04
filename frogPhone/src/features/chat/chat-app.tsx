@@ -19,7 +19,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AgentActivity } from '@/components/agent-activity';
 import { BotAvatar } from '@/components/bot-avatar';
+import { MessageMarkdown } from '@/components/message-markdown';
 import { GroupAvatar, PersonAvatar } from '@/components/participant-avatar';
 import { endSession } from '@/lib/auth';
 import { createApi } from '@/lib/api';
@@ -41,6 +43,7 @@ type Props = {
 
 type Selection = { kind: 'bot' | 'group'; id: string };
 type DrawerItem = { kind: 'group'; value: Group } | { kind: 'bot'; value: Bot };
+const MESSAGE_REFRESH_MS = 900;
 
 const friendlyDate = (value: string) => {
   const date = new Date(value);
@@ -102,12 +105,20 @@ export function ChatApp({ demo, onSignedOut }: Props) {
   });
   useSpeechRecognitionEvent('error', (event) => {
     setListening(false);
-    if (event.error === 'aborted') return;
+    if (event.error === 'aborted' || event.error === 'no-speech') return;
     if (event.error === 'not-allowed') {
-      setError('Allow microphone and speech recognition access in Settings to dictate messages.');
+      setError('Allow microphone access in Settings to dictate messages.');
       return;
     }
-    setError('On-device dictation is not available for this device or language.');
+    if (event.error === 'language-not-supported') {
+      setError('On-device dictation does not support this iPhone language. Try changing the keyboard language in Settings.');
+      return;
+    }
+    if (event.error === 'service-not-allowed') {
+      setError('Turn on Siri & Dictation and download this language in iPhone Settings, then try again.');
+      return;
+    }
+    setError('On-device dictation stopped unexpectedly. Please try again.');
   });
 
   const loadBootstrap = useCallback(async () => {
@@ -158,7 +169,7 @@ export function ChatApp({ demo, onSignedOut }: Props) {
 
   useEffect(() => {
     if (!pending) return;
-    const timer = setInterval(loadMessages, 1400);
+    const timer = setInterval(loadMessages, MESSAGE_REFRESH_MS);
     return () => clearInterval(timer);
   }, [loadMessages, pending]);
 
@@ -342,19 +353,21 @@ export function ChatApp({ demo, onSignedOut }: Props) {
     }
     if (Platform.OS !== 'ios') return;
     try {
-      if (!ExpoSpeechRecognitionModule.isRecognitionAvailable() || !ExpoSpeechRecognitionModule.supportsOnDeviceRecognition()) {
-        setError('On-device dictation is not available for this device or language.');
-        return;
-      }
-      const permissions = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      const permissions = await ExpoSpeechRecognitionModule.requestMicrophonePermissionsAsync();
       if (!permissions.granted) {
-        setError('Allow microphone and speech recognition access in Settings to dictate messages.');
+        setError('Allow microphone access in Settings to dictate messages.');
         return;
       }
+      const deviceLocale = (Intl.DateTimeFormat().resolvedOptions().locale || 'en-US').replaceAll('_', '-');
+      const { locales } = await ExpoSpeechRecognitionModule.getSupportedLocales({});
+      const language = deviceLocale.split('-')[0];
+      const locale = locales.find((value) => value.toLowerCase() === deviceLocale.toLowerCase())
+        ?? locales.find((value) => value.toLowerCase().startsWith(`${language.toLowerCase()}-`))
+        ?? 'en-US';
       dictationBase.current = draft.trimEnd();
       setError('');
       ExpoSpeechRecognitionModule.start({
-        lang: Intl.DateTimeFormat().resolvedOptions().locale || 'en-US',
+        lang: locale,
         interimResults: true,
         continuous: false,
         requiresOnDeviceRecognition: true,
@@ -721,6 +734,8 @@ export function ChatApp({ demo, onSignedOut }: Props) {
 function MessageBubble({ message, groupMode }: { message: Message; groupMode: boolean }) {
   const mine = groupMode && message.authorType === 'user' && message.isMine;
   const assistant = groupMode ? !mine : message.role === 'assistant';
+  const botMessage = message.role === 'assistant' || message.authorType === 'bot';
+  const activity = message.activity ?? [];
   const avatar = groupMode ? (
     message.authorType === 'bot' ? (
       <BotAvatar name={message.authorName ?? 'FrogBot'} color={message.authorColor ?? '#007A3D'} size={31} />
@@ -733,17 +748,16 @@ function MessageBubble({ message, groupMode }: { message: Message; groupMode: bo
       {groupMode && !mine ? avatar : null}
       <View style={[styles.bubbleColumn, mine && styles.mineBubbleColumn]}>
         {groupMode ? <Text style={[styles.authorName, mine && styles.authorNameMine]}>{mine ? 'You' : message.authorName}</Text> : null}
-        <View style={[styles.bubble, assistant ? styles.assistantBubble : styles.userBubble, message.status === 'error' && styles.errorBubble, message.status === 'pending' && styles.typingBubble]}>
-          {message.status === 'pending' ? (
-            <>
-              <View style={styles.typingDot} />
-              <View style={styles.typingDot} />
-              <View style={styles.typingDot} />
-            </>
-          ) : (
-            <Text style={[styles.messageText, assistant ? styles.assistantText : styles.userText]}>{message.text}</Text>
-          )}
-        </View>
+        {botMessage ? <AgentActivity active={message.status === 'pending'} steps={activity} /> : null}
+        {message.status !== 'pending' ? (
+          <View style={[styles.bubble, assistant ? styles.assistantBubble : styles.userBubble, message.status === 'error' && styles.errorBubble]}>
+            {botMessage ? (
+              <MessageMarkdown>{message.text}</MessageMarkdown>
+            ) : (
+              <Text style={[styles.messageText, assistant ? styles.assistantText : styles.userText]}>{message.text}</Text>
+            )}
+          </View>
+        ) : null}
       </View>
       {groupMode && mine ? avatar : null}
     </View>
@@ -828,8 +842,6 @@ const styles = StyleSheet.create({
   messageText: { fontSize: 15, lineHeight: 21 },
   assistantText: { color: '#24231F' },
   userText: { color: 'white' },
-  typingBubble: { flexDirection: 'row', gap: 5, paddingHorizontal: 15, paddingVertical: 15 },
-  typingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#8E8A82' },
   composerWrap: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6, backgroundColor: '#FBFBF9', alignItems: 'center' },
   replyPicker: { width: '100%', maxWidth: 780, gap: 7, paddingBottom: 7 },
   replyChip: { height: 32, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 16, paddingLeft: 5, paddingRight: 10, borderWidth: 1, borderColor: '#DEDAD2', backgroundColor: 'white' },
