@@ -17,7 +17,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AgentActivity } from '@/components/agent-activity';
 import { BotAvatar } from '@/components/bot-avatar';
@@ -57,6 +57,7 @@ const friendlyDate = (value: string) => {
 
 export function ChatApp({ demo, onSignedOut }: Props) {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const wide = width >= 760;
   const api = useMemo(() => createApi(demo), [demo]);
   const list = useRef<FlatList<Message>>(null);
@@ -445,7 +446,7 @@ export function ChatApp({ demo, onSignedOut }: Props) {
 
   const drawer = (
     <View style={styles.drawer}>
-      <View style={styles.drawerTop}>
+      <View style={[styles.drawerTop, { minHeight: 70 + insets.top, paddingTop: insets.top }]}>
         <View>
           <Text style={styles.appName}>FrogBot</Text>
           <Text style={styles.appTagline}>Your AI team</Text>
@@ -503,7 +504,7 @@ export function ChatApp({ demo, onSignedOut }: Props) {
           </Pressable>
         )}
       />
-      <View style={styles.drawerFooter}>
+      <View style={[styles.drawerFooter, { paddingBottom: insets.bottom }]}>
         <Pressable
           style={({ pressed }) => [styles.libraryButton, pressed && styles.pressed]}
           onPress={() => {
@@ -534,12 +535,12 @@ export function ChatApp({ demo, onSignedOut }: Props) {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <View style={styles.safeArea}>
       <KeyboardAvoidingView style={styles.safeArea} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.shell}>
           {wide && drawerOpen ? <View style={styles.wideDrawer}>{drawer}</View> : null}
           <View style={styles.conversation}>
-            <View style={styles.header}>
+            <View style={[styles.header, { minHeight: 58 + insets.top, paddingTop: insets.top }]}>
               <Pressable accessibilityLabel="Toggle chat list" hitSlop={12} style={styles.menuButton} onPress={() => setDrawerOpen((value) => !value)}>
                 <View style={styles.menuLine} />
                 <View style={[styles.menuLine, styles.menuLineShort]} />
@@ -621,7 +622,7 @@ export function ChatApp({ demo, onSignedOut }: Props) {
               />
             )}
 
-            <View style={styles.composerWrap}>
+            <View style={[styles.composerWrap, { paddingBottom: 6 + insets.bottom }]}>
               {selectedGroup ? (
                 <ScrollView
                   horizontal
@@ -727,7 +728,7 @@ export function ChatApp({ demo, onSignedOut }: Props) {
           onChanged={loadBootstrap}
         />
       ) : null}
-    </SafeAreaView>
+    </View>
   );
 }
 
