@@ -1,6 +1,7 @@
 import { Link } from 'expo-router';
 import Head from 'expo-router/head';
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSyncExternalStore } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 const frog = require('../../assets/images/frogbot-foreground.png');
 
@@ -10,16 +11,42 @@ const teammates = [
   { name: 'Writer', note: 'Drafted the announcement' },
 ];
 
+const narrowLayoutQuery = '(max-width: 719px)';
+
+function subscribeToNarrowLayout(onChange: () => void) {
+  const mediaQuery = window.matchMedia(narrowLayoutQuery);
+  mediaQuery.addEventListener('change', onChange);
+  return () => mediaQuery.removeEventListener('change', onChange);
+}
+
+function getNarrowLayoutSnapshot() {
+  return window.matchMedia(narrowLayoutQuery).matches;
+}
+
+function getServerLayoutSnapshot() {
+  return false;
+}
+
 export default function LandingPage() {
+  const isNarrow = useSyncExternalStore(
+    subscribeToNarrowLayout,
+    getNarrowLayoutSnapshot,
+    getServerLayoutSnapshot,
+  );
+  const primaryButtonStyle = StyleSheet.flatten([
+    styles.primaryButton,
+    isNarrow && styles.primaryButtonNarrow,
+  ]);
+
   return (
     <>
       <Head>
-        <title>FrogBot — Your AI team</title>
+        <title>FroggyBot — Your AI team</title>
         <meta
           name="description"
           content="Build a small team of AI coworkers, each with its own role, skills, tools, and conversation history."
         />
-        <meta property="og:title" content="FrogBot — Your AI team" />
+        <meta property="og:title" content="FroggyBot — Your AI team" />
         <meta
           property="og:description"
           content="A calm, capable team of AI coworkers in one simple chat app."
@@ -30,46 +57,52 @@ export default function LandingPage() {
         style={styles.scroll}
         contentContainerStyle={styles.page}
         showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
+        <View style={[styles.header, isNarrow && styles.headerNarrow]}>
           <View style={styles.wordmark}>
             <Image accessibilityIgnoresInvertColors source={frog} resizeMode="contain" style={styles.logo} />
-            <Text style={styles.brandName}>FrogBot</Text>
+            <Text style={styles.brandName}>FroggyBot</Text>
           </View>
-          <Link href="/app" style={styles.loginButton}>
-            <Text style={styles.loginLabel}>Member login</Text>
+          <Link href="/app" asChild>
+            <Pressable accessibilityRole="link" style={styles.loginButton}>
+              <Text style={styles.loginLabel}>Member login</Text>
+            </Pressable>
           </Link>
         </View>
 
-        <View style={styles.hero}>
-          <View style={styles.heroCopy}>
+        <View style={[styles.hero, isNarrow && styles.heroNarrow]}>
+          <View style={[styles.heroCopy, isNarrow && styles.heroCopyNarrow]}>
             <View style={styles.eyebrowPill}>
               <View style={styles.eyebrowDot} />
               <Text style={styles.eyebrow}>INVITE-ONLY AI TEAMS</Text>
             </View>
-            <Text accessibilityRole="header" style={styles.title}>
-              Bring your friends. Bring your FrogBots.
+            <Text accessibilityRole="header" style={[styles.title, isNarrow && styles.titleNarrow]}>
+              Bring your friends. Bring your FroggyBots.
             </Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.subtitle, isNarrow && styles.subtitleNarrow]}>
               Share one conversation with the people you trust and the AI teammates you create. Every invitation opens
-              the group and unlocks FrogBot for someone new.
+              the group and unlocks FroggyBot for someone new.
             </Text>
-            <View style={styles.actions}>
-              <Link href="/app" style={styles.primaryButton}>
-                <Text style={styles.primaryLabel}>Member login</Text>
-                <Text style={styles.primaryArrow}>→</Text>
+            <View style={[styles.actions, isNarrow && styles.actionsNarrow]}>
+              <Link href="/app" asChild>
+                <Pressable accessibilityRole="link" style={primaryButtonStyle}>
+                  <Text style={styles.primaryLabel}>Member login</Text>
+                  <Text style={styles.primaryArrow}>→</Text>
+                </Pressable>
               </Link>
-              <Text style={styles.passwordless}>New here? Ask a member for an invite.</Text>
+              <Text style={[styles.passwordless, isNarrow && styles.passwordlessNarrow]}>
+                New here? Ask a member for an invite.
+              </Text>
             </View>
           </View>
 
-          <View style={styles.previewFrame}>
+          <View style={[styles.previewFrame, isNarrow && styles.previewFrameNarrow]}>
             <View style={styles.previewTop}>
               <View style={styles.windowDots}>
                 <View style={[styles.windowDot, styles.windowRed]} />
                 <View style={[styles.windowDot, styles.windowGold]} />
                 <View style={[styles.windowDot, styles.windowGreen]} />
               </View>
-              <Text style={styles.previewWordmark}>FrogBot</Text>
+              <Text style={styles.previewWordmark}>FroggyBot</Text>
               <View style={styles.previewStatus} />
             </View>
             <View style={styles.previewBody}>
@@ -117,14 +150,14 @@ export default function LandingPage() {
           </View>
         </View>
 
-        <View style={styles.features}>
+        <View style={[styles.features, isNarrow && styles.featuresNarrow]}>
           <Feature number="01" title="Distinct teammates" copy="A separate role, prompt, and memory for every bot." />
           <Feature number="02" title="Only the right tools" copy="Choose the tools and skills each teammate can use." />
           <Feature number="03" title="Invite the next person" copy="One clean link opens the app or a polished web join page." />
         </View>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>© 2026 FrogBot</Text>
+        <View style={[styles.footer, isNarrow && styles.footerNarrow]}>
+          <Text style={styles.footerText}>© 2026 FroggyBot</Text>
           <View style={styles.footerLinks}>
             <Link href="/privacy" style={styles.footerLink}>
               Privacy
@@ -165,6 +198,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  headerNarrow: { paddingHorizontal: 20, paddingVertical: 20 },
   wordmark: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   logo: { width: 36, height: 31 },
   brandName: { color: '#13130F', fontSize: 21, fontWeight: '800', letterSpacing: -0.55 },
@@ -180,13 +214,18 @@ const styles = StyleSheet.create({
   },
   loginLabel: { color: '#22211D', fontSize: 14, fontWeight: '700' },
   hero: { width: '100%', maxWidth: 1240, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 58, paddingBottom: 70, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 56 },
+  heroNarrow: { paddingHorizontal: 20, paddingTop: 40, paddingBottom: 52, flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', gap: 40 },
   heroCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 430, minWidth: 0, maxWidth: 570 },
+  heroCopyNarrow: { width: '100%', maxWidth: '100%', flexBasis: 'auto', flexGrow: 0 },
   eyebrowPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 8, marginBottom: 20 },
   eyebrowDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#007A3D' },
   eyebrow: { color: '#007A3D', fontSize: 11, fontWeight: '800', letterSpacing: 1.4 },
   title: { color: '#13130F', fontSize: 52, lineHeight: 55, fontWeight: '800', letterSpacing: -2.5 },
+  titleNarrow: { fontSize: 40, lineHeight: 43, letterSpacing: -1.8 },
   subtitle: { color: '#656158', fontSize: 19, lineHeight: 29, marginTop: 24, maxWidth: 540 },
+  subtitleNarrow: { fontSize: 17, lineHeight: 26, marginTop: 20 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 18, marginTop: 32 },
+  actionsNarrow: { width: '100%', flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', gap: 12, marginTop: 28 },
   primaryButton: {
     height: 56,
     paddingHorizontal: 24,
@@ -197,9 +236,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 18,
   },
+  primaryButtonNarrow: { width: '100%' },
   primaryLabel: { color: 'white', fontSize: 16, fontWeight: '700' },
-  primaryArrow: { color: 'white', fontSize: 20, marginLeft: 18, marginTop: -2 },
+  primaryArrow: { color: 'white', fontSize: 20, marginTop: -2 },
   passwordless: { color: '#817D74', fontSize: 13 },
+  passwordlessNarrow: { textAlign: 'center' },
   previewFrame: {
     flexGrow: 1,
     flexShrink: 1,
@@ -214,6 +255,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     boxShadow: '0 30px 70px rgba(45, 55, 45, 0.13)',
   },
+  previewFrameNarrow: { flexBasis: 'auto', flexGrow: 0, maxWidth: '100%', minHeight: 430 },
   previewTop: {
     height: 48,
     borderBottomWidth: 1,
@@ -255,11 +297,13 @@ const styles = StyleSheet.create({
   sendButton: { width: 37, height: 37, borderRadius: 19, backgroundColor: '#007A3D', alignItems: 'center', justifyContent: 'center' },
   sendArrow: { color: 'white', fontSize: 20, fontWeight: '700', marginTop: -3 },
   features: { width: '100%', maxWidth: 1172, alignSelf: 'center', flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 24, paddingBottom: 70, gap: 18 },
+  featuresNarrow: { paddingHorizontal: 20, paddingBottom: 52 },
   feature: { flexGrow: 1, flexShrink: 1, flexBasis: 250, minHeight: 164, borderTopWidth: 1, borderColor: '#CAC6BC', paddingTop: 18, paddingRight: 20 },
   featureNumber: { color: '#007A3D', fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   featureTitle: { color: '#22211C', fontSize: 18, fontWeight: '700', marginTop: 25 },
   featureCopy: { color: '#77736A', fontSize: 14, lineHeight: 21, marginTop: 7, maxWidth: 270 },
   footer: { width: '100%', maxWidth: 1172, alignSelf: 'center', borderTopWidth: 1, borderColor: '#D4D0C7', paddingHorizontal: 24, paddingVertical: 28, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
+  footerNarrow: { paddingHorizontal: 20, alignItems: 'flex-start' },
   footerText: { color: '#8A867D', fontSize: 12 },
   footerLinks: { flexDirection: 'row', gap: 20 },
   footerLink: { color: '#5F5B53', fontSize: 12, fontWeight: '600' },

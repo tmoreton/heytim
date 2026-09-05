@@ -1,18 +1,23 @@
 import { defineBackend } from '@aws-amplify/backend';
-import { Duration, RemovalPolicy } from 'aws-cdk-lib';
-import { CorsHttpMethod, HttpApi, HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
+import { ArnFormat, Duration, RemovalPolicy } from 'aws-cdk-lib';
+import { CfnStage, CorsHttpMethod, HttpApi, HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpJwtAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
+import { Trail } from 'aws-cdk-lib/aws-cloudtrail';
 import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb';
 import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
-import { Code, Function as LambdaFunction, Runtime } from 'aws-cdk-lib/aws-lambda';
+import { Key } from 'aws-cdk-lib/aws-kms';
+import { Code, Function as LambdaFunction, Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
+import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
+import { BlockPublicAccess, Bucket, BucketEncryption, HttpMethods } from 'aws-cdk-lib/aws-s3';
 import { ScheduleGroup } from 'aws-cdk-lib/aws-scheduler';
 import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
 import path from 'node:path';
 
 import { preSignUp } from './auth/pre-sign-up/resource';
 import { auth, emailCodeMessage } from './auth/resource';
+import { addObservability } from './infrastructure/observability';
 
 const backend = defineBackend({ auth, preSignUp });
 const stack = backend.createStack('FrogBotApp');
@@ -21,6 +26,14 @@ const runtimeArn = process.env.FROGBOT_AGENT_RUNTIME_ARN;
 if (!runtimeArn) {
   throw new Error('Set FROGBOT_AGENT_RUNTIME_ARN before running an Amplify sandbox or deploy.');
 }
+const memoryId = process.env.FROGBOT_MEMORY_ID;
+if (!memoryId) {
+  throw new Error('Set FROGBOT_MEMORY_ID before running an Amplify sandbox or deploy.');
+}
+const monthlyBudgetUsd = Number(process.env.FROGBOT_MONTHLY_BUDGET_USD ?? '100');
+if (!Number.isFinite(monthlyBudgetUsd) || monthlyBudgetUsd <= 0) {
+  throw new Error('FROGBOT_MONTHLY_BUDGET_USD must be a positive number.');
+}
 
 const { cfnUserPool, cfnUserPoolClient } = backend.auth.resources.cfnResources;
 // Cognito username attributes are immutable after creation. These logical IDs
@@ -28,10 +41,11 @@ const { cfnUserPool, cfnUserPoolClient } = backend.auth.resources.cfnResources;
 cfnUserPool.overrideLogicalId('FrogBotEmailUserPool');
 cfnUserPoolClient.overrideLogicalId('FrogBotEmailUserPoolClient');
 cfnUserPool.userPoolTier = 'ESSENTIALS';
+cfnUserPool.deletionProtection = 'ACTIVE';
 cfnUserPool.emailConfiguration = {
   emailSendingAccount: 'DEVELOPER',
   sourceArn: `arn:aws:ses:${stack.region}:${stack.account}:identity/inboxai.cc`,
-  from: 'FrogBot <no-reply@inboxai.cc>',
+  from: 'FroggyBot <no-reply@inboxai.cc>',
 };
 // Username attributes already create Cognito's standard email schema. Omitting
 // the generated schema prevents CloudFormation from re-submitting that immutable
@@ -43,11 +57,11 @@ cfnUserPool.addPropertyOverride('Policies.SignInPolicy.AllowedFirstAuthFactors',
 ]);
 cfnUserPoolClient.explicitAuthFlows = ['ALLOW_REFRESH_TOKEN_AUTH', 'ALLOW_USER_AUTH'];
 
-cfnUserPool.emailAuthenticationSubject = 'Your FrogBot sign-in code';
+cfnUserPool.emailAuthenticationSubject = 'Your FroggyBot sign-in code';
 cfnUserPool.emailAuthenticationMessage = emailCodeMessage('{####}');
 cfnUserPool.verificationMessageTemplate = {
   defaultEmailOption: 'CONFIRM_WITH_CODE',
-  emailSubject: 'Your FrogBot verification code',
+  emailSubject: 'Your FroggyBot verification code',
   emailMessage: emailCodeMessage('{####}'),
 };
 
@@ -85,6 +99,123 @@ const table = new Table(stack, 'Data', {
   removalPolicy: RemovalPolicy.RETAIN,
 });
 
+const filesBucket = new Bucket(stack, 'UserFiles', {
+  bucketName: `frogbot-user-files-${stack.account}-${stack.region}`,
+  blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+  encryption: BucketEncryption.S3_MANAGED,
+  enforceSSL: true,
+  versioned: true,
+  cors: [
+    {
+      allowedHeaders: ['*'],
+      allowedMethods: [HttpMethods.GET, HttpMethods.HEAD, HttpMethods.POST],
+      allowedOrigins: [
+        'https://froggybot.com',
+        'https://www.froggybot.com',
+        'https://frogbot.expo.app',
+        'http://localhost:8081',
+        'http://localhost:19006',
+      ],
+      exposedHeaders: ['etag'],
+      maxAge: 3600,
+    },
+  ],
+  lifecycleRules: [
+    {
+      abortIncompleteMultipartUploadAfter: Duration.days(1),
+      noncurrentVersionExpiration: Duration.days(30),
+    },
+  ],
+  removalPolicy: RemovalPolicy.RETAIN,
+});
+
+const logsKey = new Key(stack, 'LogsKey', {
+  description: 'Encrypts FroggyBot application and audit logs.',
+  enableKeyRotation: true,
+  removalPolicy: RemovalPolicy.RETAIN,
+});
+logsKey.addToResourcePolicy(
+  new PolicyStatement({
+    effect: Effect.ALLOW,
+    principals: [new ServicePrincipal(`logs.${stack.region}.amazonaws.com`)],
+    actions: [
+      'kms:Encrypt*',
+      'kms:Decrypt*',
+      'kms:ReEncrypt*',
+      'kms:GenerateDataKey*',
+      'kms:Describe*',
+    ],
+    resources: ['*'],
+    conditions: {
+      ArnLike: {
+        'kms:EncryptionContext:aws:logs:arn': stack.formatArn({
+          service: 'logs',
+          resource: 'log-group',
+          resourceName: '*',
+          arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+        }),
+      },
+    },
+  }),
+);
+logsKey.addToResourcePolicy(
+  new PolicyStatement({
+    effect: Effect.ALLOW,
+    principals: [new ServicePrincipal('cloudtrail.amazonaws.com')],
+    actions: ['kms:GenerateDataKey*', 'kms:DescribeKey'],
+    resources: ['*'],
+    conditions: {
+      ArnLike: {
+        'aws:SourceArn': stack.formatArn({
+          service: 'cloudtrail',
+          resource: 'trail',
+          resourceName: '*',
+          arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+        }),
+        'kms:EncryptionContext:aws:cloudtrail:arn': stack.formatArn({
+          service: 'cloudtrail',
+          resource: 'trail',
+          resourceName: '*',
+          arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+        }),
+      },
+    },
+  }),
+);
+const apiLogGroup = new LogGroup(stack, 'ApiLogs', {
+  encryptionKey: logsKey,
+  retention: RetentionDays.ONE_MONTH,
+  removalPolicy: RemovalPolicy.RETAIN,
+});
+const workerLogGroup = new LogGroup(stack, 'WorkerLogs', {
+  encryptionKey: logsKey,
+  retention: RetentionDays.ONE_MONTH,
+  removalPolicy: RemovalPolicy.RETAIN,
+});
+const apiAccessLogGroup = new LogGroup(stack, 'ApiAccessLogs', {
+  encryptionKey: logsKey,
+  retention: RetentionDays.ONE_MONTH,
+  removalPolicy: RemovalPolicy.RETAIN,
+});
+
+const auditBucket = new Bucket(stack, 'AuditLogs', {
+  blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+  encryption: BucketEncryption.KMS,
+  encryptionKey: logsKey,
+  enforceSSL: true,
+  versioned: true,
+  removalPolicy: RemovalPolicy.RETAIN,
+});
+new Trail(stack, 'AuditTrail', {
+  bucket: auditBucket,
+  encryptionKey: logsKey,
+  enableFileValidation: true,
+  includeGlobalServiceEvents: true,
+  isMultiRegionTrail: true,
+  sendToCloudWatchLogs: true,
+  cloudWatchLogsRetention: RetentionDays.ONE_MONTH,
+});
+
 const deadLetterQueue = new Queue(stack, 'AgentJobsDeadLetter', {
   encryption: QueueEncryption.SQS_MANAGED,
   enforceSSL: true,
@@ -110,12 +241,14 @@ const functionDefaults = {
   runtime: Runtime.PYTHON_3_14,
   memorySize: 512,
   environment: { TABLE_NAME: table.tableName },
+  tracing: Tracing.ACTIVE,
 };
 
 const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
   ...functionDefaults,
   handler: 'api.handler.handler',
   code: Code.fromAsset(path.resolve('amplify/functions')),
+  logGroup: apiLogGroup,
   timeout: Duration.seconds(15),
   environment: {
     ...functionDefaults.environment,
@@ -125,7 +258,12 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
     SCHEDULE_GROUP_NAME: taskScheduleGroup.scheduleGroupName,
     SCHEDULE_ROLE_ARN: taskScheduleRole.roleArn,
     INVITE_TABLE_NAME: inviteAccess.tableName,
-    PUBLIC_WEB_BASE_URL: 'https://frogbot.expo.app',
+    USER_POOL_ID: backend.auth.resources.userPool.userPoolId,
+    AGENT_RUNTIME_ARN: runtimeArn,
+    AGENT_RUNTIME_QUALIFIER: process.env.FROGBOT_AGENT_RUNTIME_QUALIFIER ?? 'DEFAULT',
+    FROGBOT_MEMORY_ID: memoryId,
+    FILES_BUCKET_NAME: filesBucket.bucketName,
+    PUBLIC_WEB_BASE_URL: 'https://froggybot.com',
     CAPABILITY_CATALOG_URL:
       'https://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json',
   },
@@ -135,12 +273,22 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
   ...functionDefaults,
   handler: 'worker.handler.handler',
   code: Code.fromAsset(path.resolve('amplify/functions')),
+  logGroup: workerLogGroup,
   timeout: Duration.minutes(6),
   environment: {
     ...functionDefaults.environment,
     AGENT_RUNTIME_ARN: runtimeArn,
     AGENT_RUNTIME_QUALIFIER: process.env.FROGBOT_AGENT_RUNTIME_QUALIFIER ?? 'DEFAULT',
     QUEUE_URL: jobs.queueUrl,
+    QUEUE_ARN: jobs.queueArn,
+    SCHEDULE_DLQ_ARN: deadLetterQueue.queueArn,
+    SCHEDULE_GROUP_NAME: taskScheduleGroup.scheduleGroupName,
+    SCHEDULE_ROLE_ARN: taskScheduleRole.roleArn,
+    INVITE_TABLE_NAME: inviteAccess.tableName,
+    USER_POOL_ID: backend.auth.resources.userPool.userPoolId,
+    FROGBOT_MEMORY_ID: memoryId,
+    FILES_BUCKET_NAME: filesBucket.bucketName,
+    PUBLIC_WEB_BASE_URL: 'https://froggybot.com',
     CAPABILITY_CATALOG_URL:
       'https://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json',
   },
@@ -148,11 +296,23 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
 
 table.grantReadWriteData(apiFunction);
 inviteAccess.grantReadWriteData(apiFunction);
+inviteAccess.grantReadWriteData(workerFunction);
 table.grantReadWriteData(workerFunction);
+filesBucket.grantReadWrite(apiFunction);
+filesBucket.grantReadWrite(workerFunction);
 jobs.grantSendMessages(apiFunction);
 jobs.grantSendMessages(workerFunction);
 taskScheduleGroup.grantWriteSchedules(apiFunction);
 taskScheduleGroup.grantDeleteSchedules(apiFunction);
+taskScheduleGroup.grantDeleteSchedules(workerFunction);
+for (const fn of [apiFunction, workerFunction]) {
+  fn.addToRolePolicy(
+    new PolicyStatement({
+      actions: ['cognito-idp:AdminDeleteUser', 'cognito-idp:AdminUserGlobalSignOut'],
+      resources: [backend.auth.resources.userPool.userPoolArn],
+    }),
+  );
+}
 apiFunction.addToRolePolicy(
   new PolicyStatement({
     actions: ['iam:PassRole'],
@@ -169,14 +329,51 @@ workerFunction.addEventSource(
 workerFunction.addToRolePolicy(
   new PolicyStatement({
     effect: Effect.ALLOW,
-    actions: ['bedrock-agentcore:InvokeAgentRuntime'],
+    actions: ['bedrock-agentcore:InvokeAgentRuntime', 'bedrock-agentcore:StopRuntimeSession'],
     resources: [runtimeArn, `${runtimeArn}/runtime-endpoint/*`],
+  }),
+);
+workerFunction.addToRolePolicy(
+  new PolicyStatement({
+    effect: Effect.ALLOW,
+    actions: [
+      'bedrock-agentcore:ListCodeInterpreterSessions',
+      'bedrock-agentcore:StopCodeInterpreterSession',
+      'bedrock-agentcore:ListBrowserSessions',
+      'bedrock-agentcore:StopBrowserSession',
+    ],
+    resources: ['*'],
+  }),
+);
+const memoryArn = stack.formatArn({
+  service: 'bedrock-agentcore',
+  resource: 'memory',
+  resourceName: memoryId,
+  arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+});
+workerFunction.addToRolePolicy(
+  new PolicyStatement({
+    effect: Effect.ALLOW,
+    actions: [
+      'bedrock-agentcore:ListSessions',
+      'bedrock-agentcore:ListEvents',
+      'bedrock-agentcore:DeleteEvent',
+      'bedrock-agentcore:ListMemoryRecords',
+      'bedrock-agentcore:BatchDeleteMemoryRecords',
+    ],
+    resources: [memoryArn],
   }),
 );
 
 const httpApi = new HttpApi(stack, 'HttpApi', {
   corsPreflight: {
-    allowOrigins: ['https://frogbot.expo.app', 'http://localhost:8081', 'http://localhost:19006'],
+    allowOrigins: [
+      'https://froggybot.com',
+      'https://www.froggybot.com',
+      'https://frogbot.expo.app',
+      'http://localhost:8081',
+      'http://localhost:19006',
+    ],
     allowHeaders: ['authorization', 'content-type'],
     allowMethods: [
       CorsHttpMethod.GET,
@@ -194,6 +391,27 @@ const authorizer = new HttpJwtAuthorizer(
 );
 const integration = new HttpLambdaIntegration('ApiIntegration', apiFunction);
 
+const defaultStage = httpApi.defaultStage?.node.defaultChild as CfnStage | undefined;
+if (!defaultStage) throw new Error('FroggyBot HTTP API must have a default stage.');
+defaultStage.accessLogSettings = {
+  destinationArn: apiAccessLogGroup.logGroupArn,
+  format: JSON.stringify({
+    requestId: '$context.requestId',
+    requestTime: '$context.requestTime',
+    httpMethod: '$context.httpMethod',
+    routeKey: '$context.routeKey',
+    status: '$context.status',
+    responseLatency: '$context.responseLatency',
+    integrationError: '$context.integrationErrorMessage',
+    sourceIp: '$context.identity.sourceIp',
+  }),
+};
+defaultStage.defaultRouteSettings = {
+  detailedMetricsEnabled: true,
+  throttlingBurstLimit: 100,
+  throttlingRateLimit: 50,
+};
+
 httpApi.addRoutes({
   path: '/public/invites/{kind}/{token}',
   methods: [HttpMethod.GET],
@@ -207,6 +425,8 @@ for (const [method, routePath] of [
   [HttpMethod.DELETE, '/bots/{botId}'],
   [HttpMethod.GET, '/bots/{botId}/messages'],
   [HttpMethod.POST, '/bots/{botId}/messages'],
+  [HttpMethod.POST, '/bots/{botId}/messages/{turnId}/approve'],
+  [HttpMethod.POST, '/bots/{botId}/messages/{turnId}/cancel'],
   [HttpMethod.DELETE, '/bots/{botId}/messages'],
   [HttpMethod.GET, '/bots/{botId}/schedules'],
   [HttpMethod.POST, '/bots/{botId}/schedules'],
@@ -223,7 +443,13 @@ for (const [method, routePath] of [
   [HttpMethod.POST, '/group-invites/{token}/join'],
   [HttpMethod.PUT, '/devices/push-token'],
   [HttpMethod.DELETE, '/devices/push-token'],
+  [HttpMethod.POST, '/uploads'],
+  [HttpMethod.POST, '/uploads/{fileId}/complete'],
+  [HttpMethod.GET, '/files/{fileId}/download'],
+  [HttpMethod.DELETE, '/account'],
+  [HttpMethod.GET, '/shares'],
   [HttpMethod.POST, '/shares'],
+  [HttpMethod.DELETE, '/shares/{token}'],
   [HttpMethod.POST, '/shares/{token}/import'],
   [HttpMethod.POST, '/skills'],
   [HttpMethod.GET, '/skills/{skillId}'],
@@ -234,9 +460,23 @@ for (const [method, routePath] of [
   httpApi.addRoutes({ path: routePath, methods: [method], integration, authorizer });
 }
 
+const { alarmTopic, monthlyBudgetName } = addObservability({
+  stack,
+  apiFunction,
+  workerFunction,
+  jobs,
+  deadLetterQueue,
+  logsKey,
+  monthlyBudgetUsd,
+});
+
 backend.addOutput({
   custom: {
     apiUrl: httpApi.apiEndpoint,
-    shareBaseUrl: 'https://frogbot.expo.app/invite',
+    shareBaseUrl: 'https://froggybot.com/invite',
+    dataTableName: table.tableName,
+    filesBucketName: filesBucket.bucketName,
+    alarmTopicArn: alarmTopic.topicArn,
+    monthlyBudgetName,
   },
 });

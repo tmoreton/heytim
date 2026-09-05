@@ -7,13 +7,20 @@ DAYS_OF_WEEK = ("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")
 
 
 def schedule_expression(
-    frequency: str, time_of_day: str, day_of_week: str | None = None
+    frequency: str,
+    time_of_day: str,
+    day_of_week: str | None = None,
+    day_of_month: int | None = None,
 ) -> str:
     hour, minute = time_of_day.split(":", 1)
     if frequency == "daily":
         return f"cron({int(minute)} {int(hour)} * * ? *)"
+    if frequency == "weekdays":
+        return f"cron({int(minute)} {int(hour)} ? * MON-FRI *)"
     if frequency == "weekly" and day_of_week in DAYS_OF_WEEK:
         return f"cron({int(minute)} {int(hour)} ? * {day_of_week} *)"
+    if frequency == "monthly" and isinstance(day_of_month, int) and 1 <= day_of_month <= 28:
+        return f"cron({int(minute)} {int(hour)} {day_of_month} * ? *)"
     raise ValueError("Unsupported schedule cadence")
 
 

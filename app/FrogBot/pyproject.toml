@@ -12,7 +12,12 @@ dependencies = [
     "aws-opentelemetry-distro",
     "bedrock-agentcore >= 1.9.1",
     "botocore[crt] >= 1.35.0",
+    "mcp >= 1.29.1, < 2.0.0",
     "mcp-proxy-for-aws >= 1.6.0, < 2.0.0",
+    "openpyxl >= 3.1.5, < 4.0.0",
+    "python-docx >= 1.2.0, < 2.0.0",
+    "python-pptx >= 1.0.2, < 2.0.0",
+    "reportlab >= 4.4.4, < 5.0.0",
     "strands-agents >= 1.54.0, < 2.0.0",
     "strands-agents-tools[agent_core_browser,agent_core_code_interpreter] >= 0.2.0, < 1.0.0",
     "strands-agents-stan",
@@ -32,3 +37,6 @@ packages = ["."]
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[tool.ruff.lint.isort]
+known-first-party = ["frogbot_runtime", "model"]

@@ -5,6 +5,7 @@ from typing import Any
 
 from group_context import collaboration_instructions
 
+from .artifacts import artifact_prefix_from_payload
 from .capabilities import resolve_capabilities
 
 MAX_INSTRUCTIONS_CHARS = 12_000
@@ -21,12 +22,14 @@ class BotConfiguration:
     builtin_subagents: list[str]
 
 
-def bot_configuration(payload: dict, session_id: str = "unknown") -> BotConfiguration:
+def bot_configuration(
+    payload: dict, session_id: str = "unknown", actor_id: str | None = None
+) -> BotConfiguration:
     bot = payload.get("bot", {})
     if not isinstance(bot, dict):
         raise TypeError("bot must be an object")
 
-    name = bot.get("name", "FrogBot")
+    name = bot.get("name", "FroggyBot")
     prompt = bot.get("prompt", "Be helpful, direct, and honest.")
     if not isinstance(name, str) or not name.strip() or len(name) > 60:
         raise ValueError("bot.name must be a non-empty string up to 60 characters")
@@ -37,7 +40,8 @@ def bot_configuration(payload: dict, session_id: str = "unknown") -> BotConfigur
             f"bot.prompt must be at most {MAX_INSTRUCTIONS_CHARS} characters"
         )
 
-    capabilities = resolve_capabilities(bot, session_id)
+    artifact_prefix = artifact_prefix_from_payload(payload, actor_id)
+    capabilities = resolve_capabilities(bot, session_id, artifact_prefix)
     instructions = (
         f"Your name is {name.strip()}. You are one member of the user's team of AI assistants.\n\n"
         f"Your role and working preferences:\n{prompt.strip()}\n\n"
@@ -45,6 +49,9 @@ def bot_configuration(payload: dict, session_id: str = "unknown") -> BotConfigur
         "- The user does not need to name a skill or tool.\n"
         "- When an available skill clearly matches the request, activate it with the skills tool before doing the work.\n"
         "- Use available tools when they materially improve accuracy or are required by an activated skill.\n"
+        "- When the user asks for a downloadable text, Markdown, CSV, JSON, HTML, PDF, Word, Excel, or PowerPoint file, use save_artifact.\n"
+        "- For PDF or Word, pass Markdown content. For Excel, pass CSV content. For PowerPoint, pass Markdown and put --- on a line between slides.\n"
+        "- When the user asks you to create an original image, use generate_image.\n"
         "- Do not claim to have used a skill or tool unless you actually activated or called it."
     )
     group_instructions = collaboration_instructions(payload.get("group"))

@@ -1,1 +1,1 @@
-"""Validated runtime building blocks for the FrogBot AgentCore entrypoint."""
+"""Validated runtime building blocks for the FroggyBot AgentCore entrypoint."""

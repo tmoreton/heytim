@@ -10,6 +10,7 @@
     "expo": "~57.0.20",
     "expo-constants": "~57.0.17",
     "expo-device": "~57.0.1",
+    "expo-document-picker": "~57.0.1",
     "expo-linking": "~57.0.9",
     "expo-notifications": "~57.0.17",
     "expo-router": "~57.0.19",
@@ -27,11 +28,18 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
-    "esbuild": "^0.28.2",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
     "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
+  },
+  "overrides": {
+    "query-string": {
+      "decode-uri-component": "0.5.0"
+    },
+    "xcode": {
+      "uuid": "11.1.1"
+    }
   },
   "scripts": {
     "start": "expo start",
@@ -43,10 +51,13 @@
     "deploy:web": "npm run build:web && eas deploy --prod --non-interactive",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
+    "source:size": "../../scripts/check-source-size.sh",
     "backend:install": "npm install --prefix amplify",
     "backend:typecheck": "./amplify/node_modules/.bin/tsc -p amplify/tsconfig.json --noEmit",
     "backend:test": "PYTHONPATH=amplify/functions python3 -m unittest discover -s amplify/functions/tests -p 'test_*.py'",
-    "verify": "npm run typecheck && npm run lint && npm run backend:typecheck && npm run backend:test && npx expo-doctor",
+    "load:test": "node scripts/authenticated-load-test.mjs",
+    "workflow:test": "node scripts/authenticated-workflow-test.mjs",
+    "verify": "npm run source:size && npm run typecheck && npm run lint && npm run backend:typecheck && npm run backend:test && npx expo-doctor",
     "sandbox": "./amplify/node_modules/.bin/ampx sandbox"
   },
   "engines": {

@@ -1,6 +1,6 @@
-# FrogBot
+# FroggyBot
 
-FrogBot is a small iOS-first AI team app. One Amazon Bedrock AgentCore runtime serves every bot;
+FroggyBot is a small iOS-first AI team app. One Amazon Bedrock AgentCore runtime serves every bot;
 each bot supplies its own prompt, enabled tools, enabled skills, and stable session ID. The Expo app
 provides a Grokbot-style chat interface, while Amplify provisions passwordless email-code sign-in and the
 serverless chat API.
@@ -16,8 +16,11 @@ docs/                Operational forms and architecture notes
 
 `apps/mobile` is an independent Expo project, so run Expo, EAS, Amplify, and npm commands from
 that directory. `app/FrogBot` remains at AgentCore's conventional code location; `agentcore.json`
-is still the source of truth for deployed agent resources. The maintained boundary and request-flow
-guide is in [`docs/architecture.md`](docs/architecture.md).
+is still the source of truth for deployed agent resources. The older internal name `FrogBot` remains
+in AWS resource and folder identities because renaming it would replace deployed infrastructure;
+user-facing product copy uses `FroggyBot`. The maintained boundary and request-flow
+guide is in [`docs/architecture.md`](docs/architecture.md), and the remaining product work is tracked
+in [`docs/grokbot-parity-roadmap.md`](docs/grokbot-parity-roadmap.md).
 
 ## Architecture
 
@@ -26,11 +29,14 @@ Expo app
   |-- Cognito email code sign-in
   |-- Apple on-device speech-to-text
   |-- authenticated HTTP API
-        |-- DynamoDB: bot configs, direct chats, shared groups, device tokens, expiring invites
-        |-- EventBridge Scheduler: per-bot daily and weekly tasks
+        |-- DynamoDB: bot configs, chats, files, groups, tasks, tokens, and invites
+        |-- S3: private user uploads and generated artifacts
+        |-- EventBridge Scheduler: daily, weekday, weekly, and monthly tasks
         |-- SQS: durable agent jobs
               |-- Lambda worker
                     |-- AgentCore Runtime -> Strands + Stan
+                    |     |-- AgentCore Memory -> preferences, facts, summaries
+                    |     |-- persistent browser and code-interpreter sessions
                     |-- AgentCore Gateway -> reviewed external tools
                     |-- Expo Push Service -> APNs
 ```
@@ -42,20 +48,30 @@ one at a time so every later bot sees the people, the full bot roster, and earli
 The first bot coordinates the round, specialists add distinct perspectives, and the coordinator returns
 one final synthesized team answer.
 
+New contributors should follow the [start-to-finish tutorial](docs/tutorial.md). It gives the reading
+order for the preview app, live request path, AgentCore runtime, infrastructure, tests, and deployment.
+
 ## What is included
 
 - Email-only Cognito sign-up and sign-in with one-time codes while the US SMS sender is registered
 - Responsive chat UI with a collapsible bot list
 - Push notification when an agent reply completes, with tap-to-open navigation
-- Daily and weekly per-bot tasks in the device's timezone, with pause and run-now controls
+- Daily, weekday, weekly, and monthly per-bot tasks in the device's timezone, with pause and run-now controls
 - Apple on-device speech-to-text in the message composer without saved audio
+- Private image and document uploads, plus downloadable text, Markdown, CSV, JSON, HTML, PDF, Word, Excel,
+  PowerPoint, and generated PNG artifacts
 - Per-bot name, description, prompt, color, tools, and version-pinned skills
-- Shared groups with multiple people and FrogBots, invite links, single-bot replies, and ordered team collaboration rounds
+- Shared groups with multiple people and FroggyBots, invite links, single-bot replies, and ordered team collaboration rounds
 - Owner-controlled chat, bot, and group deletion with pending-work protection and invite revocation
 - A skill library for creating, editing, and sharing reusable ways of working
 - Three starter bots, three reviewed starter skills, and a dynamically refreshed capability catalog
 - Bot snapshots, conversation snapshots, and live group invitations with 30-day links
-- DynamoDB persistence, an encrypted SQS queue, retries, and a dead-letter queue
+- Long-term AgentCore memory for user preferences, facts, and conversation summaries
+- Persistent two-hour browser and code-interpreter sessions; browser use requires one-time approval for each turn
+- DynamoDB persistence, encrypted queues and topics, retries, work leases, cancellation, and a dead-letter queue
+- CloudTrail audit logs, API access logs, X-Ray tracing, service alarms, and a CloudWatch dashboard
+- Permanent in-app account deletion, including active share revocation and versioned user-file deletion
+- Published service objectives, alarm response, and recovery procedures in [`docs/operations.md`](docs/operations.md)
 - Expo over-the-air updates on the production channel, automatically published after changes land on `main`
 - A local preview mode that works before AWS is connected
 
@@ -84,11 +100,14 @@ From the repository root:
 agentcore validate
 agentcore deploy --target development
 agentcore status --target development --runtime FrogBot --json
+agentcore status --target development --type memory --json
 ```
 
-The development target is account `188757775631` in `us-east-1`. Copy the deployed runtime ARN from
-the status output. The runtime uses Claude Sonnet 4.5, so model access must be available in that
-account and region.
+The development target is account `188757775631` in `us-east-1`. Confirm that both the runtime and
+memory are ready, then copy the deployed runtime ARN from the status output. The runtime uses Claude
+Sonnet 4.5, so model access must be available in that account and region. The private file bucket has
+the deterministic name `frogbot-user-files-188757775631-us-east-1`; when adding another deployment
+target, update `FROGBOT_FILES_BUCKET` and the attachment policy in `agentcore/` for that target.
 
 ### 2. Optional future phone sign-in
 
@@ -105,6 +124,7 @@ nvm use
 npm install
 npm run backend:install
 export FROGBOT_AGENT_RUNTIME_ARN='arn:aws:bedrock-agentcore:us-east-1:188757775631:runtime/REPLACE_ME'
+export FROGBOT_MEMORY_ID='FrogBot_FrogBotMemory-REPLACE_ME'
 npm run sandbox -- --once --identifier frogbot --profile YOUR_AWS_PROFILE
 ```
 
@@ -114,7 +134,8 @@ running during active development by omitting `--once`, then start the app in an
 Amplify CLI incompatibility seen under Node 25.
 
 Set `FROGBOT_AGENT_RUNTIME_QUALIFIER` only if the runtime should use a qualifier other than
-`DEFAULT`.
+`DEFAULT`. Deploy with an IAM Identity Center or least-privilege role; the deployment runbook must
+never use AWS account-root credentials.
 
 ## Skills and tools
 
@@ -140,13 +161,15 @@ cd apps/mobile
 npm run verify
 ```
 
+The verification command also prevents authored source files from growing beyond 600 lines.
+
 ## Mobile releases
 
 The production EAS build profile listens to the `production` update channel. The GitHub Actions workflow at
 `.github/workflows/eas-update.yml` publishes both an EAS Update and the static Expo website after every push to
 `main`; the Expo credential is stored as the repository secret `EXPO_TOKEN`. Expo's fingerprint runtime policy
 prevents an update from reaching an incompatible native build. On web, `/` is the public landing page and `/app`
-opens the same passwordless FrogBot experience used by the native app.
+opens the same passwordless FroggyBot experience used by the native app.
 
 ## Key locations
 

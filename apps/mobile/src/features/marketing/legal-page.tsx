@@ -19,7 +19,7 @@ export function LegalPage({ title, description, sections }: Props) {
   return (
     <>
       <Head>
-        <title>{title} — FrogBot</title>
+        <title>{title} — FroggyBot</title>
         <meta name="description" content={description} />
         <meta name="theme-color" content="#F4F2EC" />
       </Head>
@@ -28,7 +28,7 @@ export function LegalPage({ title, description, sections }: Props) {
           <Link href="/" asChild>
             <Pressable accessibilityRole="link" style={styles.wordmark}>
               <Image accessibilityIgnoresInvertColors source={frog} resizeMode="contain" style={styles.logo} />
-              <Text style={styles.brandName}>FrogBot</Text>
+              <Text style={styles.brandName}>FroggyBot</Text>
             </Pressable>
           </Link>
           <Link href="/app" style={styles.loginLink}>
@@ -36,7 +36,7 @@ export function LegalPage({ title, description, sections }: Props) {
           </Link>
         </View>
         <View style={styles.content}>
-          <Text style={styles.eyebrow}>FROGBOT</Text>
+          <Text style={styles.eyebrow}>FROGGYBOT</Text>
           <Text accessibilityRole="header" style={styles.title}>
             {title}
           </Text>
@@ -56,7 +56,7 @@ export function LegalPage({ title, description, sections }: Props) {
           ))}
         </View>
         <View style={styles.footer}>
-          <Text style={styles.footerText}>© 2026 FrogBot</Text>
+          <Text style={styles.footerText}>© 2026 FroggyBot</Text>
           <View style={styles.footerLinks}>
             <Link href="/privacy" style={styles.footerLink}>
               Privacy

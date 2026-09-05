@@ -1,42 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import {
-  ActivityIndicator,
   Alert,
-  FlatList,
   KeyboardAvoidingView,
   Linking,
   Platform,
   Pressable,
   Share,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionSheet } from '@/components/action-sheet';
-import { BotAvatar } from '@/components/bot-avatar';
-import { GroupAvatar } from '@/components/participant-avatar';
 import { endSession } from '@/lib/auth';
 import { createApi } from '@/lib/api';
-import {
-  consumeInitialNotificationTarget,
-  registerForReplyNotifications,
-  subscribeToNotificationReplies,
-} from '@/lib/notifications';
-import type { Bootstrap, Bot, BotDraft, Group, GroupDraft, GroupMember, Invitation, Message } from '@/lib/types';
+import type { Attachment, Bootstrap, Bot, BotDraft, Group, GroupDraft, GroupMember, Invitation, Message } from '@/lib/types';
 
+import { AccountSettings } from './account-settings';
 import { BotEditor } from './bot-editor';
+import { ConversationPanel } from './conversation-panel';
 import { ConversationDrawer, type ConversationSelection as Selection } from './conversation-drawer';
-import { ConversationHeader } from './conversation-header';
 import { GroupEditor } from './group-editor';
-import { MessageBubble } from './message-bubble';
-import { ALL_BOTS_REPLY_TARGET, MessageComposer } from './message-composer';
+import { ALL_BOTS_REPLY_TARGET } from './message-composer';
 import { ScheduledTasks } from './scheduled-tasks';
 import { SkillLibrary } from './skill-library';
-import { invitationFromUrl } from '../invites/invitation-url';
+import { useAttachments } from './use-attachments';
+import { useConversationLinks } from './use-conversation-links';
+import { useMessageDictation } from './use-message-dictation';
 
 type Props = {
   demo: boolean;
@@ -46,16 +37,17 @@ type Props = {
 
 const MESSAGE_REFRESH_MS = 900;
 
+const directTurnId = (message: Message) =>
+  message.id.endsWith('-assistant')
+    ? message.id.slice(0, -'-assistant'.length)
+    : message.id;
+
 export function ChatApp({ demo, invitation, onSignedOut }: Props) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const wide = width >= 760;
   const api = useMemo(() => createApi(demo), [demo]);
-  const list = useRef<FlatList<Message>>(null);
-  const importedTokens = useRef(new Set<string>());
   const messageRequest = useRef(0);
-  const dictationBase = useRef('');
-  const pushToken = useRef<string | null>(null);
   const [data, setData] = useState<Bootstrap>();
   const [selection, setSelection] = useState<Selection>();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -64,27 +56,39 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
   const [draft, setDraft] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
-  const [listening, setListening] = useState(false);
   const [error, setError] = useState('');
   const [editor, setEditor] = useState<'new' | 'edit' | undefined>();
   const [groupEditor, setGroupEditor] = useState<'new' | 'edit' | undefined>();
   const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
   const [botMenuOpen, setBotMenuOpen] = useState(false);
+  const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [scheduleBot, setScheduleBot] = useState<Bot>();
   const [pendingBotAction, setPendingBotAction] = useState<'clear' | 'delete'>();
-  const [pendingSkillInvite, setPendingSkillInvite] = useState<{ token: string; importKey: string }>();
   const [replyBotId, setReplyBotId] = useState<string | null>();
 
   const selectedBot = selection?.kind === 'bot' ? data?.bots.find((bot) => bot.id === selection.id) : undefined;
   const selectedGroup = selection?.kind === 'group' ? data?.groups.find((group) => group.id === selection.id) : undefined;
   const selected = selectedBot ?? selectedGroup;
-  const pending = messages.some((message) => message.status === 'pending' || message.status === 'waiting');
+  const pending = messages.some((message) =>
+    ['pending', 'running', 'waiting', 'needs_input', 'awaiting_approval'].includes(message.status),
+  );
+  const refreshing = messages.some((message) =>
+    ['pending', 'running', 'waiting'].includes(message.status),
+  );
   const activeBotName = messages.find(
-    (message) => message.status === 'pending' && message.authorType === 'bot',
+    (message) => ['pending', 'running'].includes(message.status) && message.authorType === 'bot',
   )?.authorName;
   const waitingBotCount = messages.filter(
     (message) => message.status === 'waiting' && message.authorType === 'bot',
   ).length;
+  const activeDirectTurn = selectedBot
+    ? [...messages]
+        .reverse()
+        .find(
+          (message) =>
+            message.role === 'assistant' && ['pending', 'running'].includes(message.status),
+        )
+    : undefined;
   const activeReplyBotId = replyBotId === null
     ? undefined
     : replyBotId === ALL_BOTS_REPLY_TARGET && selectedGroup?.bots.length
@@ -94,6 +98,15 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
       : selectedGroup && selectedGroup.bots.length > 1
         ? ALL_BOTS_REPLY_TARGET
         : selectedGroup?.bots[0]?.id;
+  const dictation = useMessageDictation(draft, setDraft, setError);
+  const attachmentDraft = useAttachments({
+    api,
+    disabled: !selectedBot || pending || sending,
+    setError,
+  });
+  const { attachments, uploading: uploadingAttachment } = attachmentDraft;
+  const { listening } = dictation;
+  const clearAttachmentDraft = attachmentDraft.clear;
 
   const chooseAvailableSelection = useCallback((next: Bootstrap, current?: Selection): Selection | undefined => {
     if (current?.kind === 'bot' && next.bots.some((bot) => bot.id === current.id)) return current;
@@ -103,34 +116,6 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
     return undefined;
   }, []);
 
-  const scrollToLatest = useCallback(() => {
-    requestAnimationFrame(() => list.current?.scrollToEnd({ animated: true }));
-  }, []);
-
-  useSpeechRecognitionEvent('start', () => setListening(true));
-  useSpeechRecognitionEvent('end', () => setListening(false));
-  useSpeechRecognitionEvent('result', (event) => {
-    const transcript = event.results[0]?.transcript?.trim();
-    if (!transcript) return;
-    setDraft(dictationBase.current ? `${dictationBase.current} ${transcript}` : transcript);
-  });
-  useSpeechRecognitionEvent('error', (event) => {
-    setListening(false);
-    if (event.error === 'aborted' || event.error === 'no-speech') return;
-    if (event.error === 'not-allowed') {
-      setError('Allow microphone access in Settings to dictate messages.');
-      return;
-    }
-    if (event.error === 'language-not-supported') {
-      setError('On-device dictation does not support this iPhone language. Try changing the keyboard language in Settings.');
-      return;
-    }
-    if (event.error === 'service-not-allowed') {
-      setError('Turn on Siri & Dictation and download this language in iPhone Settings, then try again.');
-      return;
-    }
-    setError('On-device dictation stopped unexpectedly. Please try again.');
-  });
 
   const loadBootstrap = useCallback(async () => {
     try {
@@ -141,6 +126,22 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
       setError(value instanceof Error ? value.message : 'Could not load your bots.');
     }
   }, [api, chooseAvailableSelection]);
+
+  const openConversation = useCallback((next: Selection, closeDrawer = true) => {
+    setMessages([]);
+    setLoadingMessages(true);
+    clearAttachmentDraft();
+    setSelection(next);
+    if (closeDrawer) setDrawerOpen(false);
+  }, [clearAttachmentDraft]);
+
+  const links = useConversationLinks({
+    api,
+    demo,
+    invitation,
+    loadBootstrap,
+    openConversation,
+  });
 
   const loadMessages = useCallback(async () => {
     if (!selection) return;
@@ -205,7 +206,7 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
   }, [api, selection]);
 
   useEffect(() => {
-    if (!pending) return;
+    if (!refreshing) return;
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -217,110 +218,16 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
       active = false;
       clearTimeout(timer);
     };
-  }, [loadMessages, pending]);
-
-  useEffect(() => {
-    if (demo) return;
-    let active = true;
-    const openConversation = (target: { botId?: string; groupId?: string }) => {
-      if (!active) return;
-      const next = target.groupId
-        ? { kind: 'group' as const, id: target.groupId }
-        : target.botId
-          ? { kind: 'bot' as const, id: target.botId }
-          : undefined;
-      if (!next) return;
-      setMessages([]);
-      setLoadingMessages(true);
-      setSelection(next);
-      setDrawerOpen(false);
-    };
-
-    registerForReplyNotifications()
-      .then(async (token) => {
-        if (!active || !token) return;
-        pushToken.current = token;
-        await api.registerPushToken(token);
-      })
-      .catch((value) => console.warn('Could not register for reply notifications.', value));
-    consumeInitialNotificationTarget()
-      .then((target) => {
-        if (target) openConversation(target);
-      })
-      .catch((value) => console.warn('Could not read the initial notification.', value));
-    const subscription = subscribeToNotificationReplies(openConversation);
-    return () => {
-      active = false;
-      subscription.remove();
-    };
-  }, [api, demo]);
-
-  const importUrl = useCallback(
-    async (url: string | null) => {
-      if (!url) return;
-      const parsedInvitation = invitationFromUrl(url);
-      if (!parsedInvitation) return;
-      const { kind, token } = parsedInvitation;
-      const importKey = `${kind}:${token}`;
-      if (!token || importedTokens.current.has(importKey)) return;
-      importedTokens.current.add(importKey);
-      if (kind === 'group') {
-        try {
-          const group = await api.joinGroup(token);
-          await loadBootstrap();
-          setMessages([]);
-          setLoadingMessages(true);
-          setSelection({ kind: 'group', id: group.id });
-          setDrawerOpen(false);
-          Alert.alert('Group joined', `You are now in ${group.name}.`);
-        } catch (value) {
-          importedTokens.current.delete(importKey);
-          Alert.alert('Could not join group', value instanceof Error ? value.message : 'The invite may have expired.');
-        }
-        return;
-      }
-      if (kind === 'skill') {
-        setPendingSkillInvite({ token, importKey });
-        return;
-      }
-      try {
-        const bot = await api.importShare(token);
-        await loadBootstrap();
-        setMessages([]);
-        setLoadingMessages(true);
-        setSelection({ kind: 'bot', id: bot.id });
-        Alert.alert('Bot added', `${bot.name} is now on your team.`);
-      } catch (value) {
-        importedTokens.current.delete(importKey);
-        Alert.alert('Could not open share', value instanceof Error ? value.message : 'The link may have expired.');
-      }
-    },
-    [api, loadBootstrap],
-  );
-
-  useEffect(() => {
-    const invitationUrl = invitation
-      ? `frogbot://invite?kind=${invitation.kind}&token=${encodeURIComponent(invitation.token)}`
-      : undefined;
-    Linking.getInitialURL().then((url) => importUrl(invitationUrl ?? url));
-    const subscription = Linking.addEventListener('url', ({ url }) => importUrl(url));
-    return () => subscription.remove();
-  }, [importUrl, invitation]);
+  }, [loadMessages, refreshing]);
 
   const selectBot = (bot: Bot) => {
-    if (listening) ExpoSpeechRecognitionModule.abort();
-    setMessages([]);
-    setLoadingMessages(true);
-    setSelection({ kind: 'bot', id: bot.id });
-    if (!wide) setDrawerOpen(false);
+    dictation.abort();
+    openConversation({ kind: 'bot', id: bot.id }, !wide);
   };
 
   const selectGroup = (group: Group) => {
-    if (listening) ExpoSpeechRecognitionModule.abort();
-    setMessages([]);
-    setLoadingMessages(true);
-    setSelection({ kind: 'group', id: group.id });
-    if (!wide) setDrawerOpen(false);
+    dictation.abort();
+    openConversation({ kind: 'group', id: group.id }, !wide);
   };
 
   const saveBot = async (value: BotDraft) => {
@@ -332,6 +239,7 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
     });
     setMessages([]);
     setLoadingMessages(true);
+    clearAttachmentDraft();
     setSelection({ kind: 'bot', id: saved.id });
   };
 
@@ -347,18 +255,20 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
     });
     setMessages([]);
     setLoadingMessages(true);
+    clearAttachmentDraft();
     setSelection({ kind: 'group', id: saved.id });
   };
 
   const send = async () => {
     const text = draft.trim();
-    if (!text || !selected || sending || pending) return;
+    if ((!text && attachments.length === 0) || !selected || sending || pending || uploadingAttachment) return;
     setSending(true);
-    if (listening) ExpoSpeechRecognitionModule.stop();
+    dictation.stop();
     setDraft('');
     try {
       if (selectedGroup) await api.sendGroupMessage(selectedGroup.id, text, activeReplyBotId);
-      else if (selectedBot) await api.sendMessage(selectedBot, text);
+      else if (selectedBot) await api.sendMessage(selectedBot, text, attachments.map((item) => item.id));
+      attachmentDraft.clear();
       await loadMessages();
     } catch (value) {
       setDraft(text);
@@ -368,38 +278,36 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
     }
   };
 
-  const toggleDictation = async () => {
-    if (listening) {
-      ExpoSpeechRecognitionModule.stop();
-      return;
-    }
-    if (Platform.OS !== 'ios') return;
+  const openFile = async (file: Attachment) => {
     try {
-      const permissions = await ExpoSpeechRecognitionModule.requestMicrophonePermissionsAsync();
-      if (!permissions.granted) {
-        setError('Allow microphone access in Settings to dictate messages.');
-        return;
-      }
-      const deviceLocale = (Intl.DateTimeFormat().resolvedOptions().locale || 'en-US').replaceAll('_', '-');
-      const { locales } = await ExpoSpeechRecognitionModule.getSupportedLocales({});
-      const language = deviceLocale.split('-')[0];
-      const locale = locales.find((value) => value.toLowerCase() === deviceLocale.toLowerCase())
-        ?? locales.find((value) => value.toLowerCase().startsWith(`${language.toLowerCase()}-`))
-        ?? 'en-US';
-      dictationBase.current = draft.trimEnd();
+      const url = await api.downloadFile(file.id);
+      await Linking.openURL(url);
       setError('');
-      ExpoSpeechRecognitionModule.start({
-        lang: locale,
-        interimResults: true,
-        continuous: false,
-        requiresOnDeviceRecognition: true,
-        addsPunctuation: true,
-        iosTaskHint: 'dictation',
-        recordingOptions: { persist: false },
-      });
-    } catch {
-      setListening(false);
-      setError('On-device dictation could not start. Please check the app permissions in Settings.');
+    } catch (value) {
+      const error = value instanceof Error ? value : new Error('Could not download that file.');
+      setError(error.message);
+      throw error;
+    }
+  };
+
+  const stopResponse = async () => {
+    if (!selectedBot || !activeDirectTurn) return;
+    try {
+      await api.cancelMessage(selectedBot.id, directTurnId(activeDirectTurn));
+      await loadMessages();
+    } catch (value) {
+      setError(value instanceof Error ? value.message : 'Could not stop that response.');
+    }
+  };
+
+  const respondToApproval = async (message: Message, approved: boolean) => {
+    if (!selectedBot || message.status !== 'awaiting_approval') return;
+    try {
+      if (approved) await api.approveMessage(selectedBot.id, directTurnId(message));
+      else await api.cancelMessage(selectedBot.id, directTurnId(message));
+      await loadMessages();
+    } catch (value) {
+      setError(value instanceof Error ? value.message : 'Could not update that approval request.');
     }
   };
 
@@ -410,7 +318,7 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
       .then((url) =>
         Share.share({
           title: `Share ${selectedBot.name}`,
-          message: scope === 'chat' ? `Open my conversation with ${selectedBot.name}: ${url}` : `Add ${selectedBot.name} to FrogBot: ${url}`,
+          message: scope === 'chat' ? `Open my conversation with ${selectedBot.name}: ${url}` : `Add ${selectedBot.name} to FroggyBot: ${url}`,
           url,
         }),
       )
@@ -428,13 +336,14 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
     setData(next);
     setMessages([]);
     setError('');
+    clearAttachmentDraft();
     setSelection(nextSelection);
     setLoadingMessages(Boolean(nextSelection));
   };
 
   const runBotDeletion = async () => {
     if (!selectedBot || !pendingBotAction) return;
-    if (listening) ExpoSpeechRecognitionModule.abort();
+    dictation.abort();
     try {
       if (pendingBotAction === 'clear') {
         await api.clearBotChat(selectedBot.id);
@@ -453,20 +362,6 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
     }
   };
 
-  const installSharedSkill = async () => {
-    if (!pendingSkillInvite) return;
-    const { token, importKey } = pendingSkillInvite;
-    importedTokens.current.add(importKey);
-    try {
-      const skill = await api.importSkill(token);
-      await loadBootstrap();
-      Alert.alert('Skill added', `${skill.name} is now in your library.`);
-    } catch (value) {
-      importedTokens.current.delete(importKey);
-      Alert.alert('Could not open share', value instanceof Error ? value.message : 'The link may have expired.');
-    }
-  };
-
   const shareGroup = async () => {
     if (!selectedGroup) throw new Error('Choose a group first.');
     return api.shareGroup(selectedGroup.id);
@@ -477,29 +372,40 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
     await api.removeGroupMember(selectedGroup.id, member.id);
     const next = await api.bootstrap();
     setData(next);
+    clearAttachmentDraft();
     setSelection((current) => chooseAvailableSelection(next, current));
   };
 
   const deleteGroup = async () => {
     if (!selectedGroup) return;
-    if (listening) ExpoSpeechRecognitionModule.abort();
+    dictation.abort();
     await api.deleteGroup(selectedGroup.id);
     await refreshAfterDeletion();
   };
 
   const signOut = async () => {
-    if (listening) ExpoSpeechRecognitionModule.abort();
+    dictation.abort();
     if (!demo) {
-      const token = pushToken.current;
-      if (token) {
-        try {
-          await api.unregisterPushToken(token);
-        } catch (value) {
-          console.warn('Could not unregister the push token.', value);
-        }
+      try {
+        await links.unregisterPushToken();
+      } catch (value) {
+        console.warn('Could not unregister the push token.', value);
       }
       await endSession();
     }
+    onSignedOut();
+  };
+
+  const deleteAccount = async () => {
+    if (demo) return;
+    dictation.abort();
+    await api.deleteAccount();
+    try {
+      await endSession();
+    } catch (value) {
+      console.warn('Account deletion started, but local sign-out reported an error.', value);
+    }
+    setAccountSettingsOpen(false);
     onSignedOut();
   };
 
@@ -510,7 +416,6 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
       selection={selection}
       search={search}
       demo={demo}
-      wide={wide}
       topInset={insets.top}
       bottomInset={insets.bottom}
       onSearchChange={setSearch}
@@ -518,9 +423,7 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
       onSelectGroup={selectGroup}
       onCreateBot={() => setEditor('new')}
       onCreateGroup={() => setGroupEditor('new')}
-      onOpenSkills={() => setSkillLibraryOpen(true)}
-      onClose={() => setDrawerOpen(false)}
-      onSignOut={signOut}
+      onOpenAccount={() => setAccountSettingsOpen(true)}
     />
   );
 
@@ -529,79 +432,40 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
       <KeyboardAvoidingView style={styles.safeArea} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.shell}>
           {wide && drawerOpen ? <View style={styles.wideDrawer}>{drawer}</View> : null}
-          <View style={styles.conversation}>
-            <ConversationHeader
-              bot={selectedBot}
-              group={selectedGroup}
-              listening={listening}
-              pending={pending}
-              activeBotName={activeBotName}
-              waitingBotCount={waitingBotCount}
-              topInset={insets.top}
-              onToggleDrawer={() => setDrawerOpen((value) => !value)}
-              onEditBot={() => setEditor('edit')}
-              onEditGroup={() => setGroupEditor('edit')}
-              onOpenBotMenu={showBotOptions}
-            />
-
-            {error ? (
-              <Pressable
-                accessibilityLabel={`${error}. Dismiss`}
-                accessibilityRole="alert"
-                style={styles.errorBar}
-                onPress={() => setError('')}>
-                <Text numberOfLines={2} style={styles.errorText}>
-                  {error}
-                </Text>
-                <Text style={styles.errorDismiss}>×</Text>
-              </Pressable>
-            ) : null}
-
-            {loadingMessages ? (
-              <View style={styles.center}>
-                <ActivityIndicator color="#007A3D" />
-              </View>
-            ) : (
-              <FlatList
-                ref={list}
-                data={messages}
-                keyExtractor={(message) => message.id}
-                contentContainerStyle={[styles.messages, messages.length === 0 && styles.emptyMessages]}
-                onContentSizeChange={scrollToLatest}
-                ListEmptyComponent={
-                  selectedGroup ? (
-                    <View style={styles.emptyState}>
-                      <GroupAvatar group={selectedGroup} size={76} />
-                      <Text style={styles.emptyTitle}>Welcome to {selectedGroup.name}</Text>
-                      <Text style={styles.emptyCopy}>Write to everyone, ask one FrogBot, or let the whole team collaborate in one shared round.</Text>
-                    </View>
-                  ) : selectedBot ? (
-                    <View style={styles.emptyState}>
-                      <BotAvatar color={selectedBot.color} name={selectedBot.name} size={70} />
-                      <Text style={styles.emptyTitle}>Talk to {selectedBot.name}</Text>
-                      <Text style={styles.emptyCopy}>{selectedBot.tagline || 'Start with the outcome you want.'}</Text>
-                    </View>
-                  ) : null
-                }
-                renderItem={({ item }) => <MessageBubble message={item} groupMode={Boolean(selectedGroup)} />}
-              />
-            )}
-
-            <MessageComposer
-              selectedName={selected?.name}
-              group={selectedGroup}
-              activeReplyBotId={activeReplyBotId}
-              draft={draft}
-              listening={listening}
-              pending={pending}
-              sending={sending}
-              bottomInset={insets.bottom}
-              onDraftChange={setDraft}
-              onReplyTargetChange={setReplyBotId}
-              onToggleDictation={toggleDictation}
-              onSend={send}
-            />
-          </View>
+          <ConversationPanel
+            bot={selectedBot}
+            group={selectedGroup}
+            messages={messages}
+            loading={loadingMessages}
+            error={error}
+            draft={draft}
+            attachments={attachments}
+            listening={listening}
+            pending={pending}
+            sending={sending}
+            uploading={uploadingAttachment}
+            canStop={Boolean(activeDirectTurn)}
+            activeBotName={activeBotName}
+            waitingBotCount={waitingBotCount}
+            activeReplyBotId={activeReplyBotId}
+            topInset={insets.top}
+            bottomInset={insets.bottom}
+            onDismissError={() => setError('')}
+            onToggleDrawer={() => setDrawerOpen((value) => !value)}
+            onEditBot={() => setEditor('edit')}
+            onEditGroup={() => setGroupEditor('edit')}
+            onOpenBotMenu={showBotOptions}
+            onDraftChange={setDraft}
+            onAddAttachment={() => void attachmentDraft.pick()}
+            onRemoveAttachment={attachmentDraft.remove}
+            onReplyTargetChange={setReplyBotId}
+            onToggleDictation={() => void dictation.toggle()}
+            onSend={() => void send()}
+            onStop={() => void stopResponse()}
+            onApprove={(message) => respondToApproval(message, true)}
+            onReject={(message) => respondToApproval(message, false)}
+            onOpenFile={openFile}
+          />
 
           {!wide && drawerOpen ? (
             <View style={styles.mobileDrawerLayer}>
@@ -661,9 +525,23 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
           }}
         />
       ) : null}
+      {accountSettingsOpen ? (
+        <AccountSettings
+          demo={demo}
+          onClose={() => setAccountSettingsOpen(false)}
+          onOpenSkills={() => {
+            setAccountSettingsOpen(false);
+            setSkillLibraryOpen(true);
+          }}
+          onListShares={api.sharedLinks}
+          onRevokeShare={api.revokeShare}
+          onDeleteAccount={deleteAccount}
+          onSignOut={signOut}
+        />
+      ) : null}
       <ActionSheet
         visible={botMenuOpen}
-        title={selectedBot?.name ?? 'FrogBot'}
+        title={selectedBot?.name ?? 'FroggyBot'}
         message="Schedule its work, share it, or manage this conversation."
         options={[
           { label: 'Scheduled tasks', onPress: () => setScheduleBot(selectedBot) },
@@ -679,8 +557,8 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
         title={pendingBotAction === 'delete' ? `Delete ${selectedBot?.name ?? 'this bot'}?` : 'Clear this conversation?'}
         message={
           pendingBotAction === 'delete'
-            ? 'This permanently deletes the FrogBot, its direct chat, and removes it from your groups.'
-            : 'This permanently deletes every message in this direct chat but keeps the FrogBot.'
+            ? 'This permanently deletes the FroggyBot, its direct chat, and removes it from your groups.'
+            : 'This permanently deletes every message in this direct chat but keeps the FroggyBot.'
         }
         options={[
           {
@@ -692,14 +570,11 @@ export function ChatApp({ demo, invitation, onSignedOut }: Props) {
         onClose={() => setPendingBotAction(undefined)}
       />
       <ActionSheet
-        visible={Boolean(pendingSkillInvite)}
+        visible={Boolean(links.pendingSkill)}
         title="Install shared skill?"
         message="Skills change how your bots work. Only install skills from people you trust."
-        options={[{ label: 'Install skill', onPress: installSharedSkill }]}
-        onClose={() => {
-          if (pendingSkillInvite) importedTokens.current.delete(pendingSkillInvite.importKey);
-          setPendingSkillInvite(undefined);
-        }}
+        options={[{ label: 'Install skill', onPress: links.installSkill }]}
+        onClose={links.dismissSkill}
       />
     </View>
   );
@@ -709,16 +584,6 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FBFBF9' },
   shell: { flex: 1, flexDirection: 'row', overflow: 'hidden' },
   wideDrawer: { width: 290 },
-  conversation: { flex: 1, backgroundColor: '#FBFBF9' },
-  errorBar: { minHeight: 44, backgroundColor: '#FCECE8', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  errorText: { flex: 1, color: '#9E342A', fontSize: 13 },
-  errorDismiss: { color: '#9E342A', fontSize: 21 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  messages: { paddingHorizontal: 14, paddingTop: 24, paddingBottom: 42, maxWidth: 780, width: '100%', alignSelf: 'center' },
-  emptyMessages: { flexGrow: 1, justifyContent: 'center' },
-  emptyState: { alignItems: 'center', paddingHorizontal: 34, marginTop: -30 },
-  emptyTitle: { color: '#201F1B', fontSize: 22, fontWeight: '800', letterSpacing: -0.4, marginTop: 18 },
-  emptyCopy: { color: '#827E76', fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 7, maxWidth: 340 },
   mobileDrawerLayer: { position: 'absolute', inset: 0, zIndex: 20, flexDirection: 'row' },
   backdrop: { position: 'absolute', inset: 0, backgroundColor: 'rgba(18,18,15,0.28)' },
   mobileDrawer: {
@@ -729,5 +594,4 @@ const styles = StyleSheet.create({
       default: { shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 24, shadowOffset: { width: 8, height: 0 } },
     }),
   },
-  pressed: { opacity: 0.7 },
 });

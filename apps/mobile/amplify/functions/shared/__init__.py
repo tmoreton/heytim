@@ -1,1 +1,1 @@
-"""Shared FrogBot Lambda helpers."""
+"""Shared FroggyBot Lambda helpers."""

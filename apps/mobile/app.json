@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "FrogBot",
+    "name": "FroggyBot",
     "slug": "frogbot",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -13,11 +13,11 @@
       "bundleIdentifier": "com.frogbot.app",
       "appleTeamId": "GVXC5FQ2RP",
       "associatedDomains": [
-        "applinks:frogbot.expo.app"
+        "applinks:froggybot.com"
       ],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "Allow FrogBot to select photos you choose to share in a conversation."
+        "NSPhotoLibraryUsageDescription": "Allow FroggyBot to select photos you choose to share in a conversation."
       }
     },
     "android": {
@@ -51,8 +51,8 @@
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "Allow FrogBot to hear you while you dictate a message.",
-          "speechRecognitionPermission": "Allow FrogBot to turn your speech into text on this device."
+          "microphonePermission": "Allow FroggyBot to hear you while you dictate a message.",
+          "speechRecognitionPermission": "Allow FroggyBot to turn your speech into text on this device."
         }
       ]
     ],

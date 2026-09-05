@@ -65,8 +65,8 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
       const url = await onShare();
       setInviteUrl(url);
       await Share.share({
-        title: `Join ${group?.name ?? name} on FrogBot`,
-        message: `You're invited to ${group?.name ?? name} on FrogBot. Join the group and meet our AI teammates: ${url}`,
+        title: `Join ${group?.name ?? name} on FroggyBot`,
+        message: `You're invited to ${group?.name ?? name} on FroggyBot. Join the group and meet our AI teammates: ${url}`,
         url,
       });
     } catch (value) {
@@ -152,10 +152,10 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
                 </View>
                 <View style={styles.inviteCardCopy}>
                   <Text style={styles.inviteCardTitle}>Bring someone into the group</Text>
-                  <Text style={styles.inviteCardSubtitle}>The link previews this group and unlocks a new FrogBot account.</Text>
+                  <Text style={styles.inviteCardSubtitle}>The link previews this group and unlocks a new FroggyBot account.</Text>
                 </View>
               </View>
-              {inviteUrl ? <Text numberOfLines={1} style={styles.inviteUrl}>frogbot.expo.app/invite</Text> : null}
+              {inviteUrl ? <Text numberOfLines={1} style={styles.inviteUrl}>froggybot.com/invite</Text> : null}
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ busy: sharing, disabled: sharing }}
@@ -167,7 +167,7 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
             </View>
           ) : null}
 
-          <Text style={styles.label}>FrogBots</Text>
+          <Text style={styles.label}>FroggyBots</Text>
           <Text style={styles.sectionSubtitle}>Pick the bots people can ask to join the conversation.</Text>
           {displayedBots.map((bot) => {
             const active = botIds.includes(bot.id);

@@ -9,7 +9,7 @@
         "components": [
           {
             "/": "/invite",
-            "comment": "Open FrogBot invitation links in the installed iOS app."
+            "comment": "Open FroggyBot invitation links in the installed iOS app."
           }
         ]
       }

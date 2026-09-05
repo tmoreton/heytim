@@ -11,7 +11,7 @@
     <circle cx="127" cy="72" r="10" fill="#007A3D"/>
     <path d="M50 119 Q94 158 138 119" fill="none" stroke="#FFFFFF" stroke-width="15" stroke-linecap="round"/>
   </g>
-  <text x="354" y="155" font-family="Helvetica,Arial,sans-serif" font-size="34" font-weight="bold" fill="#007A3D">FROGBOT</text>
+  <text x="354" y="155" font-family="Helvetica,Arial,sans-serif" font-size="34" font-weight="bold" fill="#007A3D">FROGGYBOT</text>
   <text x="354" y="239" font-family="Helvetica,Arial,sans-serif" font-size="68" font-weight="bold" fill="#171714">You're invited.</text>
   <text x="354" y="296" font-family="Helvetica,Arial,sans-serif" font-size="28" fill="#69655D">Friends and AI teammates, together</text>
   <text x="354" y="333" font-family="Helvetica,Arial,sans-serif" font-size="28" fill="#69655D">in one shared conversation.</text>
@@ -31,5 +31,5 @@
   </g>
   <rect x="855" y="419" width="220" height="74" rx="37" fill="#007A3D"/>
   <text x="965" y="466" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="24" font-weight="bold" fill="#FFFFFF">Join the group</text>
-  <text x="120" y="536" font-family="Helvetica,Arial,sans-serif" font-size="20" font-weight="bold" fill="#8A867E">frogbot.expo.app</text>
+  <text x="120" y="536" font-family="Helvetica,Arial,sans-serif" font-size="20" font-weight="bold" fill="#8A867E">froggybot.com</text>
 </svg>

@@ -1,4 +1,4 @@
-name: Publish FrogBot OTA update
+name: Publish FroggyBot OTA update
 
 on:
   push:

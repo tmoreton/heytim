@@ -56,17 +56,17 @@ export default function InvitePage() {
     ? `frogbot://invite?kind=${invitation.kind}&token=${encodeURIComponent(invitation.token)}`
     : 'frogbot://';
   const visibleError = hydrated ? (invitation ? error : 'This invitation link is incomplete.') : '';
-  const label = preview?.kind === 'group' ? 'GROUP INVITE' : preview?.kind === 'skill' ? 'SHARED SKILL' : 'FROGBOT INVITE';
+  const label = preview?.kind === 'group' ? 'GROUP INVITE' : preview?.kind === 'skill' ? 'SHARED SKILL' : 'FROGGYBOT INVITE';
   const cardWidth = Math.min(720, Math.max(280, width - 40));
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <Head>
-        <title>You&apos;re invited to FrogBot</title>
-        <meta name="description" content="Join friends and their AI teammates in FrogBot." />
-        <meta property="og:title" content="You&apos;re invited to FrogBot" />
+        <title>You&apos;re invited to FroggyBot</title>
+        <meta name="description" content="Join friends and their AI teammates in FroggyBot." />
+        <meta property="og:title" content="You&apos;re invited to FroggyBot" />
         <meta property="og:description" content="Join friends and their AI teammates in one shared conversation." />
-        <meta property="og:image" content="https://frogbot.expo.app/frogbot-invite-card.png" />
+        <meta property="og:image" content="https://froggybot.com/frogbot-invite-card.png" />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:type" content="website" />
@@ -77,7 +77,7 @@ export default function InvitePage() {
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <Link href="/" style={[styles.brand, { width: cardWidth }]}>
           <Image accessibilityIgnoresInvertColors source={frog} resizeMode="contain" style={styles.logo} />
-          <Text style={styles.brandName}>FrogBot</Text>
+          <Text style={styles.brandName}>FroggyBot</Text>
         </Link>
 
         <View style={[styles.card, { width: cardWidth }]}>
@@ -92,7 +92,7 @@ export default function InvitePage() {
               <Text accessibilityRole="header" style={styles.title}>This invite has hopped away.</Text>
               <Text style={styles.description}>{visibleError} Ask your friend to share a fresh link.</Text>
               <Link href="/" style={styles.secondaryButton}>
-                <Text style={styles.secondaryButtonText}>Visit FrogBot</Text>
+                <Text style={styles.secondaryButtonText}>Visit FroggyBot</Text>
               </Link>
             </View>
           ) : preview ? (
@@ -126,7 +126,7 @@ export default function InvitePage() {
                     <View style={styles.divider} />
                     <View style={styles.stat}>
                       <Text style={styles.statNumber}>{preview.bots.length}</Text>
-                      <Text style={styles.statLabel}>FROGBOTS</Text>
+                      <Text style={styles.statLabel}>FROGGYBOTS</Text>
                     </View>
                   </View>
                 ) : null}
@@ -141,10 +141,10 @@ export default function InvitePage() {
                 </Pressable>
                 {Platform.OS === 'web' ? (
                   <Pressable accessibilityRole="link" onPress={() => Linking.openURL(deepLink)}>
-                    <Text style={styles.openApp}>Already have the app? Open FrogBot</Text>
+                    <Text style={styles.openApp}>Already have the app? Open FroggyBot</Text>
                   </Pressable>
                 ) : null}
-                <Text style={styles.inviteOnly}>FrogBot is invite-only. This link unlocks your account.</Text>
+                <Text style={styles.inviteOnly}>FroggyBot is invite-only. This link unlocks your account.</Text>
               </View>
             </>
           ) : null}

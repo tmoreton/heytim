@@ -7,14 +7,22 @@ from shared.schedules import occurrence_time, schedule_expression, scheduled_tur
 
 
 class ScheduleTests(unittest.TestCase):
-    def test_builds_daily_and_weekly_cron_expressions(self) -> None:
+    def test_builds_supported_recurring_cron_expressions(self) -> None:
         self.assertEqual(schedule_expression("daily", "09:30"), "cron(30 9 * * ? *)")
+        self.assertEqual(
+            schedule_expression("weekdays", "08:15"),
+            "cron(15 8 ? * MON-FRI *)",
+        )
         self.assertEqual(
             schedule_expression("weekly", "17:05", "FRI"),
             "cron(5 17 ? * FRI *)",
         )
+        self.assertEqual(
+            schedule_expression("monthly", "09:00", day_of_month=15),
+            "cron(0 9 15 * ? *)",
+        )
         with self.assertRaises(ValueError):
-            schedule_expression("monthly", "09:00")
+            schedule_expression("monthly", "09:00", day_of_month=31)
 
     def test_scheduled_turn_identity_is_stable_per_execution(self) -> None:
         first = scheduled_turn_id("task-1", "execution-1")

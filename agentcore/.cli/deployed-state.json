@@ -9,6 +9,12 @@
             "roleArn": "arn:aws:iam::188757775631:role/AgentCore-FrogBot-develop-ApplicationAgentFrogBotRu-LxB9yUG7ijl3"
           }
         },
+        "memories": {
+          "FrogBotMemory": {
+            "memoryId": "FrogBot_FrogBotMemory-EyCiqPHglk",
+            "memoryArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:memory/FrogBot_FrogBotMemory-EyCiqPHglk"
+          }
+        },
         "mcp": {
           "gateways": {
             "FrogBotTools": {
@@ -24,7 +30,7 @@
           }
         },
         "stackName": "AgentCore-FrogBot-development",
-        "deployHash": "56e2f4fb21bea9d5"
+        "deployHash": "a07d1cebb20ae709"
       }
     }
   }

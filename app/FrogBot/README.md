@@ -1,19 +1,33 @@
-# FrogBot AgentCore runtime
+# FroggyBot AgentCore runtime
 
 The runtime uses Strands through the pinned Stan harness in `pyproject.toml`. A caller sends validated
-text history plus one bot configuration. Each request creates a plain Strands agent with only that
+conversation history plus one bot configuration. Each request creates a Strands agent with only that
 bot's selected tools and skills.
 
-Conversation history is persisted by the application backend in DynamoDB, not in the runtime's local
-filesystem. The runtime still receives a stable AgentCore session ID for isolation and observability.
+Conversation history is persisted by the application backend in DynamoDB. AgentCore Memory recalls
+user-scoped preferences and facts plus conversation-scoped summaries. The worker supplies stable,
+non-PII actor and session identifiers, and completed turns are written with an idempotency token.
+
+The latest user turn may contain reviewed image or document blocks stored in FroggyBot's private S3
+bucket. Both uploads and generated artifacts are bound to the invoking user's hashed identity. When
+requested, the runtime can save downloadable text, Markdown, CSV, JSON, HTML, PDF, Word, Excel, and
+PowerPoint artifacts. It can also generate original PNG images with Stability AI Stable Image Core. Binary files
+are rendered inside the runtime, so the language model never has to emit base64 file data. Browser
+and code-interpreter sessions use stable conversation names and reconnect after a runtime restart.
 
 ## Supported capabilities
 
 Tools:
 
 - `web` - Stan's summarized web fetcher
+- `web_search` - AgentCore Gateway web search
 - `calculator` - restricted arithmetic evaluation
 - `current_time` - IANA timezone lookup
+- `x_search` and `youtube_search` - reviewed gateway targets when credentials are configured
+- `task_list` - Stan todos
+- `delegate` - Stan generalist subagent
+- `code_interpreter` - persistent AgentCore sandbox
+- `browser` - persistent AgentCore browser; the application requires per-turn user approval
 
 Skills:
 
@@ -35,5 +49,7 @@ In another terminal:
 agentcore invoke --dev 'What can you do?'
 ```
 
-The production worker sends structured invocation payloads containing `messages` and `bot`. The
-runtime validates both and strips any trailing tool-use block before invoking Strands.
+The production worker sends structured invocation payloads containing `messages`, `bot`, and, for
+direct turns, trusted `memory` and `artifacts` envelopes. The runtime validates every field, permits
+attachments only on the latest user message, binds file paths to that user's identity, and strips any
+trailing tool-use block before invoking Strands.

@@ -15,7 +15,6 @@ type Props = {
   selection?: ConversationSelection;
   search: string;
   demo: boolean;
-  wide: boolean;
   topInset: number;
   bottomInset: number;
   onSearchChange: (value: string) => void;
@@ -23,9 +22,7 @@ type Props = {
   onSelectGroup: (group: Group) => void;
   onCreateBot: () => void;
   onCreateGroup: () => void;
-  onOpenSkills: () => void;
-  onClose: () => void;
-  onSignOut: () => void;
+  onOpenAccount: () => void;
 };
 
 const friendlyDate = (value: string) => {
@@ -44,7 +41,6 @@ export function ConversationDrawer({
   selection,
   search,
   demo,
-  wide,
   topInset,
   bottomInset,
   onSearchChange,
@@ -52,9 +48,7 @@ export function ConversationDrawer({
   onSelectGroup,
   onCreateBot,
   onCreateGroup,
-  onOpenSkills,
-  onClose,
-  onSignOut,
+  onOpenAccount,
 }: Props) {
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const query = search.trim().toLowerCase();
@@ -62,14 +56,14 @@ export function ConversationDrawer({
   const visibleGroups = groups.filter((group) => `${group.name} ${group.lastMessage}`.toLowerCase().includes(query));
   const sections: { title: string; data: DrawerItem[] }[] = [
     { title: 'Groups', data: visibleGroups.map((value) => ({ kind: 'group' as const, value })) },
-    { title: 'FrogBots', data: visibleBots.map((value) => ({ kind: 'bot' as const, value })) },
+    { title: 'FroggyBots', data: visibleBots.map((value) => ({ kind: 'bot' as const, value })) },
   ].filter((section) => section.data.length > 0);
 
   return (
     <View style={styles.drawer}>
       <View style={[styles.top, { minHeight: 70 + topInset, paddingTop: topInset }]}>
         <View>
-          <Text style={styles.appName}>FrogBot</Text>
+          <Text style={styles.appName}>FroggyBot</Text>
           <Text style={styles.appTagline}>Your AI team</Text>
         </View>
         <Pressable
@@ -127,31 +121,17 @@ export function ConversationDrawer({
       />
       <View style={[styles.footer, { paddingBottom: bottomInset }]}>
         <Pressable
+          accessibilityLabel="Open account settings"
           accessibilityRole="button"
-          style={({ pressed }) => [styles.libraryButton, pressed && styles.pressed]}
-          onPress={() => {
-            onOpenSkills();
-            if (!wide) onClose();
-          }}>
-          <View style={styles.libraryMark}>
-            <Text style={styles.libraryMarkText}>S</Text>
-          </View>
-          <View style={styles.profileText}>
-            <Text style={styles.profileTitle}>Skills & tools</Text>
-            <Text style={styles.profileSubtitle}>See what bots know and can do</Text>
-          </View>
-          <Text style={styles.libraryChevron}>›</Text>
-        </Pressable>
-        <View style={styles.accountRow}>
+          style={({ pressed }) => [styles.accountRow, pressed && styles.pressed]}
+          onPress={onOpenAccount}>
           <View style={styles.profileDot} />
           <View style={styles.profileText}>
             <Text style={styles.profileTitle}>{demo ? 'Preview mode' : 'Your account'}</Text>
             <Text style={styles.profileSubtitle}>{demo ? 'Local sample data' : 'Email code sign-in'}</Text>
           </View>
-          <Pressable accessibilityRole="button" hitSlop={12} onPress={onSignOut}>
-            <Text style={styles.signOut}>Log out</Text>
-          </Pressable>
-        </View>
+          <Text style={styles.accountChevron}>›</Text>
+        </Pressable>
       </View>
       <ActionSheet
         visible={createMenuOpen}
@@ -186,15 +166,11 @@ const styles = StyleSheet.create({
   date: { color: '#A09C94', fontSize: 11 },
   preview: { color: '#77736B', fontSize: 12, marginTop: 3 },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: '#D9D6CF' },
-  libraryButton: { minHeight: 62, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 10 },
-  libraryMark: { width: 30, height: 30, borderRadius: 10, backgroundColor: '#E0EDE6', alignItems: 'center', justifyContent: 'center' },
-  libraryMarkText: { color: '#007A3D', fontSize: 13, fontWeight: '900' },
-  libraryChevron: { color: '#969188', fontSize: 22, marginLeft: 2 },
-  accountRow: { minHeight: 64, borderTopWidth: StyleSheet.hairlineWidth, borderColor: '#D9D6CF', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 10 },
+  accountRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 10 },
   profileDot: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#007A3D' },
   profileText: { flex: 1 },
   profileTitle: { color: '#282722', fontSize: 13, fontWeight: '600' },
   profileSubtitle: { color: '#8B877F', fontSize: 11, marginTop: 1 },
-  signOut: { color: '#6D6961', fontSize: 12, fontWeight: '600' },
+  accountChevron: { color: '#969188', fontSize: 22 },
   pressed: { opacity: 0.7 },
 });

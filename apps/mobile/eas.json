@@ -31,7 +31,8 @@
   "submit": {
     "production": {
       "ios": {
-        "ascAppId": "6808396807"
+        "ascAppId": "6808396807",
+        "appName": "FroggyBot"
       }
     }
   }

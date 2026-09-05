@@ -13,6 +13,16 @@ export type Bot = {
   lastMessageAt: string;
 };
 
+export type Attachment = {
+  id: string;
+  name: string;
+  size: number;
+  kind: 'image' | 'document';
+  format: string;
+  contentType: string;
+  createdAt?: string;
+};
+
 export type Message = {
   id: string;
   role: 'user' | 'assistant';
@@ -25,15 +35,25 @@ export type Message = {
   scheduleName?: string;
   text: string;
   activity?: string[];
+  attachments?: Attachment[];
+  approvalTools?: string[];
   roundId?: string;
   roundPosition?: number;
   roundSize?: number;
   roundRole?: 'solo' | 'lead' | 'contributor' | 'synthesizer';
   createdAt: string;
-  status: 'complete' | 'waiting' | 'pending' | 'error';
+  status:
+    | 'complete'
+    | 'waiting'
+    | 'pending'
+    | 'running'
+    | 'needs_input'
+    | 'awaiting_approval'
+    | 'cancelled'
+    | 'error';
 };
 
-export type ScheduleFrequency = 'daily' | 'weekly';
+export type ScheduleFrequency = 'daily' | 'weekdays' | 'weekly' | 'monthly';
 
 export type ScheduledTask = {
   id: string;
@@ -42,6 +62,7 @@ export type ScheduledTask = {
   prompt: string;
   frequency: ScheduleFrequency;
   dayOfWeek?: string;
+  dayOfMonth?: number;
   time: string;
   timezone: string;
   enabled: boolean;
@@ -53,7 +74,7 @@ export type ScheduledTask = {
 
 export type ScheduledTaskDraft = Pick<
   ScheduledTask,
-  'name' | 'prompt' | 'frequency' | 'dayOfWeek' | 'time' | 'timezone' | 'enabled'
+  'name' | 'prompt' | 'frequency' | 'dayOfWeek' | 'dayOfMonth' | 'time' | 'timezone' | 'enabled'
 >;
 
 export type GroupMember = {
@@ -93,6 +114,15 @@ export type Invitation = {
   token: string;
 };
 
+export type SharedLink = {
+  token: string;
+  kind: InviteKind;
+  title: string;
+  url: string;
+  createdAt?: string;
+  expiresAt: number;
+};
+
 export type InvitePreview = Invitation & {
   title: string;
   description: string;
@@ -107,6 +137,7 @@ export type Capability = {
   name: string;
   description: string;
   provider?: 'stan' | 'frogbot' | 'agentcore' | 'agentcore-gateway' | string;
+  risk?: 'read' | 'sandbox' | 'interactive';
 };
 
 export type Skill = Capability & {

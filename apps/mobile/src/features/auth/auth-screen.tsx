@@ -87,7 +87,7 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo, invitation, inviteP
               source={require('../../../assets/images/frogbot-foreground.png')}
               style={styles.mark}
             />
-            <Text style={styles.name}>FrogBot</Text>
+            <Text style={styles.name}>FroggyBot</Text>
             <Text style={styles.tagline}>Your small team of capable AI coworkers.</Text>
           </View>
 
@@ -118,7 +118,7 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo, invitation, inviteP
                   <Text numberOfLines={1} style={styles.inviteTitle}>{invitePreview.title}</Text>
                   <Text numberOfLines={1} style={styles.inviteMeta}>
                     {invitePreview.kind === 'group'
-                      ? `${invitePreview.peopleCount ?? 1} ${(invitePreview.peopleCount ?? 1) === 1 ? 'person' : 'people'} · ${invitePreview.bots.length} ${invitePreview.bots.length === 1 ? 'FrogBot' : 'FrogBots'}`
+                      ? `${invitePreview.peopleCount ?? 1} ${(invitePreview.peopleCount ?? 1) === 1 ? 'person' : 'people'} · ${invitePreview.bots.length} ${invitePreview.bots.length === 1 ? 'FroggyBot' : 'FroggyBots'}`
                       : invitePreview.description}
                   </Text>
                 </View>
@@ -219,7 +219,7 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo, invitation, inviteP
             <View style={styles.assurance}>
               <View style={styles.assuranceDot} />
               <Text style={styles.assuranceText}>
-                {invitation ? 'This invite unlocks your FrogBot account.' : 'Existing members can always sign back in.'}
+                {invitation ? 'This invite unlocks your FroggyBot account.' : 'Existing members can always sign back in.'}
               </Text>
             </View>
           </View>

@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: FrogBot X Research
+  title: FroggyBot X Research
   version: 1.0.0
   description: Restricted read-only access to recent public X posts.
 servers:

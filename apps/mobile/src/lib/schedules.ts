@@ -38,9 +38,11 @@ export const formatTime = (value: string): string => {
   return `${displayHour}:${minute} ${meridiem}`;
 };
 
-export const describeSchedule = (task: Pick<ScheduledTaskDraft, 'frequency' | 'dayOfWeek' | 'time'>) => {
+export const describeSchedule = (task: Pick<ScheduledTaskDraft, 'frequency' | 'dayOfWeek' | 'dayOfMonth' | 'time'>) => {
   const time = formatTime(task.time);
   if (task.frequency === 'daily') return `Every day at ${time}`;
+  if (task.frequency === 'weekdays') return `Weekdays at ${time}`;
+  if (task.frequency === 'monthly') return `Monthly on day ${task.dayOfMonth ?? 1} at ${time}`;
   const day = WEEKDAYS.find((item) => item.value === task.dayOfWeek)?.label ?? 'Monday';
   return `Every ${day} at ${time}`;
 };

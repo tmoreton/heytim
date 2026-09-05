@@ -1,0 +1,253 @@
+from __future__ import annotations
+
+import json
+import logging
+import urllib.request
+from datetime import UTC, datetime
+from typing import Any
+
+from boto3.dynamodb.conditions import Attr
+
+from .support import (
+    EXPO_PUSH_URL,
+    EXPO_RECEIPTS_URL,
+    QUEUE_URL,
+    _push_owner_key,
+    _push_token_key,
+    _schedule_key,
+    sqs,
+    table,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _post_json(url: str, payload: Any) -> dict:
+    if url not in {EXPO_PUSH_URL, EXPO_RECEIPTS_URL}:
+        raise ValueError("Expo push service URL is not trusted")
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+        headers={
+            "accept": "application/json",
+            "content-type": "application/json",
+            "user-agent": "FroggyBot/1.0",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:  # nosec B310
+        value = json.loads(response.read().decode("utf-8"))
+    if not isinstance(value, dict):
+        raise TypeError("Expo push service returned an invalid response")
+    return value
+
+
+def _remove_push_token(user_id: str, token_id: str) -> None:
+    owner_key = _push_owner_key(token_id)
+    owner = (
+        table.get_item(Key=owner_key, ConsistentRead=True).get("Item", {}).get("userId")
+    )
+    with table.batch_writer() as batch:
+        batch.delete_item(Key=_push_token_key(user_id, token_id))
+        if owner == user_id:
+            batch.delete_item(Key=owner_key)
+
+
+def _push_tokens(user_id: str) -> list[dict]:
+    now = int(datetime.now(UTC).timestamp())
+    items = table.query(
+        KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+        ExpressionAttributeValues={":pk": f"USER#{user_id}", ":prefix": "PUSH#"},
+        Limit=100,
+    ).get("Items", [])
+    tokens = []
+    for item in items:
+        token_id = item.get("tokenId")
+        token = item.get("expoPushToken")
+        if (
+            not isinstance(token_id, str)
+            or not isinstance(token, str)
+            or int(item.get("expiresAt", 0)) <= now
+        ):
+            continue
+        owner = (
+            table.get_item(Key=_push_owner_key(token_id), ConsistentRead=True)
+            .get("Item", {})
+            .get("userId")
+        )
+        if owner == user_id:
+            tokens.append({"tokenId": token_id, "token": token})
+    return tokens
+
+
+def _notification_copy(answer: str) -> str:
+    clean = " ".join(answer.split())
+    return clean if len(clean) <= 180 else f"{clean[:177]}..."
+
+
+def _send_push_notification(request: dict) -> None:
+    user_id = request["userId"]
+    tokens = _push_tokens(user_id)
+    if not tokens:
+        return
+    notification_data = {
+        "botId": request["botId"],
+        "messageId": request.get("messageId") or request.get("turnId", ""),
+    }
+    if isinstance(request.get("scheduleId"), str):
+        notification_data["scheduleId"] = request["scheduleId"]
+    if isinstance(request.get("groupId"), str):
+        notification_data["groupId"] = request["groupId"]
+    task_name = request.get("scheduleName")
+    title = (
+        f"{request['botName']} finished {task_name}"
+        if isinstance(task_name, str) and task_name
+        else f"{request['botName']} replied"
+    )
+    messages = [
+        {
+            "to": item["token"],
+            "sound": "default",
+            "title": title,
+            "body": _notification_copy(request["answer"]),
+            "data": notification_data,
+            "channelId": "agent-replies",
+        }
+        for item in tokens
+    ]
+    response = _post_json(EXPO_PUSH_URL, messages)
+    tickets = response.get("data", [])
+    if isinstance(tickets, dict):
+        tickets = [tickets]
+    if not isinstance(tickets, list):
+        raise TypeError("Expo push service returned invalid tickets")
+
+    receipts = []
+    for item, ticket in zip(tokens, tickets, strict=False):
+        if not isinstance(ticket, dict):
+            continue
+        if ticket.get("status") == "ok" and isinstance(ticket.get("id"), str):
+            receipts.append({"id": ticket["id"], "tokenId": item["tokenId"]})
+            continue
+        error = ticket.get("details", {}).get("error")
+        if error == "DeviceNotRegistered":
+            _remove_push_token(user_id, item["tokenId"])
+        else:
+            logger.warning(
+                "Expo rejected a push ticket: %s",
+                error or ticket.get("message", "unknown error"),
+            )
+
+    if receipts:
+        sqs.send_message(
+            QueueUrl=QUEUE_URL,
+            DelaySeconds=900,
+            MessageBody=json.dumps(
+                {"type": "PUSH_RECEIPTS", "userId": user_id, "receipts": receipts}
+            ),
+        )
+
+
+def _check_push_receipts(request: dict) -> None:
+    receipt_items = request.get("receipts", [])
+    receipt_ids = [
+        item.get("id")
+        for item in receipt_items
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    ]
+    if not receipt_ids:
+        return
+    response = _post_json(EXPO_RECEIPTS_URL, {"ids": receipt_ids})
+    receipts = response.get("data", {})
+    if not isinstance(receipts, dict):
+        raise TypeError("Expo push service returned invalid receipts")
+    tokens_by_receipt = {
+        item["id"]: item.get("tokenId")
+        for item in receipt_items
+        if isinstance(item, dict) and "id" in item
+    }
+    for receipt_id, receipt in receipts.items():
+        if not isinstance(receipt, dict) or receipt.get("status") != "error":
+            continue
+        error = receipt.get("details", {}).get("error")
+        token_id = tokens_by_receipt.get(receipt_id)
+        if error == "DeviceNotRegistered" and isinstance(token_id, str):
+            _remove_push_token(request["userId"], token_id)
+        else:
+            logger.warning(
+                "Expo reported a push receipt error: %s",
+                error or receipt.get("message", "unknown error"),
+            )
+
+    missing = [
+        item
+        for item in receipt_items
+        if isinstance(item, dict) and item.get("id") not in receipts
+    ]
+    attempt = int(request.get("attempt", 1))
+    if missing and attempt < 3:
+        sqs.send_message(
+            QueueUrl=QUEUE_URL,
+            DelaySeconds=300,
+            MessageBody=json.dumps(
+                {
+                    "type": "PUSH_RECEIPTS",
+                    "userId": request["userId"],
+                    "receipts": missing,
+                    "attempt": attempt + 1,
+                }
+            ),
+        )
+    elif missing:
+        logger.warning(
+            "Expo did not return %s push receipts after three checks", len(missing)
+        )
+
+
+def _queue_reply_notification(
+    user_id: str, bot_id: str, turn_key: dict, turn: dict, bot: dict, answer: str
+) -> None:
+    payload = {
+        "type": "PUSH_NOTIFICATION",
+        "userId": user_id,
+        "botId": bot_id,
+        "botName": bot["name"],
+        "messageId": turn["id"],
+        "answer": answer,
+    }
+    if turn.get("source") == "schedule":
+        payload.update(
+            {
+                "scheduleId": turn.get("scheduleId"),
+                "scheduleName": turn.get("scheduleName"),
+            }
+        )
+    sqs.send_message(
+        QueueUrl=QUEUE_URL,
+        MessageBody=json.dumps(payload),
+    )
+    table.update_item(
+        Key=turn_key,
+        UpdateExpression="SET notificationQueued = :queued",
+        ExpressionAttributeValues={":queued": True},
+    )
+
+
+def _update_schedule_result(turn: dict, status: str, completed_at: str) -> None:
+    schedule_id = turn.get("scheduleId")
+    user_id = turn.get("userId")
+    if (
+        turn.get("source") != "schedule"
+        or not isinstance(schedule_id, str)
+        or not isinstance(user_id, str)
+    ):
+        return
+    try:
+        table.update_item(
+            Key=_schedule_key(user_id, schedule_id),
+            UpdateExpression="SET lastRunAt = :now, lastStatus = :status",
+            ConditionExpression=Attr("pk").exists(),
+            ExpressionAttributeValues={":now": completed_at, ":status": status},
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return

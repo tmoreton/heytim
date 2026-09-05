@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -14,6 +13,7 @@ import {
   View,
 } from 'react-native';
 
+import { ActionSheet } from '@/components/action-sheet';
 import { BotAvatar } from '@/components/bot-avatar';
 import { describeSchedule, deviceTimezone, formatTime, latestRunLabel, parseTimeInput, WEEKDAYS } from '@/lib/schedules';
 import type { Bot, ScheduledTask, ScheduledTaskDraft } from '@/lib/types';
@@ -40,6 +40,7 @@ const newDraft = (): ScheduledTaskDraft => ({
 export function ScheduledTasks({ bot, onClose, onList, onSave, onDelete, onRun, onTriggered }: Props) {
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [editing, setEditing] = useState<ScheduledTask | 'new'>();
+  const [pendingDeletion, setPendingDeletion] = useState<ScheduledTask>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -69,24 +70,16 @@ export function ScheduledTasks({ bot, onClose, onList, onSave, onDelete, onRun, 
     setEditing(undefined);
   };
 
-  const remove = (task: ScheduledTask) => {
-    Alert.alert('Delete scheduled task?', `${task.name} will stop running. Its past chat messages will stay.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          onDelete(bot.id, task.id)
-            .then(() => {
-              setTasks((current) => current.filter((item) => item.id !== task.id));
-              setEditing(undefined);
-            })
-            .catch((value) =>
-              Alert.alert('Could not delete task', value instanceof Error ? value.message : 'Please try again.'),
-            );
-        },
-      },
-    ]);
+  const remove = async (task: ScheduledTask) => {
+    setError('');
+    try {
+      await onDelete(bot.id, task.id);
+      setTasks((current) => current.filter((item) => item.id !== task.id));
+      setEditing(undefined);
+    } catch (value) {
+      setEditing(undefined);
+      setError(value instanceof Error ? value.message : 'Could not delete task. Please try again.');
+    }
   };
 
   const run = async (task: ScheduledTask) => {
@@ -109,7 +102,7 @@ export function ScheduledTasks({ bot, onClose, onList, onSave, onDelete, onRun, 
           task={editing === 'new' ? undefined : editing}
           onBack={() => setEditing(undefined)}
           onSave={save}
-          onDelete={remove}
+          onDelete={setPendingDeletion}
           onRun={run}
         />
       ) : (
@@ -167,6 +160,15 @@ export function ScheduledTasks({ bot, onClose, onList, onSave, onDelete, onRun, 
           </ScrollView>
         </View>
       )}
+      <ActionSheet
+        visible={Boolean(pendingDeletion)}
+        title="Delete scheduled task?"
+        message={`${pendingDeletion?.name ?? 'This task'} will stop running. Its past chat messages will stay.`}
+        options={pendingDeletion
+          ? [{ label: 'Delete task', destructive: true, onPress: () => void remove(pendingDeletion) }]
+          : []}
+        onClose={() => setPendingDeletion(undefined)}
+      />
     </Modal>
   );
 }
@@ -193,6 +195,7 @@ function TaskEditor({
           prompt: task.prompt,
           frequency: task.frequency,
           dayOfWeek: task.dayOfWeek,
+          dayOfMonth: task.dayOfMonth,
           time: task.time,
           timezone: task.timezone,
           enabled: task.enabled,
@@ -213,12 +216,20 @@ function TaskEditor({
       setError('Enter a time like 9:00 AM.');
       return undefined;
     }
+    if (
+      draft.frequency === 'monthly'
+      && (!Number.isInteger(draft.dayOfMonth) || (draft.dayOfMonth ?? 0) < 1 || (draft.dayOfMonth ?? 0) > 28)
+    ) {
+      setError('Choose a day from 1 through 28.');
+      return undefined;
+    }
     return {
       ...draft,
       name: draft.name.trim(),
       prompt: draft.prompt.trim(),
       time,
       dayOfWeek: draft.frequency === 'weekly' ? draft.dayOfWeek ?? 'MON' : undefined,
+      dayOfMonth: draft.frequency === 'monthly' ? draft.dayOfMonth ?? 1 : undefined,
     };
   };
 
@@ -291,16 +302,26 @@ function TaskEditor({
         />
 
         <Text style={styles.label}>Repeat</Text>
-        <View style={styles.segmented}>
-          {(['daily', 'weekly'] as const).map((frequency) => (
+        <View style={styles.frequencyGrid}>
+          {([
+            ['daily', 'Daily'],
+            ['weekdays', 'Weekdays'],
+            ['weekly', 'Weekly'],
+            ['monthly', 'Monthly'],
+          ] as const).map(([frequency, label]) => (
             <Pressable
               key={frequency}
               accessibilityRole="radio"
               accessibilityState={{ checked: draft.frequency === frequency }}
-              style={[styles.segment, draft.frequency === frequency && styles.segmentActive]}
-              onPress={() => setDraft((value) => ({ ...value, frequency, dayOfWeek: frequency === 'weekly' ? value.dayOfWeek ?? 'MON' : undefined }))}>
+              style={[styles.frequencyChoice, draft.frequency === frequency && styles.segmentActive]}
+              onPress={() => setDraft((value) => ({
+                ...value,
+                frequency,
+                dayOfWeek: frequency === 'weekly' ? value.dayOfWeek ?? 'MON' : undefined,
+                dayOfMonth: frequency === 'monthly' ? value.dayOfMonth ?? 1 : undefined,
+              }))}>
               <Text style={[styles.segmentText, draft.frequency === frequency && styles.segmentTextActive]}>
-                {frequency === 'daily' ? 'Daily' : 'Weekly'}
+                {label}
               </Text>
             </Pressable>
           ))}
@@ -320,6 +341,24 @@ function TaskEditor({
               </Pressable>
             ))}
           </View>
+        ) : null}
+
+        {draft.frequency === 'monthly' ? (
+          <>
+            <Text style={styles.label}>Day of month</Text>
+            <TextInput
+              accessibilityLabel="Day of month"
+              style={styles.input}
+              value={String(draft.dayOfMonth ?? 1)}
+              keyboardType="number-pad"
+              maxLength={2}
+              onChangeText={(value) => {
+                const dayOfMonth = Number(value.replace(/\D/g, ''));
+                setDraft((current) => ({ ...current, dayOfMonth }));
+              }}
+            />
+            <Text style={styles.help}>Choose day 1 through 28 so the task runs every month.</Text>
+          </>
         ) : null}
 
         <Text style={styles.label}>Time</Text>
@@ -402,8 +441,8 @@ const styles = StyleSheet.create({
   label: { color: '#24231F', fontSize: 14, fontWeight: '800', marginTop: 20, marginBottom: 8 },
   input: { minHeight: 50, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: '#DDDAD2', backgroundColor: '#FFFFFF', color: '#24231F', fontSize: 16 },
   promptInput: { minHeight: 126, paddingTop: 13, paddingBottom: 13, lineHeight: 22 },
-  segmented: { flexDirection: 'row', padding: 3, borderRadius: 13, backgroundColor: '#E9E7E1' },
-  segment: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
+  frequencyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  frequencyChoice: { minWidth: '47%', flexGrow: 1, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: '#E9E7E1' },
   segmentActive: { backgroundColor: '#FFFFFF' },
   segmentText: { color: '#77736B', fontSize: 14, fontWeight: '700' },
   segmentTextActive: { color: '#007A3D' },

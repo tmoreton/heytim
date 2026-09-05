@@ -17,7 +17,7 @@ export function AgentActivity({
   waiting = false,
   steps,
   label,
-  botName = 'FrogBot',
+  botName = 'FroggyBot',
   botColor = '#007A3D',
 }: Props) {
   const [bounce] = useState(() => new Animated.Value(0));
@@ -90,7 +90,7 @@ export function AgentActivity({
   return (
     <View style={styles.completedWrap}>
       <Pressable
-        accessibilityLabel={expanded ? 'Hide FrogBot activity' : 'Show FrogBot activity'}
+        accessibilityLabel={expanded ? 'Hide FroggyBot activity' : 'Show FroggyBot activity'}
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         style={({ pressed }) => [styles.completedButton, pressed && styles.pressed]}

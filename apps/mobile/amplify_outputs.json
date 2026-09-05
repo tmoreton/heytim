@@ -32,6 +32,10 @@
   "version": "1.5",
   "custom": {
     "apiUrl": "https://6zsrnchqr6.execute-api.us-east-1.amazonaws.com",
-    "shareBaseUrl": "https://frogbot.expo.app/invite"
+    "shareBaseUrl": "https://froggybot.com/invite",
+    "dataTableName": "amplify-frogbot-frogbot-sandbox-278c55e757-FrogBotAppE7B48881-1DQMKWO79B5OA-Data666C94C7-IGZT555IH3TC",
+    "filesBucketName": "frogbot-user-files-188757775631-us-east-1",
+    "alarmTopicArn": "arn:aws:sns:us-east-1:188757775631:amplify-frogbot-frogbot-sandbox-278c55e757-FrogBotAppE7B48881-1DQMKWO79B5OA-ServiceAlarms935ECF17-eU7rO9zXtSvb",
+    "monthlyBudgetName": "amplify-frogbot-frogbot-sandbox-278c55e757-FrogBotAppE7B48881-1DQMKWO79B5OA-monthly-cost"
   }
 }

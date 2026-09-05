@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import operator
 import os
 import re
@@ -11,11 +12,17 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from bedrock_agentcore.tools.browser_client import BrowserClient
+from bedrock_agentcore.tools.code_interpreter_client import (
+    CodeInterpreter as CodeInterpreterClient,
+)
 from strands import tool
 from strands.tools.mcp.mcp_client import MCPClient
 from strands.vended_plugins.skills import AgentSkills, Skill
 from strands_tools.browser import AgentCoreBrowser
 from strands_tools.code_interpreter import AgentCoreCodeInterpreter
+
+from .artifacts import artifact_tool, image_tool
 
 MAX_SKILL_INSTRUCTIONS_CHARS = 20_000
 MAX_SKILLS = 12
@@ -37,6 +44,112 @@ _BINARY_OPERATORS = {
     ast.Pow: operator.pow,
 }
 _UNARY_OPERATORS = {ast.UAdd: operator.pos, ast.USub: operator.neg}
+
+
+class PersistentAgentCoreBrowser(AgentCoreBrowser):
+    """Reconnect a conversation to its active AgentCore browser session."""
+
+    def __init__(self, session_name: str, **kwargs: Any):
+        super().__init__(**kwargs)
+        self.session_name = session_name
+
+    def _ready_sessions(self, client: BrowserClient) -> list[dict]:
+        items = []
+        next_token = None
+        while True:
+            response = client.list_sessions(
+                browser_id=self.identifier,
+                status="READY",
+                max_results=100,
+                next_token=next_token,
+            )
+            items.extend(response.get("items", []))
+            next_token = response.get("nextToken")
+            if not isinstance(next_token, str) or not next_token:
+                return items
+
+    async def create_browser_session(self):
+        if not self._playwright:
+            raise RuntimeError("Playwright not initialized")
+        client = BrowserClient(region=self.region, integration_source="strands")
+        sessions = await asyncio.to_thread(self._ready_sessions, client)
+        existing = next(
+            (item for item in sessions if item.get("name") == self.session_name),
+            None,
+        )
+        if existing:
+            client.identifier = existing["browserIdentifier"]
+            client.session_id = existing["sessionId"]
+        else:
+            await asyncio.to_thread(
+                client.start,
+                identifier=self.identifier,
+                name=self.session_name,
+                session_timeout_seconds=self.session_timeout,
+            )
+        cdp_url, cdp_headers = client.generate_ws_headers()
+        return await self._playwright.chromium.connect_over_cdp(
+            endpoint_url=cdp_url,
+            headers=cdp_headers,
+        )
+
+
+@dataclass
+class _CodeSession:
+    session_id: str
+    description: str
+    client: CodeInterpreterClient
+
+
+class PersistentAgentCoreCodeInterpreter(AgentCoreCodeInterpreter):
+    """Reconnect a conversation after the runtime process has restarted."""
+
+    def _ready_sessions(self, client: CodeInterpreterClient) -> list[dict]:
+        items = []
+        next_token = None
+        while True:
+            response = client.list_sessions(
+                interpreter_id=self.identifier,
+                status="READY",
+                max_results=100,
+                next_token=next_token,
+            )
+            items.extend(response.get("items", []))
+            next_token = response.get("nextToken")
+            if not isinstance(next_token, str) or not next_token:
+                return items
+
+    def _ensure_session(
+        self, session_name: str | None
+    ) -> tuple[str, dict[str, Any] | None]:
+        target_session = session_name or self.default_session
+        if target_session in self._sessions:
+            return target_session, None
+
+        client = CodeInterpreterClient(region=self.region, session=self.boto_session)
+        existing = next(
+            (
+                item
+                for item in self._ready_sessions(client)
+                if item.get("name") == target_session
+            ),
+            None,
+        )
+        if existing:
+            identifier = existing.get("codeInterpreterIdentifier")
+            session_id = existing.get("sessionId")
+            if not isinstance(identifier, str) or not isinstance(session_id, str):
+                raise RuntimeError("AgentCore returned an invalid code session")
+            client.identifier = identifier
+            client.session_id = session_id
+            self._sessions[target_session] = _CodeSession(
+                session_id=session_id,
+                description="Reconnected by conversation name",
+                client=client,
+            )
+            return target_session, None
+
+        return super()._ensure_session(target_session)
 
 
 def _evaluate_number(node: ast.AST) -> int | float:
@@ -276,28 +389,40 @@ def _gateway_client(operations: list[str]) -> MCPClient | None:
         tool_filters={"allowed": allowed},
         continue_on_error=False,
         startup_timeout=15,
-        application_name="FrogBot",
+        application_name="FroggyBot",
     )
 
 
-def resolve_capabilities(bot: dict, session_id: str) -> CapabilityConfiguration:
+def resolve_capabilities(
+    bot: dict, session_id: str, artifact_prefix: str | None = None
+) -> CapabilityConfiguration:
     bindings = tool_bindings(bot)
     skills = dynamic_skills(bot)
     tools = [CUSTOM_TOOLS[item["name"]] for item in bindings if item["kind"] == "local"]
+    if artifact_prefix:
+        tools.extend([artifact_tool(artifact_prefix), image_tool(artifact_prefix)])
 
     if any(
         item["kind"] == "agentcore" and item["name"] == "code_interpreter"
         for item in bindings
     ):
-        interpreter = AgentCoreCodeInterpreter(
-            region=AWS_REGION, session_name=f"frogbot-{session_id}"
+        interpreter = PersistentAgentCoreCodeInterpreter(
+            region=AWS_REGION,
+            session_name=f"frogbot-{session_id}",
+            session_timeout_seconds=7200,
         )
         tools.append(interpreter.code_interpreter)
     if any(
         item["kind"] == "agentcore" and item["name"] == "browser" for item in bindings
     ):
         _prepare_playwright_driver()
-        tools.append(AgentCoreBrowser(region=AWS_REGION).browser)
+        tools.append(
+            PersistentAgentCoreBrowser(
+                region=AWS_REGION,
+                session_name=f"frogbot-{session_id}",
+                session_timeout=7200,
+            ).browser
+        )
 
     gateway_operations = list(
         dict.fromkeys(

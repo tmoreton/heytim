@@ -1,14 +1,7 @@
 from __future__ import annotations
 
-import json
-import logging
 import os
-import re
 import secrets
-import time
-import urllib.error
-import urllib.parse
-import urllib.request
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -16,486 +9,44 @@ from typing import Any
 
 from shared.invites import invite_url
 
-logger = logging.getLogger(__name__)
-
-CATALOG_URL = os.environ.get(
-    "CAPABILITY_CATALOG_URL",
-    "https://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json",
+from .catalog_defaults import FALLBACK_SKILLS, FALLBACK_TOOLS
+from .catalog_rules import (
+    LEGACY_TOOL_RISKS,
+    MAX_SKILL_INSTRUCTIONS,
+    MAX_SKILLS_PER_BOT,
+    MAX_TOOLS_PER_BOT,
+    CatalogError,
+    _now,
+    _public_skill,
+    _validate_id,
+    _validate_runtime_binding,
+    _validate_text,
+    _validate_tool_ids,
+    _version_key,
 )
-ALLOWED_REPOSITORY = "tmoreton/frogbot-capabilities"
-PUBLIC_WEB_BASE_URL = os.environ.get("PUBLIC_WEB_BASE_URL", "https://frogbot.expo.app")
-MAX_SKILLS_PER_BOT = 12
-MAX_TOOLS_PER_BOT = 12
-MAX_SKILL_INSTRUCTIONS = 20_000
-SYNC_SECONDS = 300
-ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
-TOOL_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_]{0,63}$")
-RUNTIME_NAME_PATTERN = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]{0,127}$")
-RUNTIME_NAMES = {
-    "agentcore": {"browser", "code_interpreter"},
-    "local": {"calculator", "current_time"},
-    "stan_builtin": {"web_fetch"},
-    "stan_plugin": {"todos"},
-    "stan_subagent": {"generalist"},
-}
+from .catalog_sync import (
+    SYNC_LEASE_SECONDS,
+    SYNC_SECONDS,
+    CatalogSyncMixin,
+    _trusted_catalog_url,
+)
 
-FALLBACK_TOOLS = [
-    {
-        "id": "web",
-        "name": "Web reader",
-        "description": "Open and summarize a specific web page.",
-        "provider": "stan",
-        "runtime": {"kind": "stan_builtin", "name": "web_fetch"},
-        "enabled": True,
-    },
-    {
-        "id": "web_search",
-        "name": "Web search",
-        "description": "Search the live web and return relevant sources.",
-        "provider": "agentcore-gateway",
-        "runtime": {"kind": "gateway", "operations": ["WebSearch"]},
-        "enabled": True,
-    },
-    {
-        "id": "calculator",
-        "name": "Calculator",
-        "description": "Do exact arithmetic safely.",
-        "provider": "frogbot",
-        "runtime": {"kind": "local", "name": "calculator"},
-        "enabled": True,
-    },
-    {
-        "id": "current_time",
-        "name": "World clock",
-        "description": "Check the current time in any timezone.",
-        "provider": "frogbot",
-        "runtime": {"kind": "local", "name": "current_time"},
-        "enabled": True,
-    },
-    {
-        "id": "x_search",
-        "name": "X / Twitter search",
-        "description": "Search recent public posts on X.",
-        "provider": "agentcore-gateway",
-        "credential": "FrogBotXApi",
-        "runtime": {"kind": "gateway", "operations": ["x_search_recent"]},
-        "enabled": False,
-    },
-    {
-        "id": "youtube_search",
-        "name": "YouTube research",
-        "description": "Find public videos and inspect metadata and comments.",
-        "provider": "agentcore-gateway",
-        "credential": "FrogBotYouTubeApi",
-        "runtime": {
-            "kind": "gateway",
-            "operations": [
-                "youtube_search",
-                "youtube_video_details",
-                "youtube_comments",
-            ],
-        },
-        "enabled": False,
-    },
-    {
-        "id": "task_list",
-        "name": "Task tracker",
-        "description": "Keep a live checklist during longer, multi-step work.",
-        "provider": "stan",
-        "runtime": {"kind": "stan_plugin", "name": "todos"},
-        "enabled": True,
-    },
-    {
-        "id": "delegate",
-        "name": "Focused delegate",
-        "description": "Hand a focused subtask to a fresh agent and bring back its conclusion.",
-        "provider": "stan",
-        "runtime": {"kind": "stan_subagent", "name": "generalist"},
-        "enabled": True,
-    },
-    {
-        "id": "code_interpreter",
-        "name": "Code interpreter",
-        "description": "Run Python, JavaScript, or TypeScript in an isolated AgentCore sandbox.",
-        "provider": "agentcore",
-        "runtime": {"kind": "agentcore", "name": "code_interpreter"},
-        "enabled": True,
-    },
-    {
-        "id": "browser",
-        "name": "Interactive browser",
-        "description": "Open websites, navigate pages, interact with controls, and extract visible information.",
-        "provider": "agentcore",
-        "runtime": {"kind": "agentcore", "name": "browser"},
-        "enabled": True,
-    },
+PUBLIC_WEB_BASE_URL = os.environ.get("PUBLIC_WEB_BASE_URL", "https://froggybot.com")
+
+__all__ = [
+    "FALLBACK_SKILLS",
+    "FALLBACK_TOOLS",
+    "SYNC_LEASE_SECONDS",
+    "SYNC_SECONDS",
+    "CatalogError",
+    "CatalogService",
+    "_trusted_catalog_url",
 ]
 
-FALLBACK_SKILLS = [
-    {
-        "id": "planner",
-        "version": 1,
-        "name": "Planner",
-        "description": "Turn goals into practical next steps.",
-        "requiredToolIds": [],
-        "instructions": """# Planner
 
-Turn an outcome into a short plan that can be acted on immediately.
-
-1. Restate the desired outcome and any hard constraints.
-2. Identify the smallest useful milestone.
-3. Order the work by dependency and risk.
-4. Call out the one decision or missing fact that could materially change the plan.
-5. End with the next concrete action.
-
-Prefer five useful steps over a long generic checklist.""",
-        "source": "official",
-        "visibility": "public",
-        "editable": False,
-    },
-    {
-        "id": "researcher",
-        "version": 1,
-        "name": "Researcher",
-        "description": "Investigate questions and synthesize evidence.",
-        "requiredToolIds": ["web", "web_search"],
-        "instructions": """# Researcher
-
-Research claims before presenting them as fact.
-
-1. Clarify the question, timeframe, and decision it supports.
-2. Prefer primary and authoritative sources.
-3. Compare more than one source when the claim is consequential or disputed.
-4. Separate directly supported facts from inference.
-5. Cite the source URL next to the claim it supports.
-6. State important uncertainty and what would resolve it.
-
-Do not pad the answer with search process. Lead with the useful conclusion.""",
-        "source": "official",
-        "visibility": "public",
-        "editable": False,
-    },
-    {
-        "id": "writer",
-        "version": 1,
-        "name": "Writer",
-        "description": "Draft polished, audience-aware copy.",
-        "requiredToolIds": [],
-        "instructions": """# Writer
-
-Produce writing that is ready to use.
-
-1. Preserve the user's facts, intent, and level of certainty.
-2. Match the audience and requested channel.
-3. Lead with the point and remove throat-clearing.
-4. Prefer concrete language and natural sentence rhythm.
-5. Return the finished draft before optional notes.
-
-Ask a question only when a missing detail would materially change the result.""",
-        "source": "official",
-        "visibility": "public",
-        "editable": False,
-    },
-]
-
-_last_sync_at = 0.0
-TRUSTED_CATALOG_HOST = "raw.githubusercontent.com"
-TRUSTED_CATALOG_PATH_PREFIX = f"/{ALLOWED_REPOSITORY}/"
-
-
-class CatalogError(Exception):
-    pass
-
-
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="milliseconds")
-
-
-def _version_key(version: int) -> str:
-    return f"VERSION#{version:09d}"
-
-
-def _trusted_catalog_url(url: str) -> str:
-    parsed = urllib.parse.urlsplit(url)
-    if (
-        parsed.scheme != "https"
-        or parsed.hostname != TRUSTED_CATALOG_HOST
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.port is not None
-        or not parsed.path.startswith(TRUSTED_CATALOG_PATH_PREFIX)
-        or parsed.query
-        or parsed.fragment
-    ):
-        raise CatalogError("Capability catalog URL is not trusted")
-    return url
-
-
-def _fetch_json(url: str) -> dict:
-    request = urllib.request.Request(
-        _trusted_catalog_url(url),
-        headers={"accept": "application/json", "user-agent": "FrogBot/1.0"},
-    )
-    with urllib.request.urlopen(request, timeout=5) as response:  # nosec B310
-        _trusted_catalog_url(response.geturl())
-        value = json.loads(response.read(500_001).decode("utf-8"))
-    if not isinstance(value, dict):
-        raise CatalogError("Capability catalog must be a JSON object")
-    return value
-
-
-def _fetch_text(url: str) -> str:
-    request = urllib.request.Request(
-        _trusted_catalog_url(url),
-        headers={"accept": "text/plain", "user-agent": "FrogBot/1.0"},
-    )
-    with urllib.request.urlopen(request, timeout=5) as response:  # nosec B310
-        _trusted_catalog_url(response.geturl())
-        value = response.read(MAX_SKILL_INSTRUCTIONS + 4_001).decode("utf-8")
-    if len(value) > MAX_SKILL_INSTRUCTIONS + 4_000:
-        raise CatalogError("Skill document is too large")
-    return value
-
-
-def _skill_instructions(document: str) -> str:
-    if not document.startswith("---\n"):
-        raise CatalogError("Skill document must start with YAML frontmatter")
-    boundary = document.find("\n---\n", 4)
-    if boundary < 0:
-        raise CatalogError("Skill document frontmatter is incomplete")
-    instructions = document[boundary + 5 :].strip()
-    if not instructions or len(instructions) > MAX_SKILL_INSTRUCTIONS:
-        raise CatalogError("Skill instructions are empty or too large")
-    return instructions
-
-
-def _validate_id(value: Any, field: str = "id") -> str:
-    if not isinstance(value, str) or not ID_PATTERN.fullmatch(value):
-        raise CatalogError(f"{field} is invalid")
-    return value
-
-
-def _validate_tool_id(value: Any) -> str:
-    if not isinstance(value, str) or not TOOL_ID_PATTERN.fullmatch(value):
-        raise CatalogError("tool id is invalid")
-    return value
-
-
-def _validate_text(value: Any, field: str, maximum: int) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CatalogError(f"{field} is required")
-    clean = value.strip()
-    if len(clean) > maximum:
-        raise CatalogError(f"{field} must be at most {maximum} characters")
-    return clean
-
-
-def _validate_tool_ids(value: Any, allowed: set[str]) -> list[str]:
-    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        raise CatalogError("requiredToolIds must be a list")
-    unique = list(dict.fromkeys(value))
-    unknown = set(unique) - allowed
-    if unknown:
-        raise CatalogError(f"Unknown required tools: {', '.join(sorted(unknown))}")
-    if len(unique) > MAX_TOOLS_PER_BOT:
-        raise CatalogError(f"A skill can require at most {MAX_TOOLS_PER_BOT} tools")
-    return unique
-
-
-def _validate_runtime_binding(value: Any) -> dict:
-    if not isinstance(value, dict):
-        raise CatalogError("tool runtime binding is required")
-    kind = value.get("kind")
-    if kind == "gateway":
-        operations = value.get("operations")
-        if (
-            not isinstance(operations, list)
-            or not 1 <= len(operations) <= 8
-            or len(set(operations)) != len(operations)
-            or any(
-                not isinstance(operation, str)
-                or not RUNTIME_NAME_PATTERN.fullmatch(operation)
-                for operation in operations
-            )
-        ):
-            raise CatalogError("gateway tool operations are invalid")
-        return {"kind": kind, "operations": operations}
-    allowed_names = RUNTIME_NAMES.get(kind)
-    name = value.get("name")
-    if not allowed_names or name not in allowed_names:
-        raise CatalogError("tool runtime binding is unsupported")
-    return {"kind": kind, "name": name}
-
-
-def _public_skill(item: dict) -> dict:
-    keys = (
-        "id",
-        "version",
-        "name",
-        "description",
-        "requiredToolIds",
-        "source",
-        "visibility",
-        "editable",
-        "relationship",
-        "updatedAt",
-    )
-    return {key: item[key] for key in keys if key in item}
-
-
-class CatalogService:
+class CatalogService(CatalogSyncMixin):
     def __init__(self, table: Any):
         self.table = table
-
-    def sync_official(self, *, force: bool = False) -> None:
-        global _last_sync_at
-        current = time.monotonic()
-        if not force and _last_sync_at > 0 and current - _last_sync_at < SYNC_SECONDS:
-            return
-        try:
-            self._sync_remote()
-        except (
-            CatalogError,
-            OSError,
-            UnicodeError,
-            urllib.error.URLError,
-            json.JSONDecodeError,
-        ):
-            logger.exception(
-                "Could not refresh the capability catalog; using the last known catalog"
-            )
-            self._ensure_fallbacks()
-        _last_sync_at = current
-
-    def _sync_remote(self) -> None:
-        catalog = _fetch_json(CATALOG_URL)
-        if (
-            catalog.get("schemaVersion") != 2
-            or catalog.get("repository") != ALLOWED_REPOSITORY
-        ):
-            raise CatalogError("Capability catalog source is not trusted")
-        release = catalog.get("release")
-        if not isinstance(release, str) or not re.fullmatch(r"skills-v[0-9]+", release):
-            raise CatalogError("Capability catalog release is invalid")
-        raw_tools = catalog.get("tools")
-        raw_skills = catalog.get("skills")
-        if not isinstance(raw_tools, list) or not isinstance(raw_skills, list):
-            raise CatalogError("Capability catalog lists are invalid")
-
-        parsed_tools = []
-        for raw in raw_tools:
-            if not isinstance(raw, dict):
-                raise CatalogError("Capability catalog tool is invalid")
-            parsed_tools.append(
-                {
-                    "id": _validate_tool_id(raw.get("id")),
-                    "name": _validate_text(raw.get("name"), "tool name", 80),
-                    "description": _validate_text(
-                        raw.get("description"), "tool description", 240
-                    ),
-                    "provider": str(raw.get("provider", "frogbot"))[:80],
-                    "credential": str(raw.get("credential", ""))[:80],
-                    "runtime": _validate_runtime_binding(raw.get("runtime")),
-                    "enabled": raw.get("enabled") is True,
-                }
-            )
-        tool_ids = {item["id"] for item in parsed_tools}
-        if len(tool_ids) != len(parsed_tools):
-            raise CatalogError("Capability catalog tool IDs must be unique")
-        tools = [item for item in parsed_tools if item["enabled"]]
-
-        skills = []
-        for raw in raw_skills:
-            if not isinstance(raw, dict):
-                raise CatalogError("Capability catalog skill is invalid")
-            skill_id = _validate_id(raw.get("id"), "skill id")
-            version = raw.get("version")
-            path = raw.get("path")
-            if not isinstance(version, int) or version < 1 or version > 1_000_000:
-                raise CatalogError(f"{skill_id} version is invalid")
-            if not isinstance(path, str) or not re.fullmatch(
-                r"skills/[a-z0-9-]+/SKILL\.md", path
-            ):
-                raise CatalogError(f"{skill_id} path is invalid")
-            document = _fetch_text(
-                f"https://raw.githubusercontent.com/{ALLOWED_REPOSITORY}/{release}/{path}"
-            )
-            skills.append(
-                {
-                    "id": skill_id,
-                    "version": version,
-                    "name": _validate_text(raw.get("name"), "skill name", 80),
-                    "description": _validate_text(
-                        raw.get("description"), "skill description", 240
-                    ),
-                    "requiredToolIds": _validate_tool_ids(
-                        raw.get("requiredToolIds", []), tool_ids
-                    ),
-                    "instructions": _skill_instructions(document),
-                    "source": "official",
-                    "visibility": "public",
-                    "editable": False,
-                    "release": release,
-                }
-            )
-        if len({item["id"] for item in skills}) != len(skills):
-            raise CatalogError("Capability catalog skill IDs must be unique")
-        self._store_official(tools, skills)
-
-    def _ensure_fallbacks(self) -> None:
-        response = self.table.query(
-            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
-            ExpressionAttributeValues={":pk": "SYSTEM#SKILLS", ":prefix": "SKILL#"},
-            Limit=1,
-        )
-        if response.get("Items"):
-            return
-        self._store_official(FALLBACK_TOOLS, FALLBACK_SKILLS)
-
-    def _store_official(self, tools: list[dict], skills: list[dict]) -> None:
-        current = _now()
-        existing_tools = self.table.query(
-            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
-            ExpressionAttributeValues={":pk": "SYSTEM#TOOLS", ":prefix": "TOOL#"},
-        ).get("Items", [])
-        existing_skills = self.table.query(
-            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
-            ExpressionAttributeValues={":pk": "SYSTEM#SKILLS", ":prefix": "SKILL#"},
-        ).get("Items", [])
-        tool_keys = {f"TOOL#{tool['id']}" for tool in tools}
-        skill_keys = {f"SKILL#{skill['id']}" for skill in skills}
-        with self.table.batch_writer() as batch:
-            for item in existing_tools:
-                if item.get("sk") not in tool_keys:
-                    batch.delete_item(Key={"pk": "SYSTEM#TOOLS", "sk": item["sk"]})
-            for item in existing_skills:
-                if item.get("sk") not in skill_keys:
-                    batch.delete_item(Key={"pk": "SYSTEM#SKILLS", "sk": item["sk"]})
-            for tool in tools:
-                batch.put_item(
-                    Item={
-                        "pk": "SYSTEM#TOOLS",
-                        "sk": f"TOOL#{tool['id']}",
-                        "entity": "TOOL",
-                        **tool,
-                    }
-                )
-            for skill in skills:
-                listing = {
-                    "pk": "SYSTEM#SKILLS",
-                    "sk": f"SKILL#{skill['id']}",
-                    "entity": "SKILL_LISTING",
-                    **_public_skill({**skill, "updatedAt": current}),
-                }
-                version = {
-                    "pk": f"SKILL#{skill['id']}",
-                    "sk": _version_key(skill["version"]),
-                    "entity": "SKILL_VERSION",
-                    **skill,
-                    "updatedAt": current,
-                }
-                batch.put_item(Item=listing)
-                batch.put_item(Item=version)
 
     def list_tools(self) -> list[dict]:
         self.sync_official()
@@ -507,7 +58,7 @@ class CatalogService:
             (
                 {
                     key: item[key]
-                    for key in ("id", "name", "description", "provider")
+                    for key in ("id", "name", "description", "provider", "risk")
                     if key in item
                 }
                 for item in items
@@ -608,10 +159,19 @@ class CatalogService:
             resolved.append(
                 {
                     "id": tool_id,
+                    "risk": item.get("risk", LEGACY_TOOL_RISKS.get(tool_id, "read")),
                     "runtime": _validate_runtime_binding(item.get("runtime")),
                 }
             )
         return resolved
+
+    def approval_tool_names(self, tool_ids: Any) -> list[str]:
+        selected = set(self.validate_tools(tool_ids))
+        return [
+            item["name"]
+            for item in self.list_tools()
+            if item["id"] in selected and item.get("risk") == "interactive"
+        ]
 
     def get_version(self, skill_id: str, version: int) -> dict | None:
         return self.table.get_item(
@@ -705,6 +265,7 @@ class CatalogService:
     def create_share(self, user_id: str, skill_id: str) -> dict:
         skill = self.get_skill(user_id, skill_id)
         token = secrets.token_urlsafe(18)
+        created_at = _now()
         expires_at = int(datetime.now(UTC).timestamp()) + 30 * 24 * 60 * 60
         self.table.put_item(
             Item={
@@ -713,12 +274,14 @@ class CatalogService:
                 "entity": "SKILL_SHARE",
                 "ownerId": user_id,
                 "snapshot": skill,
+                "createdAt": created_at,
                 "expiresAt": expires_at,
             }
         )
         return {
             "url": invite_url(PUBLIC_WEB_BASE_URL, "skill", token),
             "token": token,
+            "createdAt": created_at,
             "expiresAt": expires_at,
         }
 

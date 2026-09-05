@@ -22,6 +22,7 @@ import {
   demoSendGroup,
 } from './demo';
 import type {
+  Attachment,
   Bootstrap,
   Bot,
   BotDraft,
@@ -32,6 +33,7 @@ import type {
   Message,
   ScheduledTask,
   ScheduledTaskDraft,
+  SharedLink,
   SkillDetail,
   SkillDraft,
 } from './types';
@@ -86,8 +88,8 @@ export const createApi = (demo: boolean) => ({
       ? {
           kind,
           token,
-          title: kind === 'group' ? 'Weekend builders' : 'A FrogBot for you',
-          description: 'Taylor invited you to bring people and FrogBots together.',
+          title: kind === 'group' ? 'Weekend builders' : 'A FroggyBot for you',
+          description: 'Taylor invited you to bring people and FroggyBots together.',
           inviterName: 'Taylor',
           peopleCount: 3,
           bots: demoBootstrap().groups[0]?.bots ?? [],
@@ -116,9 +118,71 @@ export const createApi = (demo: boolean) => ({
     if (demo) return demoDeleteBot(botId);
     await request(`/bots/${encodeURIComponent(botId)}`, { method: 'DELETE' });
   },
-  sendMessage: async (bot: Bot, text: string): Promise<void> => {
+  uploadAttachment: async (asset: {
+    uri: string;
+    name: string;
+    size: number;
+    mimeType?: string;
+    file?: File;
+  }): Promise<Attachment> => {
+    if (demo) {
+      return {
+        id: `demo-file-${Date.now()}`,
+        name: asset.name,
+        size: asset.size,
+        kind: asset.mimeType?.startsWith('image/') ? 'image' : 'document',
+        format: asset.name.split('.').pop()?.toLowerCase() ?? 'txt',
+        contentType: asset.mimeType ?? 'application/octet-stream',
+      };
+    }
+    const ticket = await request<{
+      file: Attachment;
+      upload: { url: string; fields: Record<string, string> };
+    }>('/uploads', {
+      method: 'POST',
+      body: JSON.stringify({ filename: asset.name, size: asset.size }),
+    });
+    const form = new FormData();
+    Object.entries(ticket.upload.fields).forEach(([key, value]) => form.append(key, value));
+    if (asset.file) {
+      form.append('file', asset.file, asset.name);
+    } else {
+      form.append('file', {
+        uri: asset.uri,
+        name: asset.name,
+        type: ticket.file.contentType,
+      } as unknown as Blob);
+    }
+    const uploaded = await fetch(ticket.upload.url, { method: 'POST', body: form });
+    if (!uploaded.ok) throw new Error(`The file upload failed (${uploaded.status}).`);
+    return request<Attachment>(`/uploads/${encodeURIComponent(ticket.file.id)}/complete`, {
+      method: 'POST',
+    });
+  },
+  downloadFile: async (fileId: string): Promise<string> =>
+    demo
+      ? `data:text/plain;charset=utf-8,${encodeURIComponent('FroggyBot preview attachment')}`
+      : request<{ url: string }>(`/files/${encodeURIComponent(fileId)}/download`).then((value) => value.url),
+  sendMessage: async (bot: Bot, text: string, attachmentIds: string[] = []): Promise<void> => {
     if (demo) return demoSend(bot, text);
-    await request(`/bots/${bot.id}/messages`, { method: 'POST', body: JSON.stringify({ text }) });
+    await request(`/bots/${bot.id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ text, attachmentIds }),
+    });
+  },
+  cancelMessage: async (botId: string, turnId: string): Promise<void> => {
+    if (demo) return;
+    await request(
+      `/bots/${encodeURIComponent(botId)}/messages/${encodeURIComponent(turnId)}/cancel`,
+      { method: 'POST' },
+    );
+  },
+  approveMessage: async (botId: string, turnId: string): Promise<void> => {
+    if (demo) return;
+    await request(
+      `/bots/${encodeURIComponent(botId)}/messages/${encodeURIComponent(turnId)}/approve`,
+      { method: 'POST' },
+    );
   },
   schedules: async (botId: string): Promise<ScheduledTask[]> =>
     demo
@@ -172,7 +236,7 @@ export const createApi = (demo: boolean) => ({
     });
   },
   shareGroup: async (groupId: string): Promise<string> => {
-    if (demo) return `https://frogbot.expo.app/invite?kind=group&token=demo-${groupId}`;
+    if (demo) return `https://froggybot.com/invite?kind=group&token=demo-${groupId}`;
     return request<{ url: string }>(`/groups/${groupId}/invites`, { method: 'POST' }).then((value) => value.url);
   },
   joinGroup: async (token: string): Promise<Group> => {
@@ -191,8 +255,18 @@ export const createApi = (demo: boolean) => ({
     if (demo) return;
     await request('/devices/push-token', { method: 'DELETE', body: JSON.stringify({ token }) });
   },
+  sharedLinks: async (): Promise<SharedLink[]> =>
+    demo ? [] : request<{ shares: SharedLink[] }>('/shares').then((value) => value.shares),
+  revokeShare: async (token: string): Promise<void> => {
+    if (demo) return;
+    await request(`/shares/${encodeURIComponent(token)}`, { method: 'DELETE' });
+  },
+  deleteAccount: async (): Promise<void> => {
+    if (demo) return;
+    await request('/account', { method: 'DELETE' });
+  },
   share: async (botId: string, scope: 'bot' | 'chat'): Promise<string> => {
-    if (demo) return `https://frogbot.expo.app/invite?kind=${scope}&token=demo-${scope}-${botId}`;
+    if (demo) return `https://froggybot.com/invite?kind=${scope}&token=demo-${scope}-${botId}`;
     return request<{ url: string }>('/shares', {
       method: 'POST',
       body: JSON.stringify({ botId, scope }),
@@ -212,7 +286,7 @@ export const createApi = (demo: boolean) => ({
           body: JSON.stringify(draft),
         }),
   shareSkill: async (skillId: string): Promise<string> => {
-    if (demo) return `https://frogbot.expo.app/invite?kind=skill&token=demo-${skillId}`;
+    if (demo) return `https://froggybot.com/invite?kind=skill&token=demo-${skillId}`;
     return request<{ url: string }>(`/skills/${encodeURIComponent(skillId)}/share`, { method: 'POST' }).then(
       (value) => value.url,
     );
@@ -222,3 +296,5 @@ export const createApi = (demo: boolean) => ({
     return request<SkillDetail>(`/skill-shares/${encodeURIComponent(token)}/import`, { method: 'POST' });
   },
 });
+
+export type FrogBotApi = ReturnType<typeof createApi>;

@@ -1,10 +1,10 @@
-# FrogBot architecture
+# FroggyBot architecture
 
 This repository deliberately has three product boundaries:
 
 ```text
 apps/mobile/        User experience and its serverless application backend
-app/FrogBot/        One AgentCore runtime shared by every FrogBot personality
+app/FrogBot/        One AgentCore runtime shared by every FroggyBot personality
 agentcore/           Declarative AgentCore infrastructure and gateway schemas
 ```
 
@@ -22,16 +22,24 @@ flag.
 
 ## Application backend
 
-Amplify owns Cognito and the application-facing AWS resources. One small HTTP API Lambda keeps
-deployment and permissions simple for this stage of the product. Domain-heavy, independently
-testable behavior lives under `amplify/functions/shared`; the API handler validates ownership and
-persists state, while the SQS worker invokes AgentCore and sends final-response notifications.
+Amplify owns Cognito and the application-facing AWS resources. One HTTP API Lambda keeps deployment
+and permissions simple, while focused modules under `amplify/functions/api` own each application
+domain. The API handler only routes requests. Shared rules live under `amplify/functions/shared`.
+The SQS worker uses the same pattern: its handler routes jobs, and focused worker modules claim work,
+invoke AgentCore, persist results, and send final-response notifications.
 
-Daily and weekly bot tasks are stored with the user's other application data. Each task has one EventBridge Scheduler
-schedule that sends only stable identifiers to the existing SQS queue. The worker reloads the current task and bot at
-execution time, creates an idempotent scheduled chat turn, and then follows the same agent and notification path as a
-person-started message. Scheduler retries use the existing dead-letter queue, and schedule names contain hashes rather
-than user identifiers.
+Daily, weekday, weekly, and monthly bot tasks are stored with the user's other application data. Each
+task has one EventBridge Scheduler schedule that sends only stable identifiers to the existing SQS
+queue. The worker reloads the current task and bot at execution time, creates an idempotent scheduled
+chat turn, and then follows the same agent and notification path as a person-started message.
+Scheduler retries use the existing dead-letter queue, and schedule names contain hashes rather than
+user identifiers. Interactive browser work is intentionally limited to direct chat, where a person
+must approve that turn before it is queued.
+
+User uploads and generated artifacts live in a private, versioned S3 bucket. Uploads use short-lived,
+size-constrained signed forms and are verified before they become usable. The API issues short-lived
+download links only after an ownership check. Account deletion removes every object version and delete
+marker under the user's hashed prefix.
 
 The asynchronous request flow is:
 
@@ -56,6 +64,14 @@ AgentCore isolation while preserving that bot's memory inside the group.
 normalizes untrusted invocation payloads, `configuration.py` builds per-bot and per-group
 instructions, and `capabilities.py` assembles only the tools and skills enabled for that bot.
 Stan and Strands stay behind this boundary so the mobile/API layers do not duplicate agent logic.
+AgentCore OpenTelemetry remains enabled for errors, timings, token usage, and tool activity, while both the
+AWS model instrumentation and Strands tracer redact prompt, response, tool payload, and attachment content.
+
+Direct conversations use stable, hashed AgentCore actor and session identifiers. AgentCore Memory
+recalls user preferences and facts across bots and session summaries within a conversation. Browser
+and code-interpreter sandboxes are named by the stable conversation ID and reconnect to READY sessions
+after runtime process replacement. Generated files use a turn-scoped S3 prefix and are attached to the
+completed reply only after the worker verifies and records them.
 
 Executable community code is not accepted. Skills are versioned instructions plus approved tool
 references; secrets and executable integrations stay in reviewed AgentCore Gateway targets.
@@ -68,7 +84,11 @@ references; secrets and executable integrations stay in reviewed AgentCore Gatew
 - Invitation tokens are random, time-limited, and stored as hashes for sign-up validation.
 - A bot can receive only the reviewed tools and version-pinned skills in its saved configuration.
 - Agent jobs are retried through SQS and failed permanently only after the configured retry limit.
+- One worker owns a turn at a time through a renewable lease; completion is conditional on that ownership.
 - Scheduled executions are idempotent by schedule execution ID, use IANA timezones, and never embed bot prompts in EventBridge.
+- Attachments and generated artifacts are bound to the current user's hashed storage prefix.
+- Interactive tools cannot run in scheduled or group work, and direct browser turns require explicit approval.
+- Account deletion revokes active shares, cancels pending work, deletes user data and all S3 versions, and disables the Cognito identity.
 - User-visible notifications are queued only after the final answer, never for thinking updates.
 
 ## Verification
@@ -89,6 +109,8 @@ uvx ruff check amplify/functions
 uvx bandit -q -r amplify/functions -x amplify/functions/tests
 ```
 
-The highest-value next production hardening steps are an authenticated API end-to-end test in CI,
-CloudWatch alarms for the dead-letter queue and Lambda failures, and idempotency leases before any
-future tool is allowed to perform irreversible external actions.
+The remaining parity work is tracked by product capability rather than infrastructure severity:
+credentialed third-party connectors and enterprise identity/data governance. Production-scale authenticated
+end-to-end, load, cost-control, and recovery checks are complete. The remaining features require provider
+credentials or product policy before they can be safely enabled. Operational targets and recovery procedures are maintained in
+[`operations.md`](operations.md).

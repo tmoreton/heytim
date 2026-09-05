@@ -6,7 +6,14 @@ from contextlib import contextmanager
 from decimal import Decimal
 
 import shared.catalog as catalog_module
+import shared.catalog_sync as sync_module
 from shared.catalog import CatalogError, CatalogService
+
+
+class FakeConditionalCheckFailed(Exception):
+    def __init__(self) -> None:
+        super().__init__("conditional check failed")
+        self.response = {"Error": {"Code": "ConditionalCheckFailedException"}}
 
 
 class FakeBatch:
@@ -31,6 +38,52 @@ class FakeTable:
         item = self.items.get((Key["pk"], Key["sk"]))
         return {"Item": dict(item)} if item else {}
 
+    def update_item(
+        self,
+        *,
+        Key: dict,
+        UpdateExpression: str,
+        ConditionExpression: str,
+        ExpressionAttributeNames: dict,
+        ExpressionAttributeValues: dict,
+    ) -> None:
+        item = self.items.setdefault((Key["pk"], Key["sk"]), dict(Key))
+        lease_name = ExpressionAttributeNames["#lease_id"]
+        if "attribute_not_exists" in ConditionExpression:
+            lease_until_name = ExpressionAttributeNames["#lease_until"]
+            if item.get(lease_until_name, 0) > ExpressionAttributeValues[":now"]:
+                raise FakeConditionalCheckFailed
+            item.update(
+                {
+                    ExpressionAttributeNames["#entity"]: ExpressionAttributeValues[
+                        ":entity"
+                    ],
+                    lease_until_name: ExpressionAttributeValues[":lease_until"],
+                    lease_name: ExpressionAttributeValues[":lease_id"],
+                    ExpressionAttributeNames["#status"]: ExpressionAttributeValues[
+                        ":syncing"
+                    ],
+                }
+            )
+            return
+        if item.get(lease_name) != ExpressionAttributeValues[":lease_id"]:
+            raise FakeConditionalCheckFailed
+        item.update(
+            {
+                ExpressionAttributeNames["#next_sync"]: ExpressionAttributeValues[
+                    ":next_sync"
+                ],
+                ExpressionAttributeNames["#last_sync"]: ExpressionAttributeValues[
+                    ":last_sync"
+                ],
+                ExpressionAttributeNames["#status"]: ExpressionAttributeValues[
+                    ":status"
+                ],
+            }
+        )
+        item.pop(ExpressionAttributeNames["#lease_until"], None)
+        item.pop(lease_name, None)
+
     def query(
         self, *, ExpressionAttributeValues: dict, Limit: int | None = None, **_kwargs
     ) -> dict:
@@ -50,7 +103,7 @@ class FakeTable:
 
 class CatalogServiceTests(unittest.TestCase):
     def setUp(self) -> None:
-        catalog_module._last_sync_at = time.monotonic()
+        sync_module._last_sync_at = time.monotonic()
         self.table = FakeTable()
         self.catalog = CatalogService(self.table)
         self.catalog._store_official(
@@ -58,22 +111,60 @@ class CatalogServiceTests(unittest.TestCase):
         )
 
     def test_cold_start_performs_initial_sync(self) -> None:
-        catalog_module._last_sync_at = 0
+        sync_module._last_sync_at = 0
         calls = []
         self.catalog._sync_remote = lambda: calls.append("sync")
         self.catalog.sync_official()
         self.assertEqual(calls, ["sync"])
+        metadata = self.table.items[("SYSTEM#CATALOG", "METADATA")]
+        self.assertEqual(metadata["syncStatus"], "READY")
+        self.assertNotIn("syncLeaseId", metadata)
+
+    def test_cold_instances_share_catalog_freshness(self) -> None:
+        self.table.put_item(
+            Item={
+                "pk": "SYSTEM#CATALOG",
+                "sk": "METADATA",
+                "nextSyncAt": int(time.time()) + sync_module.SYNC_SECONDS,
+            }
+        )
+        sync_module._last_sync_at = 0
+        calls = []
+        self.catalog._sync_remote = lambda: calls.append("sync")
+
+        self.catalog.sync_official()
+
+        self.assertEqual(calls, [])
+
+    def test_cold_instances_do_not_duplicate_an_active_refresh(self) -> None:
+        self.table.put_item(
+            Item={
+                "pk": "SYSTEM#CATALOG",
+                "sk": "METADATA",
+                "nextSyncAt": 0,
+                "syncLeaseUntil": int(time.time())
+                + sync_module.SYNC_LEASE_SECONDS,
+                "syncLeaseId": "another-instance",
+            }
+        )
+        sync_module._last_sync_at = 0
+        calls = []
+        self.catalog._sync_remote = lambda: calls.append("sync")
+
+        self.catalog.sync_official()
+
+        self.assertEqual(calls, [])
 
     def test_catalog_fetches_only_from_the_reviewed_repository(self) -> None:
         trusted = "https://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json"
-        self.assertEqual(catalog_module._trusted_catalog_url(trusted), trusted)
+        self.assertEqual(sync_module._trusted_catalog_url(trusted), trusted)
         for url in (
             "http://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json",
             "https://example.com/tmoreton/frogbot-capabilities/main/catalog.json",
             "https://raw.githubusercontent.com/other/repository/main/catalog.json",
         ):
             with self.subTest(url=url), self.assertRaises(CatalogError):
-                catalog_module._trusted_catalog_url(url)
+                sync_module._trusted_catalog_url(url)
 
     def test_custom_skill_versions_are_immutable_and_pinned(self) -> None:
         first = self.catalog.save_skill(
@@ -135,16 +226,16 @@ class CatalogServiceTests(unittest.TestCase):
             len(tools), sum(tool["enabled"] for tool in catalog_module.FALLBACK_TOOLS)
         )
         self.assertEqual(
-            {tool["id"]: tool["provider"] for tool in tools},
+            {tool["id"]: (tool["provider"], tool["risk"]) for tool in tools},
             {
-                "web": "stan",
-                "web_search": "agentcore-gateway",
-                "calculator": "frogbot",
-                "current_time": "frogbot",
-                "task_list": "stan",
-                "delegate": "stan",
-                "code_interpreter": "agentcore",
-                "browser": "agentcore",
+                "web": ("stan", "read"),
+                "web_search": ("agentcore-gateway", "read"),
+                "calculator": ("frogbot", "read"),
+                "current_time": ("frogbot", "read"),
+                "task_list": ("stan", "sandbox"),
+                "delegate": ("stan", "sandbox"),
+                "code_interpreter": ("agentcore", "sandbox"),
+                "browser": ("agentcore", "interactive"),
             },
         )
 
@@ -156,17 +247,24 @@ class CatalogServiceTests(unittest.TestCase):
             [
                 {
                     "id": "delegate",
+                    "risk": "sandbox",
                     "runtime": {"kind": "stan_subagent", "name": "generalist"},
                 },
                 {
                     "id": "web_search",
+                    "risk": "read",
                     "runtime": {"kind": "gateway", "operations": ["WebSearch"]},
                 },
                 {
                     "id": "calculator",
+                    "risk": "read",
                     "runtime": {"kind": "local", "name": "calculator"},
                 },
             ],
+        )
+        self.assertEqual(
+            self.catalog.approval_tool_names(["web", "browser"]),
+            ["Interactive browser"],
         )
 
     def test_runtime_resolves_dynamodb_decimal_skill_versions(self) -> None:

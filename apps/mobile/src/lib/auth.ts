@@ -56,7 +56,7 @@ const beginSignIn = async (email: string): Promise<EmailCodeStart> => {
 };
 
 const invitationRequired = (): Error =>
-  new Error('FrogBot is invite-only right now. Open a link shared by a member to create your account.');
+  new Error('FroggyBot is invite-only right now. Open a link shared by a member to create your account.');
 
 export const beginEmailCode = async (
   rawEmail: string,
@@ -96,7 +96,7 @@ export const beginEmailCode = async (
     return beginSignIn(email);
   } catch (value) {
     if (hasErrorName(value, 'UserLambdaValidationException')) {
-      throw new Error('This invitation is no longer valid. Ask a friend for a fresh FrogBot link.');
+      throw new Error('This invitation is no longer valid. Ask a friend for a fresh FroggyBot link.');
     }
     if (!hasErrorName(value, 'UsernameExistsException')) throw value;
   }

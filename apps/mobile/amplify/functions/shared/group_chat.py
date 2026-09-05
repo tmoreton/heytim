@@ -79,7 +79,7 @@ def group_runtime_context(
     people = sorted(
         (
             {
-                "name": str(item.get("name", "FrogBot user"))[:40],
+                "name": str(item.get("name", "FroggyBot user"))[:40],
                 "role": "owner" if item.get("role") == "owner" else "member",
             }
             for item in items
@@ -90,7 +90,7 @@ def group_runtime_context(
     bots = [
         {
             "id": str(item.get("botId", ""))[:64],
-            "name": str(item.get("name", "FrogBot"))[:60],
+            "name": str(item.get("name", "FroggyBot"))[:60],
             "tagline": str(item.get("tagline", ""))[:120],
             "isCurrent": item.get("botId") == current_bot_id,
         }

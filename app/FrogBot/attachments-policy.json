@@ -1,0 +1,20 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadFrogBotUserAttachments",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::frogbot-user-files-188757775631-us-east-1/users/*"
+    },
+    {
+      "Sid": "GenerateFrogBotImages",
+      "Effect": "Allow",
+      "Action": "bedrock:InvokeModel",
+      "Resource": "arn:aws:bedrock:us-west-2::foundation-model/stability.stable-image-core-v1:1"
+    }
+  ]
+}

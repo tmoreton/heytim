@@ -39,7 +39,7 @@ const providerLabel = (provider?: string) => {
   if (provider === 'stan') return 'Stan';
   if (provider === 'agentcore') return 'AgentCore';
   if (provider === 'agentcore-gateway') return 'Connected service';
-  return 'FrogBot';
+  return 'FroggyBot';
 };
 
 export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, onChanged }: Props) {
@@ -130,7 +130,7 @@ export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, 
       const url = await onShare(selected.id);
       await Share.share({
         title: `Share ${selected.name}`,
-        message: `Add the ${selected.name} skill to FrogBot: ${url}`,
+        message: `Add the ${selected.name} skill to FroggyBot: ${url}`,
         url,
       });
     } catch (value) {
@@ -212,7 +212,7 @@ export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, 
                         <View style={styles.nameRow}>
                           <Text style={styles.skillName}>{skill.name}</Text>
                           <Text style={styles.badge}>
-                            {skill.source === 'official' ? 'FrogBot' : skill.relationship === 'owner' ? 'Yours' : 'Shared'}
+                            {skill.source === 'official' ? 'FroggyBot' : skill.relationship === 'owner' ? 'Yours' : 'Shared'}
                           </Text>
                         </View>
                         <Text style={styles.skillDescription}>{skill.description}</Text>
@@ -298,7 +298,7 @@ function SkillView({
   const ownershipNote = skill.editable
     ? 'You own this skill. Changes create a new version.'
     : skill.source === 'official'
-      ? 'Maintained by FrogBot. Make an editable copy to change it.'
+      ? 'Maintained by FroggyBot. Make an editable copy to change it.'
       : 'Installed from a shared link. Make an editable copy to change it.';
   return (
     <>
@@ -306,7 +306,7 @@ function SkillView({
       <Text style={styles.detailName}>{skill.name}</Text>
       <Text style={styles.detailDescription}>{skill.description}</Text>
       <View style={styles.metaRow}>
-        <Text style={styles.badge}>{skill.source === 'official' ? 'FrogBot skill' : skill.editable ? 'Your skill' : 'Shared skill'}</Text>
+        <Text style={styles.badge}>{skill.source === 'official' ? 'FroggyBot skill' : skill.editable ? 'Your skill' : 'Shared skill'}</Text>
         <Text style={styles.version}>Version {skill.version}</Text>
       </View>
       <Text style={styles.detailNote}>{ownershipNote}</Text>

@@ -1,0 +1,256 @@
+from __future__ import annotations
+
+import json
+import uuid
+
+from boto3.dynamodb.conditions import Attr
+from shared.cleanup import has_pending_work
+
+from .attachments import _resolve_attachments
+from .bots import _get_bot
+from .schedules import _get_schedule
+from .support import (
+    QUEUE_URL,
+    ApiError,
+    _bot_sk,
+    _now,
+    _partition_items,
+    _schedule_key,
+    _turn_pk,
+    _user_pk,
+    _validate_string,
+    catalog,
+    sqs,
+    table,
+)
+
+
+def _start_bot_turn(
+    user_id: str,
+    bot_id: str,
+    text: str,
+    schedule_item: dict | None = None,
+    approval_tools: list[str] | None = None,
+    attachments: list[dict] | None = None,
+) -> dict:
+    turn_id = str(uuid.uuid4())
+    current = _now()
+    item = {
+        "pk": _turn_pk(user_id, bot_id),
+        "sk": f"TURN#{current}#{turn_id}",
+        "entity": "TURN",
+        "id": turn_id,
+        "botId": bot_id,
+        "userId": user_id,
+        "userText": text,
+        "createdAt": current,
+        "status": "AWAITING_APPROVAL" if approval_tools else "PENDING",
+    }
+    if approval_tools:
+        item["approvalTools"] = approval_tools
+    if attachments:
+        item["attachments"] = attachments
+    if schedule_item:
+        item.update(
+            {
+                "source": "schedule",
+                "scheduleId": schedule_item["id"],
+                "scheduleName": schedule_item["name"],
+            }
+        )
+    table.put_item(Item=item)
+    if schedule_item:
+        try:
+            table.update_item(
+                Key=_schedule_key(user_id, schedule_item["id"]),
+                UpdateExpression="SET lastRunAt = :now, lastStatus = :status",
+                ConditionExpression=Attr("pk").exists(),
+                ExpressionAttributeValues={":now": current, ":status": "pending"},
+            )
+        except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
+            table.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
+            raise ApiError(404, "Scheduled task not found") from exc
+    try:
+        table.update_item(
+            Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot_id)},
+            UpdateExpression="SET lastMessage = :message, lastMessageAt = :now, updatedAt = :now",
+            ConditionExpression=Attr("pk").exists(),
+            ExpressionAttributeValues={":message": text, ":now": current},
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
+        table.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
+        if schedule_item:
+            try:
+                table.update_item(
+                    Key=_schedule_key(user_id, schedule_item["id"]),
+                    UpdateExpression="SET lastRunAt = :now, lastStatus = :status",
+                    ConditionExpression=Attr("pk").exists(),
+                    ExpressionAttributeValues={":now": current, ":status": "error"},
+                )
+            except table.meta.client.exceptions.ConditionalCheckFailedException:
+                pass
+        raise ApiError(404, "Bot not found") from exc
+    if not approval_tools:
+        _queue_bot_turn(item, schedule_item)
+    return {"turnId": turn_id, "status": item["status"].lower()}
+
+
+def _queue_bot_turn(item: dict, schedule_item: dict | None = None) -> None:
+    try:
+        sqs.send_message(
+            QueueUrl=QUEUE_URL,
+            MessageBody=json.dumps(
+                {
+                    "type": "AGENT_REPLY",
+                    "userId": item["userId"],
+                    "botId": item["botId"],
+                    "turnKey": item["sk"],
+                }
+            ),
+        )
+    except Exception:
+        failed_at = _now()
+        table.update_item(
+            Key={"pk": item["pk"], "sk": item["sk"]},
+            UpdateExpression="SET #status = :status, assistantText = :text, completedAt = :now",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={
+                ":status": "ERROR",
+                ":text": "I could not start that request. Please try again.",
+                ":now": failed_at,
+            },
+        )
+        if schedule_item:
+            try:
+                table.update_item(
+                    Key=_schedule_key(item["userId"], schedule_item["id"]),
+                    UpdateExpression="SET lastRunAt = :now, lastStatus = :status",
+                    ConditionExpression=Attr("pk").exists(),
+                    ExpressionAttributeValues={":now": failed_at, ":status": "error"},
+                )
+            except table.meta.client.exceptions.ConditionalCheckFailedException:
+                pass
+        raise
+
+
+def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
+    bot = _get_bot(user_id, bot_id)
+    if has_pending_work(_partition_items(_turn_pk(user_id, bot_id))):
+        raise ApiError(
+            409, "Wait for this FroggyBot to finish before sending another message"
+        )
+    attachments = _resolve_attachments(user_id, value.get("attachmentIds"))
+    raw_text = value.get("text", "")
+    if attachments and isinstance(raw_text, str) and not raw_text.strip():
+        raw_text = "Please review the attached files."
+    text = _validate_string(raw_text, "text", 8_000)
+    approval_tools = catalog.approval_tool_names(bot.get("toolIds", []))
+    return _start_bot_turn(
+        user_id,
+        bot_id,
+        text,
+        approval_tools=approval_tools or None,
+        attachments=attachments or None,
+    )
+
+
+def _get_turn(user_id: str, bot_id: str, turn_id: str) -> dict:
+    turn_id = _validate_string(turn_id, "turnId", 64)
+    turn = next(
+        (
+            item
+            for item in _partition_items(_turn_pk(user_id, bot_id))
+            if item.get("id") == turn_id
+        ),
+        None,
+    )
+    if not turn:
+        raise ApiError(404, "Message not found")
+    return turn
+
+
+def _approve_bot_turn(user_id: str, bot_id: str, turn_id: str) -> dict:
+    _get_bot(user_id, bot_id)
+    turn = _get_turn(user_id, bot_id, turn_id)
+    approved_at = _now()
+    try:
+        table.update_item(
+            Key={"pk": turn["pk"], "sk": turn["sk"]},
+            UpdateExpression=(
+                "SET #status = :pending, approvedAt = :now REMOVE approvalTools"
+            ),
+            ConditionExpression="#status = :awaiting",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={
+                ":awaiting": "AWAITING_APPROVAL",
+                ":pending": "PENDING",
+                ":now": approved_at,
+            },
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
+        raise ApiError(409, "This approval request is no longer active") from exc
+    queued_turn = {**turn, "status": "PENDING"}
+    queued_turn.pop("approvalTools", None)
+    _queue_bot_turn(queued_turn)
+    return {"turnId": turn["id"], "status": "pending"}
+
+
+def _cancel_bot_turn(user_id: str, bot_id: str, turn_id: str) -> dict:
+    _get_bot(user_id, bot_id)
+    turn = _get_turn(user_id, bot_id, turn_id)
+    if turn.get("status") == "CANCELLED":
+        return {"cancelled": True}
+    if turn.get("status") in {"COMPLETE", "ERROR"}:
+        raise ApiError(409, "This response has already finished")
+    cancelled_at = _now()
+    try:
+        table.update_item(
+            Key={"pk": turn["pk"], "sk": turn["sk"]},
+            UpdateExpression=(
+                "SET #status = :cancelled, assistantText = :message, completedAt = :now "
+                "REMOVE leaseOwner, leaseExpiresAt"
+            ),
+            ConditionExpression=(
+                "#status = :pending OR #status = :running OR #status = :awaiting"
+            ),
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={
+                ":pending": "PENDING",
+                ":running": "RUNNING",
+                ":awaiting": "AWAITING_APPROVAL",
+                ":cancelled": "CANCELLED",
+                ":message": "Stopped by you.",
+                ":now": cancelled_at,
+            },
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
+        raise ApiError(409, "This response can no longer be stopped") from exc
+    if turn.get("source") == "schedule":
+        _update_cancelled_schedule(user_id, turn, cancelled_at)
+    return {"cancelled": True}
+
+
+def _update_cancelled_schedule(user_id: str, turn: dict, cancelled_at: str) -> None:
+    schedule_id = turn.get("scheduleId")
+    if not isinstance(schedule_id, str):
+        return
+    try:
+        table.update_item(
+            Key=_schedule_key(user_id, schedule_id),
+            UpdateExpression="SET lastRunAt = :now, lastStatus = :status",
+            ConditionExpression=Attr("pk").exists(),
+            ExpressionAttributeValues={":now": cancelled_at, ":status": "error"},
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        pass
+
+
+def _run_schedule_now(user_id: str, bot_id: str, schedule_id: str) -> dict:
+    schedule_item = _get_schedule(user_id, bot_id, schedule_id)
+    bot = _get_bot(user_id, bot_id)
+    if catalog.approval_tool_names(bot.get("toolIds", [])):
+        raise ApiError(
+            409,
+            "Interactive tools cannot run on a schedule because they require your approval.",
+        )
+    return _start_bot_turn(user_id, bot_id, schedule_item["prompt"], schedule_item)

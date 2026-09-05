@@ -5,11 +5,14 @@ import { AgentActivity } from '@/components/agent-activity';
 import { BotAvatar } from '@/components/bot-avatar';
 import { MessageMarkdown } from '@/components/message-markdown';
 import { PersonAvatar } from '@/components/participant-avatar';
-import type { Message } from '@/lib/types';
+import type { Attachment, Message } from '@/lib/types';
 
 type Props = {
   message: Message;
   groupMode: boolean;
+  onApprove?: (message: Message) => Promise<void>;
+  onReject?: (message: Message) => Promise<void>;
+  onOpenFile?: (file: Attachment) => Promise<void>;
 };
 
 const roleLabel = (message: Message) => {
@@ -31,15 +34,19 @@ const activityLabel = (message: Message) => {
   return undefined;
 };
 
-export function MessageBubble({ message, groupMode }: Props) {
+export function MessageBubble({ message, groupMode, onApprove, onReject, onOpenFile }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const authorName = message.authorName ?? (message.authorType === 'bot' ? 'FrogBot' : 'Person');
+  const [actingOnApproval, setActingOnApproval] = useState(false);
+  const [downloadingFileIds, setDownloadingFileIds] = useState<Set<string>>(() => new Set());
+  const [downloadedFileIds, setDownloadedFileIds] = useState<Set<string>>(() => new Set());
+  const authorName = message.authorName ?? (message.authorType === 'bot' ? 'FroggyBot' : 'Person');
   const mine = groupMode && message.authorType === 'user' && message.isMine;
   const assistant = groupMode ? !mine : message.role === 'assistant';
   const botMessage = message.role === 'assistant' || message.authorType === 'bot';
   const label = roleLabel(message);
   const queued = message.status === 'waiting';
-  const working = message.status === 'pending';
+  const working = message.status === 'pending' || message.status === 'running';
+  const awaitingApproval = message.status === 'awaiting_approval';
   const compactContribution =
     groupMode &&
     message.status === 'complete' &&
@@ -77,7 +84,41 @@ export function MessageBubble({ message, groupMode }: Props) {
             botColor={message.authorColor}
           />
         ) : null}
-        {!working && !queued ? (
+        {awaitingApproval ? (
+          <View style={[styles.bubble, styles.approvalBubble]}>
+            <Text style={styles.approvalTitle}>Approval needed</Text>
+            <Text style={styles.approvalCopy}>
+              This reply may use {message.approvalTools?.join(', ') || 'an interactive tool'} to act on websites.
+              Allow it for this message only?
+            </Text>
+            <View style={styles.approvalActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: actingOnApproval }}
+                disabled={actingOnApproval}
+                style={({ pressed }) => [styles.rejectButton, pressed && styles.pressed]}
+                onPress={() => {
+                  if (!onReject) return;
+                  setActingOnApproval(true);
+                  void onReject(message).finally(() => setActingOnApproval(false));
+                }}>
+                <Text style={styles.rejectButtonText}>Don’t allow</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: actingOnApproval, busy: actingOnApproval }}
+                disabled={actingOnApproval}
+                style={({ pressed }) => [styles.approveButton, pressed && styles.pressed]}
+                onPress={() => {
+                  if (!onApprove) return;
+                  setActingOnApproval(true);
+                  void onApprove(message).finally(() => setActingOnApproval(false));
+                }}>
+                <Text style={styles.approveButtonText}>{actingOnApproval ? 'Working…' : 'Allow once'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : !working && !queued ? (
           <View
             style={[
               styles.bubble,
@@ -85,6 +126,48 @@ export function MessageBubble({ message, groupMode }: Props) {
               message.roundRole === 'synthesizer' && styles.teamAnswerBubble,
               message.status === 'error' && styles.errorBubble,
             ]}>
+            {message.attachments?.map((file) => {
+              const downloading = downloadingFileIds.has(file.id);
+              const downloaded = downloadedFileIds.has(file.id);
+              const action = downloading ? 'Downloading…' : downloaded ? 'Downloaded' : 'Download';
+              return (
+                <Pressable
+                  key={file.id}
+                  accessibilityLabel={`${action} ${file.name}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ busy: downloading, disabled: downloading }}
+                  disabled={downloading}
+                  style={({ pressed }) => [
+                    styles.fileChip,
+                    assistant ? styles.assistantFileChip : styles.userFileChip,
+                    pressed && styles.pressed,
+                  ]}
+                  onPress={() => {
+                    if (!onOpenFile) return;
+                    setDownloadingFileIds((current) => new Set(current).add(file.id));
+                    void onOpenFile(file)
+                      .then(() => {
+                        setDownloadedFileIds((current) => new Set(current).add(file.id));
+                      })
+                      .catch(() => undefined)
+                      .finally(() => {
+                        setDownloadingFileIds((current) => {
+                          const next = new Set(current);
+                          next.delete(file.id);
+                          return next;
+                        });
+                      });
+                  }}>
+                  <Text style={[styles.fileIcon, !assistant && styles.userFileText]}>↓</Text>
+                  <View style={styles.fileDetails}>
+                    <Text numberOfLines={1} style={[styles.fileName, !assistant && styles.userFileText]}>{file.name}</Text>
+                    <Text style={[styles.fileSize, !assistant && styles.userFileMeta]}>
+                      {Math.max(1, Math.round(file.size / 1000))} KB · {action}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
             {botMessage && compactContribution && !expanded ? (
               <Text numberOfLines={4} style={styles.contributionPreview}>
                 {preview}
@@ -128,6 +211,23 @@ const styles = StyleSheet.create({
   teamAnswerBubble: { backgroundColor: '#E9F4EE', borderWidth: 1, borderColor: '#A8CFB9' },
   userBubble: { backgroundColor: '#007A3D', borderBottomRightRadius: 6 },
   errorBubble: { backgroundColor: '#F8E6E1' },
+  fileChip: { minWidth: 190, maxWidth: 280, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 11, padding: 8, marginBottom: 8 },
+  assistantFileChip: { backgroundColor: '#E1E2DE' },
+  userFileChip: { backgroundColor: 'rgba(255,255,255,0.16)' },
+  fileIcon: { color: '#007A3D', fontSize: 20, fontWeight: '700' },
+  fileDetails: { flex: 1 },
+  fileName: { color: '#292823', fontSize: 12, fontWeight: '700' },
+  fileSize: { color: '#77736B', fontSize: 10, marginTop: 1 },
+  userFileText: { color: 'white' },
+  userFileMeta: { color: 'rgba(255,255,255,0.72)' },
+  approvalBubble: { backgroundColor: '#FFF7DF', borderColor: '#E7C86A', borderWidth: 1 },
+  approvalTitle: { color: '#4B3C0D', fontSize: 14, fontWeight: '800', marginBottom: 5 },
+  approvalCopy: { color: '#5E501F', fontSize: 13, lineHeight: 18 },
+  approvalActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  rejectButton: { borderColor: '#B9A35E', borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8 },
+  rejectButtonText: { color: '#5E501F', fontSize: 12, fontWeight: '700' },
+  approveButton: { backgroundColor: '#007A3D', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
+  approveButtonText: { color: 'white', fontSize: 12, fontWeight: '800' },
   message: { fontSize: 15, lineHeight: 21 },
   assistantText: { color: '#24231F' },
   userText: { color: 'white' },

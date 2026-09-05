@@ -10,7 +10,7 @@
   "runtimes": [
     {
       "name": "FrogBot",
-      "description": "Stan-powered multi-personality chat runtime for the FrogBot mobile app",
+      "description": "Stan-powered multi-personality chat runtime for the FroggyBot mobile app",
       "build": "CodeZip",
       "entrypoint": "main.py",
       "codeLocation": "app/FrogBot/",
@@ -18,6 +18,34 @@
       "networkMode": "PUBLIC",
       "protocol": "HTTP",
       "authorizerType": "AWS_IAM",
+      "instrumentation": {
+        "enableOtel": true
+      },
+      "envVars": [
+        {
+          "name": "FROGBOT_FILES_BUCKET",
+          "value": "frogbot-user-files-188757775631-us-east-1"
+        },
+        {
+          "name": "FROGBOT_IMAGE_MODEL_ID",
+          "value": "stability.stable-image-core-v1:1"
+        },
+        {
+          "name": "FROGBOT_IMAGE_MODEL_REGION",
+          "value": "us-west-2"
+        },
+        {
+          "name": "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
+          "value": "false"
+        },
+        {
+          "name": "OTEL_SEMCONV_STABILITY_OPT_IN",
+          "value": "gen_ai_unredacted_attributes="
+        }
+      ],
+      "additionalPolicies": [
+        "attachments-policy.json"
+      ],
       "lifecycleConfiguration": {
         "idleRuntimeSessionTimeout": 900,
         "maxLifetime": 7200
@@ -38,7 +66,35 @@
       ]
     }
   ],
-  "memories": [],
+  "memories": [
+    {
+      "name": "FrogBotMemory",
+      "eventExpiryDuration": 30,
+      "strategies": [
+        {
+          "type": "SEMANTIC",
+          "name": "FrogBotFacts",
+          "namespaceTemplates": [
+            "/facts/{actorId}/"
+          ]
+        },
+        {
+          "type": "SUMMARIZATION",
+          "name": "FrogBotSummaries",
+          "namespaceTemplates": [
+            "/summaries/{actorId}/{sessionId}/"
+          ]
+        },
+        {
+          "type": "USER_PREFERENCE",
+          "name": "FrogBotPreferences",
+          "namespaceTemplates": [
+            "/preferences/{actorId}/"
+          ]
+        }
+      ]
+    }
+  ],
   "knowledgeBases": [],
   "credentials": [],
   "evaluators": [],
@@ -47,7 +103,7 @@
     {
       "name": "FrogBotTools",
       "protocolType": "MCP",
-      "description": "Read-only research tools available to FrogBot agents",
+      "description": "Read-only research tools available to FroggyBot agents",
       "targets": [
         {
           "name": "FrogBotWebSearch",
