@@ -148,9 +148,10 @@ export type Capability = {
   actions?: string[];
   source?: 'official' | 'user';
   editable?: boolean;
+  connectedAccount?: string;
 };
 
-export type ConnectionAuthType = 'none' | 'bearer' | 'api_key';
+export type ConnectionAuthType = 'none' | 'bearer' | 'api_key' | 'oauth';
 
 export type Connection = Capability & {
   source: 'user';

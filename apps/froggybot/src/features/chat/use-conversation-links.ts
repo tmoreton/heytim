@@ -14,6 +14,17 @@ import { invitationFromUrl } from '../invites/invitation-url';
 
 type PendingSkill = { token: string; importKey: string };
 
+const gmailStatusFromUrl = (url: string): 'connected' | 'error' | undefined => {
+  try {
+    const parsed = new URL(url);
+    if (parsed.searchParams.get('oauth') !== 'gmail') return undefined;
+    const status = parsed.searchParams.get('status');
+    return status === 'connected' || status === 'error' ? status : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 type Options = {
   api: FrogBotApi;
   demo: boolean;
@@ -63,6 +74,19 @@ export function useConversationLinks({
 
   const importUrl = useCallback(async (url: string | null) => {
     if (!url) return;
+    const gmailStatus = gmailStatusFromUrl(url);
+    if (gmailStatus) {
+      const resultKey = `oauth:${url}`;
+      if (importedTokens.current.has(resultKey)) return;
+      importedTokens.current.add(resultKey);
+      if (gmailStatus === 'connected') {
+        await loadBootstrap();
+        Alert.alert('Gmail connected', 'Your Gmail Assistant is ready.');
+      } else {
+        Alert.alert('Gmail was not connected', 'Try again from Skills & tools.');
+      }
+      return;
+    }
     const parsed = invitationFromUrl(url);
     if (!parsed) return;
     const { kind, token } = parsed;

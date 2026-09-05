@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import uuid
 from typing import Any
@@ -18,6 +19,16 @@ AUTH_TYPES = {"none", "bearer", "api_key"}
 HEADER_PATTERN = re.compile(r"^(Authorization|X-[A-Za-z0-9-]{1,60})$")
 MAX_CONNECTIONS = 12
 MAX_CREDENTIAL_LENGTH = 4_096
+GMAIL_MCP_ENDPOINT = "https://gmailmcp.googleapis.com/mcp/v1"
+GMAIL_ALLOWED_TOOLS = [
+    "create_draft",
+    "list_drafts",
+    "get_draft",
+    "get_thread",
+    "get_message",
+    "search_threads",
+    "list_labels",
+]
 
 
 def _secret_name(user_id: str, connection_id: str) -> str:
@@ -215,6 +226,98 @@ class ConnectionMixin:
             raise
         if previous_secret and auth["authType"] == "none":
             self._delete_secret(previous_secret)
+        return _public_tool(item)
+
+    def save_gmail_connection(
+        self,
+        user_id: str,
+        account: str,
+        refresh_token: str,
+        client_secret_arn: str,
+    ) -> dict:
+        existing = next(
+            (
+                item
+                for item in self._connection_items(user_id)
+                if item.get("provider") == "gmail"
+            ),
+            None,
+        )
+        if not existing and len(self._connection_items(user_id)) >= MAX_CONNECTIONS:
+            raise CatalogError(
+                f"You can add up to {MAX_CONNECTIONS} private connections"
+            )
+        if not isinstance(account, str) or "@" not in account or len(account) > 254:
+            raise CatalogError("Google did not return a valid Gmail account")
+        if not isinstance(refresh_token, str) or not refresh_token:
+            raise CatalogError("Google did not return reusable Gmail access")
+        if (
+            not isinstance(client_secret_arn, str)
+            or not client_secret_arn.startswith("arn:aws:secretsmanager:")
+        ):
+            raise CatalogError("Gmail OAuth configuration is invalid")
+
+        connection_id = (
+            existing["id"]
+            if existing
+            else f"connection_{uuid.uuid4().hex[:20]}"
+        )
+        credential = json.dumps(
+            {"refreshToken": refresh_token}, separators=(",", ":")
+        )
+        secret_arn = existing.get("secretArn") if existing else None
+        created_secret = False
+        if secret_arn:
+            self._secret_client().put_secret_value(
+                SecretId=secret_arn, SecretString=credential
+            )
+        else:
+            secret_arn = self._create_secret(user_id, connection_id, credential)
+            created_secret = True
+
+        current = _now()
+        runtime = {
+            "kind": "mcp",
+            "endpoint": GMAIL_MCP_ENDPOINT,
+            "authType": "oauth",
+            "oauthProvider": "google",
+            "secretArn": secret_arn,
+            "oauthClientSecretArn": client_secret_arn,
+            "allowedTools": GMAIL_ALLOWED_TOOLS,
+        }
+        item = {
+            "pk": f"USER#{user_id}",
+            "sk": f"CONNECTION#{connection_id}",
+            "entity": "CONNECTION",
+            "id": connection_id,
+            "name": "Gmail",
+            "description": "Search and summarize email, and create drafts for review.",
+            "endpoint": GMAIL_MCP_ENDPOINT,
+            "provider": "gmail",
+            "risk": "interactive",
+            "category": "Connections",
+            "author": "You",
+            "tags": ["private", "gmail", "mcp"],
+            "featured": False,
+            "actions": ["Search email", "Read threads", "Create drafts"],
+            "source": "user",
+            "editable": True,
+            "relationship": "owner",
+            "connectionStatus": "connected",
+            "connectedAccount": account,
+            "authType": "oauth",
+            "hasCredential": True,
+            "secretArn": secret_arn,
+            "runtime": runtime,
+            "createdAt": existing.get("createdAt", current) if existing else current,
+            "updatedAt": current,
+        }
+        try:
+            self.table.put_item(Item=item)
+        except Exception:
+            if created_secret:
+                self._delete_secret(secret_arn)
+            raise
         return _public_tool(item)
 
     def delete_connection(self, user_id: str, connection_id: str) -> dict:

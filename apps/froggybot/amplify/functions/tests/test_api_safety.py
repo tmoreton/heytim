@@ -86,10 +86,12 @@ class FakeTable:
         if "pk" in Item:
             self.items[(Item["pk"], Item["sk"])] = dict(Item)
 
-    def delete_item(self, *, Key: dict) -> None:
+    def delete_item(self, *, Key: dict, ReturnValues: str | None = None) -> dict:
         self.deleted.append(dict(Key))
+        item = None
         if "pk" in Key:
-            self.items.pop((Key["pk"], Key["sk"]), None)
+            item = self.items.pop((Key["pk"], Key["sk"]), None)
+        return {"Attributes": dict(item)} if ReturnValues == "ALL_OLD" and item else {}
 
     def update_item(self, **kwargs) -> None:
         self.updated.append(kwargs)
@@ -146,6 +148,13 @@ class ApiSafetyTests(unittest.TestCase):
             "SCHEDULE_ROLE_ARN": "arn:aws:iam::123:role/scheduler",
             "USER_POOL_ID": "us-east-1_pool",
             "FILES_BUCKET_NAME": "frogbot-user-files-123-us-east-1",
+            "GOOGLE_OAUTH_SECRET_ARN": (
+                "arn:aws:secretsmanager:us-east-1:123:secret:"
+                "frogbot/oauth/google-ABC123"
+            ),
+            "GOOGLE_OAUTH_REDIRECT_URI": (
+                "https://api.example.com/public/oauth/google/callback"
+            ),
         }
         boto3 = ModuleType("boto3")
         boto3.resource = resource
@@ -177,6 +186,7 @@ class ApiSafetyTests(unittest.TestCase):
             cls.bots = importlib.import_module("api.bots")
             cls.direct_chat = importlib.import_module("api.direct_chat")
             cls.groups = importlib.import_module("api.groups")
+            cls.google_oauth = importlib.import_module("api.google_oauth")
             cls.schedules = importlib.import_module("api.schedules")
             cls.account = importlib.import_module("api.account")
 

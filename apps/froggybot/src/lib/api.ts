@@ -313,6 +313,13 @@ export const createApi = (demo: boolean) => ({
           method: connectionId ? 'PUT' : 'POST',
           body: JSON.stringify(draft),
         }),
+  beginGmailConnection: async (returnUrl: string): Promise<string> => {
+    if (demo) throw new Error('Sign in to connect Gmail.');
+    return request<{ authorizationUrl: string }>('/connections/gmail/authorization', {
+      method: 'POST',
+      body: JSON.stringify({ returnUrl }),
+    }).then((value) => value.authorizationUrl);
+  },
   deleteConnection: async (connectionId: string): Promise<void> => {
     if (demo) return demoDeleteConnection(connectionId);
     await request(`/connections/${encodeURIComponent(connectionId)}`, { method: 'DELETE' });

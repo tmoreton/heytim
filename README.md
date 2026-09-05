@@ -128,6 +128,7 @@ npm install
 npm run backend:install
 export FROGBOT_AGENT_RUNTIME_ARN='arn:aws:bedrock-agentcore:us-east-1:188757775631:runtime/REPLACE_ME'
 export FROGBOT_MEMORY_ID='FrogBot_FrogBotMemory-REPLACE_ME'
+export FROGBOT_GOOGLE_OAUTH_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:frogbot/oauth/google-REPLACE_ME'
 npm run sandbox -- --once --identifier frogbot --profile YOUR_AWS_PROFILE
 ```
 
@@ -157,6 +158,11 @@ The credential is encrypted per user in Secrets Manager and fetched only when th
 it never enters the app bundle, a skill document, a prompt, or a shared link. Managed FroggyBot tools still use
 narrow AgentCore Gateway targets. The public repository includes validation automation, contribution templates,
 and separate request forms for public skills and tool proposals.
+
+Gmail uses Google's remote MCP server through a first-class OAuth connection. Each user grants their own account
+read-email and create-draft access; refresh tokens stay in a per-user Secrets Manager secret. The runtime exposes only
+search, read, list, and draft tools, so it cannot send, delete, relabel, archive, or mark email. Gmail access is treated
+as interactive because email is untrusted input, which keeps it out of groups and unattended schedules.
 
 YouTube Research is live through its restricted AgentCore Gateway target. X / Twitter Research is deployed but
 temporarily hidden because the X API account has no remaining credits. This keeps the live tool picker honest and

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import * as Linking from 'expo-linking';
 import {
   ActivityIndicator,
   Alert,
@@ -39,6 +40,7 @@ type Props = {
   onShare: (skillId: string) => Promise<string>;
   onSaveConnection: (draft: ConnectionDraft, connectionId?: string) => Promise<Connection>;
   onDeleteConnection: (connectionId: string) => Promise<void>;
+  onBeginGmailConnection: (returnUrl: string) => Promise<string>;
   onChanged: () => Promise<void>;
   onUse: (capability: CapabilitySelection) => void;
 };
@@ -52,6 +54,7 @@ export function SkillLibrary({
   onShare,
   onSaveConnection,
   onDeleteConnection,
+  onBeginGmailConnection,
   onChanged,
   onUse,
 }: Props) {
@@ -190,6 +193,20 @@ export function SkillLibrary({
     }
   };
 
+  const connectGmail = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const returnUrl = Linking.createURL('app', { queryParams: { oauth: 'gmail' } });
+      const authorizationUrl = await onBeginGmailConnection(returnUrl);
+      await Linking.openURL(authorizationUrl);
+    } catch (value) {
+      setError(value instanceof Error ? value.message : 'Could not start the Gmail connection.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const removeConnection = () => {
     if (!connection) return;
     Alert.alert(
@@ -253,6 +270,10 @@ export function SkillLibrary({
             <Pressable accessibilityRole="button" hitSlop={12} onPress={() => tab === 'skills' ? startNew() : openConnection()}>
               <Text style={[styles.headerAction, styles.primary]}>{tab === 'skills' ? 'New skill' : 'Add tool'}</Text>
             </Pressable>
+          ) : mode === 'editConnection' && connection?.authType === 'oauth' ? (
+            <Pressable accessibilityRole="button" hitSlop={12} onPress={back}>
+              <Text style={[styles.headerAction, styles.primary]}>Done</Text>
+            </Pressable>
           ) : mode === 'edit' || mode === 'copy' || mode === 'new' || mode === 'newConnection' || mode === 'editConnection' ? (
             <Pressable
               accessibilityRole="button"
@@ -314,7 +335,7 @@ export function SkillLibrary({
                   ))}
                 </>
               ) : (
-                <ToolList tools={tools} onUse={onUse} onManage={openConnection} />
+                <ToolList tools={tools} onUse={onUse} onManage={openConnection} onConnectGmail={connectGmail} />
               )}
             </>
           ) : mode === 'view' ? (
@@ -333,6 +354,7 @@ export function SkillLibrary({
               draft={connectionDraft}
               onChange={setConnectionDraft}
               onDelete={removeConnection}
+              onReconnect={connectGmail}
             />
           ) : (
             <SkillForm draft={draft} tools={tools} onChange={setDraft} />

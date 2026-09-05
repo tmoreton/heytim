@@ -525,7 +525,9 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
           onLoad={api.skill}
           onSave={api.saveSkill}
           onShare={api.shareSkill}
-          onSaveConnection={api.saveConnection} onDeleteConnection={api.deleteConnection}
+          onSaveConnection={api.saveConnection}
+          onDeleteConnection={api.deleteConnection}
+          onBeginGmailConnection={api.beginGmailConnection}
           onChanged={loadBootstrap}
           onUse={openCapabilityEditor}
         />

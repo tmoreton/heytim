@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import re
 import socket
+import urllib.error
 import urllib.parse
+import urllib.request
 from typing import Any
 
 import boto3
@@ -15,7 +18,22 @@ SECRET_ARN_PATTERN = re.compile(
     r"secret:frogbot/connections/[a-f0-9]{24}/"
     r"connection_[a-f0-9]{20}-[a-f0-9]{12}-[A-Za-z0-9]+$"
 )
+OAUTH_CLIENT_SECRET_ARN_PATTERN = re.compile(
+    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
+    r"secret:frogbot/oauth/google-[A-Za-z0-9]+$"
+)
 HEADER_PATTERN = re.compile(r"^(Authorization|X-[A-Za-z0-9-]{1,60})$")
+GMAIL_MCP_ENDPOINT = "https://gmailmcp.googleapis.com/mcp/v1"
+GMAIL_MCP_TOOLS = {
+    "create_draft",
+    "list_drafts",
+    "get_draft",
+    "get_thread",
+    "get_message",
+    "search_threads",
+    "list_labels",
+}
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 _secrets_manager = None
 
 
@@ -64,6 +82,29 @@ def validated_connection_binding(tool_id: str, runtime: dict) -> dict:
     if auth_type == "none":
         return binding
     secret_arn = runtime.get("secretArn")
+    if auth_type == "oauth":
+        client_secret_arn = runtime.get("oauthClientSecretArn")
+        allowed_tools = runtime.get("allowedTools")
+        if (
+            endpoint != GMAIL_MCP_ENDPOINT
+            or runtime.get("oauthProvider") != "google"
+            or not isinstance(secret_arn, str)
+            or not SECRET_ARN_PATTERN.fullmatch(secret_arn)
+            or not isinstance(client_secret_arn, str)
+            or not OAUTH_CLIENT_SECRET_ARN_PATTERN.fullmatch(client_secret_arn)
+            or not isinstance(allowed_tools, list)
+            or not allowed_tools
+            or len(allowed_tools) != len(set(allowed_tools))
+            or not set(allowed_tools).issubset(GMAIL_MCP_TOOLS)
+        ):
+            raise ValueError(f"OAuth MCP connection is invalid: {tool_id}")
+        return {
+            **binding,
+            "oauthProvider": "google",
+            "secretArn": secret_arn,
+            "oauthClientSecretArn": client_secret_arn,
+            "allowedTools": allowed_tools,
+        }
     header_name = runtime.get("headerName")
     header_prefix = runtime.get("headerPrefix", "")
     if (
@@ -101,16 +142,68 @@ def _secret_value(secret_arn: str) -> str:
     return value
 
 
+def _json_secret(secret_arn: str) -> dict:
+    try:
+        value = json.loads(_secret_value(secret_arn))
+    except json.JSONDecodeError as exc:
+        raise ValueError("OAuth credential is invalid") from exc
+    if not isinstance(value, dict):
+        raise ValueError("OAuth credential is invalid")
+    return value
+
+
+def _google_access_token(binding: dict) -> str:
+    credential = _json_secret(binding["secretArn"])
+    client_document = _json_secret(binding["oauthClientSecretArn"])
+    client = client_document.get("web", client_document)
+    refresh_token = credential.get("refreshToken")
+    client_id = client.get("client_id") if isinstance(client, dict) else None
+    client_secret = client.get("client_secret") if isinstance(client, dict) else None
+    if not all(isinstance(value, str) and value for value in (
+        refresh_token,
+        client_id,
+        client_secret,
+    )):
+        raise ValueError("OAuth credential is invalid")
+    request = urllib.request.Request(
+        GOOGLE_TOKEN_URL,
+        data=urllib.parse.urlencode(
+            {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+            }
+        ).encode("utf-8"),
+        headers={"content-type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:  # nosec B310
+            value = json.loads(response.read(100_001).decode("utf-8"))
+    except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        raise ValueError("OAuth access token is unavailable") from exc
+    access_token = value.get("access_token") if isinstance(value, dict) else None
+    if not isinstance(access_token, str) or not access_token:
+        raise ValueError("OAuth access token is unavailable")
+    return access_token
+
+
 def connection_client(binding: dict) -> MCPClient:
     headers = None
-    if binding["authType"] != "none":
+    if binding["authType"] == "oauth":
+        headers = {"Authorization": f"Bearer {_google_access_token(binding)}"}
+    elif binding["authType"] != "none":
         credential = _secret_value(binding["secretArn"])
         headers = {binding["headerName"]: f"{binding['headerPrefix']}{credential}"}
-    return MCPClient(
-        url=binding["endpoint"],
-        headers=headers,
-        prefix=binding["id"],
-        startup_timeout=15,
-        continue_on_error=False,
-        application_name="FroggyBot",
-    )
+    options = {
+        "url": binding["endpoint"],
+        "headers": headers,
+        "prefix": binding["id"],
+        "startup_timeout": 15,
+        "continue_on_error": False,
+        "application_name": "FroggyBot",
+    }
+    if binding["authType"] == "oauth":
+        options["tool_filters"] = {"allowed": binding["allowedTools"]}
+    return MCPClient(**options)

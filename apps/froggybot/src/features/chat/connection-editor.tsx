@@ -27,12 +27,40 @@ export function ConnectionEditor({
   draft,
   onChange,
   onDelete,
+  onReconnect,
 }: {
   connection?: Connection;
   draft: ConnectionDraft;
   onChange: (draft: ConnectionDraft) => void;
   onDelete: () => void;
+  onReconnect: () => void;
 }) {
+  if (connection?.authType === 'oauth') {
+    return (
+      <>
+        <View style={styles.oauthCard}>
+          <Text style={styles.oauthTitle}>Gmail is connected</Text>
+          <Text style={styles.oauthAccount}>{connection.connectedAccount}</Text>
+          <Text style={styles.oauthText}>
+            FroggyBot can search and read email and create drafts for review. It cannot send, delete, relabel, archive, or mark messages.
+          </Text>
+        </View>
+        <View style={styles.warning}>
+          <Text style={styles.warningTitle}>Every request needs your approval</Text>
+          <Text style={styles.warningText}>
+            Email can contain unsafe instructions. Gmail access cannot run in groups or scheduled tasks.
+          </Text>
+        </View>
+        <Pressable accessibilityRole="button" style={styles.reconnectButton} onPress={onReconnect}>
+          <Text style={styles.reconnectText}>Reconnect Gmail</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" style={styles.deleteButton} onPress={onDelete}>
+          <Text style={styles.deleteText}>Remove connection</Text>
+        </Pressable>
+      </>
+    );
+  }
+
   return (
     <>
       <View style={styles.warning}>
@@ -167,6 +195,10 @@ const styles = StyleSheet.create({
   warning: { padding: 16, borderRadius: 17, borderWidth: 1, borderColor: '#E6D6A8', backgroundColor: '#FFF9E8' },
   warningTitle: { color: '#5D4811', fontSize: 15, fontWeight: '800' },
   warningText: { color: '#756126', fontSize: 13, lineHeight: 19, marginTop: 4 },
+  oauthCard: { padding: 18, borderRadius: 18, borderWidth: 1, borderColor: '#CBE2D5', backgroundColor: '#E9F4EE', marginBottom: 12 },
+  oauthTitle: { color: '#173E2A', fontSize: 17, fontWeight: '800' },
+  oauthAccount: { color: '#007A3D', fontSize: 14, fontWeight: '700', marginTop: 5 },
+  oauthText: { color: '#527060', fontSize: 13, lineHeight: 20, marginTop: 10 },
   label: { color: '#24231F', fontSize: 14, fontWeight: '700', marginTop: 20, marginBottom: 8 },
   help: { color: '#858179', fontSize: 12, lineHeight: 17, marginTop: -4, marginBottom: 9 },
   input: { minHeight: 48, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: '#DDDAD2', backgroundColor: 'white', color: '#24231F', fontSize: 15 },
@@ -182,4 +214,6 @@ const styles = StyleSheet.create({
   accessText: { color: '#77736B', fontSize: 12, lineHeight: 17, marginTop: 3 },
   deleteButton: { minHeight: 47, marginTop: 32, borderRadius: 14, borderWidth: 1, borderColor: '#E2B9B4', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF8F7' },
   deleteText: { color: '#A53A32', fontSize: 14, fontWeight: '700' },
+  reconnectButton: { minHeight: 47, marginTop: 24, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#007A3D' },
+  reconnectText: { color: 'white', fontSize: 14, fontWeight: '800' },
 });

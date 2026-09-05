@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -67,3 +68,93 @@ def test_connection_rejects_private_dns_results(monkeypatch) -> None:
         assert "public" in str(error)
     else:
         raise AssertionError("private DNS result was accepted")
+
+
+def test_google_oauth_connection_refreshes_token_and_filters_tools(monkeypatch) -> None:
+    user_secret = (
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+        "frogbot/connections/abcdef1234567890abcdef12/"
+        "connection_1234567890abcdef1234-abcdef123456-ABC123"
+    )
+    client_secret = (
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+        "frogbot/oauth/google-ABC123"
+    )
+
+    class FakeSecrets:
+        def get_secret_value(self, *, SecretId: str) -> dict:
+            if SecretId == user_secret:
+                return {"SecretString": json.dumps({"refreshToken": "refresh-token"})}
+            assert SecretId == client_secret
+            return {
+                "SecretString": json.dumps(
+                    {"web": {"client_id": "client-id", "client_secret": "secret"}}
+                )
+            }
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self, _limit: int) -> bytes:
+            return json.dumps({"access_token": "access-token"}).encode()
+
+    captured = {}
+
+    class FakeMCPClient:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(mcp_connections.socket, "getaddrinfo", _public_address)
+    monkeypatch.setattr(mcp_connections, "_secrets_manager", FakeSecrets())
+    monkeypatch.setattr(mcp_connections.urllib.request, "urlopen", lambda *_args, **_kwargs: FakeResponse())
+    monkeypatch.setattr(mcp_connections, "MCPClient", FakeMCPClient)
+    binding = mcp_connections.validated_connection_binding(
+        "connection_1234567890abcdef1234",
+        {
+            "endpoint": "https://gmailmcp.googleapis.com/mcp/v1",
+            "authType": "oauth",
+            "oauthProvider": "google",
+            "secretArn": user_secret,
+            "oauthClientSecretArn": client_secret,
+            "allowedTools": ["search_threads", "create_draft"],
+        },
+    )
+
+    mcp_connections.connection_client(binding)
+
+    assert captured["headers"] == {"Authorization": "Bearer access-token"}
+    assert captured["tool_filters"] == {
+        "allowed": ["search_threads", "create_draft"]
+    }
+
+
+def test_google_oauth_connection_rejects_destructive_tools(monkeypatch) -> None:
+    monkeypatch.setattr(mcp_connections.socket, "getaddrinfo", _public_address)
+
+    try:
+        mcp_connections.validated_connection_binding(
+            "connection_1234567890abcdef1234",
+            {
+                "endpoint": "https://gmailmcp.googleapis.com/mcp/v1",
+                "authType": "oauth",
+                "oauthProvider": "google",
+                "secretArn": (
+                    "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+                    "frogbot/connections/abcdef1234567890abcdef12/"
+                    "connection_1234567890abcdef1234-abcdef123456-ABC123"
+                ),
+                "oauthClientSecretArn": (
+                    "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+                    "frogbot/oauth/google-ABC123"
+                ),
+                "allowedTools": ["search_threads", "trash_thread"],
+            },
+        )
+    except ValueError as error:
+        assert "OAuth" in str(error)
+    else:
+        raise AssertionError("destructive Gmail tool was accepted")

@@ -23,7 +23,10 @@
       "Sid": "ReadFrogBotConnectionCredentials",
       "Effect": "Allow",
       "Action": "secretsmanager:GetSecretValue",
-      "Resource": "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/connections/*"
+      "Resource": [
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/connections/*",
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/google-*"
+      ]
     }
   ]
 }

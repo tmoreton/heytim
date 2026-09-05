@@ -21,6 +21,16 @@ RUNTIME_NAMES = {
     "stan_subagent": {"generalist"},
 }
 TOOL_RISKS = {"read", "sandbox", "interactive"}
+GMAIL_MCP_ENDPOINT = "https://gmailmcp.googleapis.com/mcp/v1"
+GMAIL_MCP_TOOLS = {
+    "create_draft",
+    "list_drafts",
+    "get_draft",
+    "get_thread",
+    "get_message",
+    "search_threads",
+    "list_labels",
+}
 
 
 class CatalogError(Exception):
@@ -156,6 +166,31 @@ def _validate_runtime_binding(value: Any) -> dict:
         if auth_type == "none":
             return {"kind": kind, "endpoint": endpoint, "authType": "none"}
         secret_arn = value.get("secretArn")
+        if auth_type == "oauth":
+            client_secret_arn = value.get("oauthClientSecretArn")
+            allowed_tools = value.get("allowedTools")
+            if (
+                endpoint != GMAIL_MCP_ENDPOINT
+                or value.get("oauthProvider") != "google"
+                or not isinstance(secret_arn, str)
+                or not secret_arn.startswith("arn:aws:secretsmanager:")
+                or not isinstance(client_secret_arn, str)
+                or not client_secret_arn.startswith("arn:aws:secretsmanager:")
+                or not isinstance(allowed_tools, list)
+                or not allowed_tools
+                or len(allowed_tools) != len(set(allowed_tools))
+                or not set(allowed_tools).issubset(GMAIL_MCP_TOOLS)
+            ):
+                raise CatalogError("OAuth MCP connection is invalid")
+            return {
+                "kind": kind,
+                "endpoint": endpoint,
+                "authType": auth_type,
+                "oauthProvider": "google",
+                "secretArn": secret_arn,
+                "oauthClientSecretArn": client_secret_arn,
+                "allowedTools": allowed_tools,
+            }
         header_name = value.get("headerName")
         header_prefix = value.get("headerPrefix", "")
         if (
@@ -222,6 +257,7 @@ def _public_tool(item: dict) -> dict:
         "headerName",
         "hasCredential",
         "connectionStatus",
+        "connectedAccount",
         "updatedAt",
     )
     return {key: item[key] for key in keys if key in item}

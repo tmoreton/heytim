@@ -30,6 +30,10 @@ const memoryId = process.env.FROGBOT_MEMORY_ID;
 if (!memoryId) {
   throw new Error('Set FROGBOT_MEMORY_ID before running an Amplify sandbox or deploy.');
 }
+const googleOAuthSecretArn = process.env.FROGBOT_GOOGLE_OAUTH_SECRET_ARN;
+if (!googleOAuthSecretArn) {
+  throw new Error('Set FROGBOT_GOOGLE_OAUTH_SECRET_ARN before running an Amplify sandbox or deploy.');
+}
 const monthlyBudgetUsd = Number(process.env.FROGBOT_MONTHLY_BUDGET_USD ?? '100');
 if (!Number.isFinite(monthlyBudgetUsd) || monthlyBudgetUsd <= 0) {
   throw new Error('FROGBOT_MONTHLY_BUDGET_USD must be a positive number.');
@@ -267,6 +271,7 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
     PUBLIC_WEB_BASE_URL: 'https://froggybot.com',
     CAPABILITY_CATALOG_URL:
       'https://froggybot.com/catalog.json',
+    GOOGLE_OAUTH_SECRET_ARN: googleOAuthSecretArn,
   },
 });
 
@@ -316,6 +321,12 @@ apiFunction.addToRolePolicy(
       'secretsmanager:TagResource',
     ],
     resources: [connectionSecretsArn],
+  }),
+);
+apiFunction.addToRolePolicy(
+  new PolicyStatement({
+    actions: ['secretsmanager:GetSecretValue'],
+    resources: [googleOAuthSecretArn],
   }),
 );
 workerFunction.addToRolePolicy(
@@ -409,12 +420,18 @@ const httpApi = new HttpApi(stack, 'HttpApi', {
     ],
   },
 });
+apiFunction.addEnvironment(
+  'GOOGLE_OAUTH_REDIRECT_URI',
+  `${httpApi.apiEndpoint}/public/oauth/google/callback`,
+);
 const authorizer = new HttpJwtAuthorizer(
   'CognitoAuthorizer',
   `https://cognito-idp.${stack.region}.amazonaws.com/${backend.auth.resources.userPool.userPoolId}`,
   { jwtAudience: [backend.auth.resources.userPoolClient.userPoolClientId] },
 );
-const integration = new HttpLambdaIntegration('ApiIntegration', apiFunction);
+const integration = new HttpLambdaIntegration('ApiIntegration', apiFunction, {
+  scopePermissionToRoute: false,
+});
 
 const defaultStage = httpApi.defaultStage?.node.defaultChild as CfnStage | undefined;
 if (!defaultStage) throw new Error('FroggyBot HTTP API must have a default stage.');
@@ -444,6 +461,11 @@ httpApi.addRoutes({
 });
 httpApi.addRoutes({
   path: '/public/catalog',
+  methods: [HttpMethod.GET],
+  integration,
+});
+httpApi.addRoutes({
+  path: '/public/oauth/google/callback',
   methods: [HttpMethod.GET],
   integration,
 });
@@ -488,6 +510,7 @@ for (const [method, routePath] of [
   [HttpMethod.POST, '/skills/{skillId}/share'],
   [HttpMethod.POST, '/skill-shares/{token}/import'],
   [HttpMethod.GET, '/connections'],
+  [HttpMethod.POST, '/connections/gmail/authorization'],
   [HttpMethod.POST, '/connections'],
   [HttpMethod.PUT, '/connections/{connectionId}'],
   [HttpMethod.DELETE, '/connections/{connectionId}'],

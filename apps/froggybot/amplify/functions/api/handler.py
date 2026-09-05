@@ -36,6 +36,7 @@ from .groups import (
     _remove_group_member,
     _update_group,
 )
+from .google_oauth import _begin_gmail_authorization, _gmail_callback
 from .schedules import (
     _create_schedule,
     _delete_schedule,
@@ -86,6 +87,8 @@ def handler(event: dict, _context: Any) -> dict:
                 "public, max-age=60, stale-while-revalidate=300"
             )
             return response
+        if method == "GET" and path == "/public/oauth/google/callback":
+            return _gmail_callback(event.get("queryStringParameters") or {})
 
         user_id = _user_id(event)
 
@@ -100,6 +103,10 @@ def handler(event: dict, _context: Any) -> dict:
             return _response(200, _bootstrap(user_id))
         if method == "GET" and path == "/connections":
             return _response(200, _connections(user_id))
+        if method == "POST" and path == "/connections/gmail/authorization":
+            return _response(
+                200, _begin_gmail_authorization(user_id, _body(event))
+            )
         if method == "POST" and path == "/connections":
             return _response(201, _save_connection(user_id, _body(event)))
         if method == "PUT" and path.startswith("/connections/"):
