@@ -8,6 +8,9 @@ from .direct_job import _process_agent_reply
 from .group_job import _process_group_agent_reply, _process_group_agent_round
 from .notifications import _check_push_receipts, _send_push_notification
 from .scheduled_job import _process_scheduled_agent_reply, _request_string
+from .support import QUEUE_URL, sqs
+
+RETRY_VISIBILITY_SECONDS = 10
 
 logger = logging.getLogger(__name__)
 
@@ -52,5 +55,18 @@ def handler(event: dict, _context: Any) -> dict:
             logger.exception(
                 "Job failed for message %s", record.get("messageId", "unknown")
             )
+            receipt_handle = record.get("receiptHandle")
+            if isinstance(receipt_handle, str) and receipt_handle:
+                try:
+                    sqs.change_message_visibility(
+                        QueueUrl=QUEUE_URL,
+                        ReceiptHandle=receipt_handle,
+                        VisibilityTimeout=RETRY_VISIBILITY_SECONDS,
+                    )
+                except Exception:
+                    logger.exception(
+                        "Could not shorten retry delay for message %s",
+                        record.get("messageId", "unknown"),
+                    )
             failures.append({"itemIdentifier": record["messageId"]})
     return {"batchItemFailures": failures}

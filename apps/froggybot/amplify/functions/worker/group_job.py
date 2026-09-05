@@ -21,7 +21,7 @@ from .support import (
     sqs,
     table,
 )
-from .work import _claim_work, _finish_work
+from .work import _claim_work, _finish_work, _release_work
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +148,7 @@ def _process_group_agent_reply(
     except Exception:
         logger.exception("Agent request failed for group reply %s", reply.get("id"))
         if receive_count < 3:
+            _release_work(reply_key, lease_owner)
             raise
         _delete_group_generated_artifacts(group_id, reply["id"])
         answer = "I could not finish that request. Please try again."
@@ -199,7 +200,7 @@ def _process_group_agent_round(record: dict, request: dict) -> None:
     index = request.get("nextReplyIndex", 0)
     reply, final_reply = group_round_step(replies, index)
     _activate_group_reply(request["groupId"], reply["replyKey"])
-    _process_group_agent_reply(
+    answer = _process_group_agent_reply(
         record,
         {
             **request,
@@ -209,7 +210,7 @@ def _process_group_agent_round(record: dict, request: dict) -> None:
         },
         notify=final_reply,
     )
-    if not final_reply:
+    if answer is not None and not final_reply:
         sqs.send_message(
             QueueUrl=QUEUE_URL,
             MessageBody=json.dumps({**request, "nextReplyIndex": index + 1}),

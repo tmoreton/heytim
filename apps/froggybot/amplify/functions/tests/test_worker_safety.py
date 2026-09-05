@@ -111,12 +111,14 @@ class WorkerSafetyTests(unittest.TestCase):
             cls.work = importlib.import_module("worker.work")
             cls.artifacts = importlib.import_module("worker.artifacts")
             cls.direct_job = importlib.import_module("worker.direct_job")
+            cls.group_job = importlib.import_module("worker.group_job")
 
     def setUp(self) -> None:
         self.table.fail_condition = False
         self.table.items.clear()
         self.table.updates.clear()
         self.s3.reset_mock()
+        self.sqs.reset_mock()
         self.s3.list_objects_v2.return_value = {"Contents": []}
 
     def test_claim_uses_queue_message_as_lease_owner_and_allows_expired_retry(
@@ -160,6 +162,57 @@ class WorkerSafetyTests(unittest.TestCase):
         self.assertEqual(
             update["ExpressionAttributeValues"][":owner"], "queue-message-1"
         )
+
+    def test_failed_attempt_releases_only_its_own_lease(self) -> None:
+        released = self.work._release_work(
+            {"pk": "CHAT#1", "sk": "TURN#1"}, "queue-message-1"
+        )
+
+        self.assertTrue(released)
+        update = self.table.updates[-1]
+        self.assertIn("REMOVE leaseOwner, leaseExpiresAt", update["UpdateExpression"])
+        self.assertEqual(
+            update["ConditionExpression"],
+            "#status = :running AND leaseOwner = :owner",
+        )
+
+    def test_failed_job_is_made_visible_for_a_fast_retry(self) -> None:
+        record = {
+            "messageId": "queue-message-1",
+            "receiptHandle": "receipt-1",
+            "body": "{}",
+        }
+        with patch.object(self.handler, "_process", side_effect=RuntimeError("nope")):
+            response = self.handler.handler({"Records": [record]}, None)
+
+        self.assertEqual(
+            response, {"batchItemFailures": [{"itemIdentifier": "queue-message-1"}]}
+        )
+        self.sqs.change_message_visibility.assert_called_once_with(
+            QueueUrl="https://sqs.example/jobs",
+            ReceiptHandle="receipt-1",
+            VisibilityTimeout=10,
+        )
+
+    def test_group_round_does_not_advance_without_a_completed_reply(self) -> None:
+        request = {
+            "groupId": "group-1",
+            "replies": [
+                {"botId": "chief", "replyKey": "MESSAGE#1"},
+                {"botId": "research", "replyKey": "MESSAGE#2"},
+            ],
+        }
+        with (
+            patch.object(self.group_job, "_activate_group_reply"),
+            patch.object(
+                self.group_job, "_process_group_agent_reply", return_value=None
+            ),
+        ):
+            self.group_job._process_group_agent_round(
+                {"messageId": "queue-message-1"}, request
+            )
+
+        self.sqs.send_message.assert_not_called()
 
     def test_account_cleanup_job_dispatches_to_idempotent_cleanup(self) -> None:
         cleanup = MagicMock()

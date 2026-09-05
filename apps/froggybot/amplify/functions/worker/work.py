@@ -67,3 +67,24 @@ def _finish_work(
         return completed_at
     except table.meta.client.exceptions.ConditionalCheckFailedException:
         return None
+
+
+def _release_work(item_key: dict, lease_owner: str) -> bool:
+    """Return a failed attempt to the queue without waiting for its lease to expire."""
+    try:
+        table.update_item(
+            Key=item_key,
+            UpdateExpression=(
+                "SET #status = :pending REMOVE leaseOwner, leaseExpiresAt"
+            ),
+            ConditionExpression="#status = :running AND leaseOwner = :owner",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={
+                ":pending": "PENDING",
+                ":running": "RUNNING",
+                ":owner": lease_owner,
+            },
+        )
+        return True
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return False

@@ -8,7 +8,7 @@ from .agent import _invoke, _progress_updater
 from .artifacts import _collect_generated_artifacts, _delete_generated_artifacts
 from .notifications import _queue_reply_notification, _update_schedule_result
 from .support import _account_is_active, _bot_key, _turn_pk, catalog, table
-from .work import _claim_work, _finish_work
+from .work import _claim_work, _finish_work, _release_work
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +106,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
     except Exception:
         logger.exception("Agent request failed for turn %s", turn.get("id"))
         if receive_count < 3:
+            _release_work(turn_key, lease_owner)
             raise
         _delete_generated_artifacts(user_id, turn["id"])
         failure_answer = "I could not finish that request. Please try again."
