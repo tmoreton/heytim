@@ -1,6 +1,6 @@
-# FroggyBot mobile app
+# FroggyBot app
 
-This Expo SDK 57 app is the iOS-first FroggyBot client. It includes a responsive local preview and an
+This Expo SDK 57 project powers the iOS client and the matching desktop web app at `app.froggybot.com`. It includes a responsive local preview and an
 Amplify Gen 2 backend for native Cognito email OTP authentication, persisted direct and group chats, bot configuration, sharing,
 and push notifications when an agent reply is ready. On Apple devices, the composer also supports on-device dictation.
 
@@ -49,7 +49,9 @@ cloud transcription.
 Production builds listen to the EAS Update `production` channel and use Expo's fingerprint runtime policy so an
 update is never sent to a binary with incompatible native code. Every push to `main` runs
 `.github/workflows/eas-update.yml`, including pull-request merges, and publishes the JavaScript and asset changes.
-The repository keeps the required Expo access token in the `EXPO_TOKEN` GitHub Actions secret.
+The repository keeps the required Expo access token in the `EXPO_TOKEN` GitHub Actions secret. The marketing
+homepage, public skill library, legal pages, and contribution guide live in the separate
+[`frogbot-skills`](https://github.com/tmoreton/frogbot-skills) repository and publish independently with GitHub Pages.
 
 For an intentional manual update:
 

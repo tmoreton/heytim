@@ -66,7 +66,7 @@ export default function InvitePage() {
         <meta name="description" content="Join friends and their AI teammates in FroggyBot." />
         <meta property="og:title" content="You&apos;re invited to FroggyBot" />
         <meta property="og:description" content="Join friends and their AI teammates in one shared conversation." />
-        <meta property="og:image" content="https://froggybot.com/frogbot-invite-card.png" />
+        <meta property="og:image" content="https://froggybot.com/assets/invite-card.png" />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:type" content="website" />

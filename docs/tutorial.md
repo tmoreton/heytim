@@ -106,10 +106,11 @@ catalog_sync.py        Trusted remote download and shared refresh lease
 catalog.py             User libraries, version pinning, importing, and sharing
 ```
 
-The external `frogbot-capabilities` repository owns public listings and contribution review. Each entry includes
-display metadata for `/library`; tool entries also list the human-readable actions they expose. The unauthenticated
-`GET /public/catalog` route returns only sanitized, currently usable listings. A public directory link carries the
-selected skill or tool into `/app`, where the existing bot editor preselects it and still requires an explicit save.
+The external `frogbot-skills` repository owns the public website, catalog, and contribution review. Each entry includes
+display metadata for `froggybot.com/library/`; tool entries also list the human-readable actions they expose. The
+unauthenticated `GET /public/catalog` route returns only sanitized, currently usable listings. A public directory link
+carries the selected skill or tool to `app.froggybot.com/app`, where the bot editor preselects it and still requires
+an explicit save. The public site deploys from its own repository, independently of app releases.
 
 ## 6. Add a feature vertically
 

@@ -81,7 +81,7 @@ completed reply only after the worker verifies and records them.
 
 Executable community code is not accepted. Skills are versioned instructions plus approved tool
 references; secrets and executable integrations stay in reviewed AgentCore Gateway targets.
-The separate `frogbot-capabilities` repository is the publishing boundary. Pull requests are validated there;
+The separate `frogbot-skills` repository is the public website and capability publishing boundary. Pull requests are validated there;
 the backend then validates and caches releases before exposing only public metadata to signed-out visitors.
 
 ## Invariants

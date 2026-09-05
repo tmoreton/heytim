@@ -29,15 +29,16 @@ from .catalog_rules import (
 
 CATALOG_URL = os.environ.get(
     "CAPABILITY_CATALOG_URL",
-    "https://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json",
+    "https://froggybot.com/catalog.json",
 )
-ALLOWED_REPOSITORY = "tmoreton/frogbot-capabilities"
+ALLOWED_REPOSITORY = "tmoreton/frogbot-skills"
 SYNC_SECONDS = 300
 SYNC_LEASE_SECONDS = 180
 SYNC_RETRY_SECONDS = 60
-TRUSTED_CATALOG_HOST = "raw.githubusercontent.com"
-TRUSTED_CATALOG_PATH_PREFIX = f"/{ALLOWED_REPOSITORY}/"
+TRUSTED_CATALOG_HOST = "froggybot.com"
+TRUSTED_CATALOG_PATHS = ("/catalog.json", "/skills/")
 _last_sync_at = 0.0
+_local_sync_delay = SYNC_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,10 @@ def _trusted_catalog_url(url: str) -> str:
         or parsed.username is not None
         or parsed.password is not None
         or parsed.port is not None
-        or not parsed.path.startswith(TRUSTED_CATALOG_PATH_PREFIX)
+        or not (
+            parsed.path == TRUSTED_CATALOG_PATHS[0]
+            or parsed.path.startswith(TRUSTED_CATALOG_PATHS[1])
+        )
         or parsed.query
         or parsed.fragment
     ):
@@ -98,9 +102,13 @@ def _skill_instructions(document: str) -> str:
 
 class CatalogSyncMixin:
     def sync_official(self, *, force: bool = False) -> None:
-        global _last_sync_at
+        global _last_sync_at, _local_sync_delay
         current = time.monotonic()
-        if not force and _last_sync_at > 0 and current - _last_sync_at < SYNC_SECONDS:
+        if (
+            not force
+            and _last_sync_at > 0
+            and current - _last_sync_at < _local_sync_delay
+        ):
             return
 
         now_epoch = int(time.time())
@@ -113,11 +121,15 @@ class CatalogSyncMixin:
             self._ensure_fallbacks()
         elif not force and int(metadata.get("nextSyncAt", 0)) > now_epoch:
             _last_sync_at = current
+            _local_sync_delay = min(
+                SYNC_SECONDS, max(1, int(metadata["nextSyncAt"]) - now_epoch)
+            )
             return
 
         lease_id = uuid.uuid4().hex
         if not self._acquire_sync_lease(now_epoch, lease_id):
             _last_sync_at = current
+            _local_sync_delay = SYNC_RETRY_SECONDS
             return
 
         try:
@@ -134,8 +146,10 @@ class CatalogSyncMixin:
             )
             self._ensure_fallbacks()
             self._finish_sync_lease(lease_id, SYNC_RETRY_SECONDS, "RETRY")
+            _local_sync_delay = SYNC_RETRY_SECONDS
         else:
             self._finish_sync_lease(lease_id, SYNC_SECONDS, "READY")
+            _local_sync_delay = SYNC_SECONDS
         _last_sync_at = current
 
     def _acquire_sync_lease(self, now_epoch: int, lease_id: str) -> bool:
@@ -259,7 +273,7 @@ class CatalogSyncMixin:
             ):
                 raise CatalogError(f"{skill_id} path is invalid")
             document = _fetch_text(
-                f"https://raw.githubusercontent.com/{ALLOWED_REPOSITORY}/{release}/{path}"
+                f"https://{TRUSTED_CATALOG_HOST}/{path}"
             )
             skills.append(
                 {

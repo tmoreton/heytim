@@ -111,6 +111,7 @@ const filesBucket = new Bucket(stack, 'UserFiles', {
       allowedMethods: [HttpMethods.GET, HttpMethods.HEAD, HttpMethods.POST],
       allowedOrigins: [
         'https://froggybot.com',
+        'https://app.froggybot.com',
         'https://www.froggybot.com',
         'https://frogbot.expo.app',
         'http://localhost:8081',
@@ -265,7 +266,7 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
     FILES_BUCKET_NAME: filesBucket.bucketName,
     PUBLIC_WEB_BASE_URL: 'https://froggybot.com',
     CAPABILITY_CATALOG_URL:
-      'https://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json',
+      'https://froggybot.com/catalog.json',
   },
 });
 
@@ -290,7 +291,7 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
     FILES_BUCKET_NAME: filesBucket.bucketName,
     PUBLIC_WEB_BASE_URL: 'https://froggybot.com',
     CAPABILITY_CATALOG_URL:
-      'https://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json',
+      'https://froggybot.com/catalog.json',
   },
 });
 
@@ -369,6 +370,7 @@ const httpApi = new HttpApi(stack, 'HttpApi', {
   corsPreflight: {
     allowOrigins: [
       'https://froggybot.com',
+      'https://app.froggybot.com',
       'https://www.froggybot.com',
       'https://frogbot.expo.app',
       'http://localhost:8081',

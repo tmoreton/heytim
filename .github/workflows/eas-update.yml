@@ -1,4 +1,4 @@
-name: Publish FroggyBot OTA update
+name: Publish FroggyBot app
 
 on:
   push:
@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   update:
-    name: Publish production update
+    name: Publish iOS update and desktop web app
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -49,8 +49,8 @@ jobs:
       - name: Publish production update
         run: eas update --channel production --environment production --message "main@${{ github.sha }}" --non-interactive
 
-      - name: Build web app
+      - name: Build desktop web app
         run: npm run build:web
 
-      - name: Publish production website
+      - name: Publish desktop web app
         run: eas deploy --prod --environment production --non-interactive

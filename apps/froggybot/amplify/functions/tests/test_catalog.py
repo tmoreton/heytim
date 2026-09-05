@@ -104,6 +104,7 @@ class FakeTable:
 class CatalogServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         sync_module._last_sync_at = time.monotonic()
+        sync_module._local_sync_delay = sync_module.SYNC_SECONDS
         self.table = FakeTable()
         self.catalog = CatalogService(self.table)
         self.catalog._store_official(
@@ -154,13 +155,40 @@ class CatalogServiceTests(unittest.TestCase):
 
         self.assertEqual(calls, [])
 
+    def test_failed_refresh_retries_on_the_short_interval(self) -> None:
+        sync_module._last_sync_at = 0
+
+        def fail() -> None:
+            raise CatalogError("temporary failure")
+
+        self.catalog._sync_remote = fail
+        with self.assertLogs(sync_module.logger, level="ERROR"):
+            self.catalog.sync_official()
+        self.assertEqual(sync_module._local_sync_delay, sync_module.SYNC_RETRY_SECONDS)
+
+        self.table.items[("SYSTEM#CATALOG", "METADATA")]["nextSyncAt"] = 0
+        sync_module._last_sync_at = (
+            time.monotonic() - sync_module.SYNC_RETRY_SECONDS - 1
+        )
+        calls = []
+        self.catalog._sync_remote = lambda: calls.append("sync")
+        self.catalog.sync_official()
+
+        self.assertEqual(calls, ["sync"])
+        self.assertEqual(sync_module._local_sync_delay, sync_module.SYNC_SECONDS)
+
     def test_catalog_fetches_only_from_the_reviewed_repository(self) -> None:
-        trusted = "https://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json"
-        self.assertEqual(sync_module._trusted_catalog_url(trusted), trusted)
+        trusted = (
+            "https://froggybot.com/catalog.json",
+            "https://froggybot.com/skills/trip-planner/SKILL.md",
+        )
+        for url in trusted:
+            self.assertEqual(sync_module._trusted_catalog_url(url), url)
         for url in (
-            "http://raw.githubusercontent.com/tmoreton/frogbot-capabilities/main/catalog.json",
-            "https://example.com/tmoreton/frogbot-capabilities/main/catalog.json",
-            "https://raw.githubusercontent.com/other/repository/main/catalog.json",
+            "http://froggybot.com/catalog.json",
+            "https://example.com/catalog.json",
+            "https://froggybot.com/private/catalog.json",
+            "https://froggybot.com/catalog.json?ref=other",
         ):
             with self.subTest(url=url), self.assertRaises(CatalogError):
                 sync_module._trusted_catalog_url(url)
@@ -291,7 +319,7 @@ class CatalogServiceTests(unittest.TestCase):
         self.assertEqual(search["actions"], ["Search the web", "Find relevant sources"])
         self.assertEqual(
             result["contributionUrl"],
-            "https://github.com/tmoreton/frogbot-capabilities/blob/main/CONTRIBUTING.md",
+            "https://github.com/tmoreton/frogbot-skills/blob/main/CONTRIBUTING.md",
         )
 
     def test_runtime_resolves_dynamodb_decimal_skill_versions(self) -> None:

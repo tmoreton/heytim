@@ -140,9 +140,9 @@ never use AWS account-root credentials.
 
 ## Skills and tools
 
-The reviewed public catalog lives in [frogbot-capabilities](https://github.com/tmoreton/frogbot-capabilities).
+The reviewed public catalog and marketing site live in [FroggyBot Skills](https://github.com/tmoreton/frogbot-skills).
 Visitors can browse its reviewed skills, tools, and actions without signing in at
-`https://froggybot.com/library`. Search, categories, trust labels, and deep links make the catalog useful as
+`https://froggybot.com/library/`. Search, categories, trust labels, and deep links make the catalog useful as
 a storefront; opening an item takes a member to a preselected, review-before-save bot edit.
 Skill releases use immutable Git tags, and every bot stores the exact skill version it selected. Updating a skill
 therefore does not silently change an existing bot or a previously shared bot. Catalog refreshes add or remove
@@ -169,13 +169,18 @@ npm run verify
 
 The verification command also prevents authored source files from growing beyond 600 lines.
 
-## Mobile releases
+## App releases and websites
 
 The production EAS build profile listens to the `production` update channel. The GitHub Actions workflow at
-`.github/workflows/eas-update.yml` publishes both an EAS Update and the static Expo website after every push to
+`.github/workflows/eas-update.yml` publishes both an EAS Update and the Expo desktop web app after every push to
 `main`; the Expo credential is stored as the repository secret `EXPO_TOKEN`. Expo's fingerprint runtime policy
-prevents an update from reaching an incompatible native build. On web, `/` is the public landing page, `/library`
-is the public capability directory, and `/app` opens the same passwordless FroggyBot experience used by the native app.
+prevents an update from reaching an incompatible native build. The web app at `https://app.froggybot.com` mirrors
+the passwordless iOS experience and owns application and invite routes.
+
+The separate [FroggyBot Skills](https://github.com/tmoreton/frogbot-skills) repository owns the public homepage,
+library, contribution guide, and legal pages at `https://froggybot.com`. Its GitHub Pages workflow publishes on
+every catalog or website change, independently of the app release cycle. Public `/invite` links preserve their
+query string and hand off to the Expo app subdomain.
 
 ## Key locations
 
@@ -187,4 +192,4 @@ is the public capability directory, and `/app` opens the same passwordless Frogg
 - `apps/froggybot/src/features/` - authentication, invitations, chat UI, and editors
 - `apps/froggybot/amplify/backend.ts` - Cognito, API, DynamoDB, SQS, and Lambda infrastructure
 - `apps/froggybot/amplify/functions/` - authenticated API, shared domain logic, and AgentCore worker
-- [frogbot-capabilities](https://github.com/tmoreton/frogbot-capabilities) - versioned public skill and tool catalog
+- [FroggyBot Skills](https://github.com/tmoreton/frogbot-skills) - public website plus versioned skill and tool catalog

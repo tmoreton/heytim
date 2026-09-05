@@ -32,7 +32,7 @@ from .catalog_sync import (
 )
 
 PUBLIC_WEB_BASE_URL = os.environ.get("PUBLIC_WEB_BASE_URL", "https://froggybot.com")
-CATALOG_REPOSITORY_URL = "https://github.com/tmoreton/frogbot-capabilities"
+CATALOG_REPOSITORY_URL = "https://github.com/tmoreton/frogbot-skills"
 
 __all__ = [
     "FALLBACK_SKILLS",

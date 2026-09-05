@@ -174,11 +174,4 @@ export type CapabilitySelection = {
   id: string;
 };
 
-export type PublicCatalog = {
-  skills: Skill[];
-  tools: Capability[];
-  repositoryUrl: string;
-  contributionUrl: string;
-};
-
 export type BotDraft = Pick<Bot, 'name' | 'tagline' | 'color' | 'prompt' | 'toolIds' | 'skillIds'>;
