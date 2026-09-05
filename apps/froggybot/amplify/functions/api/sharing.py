@@ -14,6 +14,7 @@ from .groups import _group_items
 from .support import (
     PUBLIC_WEB_BASE_URL,
     ApiError,
+    _bot_color,
     _delete_share_record,
     _group_pk,
     _json_default,
@@ -57,7 +58,7 @@ def _public_invite_preview(kind: str, token: str) -> dict:
             {
                 "name": item["name"],
                 "tagline": item.get("tagline", ""),
-                "color": item.get("color", "#007A3D"),
+                "color": _bot_color(item),
             }
             for item in items
             if item.get("entity") == "GROUP_BOT"
@@ -100,7 +101,7 @@ def _public_invite_preview(kind: str, token: str) -> dict:
                 {
                     "name": bot.get("name", "FroggyBot"),
                     "tagline": bot.get("tagline", ""),
-                    "color": bot.get("color", "#007A3D"),
+                    "color": _bot_color(bot),
                 }
             ],
             "expiresAt": share["expiresAt"],
@@ -301,6 +302,7 @@ def _import_share(user_id: str, token: str) -> dict:
         {
             **source,
             "name": f"{source['name'][:43]} copy",
+            "color": _bot_color({**source, "systemRole": None}),
             "toolIds": source.get("extraToolIds", source.get("toolIds", [])),
         },
     )

@@ -13,15 +13,14 @@ import {
 } from 'react-native';
 
 import { BotAvatar } from '@/components/bot-avatar';
+import { BOT_COLORS, CHIEF_COLOR, displayBotColor } from '@/lib/bot-branding';
 import type { Bot, BotDraft, Capability, CapabilitySelection, Skill, SkillDetail } from '@/lib/types';
-
-const COLORS = ['#007A3D', '#FFAA34', '#6C5CE7', '#3984F6', '#F46A27', '#E95383'];
 
 const emptyDraft: BotDraft = {
   name: '',
   tagline: '',
   prompt: '',
-  color: COLORS[0],
+  color: BOT_COLORS[0],
   toolIds: [],
   skillIds: [],
 };
@@ -57,7 +56,7 @@ const botDraft = (
         name: bot.name,
         tagline: bot.tagline,
         prompt: bot.prompt,
-        color: bot.color,
+        color: displayBotColor(bot),
         toolIds: extraToolsForBot(bot, skills),
         skillIds: bot.skillIds,
       }
@@ -78,6 +77,8 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
   const [loadingSkillId, setLoadingSkillId] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const chief = bot?.systemRole === 'chief';
+  const colorChoices = chief ? [CHIEF_COLOR] : BOT_COLORS;
 
   const selectedSkills = skills.filter((skill) => draft.skillIds.includes(skill.id));
   const requiredByTool = new Map<string, string[]>();
@@ -198,17 +199,21 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
 
           <Text style={styles.label}>Color</Text>
           <View style={styles.colorRow}>
-            {COLORS.map((color) => (
+            {colorChoices.map((color) => (
               <Pressable
                 key={color}
-                accessibilityLabel={`Use color ${color}`}
+                accessibilityLabel={chief ? 'FroggyBot green, reserved for Chief' : `Use color ${color}`}
                 accessibilityRole="button"
-                accessibilityState={{ selected: draft.color === color }}
+                accessibilityState={{ selected: draft.color === color, disabled: chief }}
+                disabled={chief}
                 style={[styles.color, { backgroundColor: color }, draft.color === color && styles.colorSelected]}
                 onPress={() => setDraft((value) => ({ ...value, color }))}
               />
             ))}
           </View>
+          <Text style={[styles.sectionSubtitle, styles.colorNote]}>
+            {chief ? 'Chief always uses FroggyBot green.' : 'FroggyBot green is reserved for Chief.'}
+          </Text>
 
           <Text style={styles.label}>Bot prompt</Text>
           <Text style={styles.sectionSubtitle}>
@@ -350,9 +355,10 @@ const styles = StyleSheet.create({
   nameInput: { fontSize: 23, fontWeight: '700', color: '#171714', padding: 0 },
   taglineInput: { fontSize: 14, color: '#716E67', padding: 0 },
   label: { fontSize: 14, fontWeight: '700', color: '#24231F', marginBottom: 8 },
-  colorRow: { flexDirection: 'row', gap: 12, marginBottom: 26 },
+  colorRow: { flexDirection: 'row', gap: 12, marginBottom: 8 },
   color: { width: 32, height: 32, borderRadius: 16, borderWidth: 3, borderColor: '#F8F7F3' },
   colorSelected: { borderColor: '#007A3D' },
+  colorNote: { marginTop: 0, marginBottom: 26 },
   promptInput: { minHeight: 190, padding: 15, borderRadius: 15, borderWidth: 1, borderColor: '#DDDAD2', backgroundColor: 'white', color: '#24231F', fontSize: 15, lineHeight: 21 },
   characterCount: { color: '#9B978F', fontSize: 11, textAlign: 'right', marginTop: 5 },
   guide: { padding: 16, borderRadius: 17, backgroundColor: '#E9F4EE', borderWidth: 1, borderColor: '#CBE2D5', marginTop: 24 },

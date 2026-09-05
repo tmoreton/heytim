@@ -1,15 +1,46 @@
-import Markdown from 'react-native-markdown-renderer';
-import { Platform, StyleSheet } from 'react-native';
+import * as Linking from 'expo-linking';
+import Markdown, { MarkdownIt, type RenderRules } from 'react-native-markdown-renderer';
+import { Platform, StyleSheet, Text, type TextStyle } from 'react-native';
 
 type Props = {
   children: string;
 };
 
 const monospace = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
+const markdown = MarkdownIt({ typographer: true, linkify: true });
+
+const compactLinkLabel = (url: string) => {
+  const match = url.match(/^https?:\/\/(?:www\.)?([^/?#]+)(\/[^?#]*)?/i);
+  if (!match) return url;
+  const path = (match[2] ?? '').split('/').filter(Boolean);
+  const shortPath = path.slice(0, 2).join('/');
+  return `${match[1]}${shortPath ? `/${shortPath}` : ''}${path.length > 2 ? '/…' : ''}`;
+};
+
+const renderRules: RenderRules = {
+  link: (node, children, _parent, styles) => {
+    const url = node.attributes.href;
+    const automatic = node.markup === 'linkify' || node.markup === 'autolink';
+    return (
+      <Text
+        key={node.key}
+        accessibilityRole="link"
+        style={styles.link as TextStyle}
+        onPress={() => void Linking.openURL(url).catch(() => undefined)}>
+        {automatic ? compactLinkLabel(url) : children}
+      </Text>
+    );
+  },
+};
 
 export function MessageMarkdown({ children }: Props) {
   return (
-    <Markdown allowedImageHandlers={[]} defaultImageHandler={null} style={markdownStyles}>
+    <Markdown
+      allowedImageHandlers={[]}
+      defaultImageHandler={null}
+      markdownit={markdown}
+      rules={renderRules}
+      style={markdownStyles}>
       {children}
     </Markdown>
   );

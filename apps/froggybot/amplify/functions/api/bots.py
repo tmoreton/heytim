@@ -8,7 +8,9 @@ from shared.cleanup import has_pending_work
 from .attachments import _public_file
 from .support import (
     ALLOWED_COLORS,
+    CHIEF_COLOR,
     CHIEF_SYSTEM_ROLE,
+    DEFAULT_BOT_COLOR,
     DEFAULT_BOTS,
     ApiError,
     _bot_sk,
@@ -44,10 +46,22 @@ def _delete_remote_schedule(item: dict) -> None:
     delete_remote_schedule(item)
 
 
-def _bot_values(user_id: str, value: dict, previous: dict | None = None) -> dict:
+def _bot_values(
+    user_id: str,
+    value: dict,
+    previous: dict | None = None,
+    system_role: str | None = None,
+) -> dict:
     previous = previous or {}
     catalog.sync_official()
-    color = value.get("color", previous.get("color", "#58BEAA"))
+    role = system_role or previous.get("systemRole")
+    color = value.get("color", previous.get("color", DEFAULT_BOT_COLOR))
+    if role == CHIEF_SYSTEM_ROLE:
+        color = CHIEF_COLOR
+    elif color == CHIEF_COLOR:
+        if "color" in value:
+            raise ApiError(400, "FroggyBot green is reserved for Chief")
+        color = DEFAULT_BOT_COLOR
     if color not in ALLOWED_COLORS:
         raise ApiError(400, "Choose one of the available bot colors")
     try:
@@ -140,6 +154,7 @@ def _put_bot(
     }
     if system_role == CHIEF_SYSTEM_ROLE:
         item["systemRole"] = CHIEF_SYSTEM_ROLE
+        item["color"] = CHIEF_COLOR
     table.put_item(Item=item)
     return _public_bot(item)
 
@@ -149,45 +164,46 @@ def _list_bots(user_id: str) -> list[dict]:
         KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
         ExpressionAttributeValues={":pk": _user_pk(user_id), ":prefix": "BOT#"},
     ).get("Items", [])
-    return sorted(
+    bots = sorted(
         (_public_bot(item) for item in items),
         key=lambda item: item["lastMessageAt"],
         reverse=True,
     )
+    return sorted(bots, key=lambda item: item.get("systemRole") != CHIEF_SYSTEM_ROLE)
 
 
 def _ensure_chief(user_id: str, bots: list[dict]) -> list[dict]:
     if any(bot.get("systemRole") == CHIEF_SYSTEM_ROLE for bot in bots):
-        return bots
+        return sorted(bots, key=lambda bot: bot.get("systemRole") != CHIEF_SYSTEM_ROLE)
 
     legacy = next(
-        (
-            bot
-            for bot in bots
-            if str(bot.get("name", "")).strip().casefold() == "chief"
-        ),
+        (bot for bot in bots if str(bot.get("name", "")).strip().casefold() == "chief"),
         None,
     )
     if legacy:
         table.update_item(
             Key={"pk": _user_pk(user_id), "sk": _bot_sk(legacy["id"])},
-            UpdateExpression="SET systemRole = :role, updatedAt = :now",
+            UpdateExpression="SET systemRole = :role, color = :color, updatedAt = :now",
             ExpressionAttributeValues={
                 ":role": CHIEF_SYSTEM_ROLE,
+                ":color": CHIEF_COLOR,
                 ":now": _now(),
             },
         )
-        return [
-            {**bot, "systemRole": CHIEF_SYSTEM_ROLE}
-            if bot["id"] == legacy["id"]
-            else bot
-            for bot in bots
-        ]
+        return sorted(
+            [
+                {**bot, "systemRole": CHIEF_SYSTEM_ROLE, "color": CHIEF_COLOR}
+                if bot["id"] == legacy["id"]
+                else bot
+                for bot in bots
+            ],
+            key=lambda bot: bot.get("systemRole") != CHIEF_SYSTEM_ROLE,
+        )
 
     seed = DEFAULT_BOTS[0]
     chief = _put_bot(
         user_id,
-        _bot_values(user_id, seed),
+        _bot_values(user_id, seed, system_role=CHIEF_SYSTEM_ROLE),
         system_role=CHIEF_SYSTEM_ROLE,
     )
     return [chief, *bots]

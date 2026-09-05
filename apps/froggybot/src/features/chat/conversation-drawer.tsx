@@ -4,6 +4,7 @@ import { Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react
 import { ActionSheet } from '@/components/action-sheet';
 import { BotAvatar } from '@/components/bot-avatar';
 import { GroupAvatar } from '@/components/participant-avatar';
+import { chiefFirst, displayBotColor } from '@/lib/bot-branding';
 import type { Bot, Group } from '@/lib/types';
 
 export type ConversationSelection = { kind: 'bot' | 'group'; id: string };
@@ -52,11 +53,13 @@ export function ConversationDrawer({
 }: Props) {
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const query = search.trim().toLowerCase();
-  const visibleBots = bots.filter((bot) => `${bot.name} ${bot.tagline}`.toLowerCase().includes(query));
+  const visibleBots = chiefFirst(
+    bots.filter((bot) => `${bot.name} ${bot.tagline}`.toLowerCase().includes(query)),
+  );
   const visibleGroups = groups.filter((group) => `${group.name} ${group.lastMessage}`.toLowerCase().includes(query));
   const sections: { title: string; data: DrawerItem[] }[] = [
-    { title: 'Groups', data: visibleGroups.map((value) => ({ kind: 'group' as const, value })) },
     { title: 'FroggyBots', data: visibleBots.map((value) => ({ kind: 'bot' as const, value })) },
+    { title: 'Groups', data: visibleGroups.map((value) => ({ kind: 'group' as const, value })) },
   ].filter((section) => section.data.length > 0);
 
   return (
@@ -99,7 +102,7 @@ export function ConversationDrawer({
               {item.kind === 'group' ? (
                 <GroupAvatar group={item.value} size={42} />
               ) : (
-                <BotAvatar color={item.value.color} name={item.value.name} size={42} />
+                <BotAvatar color={displayBotColor(item.value)} name={item.value.name} size={42} />
               )}
               <View style={styles.rowText}>
                 <View style={styles.nameRow}>

@@ -15,6 +15,7 @@ from .groups import _require_group_member
 from .support import (
     QUEUE_URL,
     ApiError,
+    _bot_color,
     _group_message_sk,
     _group_pk,
     _now,
@@ -26,7 +27,12 @@ from .support import (
 
 
 def _list_group_messages(user_id: str, group_id: str, limit: int = 100) -> list[dict]:
-    _require_group_member(user_id, group_id)
+    _, group_items = _require_group_member(user_id, group_id)
+    group_bots = {
+        item["botId"]: item
+        for item in group_items
+        if item.get("entity") == "GROUP_BOT" and isinstance(item.get("botId"), str)
+    }
     items = table.query(
         KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
         ExpressionAttributeValues={":pk": _group_pk(group_id), ":prefix": "MESSAGE#"},
@@ -45,7 +51,11 @@ def _list_group_messages(user_id: str, group_id: str, limit: int = 100) -> list[
                     "authorType": item.get("authorType"),
                     "authorId": item.get("authorId"),
                     "authorName": item.get("authorName"),
-                    "authorColor": item.get("authorColor"),
+                    "authorColor": _bot_color(
+                        group_bots.get(item.get("authorId"), item)
+                    )
+                    if item.get("authorType") == "bot"
+                    else None,
                     "isMine": item.get("authorType") == "user"
                     and item.get("authorId") == user_id,
                     "text": item.get("text", ""),
@@ -123,7 +133,7 @@ def _send_group_message(
                 "authorType": "bot",
                 "authorId": group_bot["botId"],
                 "authorName": group_bot["name"],
-                "authorColor": group_bot.get("color", "#007A3D"),
+                "authorColor": _bot_color(group_bot),
                 "botOwnerId": group_bot["botOwnerId"],
                 "roundId": message_id,
                 "roundPosition": order,

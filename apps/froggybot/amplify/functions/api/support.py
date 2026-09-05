@@ -89,9 +89,11 @@ ATTACHMENT_FORMATS = {
     ".gif": ("image", "gif", "image/gif"),
     ".webp": ("image", "webp", "image/webp"),
 }
+CHIEF_COLOR = "#007A3D"
+DEFAULT_BOT_COLOR = "#58BEAA"
 ALLOWED_COLORS = {
-    "#007A3D",
-    "#58BEAA",
+    CHIEF_COLOR,
+    DEFAULT_BOT_COLOR,
     "#FFAA34",
     "#6C5CE7",
     "#3984F6",
@@ -104,7 +106,7 @@ DEFAULT_BOTS = [
     {
         "name": "Chief",
         "tagline": "Keeps the work moving and connects the dots.",
-        "color": "#58BEAA",
+        "color": CHIEF_COLOR,
         "prompt": (
             "Act as my chief of staff and the sole coordinator for my other bots. "
             "Clarify priorities, choose the right specialist when one is useful, keep "
@@ -377,10 +379,19 @@ def _record_invite_join(kind: str, token: str) -> None:
         return
 
 
+def _bot_color(item: dict) -> str:
+    color = item.get("color", DEFAULT_BOT_COLOR)
+    if item.get("systemRole") == CHIEF_SYSTEM_ROLE:
+        return CHIEF_COLOR
+    return DEFAULT_BOT_COLOR if color == CHIEF_COLOR else color
+
+
 def _public_bot(item: dict) -> dict:
-    return {
+    bot = {
         key: value for key, value in item.items() if key not in {"pk", "sk", "entity"}
     }
+    bot["color"] = _bot_color(item)
+    return bot
 
 
 def _public_schedule(item: dict) -> dict:

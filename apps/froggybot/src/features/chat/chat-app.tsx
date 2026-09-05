@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionSheet } from '@/components/action-sheet';
 import { endSession } from '@/lib/auth';
 import { createApi } from '@/lib/api';
+import { chiefFirst } from '@/lib/bot-branding';
 import type { Attachment, Bootstrap, Bot, BotDraft, CapabilitySelection, Group, GroupDraft, GroupMember, Invitation, Message } from '@/lib/types';
 
 import { AccountSettings } from './account-settings';
@@ -120,7 +121,6 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
     if (next.bots[0]) return { kind: 'bot', id: next.bots[0].id };
     return undefined;
   }, []);
-
 
   const loadBootstrap = useCallback(async () => {
     try {
@@ -240,7 +240,7 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
     setData((current) => {
       if (!current) return current;
       const exists = current.bots.some((bot) => bot.id === saved.id);
-      return { ...current, bots: exists ? current.bots.map((bot) => (bot.id === saved.id ? saved : bot)) : [saved, ...current.bots] };
+      return { ...current, bots: chiefFirst(exists ? current.bots.map((bot) => (bot.id === saved.id ? saved : bot)) : [saved, ...current.bots]) };
     });
     setMessages([]);
     setLoadingMessages(true);

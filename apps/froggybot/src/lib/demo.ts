@@ -13,6 +13,7 @@ import type {
   SkillDraft,
 } from './types';
 import { loadDemoCatalog, loadDemoSkill } from './demo-catalog';
+import { CHIEF_COLOR, chiefFirst, displayBotColor } from './bot-branding';
 
 const timestamp = new Date().toISOString();
 
@@ -21,7 +22,7 @@ let bots: Bot[] = [
     id: 'chief',
     name: 'Chief',
     tagline: 'Keeps the work moving and connects the dots.',
-    color: '#58BEAA',
+    color: CHIEF_COLOR,
     prompt: 'Act as my chief of staff. Clarify priorities and always end with the best next action.',
     toolIds: ['current_time', 'calculator'],
     extraToolIds: ['current_time', 'calculator'],
@@ -129,7 +130,7 @@ const groupMessages = new Map<string, Message[]>([
 export const demoBootstrap = async (): Promise<Bootstrap> => {
   const catalog = await loadDemoCatalog().catch(() => ({ tools: [], skills: [] }));
   return {
-    bots: [...bots],
+    bots: chiefFirst(bots),
     groups: groups.map((group) => ({
       ...group,
       members: [...group.members],
@@ -215,6 +216,7 @@ export const demoSaveBot = (draft: BotDraft, botId?: string): Bot => {
   const previous = bots.find((bot) => bot.id === botId);
   const bot: Bot = {
     ...draft,
+    color: displayBotColor({ ...draft, systemRole: previous?.systemRole }),
     systemRole: previous?.systemRole,
     id: previous?.id ?? `bot-${Date.now()}`,
     createdAt: previous?.createdAt ?? now,
@@ -222,7 +224,7 @@ export const demoSaveBot = (draft: BotDraft, botId?: string): Bot => {
     lastMessage: previous?.lastMessage ?? 'Ready when you are.',
     lastMessageAt: previous?.lastMessageAt ?? now,
   };
-  bots = previous ? bots.map((item) => (item.id === bot.id ? bot : item)) : [bot, ...bots];
+  bots = chiefFirst(previous ? bots.map((item) => (item.id === bot.id ? bot : item)) : [bot, ...bots]);
   if (!messages.has(bot.id)) messages.set(bot.id, []);
   return bot;
 };

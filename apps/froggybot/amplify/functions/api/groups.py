@@ -15,6 +15,7 @@ from .support import (
     FILES_BUCKET_NAME,
     PUBLIC_WEB_BASE_URL,
     ApiError,
+    _bot_color,
     _group_pk,
     _now,
     _partition_items,
@@ -91,13 +92,16 @@ def _public_group(user_id: str, group_id: str, items: list[dict] | None = None) 
                 "ownerId": item["botOwnerId"],
                 "name": item["name"],
                 "tagline": item.get("tagline", ""),
-                "color": item.get("color", "#007A3D"),
+                "color": _bot_color(item),
                 "systemRole": item.get("systemRole"),
             }
             for item in items
             if item.get("entity") == "GROUP_BOT"
         ),
-        key=lambda item: item["name"].lower(),
+        key=lambda item: (
+            item.get("systemRole") != CHIEF_SYSTEM_ROLE,
+            item["name"].lower(),
+        ),
     )
     return {
         "id": meta["id"],
@@ -150,7 +154,7 @@ def _group_bot_item(group_id: str, owner_id: str, bot: dict) -> dict:
         "botOwnerId": owner_id,
         "name": bot["name"],
         "tagline": bot.get("tagline", ""),
-        "color": bot.get("color", "#007A3D"),
+        "color": _bot_color(bot),
         **(
             {"systemRole": CHIEF_SYSTEM_ROLE}
             if bot.get("systemRole") == CHIEF_SYSTEM_ROLE
