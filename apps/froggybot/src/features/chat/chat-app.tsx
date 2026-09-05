@@ -23,6 +23,7 @@ import { styles } from './chat-app.styles';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationDrawer, type ConversationSelection as Selection } from './conversation-drawer';
 import { GroupEditor } from './group-editor';
+import { MemorySettings } from './memory-settings';
 import { ALL_BOTS_REPLY_TARGET } from './message-composer';
 import { ScheduledTasks } from './scheduled-tasks';
 import { SkillLibrary } from './skill-library';
@@ -64,6 +65,7 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
   const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
   const [botMenuOpen, setBotMenuOpen] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
+  const [memorySettingsOpen, setMemorySettingsOpen] = useState(false);
   const [scheduleBot, setScheduleBot] = useState<Bot>();
   const [pendingBotAction, setPendingBotAction] = useState<BotAction>();
   const [replyBotId, setReplyBotId] = useState<string | null>();
@@ -551,6 +553,10 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
         <AccountSettings
           demo={demo}
           onClose={() => setAccountSettingsOpen(false)}
+          onOpenMemory={() => {
+            setAccountSettingsOpen(false);
+            setMemorySettingsOpen(true);
+          }}
           onOpenSkills={() => {
             setAccountSettingsOpen(false);
             setSkillLibraryOpen(true);
@@ -559,6 +565,15 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
           onRevokeShare={api.revokeShare}
           onDeleteAccount={deleteAccount}
           onSignOut={signOut}
+        />
+      ) : null}
+      {memorySettingsOpen ? (
+        <MemorySettings
+          onClose={() => setMemorySettingsOpen(false)}
+          onLoad={api.memories}
+          onUpdate={api.updateMemory}
+          onDelete={api.deleteMemory}
+          onExport={api.exportMemory}
         />
       ) : null}
       <BotActionSheets

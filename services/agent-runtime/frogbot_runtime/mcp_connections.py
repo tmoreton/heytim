@@ -33,7 +33,7 @@ GMAIL_MCP_TOOLS = {
     "search_threads",
     "list_labels",
 }
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_OAUTH_ENDPOINT = "https://oauth2.googleapis.com/token"
 _secrets_manager = None
 
 
@@ -148,7 +148,7 @@ def _json_secret(secret_arn: str) -> dict:
     except json.JSONDecodeError as exc:
         raise ValueError("OAuth credential is invalid") from exc
     if not isinstance(value, dict):
-        raise ValueError("OAuth credential is invalid")
+        raise TypeError("OAuth credential is invalid")
     return value
 
 
@@ -166,7 +166,7 @@ def _google_access_token(binding: dict) -> str:
     )):
         raise ValueError("OAuth credential is invalid")
     request = urllib.request.Request(
-        GOOGLE_TOKEN_URL,
+        GOOGLE_OAUTH_ENDPOINT,
         data=urllib.parse.urlencode(
             {
                 "client_id": client_id,

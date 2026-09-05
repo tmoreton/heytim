@@ -20,6 +20,7 @@ from .support import (
 )
 
 logger = logging.getLogger(__name__)
+RECENT_DIRECT_TURNS = 50
 
 
 def _get_history(
@@ -32,7 +33,7 @@ def _get_history(
             ":prefix": "TURN#",
         },
         ScanIndexForward=False,
-        Limit=20,
+        Limit=RECENT_DIRECT_TURNS,
     ).get("Items", [])
     messages = []
     for turn in reversed(turns):

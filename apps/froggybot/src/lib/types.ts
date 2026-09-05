@@ -126,6 +126,20 @@ export type SharedLink = {
   expiresAt: number;
 };
 
+export type MemoryRecord = {
+  id: string;
+  kind: 'fact' | 'preference' | 'summary';
+  content: string;
+  createdAt: string;
+  botId?: string;
+  botName?: string;
+};
+
+export type MemorySnapshot = {
+  records: MemoryRecord[];
+  rawConversationRetentionDays: number;
+};
+
 export type InvitePreview = Invitation & {
   title: string;
   description: string;

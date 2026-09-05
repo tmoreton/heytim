@@ -20,7 +20,7 @@ from .bots import _create_bot, _list_bots
 from .support import ApiError, catalog, table
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_OAUTH_ENDPOINT = "https://oauth2.googleapis.com/token"
 GMAIL_PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile"
 GMAIL_SCOPES = (
     "https://www.googleapis.com/auth/gmail.readonly",
@@ -175,7 +175,7 @@ def _post_json(url: str, fields: dict[str, str]) -> dict:
 def _exchange_code(code: str, verifier: str) -> dict:
     client_id, client_secret = _oauth_client()
     return _post_json(
-        GOOGLE_TOKEN_URL,
+        GOOGLE_OAUTH_ENDPOINT,
         {
             "client_id": client_id,
             "client_secret": client_secret,

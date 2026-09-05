@@ -187,6 +187,7 @@ class ApiSafetyTests(unittest.TestCase):
             cls.direct_chat = importlib.import_module("api.direct_chat")
             cls.groups = importlib.import_module("api.groups")
             cls.google_oauth = importlib.import_module("api.google_oauth")
+            cls.memories = importlib.import_module("api.memories")
             cls.schedules = importlib.import_module("api.schedules")
             cls.account = importlib.import_module("api.account")
 
@@ -490,7 +491,7 @@ class ApiSafetyTests(unittest.TestCase):
         }
 
         with patch.object(
-            self.account, "FROGBOT_MEMORY_ID", "FrogBotMemory-abcdefghij"
+            self.memories, "FROGBOT_MEMORY_ID", "FrogBotMemory-abcdefghij"
         ):
             result = self.account._delete_user_memory("user-1")
 
@@ -509,7 +510,9 @@ class ApiSafetyTests(unittest.TestCase):
                 "list_sessions",
                 side_effect=self.agentcore.exceptions.ResourceNotFoundException(),
             ),
-            patch.object(self.account, "FROGBOT_MEMORY_ID", "FrogBotMemory-abcdefghij"),
+            patch.object(
+                self.memories, "FROGBOT_MEMORY_ID", "FrogBotMemory-abcdefghij"
+            ),
         ):
             result = self.account._delete_user_memory("user-without-memory")
 

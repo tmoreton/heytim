@@ -7,7 +7,7 @@ from typing import Any
 import boto3
 from botocore.config import Config
 
-MAX_HISTORY_MESSAGES = 40
+MAX_HISTORY_MESSAGES = 100
 MAX_MESSAGE_CHARS = 12_000
 MAX_ATTACHMENTS = 5
 MAX_ATTACHMENT_BYTES = 4_500_000

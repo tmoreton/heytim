@@ -15,6 +15,7 @@ import type { SharedLink } from '@/lib/types';
 type Props = {
   demo: boolean;
   onClose: () => void;
+  onOpenMemory: () => void;
   onOpenSkills: () => void;
   onListShares: () => Promise<SharedLink[]>;
   onRevokeShare: (token: string) => Promise<void>;
@@ -32,6 +33,7 @@ const kindLabel: Record<SharedLink['kind'], string> = {
 export function AccountSettings({
   demo,
   onClose,
+  onOpenMemory,
   onOpenSkills,
   onListShares,
   onRevokeShare,
@@ -101,6 +103,22 @@ export function AccountSettings({
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Manage</Text>
+            {!demo ? (
+              <Pressable
+                accessibilityLabel="Open memory"
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.settingsRow, pressed && styles.pressed]}
+                onPress={onOpenMemory}>
+                <View style={styles.memoryMark}>
+                  <Text style={styles.memoryMarkText}>M</Text>
+                </View>
+                <View style={styles.settingsText}>
+                  <Text style={styles.settingsTitle}>Memory</Text>
+                  <Text style={styles.settingsCopy}>Review, edit, forget, or download what your bots remember</Text>
+                </View>
+                <Text style={styles.chevron}>›</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityLabel="Open skills and tools"
               accessibilityRole="button"
@@ -198,6 +216,8 @@ const styles = StyleSheet.create({
   settingsRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 8 },
   skillMark: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#E0EDE6', alignItems: 'center', justifyContent: 'center' },
   skillMarkText: { color: '#007A3D', fontSize: 14, fontWeight: '900' },
+  memoryMark: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#EEE9FA', alignItems: 'center', justifyContent: 'center' },
+  memoryMarkText: { color: '#6C5CE7', fontSize: 14, fontWeight: '900' },
   settingsText: { flex: 1, minWidth: 0 },
   settingsTitle: { color: '#282722', fontSize: 14, fontWeight: '700' },
   settingsCopy: { color: '#8B877F', fontSize: 12, marginTop: 3 },

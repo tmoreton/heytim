@@ -27,6 +27,7 @@ from .direct_chat import (
     _run_schedule_now,
     _send_message,
 )
+from .google_oauth import _begin_gmail_authorization, _gmail_callback
 from .group_messages import _list_group_messages, _send_group_message
 from .groups import (
     _create_group,
@@ -36,7 +37,12 @@ from .groups import (
     _remove_group_member,
     _update_group,
 )
-from .google_oauth import _begin_gmail_authorization, _gmail_callback
+from .memories import (
+    _delete_user_memory_record,
+    _export_user_memories,
+    _list_user_memories,
+    _update_user_memory,
+)
 from .schedules import (
     _create_schedule,
     _delete_schedule,
@@ -103,6 +109,26 @@ def handler(event: dict, _context: Any) -> dict:
             return _response(200, _bootstrap(user_id))
         if method == "GET" and path == "/connections":
             return _response(200, _connections(user_id))
+        if method == "GET" and path == "/memory":
+            return _response(200, _list_user_memories(user_id))
+        if method == "POST" and path == "/memory/export":
+            return _response(200, _export_user_memories(user_id))
+        if method == "PUT" and path.startswith("/memory/"):
+            return _response(
+                200,
+                _update_user_memory(
+                    user_id,
+                    params.get("memoryRecordId", ""),
+                    _body(event),
+                ),
+            )
+        if method == "DELETE" and path.startswith("/memory/"):
+            return _response(
+                200,
+                _delete_user_memory_record(
+                    user_id, params.get("memoryRecordId", "")
+                ),
+            )
         if method == "POST" and path == "/connections/gmail/authorization":
             return _response(
                 200, _begin_gmail_authorization(user_id, _body(event))

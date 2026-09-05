@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 import test_api_safety
 
-
 GOOGLE_ENV = {
     "GOOGLE_OAUTH_SECRET_ARN": (
         "arn:aws:secretsmanager:us-east-1:123:secret:"

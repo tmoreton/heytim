@@ -86,6 +86,13 @@ The deployed runtime starts in `services/agent-runtime/main.py`. Read its suppor
 One runtime serves every bot. Bot name, prompt, tools, skill versions, user identity, and conversation
 identity arrive in the request rather than being hard-coded into separate deployments.
 
+Direct chats have two context layers. The latest 50 turns are sent verbatim. If that material reaches 85% of the
+model context window, Strands automatically summarizes the oldest 30% and protects the newest 10 messages. AgentCore
+separately extracts durable preferences and facts for the person plus topic summaries for each stable bot session.
+The app's Account → Memory screen lists those records, verifies ownership before every edit or deletion, and creates a
+portable JSON download. Raw AgentCore events expire after 30 days, while extracted records stay until the user changes
+or removes them.
+
 ## 5. Understand configuration and infrastructure
 
 `agentcore/agentcore.json` is the source of truth for AgentCore resources. Read the matching types in

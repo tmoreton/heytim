@@ -35,6 +35,8 @@ import type {
   Invitation,
   InvitePreview,
   Message,
+  MemoryRecord,
+  MemorySnapshot,
   ScheduledTask,
   ScheduledTaskDraft,
   SharedLink,
@@ -268,6 +270,23 @@ export const createApi = (demo: boolean) => ({
   },
   sharedLinks: async (): Promise<SharedLink[]> =>
     demo ? [] : request<{ shares: SharedLink[] }>('/shares').then((value) => value.shares),
+  memories: async (): Promise<MemorySnapshot> =>
+    demo ? { records: [], rawConversationRetentionDays: 30 } : request<MemorySnapshot>('/memory'),
+  updateMemory: async (recordId: string, content: string): Promise<MemoryRecord> => {
+    if (demo) throw new Error('Sign in to manage memory.');
+    return request<MemoryRecord>(`/memory/${encodeURIComponent(recordId)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    });
+  },
+  deleteMemory: async (recordId: string): Promise<void> => {
+    if (demo) return;
+    await request(`/memory/${encodeURIComponent(recordId)}`, { method: 'DELETE' });
+  },
+  exportMemory: async (): Promise<string> => {
+    if (demo) throw new Error('Sign in to export memory.');
+    return request<{ url: string }>('/memory/export', { method: 'POST' }).then((value) => value.url);
+  },
   revokeShare: async (token: string): Promise<void> => {
     if (demo) return;
     await request(`/shares/${encodeURIComponent(token)}`, { method: 'DELETE' });

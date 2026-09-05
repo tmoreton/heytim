@@ -73,11 +73,20 @@ Stan and Strands stay behind this boundary so the mobile/API layers do not dupli
 AgentCore OpenTelemetry remains enabled for errors, timings, token usage, and tool activity, while both the
 AWS model instrumentation and Strands tracer redact prompt, response, tool payload, and attachment content.
 
-Direct conversations use stable, hashed AgentCore actor and session identifiers. AgentCore Memory
-recalls user preferences and facts across bots and session summaries within a conversation. Browser
+Direct conversations use stable, hashed AgentCore actor and session identifiers. The worker supplies the latest
+50 completed turns, and the runtime's automatic context manager starts summarizing at 85% of the model window. It
+condenses the oldest 30% while preserving at least the newest 10 messages. Earlier conversation topics remain in
+AgentCore session summaries and are retrieved by relevance, so falling outside the recent window does not make them
+unavailable. AgentCore Memory also recalls user preferences and facts across bots. Browser
 and code-interpreter sandboxes are named by the stable conversation ID and reconnect to READY sessions
 after runtime process replacement. Generated files use a turn-scoped S3 prefix and are attached to the
 completed reply only after the worker verifies and records them.
+
+The authenticated Memory screen makes extracted preferences, facts, and per-bot summaries readable to their owner.
+Each item can be corrected or forgotten, and the complete set can be downloaded as portable JSON through a short-lived
+private URL. Raw conversation events expire after 30 days; extracted records remain under the user's hashed namespace
+until the user changes them, forgets them, or deletes the account. Group memory stays explicit and owner-edited rather
+than being mixed into a participant's private memory.
 
 Public skills contain versioned instructions plus approved tool references, never executable code. Managed
 FroggyBot integrations stay in narrow AgentCore Gateway targets. A user may independently add a private HTTPS MCP
@@ -100,6 +109,7 @@ the backend then validates and caches releases before exposing only public metad
 - Attachments and generated artifacts are bound to the current user's hashed storage prefix.
 - Interactive tools cannot run in scheduled or group work, and direct browser turns require explicit approval.
 - Account deletion revokes active shares, cancels pending work, deletes user data and all S3 versions, and disables the Cognito identity.
+- A memory record can be read, changed, deleted, or exported only after its AgentCore namespace is verified against the authenticated user.
 - User-visible notifications are queued only after the final answer, never for thinking updates.
 
 ## Verification

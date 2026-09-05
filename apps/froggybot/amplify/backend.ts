@@ -386,6 +386,18 @@ const memoryArn = stack.formatArn({
   resourceName: memoryId,
   arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
 });
+apiFunction.addToRolePolicy(
+  new PolicyStatement({
+    effect: Effect.ALLOW,
+    actions: [
+      'bedrock-agentcore:ListMemoryRecords',
+      'bedrock-agentcore:GetMemoryRecord',
+      'bedrock-agentcore:BatchUpdateMemoryRecords',
+      'bedrock-agentcore:DeleteMemoryRecord',
+    ],
+    resources: [memoryArn],
+  }),
+);
 workerFunction.addToRolePolicy(
   new PolicyStatement({
     effect: Effect.ALLOW,
@@ -500,6 +512,10 @@ for (const [method, routePath] of [
   [HttpMethod.POST, '/uploads/{fileId}/complete'],
   [HttpMethod.GET, '/files/{fileId}/download'],
   [HttpMethod.DELETE, '/account'],
+  [HttpMethod.GET, '/memory'],
+  [HttpMethod.POST, '/memory/export'],
+  [HttpMethod.PUT, '/memory/{memoryRecordId}'],
+  [HttpMethod.DELETE, '/memory/{memoryRecordId}'],
   [HttpMethod.GET, '/shares'],
   [HttpMethod.POST, '/shares'],
   [HttpMethod.DELETE, '/shares/{token}'],

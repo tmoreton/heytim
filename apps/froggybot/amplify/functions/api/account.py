@@ -8,12 +8,12 @@ from boto3.dynamodb.conditions import Attr
 from shared.memory_identity import direct_session_id, memory_actor_id, scoped_session_id
 
 from .groups import _purge_group
+from .memories import _delete_user_memory
 from .schedules import _delete_remote_schedule
 from .support import (
     AGENT_RUNTIME_ARN,
     AGENT_RUNTIME_QUALIFIER,
     FILES_BUCKET_NAME,
-    FROGBOT_MEMORY_ID,
     QUEUE_URL,
     USER_POOL_ID,
     _delete_share_record,
@@ -160,84 +160,6 @@ def _stop_tool_sessions(session_ids: set[str]) -> None:
                 browserIdentifier="aws.browser.v1",
                 sessionId=item["sessionId"],
             )
-
-
-def _memory_pages(operation: str, result_key: str, **request) -> list[dict]:
-    if not FROGBOT_MEMORY_ID:
-        return []
-    items = []
-    while True:
-        try:
-            response = getattr(agentcore, operation)(
-                memoryId=FROGBOT_MEMORY_ID, maxResults=100, **request
-            )
-        except agentcore.exceptions.ResourceNotFoundException:
-            return items
-        items.extend(response.get(result_key, []))
-        next_token = response.get("nextToken")
-        if not isinstance(next_token, str) or not next_token:
-            return items
-        request["nextToken"] = next_token
-
-
-def _delete_user_memory(user_id: str) -> dict[str, int]:
-    """Delete both raw events and extracted records for one hashed actor."""
-    if not FROGBOT_MEMORY_ID:
-        return {"events": 0, "records": 0}
-    actor_id = memory_actor_id(user_id)
-    sessions = _memory_pages("list_sessions", "sessionSummaries", actorId=actor_id)
-    events = []
-    for session in sessions:
-        session_id = session.get("sessionId")
-        if not isinstance(session_id, str):
-            continue
-        events.extend(
-            _memory_pages(
-                "list_events",
-                "events",
-                actorId=actor_id,
-                sessionId=session_id,
-                includePayloads=False,
-            )
-        )
-    for event in events:
-        session_id = event.get("sessionId")
-        event_id = event.get("eventId")
-        if isinstance(session_id, str) and isinstance(event_id, str):
-            agentcore.delete_event(
-                memoryId=FROGBOT_MEMORY_ID,
-                actorId=actor_id,
-                sessionId=session_id,
-                eventId=event_id,
-            )
-
-    records_by_id = {}
-    for namespace_path in (
-        f"/facts/{actor_id}/",
-        f"/preferences/{actor_id}/",
-        f"/summaries/{actor_id}/",
-    ):
-        records = _memory_pages(
-            "list_memory_records",
-            "memoryRecordSummaries",
-            namespacePath=namespace_path,
-        )
-        for record in records:
-            record_id = record.get("memoryRecordId")
-            if isinstance(record_id, str):
-                records_by_id[record_id] = {"memoryRecordId": record_id}
-    records = list(records_by_id.values())
-    for offset in range(0, len(records), 100):
-        response = agentcore.batch_delete_memory_records(
-            memoryId=FROGBOT_MEMORY_ID,
-            records=records[offset : offset + 100],
-        )
-        failures = response.get("failedRecords", [])
-        if failures:
-            raise RuntimeError(
-                f"AgentCore Memory did not delete {len(failures)} records"
-            )
-    return {"events": len(events), "records": len(records)}
 
 
 def _delete_user_files(user_id: str) -> int:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
+from strands.agent.conversation_manager import SummarizingConversationManager
 from strands_stan import harness_agent
 
 from frogbot_runtime.configuration import bot_configuration
@@ -49,6 +50,11 @@ async def invoke(payload, context):
         memory=False,
         memory_manager=memories,
         context_management="auto",
+        conversation_manager=SummarizingConversationManager(
+            summary_ratio=0.3,
+            preserve_recent_messages=10,
+            proactive_compression={"compression_threshold": 0.85},
+        ),
     )
     completed = False
     try:

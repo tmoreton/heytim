@@ -69,7 +69,7 @@ order for the preview app, live request path, AgentCore runtime, infrastructure,
 - Three starter bots, six focused public skills, and a dynamically refreshed capability catalog
 - Private HTTPS MCP connections with per-user bearer-token or API-key credentials
 - Bot snapshots, conversation snapshots, and live group invitations with 30-day links
-- Long-term AgentCore memory for user preferences, facts, and conversation summaries
+- User-owned AgentCore memory for preferences, facts, and conversation summaries, with in-app review, editing, forgetting, and JSON export
 - Persistent two-hour browser and code-interpreter sessions; browser use requires one-time approval for each turn
 - DynamoDB persistence, encrypted queues and topics, retries, work leases, cancellation, and a dead-letter queue
 - CloudTrail audit logs, API access logs, X-Ray tracing, service alarms, and a CloudWatch dashboard

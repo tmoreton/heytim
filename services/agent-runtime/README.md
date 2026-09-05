@@ -66,4 +66,7 @@ agentcore invoke --dev 'What can you do?'
 The production worker sends structured invocation payloads containing `messages`, `bot`, and, for
 direct turns, trusted `memory` and `artifacts` envelopes. The runtime validates every field, permits
 attachments only on the latest user message, binds file paths to that user's identity, and strips any
-trailing tool-use block before invoking Strands.
+trailing tool-use block before invoking Strands. Direct payloads contain at most 100 recent messages. Strands
+automatically compacts at 85% of the model context window by summarizing the oldest 30% and preserving at least the
+newest 10 messages. AgentCore independently extracts and retrieves preferences, facts, and per-session topic summaries
+so older topics remain available after they leave the recent-message window.
