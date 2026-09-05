@@ -68,7 +68,10 @@ const normalizeCatalog = (value: unknown): PublicCatalog => {
 };
 
 const fetchCatalog = async (url: string) => {
-  const response = await fetch(url, { headers: { accept: 'application/json' } });
+  const response = await fetch(url, {
+    cache: 'no-cache',
+    headers: { accept: 'application/json' },
+  });
   if (!response.ok) throw new Error(`The capability directory is unavailable (${response.status}).`);
   return normalizeCatalog(await response.json());
 };
