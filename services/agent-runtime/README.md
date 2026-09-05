@@ -31,9 +31,23 @@ Tools:
 
 Skills:
 
-- `researcher`
-- `writer`
-- `planner`
+- `trip-planner`
+- `event-planner`
+- `group-decision`
+- `shared-budget`
+- `deep-research`
+- `data-analyst`
+
+## Models
+
+The runtime uses OpenRouter first and Bedrock only when OpenRouter cannot begin a response. The API key is stored in
+AgentCore Identity as `FrogBot_OpenRouter`; it is never placed in runtime environment variables. Model selection stays
+deploy-time configurable through these non-secret values in `agentcore/agentcore.json`:
+
+- `FROGBOT_PRIMARY_MODEL_ID` — defaults to `z-ai/glm-5.3-flash`
+- `FROGBOT_FALLBACK_MODEL_ID` — the Bedrock model used if the primary provider is unavailable
+- `FROGBOT_OPENROUTER_BASE_URL` — the OpenRouter OpenAI-compatible endpoint
+- `FROGBOT_OPENROUTER_CREDENTIAL_PROVIDER` — the AgentCore Identity credential name
 
 ## Develop
 

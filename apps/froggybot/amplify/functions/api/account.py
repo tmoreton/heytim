@@ -26,6 +26,7 @@ from .support import (
     _user_pk,
     _user_state_key,
     agentcore,
+    catalog,
     cognito,
     invite_access_table,
     s3,
@@ -379,6 +380,7 @@ def _delete_account(user_id: str, username: str) -> dict:
         _delete_share_record(user_id, share)
     _remove_invite_access_for_user(user_id)
     deleted_skills = _remove_owned_skills(user_id, user_items)
+    deleted_connections = catalog.delete_connection_secrets(user_items)
     deleted_memory = _delete_user_memory(user_id)
     deleted_files = _delete_user_files(user_id)
 
@@ -416,6 +418,7 @@ def _delete_account(user_id: str, username: str) -> dict:
     return {
         "deleted": True,
         "deletedSkills": deleted_skills,
+        "deletedConnections": deleted_connections,
         "deletedMemory": deleted_memory,
         "deletedFileVersions": deleted_files,
     }

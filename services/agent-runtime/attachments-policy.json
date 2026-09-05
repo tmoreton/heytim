@@ -15,6 +15,12 @@
       "Effect": "Allow",
       "Action": "bedrock:InvokeModel",
       "Resource": "arn:aws:bedrock:us-west-2::foundation-model/stability.stable-image-core-v1:1"
+    },
+    {
+      "Sid": "ReadFrogBotConnectionCredentials",
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/connections/*"
     }
   ]
 }

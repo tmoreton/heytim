@@ -39,7 +39,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             user_id, bot_id, turn_key, turn, bot, turn["assistantText"]
         )
         return
-    approval_tools = catalog.approval_tool_names(bot.get("toolIds", []))
+    approval_tools = catalog.approval_tool_names(user_id, bot.get("toolIds", []))
     if turn.get("source") == "schedule" and approval_tools:
         if not is_claimable(turn.get("status")):
             return

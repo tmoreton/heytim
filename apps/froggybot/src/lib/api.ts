@@ -15,9 +15,11 @@ import {
   demoSaveBot,
   demoSaveSkill,
   demoDeleteSchedule,
+  demoDeleteConnection,
   demoListSchedules,
   demoRunSchedule,
   demoSaveSchedule,
+  demoSaveConnection,
   demoSend,
   demoSendGroup,
 } from './demo';
@@ -26,6 +28,8 @@ import type {
   Bootstrap,
   Bot,
   BotDraft,
+  Connection,
+  ConnectionDraft,
   Group,
   GroupDraft,
   Invitation,
@@ -301,6 +305,17 @@ export const createApi = (demo: boolean) => ({
   importSkill: async (token: string): Promise<SkillDetail> => {
     if (demo) return demoImportSkill(token);
     return request<SkillDetail>(`/skill-shares/${encodeURIComponent(token)}/import`, { method: 'POST' });
+  },
+  saveConnection: async (draft: ConnectionDraft, connectionId?: string): Promise<Connection> =>
+    demo
+      ? demoSaveConnection(draft, connectionId)
+      : request<Connection>(connectionId ? `/connections/${encodeURIComponent(connectionId)}` : '/connections', {
+          method: connectionId ? 'PUT' : 'POST',
+          body: JSON.stringify(draft),
+        }),
+  deleteConnection: async (connectionId: string): Promise<void> => {
+    if (demo) return demoDeleteConnection(connectionId);
+    await request(`/connections/${encodeURIComponent(connectionId)}`, { method: 'DELETE' });
   },
 });
 

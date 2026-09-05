@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ipaddress
 import re
+import urllib.parse
 from datetime import UTC, datetime
 from typing import Any
 
@@ -52,6 +54,34 @@ def _validate_text(value: Any, field: str, maximum: int) -> str:
     if len(clean) > maximum:
         raise CatalogError(f"{field} must be at most {maximum} characters")
     return clean
+
+
+def _validate_mcp_endpoint(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value) > 500:
+        raise CatalogError("MCP server URL is required")
+    clean = value.strip()
+    parsed = urllib.parse.urlsplit(clean)
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.port not in {None, 443}
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise CatalogError("MCP server must use a plain HTTPS URL on port 443")
+    hostname = parsed.hostname.rstrip(".").lower()
+    if hostname == "localhost" or hostname.endswith((".local", ".internal")):
+        raise CatalogError("MCP server must use a public hostname")
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        pass
+    else:
+        if not address.is_global:
+            raise CatalogError("MCP server must use a public hostname")
+    return urllib.parse.urlunsplit(("https", hostname, parsed.path or "/", "", ""))
 
 
 def _validate_catalog_metadata(value: dict, *, actions: bool = False) -> dict:
@@ -120,6 +150,31 @@ def _validate_runtime_binding(value: Any) -> dict:
         ):
             raise CatalogError("gateway tool operations are invalid")
         return {"kind": kind, "operations": operations}
+    if kind == "mcp":
+        endpoint = _validate_mcp_endpoint(value.get("endpoint"))
+        auth_type = value.get("authType", "none")
+        if auth_type == "none":
+            return {"kind": kind, "endpoint": endpoint, "authType": "none"}
+        secret_arn = value.get("secretArn")
+        header_name = value.get("headerName")
+        header_prefix = value.get("headerPrefix", "")
+        if (
+            auth_type not in {"bearer", "api_key"}
+            or not isinstance(secret_arn, str)
+            or not secret_arn.startswith("arn:aws:secretsmanager:")
+            or not isinstance(header_name, str)
+            or not re.fullmatch(r"^(Authorization|X-[A-Za-z0-9-]{1,60})$", header_name)
+            or header_prefix not in {"", "Bearer "}
+        ):
+            raise CatalogError("MCP connection authentication is invalid")
+        return {
+            "kind": kind,
+            "endpoint": endpoint,
+            "authType": auth_type,
+            "secretArn": secret_arn,
+            "headerName": header_name,
+            "headerPrefix": header_prefix,
+        }
     allowed_names = RUNTIME_NAMES.get(kind)
     name = value.get("name")
     if not allowed_names or name not in allowed_names:
@@ -143,5 +198,30 @@ def _public_skill(item: dict) -> dict:
         "author",
         "tags",
         "featured",
+    )
+    return {key: item[key] for key in keys if key in item}
+
+
+def _public_tool(item: dict) -> dict:
+    keys = (
+        "id",
+        "name",
+        "description",
+        "provider",
+        "risk",
+        "category",
+        "author",
+        "tags",
+        "featured",
+        "actions",
+        "source",
+        "editable",
+        "relationship",
+        "endpoint",
+        "authType",
+        "headerName",
+        "hasCredential",
+        "connectionStatus",
+        "updatedAt",
     )
     return {key: item[key] for key in keys if key in item}

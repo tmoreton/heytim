@@ -144,6 +144,26 @@ export type Capability = {
   tags?: string[];
   featured?: boolean;
   actions?: string[];
+  source?: 'official' | 'user';
+  editable?: boolean;
+};
+
+export type ConnectionAuthType = 'none' | 'bearer' | 'api_key';
+
+export type Connection = Capability & {
+  source: 'user';
+  editable: true;
+  endpoint: string;
+  authType: ConnectionAuthType;
+  headerName?: string;
+  hasCredential?: boolean;
+  connectionStatus: 'connected';
+};
+
+export type ConnectionDraft = Pick<Connection, 'name' | 'description' | 'endpoint' | 'authType'> & {
+  risk: 'read' | 'interactive';
+  headerName: string;
+  credential: string;
 };
 
 export type Skill = Capability & {

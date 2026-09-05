@@ -20,6 +20,7 @@ from .bots import (
     _messages_from_turns,
     _update_bot,
 )
+from .connections import _connections, _delete_connection, _save_connection
 from .direct_chat import (
     _approve_bot_turn,
     _cancel_bot_turn,
@@ -97,6 +98,19 @@ def handler(event: dict, _context: Any) -> dict:
 
         if method == "GET" and path == "/bootstrap":
             return _response(200, _bootstrap(user_id))
+        if method == "GET" and path == "/connections":
+            return _response(200, _connections(user_id))
+        if method == "POST" and path == "/connections":
+            return _response(201, _save_connection(user_id, _body(event)))
+        if method == "PUT" and path.startswith("/connections/"):
+            return _response(
+                200,
+                _save_connection(user_id, _body(event), params.get("connectionId", "")),
+            )
+        if method == "DELETE" and path.startswith("/connections/"):
+            return _response(
+                200, _delete_connection(user_id, params.get("connectionId", ""))
+            )
         if method == "POST" and path == "/groups":
             return _response(201, _create_group(user_id, display_name, _body(event)))
         if method == "PUT" and path.startswith("/groups/") and "/members/" not in path:

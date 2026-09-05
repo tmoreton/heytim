@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
   groupRow: { alignItems: 'flex-end', gap: 7 },
   assistantRow: { justifyContent: 'flex-start' },
   userRow: { justifyContent: 'flex-end' },
-  column: { maxWidth: '84%', alignItems: 'flex-start' },
+  column: { width: '84%', maxWidth: 650, flexShrink: 1, alignItems: 'flex-start' },
   mineColumn: { alignItems: 'flex-end' },
   author: { color: '#77736B', fontSize: 10, fontWeight: '600', marginBottom: 3, marginHorizontal: 6 },
   mineAuthor: { color: '#007A3D' },

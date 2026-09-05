@@ -23,6 +23,7 @@ from strands_tools.browser import AgentCoreBrowser
 from strands_tools.code_interpreter import AgentCoreCodeInterpreter
 
 from .artifacts import artifact_tool, image_tool
+from .mcp_connections import connection_client, validated_connection_binding
 
 MAX_SKILL_INSTRUCTIONS_CHARS = 20_000
 MAX_SKILLS = 12
@@ -200,6 +201,8 @@ STAN_BUILTIN_TOOLS = {"web_fetch"}
 STAN_PLUGINS = {"todos"}
 STAN_SUBAGENTS = {"generalist"}
 AGENTCORE_TOOLS = {"browser", "code_interpreter"}
+
+
 @dataclass(frozen=True)
 class CapabilityConfiguration:
     tools: list[Any]
@@ -319,6 +322,8 @@ def tool_bindings(bot: dict) -> list[dict]:
             ):
                 raise ValueError(f"gateway operations are invalid: {tool_id}")
             binding = {"id": tool_id, "kind": kind, "operations": operations}
+        elif kind == "mcp":
+            binding = validated_connection_binding(tool_id, runtime)
         else:
             name = runtime.get("name")
             allowed = {
@@ -400,6 +405,7 @@ def resolve_capabilities(
     gateway_client = _gateway_client(gateway_operations)
     if gateway_client:
         tools.append(gateway_client)
+    tools.extend(connection_client(item) for item in bindings if item["kind"] == "mcp")
 
     skill_ids = bot.get("skillIds", [])
     if not isinstance(skill_ids, list) or not all(

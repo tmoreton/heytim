@@ -60,19 +60,20 @@ def _bot_values(user_id: str, value: dict, previous: dict | None = None) -> dict
             if skill:
                 required_tools.extend(skill.get("requiredToolIds", []))
         if "toolIds" in value:
-            extra_tool_ids = catalog.validate_tools(value.get("toolIds"))
+            extra_tool_ids = catalog.validate_tools(user_id, value.get("toolIds"))
         elif isinstance(previous.get("extraToolIds"), list):
-            extra_tool_ids = catalog.validate_tools(previous["extraToolIds"])
+            extra_tool_ids = catalog.validate_tools(user_id, previous["extraToolIds"])
         else:
             required_tool_set = set(required_tools)
             extra_tool_ids = catalog.validate_tools(
+                user_id,
                 [
                     tool_id
                     for tool_id in previous.get("toolIds", [])
                     if tool_id not in required_tool_set
-                ]
+                ],
             )
-        tool_ids = catalog.validate_tools([*extra_tool_ids, *required_tools])
+        tool_ids = catalog.validate_tools(user_id, [*extra_tool_ids, *required_tools])
     except CatalogError as exc:
         raise ApiError(400, str(exc)) from exc
     return {
@@ -293,7 +294,7 @@ def _bootstrap(user_id: str) -> dict:
     return {
         "bots": bots,
         "groups": _list_groups(user_id),
-        "tools": catalog.list_tools(),
+        "tools": catalog.list_tools(user_id),
         "skills": catalog.list_skills(user_id),
     }
 
@@ -312,7 +313,7 @@ def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:
             "lastMessageAt": previous.get("lastMessageAt", previous["createdAt"]),
         }
     )
-    if catalog.approval_tool_names(values["toolIds"]) and _schedule_items(
+    if catalog.approval_tool_names(user_id, values["toolIds"]) and _schedule_items(
         user_id, bot_id
     ):
         raise ApiError(

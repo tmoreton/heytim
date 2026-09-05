@@ -16,6 +16,7 @@ from .catalog_rules import (
     CatalogError,
     _now,
     _public_skill,
+    _public_tool,
     _validate_id,
     _validate_runtime_binding,
     _validate_text,
@@ -28,6 +29,7 @@ from .catalog_sync import (
     CatalogSyncMixin,
     _trusted_catalog_url,
 )
+from .connections import ConnectionMixin
 
 PUBLIC_WEB_BASE_URL = os.environ.get("PUBLIC_WEB_BASE_URL", "https://froggybot.com")
 CATALOG_REPOSITORY_URL = "https://github.com/tmoreton/frogbot-skills"
@@ -41,43 +43,37 @@ __all__ = [
 ]
 
 
-class CatalogService(CatalogSyncMixin):
-    def __init__(self, table: Any):
+class CatalogService(CatalogSyncMixin, ConnectionMixin):
+    def __init__(self, table: Any, secrets_manager: Any = None):
         self.table = table
+        self.secrets_manager = secrets_manager
 
-    def list_tools(self) -> list[dict]:
+    def _official_tool_items(self) -> list[dict]:
         self.sync_official()
-        items = self.table.query(
+        return self.table.query(
             KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
             ExpressionAttributeValues={":pk": "SYSTEM#TOOLS", ":prefix": "TOOL#"},
         ).get("Items", [])
+
+    def _available_tool_items(self, user_id: str | None = None) -> list[dict]:
+        items = self._official_tool_items()
+        if user_id:
+            items.extend(self._connection_items(user_id))
+        return [item for item in items if item.get("enabled", True) is True]
+
+    def list_tools(self, user_id: str | None = None) -> list[dict]:
         return sorted(
             (
-                {
-                    key: item[key]
-                    for key in (
-                        "id",
-                        "name",
-                        "description",
-                        "provider",
-                        "risk",
-                        "category",
-                        "author",
-                        "tags",
-                        "featured",
-                        "actions",
-                    )
-                    if key in item
-                }
-                for item in items
-                if item.get("enabled") is True
+                _public_tool(item)
+                for item in self._available_tool_items(user_id)
+                if item.get("listed", True) is True
             ),
             key=lambda item: item["name"].lower(),
         )
 
     def public_catalog(self) -> dict:
         tools = self.list_tools()
-        tool_ids = {tool["id"] for tool in tools}
+        tool_ids = {tool["id"] for tool in self._available_tool_items()}
         official = self.table.query(
             KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
             ExpressionAttributeValues={":pk": "SYSTEM#SKILLS", ":prefix": "SKILL#"},
@@ -107,7 +103,9 @@ class CatalogService(CatalogSyncMixin):
             KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
             ExpressionAttributeValues={":pk": f"USER#{user_id}", ":prefix": "SKILL#"},
         ).get("Items", [])
-        available_tool_ids = {item["id"] for item in self.list_tools()}
+        available_tool_ids = {
+            item["id"] for item in self._available_tool_items(user_id)
+        }
         by_id = {
             item["id"]: _public_skill(item)
             for item in official + library
@@ -141,7 +139,9 @@ class CatalogService(CatalogSyncMixin):
         if len(unique) > MAX_SKILLS_PER_BOT:
             raise CatalogError(f"A bot can use at most {MAX_SKILLS_PER_BOT} skills")
         existing = existing or {}
-        available_tool_ids = {item["id"] for item in self.list_tools()}
+        available_tool_ids = {
+            item["id"] for item in self._available_tool_items(user_id)
+        }
         pinned: dict[str, int] = {}
         for skill_id in unique:
             _validate_id(skill_id, "skill id")
@@ -160,13 +160,13 @@ class CatalogService(CatalogSyncMixin):
                 pinned[skill_id] = int(listing["version"])
         return pinned
 
-    def validate_tools(self, tool_ids: Any) -> list[str]:
+    def validate_tools(self, user_id: str, tool_ids: Any) -> list[str]:
         if not isinstance(tool_ids, list) or not all(
             isinstance(item, str) for item in tool_ids
         ):
             raise CatalogError("toolIds must be a list")
         unique = list(dict.fromkeys(tool_ids))
-        allowed = {item["id"] for item in self.list_tools()}
+        allowed = {item["id"] for item in self._available_tool_items(user_id)}
         unknown = set(unique) - allowed
         if unknown:
             raise CatalogError(f"Unknown tools: {', '.join(sorted(unknown))}")
@@ -174,12 +174,9 @@ class CatalogService(CatalogSyncMixin):
             raise CatalogError(f"A bot can use at most {MAX_TOOLS_PER_BOT} tools")
         return unique
 
-    def resolve_tools_for_runtime(self, tool_ids: Any) -> list[dict]:
-        selected = self.validate_tools(tool_ids)
-        items = self.table.query(
-            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
-            ExpressionAttributeValues={":pk": "SYSTEM#TOOLS", ":prefix": "TOOL#"},
-        ).get("Items", [])
+    def resolve_tools_for_runtime(self, user_id: str, tool_ids: Any) -> list[dict]:
+        selected = self.validate_tools(user_id, tool_ids)
+        items = self._available_tool_items(user_id)
         by_id = {item.get("id"): item for item in items}
         resolved = []
         for tool_id in selected:
@@ -198,11 +195,11 @@ class CatalogService(CatalogSyncMixin):
             )
         return resolved
 
-    def approval_tool_names(self, tool_ids: Any) -> list[str]:
-        selected = set(self.validate_tools(tool_ids))
+    def approval_tool_names(self, user_id: str, tool_ids: Any) -> list[str]:
+        selected = set(self.validate_tools(user_id, tool_ids))
         return [
             item["name"]
-            for item in self.list_tools()
+            for item in self.list_tools(user_id)
             if item["id"] in selected and item.get("risk") == "interactive"
         ]
 
@@ -230,7 +227,8 @@ class CatalogService(CatalogSyncMixin):
             value.get("instructions"), "instructions", MAX_SKILL_INSTRUCTIONS
         )
         required_tools = _validate_tool_ids(
-            value.get("requiredToolIds", []), {item["id"] for item in self.list_tools()}
+            value.get("requiredToolIds", []),
+            {item["id"] for item in self._available_tool_items(user_id)},
         )
         visibility = value.get("visibility", "private")
         if visibility not in {"private", "link"}:
@@ -297,6 +295,13 @@ class CatalogService(CatalogSyncMixin):
 
     def create_share(self, user_id: str, skill_id: str) -> dict:
         skill = self.get_skill(user_id, skill_id)
+        private_tool_ids = {
+            connection["id"] for connection in self.list_connections(user_id)
+        }
+        if private_tool_ids.intersection(skill.get("requiredToolIds", [])):
+            raise CatalogError(
+                "Remove private connections from this skill before sharing it"
+            )
         token = secrets.token_urlsafe(18)
         created_at = _now()
         expires_at = int(datetime.now(UTC).timestamp()) + 30 * 24 * 60 * 60

@@ -106,7 +106,7 @@ DEFAULT_BOTS = [
         "color": "#58BEAA",
         "prompt": "Act as my chief of staff. Clarify priorities, keep answers concise, and always end with the best next action.",
         "toolIds": ["current_time", "calculator"],
-        "skillIds": ["planner"],
+        "skillIds": ["group-decision"],
     },
     {
         "name": "Research Scout",
@@ -114,7 +114,7 @@ DEFAULT_BOTS = [
         "color": "#6C5CE7",
         "prompt": "Research questions carefully. Separate facts from inference and call out uncertainty instead of guessing.",
         "toolIds": ["web", "calculator"],
-        "skillIds": ["researcher"],
+        "skillIds": ["deep-research"],
     },
     {
         "name": "Draft Partner",
@@ -122,7 +122,7 @@ DEFAULT_BOTS = [
         "color": "#FFAA34",
         "prompt": "Help me write in a direct, warm voice. Return usable drafts and preserve the facts I provide.",
         "toolIds": [],
-        "skillIds": ["writer"],
+        "skillIds": [],
     },
 ]
 

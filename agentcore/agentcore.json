@@ -35,6 +35,22 @@
           "value": "us-west-2"
         },
         {
+          "name": "FROGBOT_PRIMARY_MODEL_ID",
+          "value": "z-ai/glm-5.3-flash"
+        },
+        {
+          "name": "FROGBOT_FALLBACK_MODEL_ID",
+          "value": "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+        },
+        {
+          "name": "FROGBOT_OPENROUTER_BASE_URL",
+          "value": "https://openrouter.ai/api/v1"
+        },
+        {
+          "name": "FROGBOT_OPENROUTER_CREDENTIAL_PROVIDER",
+          "value": "FrogBot_OpenRouter"
+        },
+        {
           "name": "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
           "value": "false"
         },
@@ -104,6 +120,10 @@
     {
       "authorizerType": "ApiKeyCredentialProvider",
       "name": "FrogBotYouTubeApi"
+    },
+    {
+      "authorizerType": "ApiKeyCredentialProvider",
+      "name": "FrogBot_OpenRouter"
     }
   ],
   "evaluators": [],

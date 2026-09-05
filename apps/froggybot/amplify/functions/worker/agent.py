@@ -129,7 +129,7 @@ def _invoke(
             for tool_id in skill.get("requiredToolIds", [])
             if tool_id not in tool_ids
         )
-    resolved_tools = catalog.resolve_tools_for_runtime(tool_ids)
+    resolved_tools = catalog.resolve_tools_for_runtime(user_id, tool_ids)
     payload = {
         "messages": (
             history

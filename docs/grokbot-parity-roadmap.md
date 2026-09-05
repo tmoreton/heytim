@@ -77,7 +77,16 @@ clear, trustworthy room.
 - Cleanup of partial generated files on retries, failures, and cancelled completions
 - Daily, weekday, weekly, and monthly routines with pause and run-now controls
 
-## Priority 3: integration breadth — requires product inputs
+## Priority 3A: private integration foundation — implemented
+
+- Add a private HTTPS MCP server directly in the app without a catalog pull request
+- Keep each connection and credential scoped to its owner
+- Store credentials in Secrets Manager and resolve them only inside the runtime
+- Support unauthenticated servers, bearer tokens, and custom API-key headers
+- Require per-turn approval for connections that may change external data
+- Strip private connections and dependent skills from bot and skill shares
+
+## Priority 3B: provider shortcuts — requires product inputs
 
 - Select the first credentialed providers and define whether each integration is read-only or can change
   external state
@@ -86,8 +95,9 @@ clear, trustworthy room.
   browser approval implicitly
 - Run provider-specific revocation, token-expiry, retry, and audit tests before exposing a connector
 
-Suggested first wave: calendar, email, cloud files, team chat, and project/task tracking. The exact services
-should follow customer demand and available provider credentials.
+Suggested first wave: Google Calendar, Google Drive and documents, maps and places, Notion, email, and Slack.
+Add provider-specific OAuth shortcuts only when they improve on the generic MCP connection flow and customer
+demand justifies their additional maintenance.
 
 ## Priority 4A: richer creation — implemented and deployed
 

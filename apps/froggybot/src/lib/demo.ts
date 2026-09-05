@@ -2,6 +2,8 @@ import type {
   Bootstrap,
   Bot,
   BotDraft,
+  Connection,
+  ConnectionDraft,
   Group,
   GroupDraft,
   Message,
@@ -23,7 +25,7 @@ let bots: Bot[] = [
     prompt: 'Act as my chief of staff. Clarify priorities and always end with the best next action.',
     toolIds: ['current_time', 'calculator'],
     extraToolIds: ['current_time', 'calculator'],
-    skillIds: ['planner'],
+    skillIds: ['group-decision'],
     createdAt: timestamp,
     updatedAt: timestamp,
     lastMessage: 'I pulled the loose ends into one short plan.',
@@ -37,7 +39,7 @@ let bots: Bot[] = [
     prompt: 'Research carefully. Separate facts from inference and call out uncertainty.',
     toolIds: ['web', 'web_search', 'calculator'],
     extraToolIds: ['calculator'],
-    skillIds: ['researcher'],
+    skillIds: ['deep-research'],
     createdAt: timestamp,
     updatedAt: timestamp,
     lastMessage: 'Three strong sources found. The second one is the key.',
@@ -51,7 +53,7 @@ let bots: Bot[] = [
     prompt: 'Help me write in a direct, warm voice. Return usable drafts.',
     toolIds: [],
     extraToolIds: [],
-    skillIds: ['writer'],
+    skillIds: [],
     createdAt: timestamp,
     updatedAt: timestamp,
     lastMessage: 'The launch note is tightened and ready to send.',
@@ -104,6 +106,7 @@ let schedules: ScheduledTask[] = [
 ];
 
 let personalSkills: SkillDetail[] = [];
+let personalConnections: Connection[] = [];
 
 const messages = new Map<string, Message[]>([
   [
@@ -183,7 +186,7 @@ export const demoBootstrap = async (): Promise<Bootstrap> => {
       members: [...group.members],
       bots: [...group.bots],
     })),
-    tools: catalog.tools,
+    tools: [...catalog.tools, ...personalConnections],
     skills: [
       ...catalog.skills,
       ...personalSkills.map(({ instructions: _instructions, ...skill }) => skill),
@@ -438,6 +441,37 @@ export const demoSaveSkill = async (draft: SkillDraft, skillId?: string): Promis
     ? personalSkills.map((item) => (item.id === saved.id ? saved : item))
     : [...personalSkills, saved];
   return saved;
+};
+
+export const demoSaveConnection = async (
+  draft: ConnectionDraft,
+  connectionId?: string,
+): Promise<Connection> => {
+  const existing = personalConnections.find((item) => item.id === connectionId);
+  const saved: Connection = {
+    id: existing?.id ?? `connection_${Date.now()}`,
+    name: draft.name,
+    description: draft.description,
+    endpoint: draft.endpoint,
+    authType: draft.authType,
+    headerName: draft.authType === 'bearer' ? 'Authorization' : draft.headerName,
+    hasCredential: draft.authType === 'none' ? undefined : Boolean(draft.credential || existing?.hasCredential),
+    connectionStatus: 'connected',
+    provider: 'mcp',
+    risk: draft.risk,
+    source: 'user',
+    editable: true,
+  };
+  personalConnections = existing
+    ? personalConnections.map((item) => (item.id === saved.id ? saved : item))
+    : [...personalConnections, saved];
+  return saved;
+};
+
+export const demoDeleteConnection = (connectionId: string): void => {
+  const inUse = bots.some((bot) => bot.toolIds.includes(connectionId));
+  if (inUse) throw new Error('Remove this connection from its FroggyBot before deleting it.');
+  personalConnections = personalConnections.filter((item) => item.id !== connectionId);
 };
 
 export const demoImportSkill = async (_token: string): Promise<SkillDetail> => {

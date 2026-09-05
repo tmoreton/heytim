@@ -86,7 +86,7 @@ def _process_group_agent_reply(
                 group_id, reply_key, reply, bot, reply["text"]
             )
         return reply["text"]
-    if catalog.approval_tool_names(bot.get("toolIds", [])):
+    if catalog.approval_tool_names(bot_owner_id, bot.get("toolIds", [])):
         if not is_claimable(reply.get("status")):
             return None
         lease_owner = _claim_work(reply_key, record)

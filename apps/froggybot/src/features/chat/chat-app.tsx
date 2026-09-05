@@ -37,7 +37,6 @@ type Props = {
 };
 
 const MESSAGE_REFRESH_MS = 900;
-
 const directTurnId = (message: Message) =>
   message.id.endsWith('-assistant')
     ? message.id.slice(0, -'-assistant'.length)
@@ -525,6 +524,7 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
           onLoad={api.skill}
           onSave={api.saveSkill}
           onShare={api.shareSkill}
+          onSaveConnection={api.saveConnection} onDeleteConnection={api.deleteConnection}
           onChanged={loadBootstrap}
           onUse={openCapabilityEditor}
         />

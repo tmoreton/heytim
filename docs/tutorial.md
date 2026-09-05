@@ -103,6 +103,7 @@ The application backend keeps only the catalog trust and persistence layer:
 catalog_rules.py       IDs, limits, and runtime-binding validation
 catalog_sync.py        Trusted remote download and shared refresh lease
 catalog.py             User libraries, version pinning, importing, and sharing
+connections.py         Private MCP metadata and encrypted credential lifecycle
 ```
 
 The external `frogbot-skills` repository owns the public website, catalog, and contribution review. Each entry includes
@@ -115,6 +116,11 @@ an explicit save. The public site deploys from its own repository, independently
 The runtime still contains reviewed implementations for local and managed tools plus a strict execution allowlist.
 Those pieces run with server permissions, so they cannot be downloaded from a community repository. Public names,
 descriptions, bindings, skill instructions, and external API schemas live only in `frogbot-skills`.
+
+A private MCP connection is the deliberately small extension path. The app stores only its public metadata in the
+user's library and sends its credential directly to the authenticated backend. The backend encrypts that credential
+in Secrets Manager; the runtime fetches it only for the selected connection. Private connections never appear in
+public catalog responses or shared bot and skill snapshots.
 
 ## 6. Add a feature vertically
 

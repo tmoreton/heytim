@@ -115,6 +115,7 @@ export function AgentActivity({
 
 const styles = StyleSheet.create({
   activeCard: {
+    width: '100%',
     maxWidth: 360,
     minHeight: 48,
     flexDirection: 'row',
@@ -127,7 +128,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 9,
   },
-  activeCopy: { flex: 1 },
+  activeCopy: { flex: 1, minWidth: 0 },
   activeLabel: { color: '#007A3D', fontSize: 12, fontWeight: '700' },
   waitingCard: { backgroundColor: '#FAFAF8', borderColor: '#E6E3DC' },
   waitingLabel: { color: '#77736B', fontSize: 12, fontWeight: '600' },

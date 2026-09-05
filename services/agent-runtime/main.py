@@ -34,9 +34,10 @@ async def invoke(payload, context):
         len(messages),
     )
 
+    model = await load_model()
     agent = harness_agent(
-        model=load_model(),
-        web_fetch_model="global.anthropic.claude-haiku-4-5-20251001-v1:0",
+        model=model,
+        web_fetch_model=model,
         caching=False,
         instructions=config.instructions,
         tools=config.tools,
@@ -68,7 +69,9 @@ async def invoke(payload, context):
                     latest_assistant_text(agent.messages),
                 )
             except Exception:
-                log.exception("Could not persist long-term memory for session %s", session_id)
+                log.exception(
+                    "Could not persist long-term memory for session %s", session_id
+                )
         if agent.memory_manager:
             try:
                 await agent.memory_manager.flush()

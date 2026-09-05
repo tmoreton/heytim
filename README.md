@@ -30,6 +30,7 @@ Expo app
   |-- Apple on-device speech-to-text
   |-- authenticated HTTP API
         |-- DynamoDB: bot configs, chats, files, groups, tasks, tokens, and invites
+        |-- Secrets Manager: per-user private MCP credentials
         |-- S3: private user uploads and generated artifacts
         |-- EventBridge Scheduler: daily, weekday, weekly, and monthly tasks
         |-- SQS: durable agent jobs
@@ -65,7 +66,8 @@ order for the preview app, live request path, AgentCore runtime, infrastructure,
 - Automatic reusable outputs for itineraries, budgets, checklists, plans, and other work that belongs outside the chat
 - Owner-controlled chat, bot, and group deletion with pending-work protection and invite revocation
 - A skill library for creating, editing, and sharing reusable ways of working
-- Three starter bots, three reviewed starter skills, and a dynamically refreshed capability catalog
+- Three starter bots, six focused public skills, and a dynamically refreshed capability catalog
+- Private HTTPS MCP connections with per-user bearer-token or API-key credentials
 - Bot snapshots, conversation snapshots, and live group invitations with 30-day links
 - Long-term AgentCore memory for user preferences, facts, and conversation summaries
 - Persistent two-hour browser and code-interpreter sessions; browser use requires one-time approval for each turn
@@ -150,10 +152,11 @@ listings without deleting old versions that existing bots still need.
 
 Users can create instruction-only skills inside the app, attach only the tools that skill needs, and share a
 30-day installation link. Shared skills are read-only for the recipient and require an explicit trust confirmation.
-Executable code never comes from a community skill: external APIs are exposed as narrow, read-only AgentCore
-Gateway targets with credentials held on AWS, not in the Expo app or skill repository.
-The public repository includes validation automation, contribution templates, and separate request forms for
-instruction-only skills and server-reviewed tools.
+They can also connect a private HTTPS MCP server with no authentication, a bearer token, or an API-key header.
+The credential is encrypted per user in Secrets Manager and fetched only when the runtime invokes that connection;
+it never enters the app bundle, a skill document, a prompt, or a shared link. Managed FroggyBot tools still use
+narrow AgentCore Gateway targets. The public repository includes validation automation, contribution templates,
+and separate request forms for public skills and tool proposals.
 
 YouTube Research is live through its restricted AgentCore Gateway target. X / Twitter Research is deployed but
 temporarily hidden because the X API account has no remaining credits. This keeps the live tool picker honest and

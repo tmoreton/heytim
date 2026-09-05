@@ -245,6 +245,7 @@ class CatalogSyncMixin:
                     "credential": str(raw.get("credential", ""))[:80],
                     "runtime": _validate_runtime_binding(raw.get("runtime")),
                     "enabled": raw.get("enabled") is True,
+                    "listed": raw.get("listed", True) is True,
                     **_validate_catalog_metadata(raw, actions=True),
                 }
             )
@@ -266,9 +267,7 @@ class CatalogSyncMixin:
                 r"skills/[a-z0-9-]+/SKILL\.md", path
             ):
                 raise CatalogError(f"{skill_id} path is invalid")
-            document = _fetch_text(
-                f"https://{TRUSTED_CATALOG_HOST}/{path}"
-            )
+            document = _fetch_text(f"https://{TRUSTED_CATALOG_HOST}/{path}")
             skills.append(
                 {
                     "id": skill_id,

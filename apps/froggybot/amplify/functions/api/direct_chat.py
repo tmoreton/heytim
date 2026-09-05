@@ -144,7 +144,7 @@ def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
     if attachments and isinstance(raw_text, str) and not raw_text.strip():
         raw_text = "Please review the attached files."
     text = _validate_string(raw_text, "text", 8_000)
-    approval_tools = catalog.approval_tool_names(bot.get("toolIds", []))
+    approval_tools = catalog.approval_tool_names(user_id, bot.get("toolIds", []))
     return _start_bot_turn(
         user_id,
         bot_id,
@@ -248,7 +248,7 @@ def _update_cancelled_schedule(user_id: str, turn: dict, cancelled_at: str) -> N
 def _run_schedule_now(user_id: str, bot_id: str, schedule_id: str) -> dict:
     schedule_item = _get_schedule(user_id, bot_id, schedule_id)
     bot = _get_bot(user_id, bot_id)
-    if catalog.approval_tool_names(bot.get("toolIds", [])):
+    if catalog.approval_tool_names(user_id, bot.get("toolIds", [])):
         raise ApiError(
             409,
             "Interactive tools cannot run on a schedule because they require your approval.",

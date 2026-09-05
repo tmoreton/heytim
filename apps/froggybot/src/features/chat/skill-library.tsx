@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -13,7 +14,10 @@ import {
   View,
 } from 'react-native';
 
-import type { Capability, CapabilitySelection, Skill, SkillDetail, SkillDraft } from '@/lib/types';
+import type { Capability, CapabilitySelection, Connection, ConnectionDraft, Skill, SkillDetail, SkillDraft } from '@/lib/types';
+
+import { ConnectionEditor, draftForConnection, emptyConnectionDraft } from './connection-editor';
+import { HowCapabilitiesWork, ToolList } from './tool-list';
 
 const emptyDraft: SkillDraft = {
   name: '',
@@ -24,6 +28,7 @@ const emptyDraft: SkillDraft = {
 };
 
 type LibraryTab = 'skills' | 'tools';
+type LibraryMode = 'list' | 'view' | 'edit' | 'copy' | 'new' | 'newConnection' | 'editConnection';
 
 type Props = {
   skills: Skill[];
@@ -32,21 +37,29 @@ type Props = {
   onLoad: (skillId: string) => Promise<SkillDetail>;
   onSave: (draft: SkillDraft, skillId?: string) => Promise<SkillDetail>;
   onShare: (skillId: string) => Promise<string>;
+  onSaveConnection: (draft: ConnectionDraft, connectionId?: string) => Promise<Connection>;
+  onDeleteConnection: (connectionId: string) => Promise<void>;
   onChanged: () => Promise<void>;
   onUse: (capability: CapabilitySelection) => void;
 };
 
-const providerLabel = (provider?: string) => {
-  if (provider === 'stan') return 'Stan';
-  if (provider === 'agentcore') return 'AgentCore';
-  if (provider === 'agentcore-gateway') return 'Connected service';
-  return 'FroggyBot';
-};
-
-export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, onChanged, onUse }: Props) {
+export function SkillLibrary({
+  skills,
+  tools,
+  onClose,
+  onLoad,
+  onSave,
+  onShare,
+  onSaveConnection,
+  onDeleteConnection,
+  onChanged,
+  onUse,
+}: Props) {
   const [selected, setSelected] = useState<SkillDetail>();
   const [draft, setDraft] = useState<SkillDraft>(emptyDraft);
-  const [mode, setMode] = useState<'list' | 'view' | 'edit' | 'copy' | 'new'>('list');
+  const [connection, setConnection] = useState<Connection>();
+  const [connectionDraft, setConnectionDraft] = useState<ConnectionDraft>(emptyConnectionDraft);
+  const [mode, setMode] = useState<LibraryMode>('list');
   const [tab, setTab] = useState<LibraryTab>('skills');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -96,6 +109,13 @@ export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, 
     setMode('new');
   };
 
+  const openConnection = (value?: Connection) => {
+    setConnection(value);
+    setConnectionDraft(value ? draftForConnection(value) : emptyConnectionDraft);
+    setError('');
+    setMode(value ? 'editConnection' : 'newConnection');
+  };
+
   const save = async () => {
     if (!draft.name.trim() || !draft.description.trim() || !draft.instructions.trim()) {
       setError('Add a name, summary, and full instructions.');
@@ -141,9 +161,71 @@ export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, 
     }
   };
 
+  const saveConnection = async () => {
+    if (!connectionDraft.name.trim() || !connectionDraft.description.trim() || !connectionDraft.endpoint.trim()) {
+      setError('Add a name, description, and MCP server URL.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      await onSaveConnection(
+        {
+          ...connectionDraft,
+          name: connectionDraft.name.trim(),
+          description: connectionDraft.description.trim(),
+          endpoint: connectionDraft.endpoint.trim(),
+          headerName: connectionDraft.headerName.trim(),
+        },
+        mode === 'editConnection' ? connection?.id : undefined,
+      );
+      await onChanged();
+      setConnection(undefined);
+      setMode('list');
+      setTab('tools');
+    } catch (value) {
+      setError(value instanceof Error ? value.message : 'Could not save this connection.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeConnection = () => {
+    if (!connection) return;
+    Alert.alert(
+      'Remove connection?',
+      'Its credential will enter a seven-day recovery window. Skills and shared links never contain the credential.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            setBusy(true);
+            onDeleteConnection(connection.id)
+              .then(onChanged)
+              .then(() => {
+                setConnection(undefined);
+                setMode('list');
+                setTab('tools');
+              })
+              .catch((value: unknown) => {
+                setError(value instanceof Error ? value.message : 'Could not remove this connection.');
+              })
+              .finally(() => setBusy(false));
+          },
+        },
+      ],
+    );
+  };
+
   const back = () => {
     setError('');
-    setMode(mode === 'edit' || mode === 'copy' || mode === 'new' ? (selected ? 'view' : 'list') : 'list');
+    setMode(
+      mode === 'edit' || mode === 'copy' || mode === 'new'
+        ? selected ? 'view' : 'list'
+        : 'list',
+    );
   };
 
   const title =
@@ -151,8 +233,12 @@ export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, 
       ? 'Skills & tools'
       : mode === 'new'
         ? 'New skill'
-        : mode === 'copy'
-          ? 'Make editable copy'
+      : mode === 'copy'
+        ? 'Make editable copy'
+        : mode === 'newConnection'
+          ? 'Add connection'
+          : mode === 'editConnection'
+            ? connection?.name
           : selected?.name;
 
   return (
@@ -164,16 +250,16 @@ export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, 
           </Pressable>
           <Text numberOfLines={1} style={styles.title}>{title}</Text>
           {mode === 'list' ? (
-            <Pressable accessibilityRole="button" hitSlop={12} onPress={startNew}>
-              <Text style={[styles.headerAction, styles.primary]}>New skill</Text>
+            <Pressable accessibilityRole="button" hitSlop={12} onPress={() => tab === 'skills' ? startNew() : openConnection()}>
+              <Text style={[styles.headerAction, styles.primary]}>{tab === 'skills' ? 'New skill' : 'Add tool'}</Text>
             </Pressable>
-          ) : mode === 'edit' || mode === 'copy' || mode === 'new' ? (
+          ) : mode === 'edit' || mode === 'copy' || mode === 'new' || mode === 'newConnection' || mode === 'editConnection' ? (
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ busy, disabled: busy }}
               hitSlop={12}
               disabled={busy}
-              onPress={save}>
+              onPress={mode === 'newConnection' || mode === 'editConnection' ? saveConnection : save}>
               {busy ? <ActivityIndicator color="#007A3D" /> : <Text style={[styles.headerAction, styles.primary]}>Save</Text>}
             </Pressable>
           ) : (
@@ -184,7 +270,7 @@ export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {mode === 'list' ? (
             <>
-              <HowItWorks />
+              <HowCapabilitiesWork />
               <View accessibilityRole="tablist" style={styles.tabs}>
                 {(['skills', 'tools'] as const).map((value) => (
                   <Pressable
@@ -228,30 +314,7 @@ export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, 
                   ))}
                 </>
               ) : (
-                <>
-                  <Text style={styles.sectionLabel}>Ready to use</Text>
-                  <Text style={styles.listHelp}>
-                    These are the tools connected and working now. A bot only receives tools you choose or that one of its skills requires.
-                  </Text>
-                  {tools.map((tool) => (
-                    <Pressable
-                      accessibilityRole="button"
-                      key={tool.id}
-                      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-                      onPress={() => onUse({ kind: 'tool', id: tool.id })}>
-                      <View style={styles.toolMark}><Text style={styles.toolMarkText}>T</Text></View>
-                      <View style={styles.cardText}>
-                        <View style={styles.nameRow}>
-                          <Text style={styles.skillName}>{tool.name}</Text>
-                          <Text style={styles.neutralBadge}>{providerLabel(tool.provider)}</Text>
-                        </View>
-                        <Text style={styles.skillDescription}>{tool.description}</Text>
-                        <Text style={styles.cardMeta}>Tap to add this tool to a FroggyBot</Text>
-                      </View>
-                      <Text style={styles.chevron}>›</Text>
-                    </Pressable>
-                  ))}
-                </>
+                <ToolList tools={tools} onUse={onUse} onManage={openConnection} />
               )}
             </>
           ) : mode === 'view' ? (
@@ -264,6 +327,13 @@ export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, 
               onShare={share}
               onUse={() => onUse({ kind: 'skill', id: selected?.id ?? '' })}
             />
+          ) : mode === 'newConnection' || mode === 'editConnection' ? (
+            <ConnectionEditor
+              connection={connection}
+              draft={connectionDraft}
+              onChange={setConnectionDraft}
+              onDelete={removeConnection}
+            />
           ) : (
             <SkillForm draft={draft} tools={tools} onChange={setDraft} />
           )}
@@ -271,18 +341,6 @@ export function SkillLibrary({ skills, tools, onClose, onLoad, onSave, onShare, 
         </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
-  );
-}
-
-function HowItWorks() {
-  return (
-    <View style={styles.guide}>
-      <Text style={styles.guideTitle}>How capabilities work</Text>
-      <Text style={styles.guideLine}><Text style={styles.guideStrong}>Bot prompt</Text> · always guides every reply.</Text>
-      <Text style={styles.guideLine}><Text style={styles.guideStrong}>Skills</Text> · full playbooks the bot activates when the request matches.</Text>
-      <Text style={styles.guideLine}><Text style={styles.guideStrong}>Tools</Text> · actions the bot calls when needed.</Text>
-      <Text style={styles.guideNote}>Ask normally—you never have to name a skill or tool.</Text>
-    </View>
   );
 }
 
@@ -453,11 +511,6 @@ const styles = StyleSheet.create({
   title: { maxWidth: '48%', fontSize: 16, fontWeight: '700', color: '#171714' },
   headerSpacer: { width: 62 },
   content: { padding: 20, paddingBottom: 60, maxWidth: 680, width: '100%', alignSelf: 'center' },
-  guide: { padding: 17, borderRadius: 18, backgroundColor: '#E9F4EE', borderWidth: 1, borderColor: '#CBE2D5' },
-  guideTitle: { color: '#173E2A', fontSize: 16, fontWeight: '800', marginBottom: 8 },
-  guideLine: { color: '#527060', fontSize: 13, lineHeight: 20 },
-  guideStrong: { color: '#173E2A', fontWeight: '800' },
-  guideNote: { color: '#007A3D', fontSize: 12, fontWeight: '700', marginTop: 9 },
   tabs: { flexDirection: 'row', padding: 4, borderRadius: 14, backgroundColor: '#E9E7E1', marginTop: 18 },
   tab: { flex: 1, minHeight: 42, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   tabActive: { backgroundColor: '#FFFFFF' },
@@ -468,15 +521,12 @@ const styles = StyleSheet.create({
   card: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, marginBottom: 9, borderRadius: 16, borderWidth: 1, borderColor: '#E2DFD7', backgroundColor: '#FFFFFF' },
   skillMark: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E4F1EA' },
   skillMarkText: { color: '#007A3D', fontSize: 17, fontWeight: '900' },
-  toolMark: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFEEE9' },
-  toolMarkText: { color: '#57534C', fontSize: 17, fontWeight: '900' },
   cardText: { flex: 1, minWidth: 0 },
   nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   skillName: { flexShrink: 1, color: '#24231F', fontSize: 15, fontWeight: '700' },
   skillDescription: { color: '#7B776F', fontSize: 12, lineHeight: 17, marginTop: 4 },
   cardMeta: { color: '#918D84', fontSize: 10.5, lineHeight: 15, marginTop: 5 },
   badge: { alignSelf: 'flex-start', color: '#007A3D', backgroundColor: '#E4F1EA', overflow: 'hidden', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, fontSize: 10, fontWeight: '700' },
-  neutralBadge: { alignSelf: 'flex-start', color: '#66625B', backgroundColor: '#EFEEE9', overflow: 'hidden', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, fontSize: 10, fontWeight: '700' },
   chevron: { color: '#9A968E', fontSize: 27, fontWeight: '300' },
   heroMark: { alignSelf: 'center', width: 68, height: 68, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#007A3D', marginTop: 14 },
   heroMarkText: { color: 'white', fontSize: 25, fontWeight: '900' },

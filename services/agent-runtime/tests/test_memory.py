@@ -60,9 +60,9 @@ def test_completed_turn_uses_event_id_as_idempotency_token(monkeypatch) -> None:
 
 
 def test_model_enables_one_hour_prompt_and_tool_caching() -> None:
-    from model.load import load_model
+    from model.load import load_bedrock_model
 
-    model = load_model()
+    model = load_bedrock_model()
 
     assert model.config["cache_config"].ttl == "1h"
     assert model.config["cache_tools"].ttl == "1h"

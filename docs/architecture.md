@@ -79,8 +79,11 @@ and code-interpreter sandboxes are named by the stable conversation ID and recon
 after runtime process replacement. Generated files use a turn-scoped S3 prefix and are attached to the
 completed reply only after the worker verifies and records them.
 
-Executable community code is not accepted. Skills are versioned instructions plus approved tool
-references; secrets and executable integrations stay in reviewed AgentCore Gateway targets.
+Public skills contain versioned instructions plus approved tool references, never executable code. Managed
+FroggyBot integrations stay in narrow AgentCore Gateway targets. A user may independently add a private HTTPS MCP
+server; its credential is encrypted in Secrets Manager, resolved only during invocation, and omitted from prompts,
+telemetry, catalog responses, and shares. Endpoint validation blocks local-network targets and the runtime repeats
+DNS checks before connecting.
 The separate `frogbot-skills` repository is the public website and capability publishing boundary. Pull requests are validated there;
 the backend then validates and caches releases before exposing only public metadata to signed-out visitors.
 
@@ -90,7 +93,7 @@ the backend then validates and caches releases before exposing only public metad
 - Existing CDK construct IDs and resource names are stable because renaming them can replace data.
 - Every authenticated read/write verifies ownership or group membership server-side.
 - Invitation tokens are random, time-limited, and stored as hashes for sign-up validation.
-- A bot can receive only the reviewed tools and version-pinned skills in its saved configuration.
+- A bot can receive only enabled built-ins, that user's private connections, and version-pinned skills in its saved configuration.
 - Agent jobs are retried through SQS and failed permanently only after the configured retry limit.
 - One worker owns a turn at a time through a renewable lease; completion is conditional on that ownership.
 - Scheduled executions are idempotent by schedule execution ID, use IANA timezones, and never embed bot prompts in EventBridge.

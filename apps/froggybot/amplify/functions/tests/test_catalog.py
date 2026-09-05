@@ -180,12 +180,42 @@ class FakeTable:
         yield FakeBatch(self)
 
 
+class FakeSecrets:
+    class ResourceNotFoundException(Exception):
+        pass
+
+    def __init__(self):
+        self.values: dict[str, str] = {}
+        self.deleted: list[str] = []
+        self.exceptions = type(
+            "Exceptions",
+            (),
+            {"ResourceNotFoundException": self.ResourceNotFoundException},
+        )()
+
+    def create_secret(self, *, Name: str, SecretString: str, **_kwargs) -> dict:
+        arn = f"arn:aws:secretsmanager:us-east-1:123456789012:secret:{Name}-ABC123"
+        self.values[arn] = SecretString
+        return {"ARN": arn}
+
+    def put_secret_value(self, *, SecretId: str, SecretString: str) -> None:
+        self.values[SecretId] = SecretString
+
+    def delete_secret(self, *, SecretId: str, RecoveryWindowInDays: int) -> None:
+        if SecretId not in self.values:
+            raise self.ResourceNotFoundException
+        assert RecoveryWindowInDays == 7
+        self.deleted.append(SecretId)
+        self.values.pop(SecretId)
+
+
 class CatalogServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         sync_module._last_sync_at = time.monotonic()
         sync_module._local_sync_delay = sync_module.SYNC_SECONDS
         self.table = FakeTable()
-        self.catalog = CatalogService(self.table)
+        self.secrets = FakeSecrets()
+        self.catalog = CatalogService(self.table, self.secrets)
         self.catalog._store_official(TEST_TOOLS, TEST_SKILLS)
 
     def test_cold_start_performs_initial_sync(self) -> None:
@@ -340,7 +370,7 @@ class CatalogServiceTests(unittest.TestCase):
         )
 
         resolved = self.catalog.resolve_tools_for_runtime(
-            ["delegate", "web_search", "calculator"]
+            "owner", ["delegate", "web_search", "calculator"]
         )
         self.assertEqual(
             resolved,
@@ -363,9 +393,135 @@ class CatalogServiceTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            self.catalog.approval_tool_names(["web", "browser"]),
+            self.catalog.approval_tool_names("owner", ["web", "browser"]),
             ["Test browser"],
         )
+
+    def test_private_mcp_connection_is_user_scoped_and_resolves_without_secret(
+        self,
+    ) -> None:
+        saved = self.catalog.save_connection(
+            "owner",
+            {
+                "name": "Private notes",
+                "description": "Read and update my private notes.",
+                "endpoint": "https://mcp.example.com/mcp",
+                "risk": "interactive",
+                "authType": "bearer",
+                "credential": "private-token",
+            },
+        )
+
+        self.assertTrue(saved["hasCredential"])
+        self.assertNotIn("secretArn", saved)
+        self.assertNotIn("credential", saved)
+        self.assertIn(
+            saved["id"], {tool["id"] for tool in self.catalog.list_tools("owner")}
+        )
+        self.assertNotIn(
+            saved["id"], {tool["id"] for tool in self.catalog.list_tools("other")}
+        )
+
+        resolved = self.catalog.resolve_tools_for_runtime("owner", [saved["id"]])
+        self.assertEqual(resolved[0]["runtime"]["kind"], "mcp")
+        self.assertEqual(resolved[0]["runtime"]["headerName"], "Authorization")
+        self.assertNotIn("credential", resolved[0]["runtime"])
+
+    def test_private_connection_rejects_local_network_endpoints(self) -> None:
+        for endpoint in (
+            "http://mcp.example.com/mcp",
+            "https://localhost/mcp",
+            "https://127.0.0.1/mcp",
+            "https://mcp.example.com:8443/mcp",
+            "https://mcp.example.com/mcp?token=secret",
+        ):
+            with self.subTest(endpoint=endpoint), self.assertRaises(CatalogError):
+                self.catalog.save_connection(
+                    "owner",
+                    {
+                        "name": "Unsafe server",
+                        "description": "This endpoint should not be accepted.",
+                        "endpoint": endpoint,
+                        "risk": "read",
+                        "authType": "none",
+                    },
+                )
+
+    def test_private_connection_can_replace_a_deleted_credential(self) -> None:
+        saved = self.catalog.save_connection(
+            "owner",
+            {
+                "name": "Private notes",
+                "description": "Read my notes.",
+                "endpoint": "https://mcp.example.com/mcp",
+                "risk": "read",
+                "authType": "bearer",
+                "credential": "first-token",
+            },
+        )
+        first_item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
+        first_secret = first_item["secretArn"]
+
+        self.catalog.save_connection("owner", {"authType": "none"}, saved["id"])
+        replaced = self.catalog.save_connection(
+            "owner",
+            {"authType": "bearer", "credential": "second-token"},
+            saved["id"],
+        )
+        second_item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
+
+        self.assertTrue(replaced["hasCredential"])
+        self.assertIn(first_secret, self.secrets.deleted)
+        self.assertNotEqual(first_secret, second_item["secretArn"])
+
+    def test_connection_cannot_be_deleted_while_a_bot_uses_it(self) -> None:
+        saved = self.catalog.save_connection(
+            "owner",
+            {
+                "name": "Private notes",
+                "description": "Read my notes.",
+                "endpoint": "https://mcp.example.com/mcp",
+                "risk": "read",
+                "authType": "none",
+            },
+        )
+        self.table.put_item(
+            Item={
+                "pk": "USER#owner",
+                "sk": "BOT#one",
+                "entity": "BOT",
+                "name": "Notes bot",
+                "toolIds": [saved["id"]],
+            }
+        )
+
+        with self.assertRaisesRegex(CatalogError, "Notes bot"):
+            self.catalog.delete_connection("owner", saved["id"])
+
+    def test_skill_share_never_carries_a_private_connection(self) -> None:
+        connection = self.catalog.save_connection(
+            "owner",
+            {
+                "name": "Private notes",
+                "description": "Read my private notes.",
+                "endpoint": "https://mcp.example.com/mcp",
+                "risk": "read",
+                "authType": "none",
+            },
+        )
+        skill = self.catalog.save_skill(
+            "owner",
+            {
+                "name": "Notes helper",
+                "description": "Use my private notes when answering.",
+                "instructions": "Use the connected notes server when it is relevant.",
+                "requiredToolIds": [connection["id"]],
+                "visibility": "private",
+            },
+        )
+
+        with self.assertRaisesRegex(CatalogError, "private connections"):
+            self.catalog.create_share("owner", skill["id"])
 
     def test_public_catalog_contains_only_reviewed_installable_metadata(self) -> None:
         personal = self.catalog.save_skill(

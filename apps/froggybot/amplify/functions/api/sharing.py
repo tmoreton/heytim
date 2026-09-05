@@ -189,10 +189,19 @@ def _create_share(user_id: str, value: dict) -> dict:
     if scope not in {"bot", "chat"}:
         raise ApiError(400, "scope must be bot or chat")
     bot = _public_bot(_get_bot(user_id, bot_id))
+    private_tool_ids = {
+        connection["id"] for connection in catalog.list_connections(user_id)
+    }
+    for field in ("toolIds", "extraToolIds"):
+        bot[field] = [
+            tool_id for tool_id in bot.get(field, []) if tool_id not in private_tool_ids
+        ]
     skill_snapshots = []
     for skill_id, version in bot.get("skillVersions", {}).items():
         skill = catalog.get_version(skill_id, int(version))
-        if skill:
+        if skill and not private_tool_ids.intersection(
+            skill.get("requiredToolIds", [])
+        ):
             skill_snapshots.append(
                 {
                     key: skill[key]
@@ -210,6 +219,15 @@ def _create_share(user_id: str, value: dict) -> dict:
                     if key in skill
                 }
             )
+    shared_skill_ids = {skill["id"] for skill in skill_snapshots}
+    bot["skillIds"] = [
+        skill_id for skill_id in bot.get("skillIds", []) if skill_id in shared_skill_ids
+    ]
+    bot["skillVersions"] = {
+        skill_id: version
+        for skill_id, version in bot.get("skillVersions", {}).items()
+        if skill_id in shared_skill_ids
+    }
     snapshot: dict[str, Any] = {"bot": bot, "skills": skill_snapshots}
     if scope == "chat":
         snapshot["turns"] = [

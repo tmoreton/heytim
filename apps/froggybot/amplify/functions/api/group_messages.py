@@ -85,7 +85,9 @@ def _send_group_message(
     reply_bots = plan_group_reply_round(selected_reply_bots, coordinated)
     for group_bot in reply_bots:
         source_bot = _get_bot(group_bot["botOwnerId"], group_bot["botId"])
-        if catalog.approval_tool_names(source_bot.get("toolIds", [])):
+        if catalog.approval_tool_names(
+            group_bot["botOwnerId"], source_bot.get("toolIds", [])
+        ):
             raise ApiError(
                 409,
                 "Interactive tools currently require approval in a direct chat.",

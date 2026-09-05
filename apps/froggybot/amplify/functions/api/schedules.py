@@ -166,7 +166,7 @@ def _list_schedules(user_id: str, bot_id: str) -> list[dict]:
 
 def _create_schedule(user_id: str, bot_id: str, value: dict) -> dict:
     bot = _get_bot(user_id, bot_id)
-    if catalog.approval_tool_names(bot.get("toolIds", [])):
+    if catalog.approval_tool_names(user_id, bot.get("toolIds", [])):
         raise ApiError(
             409,
             "Interactive tools cannot run on a schedule because they require your approval.",
@@ -197,7 +197,7 @@ def _create_schedule(user_id: str, bot_id: str, value: dict) -> dict:
 
 def _update_schedule(user_id: str, bot_id: str, schedule_id: str, value: dict) -> dict:
     bot = _get_bot(user_id, bot_id)
-    if catalog.approval_tool_names(bot.get("toolIds", [])):
+    if catalog.approval_tool_names(user_id, bot.get("toolIds", [])):
         raise ApiError(
             409,
             "Interactive tools cannot run on a schedule because they require your approval.",

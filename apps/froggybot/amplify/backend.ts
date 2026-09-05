@@ -301,6 +301,29 @@ inviteAccess.grantReadWriteData(workerFunction);
 table.grantReadWriteData(workerFunction);
 filesBucket.grantReadWrite(apiFunction);
 filesBucket.grantReadWrite(workerFunction);
+const connectionSecretsArn = stack.formatArn({
+  service: 'secretsmanager',
+  resource: 'secret',
+  resourceName: 'frogbot/connections/*',
+  arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+});
+apiFunction.addToRolePolicy(
+  new PolicyStatement({
+    actions: [
+      'secretsmanager:CreateSecret',
+      'secretsmanager:PutSecretValue',
+      'secretsmanager:DeleteSecret',
+      'secretsmanager:TagResource',
+    ],
+    resources: [connectionSecretsArn],
+  }),
+);
+workerFunction.addToRolePolicy(
+  new PolicyStatement({
+    actions: ['secretsmanager:DeleteSecret'],
+    resources: [connectionSecretsArn],
+  }),
+);
 jobs.grantSendMessages(apiFunction);
 jobs.grantSendMessages(workerFunction);
 taskScheduleGroup.grantWriteSchedules(apiFunction);
@@ -464,6 +487,10 @@ for (const [method, routePath] of [
   [HttpMethod.PUT, '/skills/{skillId}'],
   [HttpMethod.POST, '/skills/{skillId}/share'],
   [HttpMethod.POST, '/skill-shares/{token}/import'],
+  [HttpMethod.GET, '/connections'],
+  [HttpMethod.POST, '/connections'],
+  [HttpMethod.PUT, '/connections/{connectionId}'],
+  [HttpMethod.DELETE, '/connections/{connectionId}'],
 ] as const) {
   httpApi.addRoutes({ path: routePath, methods: [method], integration, authorizer });
 }
