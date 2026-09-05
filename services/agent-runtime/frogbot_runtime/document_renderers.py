@@ -49,7 +49,9 @@ def render_docx(filename: str, content: str) -> bytes:
     normal.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
 
     if "FroggyBot Code" not in document.styles:
-        code_style = document.styles.add_style("FroggyBot Code", WD_STYLE_TYPE.PARAGRAPH)
+        code_style = document.styles.add_style(
+            "FroggyBot Code", WD_STYLE_TYPE.PARAGRAPH
+        )
         code_style.font.name = "Courier New"
         code_style.font.size = Pt(9)
         code_style.element.rPr.rFonts.set(qn("w:eastAsia"), "Courier New")
@@ -111,7 +113,7 @@ def _reportlab_fonts() -> tuple[str, str, str]:
 
 
 def render_pdf(filename: str, content: str) -> bytes:
-    from xml.sax.saxutils import escape
+    from html import escape
 
     from reportlab.lib.colors import HexColor
     from reportlab.lib.enums import TA_CENTER
@@ -187,9 +189,9 @@ def render_pdf(filename: str, content: str) -> bytes:
         leftIndent=12,
     )
 
-    story: list[Any] = [Paragraph(escape(title), title_style)]
+    story: list[Any] = [Paragraph(escape(title, quote=False), title_style)]
     for block in blocks:
-        text = escape(block.text).replace("\n", "<br/>")
+        text = escape(block.text, quote=False).replace("\n", "<br/>")
         if block.kind == "heading":
             story.append(Paragraph(text, heading_styles[min(3, max(1, block.level))]))
         elif block.kind == "bullet":

@@ -100,13 +100,9 @@ def render_xlsx(filename: str, content: str) -> bytes:
     sheet.row_dimensions[1].height = 24
     for column_index in range(1, max(map(len, rows), default=0) + 1):
         values = [
-            str(row[column_index - 1])
-            for row in rows
-            if len(row) >= column_index
+            str(row[column_index - 1]) for row in rows if len(row) >= column_index
         ]
-        width = min(
-            45, max(12, max((len(value) for value in values), default=0) + 4)
-        )
+        width = min(45, max(12, max((len(value) for value in values), default=0) + 4))
         sheet.column_dimensions[get_column_letter(column_index)].width = width
 
     workbook.properties.title = document_title(filename)

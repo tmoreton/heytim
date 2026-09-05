@@ -148,14 +148,19 @@ def messages_from_payload(payload: dict, actor_id: str | None = None) -> list[di
                 content_blocks.append({"text": text})
                 has_text = True
                 continue
-            if message.get("role") != "user" or message_index != len(normalized_messages) - 1:
-                raise ValueError("attachments are accepted only on the latest user message")
+            if (
+                message.get("role") != "user"
+                or message_index != len(normalized_messages) - 1
+            ):
+                raise ValueError(
+                    "attachments are accepted only on the latest user message"
+                )
             attachment_count += 1
             if attachment_count > MAX_ATTACHMENTS:
-                raise ValueError(f"a message can contain at most {MAX_ATTACHMENTS} attachments")
-            content_blocks.append(
-                _attachment_block(block, attachment_count, actor_id)
-            )
+                raise ValueError(
+                    f"a message can contain at most {MAX_ATTACHMENTS} attachments"
+                )
+            content_blocks.append(_attachment_block(block, attachment_count, actor_id))
         if not has_text:
             raise ValueError("each message must contain a text content block")
         messages.append({"role": message["role"], "content": content_blocks})

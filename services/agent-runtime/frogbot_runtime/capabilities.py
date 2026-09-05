@@ -6,6 +6,7 @@ import operator
 import os
 import re
 import shutil
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -223,7 +224,7 @@ def _prepare_playwright_driver() -> None:
         try:
             source.chmod(source.stat().st_mode | 0o111)
         except OSError:
-            target = Path("/tmp/frogbot-playwright-node")
+            target = Path(tempfile.gettempdir()) / "frogbot-playwright-node"
             if not target.is_file() or target.stat().st_size != source.stat().st_size:
                 shutil.copyfile(source, target)
             target.chmod(0o700)

@@ -19,9 +19,7 @@ def validate_content(content: str) -> str:
         raise TypeError("content must be a string")
     normalized = content.replace("\r\n", "\n").replace("\r", "\n").strip()
     if not normalized or len(normalized) > MAX_SOURCE_CHARS:
-        raise ValueError(
-            f"content must be between 1 and {MAX_SOURCE_CHARS} characters"
-        )
+        raise ValueError(f"content must be between 1 and {MAX_SOURCE_CHARS} characters")
     return normalized
 
 

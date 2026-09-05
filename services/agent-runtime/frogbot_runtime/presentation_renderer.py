@@ -82,9 +82,7 @@ def render_pptx(filename: str, content: str) -> bytes:
         font_size = 18 if sum(len(block.text) for block in blocks) > 620 else 21
         for index, block in enumerate(blocks):
             paragraph = (
-                text_frame.paragraphs[0]
-                if index == 0
-                else text_frame.add_paragraph()
+                text_frame.paragraphs[0] if index == 0 else text_frame.add_paragraph()
             )
             paragraph.text = block.text
             paragraph.font.name = "Arial"
