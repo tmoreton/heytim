@@ -26,37 +26,10 @@ let bots: Bot[] = [
     toolIds: ['current_time', 'calculator'],
     extraToolIds: ['current_time', 'calculator'],
     skillIds: ['group-decision'],
+    systemRole: 'chief',
     createdAt: timestamp,
     updatedAt: timestamp,
     lastMessage: 'I pulled the loose ends into one short plan.',
-    lastMessageAt: timestamp,
-  },
-  {
-    id: 'research-scout',
-    name: 'Research Scout',
-    tagline: 'Finds the signal and brings back the evidence.',
-    color: '#6C5CE7',
-    prompt: 'Research carefully. Separate facts from inference and call out uncertainty.',
-    toolIds: ['web', 'web_search', 'calculator'],
-    extraToolIds: ['calculator'],
-    skillIds: ['deep-research'],
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    lastMessage: 'Three strong sources found. The second one is the key.',
-    lastMessageAt: timestamp,
-  },
-  {
-    id: 'draft-partner',
-    name: 'Draft Partner',
-    tagline: 'Turns rough thinking into clear words.',
-    color: '#FFAA34',
-    prompt: 'Help me write in a direct, warm voice. Return usable drafts.',
-    toolIds: [],
-    extraToolIds: [],
-    skillIds: [],
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    lastMessage: 'The launch note is tightened and ready to send.',
     lastMessageAt: timestamp,
   },
 ];
@@ -74,13 +47,13 @@ let groups: Group[] = [
       { id: 'jordan', name: 'Jordan', role: 'member' },
     ],
     bots: [
-      { id: 'chief', ownerId: 'demo-user', name: 'Chief', tagline: bots[0].tagline, color: bots[0].color },
       {
-        id: 'draft-partner',
+        id: 'chief',
         ownerId: 'demo-user',
-        name: 'Draft Partner',
-        tagline: bots[2].tagline,
-        color: bots[2].color,
+        name: 'Chief',
+        tagline: bots[0].tagline,
+        color: bots[0].color,
+        systemRole: 'chief',
       },
     ],
     createdAt: timestamp,
@@ -116,30 +89,6 @@ const messages = new Map<string, Message[]>([
         id: 'welcome-chief',
         role: 'assistant',
         text: 'I am caught up. What should we move forward today?',
-        createdAt: timestamp,
-        status: 'complete',
-      },
-    ],
-  ],
-  [
-    'research-scout',
-    [
-      {
-        id: 'welcome-research',
-        role: 'assistant',
-        text: 'Give me the question and I will bring back the signal, sources, and uncertainty.',
-        createdAt: timestamp,
-        status: 'complete',
-      },
-    ],
-  ],
-  [
-    'draft-partner',
-    [
-      {
-        id: 'welcome-writer',
-        role: 'assistant',
-        text: 'Send the rough version. I will keep your meaning and make the words land.',
         createdAt: timestamp,
         status: 'complete',
       },
@@ -209,6 +158,9 @@ export const demoClearBotChat = (botId: string): void => {
 };
 
 export const demoDeleteBot = (botId: string): void => {
+  if (bots.find((bot) => bot.id === botId)?.systemRole === 'chief') {
+    throw new Error('Chief coordinates your other bots and cannot be deleted.');
+  }
   bots = bots.filter((bot) => bot.id !== botId);
   schedules = schedules.filter((task) => task.botId !== botId);
   messages.delete(botId);
@@ -229,7 +181,14 @@ export const demoSaveGroup = (draft: GroupDraft, groupId?: string): Group => {
   const selectedBots = draft.botIds
     .map((id) => bots.find((bot) => bot.id === id))
     .filter((bot): bot is Bot => Boolean(bot))
-    .map((bot) => ({ id: bot.id, ownerId: 'demo-user', name: bot.name, tagline: bot.tagline, color: bot.color }));
+    .map((bot) => ({
+      id: bot.id,
+      ownerId: 'demo-user',
+      name: bot.name,
+      tagline: bot.tagline,
+      color: bot.color,
+      systemRole: bot.systemRole,
+    }));
   const group: Group = {
     id: previous?.id ?? `group-${Date.now()}`,
     name: draft.name,
@@ -256,6 +215,7 @@ export const demoSaveBot = (draft: BotDraft, botId?: string): Bot => {
   const previous = bots.find((bot) => bot.id === botId);
   const bot: Bot = {
     ...draft,
+    systemRole: previous?.systemRole,
     id: previous?.id ?? `bot-${Date.now()}`,
     createdAt: previous?.createdAt ?? now,
     updatedAt: now,
@@ -364,7 +324,9 @@ export const demoSendGroup = (groupId: string, text: string, replyBotId?: string
   });
   const group = groups.find((item) => item.id === groupId);
   const selectedBots = replyBotId === 'all'
-    ? [...(group?.bots ?? [])].sort((left, right) => left.name.localeCompare(right.name))
+    ? [...(group?.bots ?? [])].sort((left, right) =>
+        Number(right.systemRole === 'chief') - Number(left.systemRole === 'chief') || left.name.localeCompare(right.name),
+      )
     : (group?.bots.filter((item) => item.id === replyBotId) ?? []);
   const roundBots = replyBotId === 'all' && selectedBots.length > 1
     ? [

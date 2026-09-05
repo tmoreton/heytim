@@ -7,6 +7,7 @@ export type Bot = {
   toolIds: string[];
   extraToolIds?: string[];
   skillIds: string[];
+  systemRole?: 'chief';
   createdAt: string;
   updatedAt: string;
   lastMessage: string;
@@ -89,6 +90,7 @@ export type GroupBot = {
   name: string;
   tagline: string;
   color: string;
+  systemRole?: 'chief';
 };
 
 export type Group = {

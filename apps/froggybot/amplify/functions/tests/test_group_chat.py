@@ -34,6 +34,7 @@ class GroupChatTests(unittest.TestCase):
                 "botId": "chief",
                 "name": "Chief",
                 "tagline": "Connects the dots.",
+                "systemRole": "chief",
             },
         ]
 
@@ -88,6 +89,13 @@ class GroupChatTests(unittest.TestCase):
         replies = plan_group_reply_round(bots, coordinated=False)
         self.assertEqual(len(replies), 1)
         self.assertEqual(replies[0]["roundRole"], "solo")
+
+    def test_team_round_without_chief_is_rejected(self) -> None:
+        bots = select_group_reply_targets(self.items, "all")
+        specialists = [bot for bot in bots if bot["botId"] != "chief"]
+        specialists.append({**specialists[0], "botId": "writer", "name": "Writer"})
+        with self.assertRaisesRegex(ValueError, "requires Chief"):
+            plan_group_reply_round(specialists, coordinated=True)
 
     def test_later_bot_sees_people_and_earlier_bot_replies(self) -> None:
         transcript = [

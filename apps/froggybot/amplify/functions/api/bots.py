@@ -8,6 +8,7 @@ from shared.cleanup import has_pending_work
 from .attachments import _public_file
 from .support import (
     ALLOWED_COLORS,
+    CHIEF_SYSTEM_ROLE,
     DEFAULT_BOTS,
     ApiError,
     _bot_sk,
@@ -106,7 +107,12 @@ def _get_bot(user_id: str, bot_id: str) -> dict:
     return item
 
 
-def _put_bot(user_id: str, values: dict, bot_id: str | None = None) -> dict:
+def _put_bot(
+    user_id: str,
+    values: dict,
+    bot_id: str | None = None,
+    system_role: str | None = None,
+) -> dict:
     bot_id = bot_id or str(uuid.uuid4())
     current = _now()
     item = {
@@ -132,6 +138,8 @@ def _put_bot(user_id: str, values: dict, bot_id: str | None = None) -> dict:
             )
         },
     }
+    if system_role == CHIEF_SYSTEM_ROLE:
+        item["systemRole"] = CHIEF_SYSTEM_ROLE
     table.put_item(Item=item)
     return _public_bot(item)
 
@@ -146,6 +154,43 @@ def _list_bots(user_id: str) -> list[dict]:
         key=lambda item: item["lastMessageAt"],
         reverse=True,
     )
+
+
+def _ensure_chief(user_id: str, bots: list[dict]) -> list[dict]:
+    if any(bot.get("systemRole") == CHIEF_SYSTEM_ROLE for bot in bots):
+        return bots
+
+    legacy = next(
+        (
+            bot
+            for bot in bots
+            if str(bot.get("name", "")).strip().casefold() == "chief"
+        ),
+        None,
+    )
+    if legacy:
+        table.update_item(
+            Key={"pk": _user_pk(user_id), "sk": _bot_sk(legacy["id"])},
+            UpdateExpression="SET systemRole = :role, updatedAt = :now",
+            ExpressionAttributeValues={
+                ":role": CHIEF_SYSTEM_ROLE,
+                ":now": _now(),
+            },
+        )
+        return [
+            {**bot, "systemRole": CHIEF_SYSTEM_ROLE}
+            if bot["id"] == legacy["id"]
+            else bot
+            for bot in bots
+        ]
+
+    seed = DEFAULT_BOTS[0]
+    chief = _put_bot(
+        user_id,
+        _bot_values(user_id, seed),
+        system_role=CHIEF_SYSTEM_ROLE,
+    )
+    return [chief, *bots]
 
 
 def _list_turns(user_id: str, bot_id: str, limit: int = 100) -> list[dict]:
@@ -244,8 +289,7 @@ def _bootstrap(user_id: str) -> dict:
     initialized = table.get_item(Key=_user_state_key(user_id), ConsistentRead=True).get(
         "Item"
     )
-    if not bots and not initialized:
-        bots = [_put_bot(user_id, _bot_values(user_id, seed)) for seed in DEFAULT_BOTS]
+    bots = _ensure_chief(user_id, bots)
     if not initialized:
         table.put_item(
             Item={
@@ -320,7 +364,7 @@ def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:
             409,
             "Remove this bot's scheduled tasks before enabling interactive tools.",
         )
-    return _put_bot(user_id, values, bot_id)
+    return _put_bot(user_id, values, bot_id, previous.get("systemRole"))
 
 
 def _clear_bot_chat(user_id: str, bot_id: str) -> dict:
@@ -351,7 +395,9 @@ def _clear_bot_chat(user_id: str, bot_id: str) -> dict:
 
 
 def _delete_bot(user_id: str, bot_id: str) -> dict:
-    _get_bot(user_id, bot_id)
+    bot = _get_bot(user_id, bot_id)
+    if bot.get("systemRole") == CHIEF_SYSTEM_ROLE:
+        raise ApiError(409, "Chief coordinates your other bots and cannot be deleted")
     turns = _partition_items(_turn_pk(user_id, bot_id))
     schedules = _schedule_items(user_id, bot_id)
     if has_pending_work(turns):

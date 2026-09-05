@@ -82,7 +82,10 @@ def _send_group_message(
     if reply_bot_id and not selected_reply_bots:
         raise ApiError(400, "Choose a bot that belongs to this group")
     coordinated = reply_bot_id == ALL_BOTS_REPLY_TARGET and len(selected_reply_bots) > 1
-    reply_bots = plan_group_reply_round(selected_reply_bots, coordinated)
+    try:
+        reply_bots = plan_group_reply_round(selected_reply_bots, coordinated)
+    except ValueError as exc:
+        raise ApiError(409, "Add Chief before asking the full bot team") from exc
     for group_bot in reply_bots:
         source_bot = _get_bot(group_bot["botOwnerId"], group_bot["botId"])
         if catalog.approval_tool_names(

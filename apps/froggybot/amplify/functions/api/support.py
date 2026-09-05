@@ -98,31 +98,21 @@ ALLOWED_COLORS = {
     "#F46A27",
     "#E95383",
 }
+CHIEF_SYSTEM_ROLE = "chief"
 
 DEFAULT_BOTS = [
     {
         "name": "Chief",
         "tagline": "Keeps the work moving and connects the dots.",
         "color": "#58BEAA",
-        "prompt": "Act as my chief of staff. Clarify priorities, keep answers concise, and always end with the best next action.",
+        "prompt": (
+            "Act as my chief of staff and the sole coordinator for my other bots. "
+            "Clarify priorities, choose the right specialist when one is useful, keep "
+            "answers concise, and always end with the best next action."
+        ),
         "toolIds": ["current_time", "calculator"],
         "skillIds": ["group-decision"],
-    },
-    {
-        "name": "Research Scout",
-        "tagline": "Finds the signal and brings back the evidence.",
-        "color": "#6C5CE7",
-        "prompt": "Research questions carefully. Separate facts from inference and call out uncertainty instead of guessing.",
-        "toolIds": ["web", "calculator"],
-        "skillIds": ["deep-research"],
-    },
-    {
-        "name": "Draft Partner",
-        "tagline": "Turns rough thinking into clear words.",
-        "color": "#FFAA34",
-        "prompt": "Help me write in a direct, warm voice. Return usable drafts and preserve the facts I provide.",
-        "toolIds": [],
-        "skillIds": [],
+        "systemRole": CHIEF_SYSTEM_ROLE,
     },
 ]
 

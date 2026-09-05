@@ -11,6 +11,7 @@ from shared.invites import invite_token_hash, invite_url
 
 from .bots import _get_bot
 from .support import (
+    CHIEF_SYSTEM_ROLE,
     FILES_BUCKET_NAME,
     PUBLIC_WEB_BASE_URL,
     ApiError,
@@ -91,6 +92,7 @@ def _public_group(user_id: str, group_id: str, items: list[dict] | None = None) 
                 "name": item["name"],
                 "tagline": item.get("tagline", ""),
                 "color": item.get("color", "#007A3D"),
+                "systemRole": item.get("systemRole"),
             }
             for item in items
             if item.get("entity") == "GROUP_BOT"
@@ -149,6 +151,11 @@ def _group_bot_item(group_id: str, owner_id: str, bot: dict) -> dict:
         "name": bot["name"],
         "tagline": bot.get("tagline", ""),
         "color": bot.get("color", "#007A3D"),
+        **(
+            {"systemRole": CHIEF_SYSTEM_ROLE}
+            if bot.get("systemRole") == CHIEF_SYSTEM_ROLE
+            else {}
+        ),
         "addedAt": _now(),
     }
 

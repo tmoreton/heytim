@@ -17,6 +17,7 @@ import { createApi } from '@/lib/api';
 import type { Attachment, Bootstrap, Bot, BotDraft, CapabilitySelection, Group, GroupDraft, GroupMember, Invitation, Message } from '@/lib/types';
 
 import { AccountSettings } from './account-settings';
+import { BotActionSheets, type BotAction } from './bot-action-sheets';
 import { BotEditor } from './bot-editor';
 import { styles } from './chat-app.styles';
 import { ConversationPanel } from './conversation-panel';
@@ -64,7 +65,7 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
   const [botMenuOpen, setBotMenuOpen] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [scheduleBot, setScheduleBot] = useState<Bot>();
-  const [pendingBotAction, setPendingBotAction] = useState<'clear' | 'delete'>();
+  const [pendingBotAction, setPendingBotAction] = useState<BotAction>();
   const [replyBotId, setReplyBotId] = useState<string | null>();
 
   const selectedBot = selection?.kind === 'bot' ? data?.bots.find((bot) => bot.id === selection.id) : undefined;
@@ -558,35 +559,17 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
           onSignOut={signOut}
         />
       ) : null}
-      <ActionSheet
-        visible={botMenuOpen}
-        title={selectedBot?.name ?? 'FroggyBot'}
-        message="Schedule its work, share it, or manage this conversation."
-        options={[
-          { label: 'Scheduled tasks', onPress: () => setScheduleBot(selectedBot) },
-          { label: 'Share bot setup', onPress: () => share('bot') },
-          { label: 'Share conversation', onPress: () => share('chat') },
-          { label: 'Clear conversation', destructive: true, onPress: () => setPendingBotAction('clear') },
-          { label: 'Delete bot', destructive: true, onPress: () => setPendingBotAction('delete') },
-        ]}
-        onClose={() => setBotMenuOpen(false)}
-      />
-      <ActionSheet
-        visible={Boolean(pendingBotAction)}
-        title={pendingBotAction === 'delete' ? `Delete ${selectedBot?.name ?? 'this bot'}?` : 'Clear this conversation?'}
-        message={
-          pendingBotAction === 'delete'
-            ? 'This permanently deletes the FroggyBot, its direct chat, and removes it from your groups.'
-            : 'This permanently deletes every message in this direct chat but keeps the FroggyBot.'
-        }
-        options={[
-          {
-            label: pendingBotAction === 'delete' ? 'Delete bot' : 'Clear conversation',
-            destructive: true,
-            onPress: runBotDeletion,
-          },
-        ]}
-        onClose={() => setPendingBotAction(undefined)}
+      <BotActionSheets
+        bot={selectedBot}
+        menuOpen={botMenuOpen}
+        pendingAction={pendingBotAction}
+        onCloseMenu={() => setBotMenuOpen(false)}
+        onSchedule={() => setScheduleBot(selectedBot)}
+        onShareSetup={() => share('bot')}
+        onShareConversation={() => share('chat')}
+        onRequestAction={setPendingBotAction}
+        onConfirmAction={runBotDeletion}
+        onCloseConfirmation={() => setPendingBotAction(undefined)}
       />
       <ActionSheet
         visible={Boolean(links.pendingSkill)}

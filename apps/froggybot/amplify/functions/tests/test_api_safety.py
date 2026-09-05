@@ -248,6 +248,23 @@ class ApiSafetyTests(unittest.TestCase):
         revoke.assert_called_once_with("user-1", "bot-1", scopes={"chat"})
         self.assertEqual(result["revokedShares"], 2)
 
+    def test_chief_is_the_only_default_and_cannot_be_deleted(self) -> None:
+        self.assertEqual(
+            [bot["name"] for bot in self.support.DEFAULT_BOTS],
+            ["Chief"],
+        )
+        with (
+            patch.object(
+                self.bots,
+                "_get_bot",
+                return_value={"id": "chief", "systemRole": "chief"},
+            ),
+            self.assertRaises(self.support.ApiError) as error,
+        ):
+            self.bots._delete_bot("user-1", "chief")
+
+        self.assertEqual(error.exception.status_code, 409)
+
     def test_second_message_is_rejected_while_a_turn_is_in_flight(self) -> None:
         turns = [{"status": "RUNNING"}]
         with (

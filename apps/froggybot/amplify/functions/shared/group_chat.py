@@ -8,6 +8,14 @@ MAX_GROUP_BOTS = 12
 MAX_GROUP_ROUND_REPLIES = MAX_GROUP_BOTS + 1
 MAX_GROUP_MEMORY_CHARS = 4_000
 ROUND_ROLES = {"solo", "lead", "contributor", "synthesizer"}
+CHIEF_SYSTEM_ROLE = "chief"
+
+
+def is_chief_bot(bot: dict) -> bool:
+    role = bot.get("systemRole")
+    return role == CHIEF_SYSTEM_ROLE or (
+        role is None and str(bot.get("name", "")).strip().casefold() == "chief"
+    )
 
 
 def group_bots(items: list[dict]) -> list[dict]:
@@ -15,6 +23,7 @@ def group_bots(items: list[dict]) -> list[dict]:
     return sorted(
         (item for item in items if item.get("entity") == "GROUP_BOT"),
         key=lambda item: (
+            not is_chief_bot(item),
             str(item.get("name", "")).lower(),
             str(item.get("botId", "")),
         ),
@@ -37,10 +46,15 @@ def plan_group_reply_round(bots: list[dict], coordinated: bool) -> list[dict]:
     if not coordinated or len(bots) == 1:
         return [{**bots[0], "roundRole": "solo"}]
 
-    coordinator = bots[0]
+    coordinator = next((bot for bot in bots if is_chief_bot(bot)), None)
+    if not coordinator:
+        raise ValueError("A coordinated bot round requires Chief")
+    contributors = [
+        bot for bot in bots if bot.get("botId") != coordinator.get("botId")
+    ]
     return [
         {**coordinator, "roundRole": "lead"},
-        *({**bot, "roundRole": "contributor"} for bot in bots[1:]),
+        *({**bot, "roundRole": "contributor"} for bot in contributors),
         {**coordinator, "roundRole": "synthesizer"},
     ]
 

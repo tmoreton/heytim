@@ -30,9 +30,15 @@ type Props = {
 
 export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMember, onDelete }: Props) {
   const editable = !group || group.isOwner;
+  const chief = bots.find((bot) => bot.systemRole === 'chief');
   const [name, setName] = useState(group?.name ?? '');
   const [memory, setMemory] = useState(group?.memory ?? '');
-  const [botIds, setBotIds] = useState(group?.bots.map((bot) => bot.id) ?? (bots[0] ? [bots[0].id] : []));
+  const [botIds, setBotIds] = useState(() => {
+    const startingIds = group?.bots.map((bot) => bot.id) ?? [];
+    return editable && chief && !startingIds.includes(chief.id)
+      ? [chief.id, ...startingIds]
+      : startingIds;
+  });
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [inviteUrl, setInviteUrl] = useState('');
@@ -197,7 +203,7 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
           <Text style={styles.sectionSubtitle}>Pick the bots people can ask to join the conversation.</Text>
           {displayedBots.map((bot) => {
             const active = botIds.includes(bot.id);
-            const availableToEdit = editable;
+            const availableToEdit = editable && bot.systemRole !== 'chief';
             return (
               <Pressable
                 key={bot.id}
@@ -209,7 +215,9 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
                 <BotAvatar name={bot.name} color={bot.color} size={38} />
                 <View style={styles.rowText}>
                   <Text style={styles.rowTitle}>{bot.name}</Text>
-                  <Text numberOfLines={1} style={styles.rowSubtitle}>{bot.tagline}</Text>
+                  <Text numberOfLines={1} style={styles.rowSubtitle}>
+                    {bot.systemRole === 'chief' ? `${bot.tagline} Always included.` : bot.tagline}
+                  </Text>
                 </View>
                 {availableToEdit ? <View style={[styles.check, active && styles.checkActive]}>{active ? <Text style={styles.checkMark}>✓</Text> : null}</View> : null}
               </Pressable>
