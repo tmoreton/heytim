@@ -233,12 +233,8 @@ def _update_user_memory(user_id: str, record_id: str, body: dict) -> dict:
         "timestamp": datetime.now(UTC),
         "content": {"text": content},
         "namespaces": [namespace],
-        "sourceNamespaces": record.get("namespaces", [namespace]),
         "memoryStrategyId": record.get("memoryStrategyId"),
     }
-    metadata = record.get("metadata")
-    if isinstance(metadata, dict) and metadata:
-        update["metadata"] = metadata
     response = agentcore.batch_update_memory_records(
         memoryId=FROGBOT_MEMORY_ID,
         records=[update],
@@ -254,12 +250,13 @@ def _update_user_memory(user_id: str, record_id: str, body: dict) -> dict:
 
 
 def _delete_user_memory_record(user_id: str, record_id: str) -> dict:
-    _, namespace, _ = _owned_memory_record(user_id, record_id)
-    agentcore.delete_memory_record(
+    _owned_memory_record(user_id, record_id)
+    response = agentcore.batch_delete_memory_records(
         memoryId=FROGBOT_MEMORY_ID,
-        memoryRecordId=record_id,
-        namespace=namespace,
+        records=[{"memoryRecordId": record_id}],
     )
+    if response.get("failedRecords"):
+        raise ApiError(502, "Memory could not be forgotten")
     return {"deleted": True}
 
 

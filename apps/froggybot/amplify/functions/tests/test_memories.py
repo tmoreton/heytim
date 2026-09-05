@@ -121,8 +121,37 @@ class MemoryTests(unittest.TestCase):
             )
 
         update = self.agentcore.batch_update_memory_records.call_args.kwargs
-        self.assertEqual(update["records"][0]["sourceNamespaces"], ["/facts/actor/"])
+        self.assertEqual(
+            set(update["records"][0]),
+            {
+                "memoryRecordId",
+                "timestamp",
+                "content",
+                "namespaces",
+                "memoryStrategyId",
+            },
+        )
+        self.assertEqual(update["records"][0]["namespaces"], ["/facts/actor/"])
         self.assertEqual(result["content"], "I prefer coffee.")
+
+    def test_memory_delete_verifies_ownership_before_batch_delete(self) -> None:
+        self.agentcore.batch_delete_memory_records.return_value = {
+            "successfulRecords": [{"memoryRecordId": "mem-owned"}],
+            "failedRecords": [],
+        }
+        with (
+            patch.object(self.memories, "FROGBOT_MEMORY_ID", "memory-1"),
+            patch.object(self.memories, "_owned_memory_record") as owned,
+        ):
+            result = self.memories._delete_user_memory_record(
+                "user-1", "mem-owned"
+            )
+
+        owned.assert_called_once_with("user-1", "mem-owned")
+        self.agentcore.batch_delete_memory_records.assert_called_once_with(
+            memoryId="memory-1", records=[{"memoryRecordId": "mem-owned"}]
+        )
+        self.assertEqual(result, {"deleted": True})
 
     def test_memory_export_is_a_portable_private_download(self) -> None:
         self.s3.generate_presigned_url.return_value = "https://download.example/memory"
