@@ -211,13 +211,16 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
           </View>
 
           <Text style={styles.label}>Bot prompt</Text>
-          <Text style={styles.sectionSubtitle}>Always applied. Define its role, priorities, tone, and boundaries.</Text>
+          <Text style={styles.sectionSubtitle}>
+            Editable any time. Include the accounts or handles it should follow, plus its role, priorities, tone, and
+            boundaries.
+          </Text>
           <TextInput
             accessibilityLabel="Full bot prompt"
             style={styles.promptInput}
             value={draft.prompt}
             onChangeText={(prompt) => setDraft((value) => ({ ...value, prompt }))}
-            placeholder="Act as my… Always… Never… Keep responses…"
+            placeholder="Act as my… Focus on account @… Always… Never… Keep responses…"
             placeholderTextColor="#A4A098"
             multiline
             textAlignVertical="top"

@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
   mineAuthor: { color: '#007A3D' },
   scheduleLabel: { color: '#61766B', fontSize: 10, fontWeight: '700', marginBottom: 4, marginHorizontal: 6 },
   bubble: { maxWidth: '100%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
-  assistantBubble: { backgroundColor: '#EFEFEC', borderTopLeftRadius: 6 },
+  assistantBubble: { width: '100%', backgroundColor: '#EFEFEC', borderTopLeftRadius: 6 },
   teamAnswerBubble: { backgroundColor: '#E9F4EE', borderWidth: 1, borderColor: '#A8CFB9' },
   userBubble: { backgroundColor: '#007A3D', borderBottomRightRadius: 6 },
   errorBubble: { backgroundColor: '#F8E6E1' },

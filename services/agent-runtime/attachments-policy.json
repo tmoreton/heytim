@@ -8,7 +8,10 @@
         "s3:GetObject",
         "s3:PutObject"
       ],
-      "Resource": "arn:aws:s3:::frogbot-user-files-188757775631-us-east-1/users/*"
+      "Resource": [
+        "arn:aws:s3:::frogbot-user-files-188757775631-us-east-1/users/*",
+        "arn:aws:s3:::frogbot-user-files-188757775631-us-east-1/groups/*"
+      ]
     },
     {
       "Sid": "GenerateFrogBotImages",
