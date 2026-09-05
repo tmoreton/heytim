@@ -31,6 +31,10 @@ Tags defined in `agentcore.json` flow through to deployed CloudFormation resourc
 ```
 myProject/
 ├── AGENTS.md               # This file — AI coding assistant context
+├── apps/
+│   └── froggybot/          # Expo iOS/web product and Amplify application backend
+├── services/
+│   └── agent-runtime/      # AgentCore runtime source
 ├── agentcore/
 │   ├── agentcore.json      # Main project config (AgentCoreProjectSpec)
 │   ├── aws-targets.json    # Deployment targets (account + region)
@@ -40,7 +44,6 @@ myProject/
 │   │   ├── agentcore.ts    # AgentCoreProjectSpec types
 │   │   └── aws-targets.ts  # AWS deployment target types
 │   └── cdk/                # AWS CDK project (@aws/agentcore-cdk L3 constructs)
-├── app/                    # Agent application code
 └── evaluators/             # Custom evaluator code (if any)
 ```
 
@@ -135,7 +138,9 @@ When modifying JSON config files:
 
 ## Harness Export
 
-`agentcore export harness` converts a harness configuration into a deployable Strands Python agent under `app/<agentName>/`.
+`agentcore export harness` writes generated Strands code under `app/<agentName>/`. This repository keeps its
+maintained runtime under `services/agent-runtime/`, so treat the generated folder as staging output and merge it only
+after completing its export notes.
 
 **After every export, you MUST read `app/<agentName>/EXPORT_NOTES.md` before proceeding.**
 

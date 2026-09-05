@@ -3,20 +3,23 @@
 This repository deliberately has three product boundaries:
 
 ```text
-apps/mobile/        User experience and its serverless application backend
-app/FrogBot/        One AgentCore runtime shared by every FroggyBot personality
-agentcore/           Declarative AgentCore infrastructure and gateway schemas
+apps/froggybot/          User experience and its serverless application backend
+services/agent-runtime/  One AgentCore runtime shared by every FroggyBot personality
+agentcore/               Declarative AgentCore infrastructure and gateway schemas
 ```
 
 ## Mobile application
 
-`apps/mobile/src/app` contains Expo Router route shells only. Product behavior belongs under
+`apps/froggybot/src/app` contains Expo Router route shells only. Product behavior belongs under
 `src/features`, reusable visual primitives under `src/components`, and AWS/API adapters under
 `src/lib`. The signed-in chat is composed from a drawer, header, message list, composer, and
 focused bot/group/skill editors. Web and iOS use the same feature code.
 
-The public website is the static `/` route. `/invite` previews a share link before opening the app
-or sign-up experience. `/app` hosts the authenticated product. Development builds may use
+The public website uses `/` for positioning and `/library` for the searchable skill, tool, and action directory.
+The directory reads sanitized catalog metadata from `/public/catalog` and falls back to the same reviewed GitHub
+source if the API is temporarily unavailable. `/invite` previews a share link before opening the app or sign-up
+experience. `/app` hosts the authenticated product. Catalog links use `/app?skill=…` or `/app?tool=…` to preselect
+the capability in a review-before-save bot editor. Development builds may use
 `/app?preview=1` to exercise the complete UI without calling AWS; production builds ignore that
 flag.
 
@@ -54,13 +57,16 @@ EventBridge Scheduler -> SQS scheduled job -> worker reloads task + bot -> sched
                       -> AgentCore -> final answer in chat -> final-only push notification
 ```
 
-Group rounds use one SQS step per bot. Each later bot receives the group roster, people, shared
-transcript, and completed replies from earlier bots. A group/bot/session tuple provides stable
-AgentCore isolation while preserving that bot's memory inside the group.
+Group rounds use one SQS step per bot. Each later bot receives the group roster, owner-editable shared memory,
+shared transcript, and completed replies from earlier bots. A group/bot/session tuple provides stable AgentCore
+isolation while keeping the group's explicit memory separate from each person's private memory.
+
+Generated group artifacts use a group-scoped S3 prefix and group-owned DynamoDB file records. Downloads require
+current membership, so every participant can open the result without exposing it through a public link.
 
 ## Agent runtime
 
-`app/FrogBot/main.py` is only the AgentCore transport adapter. `frogbot_runtime/request.py`
+`services/agent-runtime/main.py` is only the AgentCore transport adapter. `frogbot_runtime/request.py`
 normalizes untrusted invocation payloads, `configuration.py` builds per-bot and per-group
 instructions, and `capabilities.py` assembles only the tools and skills enabled for that bot.
 Stan and Strands stay behind this boundary so the mobile/API layers do not duplicate agent logic.
@@ -75,6 +81,8 @@ completed reply only after the worker verifies and records them.
 
 Executable community code is not accepted. Skills are versioned instructions plus approved tool
 references; secrets and executable integrations stay in reviewed AgentCore Gateway targets.
+The separate `frogbot-capabilities` repository is the publishing boundary. Pull requests are validated there;
+the backend then validates and caches releases before exposing only public metadata to signed-out visitors.
 
 ## Invariants
 
@@ -98,11 +106,11 @@ Run the complete local checks before a deployment:
 ```bash
 agentcore validate
 
-cd app/FrogBot
+cd services/agent-runtime
 uv run ruff check .
 uv run pytest -q
 
-cd ../../apps/mobile
+cd ../../apps/froggybot
 npm run verify
 npm run build:web
 uvx ruff check amplify/functions

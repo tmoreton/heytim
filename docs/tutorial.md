@@ -6,9 +6,9 @@ local preview, follow one message through the system, and only then move into AW
 ## 1. Learn the three boundaries
 
 ```text
-apps/mobile/        The Expo product and its Amplify application backend
-app/FrogBot/        The AI runtime that turns a bot configuration into an agent
-agentcore/           The declarative AWS AgentCore configuration
+apps/froggybot/          The Expo product and its Amplify application backend
+services/agent-runtime/  The AI runtime that turns a bot configuration into an agent
+agentcore/               The declarative AWS AgentCore configuration
 ```
 
 The mobile app owns what people see and the application data they create. The Amplify backend owns
@@ -24,7 +24,7 @@ The preview is the fastest way to understand the product because it exercises th
 without calling AWS.
 
 ```bash
-cd apps/mobile
+cd apps/froggybot
 nvm use
 npm install
 npm run ios
@@ -72,14 +72,15 @@ matching file under `amplify/functions/api` or `amplify/functions/worker`.
 
 ## 4. Understand the agent runtime
 
-The deployed runtime starts in `app/FrogBot/main.py`. Read its supporting modules in this order:
+The deployed runtime starts in `services/agent-runtime/main.py`. Read its supporting modules in this order:
 
 1. `frogbot_runtime/request.py` validates the invocation and loads approved attachments.
 2. `frogbot_runtime/configuration.py` builds direct or group instructions.
 3. `frogbot_runtime/capabilities.py` resolves the bot's enabled tools and pinned skills.
 4. `frogbot_runtime/memory.py` recalls and records long-term memory.
 5. `frogbot_runtime/artifacts.py` exposes generated files to the agent.
-6. The renderer modules turn text into PDF, Word, Excel, PowerPoint, or PNG files.
+6. The renderer modules turn text into PDF, Word, Excel, PowerPoint, or PNG files. Direct outputs stay private to the
+   person; group outputs are downloadable by current group members.
 7. `frogbot_runtime/telemetry.py` removes sensitive model content from traces.
 
 One runtime serves every bot. Bot name, prompt, tools, skill versions, user identity, and conversation
@@ -91,7 +92,7 @@ identity arrive in the request rather than being hard-coded into separate deploy
 `agentcore/.llm-context/agentcore.ts` before changing it, then run `agentcore validate`. Never change
 generated behavior under `agentcore/cdk`.
 
-`apps/mobile/amplify/backend.ts` composes the application stack. It creates Cognito, DynamoDB, S3,
+`apps/froggybot/amplify/backend.ts` composes the application stack. It creates Cognito, DynamoDB, S3,
 SQS, Lambda, Scheduler, and the HTTP API. `amplify/infrastructure/observability.ts` adds alarms, the
 dashboard, and the monthly budget. Existing construct IDs and AgentCore resource names are stable;
 renaming them can replace live resources.
@@ -104,6 +105,11 @@ catalog_rules.py       IDs, limits, and runtime-binding validation
 catalog_sync.py        Trusted remote download and shared refresh lease
 catalog.py             User libraries, version pinning, importing, and sharing
 ```
+
+The external `frogbot-capabilities` repository owns public listings and contribution review. Each entry includes
+display metadata for `/library`; tool entries also list the human-readable actions they expose. The unauthenticated
+`GET /public/catalog` route returns only sanitized, currently usable listings. A public directory link carries the
+selected skill or tool into `/app`, where the existing bot editor preselects it and still requires an explicit save.
 
 ## 6. Add a feature vertically
 
@@ -128,11 +134,11 @@ more behavior.
 ```bash
 agentcore validate
 
-cd app/FrogBot
+cd services/agent-runtime
 uv run ruff check .
 uv run pytest -q
 
-cd ../../apps/mobile
+cd ../../apps/froggybot
 npm run verify
 npm run build:web
 uvx bandit -q -r amplify/functions -x amplify/functions/tests
@@ -145,7 +151,7 @@ Expo project health.
 
 Follow the deployment order in the repository [README](../README.md): AgentCore first, then the
 Amplify backend, then the client. After deployment, run the authenticated workflow test from
-`apps/mobile` and confirm the dashboard and alarms described in [operations.md](operations.md).
+`apps/froggybot` and confirm the dashboard and alarms described in [operations.md](operations.md).
 
 Do not use AWS account-root credentials for development or deployment. Use an IAM Identity Center or
 least-privilege deployment role, and keep credentials out of the repository.

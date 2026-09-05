@@ -8,16 +8,16 @@ serverless chat API.
 ## Repository layout
 
 ```text
-apps/mobile/        Expo app and the Amplify backend it calls
-app/FrogBot/        AgentCore runtime entrypoint and its runtime-only modules
-agentcore/           Declarative AgentCore resources and reviewed gateway schemas
-docs/                Operational forms and architecture notes
+apps/froggybot/          Expo iOS/web product and its Amplify backend
+services/agent-runtime/  AgentCore runtime and runtime-only modules
+agentcore/               Declarative AgentCore resources and gateway schemas
+docs/                    Tutorial, architecture, and operations guides
 ```
 
-`apps/mobile` is an independent Expo project, so run Expo, EAS, Amplify, and npm commands from
-that directory. `app/FrogBot` remains at AgentCore's conventional code location; `agentcore.json`
-is still the source of truth for deployed agent resources. The older internal name `FrogBot` remains
-in AWS resource and folder identities because renaming it would replace deployed infrastructure;
+`apps/froggybot` is an independent Expo project, so run Expo, EAS, Amplify, and npm commands from
+that directory. `services/agent-runtime` is referenced by `agentcore.json`, which remains the source of truth
+for deployed agent resources. The older internal name `FrogBot` remains in AWS resource identities because
+renaming it would replace deployed infrastructure;
 user-facing product copy uses `FroggyBot`. The maintained boundary and request-flow
 guide is in [`docs/architecture.md`](docs/architecture.md), and the remaining product work is tracked
 in [`docs/grokbot-parity-roadmap.md`](docs/grokbot-parity-roadmap.md).
@@ -59,9 +59,10 @@ order for the preview app, live request path, AgentCore runtime, infrastructure,
 - Daily, weekday, weekly, and monthly per-bot tasks in the device's timezone, with pause and run-now controls
 - Apple on-device speech-to-text in the message composer without saved audio
 - Private image and document uploads, plus downloadable text, Markdown, CSV, JSON, HTML, PDF, Word, Excel,
-  PowerPoint, and generated PNG artifacts
+  PowerPoint, and generated PNG artifacts in direct or shared group conversations
 - Per-bot name, description, prompt, color, tools, and version-pinned skills
-- Shared groups with multiple people and FroggyBots, invite links, single-bot replies, and ordered team collaboration rounds
+- Shared groups with owner-editable memory, one-link passwordless participation, single-bot replies, and ordered team collaboration rounds
+- Automatic reusable outputs for itineraries, budgets, checklists, plans, and other work that belongs outside the chat
 - Owner-controlled chat, bot, and group deletion with pending-work protection and invite revocation
 - A skill library for creating, editing, and sharing reusable ways of working
 - Three starter bots, three reviewed starter skills, and a dynamically refreshed capability catalog
@@ -80,7 +81,7 @@ order for the preview app, live request path, AgentCore runtime, infrastructure,
 The preview uses sample data and does not call AWS.
 
 ```bash
-cd apps/mobile
+cd apps/froggybot
 npm install
 npm run ios
 ```
@@ -119,7 +120,7 @@ also requires a documented opt-in flow, public privacy policy and terms, and acc
 ### 3. Deploy the app backend
 
 ```bash
-cd apps/mobile
+cd apps/froggybot
 nvm use
 npm install
 npm run backend:install
@@ -128,7 +129,7 @@ export FROGBOT_MEMORY_ID='FrogBot_FrogBotMemory-REPLACE_ME'
 npm run sandbox -- --once --identifier frogbot --profile YOUR_AWS_PROFILE
 ```
 
-Amplify writes the real Cognito and API values to `apps/mobile/amplify_outputs.json`. Keep the sandbox
+Amplify writes the real Cognito and API values to `apps/froggybot/amplify_outputs.json`. Keep the sandbox
 running during active development by omitting `--once`, then start the app in another terminal with
 `npm run ios`. Expo SDK 57 requires Node 22.13 or newer; the pinned Node 22 line also avoids the
 Amplify CLI incompatibility seen under Node 25.
@@ -140,6 +141,9 @@ never use AWS account-root credentials.
 ## Skills and tools
 
 The reviewed public catalog lives in [frogbot-capabilities](https://github.com/tmoreton/frogbot-capabilities).
+Visitors can browse its reviewed skills, tools, and actions without signing in at
+`https://froggybot.com/library`. Search, categories, trust labels, and deep links make the catalog useful as
+a storefront; opening an item takes a member to a preselected, review-before-save bot edit.
 Skill releases use immutable Git tags, and every bot stores the exact skill version it selected. Updating a skill
 therefore does not silently change an existing bot or a previously shared bot. Catalog refreshes add or remove
 listings without deleting old versions that existing bots still need.
@@ -148,6 +152,8 @@ Users can create instruction-only skills inside the app, attach only the tools t
 30-day installation link. Shared skills are read-only for the recipient and require an explicit trust confirmation.
 Executable code never comes from a community skill: external APIs are exposed as narrow, read-only AgentCore
 Gateway targets with credentials held on AWS, not in the Expo app or skill repository.
+The public repository includes validation automation, contribution templates, and separate request forms for
+instruction-only skills and server-reviewed tools.
 
 The X and YouTube skill packs and their restricted OpenAPI schemas are ready in the catalog. They remain hidden
 from users until their server-side credentials and gateway targets are deployed. This keeps the live tool picker
@@ -157,7 +163,7 @@ honest and prevents a bot from being saved with a tool that cannot run.
 
 ```bash
 agentcore validate
-cd apps/mobile
+cd apps/froggybot
 npm run verify
 ```
 
@@ -168,17 +174,17 @@ The verification command also prevents authored source files from growing beyond
 The production EAS build profile listens to the `production` update channel. The GitHub Actions workflow at
 `.github/workflows/eas-update.yml` publishes both an EAS Update and the static Expo website after every push to
 `main`; the Expo credential is stored as the repository secret `EXPO_TOKEN`. Expo's fingerprint runtime policy
-prevents an update from reaching an incompatible native build. On web, `/` is the public landing page and `/app`
-opens the same passwordless FroggyBot experience used by the native app.
+prevents an update from reaching an incompatible native build. On web, `/` is the public landing page, `/library`
+is the public capability directory, and `/app` opens the same passwordless FroggyBot experience used by the native app.
 
 ## Key locations
 
-- `app/FrogBot/main.py` - small AgentCore runtime entrypoint
-- `app/FrogBot/frogbot_runtime/` - request validation and per-bot capability assembly
-- `app/FrogBot/skill_catalog/` - selectable bot skills
+- `services/agent-runtime/main.py` - small AgentCore runtime entrypoint
+- `services/agent-runtime/frogbot_runtime/` - request validation and per-bot capability assembly
+- `services/agent-runtime/skill_catalog/` - selectable bot skills
 - `agentcore/gateway/` - reviewed external tool schemas
 - `agentcore/agentcore.json` - AgentCore source-of-truth configuration
-- `apps/mobile/src/features/` - authentication, invitations, chat UI, and editors
-- `apps/mobile/amplify/backend.ts` - Cognito, API, DynamoDB, SQS, and Lambda infrastructure
-- `apps/mobile/amplify/functions/` - authenticated API, shared domain logic, and AgentCore worker
+- `apps/froggybot/src/features/` - authentication, invitations, chat UI, and editors
+- `apps/froggybot/amplify/backend.ts` - Cognito, API, DynamoDB, SQS, and Lambda infrastructure
+- `apps/froggybot/amplify/functions/` - authenticated API, shared domain logic, and AgentCore worker
 - [frogbot-capabilities](https://github.com/tmoreton/frogbot-capabilities) - versioned public skill and tool catalog

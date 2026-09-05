@@ -8,11 +8,12 @@ oversized=()
 
 cd "$repository_root"
 while IFS= read -r file; do
+  [[ -f "$file" ]] || continue
   case "$file" in
-    app/FrogBot/vendor/*|*/node_modules/*|*/.amplify/*|*/dist/*|agentcore/cdk/*)
+    services/agent-runtime/vendor/*|*/node_modules/*|*/.amplify/*|*/dist/*|agentcore/cdk/*)
       continue
       ;;
-    app/FrogBot/*|apps/mobile/src/*|apps/mobile/amplify/functions/*|apps/mobile/amplify/infrastructure/*|apps/mobile/amplify/backend.ts|apps/mobile/scripts/*|scripts/*)
+    services/agent-runtime/*|apps/froggybot/src/*|apps/froggybot/amplify/functions/*|apps/froggybot/amplify/infrastructure/*|apps/froggybot/amplify/backend.ts|apps/froggybot/scripts/*|scripts/*)
       ;;
     *)
       continue

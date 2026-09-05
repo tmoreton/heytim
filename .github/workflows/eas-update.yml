@@ -17,7 +17,7 @@ jobs:
       contents: read
     defaults:
       run:
-        working-directory: apps/mobile
+        working-directory: apps/froggybot
     steps:
       - name: Check for Expo token
         working-directory: .
@@ -35,7 +35,7 @@ jobs:
         with:
           node-version: 22.23.2
           cache: npm
-          cache-dependency-path: apps/mobile/package-lock.json
+          cache-dependency-path: apps/froggybot/package-lock.json
 
       - name: Set up EAS
         uses: expo/expo-github-action@v9

@@ -84,12 +84,12 @@ constructs or replace DynamoDB/S3 resources during an incident.
 - Before a major release: run the authenticated concurrency test at the agreed traffic target and confirm
   error, latency, throttle, queue-age, and cost signals remain within the objectives above.
 
-The read-only concurrency check is `npm run load:test -- --requests 40 --concurrency 8` from `apps/mobile`.
+The read-only concurrency check is `npm run load:test -- --requests 40 --concurrency 8` from `apps/froggybot`.
 Supply `FROGBOT_API_URL` and a short-lived `FROGBOT_ACCESS_TOKEN` in the shell; the script never prints or
 stores the token. It fails if any request fails or if p99 exceeds five seconds by default. Increase traffic
 gradually and keep the API rate limit, downstream capacity, and expected production traffic in view.
 
-The destructive authenticated workflow suite is `npm run workflow:test` from `apps/mobile`. It requires an
+The destructive authenticated workflow suite is `npm run workflow:test` from `apps/froggybot`. It requires an
 isolated Cognito user plus `FROGBOT_API_URL`, `FROGBOT_ID_TOKEN`, and
 `FROGBOT_DISPOSABLE_ACCOUNT=1`. It verifies bootstrap, attachment processing, schedules, sharing and
 revocation, one-time approval in both directions, cancellation, cleanup, and queued account deletion. Never
