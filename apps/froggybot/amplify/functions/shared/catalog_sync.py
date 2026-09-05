@@ -10,9 +10,7 @@ import urllib.parse
 import urllib.request
 import uuid
 
-from .catalog_defaults import FALLBACK_SKILLS, FALLBACK_TOOLS
 from .catalog_rules import (
-    LEGACY_TOOL_RISKS,
     MAX_SKILL_INSTRUCTIONS,
     TOOL_RISKS,
     CatalogError,
@@ -116,10 +114,7 @@ class CatalogSyncMixin:
             Key={"pk": "SYSTEM#CATALOG", "sk": "METADATA"},
             ConsistentRead=True,
         ).get("Item")
-        if not metadata:
-            # Guarantee a usable catalog while the first remote refresh is in flight.
-            self._ensure_fallbacks()
-        elif not force and int(metadata.get("nextSyncAt", 0)) > now_epoch:
+        if metadata and not force and int(metadata.get("nextSyncAt", 0)) > now_epoch:
             _last_sync_at = current
             _local_sync_delay = min(
                 SYNC_SECONDS, max(1, int(metadata["nextSyncAt"]) - now_epoch)
@@ -144,7 +139,6 @@ class CatalogSyncMixin:
             logger.exception(
                 "Could not refresh the capability catalog; using the last known catalog"
             )
-            self._ensure_fallbacks()
             self._finish_sync_lease(lease_id, SYNC_RETRY_SECONDS, "RETRY")
             _local_sync_delay = SYNC_RETRY_SECONDS
         else:
@@ -236,7 +230,7 @@ class CatalogSyncMixin:
             if not isinstance(raw, dict):
                 raise CatalogError("Capability catalog tool is invalid")
             tool_id = _validate_tool_id(raw.get("id"))
-            risk = raw.get("risk", LEGACY_TOOL_RISKS.get(tool_id))
+            risk = raw.get("risk")
             if risk not in TOOL_RISKS:
                 raise CatalogError(f"{tool_id} must declare a supported tool risk")
             parsed_tools.append(
@@ -297,16 +291,6 @@ class CatalogSyncMixin:
         if len({item["id"] for item in skills}) != len(skills):
             raise CatalogError("Capability catalog skill IDs must be unique")
         self._store_official(tools, skills)
-
-    def _ensure_fallbacks(self) -> None:
-        response = self.table.query(
-            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
-            ExpressionAttributeValues={":pk": "SYSTEM#SKILLS", ":prefix": "SKILL#"},
-            Limit=1,
-        )
-        if response.get("Items"):
-            return
-        self._store_official(FALLBACK_TOOLS, FALLBACK_SKILLS)
 
     def _store_official(self, tools: list[dict], skills: list[dict]) -> None:
         current = _now()

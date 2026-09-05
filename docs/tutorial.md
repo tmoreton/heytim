@@ -40,7 +40,7 @@ Read the preview path in this order:
 4. `src/features/chat/conversation-panel.tsx` renders the active conversation.
 5. `src/lib/api.ts` presents one API to the interface.
 6. `src/lib/demo.ts` implements that API with in-memory preview data.
-7. `src/lib/demo-skills.ts` contains only the longer skill fixtures.
+7. `src/lib/demo-catalog.ts` loads the same public capability catalog used in production.
 
 The chat folder keeps each workflow separate: attachments, invitation links, and dictation are hooks;
 editors and sheets are components; `chat-app.tsx` only joins them together.
@@ -97,10 +97,9 @@ SQS, Lambda, Scheduler, and the HTTP API. `amplify/infrastructure/observability.
 dashboard, and the monthly budget. Existing construct IDs and AgentCore resource names are stable;
 renaming them can replace live resources.
 
-The capability catalog is deliberately split into four files:
+The application backend keeps only the catalog trust and persistence layer:
 
 ```text
-catalog_defaults.py    Safe built-in tools and skills used before a remote refresh
 catalog_rules.py       IDs, limits, and runtime-binding validation
 catalog_sync.py        Trusted remote download and shared refresh lease
 catalog.py             User libraries, version pinning, importing, and sharing
@@ -108,9 +107,14 @@ catalog.py             User libraries, version pinning, importing, and sharing
 
 The external `frogbot-skills` repository owns the public website, catalog, and contribution review. Each entry includes
 display metadata for `froggybot.com/library/`; tool entries also list the human-readable actions they expose. The
-unauthenticated `GET /public/catalog` route returns only sanitized, currently usable listings. A public directory link
+backend keeps the last successfully reviewed release if a refresh fails; it does not carry a second bundled catalog.
+The unauthenticated `GET /public/catalog` route returns only sanitized, currently usable listings. A public directory link
 carries the selected skill or tool to `app.froggybot.com/app`, where the bot editor preselects it and still requires
 an explicit save. The public site deploys from its own repository, independently of app releases.
+
+The runtime still contains reviewed implementations for local and managed tools plus a strict execution allowlist.
+Those pieces run with server permissions, so they cannot be downloaded from a community repository. Public names,
+descriptions, bindings, skill instructions, and external API schemas live only in `frogbot-skills`.
 
 ## 6. Add a feature vertically
 

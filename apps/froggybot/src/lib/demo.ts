@@ -10,7 +10,7 @@ import type {
   SkillDetail,
   SkillDraft,
 } from './types';
-import { createDemoSkills } from './demo-skills';
+import { loadDemoCatalog, loadDemoSkill } from './demo-catalog';
 
 const timestamp = new Date().toISOString();
 
@@ -103,7 +103,7 @@ let schedules: ScheduledTask[] = [
   },
 ];
 
-let skills = createDemoSkills();
+let personalSkills: SkillDetail[] = [];
 
 const messages = new Map<string, Message[]>([
   [
@@ -174,25 +174,22 @@ const groupMessages = new Map<string, Message[]>([
   ],
 ]);
 
-export const demoBootstrap = (): Bootstrap => ({
-  bots: [...bots],
-  groups: groups.map((group) => ({
-    ...group,
-    members: [...group.members],
-    bots: [...group.bots],
-  })),
-  tools: [
-    { id: 'web', name: 'Web reader', description: 'Open and summarize links.', provider: 'stan' },
-    { id: 'web_search', name: 'Web search', description: 'Search the live web and return relevant sources.', provider: 'agentcore-gateway' },
-    { id: 'calculator', name: 'Calculator', description: 'Do exact arithmetic.', provider: 'frogbot' },
-    { id: 'current_time', name: 'World clock', description: 'Check time by timezone.', provider: 'frogbot' },
-    { id: 'task_list', name: 'Task tracker', description: 'Keep a live checklist during longer work.', provider: 'stan' },
-    { id: 'delegate', name: 'Focused delegate', description: 'Hand a focused subtask to a fresh agent.', provider: 'stan' },
-    { id: 'code_interpreter', name: 'Code interpreter', description: 'Run code in an isolated AgentCore sandbox.', provider: 'agentcore' },
-    { id: 'browser', name: 'Interactive browser', description: 'Navigate and interact with websites.', provider: 'agentcore' },
-  ],
-  skills: skills.map(({ instructions: _instructions, ...skill }) => skill),
-});
+export const demoBootstrap = async (): Promise<Bootstrap> => {
+  const catalog = await loadDemoCatalog().catch(() => ({ tools: [], skills: [] }));
+  return {
+    bots: [...bots],
+    groups: groups.map((group) => ({
+      ...group,
+      members: [...group.members],
+      bots: [...group.bots],
+    })),
+    tools: catalog.tools,
+    skills: [
+      ...catalog.skills,
+      ...personalSkills.map(({ instructions: _instructions, ...skill }) => skill),
+    ],
+  };
+};
 
 export const demoMessages = (botId: string): Message[] => [...(messages.get(botId) ?? [])];
 
@@ -421,13 +418,12 @@ export const demoSendGroup = (groupId: string, text: string, replyBotId?: string
 };
 
 export const demoGetSkill = async (skillId: string): Promise<SkillDetail> => {
-  const skill = skills.find((item) => item.id === skillId);
-  if (!skill) throw new Error('Skill not found.');
-  return { ...skill };
+  const personal = personalSkills.find((item) => item.id === skillId);
+  return personal ? { ...personal } : loadDemoSkill(skillId);
 };
 
 export const demoSaveSkill = async (draft: SkillDraft, skillId?: string): Promise<SkillDetail> => {
-  const existing = skills.find((item) => item.id === skillId);
+  const existing = personalSkills.find((item) => item.id === skillId);
   if (skillId && (!existing || !existing.editable)) throw new Error('Only your own skills can be edited.');
   const saved: SkillDetail = {
     ...draft,
@@ -438,8 +434,15 @@ export const demoSaveSkill = async (draft: SkillDraft, skillId?: string): Promis
     relationship: 'owner',
     updatedAt: new Date().toISOString(),
   };
-  skills = existing ? skills.map((item) => (item.id === saved.id ? saved : item)) : [...skills, saved];
+  personalSkills = existing
+    ? personalSkills.map((item) => (item.id === saved.id ? saved : item))
+    : [...personalSkills, saved];
   return saved;
 };
 
-export const demoImportSkill = async (_token: string): Promise<SkillDetail> => ({ ...skills[0] });
+export const demoImportSkill = async (_token: string): Promise<SkillDetail> => {
+  const catalog = await loadDemoCatalog();
+  const first = catalog.skills[0];
+  if (!first) throw new Error('No public skills are available.');
+  return { ...(await loadDemoSkill(first.id)), relationship: 'installed' };
+};

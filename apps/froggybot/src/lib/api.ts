@@ -83,21 +83,24 @@ const publicRequest = async <T>(path: string): Promise<T> => {
 };
 
 export const createApi = (demo: boolean) => ({
-  invitePreview: async ({ kind, token }: Invitation): Promise<InvitePreview> =>
-    demo
-      ? {
+  invitePreview: async ({ kind, token }: Invitation): Promise<InvitePreview> => {
+    if (demo) {
+      const bootstrap = await demoBootstrap();
+      return {
           kind,
           token,
           title: kind === 'group' ? 'Weekend builders' : 'A FroggyBot for you',
           description: 'Taylor invited you to bring people and FroggyBots together.',
           inviterName: 'Taylor',
           peopleCount: 3,
-          bots: demoBootstrap().groups[0]?.bots ?? [],
+          bots: bootstrap.groups[0]?.bots ?? [],
           expiresAt: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
-        }
-      : publicRequest<Omit<InvitePreview, 'token'>>(
-          `/public/invites/${encodeURIComponent(kind)}/${encodeURIComponent(token)}`,
-        ).then((value) => ({ ...value, token })),
+        };
+    }
+    return publicRequest<Omit<InvitePreview, 'token'>>(
+      `/public/invites/${encodeURIComponent(kind)}/${encodeURIComponent(token)}`,
+    ).then((value) => ({ ...value, token }));
+  },
   bootstrap: async (): Promise<Bootstrap> => (demo ? demoBootstrap() : request<Bootstrap>('/bootstrap')),
   messages: async (botId: string): Promise<Message[]> =>
     demo
@@ -277,7 +280,7 @@ export const createApi = (demo: boolean) => ({
     }).then((value) => value.url);
   },
   importShare: async (token: string): Promise<Bot> => {
-    if (demo) return demoBootstrap().bots[0];
+    if (demo) return (await demoBootstrap()).bots[0];
     return request<Bot>(`/shares/${encodeURIComponent(token)}/import`, { method: 'POST' });
   },
   skill: async (skillId: string): Promise<SkillDetail> =>

@@ -88,6 +88,19 @@ def test_catalog_binding_rejects_unreviewed_runtime_features() -> None:
         raise AssertionError("unreviewed runtime binding was accepted")
 
 
+def test_runtime_rejects_unresolved_catalog_capabilities() -> None:
+    for bot, message in (
+        ({"toolIds": [], "skills": []}, "bot.tools"),
+        ({"toolIds": [], "tools": [], "skillIds": []}, "bot.skills"),
+    ):
+        try:
+            capabilities.resolve_capabilities(bot, "test-session")
+        except ValueError as error:
+            assert message in str(error)
+        else:
+            raise AssertionError("runtime accepted unresolved catalog capabilities")
+
+
 def test_calculator_accepts_arithmetic_and_rejects_code() -> None:
     assert capabilities.calculate("(8 + 4) / 3") == "4.0"
     try:

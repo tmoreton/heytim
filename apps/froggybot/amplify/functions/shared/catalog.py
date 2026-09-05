@@ -9,9 +9,7 @@ from typing import Any
 
 from shared.invites import invite_url
 
-from .catalog_defaults import FALLBACK_SKILLS, FALLBACK_TOOLS
 from .catalog_rules import (
-    LEGACY_TOOL_RISKS,
     MAX_SKILL_INSTRUCTIONS,
     MAX_SKILLS_PER_BOT,
     MAX_TOOLS_PER_BOT,
@@ -35,8 +33,6 @@ PUBLIC_WEB_BASE_URL = os.environ.get("PUBLIC_WEB_BASE_URL", "https://froggybot.c
 CATALOG_REPOSITORY_URL = "https://github.com/tmoreton/frogbot-skills"
 
 __all__ = [
-    "FALLBACK_SKILLS",
-    "FALLBACK_TOOLS",
     "SYNC_LEASE_SECONDS",
     "SYNC_SECONDS",
     "CatalogError",
@@ -190,10 +186,13 @@ class CatalogService(CatalogSyncMixin):
             item = by_id.get(tool_id)
             if not item:
                 raise CatalogError(f"Tool is unavailable: {tool_id}")
+            risk = item.get("risk")
+            if risk not in {"read", "sandbox", "interactive"}:
+                raise CatalogError(f"Tool risk is unavailable: {tool_id}")
             resolved.append(
                 {
                     "id": tool_id,
-                    "risk": item.get("risk", LEGACY_TOOL_RISKS.get(tool_id, "read")),
+                    "risk": risk,
                     "runtime": _validate_runtime_binding(item.get("runtime")),
                 }
             )

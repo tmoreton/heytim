@@ -19,18 +19,6 @@ RUNTIME_NAMES = {
     "stan_subagent": {"generalist"},
 }
 TOOL_RISKS = {"read", "sandbox", "interactive"}
-LEGACY_TOOL_RISKS = {
-    "web": "read",
-    "web_search": "read",
-    "calculator": "read",
-    "current_time": "read",
-    "x_search": "read",
-    "youtube_search": "read",
-    "task_list": "sandbox",
-    "delegate": "sandbox",
-    "code_interpreter": "sandbox",
-    "browser": "interactive",
-}
 
 
 class CatalogError(Exception):

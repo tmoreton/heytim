@@ -96,7 +96,16 @@
     }
   ],
   "knowledgeBases": [],
-  "credentials": [],
+  "credentials": [
+    {
+      "authorizerType": "ApiKeyCredentialProvider",
+      "name": "FrogBotXApi"
+    },
+    {
+      "authorizerType": "ApiKeyCredentialProvider",
+      "name": "FrogBotYouTubeApi"
+    }
+  ],
   "evaluators": [],
   "onlineEvalConfigs": [],
   "agentCoreGateways": [

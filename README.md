@@ -155,9 +155,9 @@ Gateway targets with credentials held on AWS, not in the Expo app or skill repos
 The public repository includes validation automation, contribution templates, and separate request forms for
 instruction-only skills and server-reviewed tools.
 
-The X and YouTube skill packs and their restricted OpenAPI schemas are ready in the catalog. They remain hidden
-from users until their server-side credentials and gateway targets are deployed. This keeps the live tool picker
-honest and prevents a bot from being saved with a tool that cannot run.
+YouTube Research is live through its restricted AgentCore Gateway target. X / Twitter Research is deployed but
+temporarily hidden because the X API account has no remaining credits. This keeps the live tool picker honest and
+prevents a bot from being saved with a tool that cannot run.
 
 ## Verification
 
@@ -186,10 +186,9 @@ query string and hand off to the Expo app subdomain.
 
 - `services/agent-runtime/main.py` - small AgentCore runtime entrypoint
 - `services/agent-runtime/frogbot_runtime/` - request validation and per-bot capability assembly
-- `services/agent-runtime/skill_catalog/` - selectable bot skills
-- `agentcore/gateway/` - reviewed external tool schemas
+- `services/agent-runtime/frogbot_runtime/capabilities.py` - reviewed implementations and the execution allowlist, not catalog content
 - `agentcore/agentcore.json` - AgentCore source-of-truth configuration
 - `apps/froggybot/src/features/` - authentication, invitations, chat UI, and editors
 - `apps/froggybot/amplify/backend.ts` - Cognito, API, DynamoDB, SQS, and Lambda infrastructure
 - `apps/froggybot/amplify/functions/` - authenticated API, shared domain logic, and AgentCore worker
-- [FroggyBot Skills](https://github.com/tmoreton/frogbot-skills) - public website plus versioned skill and tool catalog
+- [FroggyBot Skills](https://github.com/tmoreton/frogbot-skills) - the only source for public skill instructions and external tool schemas

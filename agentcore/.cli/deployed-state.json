@@ -29,8 +29,17 @@
             }
           }
         },
+        "credentials": {
+          "FrogBotXApi": {
+            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/FrogBotXApi"
+          },
+          "FrogBotYouTubeApi": {
+            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/FrogBotYouTubeApi"
+          }
+        },
         "stackName": "AgentCore-FrogBot-development",
-        "deployHash": "7614ecb8e1e422df"
+        "identityKmsKeyArn": "arn:aws:kms:us-east-1:188757775631:key/1952dc07-a93f-4603-9724-cffb7948e2f7",
+        "deployHash": "7315032969b574a0"
       }
     }
   }

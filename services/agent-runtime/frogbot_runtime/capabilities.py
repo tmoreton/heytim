@@ -27,8 +27,6 @@ from .artifacts import artifact_tool, image_tool
 MAX_SKILL_INSTRUCTIONS_CHARS = 20_000
 MAX_SKILLS = 12
 MAX_TOOLS = 12
-RUNTIME_ROOT = Path(__file__).resolve().parents[1]
-SKILL_ROOT = RUNTIME_ROOT / "skill_catalog"
 GATEWAY_URL = os.environ.get("FROGBOT_GATEWAY_URL") or os.environ.get(
     "AGENTCORE_GATEWAY_FROGBOTTOOLS_URL", ""
 )
@@ -202,28 +200,6 @@ STAN_BUILTIN_TOOLS = {"web_fetch"}
 STAN_PLUGINS = {"todos"}
 STAN_SUBAGENTS = {"generalist"}
 AGENTCORE_TOOLS = {"browser", "code_interpreter"}
-LEGACY_TOOL_BINDINGS = {
-    "web": {"kind": "stan_builtin", "name": "web_fetch"},
-    "web_search": {"kind": "gateway", "operations": ["WebSearch"]},
-    "calculator": {"kind": "local", "name": "calculator"},
-    "current_time": {"kind": "local", "name": "current_time"},
-    "x_search": {"kind": "gateway", "operations": ["x_search_recent"]},
-    "youtube_search": {
-        "kind": "gateway",
-        "operations": ["youtube_search", "youtube_video_details", "youtube_comments"],
-    },
-    "task_list": {"kind": "stan_plugin", "name": "todos"},
-    "delegate": {"kind": "stan_subagent", "name": "generalist"},
-    "code_interpreter": {"kind": "agentcore", "name": "code_interpreter"},
-    "browser": {"kind": "agentcore", "name": "browser"},
-}
-SKILLS = {
-    "researcher": SKILL_ROOT / "researcher",
-    "writer": SKILL_ROOT / "writer",
-    "planner": SKILL_ROOT / "planner",
-}
-
-
 @dataclass(frozen=True)
 class CapabilityConfiguration:
     tools: list[Any]
@@ -308,18 +284,7 @@ def dynamic_skills(bot: dict) -> list[Skill]:
 def tool_bindings(bot: dict) -> list[dict]:
     raw_bindings = bot.get("tools")
     if raw_bindings is None:
-        raw_ids = bot.get("toolIds", [])
-        if not isinstance(raw_ids, list) or not all(
-            isinstance(value, str) for value in raw_ids
-        ):
-            raise TypeError("bot.toolIds must be a list of strings")
-        unknown = set(raw_ids) - set(LEGACY_TOOL_BINDINGS)
-        if unknown:
-            raise ValueError(f"Unknown tool ids: {', '.join(sorted(unknown))}")
-        raw_bindings = [
-            {"id": tool_id, "runtime": LEGACY_TOOL_BINDINGS[tool_id]}
-            for tool_id in raw_ids
-        ]
+        raise ValueError("bot.tools must be resolved by the catalog service")
     if not isinstance(raw_bindings, list) or len(raw_bindings) > MAX_TOOLS:
         raise ValueError(f"bot.tools must be a list with at most {MAX_TOOLS} items")
 
@@ -441,11 +406,11 @@ def resolve_capabilities(
         isinstance(value, str) for value in skill_ids
     ):
         raise TypeError("bot.skillIds must be a list of strings")
-    unknown_skills = (
-        set() if bot.get("skills") is not None else set(skill_ids) - set(SKILLS)
-    )
-    if unknown_skills:
-        raise ValueError(f"Unknown skill ids: {', '.join(sorted(unknown_skills))}")
+    if bot.get("skills") is None:
+        raise ValueError("bot.skills must be resolved by the catalog service")
+    resolved_skill_ids = {skill.name for skill in skills}
+    if set(skill_ids) != resolved_skill_ids:
+        raise ValueError("bot.skillIds and resolved bot.skills do not match")
 
     return CapabilityConfiguration(
         tools=tools,
@@ -453,7 +418,7 @@ def resolve_capabilities(
             item["name"] for item in bindings if item["kind"] == "stan_builtin"
         ],
         plugins=[AgentSkills(skills=skills, strict=True)] if skills else [],
-        skill_paths=[] if skills else [str(SKILLS[skill_id]) for skill_id in skill_ids],
+        skill_paths=[],
         builtin_plugins=[
             item["name"] for item in bindings if item["kind"] == "stan_plugin"
         ],

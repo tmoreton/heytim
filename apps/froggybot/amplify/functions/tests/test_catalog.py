@@ -5,9 +5,88 @@ import unittest
 from contextlib import contextmanager
 from decimal import Decimal
 
-import shared.catalog as catalog_module
 import shared.catalog_sync as sync_module
 from shared.catalog import CatalogError, CatalogService
+
+
+def _tool(tool_id: str, provider: str, risk: str, runtime: dict, action: str) -> dict:
+    return {
+        "id": tool_id,
+        "name": f"Test {tool_id.replace('_', ' ')}",
+        "description": f"Exercise the {tool_id} test binding.",
+        "provider": provider,
+        "risk": risk,
+        "category": "Testing",
+        "author": "Test suite",
+        "tags": ["test"],
+        "actions": [action],
+        "runtime": runtime,
+        "enabled": True,
+    }
+
+
+TEST_TOOLS = [
+    _tool(
+        "web",
+        "stan",
+        "read",
+        {"kind": "stan_builtin", "name": "web_fetch"},
+        "Read a page",
+    ),
+    _tool(
+        "web_search",
+        "agentcore-gateway",
+        "read",
+        {"kind": "gateway", "operations": ["WebSearch"]},
+        "Search sources",
+    ),
+    _tool(
+        "calculator",
+        "frogbot",
+        "read",
+        {"kind": "local", "name": "calculator"},
+        "Calculate a result",
+    ),
+    _tool(
+        "current_time",
+        "frogbot",
+        "read",
+        {"kind": "local", "name": "current_time"},
+        "Read a timezone",
+    ),
+    _tool(
+        "delegate",
+        "stan",
+        "sandbox",
+        {"kind": "stan_subagent", "name": "generalist"},
+        "Delegate a task",
+    ),
+    _tool(
+        "browser",
+        "agentcore",
+        "interactive",
+        {"kind": "agentcore", "name": "browser"},
+        "Interact with a page",
+    ),
+]
+
+TEST_SKILLS = [
+    {
+        "id": "planner",
+        "version": 1,
+        "name": "Test planner",
+        "description": "Plan a test outcome.",
+        "instructions": "Create a concise test plan.",
+        "requiredToolIds": [],
+        "source": "official",
+        "visibility": "public",
+        "editable": False,
+        "category": "Testing",
+        "author": "Test suite",
+        "tags": ["test"],
+        "featured": True,
+    }
+]
 
 
 class FakeConditionalCheckFailed(Exception):
@@ -107,9 +186,7 @@ class CatalogServiceTests(unittest.TestCase):
         sync_module._local_sync_delay = sync_module.SYNC_SECONDS
         self.table = FakeTable()
         self.catalog = CatalogService(self.table)
-        self.catalog._store_official(
-            catalog_module.FALLBACK_TOOLS, catalog_module.FALLBACK_SKILLS
-        )
+        self.catalog._store_official(TEST_TOOLS, TEST_SKILLS)
 
     def test_cold_start_performs_initial_sync(self) -> None:
         sync_module._last_sync_at = 0
@@ -249,9 +326,7 @@ class CatalogServiceTests(unittest.TestCase):
         self,
     ) -> None:
         tools = self.catalog.list_tools()
-        self.assertEqual(
-            len(tools), sum(tool["enabled"] for tool in catalog_module.FALLBACK_TOOLS)
-        )
+        self.assertEqual(len(tools), len(TEST_TOOLS))
         self.assertEqual(
             {tool["id"]: (tool["provider"], tool["risk"]) for tool in tools},
             {
@@ -259,9 +334,7 @@ class CatalogServiceTests(unittest.TestCase):
                 "web_search": ("agentcore-gateway", "read"),
                 "calculator": ("frogbot", "read"),
                 "current_time": ("frogbot", "read"),
-                "task_list": ("stan", "sandbox"),
                 "delegate": ("stan", "sandbox"),
-                "code_interpreter": ("agentcore", "sandbox"),
                 "browser": ("agentcore", "interactive"),
             },
         )
@@ -291,7 +364,7 @@ class CatalogServiceTests(unittest.TestCase):
         )
         self.assertEqual(
             self.catalog.approval_tool_names(["web", "browser"]),
-            ["Interactive browser"],
+            ["Test browser"],
         )
 
     def test_public_catalog_contains_only_reviewed_installable_metadata(self) -> None:
@@ -315,8 +388,8 @@ class CatalogServiceTests(unittest.TestCase):
         self.assertNotIn("runtime", search)
         self.assertNotIn("credential", search)
         self.assertNotIn("x_search", {tool["id"] for tool in result["tools"]})
-        self.assertEqual(planner["category"], "Planning")
-        self.assertEqual(search["actions"], ["Search the web", "Find relevant sources"])
+        self.assertEqual(planner["category"], "Testing")
+        self.assertEqual(search["actions"], ["Search sources"])
         self.assertEqual(
             result["contributionUrl"],
             "https://github.com/tmoreton/frogbot-skills/blob/main/CONTRIBUTING.md",
@@ -342,14 +415,12 @@ class CatalogServiceTests(unittest.TestCase):
         }
         self.catalog._store_official(
             [
-                *catalog_module.FALLBACK_TOOLS,
+                *TEST_TOOLS,
                 {"id": "old_tool", "name": "Old", "description": "Old tool."},
             ],
-            [*catalog_module.FALLBACK_SKILLS, stale],
+            [*TEST_SKILLS, stale],
         )
-        self.catalog._store_official(
-            catalog_module.FALLBACK_TOOLS, catalog_module.FALLBACK_SKILLS
-        )
+        self.catalog._store_official(TEST_TOOLS, TEST_SKILLS)
 
         self.assertNotIn(("SYSTEM#TOOLS", "TOOL#old_tool"), self.table.items)
         self.assertNotIn(("SYSTEM#SKILLS", "SKILL#old-skill"), self.table.items)
