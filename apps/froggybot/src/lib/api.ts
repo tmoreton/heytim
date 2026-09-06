@@ -190,11 +190,11 @@ export const createApi = (demo: boolean) => ({
       { method: 'POST' },
     );
   },
-  approveMessage: async (botId: string, turnId: string): Promise<void> => {
+  approveMessage: async (botId: string, turnId: string, always = false): Promise<void> => {
     if (demo) return;
     await request(
       `/bots/${encodeURIComponent(botId)}/messages/${encodeURIComponent(turnId)}/approve`,
-      { method: 'POST' },
+      { method: 'POST', body: JSON.stringify({ always }) },
     );
   },
   schedules: async (botId: string): Promise<ScheduledTask[]> =>

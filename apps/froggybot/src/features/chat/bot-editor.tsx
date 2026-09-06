@@ -22,6 +22,7 @@ const emptyDraft: BotDraft = {
   prompt: '',
   color: BOT_COLORS[0],
   toolIds: [],
+  alwaysAllowedToolIds: [],
   skillIds: [],
 };
 
@@ -58,6 +59,7 @@ const botDraft = (
         prompt: bot.prompt,
         color: displayBotColor(bot),
         toolIds: extraToolsForBot(bot, skills),
+        alwaysAllowedToolIds: bot.alwaysAllowedToolIds ?? [],
         skillIds: bot.skillIds,
       }
     : emptyDraft;
@@ -87,7 +89,14 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
       requiredByTool.set(toolId, [...(requiredByTool.get(toolId) ?? []), skill.name]);
     });
   });
-  const effectiveToolCount = new Set([...draft.toolIds, ...requiredByTool.keys()]).size;
+  const effectiveToolIds = new Set([...draft.toolIds, ...requiredByTool.keys()]);
+  const effectiveToolCount = effectiveToolIds.size;
+  const alwaysAllowedTools = tools.filter(
+    (tool) =>
+      tool.risk === 'interactive' &&
+      effectiveToolIds.has(tool.id) &&
+      draft.alwaysAllowedToolIds.includes(tool.id),
+  );
   const suggestedItem = suggestedCapability?.kind === 'skill'
     ? skills.find((skill) => skill.id === suggestedCapability.id)
     : tools.find((tool) => tool.id === suggestedCapability?.id);
@@ -99,6 +108,9 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
       toolIds: current.toolIds.includes(id)
         ? current.toolIds.filter((value) => value !== id)
         : [...current.toolIds, id],
+      alwaysAllowedToolIds: current.toolIds.includes(id)
+        ? current.alwaysAllowedToolIds.filter((value) => value !== id)
+        : current.alwaysAllowedToolIds,
     }));
   };
 
@@ -239,6 +251,30 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
             <Text style={styles.guideStrong}>Ask normally—you do not need special commands.</Text>
           </View>
 
+          {alwaysAllowedTools.length ? (
+            <View style={styles.alwaysAllowedCard}>
+              <Text style={styles.alwaysAllowedTitle}>Always allowed in direct chats</Text>
+              <Text style={styles.alwaysAllowedCopy}>
+                Groups and scheduled tasks still cannot use these tools unattended.
+              </Text>
+              {alwaysAllowedTools.map((tool) => (
+                <View key={tool.id} style={styles.alwaysAllowedRow}>
+                  <Text style={styles.alwaysAllowedName}>{tool.name}</Text>
+                  <Pressable
+                    accessibilityLabel={`Require approval for ${tool.name}`}
+                    accessibilityRole="button"
+                    hitSlop={8}
+                    onPress={() => setDraft((current) => ({
+                      ...current,
+                      alwaysAllowedToolIds: current.alwaysAllowedToolIds.filter((id) => id !== tool.id),
+                    }))}>
+                    <Text style={styles.requireApproval}>Require approval</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           <View style={styles.sectionHeading}>
             <View>
               <Text style={styles.label}>Skills</Text>
@@ -365,6 +401,12 @@ const styles = StyleSheet.create({
   guideTitle: { color: '#173E2A', fontSize: 15, fontWeight: '800' },
   guideText: { color: '#567162', fontSize: 13, lineHeight: 19, marginTop: 5 },
   guideStrong: { color: '#007A3D', fontSize: 12, fontWeight: '800', marginTop: 8 },
+  alwaysAllowedCard: { padding: 15, marginTop: 12, borderRadius: 16, borderWidth: 1, borderColor: '#CBE2D5', backgroundColor: '#F3FAF6' },
+  alwaysAllowedTitle: { color: '#173E2A', fontSize: 14, fontWeight: '800' },
+  alwaysAllowedCopy: { color: '#62766A', fontSize: 12, lineHeight: 17, marginTop: 3, marginBottom: 9 },
+  alwaysAllowedRow: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  alwaysAllowedName: { flex: 1, color: '#2B4435', fontSize: 13, fontWeight: '700' },
+  requireApproval: { color: '#A0493D', fontSize: 12, fontWeight: '700' },
   sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginTop: 28 },
   sectionSubtitle: { color: '#858179', fontSize: 13, lineHeight: 18, marginTop: -4, marginBottom: 10 },
   count: { color: '#007A3D', fontSize: 11, fontWeight: '700', marginTop: 2 },

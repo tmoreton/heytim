@@ -39,8 +39,17 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             user_id, bot_id, turn_key, turn, bot, turn["assistantText"]
         )
         return
-    approval_tools = catalog.approval_tool_names(user_id, bot.get("toolIds", []))
-    if turn.get("source") == "schedule" and approval_tools:
+    interactive_tool_names = catalog.approval_tool_names(
+        user_id, bot.get("toolIds", [])
+    )
+    unapproved_tools = catalog.unapproved_tools(
+        user_id,
+        bot.get("toolIds", []),
+        bot.get("alwaysAllowedToolIds", []),
+    )
+    approval_tools = [item["name"] for item in unapproved_tools]
+    approval_tool_ids = [item["id"] for item in unapproved_tools]
+    if turn.get("source") == "schedule" and interactive_tool_names:
         if not is_claimable(turn.get("status")):
             return
         lease_owner = _claim_work(turn_key, record)
@@ -63,7 +72,8 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             table.update_item(
                 Key=turn_key,
                 UpdateExpression=(
-                    "SET #status = :awaiting, approvalTools = :approvalTools"
+                    "SET #status = :awaiting, approvalTools = :approvalTools, "
+                    "approvalToolIds = :approvalToolIds"
                 ),
                 ConditionExpression="#status = :pending",
                 ExpressionAttributeNames={"#status": "status"},
@@ -71,6 +81,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
                     ":pending": "PENDING",
                     ":awaiting": "AWAITING_APPROVAL",
                     ":approvalTools": approval_tools,
+                    ":approvalToolIds": approval_tool_ids,
                 },
             )
         except table.meta.client.exceptions.ConditionalCheckFailedException:

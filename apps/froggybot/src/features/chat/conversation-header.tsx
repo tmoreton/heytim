@@ -13,7 +13,6 @@ type Props = {
   waitingBotCount: number;
   topInset: number;
   onToggleDrawer: () => void;
-  onEditBot: () => void;
   onEditGroup: () => void;
   onOpenBotMenu: () => void;
 };
@@ -27,7 +26,6 @@ export function ConversationHeader({
   waitingBotCount,
   topInset,
   onToggleDrawer,
-  onEditBot,
   onEditGroup,
   onOpenBotMenu,
 }: Props) {
@@ -64,7 +62,6 @@ export function ConversationHeader({
         <>
           <BotAvatar color={bot.color} name={bot.name} size={31} />
           <Identity name={bot.name} status={status} />
-          <HeaderAction label="Edit" onPress={onEditBot} />
           <Pressable
             accessibilityLabel={`${bot.name} actions`}
             accessibilityRole="button"

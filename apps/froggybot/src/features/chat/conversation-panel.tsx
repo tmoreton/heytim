@@ -36,7 +36,6 @@ type Props = {
   bottomInset: number;
   onDismissError: () => void;
   onToggleDrawer: () => void;
-  onEditBot: () => void;
   onEditGroup: () => void;
   onOpenBotMenu: () => void;
   onDraftChange: (value: string) => void;
@@ -46,7 +45,7 @@ type Props = {
   onToggleDictation: () => void;
   onSend: () => void;
   onStop: () => void;
-  onApprove: (message: Message) => Promise<void>;
+  onApprove: (message: Message, always: boolean) => Promise<void>;
   onReject: (message: Message) => Promise<void>;
   onOpenFile: (file: Attachment) => Promise<void>;
 };
@@ -71,7 +70,6 @@ export function ConversationPanel({
   bottomInset,
   onDismissError,
   onToggleDrawer,
-  onEditBot,
   onEditGroup,
   onOpenBotMenu,
   onDraftChange,
@@ -101,7 +99,6 @@ export function ConversationPanel({
         waitingBotCount={waitingBotCount}
         topInset={topInset}
         onToggleDrawer={onToggleDrawer}
-        onEditBot={onEditBot}
         onEditGroup={onEditGroup}
         onOpenBotMenu={onOpenBotMenu}
       />
@@ -131,7 +128,7 @@ export function ConversationPanel({
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color="#007A3D" />
+          <ActivityIndicator color={bot?.color ?? '#007A3D'} />
         </View>
       ) : (
         <FlatList
@@ -159,6 +156,8 @@ export function ConversationPanel({
             <MessageBubble
               message={item}
               groupMode={Boolean(group)}
+              botName={bot?.name}
+              botColor={bot?.color}
               onApprove={bot ? onApprove : undefined}
               onReject={bot ? onReject : undefined}
               onOpenFile={onOpenFile}

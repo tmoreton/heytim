@@ -396,6 +396,14 @@ class CatalogServiceTests(unittest.TestCase):
             self.catalog.approval_tool_names("owner", ["web", "browser"]),
             ["Test browser"],
         )
+        self.assertEqual(
+            self.catalog.approval_tool_ids("owner", ["web", "browser"]),
+            ["browser"],
+        )
+        self.assertEqual(
+            self.catalog.unapproved_tools("owner", ["web", "browser"], ["browser"]),
+            [],
+        )
 
     def test_private_mcp_connection_is_user_scoped_and_resolves_without_secret(
         self,

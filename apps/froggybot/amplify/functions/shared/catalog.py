@@ -195,12 +195,33 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
             )
         return resolved
 
-    def approval_tool_names(self, user_id: str, tool_ids: Any) -> list[str]:
+    def approval_tools(self, user_id: str, tool_ids: Any) -> list[dict]:
         selected = set(self.validate_tools(user_id, tool_ids))
         return [
-            item["name"]
+            {"id": item["id"], "name": item["name"]}
             for item in self.list_tools(user_id)
             if item["id"] in selected and item.get("risk") == "interactive"
+        ]
+
+    def approval_tool_names(self, user_id: str, tool_ids: Any) -> list[str]:
+        return [item["name"] for item in self.approval_tools(user_id, tool_ids)]
+
+    def approval_tool_ids(self, user_id: str, tool_ids: Any) -> list[str]:
+        return [item["id"] for item in self.approval_tools(user_id, tool_ids)]
+
+    def unapproved_tools(
+        self, user_id: str, tool_ids: Any, always_allowed_tool_ids: Any
+    ) -> list[dict]:
+        allowed = (
+            set(always_allowed_tool_ids)
+            if isinstance(always_allowed_tool_ids, list)
+            and all(isinstance(item, str) for item in always_allowed_tool_ids)
+            else set()
+        )
+        return [
+            item
+            for item in self.approval_tools(user_id, tool_ids)
+            if item["id"] not in allowed
         ]
 
     def get_version(self, skill_id: str, version: int) -> dict | None:

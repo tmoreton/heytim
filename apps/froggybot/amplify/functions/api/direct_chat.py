@@ -31,6 +31,7 @@ def _start_bot_turn(
     text: str,
     schedule_item: dict | None = None,
     approval_tools: list[str] | None = None,
+    approval_tool_ids: list[str] | None = None,
     attachments: list[dict] | None = None,
 ) -> dict:
     turn_id = str(uuid.uuid4())
@@ -48,6 +49,7 @@ def _start_bot_turn(
     }
     if approval_tools:
         item["approvalTools"] = approval_tools
+        item["approvalToolIds"] = approval_tool_ids or []
     if attachments:
         item["attachments"] = attachments
     if schedule_item:
@@ -144,12 +146,17 @@ def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
     if attachments and isinstance(raw_text, str) and not raw_text.strip():
         raw_text = "Please review the attached files."
     text = _validate_string(raw_text, "text", 8_000)
-    approval_tools = catalog.approval_tool_names(user_id, bot.get("toolIds", []))
+    approval_tools = catalog.unapproved_tools(
+        user_id,
+        bot.get("toolIds", []),
+        bot.get("alwaysAllowedToolIds", []),
+    )
     return _start_bot_turn(
         user_id,
         bot_id,
         text,
-        approval_tools=approval_tools or None,
+        approval_tools=[item["name"] for item in approval_tools] or None,
+        approval_tool_ids=[item["id"] for item in approval_tools] or None,
         attachments=attachments or None,
     )
 
@@ -169,15 +176,43 @@ def _get_turn(user_id: str, bot_id: str, turn_id: str) -> dict:
     return turn
 
 
-def _approve_bot_turn(user_id: str, bot_id: str, turn_id: str) -> dict:
-    _get_bot(user_id, bot_id)
+def _approve_bot_turn(
+    user_id: str, bot_id: str, turn_id: str, always: bool = False
+) -> dict:
+    bot = _get_bot(user_id, bot_id)
     turn = _get_turn(user_id, bot_id, turn_id)
     approved_at = _now()
+    always_allowed: list[str] | None = None
+    if always:
+        interactive_tools = catalog.approval_tools(user_id, bot.get("toolIds", []))
+        interactive_ids = {item["id"] for item in interactive_tools}
+        requested_ids = turn.get("approvalToolIds")
+        if not isinstance(requested_ids, list) or not all(
+            isinstance(tool_id, str) for tool_id in requested_ids
+        ):
+            legacy_names = {
+                name for name in turn.get("approvalTools", []) if isinstance(name, str)
+            }
+            requested_ids = [
+                item["id"] for item in interactive_tools if item["name"] in legacy_names
+            ]
+        raw_allowed_ids = bot.get("alwaysAllowedToolIds", [])
+        allowed_ids = (
+            set(raw_allowed_ids)
+            if isinstance(raw_allowed_ids, list)
+            and all(isinstance(tool_id, str) for tool_id in raw_allowed_ids)
+            else set()
+        )
+        allowed_ids.update(set(requested_ids) & interactive_ids)
+        always_allowed = [
+            tool_id for tool_id in bot.get("toolIds", []) if tool_id in allowed_ids
+        ]
     try:
         table.update_item(
             Key={"pk": turn["pk"], "sk": turn["sk"]},
             UpdateExpression=(
-                "SET #status = :pending, approvedAt = :now REMOVE approvalTools"
+                "SET #status = :pending, approvedAt = :now "
+                "REMOVE approvalTools, approvalToolIds"
             ),
             ConditionExpression="#status = :awaiting",
             ExpressionAttributeNames={"#status": "status"},
@@ -189,10 +224,43 @@ def _approve_bot_turn(user_id: str, bot_id: str, turn_id: str) -> dict:
         )
     except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
         raise ApiError(409, "This approval request is no longer active") from exc
+    if always_allowed is not None:
+        try:
+            table.update_item(
+                Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot_id)},
+                UpdateExpression="SET alwaysAllowedToolIds = :tools, updatedAt = :now",
+                ConditionExpression=Attr("pk").exists(),
+                ExpressionAttributeValues={
+                    ":tools": always_allowed,
+                    ":now": approved_at,
+                },
+            )
+        except Exception:
+            table.update_item(
+                Key={"pk": turn["pk"], "sk": turn["sk"]},
+                UpdateExpression=(
+                    "SET #status = :awaiting, approvalTools = :approvalTools, "
+                    "approvalToolIds = :approvalToolIds REMOVE approvedAt"
+                ),
+                ConditionExpression="#status = :pending",
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={
+                    ":pending": "PENDING",
+                    ":awaiting": "AWAITING_APPROVAL",
+                    ":approvalTools": turn.get("approvalTools", []),
+                    ":approvalToolIds": turn.get("approvalToolIds", []),
+                },
+            )
+            raise
     queued_turn = {**turn, "status": "PENDING"}
     queued_turn.pop("approvalTools", None)
+    queued_turn.pop("approvalToolIds", None)
     _queue_bot_turn(queued_turn)
-    return {"turnId": turn["id"], "status": "pending"}
+    return {
+        "turnId": turn["id"],
+        "status": "pending",
+        "alwaysAllowed": always,
+    }
 
 
 def _cancel_bot_turn(user_id: str, bot_id: str, turn_id: str) -> dict:

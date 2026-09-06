@@ -46,9 +46,10 @@ export function ConnectionEditor({
           </Text>
         </View>
         <View style={styles.warning}>
-          <Text style={styles.warningTitle}>Every request needs your approval</Text>
+          <Text style={styles.warningTitle}>Approval is required by default</Text>
           <Text style={styles.warningText}>
-            Email can contain unsafe instructions. Gmail access cannot run in groups or scheduled tasks.
+            Email can contain unsafe instructions. You can always allow Gmail for a bot, but it still cannot run in
+            groups or scheduled tasks.
           </Text>
         </View>
         <Pressable accessibilityRole="button" style={styles.reconnectButton} onPress={onReconnect}>
@@ -164,7 +165,10 @@ export function ConnectionEditor({
       ) : null}
 
       <Text style={styles.label}>Access</Text>
-      <Text style={styles.help}>Connections that can change data require approval before every direct request and cannot run unattended.</Text>
+      <Text style={styles.help}>
+        Connections that can change data require approval by default. You can always allow one for a bot in direct
+        chats, but it cannot run in groups or scheduled tasks.
+      </Text>
       <View style={styles.accessChoices}>
         {([
           ['read', 'Read only', 'The server only looks things up.'],

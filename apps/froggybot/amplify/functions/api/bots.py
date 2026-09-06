@@ -89,6 +89,27 @@ def _bot_values(
                 ],
             )
         tool_ids = catalog.validate_tools(user_id, [*extra_tool_ids, *required_tools])
+        raw_always_allowed = value.get(
+            "alwaysAllowedToolIds", previous.get("alwaysAllowedToolIds", [])
+        )
+        if not isinstance(raw_always_allowed, list) or not all(
+            isinstance(tool_id, str) for tool_id in raw_always_allowed
+        ):
+            raise ApiError(400, "alwaysAllowedToolIds must be a list")
+        interactive_tool_ids = set(catalog.approval_tool_ids(user_id, tool_ids))
+        raw_previously_allowed = previous.get("alwaysAllowedToolIds", [])
+        previously_allowed = (
+            set(raw_previously_allowed)
+            if isinstance(raw_previously_allowed, list)
+            and all(isinstance(tool_id, str) for tool_id in raw_previously_allowed)
+            else set()
+        )
+        requested_always_allowed = set(raw_always_allowed) & previously_allowed
+        always_allowed_tool_ids = [
+            tool_id
+            for tool_id in tool_ids
+            if tool_id in requested_always_allowed and tool_id in interactive_tool_ids
+        ]
     except CatalogError as exc:
         raise ApiError(400, str(exc)) from exc
     return {
@@ -107,6 +128,7 @@ def _bot_values(
         "color": color,
         "toolIds": tool_ids,
         "extraToolIds": extra_tool_ids,
+        "alwaysAllowedToolIds": always_allowed_tool_ids,
         "skillIds": list(skill_versions),
         "skillVersions": skill_versions,
     }
@@ -147,6 +169,7 @@ def _put_bot(
                 "color",
                 "toolIds",
                 "extraToolIds",
+                "alwaysAllowedToolIds",
                 "skillIds",
                 "skillVersions",
             )
@@ -346,6 +369,7 @@ def _bootstrap(user_id: str) -> dict:
                             "skillIds",
                             "toolIds",
                             "extraToolIds",
+                            "alwaysAllowedToolIds",
                         )
                     },
                 }

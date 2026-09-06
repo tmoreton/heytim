@@ -10,7 +10,9 @@ import type { Attachment, Message } from '@/lib/types';
 type Props = {
   message: Message;
   groupMode: boolean;
-  onApprove?: (message: Message) => Promise<void>;
+  botName?: string;
+  botColor?: string;
+  onApprove?: (message: Message, always: boolean) => Promise<void>;
   onReject?: (message: Message) => Promise<void>;
   onOpenFile?: (file: Attachment) => Promise<void>;
 };
@@ -34,19 +36,28 @@ const activityLabel = (message: Message) => {
   return undefined;
 };
 
-export function MessageBubble({ message, groupMode, onApprove, onReject, onOpenFile }: Props) {
+export function MessageBubble({
+  message,
+  groupMode,
+  botName,
+  botColor,
+  onApprove,
+  onReject,
+  onOpenFile,
+}: Props) {
   const [expanded, setExpanded] = useState(false);
-  const [actingOnApproval, setActingOnApproval] = useState(false);
+  const [approvalAction, setApprovalAction] = useState<'reject' | 'once' | 'always'>();
   const [downloadingFileIds, setDownloadingFileIds] = useState<Set<string>>(() => new Set());
   const [downloadedFileIds, setDownloadedFileIds] = useState<Set<string>>(() => new Set());
-  const authorName = message.authorName ?? (message.authorType === 'bot' ? 'FroggyBot' : 'Person');
   const mine = groupMode && message.authorType === 'user' && message.isMine;
   const assistant = groupMode ? !mine : message.role === 'assistant';
   const botMessage = message.role === 'assistant' || message.authorType === 'bot';
+  const authorName = message.authorName ?? (botMessage ? botName ?? 'FroggyBot' : 'Person');
   const label = roleLabel(message);
   const queued = message.status === 'waiting';
   const working = message.status === 'pending' || message.status === 'running';
   const awaitingApproval = message.status === 'awaiting_approval';
+  const actingOnApproval = Boolean(approvalAction);
   const compactContribution =
     groupMode &&
     message.status === 'complete' &&
@@ -66,7 +77,7 @@ export function MessageBubble({ message, groupMode, onApprove, onReject, onOpenF
   return (
     <View style={[styles.row, assistant ? styles.assistantRow : styles.userRow, groupMode && styles.groupRow]}>
       {groupMode && !mine ? avatar : null}
-      <View style={[styles.column, mine && styles.mineColumn]}>
+      <View style={[styles.column, !assistant && styles.userColumn]}>
         {groupMode ? (
           <Text style={[styles.author, mine && styles.mineAuthor]}>
             {mine ? 'You' : `${authorName}${label ? ` · ${label}` : ''}`}
@@ -81,15 +92,15 @@ export function MessageBubble({ message, groupMode, onApprove, onReject, onOpenF
             steps={message.activity ?? []}
             label={activityLabel(message)}
             botName={authorName}
-            botColor={message.authorColor}
+            botColor={message.authorColor ?? botColor}
           />
         ) : null}
         {awaitingApproval ? (
           <View style={[styles.bubble, styles.approvalBubble]}>
             <Text style={styles.approvalTitle}>Approval needed</Text>
             <Text style={styles.approvalCopy}>
-              This reply may use {message.approvalTools?.join(', ') || 'an interactive tool'} to act on websites.
-              Allow it for this message only?
+              This reply may use {message.approvalTools?.join(', ') || 'an interactive tool'} to take action.
+              Allow it once, or always allow these tools for this bot in direct chats.
             </Text>
             <View style={styles.approvalActions}>
               <Pressable
@@ -99,10 +110,12 @@ export function MessageBubble({ message, groupMode, onApprove, onReject, onOpenF
                 style={({ pressed }) => [styles.rejectButton, pressed && styles.pressed]}
                 onPress={() => {
                   if (!onReject) return;
-                  setActingOnApproval(true);
-                  void onReject(message).finally(() => setActingOnApproval(false));
+                  setApprovalAction('reject');
+                  void onReject(message).finally(() => setApprovalAction(undefined));
                 }}>
-                <Text style={styles.rejectButtonText}>Don’t allow</Text>
+                <Text style={styles.rejectButtonText}>
+                  {approvalAction === 'reject' ? 'Working…' : 'Don’t allow'}
+                </Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -111,10 +124,26 @@ export function MessageBubble({ message, groupMode, onApprove, onReject, onOpenF
                 style={({ pressed }) => [styles.approveButton, pressed && styles.pressed]}
                 onPress={() => {
                   if (!onApprove) return;
-                  setActingOnApproval(true);
-                  void onApprove(message).finally(() => setActingOnApproval(false));
+                  setApprovalAction('once');
+                  void onApprove(message, false).finally(() => setApprovalAction(undefined));
                 }}>
-                <Text style={styles.approveButtonText}>{actingOnApproval ? 'Working…' : 'Allow once'}</Text>
+                <Text style={styles.approveButtonText}>
+                  {approvalAction === 'once' ? 'Working…' : 'Allow once'}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: actingOnApproval, busy: actingOnApproval }}
+                disabled={actingOnApproval}
+                style={({ pressed }) => [styles.alwaysButton, pressed && styles.pressed]}
+                onPress={() => {
+                  if (!onApprove) return;
+                  setApprovalAction('always');
+                  void onApprove(message, true).finally(() => setApprovalAction(undefined));
+                }}>
+                <Text style={styles.alwaysButtonText}>
+                  {approvalAction === 'always' ? 'Working…' : 'Always allow'}
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -202,7 +231,7 @@ const styles = StyleSheet.create({
   assistantRow: { justifyContent: 'flex-start' },
   userRow: { justifyContent: 'flex-end' },
   column: { width: '84%', maxWidth: 650, flexShrink: 1, alignItems: 'flex-start' },
-  mineColumn: { alignItems: 'flex-end' },
+  userColumn: { alignItems: 'flex-end' },
   author: { color: '#77736B', fontSize: 10, fontWeight: '600', marginBottom: 3, marginHorizontal: 6 },
   mineAuthor: { color: '#007A3D' },
   scheduleLabel: { color: '#61766B', fontSize: 10, fontWeight: '700', marginBottom: 4, marginHorizontal: 6 },
@@ -223,11 +252,13 @@ const styles = StyleSheet.create({
   approvalBubble: { backgroundColor: '#FFF7DF', borderColor: '#E7C86A', borderWidth: 1 },
   approvalTitle: { color: '#4B3C0D', fontSize: 14, fontWeight: '800', marginBottom: 5 },
   approvalCopy: { color: '#5E501F', fontSize: 13, lineHeight: 18 },
-  approvalActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  approvalActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   rejectButton: { borderColor: '#B9A35E', borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8 },
   rejectButtonText: { color: '#5E501F', fontSize: 12, fontWeight: '700' },
   approveButton: { backgroundColor: '#007A3D', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
   approveButtonText: { color: 'white', fontSize: 12, fontWeight: '800' },
+  alwaysButton: { borderColor: '#007A3D', borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8 },
+  alwaysButtonText: { color: '#007A3D', fontSize: 12, fontWeight: '800' },
   message: { fontSize: 15, lineHeight: 21 },
   assistantText: { color: '#24231F' },
   userText: { color: 'white' },

@@ -258,6 +258,11 @@ class WorkerSafetyTests(unittest.TestCase):
                 "approval_tool_names",
                 return_value=["Interactive browser"],
             ),
+            patch.object(
+                self.direct_job.catalog,
+                "unapproved_tools",
+                return_value=[],
+            ),
             patch.object(self.direct_job, "_claim_work", return_value="lease-1"),
             patch.object(self.direct_job, "_finish_work", finish),
             patch.object(self.direct_job, "_update_schedule_result") as update_schedule,
@@ -296,6 +301,11 @@ class WorkerSafetyTests(unittest.TestCase):
                 "approval_tool_names",
                 return_value=["Interactive browser"],
             ),
+            patch.object(
+                self.direct_job.catalog,
+                "unapproved_tools",
+                return_value=[{"id": "browser", "name": "Interactive browser"}],
+            ),
             patch.object(self.direct_job, "_invoke") as invoke,
         ):
             self.direct_job._process_agent_reply(
@@ -308,6 +318,10 @@ class WorkerSafetyTests(unittest.TestCase):
         self.assertEqual(
             approval_update["ExpressionAttributeValues"][":awaiting"],
             "AWAITING_APPROVAL",
+        )
+        self.assertEqual(
+            approval_update["ExpressionAttributeValues"][":approvalToolIds"],
+            ["browser"],
         )
 
     def test_generated_artifacts_become_owned_downloadable_file_records(self) -> None:

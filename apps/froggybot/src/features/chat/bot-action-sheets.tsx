@@ -8,6 +8,7 @@ type Props = {
   menuOpen: boolean;
   pendingAction?: BotAction;
   onCloseMenu: () => void;
+  onEditBot: () => void;
   onSchedule: () => void;
   onShareSetup: () => void;
   onShareConversation: () => void;
@@ -21,6 +22,7 @@ export function BotActionSheets({
   menuOpen,
   pendingAction,
   onCloseMenu,
+  onEditBot,
   onSchedule,
   onShareSetup,
   onShareConversation,
@@ -35,6 +37,7 @@ export function BotActionSheets({
         title={bot?.name ?? 'FroggyBot'}
         message="Schedule its work, share it, or manage this conversation."
         options={[
+          { label: 'Edit bot', onPress: onEditBot },
           { label: 'Scheduled tasks', onPress: onSchedule },
           { label: 'Share bot setup', onPress: onShareSetup },
           { label: 'Share conversation', onPress: onShareConversation },

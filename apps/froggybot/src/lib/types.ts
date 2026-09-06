@@ -6,6 +6,7 @@ export type Bot = {
   prompt: string;
   toolIds: string[];
   extraToolIds?: string[];
+  alwaysAllowedToolIds?: string[];
   skillIds: string[];
   systemRole?: 'chief';
   createdAt: string;
@@ -211,4 +212,6 @@ export type CapabilitySelection = {
   id: string;
 };
 
-export type BotDraft = Pick<Bot, 'name' | 'tagline' | 'color' | 'prompt' | 'toolIds' | 'skillIds'>;
+export type BotDraft = Pick<Bot, 'name' | 'tagline' | 'color' | 'prompt' | 'toolIds' | 'skillIds'> & {
+  alwaysAllowedToolIds: string[];
+};

@@ -190,6 +190,7 @@ def _create_share(user_id: str, value: dict) -> dict:
     if scope not in {"bot", "chat"}:
         raise ApiError(400, "scope must be bot or chat")
     bot = _public_bot(_get_bot(user_id, bot_id))
+    bot.pop("alwaysAllowedToolIds", None)
     private_tool_ids = {
         connection["id"] for connection in catalog.list_connections(user_id)
     }
@@ -304,6 +305,7 @@ def _import_share(user_id: str, token: str) -> dict:
             "name": f"{source['name'][:43]} copy",
             "color": _bot_color({**source, "systemRole": None}),
             "toolIds": source.get("extraToolIds", source.get("toolIds", [])),
+            "alwaysAllowedToolIds": [],
         },
     )
     bot = _put_bot(user_id, values)

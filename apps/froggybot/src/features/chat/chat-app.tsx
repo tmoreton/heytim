@@ -40,10 +40,7 @@ type Props = {
 };
 
 const MESSAGE_REFRESH_MS = 900;
-const directTurnId = (message: Message) =>
-  message.id.endsWith('-assistant')
-    ? message.id.slice(0, -'-assistant'.length)
-    : message.id;
+const directTurnId = (message: Message) => message.id.replace(/-assistant$/, '');
 
 export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Props) {
   const { width } = useWindowDimensions();
@@ -305,12 +302,19 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
     }
   };
 
-  const respondToApproval = async (message: Message, approved: boolean) => {
+  const respondToApproval = async (
+    message: Message,
+    always?: boolean,
+  ) => {
     if (!selectedBot || message.status !== 'awaiting_approval') return;
     try {
-      if (approved) await api.approveMessage(selectedBot.id, directTurnId(message));
-      else await api.cancelMessage(selectedBot.id, directTurnId(message));
+      if (always === undefined) {
+        await api.cancelMessage(selectedBot.id, directTurnId(message));
+      } else {
+        await api.approveMessage(selectedBot.id, directTurnId(message), always);
+      }
       await loadMessages();
+      if (always) await loadBootstrap();
     } catch (value) {
       setError(value instanceof Error ? value.message : 'Could not update that approval request.');
     }
@@ -328,10 +332,6 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
         }),
       )
       .catch((value) => Alert.alert('Could not share', value instanceof Error ? value.message : 'Please try again.'));
-  };
-
-  const showBotOptions = () => {
-    setBotMenuOpen(true);
   };
 
   const openCapabilityEditor = (capability: CapabilitySelection) => {
@@ -465,12 +465,8 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
             bottomInset={insets.bottom}
             onDismissError={() => setError('')}
             onToggleDrawer={() => setDrawerOpen((value) => !value)}
-            onEditBot={() => {
-              setSuggestedCapability(undefined);
-              setEditor('edit');
-            }}
             onEditGroup={() => setGroupEditor('edit')}
-            onOpenBotMenu={showBotOptions}
+            onOpenBotMenu={() => setBotMenuOpen(true)}
             onDraftChange={setDraft}
             onAddAttachment={() => void attachmentDraft.pick()}
             onRemoveAttachment={attachmentDraft.remove}
@@ -478,8 +474,8 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
             onToggleDictation={() => void dictation.toggle()}
             onSend={() => void send()}
             onStop={() => void stopResponse()}
-            onApprove={(message) => respondToApproval(message, true)}
-            onReject={(message) => respondToApproval(message, false)}
+            onApprove={respondToApproval}
+            onReject={(message) => respondToApproval(message)}
             onOpenFile={openFile}
           />
 
@@ -581,6 +577,10 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
         menuOpen={botMenuOpen}
         pendingAction={pendingBotAction}
         onCloseMenu={() => setBotMenuOpen(false)}
+        onEditBot={() => {
+          setSuggestedCapability(undefined);
+          setEditor('edit');
+        }}
         onSchedule={() => setScheduleBot(selectedBot)}
         onShareSetup={() => share('bot')}
         onShareConversation={() => share('chat')}

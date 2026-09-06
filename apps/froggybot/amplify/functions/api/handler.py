@@ -268,12 +268,14 @@ def handler(event: dict, _context: Any) -> dict:
                 202, _send_message(user_id, params.get("botId", ""), _body(event))
             )
         if method == "POST" and path.startswith("/bots/") and path.endswith("/approve"):
+            approval = _body(event)
             return _response(
                 202,
                 _approve_bot_turn(
                     user_id,
                     params.get("botId", ""),
                     params.get("turnId", ""),
+                    approval.get("always") is True,
                 ),
             )
         if method == "POST" and path.startswith("/bots/") and path.endswith("/cancel"):
