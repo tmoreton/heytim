@@ -55,7 +55,9 @@ def _finish_work(
     if artifacts:
         update_expression += ", artifacts = :artifacts"
         values[":artifacts"] = artifacts
-    update_expression += " REMOVE leaseOwner, leaseExpiresAt"
+    update_expression += (
+        " REMOVE leaseOwner, leaseExpiresAt, pendingWork, backgroundResults"
+    )
     try:
         table.update_item(
             Key=item_key,
@@ -67,6 +69,32 @@ def _finish_work(
         return completed_at
     except table.meta.client.exceptions.ConditionalCheckFailedException:
         return None
+
+
+def _pause_work(
+    item_key: dict, lease_owner: str, pending_work: list[dict]
+) -> bool:
+    """Release a model invocation while external background work continues."""
+    try:
+        table.update_item(
+            Key=item_key,
+            UpdateExpression=(
+                "SET #status = :pending, pendingWork = :work, activity = :activity "
+                "REMOVE leaseOwner, leaseExpiresAt, backgroundResults"
+            ),
+            ConditionExpression="#status = :running AND leaseOwner = :owner",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={
+                ":pending": "PENDING",
+                ":running": "RUNNING",
+                ":owner": lease_owner,
+                ":work": pending_work,
+                ":activity": ["Running background work"],
+            },
+        )
+        return True
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return False
 
 
 def _release_work(item_key: dict, lease_owner: str) -> bool:

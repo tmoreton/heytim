@@ -16,6 +16,7 @@ from frogbot_runtime.request import messages_from_payload
 from frogbot_runtime.streaming import stream_with_token_recovery
 from frogbot_runtime.telemetry import install_private_tracer
 from model.load import load_model
+from model.usage import UsageAccumulator
 
 install_private_tracer()
 app = BedrockAgentCoreApp()
@@ -36,7 +37,8 @@ async def invoke(payload, context):
         len(messages),
     )
 
-    model = await load_model()
+    usage = UsageAccumulator()
+    model = await load_model(usage)
     agent = harness_agent(
         model=model,
         web_fetch_model=model,
@@ -66,7 +68,16 @@ async def invoke(payload, context):
             if block_start is not None and not block_start.get("start"):
                 continue
             yield event
-        completed = True
+        control = {}
+        usage_report = usage.snapshot()
+        if usage_report["models"]:
+            control["usage"] = usage_report
+        if config.background_work.pending:
+            control["pendingWork"] = config.background_work.pending
+        else:
+            completed = True
+        if control:
+            yield {"frogbotControl": control}
     finally:
         if completed:
             try:

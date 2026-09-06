@@ -32,6 +32,40 @@ from .support import (
 logger = logging.getLogger(__name__)
 
 
+def _stop_background_work(turn: dict) -> None:
+    sessions = set()
+    for work in turn.get("pendingWork", []):
+        if not isinstance(work, dict) or work.get("provider") != "agentcore_code_interpreter":
+            continue
+        resource_id = work.get("resourceId")
+        session_id = work.get("sessionId")
+        task_id = work.get("taskId")
+        if not all(isinstance(value, str) and value for value in (resource_id, session_id, task_id)):
+            continue
+        sessions.add((resource_id, session_id))
+        try:
+            agentcore.invoke_code_interpreter(
+                codeInterpreterIdentifier=resource_id,
+                sessionId=session_id,
+                name="stopTask",
+                arguments={"taskId": task_id},
+            )
+        except agentcore.exceptions.ResourceNotFoundException:
+            pass
+        except Exception:
+            logger.exception("Could not stop background task %s", task_id)
+    for resource_id, session_id in sessions:
+        try:
+            agentcore.stop_code_interpreter_session(
+                codeInterpreterIdentifier=resource_id,
+                sessionId=session_id,
+            )
+        except agentcore.exceptions.ResourceNotFoundException:
+            pass
+        except Exception:
+            logger.exception("Could not stop background code session %s", session_id)
+
+
 def _start_bot_turn(
     user_id: str,
     bot_id: str,
@@ -283,7 +317,7 @@ def _cancel_bot_turn(user_id: str, bot_id: str, turn_id: str) -> dict:
             Key={"pk": turn["pk"], "sk": turn["sk"]},
             UpdateExpression=(
                 "SET #status = :cancelled, assistantText = :message, completedAt = :now "
-                "REMOVE leaseOwner, leaseExpiresAt"
+                "REMOVE leaseOwner, leaseExpiresAt, pendingWork, backgroundResults"
             ),
             ConditionExpression=(
                 "#status = :pending OR #status = :running OR #status = :awaiting"
@@ -302,6 +336,7 @@ def _cancel_bot_turn(user_id: str, bot_id: str, turn_id: str) -> dict:
         raise ApiError(409, "This response can no longer be stopped") from exc
     if turn.get("source") == "schedule":
         _update_cancelled_schedule(user_id, turn, cancelled_at)
+    _stop_background_work(turn)
     if turn.get("status") == "RUNNING" and AGENT_RUNTIME_ARN:
         try:
             agentcore.stop_runtime_session(

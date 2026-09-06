@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -113,3 +114,75 @@ def test_fallback_does_not_duplicate_a_started_response() -> None:
         asyncio.run(_events(model_loader.PrimaryFallbackModel(primary, fallback)))
 
     assert fallback.calls == 0
+
+
+def test_usage_tracker_aggregates_each_model_call() -> None:
+    accumulator = model_loader.UsageAccumulator()
+    delegate = FakeModel(
+        "primary",
+        [
+            {
+                "metadata": {
+                    "usage": {
+                        "inputTokens": 100,
+                        "outputTokens": 25,
+                        "totalTokens": 125,
+                        "reasoningTokens": 10,
+                    },
+                    "frogbotProviderCostUsd": "0.000123",
+                }
+            }
+        ],
+    )
+    model = model_loader.UsageTrackingModel(
+        delegate,
+        accumulator,
+        provider="openrouter",
+        model_id="z-ai/glm-5.3-flash",
+    )
+
+    asyncio.run(_events(model))
+    asyncio.run(_events(model))
+
+    report = accumulator.snapshot()
+    assert report["models"] == [
+        {
+            "provider": "openrouter",
+            "modelId": "z-ai/glm-5.3-flash",
+            "callCount": 2,
+            "inputTokens": 200,
+            "outputTokens": 50,
+            "totalTokens": 250,
+            "reasoningTokens": 20,
+            "providerCostUsd": "0.000246",
+        }
+    ]
+    assert report["totals"]["callCount"] == 2
+    assert report["totals"]["totalTokens"] == 250
+
+
+def test_openrouter_model_preserves_provider_cost_and_reasoning_tokens() -> None:
+    model = model_loader.OpenRouterUsageModel(
+        model_id="z-ai/glm-5.3-flash",
+        client_args={"api_key": "test"},
+    )
+    event = model.format_chunk(
+        {
+            "chunk_type": "metadata",
+            "data": SimpleNamespace(
+                prompt_tokens=100,
+                completion_tokens=25,
+                total_tokens=125,
+                prompt_tokens_details=SimpleNamespace(
+                    cached_tokens=40, cache_write_tokens=15
+                ),
+                completion_tokens_details=SimpleNamespace(reasoning_tokens=10),
+                cost="0.000123",
+            ),
+        }
+    )
+
+    assert event["metadata"]["frogbotProviderCostUsd"] == "0.000123"
+    assert event["metadata"]["usage"]["cacheReadInputTokens"] == 40
+    assert event["metadata"]["usage"]["cacheWriteInputTokens"] == 15
+    assert event["metadata"]["usage"]["reasoningTokens"] == 10

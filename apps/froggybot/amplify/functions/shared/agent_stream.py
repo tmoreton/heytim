@@ -5,6 +5,7 @@ from collections.abc import Callable, Iterable
 from typing import Any
 
 ProgressCallback = Callable[[list[str]], None]
+ControlCallback = Callable[[dict], None]
 
 
 def _clean_step(value: str) -> str:
@@ -40,7 +41,9 @@ def _parse_line(raw_line: Any) -> dict:
 
 
 def read_agent_stream(
-    lines: Iterable[Any], on_progress: ProgressCallback | None = None
+    lines: Iterable[Any],
+    on_progress: ProgressCallback | None = None,
+    on_control: ControlCallback | None = None,
 ) -> str:
     """Return only the final assistant message and emit completed tool-use narration."""
     progress: list[str] = []
@@ -49,6 +52,7 @@ def read_agent_stream(
     tool_names: list[str] = []
     final_text = ""
     saw_message_frame = False
+    saw_pending_work_control = False
     last_stop_reason = ""
 
     for raw_line in lines:
@@ -56,6 +60,15 @@ def read_agent_stream(
             continue
         event = _parse_line(raw_line)
         if not event:
+            continue
+
+        control = event.get("frogbotControl")
+        if isinstance(control, dict):
+            pending_work = control.get("pendingWork")
+            if isinstance(pending_work, list) and pending_work:
+                saw_pending_work_control = True
+            if on_control:
+                on_control(control)
             continue
 
         if "messageStart" in event:
@@ -100,6 +113,8 @@ def read_agent_stream(
     result = final_text.strip()
     if not result and not saw_message_frame:
         result = "".join(message_chunks).strip() or "".join(fallback_chunks).strip()
+    if not result and saw_pending_work_control:
+        return "Background work started."
     if not result:
         detail = f" (last stop reason: {last_stop_reason})" if last_stop_reason else ""
         raise ValueError(f"AgentCore stream ended without a completed assistant turn{detail}")

@@ -64,6 +64,12 @@ isolation while keeping the group's explicit memory separate from each person's 
 Generated group artifacts use a group-scoped S3 prefix and group-owned DynamoDB file records. Downloads require
 current membership, so every participant can open the result without exposing it through a public link.
 
+Each completed runtime invocation emits a compact accounting envelope containing model IDs, token counts, and any
+provider-reported cost. The worker stores it as an idempotent `USAGE#<queue-message-id>` item under the requesting user's
+DynamoDB partition, keyed by the SQS message ID. OpenRouter cost is preserved when supplied; versioned price estimates
+cover supported fallback models. Usage records contain no prompt, response, tool payload, or attachment content and
+expire after 400 days.
+
 ## Agent runtime
 
 `services/agent-runtime/main.py` is only the AgentCore transport adapter. `frogbot_runtime/request.py`
@@ -81,6 +87,13 @@ unavailable. AgentCore Memory also recalls user preferences and facts across bot
 and code-interpreter sandboxes are named by the stable conversation ID and reconnect to READY sessions
 after runtime process replacement. Generated files use a turn-scoped S3 prefix and are attached to the
 completed reply only after the worker verifies and records them.
+
+Long-running work is capability-driven, not bot-specific. Any bot with Code Interpreter can start an
+asynchronous command in its eight-hour microVM. The runtime emits only the task identity, the worker stores it on
+the pending turn, and short queue jobs poll without spending model tokens. When the command finishes, the same bot
+and conversation resume with bounded command output and the persistent workspace. Cancellation stops both the task
+and its sandbox. A GitHub connection plus Code Interpreter also exposes repository staging: the server uses the
+owner's credential to download a private archive, but never puts that credential in the sandbox or prompt.
 
 The authenticated Memory screen makes extracted preferences, facts, and per-bot summaries readable to their owner.
 Each item can be corrected or forgotten, and the complete set can be downloaded as portable JSON through a short-lived
@@ -111,6 +124,7 @@ the backend then validates and caches releases before exposing only public metad
 - Account deletion revokes active shares, cancels pending work, deletes user data and all S3 versions, and disables the Cognito identity.
 - A memory record can be read, changed, deleted, or exported only after its AgentCore namespace is verified against the authenticated user.
 - User-visible notifications are queued only after the final answer, never for thinking updates.
+- Model usage is charged to the requesting user, and retrying the same queue message cannot create a duplicate record.
 
 ## Verification
 

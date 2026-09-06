@@ -110,7 +110,11 @@ def test_google_oauth_connection_refreshes_token_and_filters_tools(monkeypatch) 
 
     monkeypatch.setattr(mcp_connections.socket, "getaddrinfo", _public_address)
     monkeypatch.setattr(mcp_connections, "_secrets_manager", FakeSecrets())
-    monkeypatch.setattr(mcp_connections.urllib.request, "urlopen", lambda *_args, **_kwargs: FakeResponse())
+    monkeypatch.setattr(
+        mcp_connections.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: FakeResponse(),
+    )
     monkeypatch.setattr(mcp_connections, "MCPClient", FakeMCPClient)
     binding = mcp_connections.validated_connection_binding(
         "connection_1234567890abcdef1234",
@@ -127,9 +131,7 @@ def test_google_oauth_connection_refreshes_token_and_filters_tools(monkeypatch) 
     mcp_connections.connection_client(binding)
 
     assert captured["headers"] == {"Authorization": "Bearer access-token"}
-    assert captured["tool_filters"] == {
-        "allowed": ["search_threads", "create_draft"]
-    }
+    assert captured["tool_filters"] == {"allowed": ["search_threads", "create_draft"]}
 
 
 def test_google_oauth_connection_rejects_destructive_tools(monkeypatch) -> None:

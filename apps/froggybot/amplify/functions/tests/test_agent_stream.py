@@ -79,6 +79,52 @@ class AgentStreamTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "last stop reason: max_tokens"):
             read_agent_stream(lines)
 
+    def test_emits_platform_control_without_mixing_it_into_the_answer(self) -> None:
+        controls = []
+        pending = [{"provider": "agentcore_code_interpreter", "taskId": "task-1"}]
+        lines = [
+            _line({"messageStart": {"role": "assistant"}}),
+            _line({"contentBlockDelta": {"delta": {"text": "Work started."}}}),
+            _line({"messageStop": {"stopReason": "end_turn"}}),
+            _line({"frogbotControl": {"pendingWork": pending}}),
+        ]
+
+        answer = read_agent_stream(lines, on_control=controls.append)
+
+        self.assertEqual(answer, "Work started.")
+        self.assertEqual(controls, [{"pendingWork": pending}])
+
+    def test_control_can_pause_after_tool_use_without_a_final_message(self) -> None:
+        controls = []
+        pending = [{"provider": "agentcore_code_interpreter", "taskId": "task-1"}]
+        lines = [
+            _line({"messageStart": {"role": "assistant"}}),
+            _line(
+                {
+                    "contentBlockStart": {
+                        "start": {"toolUse": {"name": "background_command"}}
+                    }
+                }
+            ),
+            _line({"messageStop": {"stopReason": "tool_use"}}),
+            _line({"frogbotControl": {"pendingWork": pending}}),
+        ]
+
+        answer = read_agent_stream(lines, on_control=controls.append)
+
+        self.assertEqual(answer, "Background work started.")
+        self.assertEqual(controls, [{"pendingWork": pending}])
+
+    def test_usage_control_does_not_mask_an_incomplete_turn(self) -> None:
+        lines = [
+            _line({"messageStart": {"role": "assistant"}}),
+            _line({"messageStop": {"stopReason": "tool_use"}}),
+            _line({"frogbotControl": {"usage": {"models": []}}}),
+        ]
+
+        with self.assertRaisesRegex(ValueError, "without a completed assistant turn"):
+            read_agent_stream(lines)
+
 
 if __name__ == "__main__":
     unittest.main()

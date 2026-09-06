@@ -10,6 +10,10 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from frogbot_runtime import capabilities
+from frogbot_runtime.background_work import (
+    BackgroundWorkTracker,
+    start_background_command,
+)
 from frogbot_runtime.configuration import bot_configuration
 
 
@@ -62,6 +66,7 @@ def test_catalog_bindings_select_stan_features_and_local_tools(monkeypatch) -> N
     assert [tool.tool_name for tool in config.tools] == [
         "calculate",
         "code_interpreter",
+        "background_command",
         "browser",
     ]
     assert config.builtin_tools == ["web_fetch"]
@@ -70,6 +75,98 @@ def test_catalog_bindings_select_stan_features_and_local_tools(monkeypatch) -> N
     assert "does not need to name a skill or tool" in config.instructions
     assert "activate it with the skills tool" in config.instructions
     assert "actually activated or called it" in config.instructions
+    assert "platform will resume this same conversation" in config.instructions
+
+
+def test_background_command_records_durable_task_identity() -> None:
+    class FakeClient:
+        identifier = "aws.codeinterpreter.v1"
+
+        def invoke(self, name: str, arguments: dict) -> dict:
+            assert name == "startCommandExecution"
+            assert arguments == {"command": "npm test"}
+            return {
+                "stream": iter(
+                    [
+                        {
+                            "result": {
+                                "structuredContent": {
+                                    "taskId": "task-123",
+                                    "taskStatus": "submitted",
+                                }
+                            }
+                        }
+                    ]
+                )
+            }
+
+    session = SimpleNamespace(session_id="session-123", client=FakeClient())
+
+    class FakeInterpreter:
+        def __init__(self):
+            self._sessions = {"conversation": session}
+
+        def _ensure_session(self, _name):
+            return "conversation", None
+
+    tracker = BackgroundWorkTracker()
+
+    result = start_background_command(
+        FakeInterpreter(), tracker, " npm test ", "  Run   tests "
+    )
+
+    assert result["status"] == "success"
+    pending = tracker.pending[0]
+    assert {key: pending[key] for key in pending if key != "startedAt"} == {
+        "provider": "agentcore_code_interpreter",
+        "resourceId": "aws.codeinterpreter.v1",
+        "sessionId": "session-123",
+        "taskId": "task-123",
+        "label": "Run tests",
+    }
+
+
+def test_completed_background_work_cannot_restart_during_resume(monkeypatch) -> None:
+    class FakeInterpreter:
+        def __init__(self, **_kwargs):
+            self.code_interpreter = type(
+                "Tool", (), {"tool_name": "code_interpreter"}
+            )()
+
+    monkeypatch.setattr(
+        capabilities, "PersistentAgentCoreCodeInterpreter", FakeInterpreter
+    )
+    config = bot_configuration(
+        {
+            "bot": {
+                "name": "Builder",
+                "prompt": "Build and verify code.",
+                "skillIds": [],
+                "skills": [],
+                "tools": [
+                    {
+                        "id": "code_interpreter",
+                        "runtime": {
+                            "kind": "agentcore",
+                            "name": "code_interpreter",
+                        },
+                    }
+                ],
+            },
+            "continuation": [
+                {
+                    "label": "Run tests",
+                    "status": "completed",
+                    "exitCode": 0,
+                    "stdout": "47 passed",
+                    "stderr": "",
+                }
+            ],
+        }
+    )
+
+    assert [tool.tool_name for tool in config.tools] == ["code_interpreter"]
+    assert "Do not rerun a completed command" in config.instructions
 
 
 def test_catalog_binding_rejects_unreviewed_runtime_features() -> None:

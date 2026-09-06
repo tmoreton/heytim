@@ -361,6 +361,16 @@ apiFunction.addToRolePolicy(
 apiFunction.addToRolePolicy(
   new PolicyStatement({
     effect: Effect.ALLOW,
+    actions: [
+      'bedrock-agentcore:InvokeCodeInterpreter',
+      'bedrock-agentcore:StopCodeInterpreterSession',
+    ],
+    resources: ['*'],
+  }),
+);
+apiFunction.addToRolePolicy(
+  new PolicyStatement({
+    effect: Effect.ALLOW,
     actions: ['bedrock-agentcore:StopRuntimeSession'],
     resources: [runtimeArn, `${runtimeArn}/runtime-endpoint/*`],
   }),
@@ -383,6 +393,7 @@ workerFunction.addToRolePolicy(
     effect: Effect.ALLOW,
     actions: [
       'bedrock-agentcore:ListCodeInterpreterSessions',
+      'bedrock-agentcore:InvokeCodeInterpreter',
       'bedrock-agentcore:StopCodeInterpreterSession',
       'bedrock-agentcore:ListBrowserSessions',
       'bedrock-agentcore:StopBrowserSession',

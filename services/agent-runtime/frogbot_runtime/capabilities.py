@@ -24,7 +24,14 @@ from strands_tools.browser import AgentCoreBrowser
 from strands_tools.code_interpreter import AgentCoreCodeInterpreter
 
 from .artifacts import artifact_tool, image_tool
-from .mcp_connections import connection_client, validated_connection_binding
+from .background_work import BackgroundWorkTracker, background_command_tool
+from .mcp_connections import (
+    GITHUB_MCP_ENDPOINT,
+    connection_client,
+    connection_credential,
+    validated_connection_binding,
+)
+from .repository_workspace import repository_workspace_tool
 
 MAX_SKILL_INSTRUCTIONS_CHARS = 20_000
 MAX_SKILLS = 12
@@ -212,6 +219,7 @@ class CapabilityConfiguration:
     skill_paths: list[str]
     builtin_plugins: list[str]
     builtin_subagents: list[str]
+    background_work: BackgroundWorkTracker
 
 
 def _prepare_playwright_driver() -> None:
@@ -364,26 +372,36 @@ def _gateway_client(operations: list[str]) -> MCPClient | None:
     )
 
 
-def _agentcore_tools(bindings: list[dict], session_id: str) -> list[Any]:
+def _agentcore_tools(
+    bindings: list[dict],
+    session_id: str,
+    background_work: BackgroundWorkTracker,
+    *,
+    allow_background_work: bool,
+) -> tuple[list[Any], PersistentAgentCoreCodeInterpreter | None]:
     tools = []
+    code_interpreter = None
     names = {item["name"] for item in bindings if item["kind"] == "agentcore"}
     if "code_interpreter" in names:
         interpreter = PersistentAgentCoreCodeInterpreter(
             region=AWS_REGION,
             session_name=f"frogbot-{session_id}",
-            session_timeout_seconds=7200,
+            session_timeout_seconds=28800,
         )
         tools.append(interpreter.code_interpreter)
+        if allow_background_work:
+            tools.append(background_command_tool(interpreter, background_work))
+        code_interpreter = interpreter
     if "browser" in names:
         _prepare_playwright_driver()
         tools.append(
             PersistentAgentCoreBrowser(
                 region=AWS_REGION,
                 session_name=f"frogbot-{session_id}",
-                session_timeout=7200,
+                session_timeout=28800,
             ).browser
         )
-    return tools
+    return tools, code_interpreter
 
 
 def _gateway_operations(bindings: list[dict]) -> list[str]:
@@ -410,14 +428,45 @@ def _validate_skill_selection(bot: dict, skills: list[Skill]) -> None:
 
 
 def resolve_capabilities(
-    bot: dict, session_id: str, artifact_prefix: str | None = None
+    bot: dict,
+    session_id: str,
+    artifact_prefix: str | None = None,
+    *,
+    allow_background_work: bool = True,
 ) -> CapabilityConfiguration:
     bindings = tool_bindings(bot)
     skills = dynamic_skills(bot)
+    background_work = BackgroundWorkTracker()
     tools = [CUSTOM_TOOLS[item["name"]] for item in bindings if item["kind"] == "local"]
     if artifact_prefix:
         tools.extend([artifact_tool(artifact_prefix), image_tool(artifact_prefix)])
-    tools.extend(_agentcore_tools(bindings, session_id))
+    agentcore_tools, interpreter = _agentcore_tools(
+        bindings,
+        session_id,
+        background_work,
+        allow_background_work=allow_background_work,
+    )
+    tools.extend(agentcore_tools)
+    github_binding = next(
+        (
+            item
+            for item in bindings
+            if item["kind"] == "mcp"
+            and item["endpoint"].rstrip("/") == GITHUB_MCP_ENDPOINT.rstrip("/")
+        ),
+        None,
+    )
+    if (
+        github_binding
+        and github_binding.get("authType") in {"bearer", "api_key"}
+        and interpreter
+    ):
+        tools.append(
+            repository_workspace_tool(
+                interpreter,
+                lambda: connection_credential(github_binding),
+            )
+        )
     gateway_client = _gateway_client(_gateway_operations(bindings))
     if gateway_client:
         tools.append(gateway_client)
@@ -437,4 +486,5 @@ def resolve_capabilities(
         builtin_subagents=[
             item["name"] for item in bindings if item["kind"] == "stan_subagent"
         ],
+        background_work=background_work,
     )

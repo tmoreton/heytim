@@ -64,7 +64,7 @@
       ],
       "lifecycleConfiguration": {
         "idleRuntimeSessionTimeout": 900,
-        "maxLifetime": 7200
+        "maxLifetime": 28800
       },
       "connections": [
         {

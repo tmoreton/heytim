@@ -15,6 +15,8 @@ from strands.types.content import Messages, SystemContentBlock
 from strands.types.streaming import StreamEvent
 from strands.types.tools import ToolChoice, ToolSpec
 
+from model.usage import OpenRouterUsageModel, UsageAccumulator, UsageTrackingModel
+
 log = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
@@ -156,7 +158,7 @@ def load_bedrock_model() -> BedrockModel:
 
 
 def _load_openrouter_model(api_key: str) -> OpenAIModel:
-    return OpenAIModel(
+    return OpenRouterUsageModel(
         model_id=PRIMARY_MODEL_ID,
         context_window_limit=200_000,
         params={"max_tokens": 4096, "temperature": 0.3},
@@ -171,9 +173,31 @@ def _load_openrouter_model(api_key: str) -> OpenAIModel:
     )
 
 
-async def load_model() -> Model:
+def _tracked(
+    model: Model,
+    usage: UsageAccumulator | None,
+    *,
+    provider: str,
+    model_id: str,
+) -> Model:
+    if usage is None:
+        return model
+    return UsageTrackingModel(
+        model,
+        usage,
+        provider=provider,
+        model_id=model_id,
+    )
+
+
+async def load_model(usage: UsageAccumulator | None = None) -> Model:
     """Load OpenRouter as primary and Bedrock as a safe fallback."""
-    fallback = load_bedrock_model()
+    fallback = _tracked(
+        load_bedrock_model(),
+        usage,
+        provider="bedrock",
+        model_id=FALLBACK_MODEL_ID,
+    )
     try:
         api_key = await _openrouter_api_key()
     except Exception as error:  # noqa: BLE001
@@ -185,4 +209,10 @@ async def load_model() -> Model:
         PRIMARY_MODEL_ID,
         FALLBACK_MODEL_ID,
     )
-    return PrimaryFallbackModel(_load_openrouter_model(api_key), fallback)
+    primary = _tracked(
+        _load_openrouter_model(api_key),
+        usage,
+        provider="openrouter",
+        model_id=PRIMARY_MODEL_ID,
+    )
+    return PrimaryFallbackModel(primary, fallback)

@@ -23,10 +23,7 @@ class FakeAgent:
 
 
 async def _events(agent: FakeAgent, prompt: Any) -> list[dict]:
-    return [
-        event
-        async for event in stream_with_token_recovery(agent, prompt)
-    ]
+    return [event async for event in stream_with_token_recovery(agent, prompt)]
 
 
 def test_resumes_one_partial_turn_without_repeating_the_prompt() -> None:

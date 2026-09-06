@@ -12,6 +12,7 @@ from .artifacts import (
     _delete_group_generated_artifacts,
     _group_generated_artifact_prefix,
 )
+from .background_work import _queue_background_poll
 from .support import (
     QUEUE_URL,
     _account_is_active,
@@ -21,7 +22,8 @@ from .support import (
     sqs,
     table,
 )
-from .work import _claim_work, _finish_work, _release_work
+from .usage import record_invocation_usage
+from .work import _claim_work, _finish_work, _pause_work, _release_work
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +78,9 @@ def _process_group_agent_reply(
     )
     if not bot:
         raise ValueError("Source bot no longer exists")
+    if reply.get("pendingWork"):
+        _queue_background_poll(reply_key, request, delay_seconds=0)
+        return None
     if (
         reply.get("status") in {"COMPLETE", "ERROR"}
         and not reply.get("notificationQueued")
@@ -127,7 +132,7 @@ def _process_group_agent_reply(
         coordinator_bot_id = request.get(
             "coordinatorBotId", reply.get("coordinatorBotId")
         )
-        answer = _invoke(
+        result = _invoke(
             bot_owner_id,
             bot_id,
             bot,
@@ -142,8 +147,28 @@ def _process_group_agent_reply(
                 round_role,
                 coordinator_bot_id,
             ),
+            continuation=reply.get("backgroundResults"),
             on_progress=_progress_updater(reply_key, lease_owner),
         )
+        requested_by = request.get("requestedBy")
+        billing_user_id = (
+            requested_by
+            if isinstance(requested_by, str) and requested_by.strip()
+            else bot_owner_id
+        )
+        record_invocation_usage(
+            billing_user_id,
+            lease_owner,
+            result.usage,
+            work_type=("group_round" if round_size > 1 else "group"),
+            bot_id=bot_id,
+            group_id=group_id,
+        )
+        if result.pending_work:
+            if _pause_work(reply_key, lease_owner, result.pending_work):
+                _queue_background_poll(reply_key, request)
+            return None
+        answer = result.text
         artifacts = _collect_group_generated_artifacts(group_id, reply["id"])
     except Exception:
         logger.exception("Agent request failed for group reply %s", reply.get("id"))

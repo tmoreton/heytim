@@ -65,7 +65,8 @@ clear, trustworthy room.
 ## Priority 1: continuity and user control — implemented and deployed
 
 - User-scoped long-term preferences and facts, plus conversation-scoped summaries, in AgentCore Memory
-- Stable two-hour browser and code-interpreter sessions that reconnect after a runtime process restart
+- Stable eight-hour browser and code-interpreter sessions that reconnect after a runtime process restart
+- Durable pause, poll, resume, and cancellation for long-running microVM commands on any bot with Code Interpreter
 - Per-turn approval for interactive browser work; scheduled and group work cannot bypass approval
 - One-hour model prompt/tool caching and bounded conversation history
 

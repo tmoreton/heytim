@@ -4,6 +4,7 @@ import json
 import logging
 from typing import Any
 
+from .background_work import _process_background_work
 from .direct_job import _process_agent_reply
 from .group_job import _process_group_agent_reply, _process_group_agent_round
 from .notifications import _check_push_receipts, _send_push_notification
@@ -31,6 +32,9 @@ def _process(record: dict) -> None:
         return
     if request_type == "PUSH_RECEIPTS":
         _check_push_receipts(request)
+        return
+    if request_type == "BACKGROUND_WORK_POLL":
+        _process_background_work(record, request)
         return
     if request_type == "GROUP_AGENT_REPLY":
         _process_group_agent_reply(record, request)

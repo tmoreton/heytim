@@ -6,9 +6,11 @@ from shared.work_state import is_claimable
 
 from .agent import _invoke, _progress_updater
 from .artifacts import _collect_generated_artifacts, _delete_generated_artifacts
+from .background_work import _queue_background_poll
 from .notifications import _queue_reply_notification, _update_schedule_result
 from .support import _account_is_active, _bot_key, _turn_pk, catalog, table
-from .work import _claim_work, _finish_work, _release_work
+from .usage import record_invocation_usage
+from .work import _claim_work, _finish_work, _pause_work, _release_work
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,9 @@ def _process_agent_reply(record: dict, request: dict) -> None:
     bot = table.get_item(Key=_bot_key(user_id, bot_id), ConsistentRead=True).get("Item")
     if not bot:
         raise ValueError("Bot no longer exists")
+    if turn.get("pendingWork"):
+        _queue_background_poll(turn_key, request, delay_seconds=0)
+        return
     if (
         turn.get("status") in {"COMPLETE", "ERROR"}
         and not turn.get("notificationQueued")
@@ -106,13 +111,26 @@ def _process_agent_reply(record: dict, request: dict) -> None:
     if receive_count > 1:
         _delete_generated_artifacts(user_id, turn["id"])
     try:
-        answer = _invoke(
+        result = _invoke(
             user_id,
             bot_id,
             bot,
             event_id=turn["id"],
+            continuation=turn.get("backgroundResults"),
             on_progress=_progress_updater(turn_key, lease_owner),
         )
+        record_invocation_usage(
+            user_id,
+            lease_owner,
+            result.usage,
+            work_type=("schedule" if turn.get("source") == "schedule" else "direct"),
+            bot_id=bot_id,
+        )
+        if result.pending_work:
+            if _pause_work(turn_key, lease_owner, result.pending_work):
+                _queue_background_poll(turn_key, request)
+            return
+        answer = result.text
         artifacts = _collect_generated_artifacts(user_id, turn["id"])
     except Exception:
         logger.exception("Agent request failed for turn %s", turn.get("id"))

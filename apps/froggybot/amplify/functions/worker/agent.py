@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass, field
+from decimal import Decimal
 
 from shared.agent_stream import ProgressCallback, read_agent_stream
 from shared.group_chat import group_history_from_items, group_runtime_context
@@ -21,6 +23,28 @@ from .support import (
 
 logger = logging.getLogger(__name__)
 RECENT_DIRECT_TURNS = 50
+
+
+@dataclass(frozen=True)
+class AgentInvocationResult:
+    text: str
+    pending_work: list[dict] = field(default_factory=list)
+    usage: dict | None = None
+
+
+def _continuation_payload(value: list[dict] | None) -> list[dict]:
+    if not value:
+        return []
+    results = []
+    for raw in value:
+        result = dict(raw)
+        exit_code = result.get("exitCode")
+        if isinstance(exit_code, Decimal):
+            if exit_code != exit_code.to_integral_value():
+                raise ValueError("Background task exit code is invalid")
+            result["exitCode"] = int(exit_code)
+        results.append(result)
+    return results
 
 
 def _get_history(
@@ -106,8 +130,9 @@ def _invoke(
     event_id: str | None = None,
     artifact_prefix: str | None = None,
     group_context: dict | None = None,
+    continuation: list[dict] | None = None,
     on_progress: ProgressCallback | None = None,
-) -> str:
+) -> AgentInvocationResult:
     session_id = (
         scoped_session_id(session_scope)
         if session_scope is not None
@@ -158,6 +183,9 @@ def _invoke(
         payload["artifacts"] = {"prefix": _generated_artifact_prefix(user_id, event_id)}
     if group_context is not None:
         payload["group"] = group_context
+    normalized_continuation = _continuation_payload(continuation)
+    if normalized_continuation:
+        payload["continuation"] = normalized_continuation
     response = agentcore.invoke_agent_runtime(
         agentRuntimeArn=AGENT_RUNTIME_ARN,
         qualifier=AGENT_RUNTIME_QUALIFIER,
@@ -166,7 +194,24 @@ def _invoke(
         accept="text/event-stream",
         payload=json.dumps(payload).encode("utf-8"),
     )
-    return read_agent_stream(response["response"].iter_lines(), on_progress)
+    pending_work: list[dict] = []
+    usage: dict | None = None
+
+    def capture_control(control: dict) -> None:
+        nonlocal usage
+        raw_work = control.get("pendingWork")
+        if isinstance(raw_work, list):
+            pending_work.extend(item for item in raw_work if isinstance(item, dict))
+        raw_usage = control.get("usage")
+        if isinstance(raw_usage, dict):
+            usage = raw_usage
+
+    text = read_agent_stream(
+        response["response"].iter_lines(),
+        on_progress,
+        capture_control,
+    )
+    return AgentInvocationResult(text=text, pending_work=pending_work, usage=usage)
 
 
 def _progress_updater(item_key: dict, lease_owner: str) -> ProgressCallback:

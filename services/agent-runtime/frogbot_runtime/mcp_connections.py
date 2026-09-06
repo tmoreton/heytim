@@ -24,6 +24,7 @@ OAUTH_CLIENT_SECRET_ARN_PATTERN = re.compile(
 )
 HEADER_PATTERN = re.compile(r"^(Authorization|X-[A-Za-z0-9-]{1,60})$")
 GMAIL_MCP_ENDPOINT = "https://gmailmcp.googleapis.com/mcp/v1"
+GITHUB_MCP_ENDPOINT = "https://api.githubcopilot.com/mcp/"
 GMAIL_MCP_TOOLS = {
     "create_draft",
     "list_drafts",
@@ -142,6 +143,12 @@ def _secret_value(secret_arn: str) -> str:
     return value
 
 
+def connection_credential(binding: dict) -> str:
+    if binding.get("authType") not in {"bearer", "api_key"}:
+        raise ValueError("Connection does not use a reusable API credential")
+    return _secret_value(binding["secretArn"])
+
+
 def _json_secret(secret_arn: str) -> dict:
     try:
         value = json.loads(_secret_value(secret_arn))
@@ -159,11 +166,14 @@ def _google_access_token(binding: dict) -> str:
     refresh_token = credential.get("refreshToken")
     client_id = client.get("client_id") if isinstance(client, dict) else None
     client_secret = client.get("client_secret") if isinstance(client, dict) else None
-    if not all(isinstance(value, str) and value for value in (
-        refresh_token,
-        client_id,
-        client_secret,
-    )):
+    if not all(
+        isinstance(value, str) and value
+        for value in (
+            refresh_token,
+            client_id,
+            client_secret,
+        )
+    ):
         raise ValueError("OAuth credential is invalid")
     request = urllib.request.Request(
         GOOGLE_OAUTH_ENDPOINT,

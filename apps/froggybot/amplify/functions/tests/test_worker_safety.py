@@ -6,6 +6,7 @@ import os
 import sys
 import unittest
 from datetime import UTC, datetime
+from decimal import Decimal
 from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
@@ -108,16 +109,19 @@ class WorkerSafetyTests(unittest.TestCase):
             ),
         ):
             cls.handler = importlib.import_module("worker.handler")
+            cls.agent = importlib.import_module("worker.agent")
             cls.work = importlib.import_module("worker.work")
             cls.artifacts = importlib.import_module("worker.artifacts")
             cls.direct_job = importlib.import_module("worker.direct_job")
             cls.group_job = importlib.import_module("worker.group_job")
+            cls.background_work = importlib.import_module("worker.background_work")
 
     def setUp(self) -> None:
         self.table.fail_condition = False
         self.table.items.clear()
         self.table.updates.clear()
         self.s3.reset_mock()
+        self.agentcore.reset_mock()
         self.sqs.reset_mock()
         self.s3.list_objects_v2.return_value = {"Contents": []}
 
@@ -176,17 +180,99 @@ class WorkerSafetyTests(unittest.TestCase):
             "#status = :running AND leaseOwner = :owner",
         )
 
+    def test_background_work_releases_the_model_lease(self) -> None:
+        pending = [
+            {
+                "provider": "agentcore_code_interpreter",
+                "resourceId": "aws.codeinterpreter.v1",
+                "sessionId": "session-1",
+                "taskId": "task-1",
+                "label": "Run tests",
+                "startedAt": "2026-09-06T12:00:00Z",
+            }
+        ]
+
+        paused = self.work._pause_work(
+            {"pk": "CHAT#1", "sk": "TURN#1"}, "queue-message-1", pending
+        )
+
+        self.assertTrue(paused)
+        update = self.table.updates[-1]
+        self.assertIn("pendingWork = :work", update["UpdateExpression"])
+        self.assertIn("REMOVE leaseOwner", update["UpdateExpression"])
+        self.assertEqual(update["ExpressionAttributeValues"][":work"], pending)
+
+    def test_completed_background_work_resumes_the_original_job(self) -> None:
+        item_key = {"pk": "CHAT#1", "sk": "TURN#1"}
+        pending = [
+            {
+                "provider": "agentcore_code_interpreter",
+                "resourceId": "aws.codeinterpreter.v1",
+                "sessionId": "session-1",
+                "taskId": "task-1",
+                "label": "Run tests",
+                "startedAt": "2026-09-06T12:00:00Z",
+            }
+        ]
+        self.table.items[(item_key["pk"], item_key["sk"])] = {
+            **item_key,
+            "status": "PENDING",
+            "pendingWork": pending,
+        }
+        self.agentcore.invoke_code_interpreter.return_value = {
+            "stream": iter(
+                [
+                    {
+                        "result": {
+                            "structuredContent": {
+                                "taskStatus": "completed",
+                                "stdout": "43 tests passed",
+                                "stderr": "",
+                                "exitCode": 0,
+                            }
+                        }
+                    }
+                ]
+            )
+        }
+        resume = {"type": "AGENT_REPLY", "turnKey": "TURN#1"}
+
+        self.background_work._process_background_work(
+            {"messageId": "poll-1"},
+            {
+                "type": "BACKGROUND_WORK_POLL",
+                "itemKey": item_key,
+                "resumeRequest": resume,
+            },
+        )
+
+        update = self.table.updates[-1]
+        results = update["ExpressionAttributeValues"][":results"]
+        self.assertEqual(results[0]["status"], "completed")
+        self.assertEqual(results[0]["exitCode"], 0)
+        self.sqs.send_message.assert_called_once_with(
+            QueueUrl="https://sqs.example/jobs", MessageBody=json.dumps(resume)
+        )
+
+    def test_dynamodb_exit_code_is_json_safe_when_resuming(self) -> None:
+        result = self.agent._continuation_payload(
+            [{"status": "completed", "exitCode": Decimal(0)}]
+        )
+
+        self.assertEqual(result, [{"status": "completed", "exitCode": 0}])
+        self.assertEqual(json.dumps(result), '[{"status": "completed", "exitCode": 0}]')
+
     def test_failed_job_is_made_visible_for_a_fast_retry(self) -> None:
         record = {
             "messageId": "queue-message-1",
             "receiptHandle": "receipt-1",
             "body": "{}",
         }
-        with self.assertLogs(self.handler.logger, level="ERROR") as logs:
-            with patch.object(
-                self.handler, "_process", side_effect=RuntimeError("nope")
-            ):
-                response = self.handler.handler({"Records": [record]}, None)
+        with (
+            self.assertLogs(self.handler.logger, level="ERROR") as logs,
+            patch.object(self.handler, "_process", side_effect=RuntimeError("nope")),
+        ):
+            response = self.handler.handler({"Records": [record]}, None)
 
         self.assertEqual(
             response, {"batchItemFailures": [{"itemIdentifier": "queue-message-1"}]}
