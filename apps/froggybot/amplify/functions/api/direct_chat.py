@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 
 from boto3.dynamodb.conditions import Attr
 from shared.cleanup import has_pending_work
+from shared.memory_identity import direct_session_id
 
 from .attachments import _resolve_attachments
 from .bots import _get_bot
 from .schedules import _get_schedule
 from .support import (
+    AGENT_RUNTIME_ARN,
+    AGENT_RUNTIME_QUALIFIER,
     QUEUE_URL,
     ApiError,
     _bot_sk,
@@ -19,10 +23,13 @@ from .support import (
     _turn_pk,
     _user_pk,
     _validate_string,
+    agentcore,
     catalog,
     sqs,
     table,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _start_bot_turn(
@@ -295,6 +302,19 @@ def _cancel_bot_turn(user_id: str, bot_id: str, turn_id: str) -> dict:
         raise ApiError(409, "This response can no longer be stopped") from exc
     if turn.get("source") == "schedule":
         _update_cancelled_schedule(user_id, turn, cancelled_at)
+    if turn.get("status") == "RUNNING" and AGENT_RUNTIME_ARN:
+        try:
+            agentcore.stop_runtime_session(
+                agentRuntimeArn=AGENT_RUNTIME_ARN,
+                qualifier=AGENT_RUNTIME_QUALIFIER,
+                runtimeSessionId=direct_session_id(user_id, bot_id),
+            )
+        except agentcore.exceptions.ResourceNotFoundException:
+            pass
+        except Exception:
+            # Cancellation is already durable in DynamoDB. Do not turn a
+            # best-effort remote stop into a failed cancellation response.
+            logger.exception("Could not stop the cancelled turn %s", turn_id)
     return {"cancelled": True}
 
 

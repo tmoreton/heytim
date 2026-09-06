@@ -12,4 +12,3 @@ if (cloudConfigured) {
 }
 
 export const apiUrl = outputs.custom.apiUrl.replace(/\/$/, '');
-export const shareBaseUrl = outputs.custom.shareBaseUrl;

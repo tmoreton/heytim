@@ -4,6 +4,7 @@
 request.py                 Validate requests and load attachments
 configuration.py           Build bot and group instructions
 capabilities.py            Resolve tools, skills, and persistent sessions
+mcp_connections.py         Validate and connect per-user remote MCP tools
 memory.py                  Recall and record AgentCore memory
 artifacts.py               Create and upload generated files
 artifact_content.py        Parse the supported Markdown subset
@@ -12,6 +13,7 @@ spreadsheet_renderer.py    Render Excel files
 presentation_renderer.py   Render PowerPoint files
 artifact_renderers.py      Select the renderer by file extension
 telemetry.py               Redact sensitive trace content
+streaming.py               Normalize streamed agent events
 ```
 
 `main.py` is the transport entrypoint. Runtime behavior belongs in this package so request transport,

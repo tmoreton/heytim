@@ -14,6 +14,12 @@ from botocore.config import Config
 from shared.catalog import CatalogService
 from shared.invites import invite_token_hash
 
+from .starter_bots import (
+    CHIEF_COLOR,
+    CHIEF_SYSTEM_ROLE,
+    DEFAULT_BOT_COLOR,
+)
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -89,36 +95,6 @@ ATTACHMENT_FORMATS = {
     ".gif": ("image", "gif", "image/gif"),
     ".webp": ("image", "webp", "image/webp"),
 }
-CHIEF_COLOR = "#007A3D"
-DEFAULT_BOT_COLOR = "#58BEAA"
-ALLOWED_COLORS = {
-    CHIEF_COLOR,
-    DEFAULT_BOT_COLOR,
-    "#FFAA34",
-    "#6C5CE7",
-    "#3984F6",
-    "#F46A27",
-    "#E95383",
-}
-CHIEF_SYSTEM_ROLE = "chief"
-
-DEFAULT_BOTS = [
-    {
-        "name": "Chief",
-        "tagline": "Keeps the work moving and connects the dots.",
-        "color": CHIEF_COLOR,
-        "prompt": (
-            "Act as my chief of staff and the sole coordinator for my other bots. "
-            "Clarify priorities, choose the right specialist when one is useful, keep "
-            "answers concise, and always end with the best next action."
-        ),
-        "toolIds": ["current_time", "calculator"],
-        "skillIds": ["group-decision"],
-        "systemRole": CHIEF_SYSTEM_ROLE,
-    },
-]
-
-
 class ApiError(Exception):
     def __init__(self, status_code: int, message: str):
         super().__init__(message)

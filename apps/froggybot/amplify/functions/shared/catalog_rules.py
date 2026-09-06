@@ -142,74 +142,92 @@ def _validate_tool_ids(value: Any, allowed: set[str]) -> list[str]:
     return unique
 
 
+def _validate_gateway_binding(value: dict) -> dict:
+    operations = value.get("operations")
+    if (
+        not isinstance(operations, list)
+        or not 1 <= len(operations) <= 8
+        or len(set(operations)) != len(operations)
+        or any(
+            not isinstance(operation, str)
+            or not RUNTIME_NAME_PATTERN.fullmatch(operation)
+            for operation in operations
+        )
+    ):
+        raise CatalogError("gateway tool operations are invalid")
+    return {"kind": "gateway", "operations": operations}
+
+
+def _validate_oauth_binding(value: dict, endpoint: str, secret_arn: Any) -> dict:
+    client_secret_arn = value.get("oauthClientSecretArn")
+    allowed_tools = value.get("allowedTools")
+    if (
+        endpoint != GMAIL_MCP_ENDPOINT
+        or value.get("oauthProvider") != "google"
+        or not isinstance(secret_arn, str)
+        or not secret_arn.startswith("arn:aws:secretsmanager:")
+        or not isinstance(client_secret_arn, str)
+        or not client_secret_arn.startswith("arn:aws:secretsmanager:")
+        or not isinstance(allowed_tools, list)
+        or not allowed_tools
+        or len(allowed_tools) != len(set(allowed_tools))
+        or not set(allowed_tools).issubset(GMAIL_MCP_TOOLS)
+    ):
+        raise CatalogError("OAuth MCP connection is invalid")
+    return {
+        "kind": "mcp",
+        "endpoint": endpoint,
+        "authType": "oauth",
+        "oauthProvider": "google",
+        "secretArn": secret_arn,
+        "oauthClientSecretArn": client_secret_arn,
+        "allowedTools": allowed_tools,
+    }
+
+
+def _validate_header_binding(
+    value: dict, endpoint: str, auth_type: Any, secret_arn: Any
+) -> dict:
+    header_name = value.get("headerName")
+    header_prefix = value.get("headerPrefix", "")
+    if (
+        auth_type not in {"bearer", "api_key"}
+        or not isinstance(secret_arn, str)
+        or not secret_arn.startswith("arn:aws:secretsmanager:")
+        or not isinstance(header_name, str)
+        or not re.fullmatch(r"^(Authorization|X-[A-Za-z0-9-]{1,60})$", header_name)
+        or header_prefix not in {"", "Bearer "}
+    ):
+        raise CatalogError("MCP connection authentication is invalid")
+    return {
+        "kind": "mcp",
+        "endpoint": endpoint,
+        "authType": auth_type,
+        "secretArn": secret_arn,
+        "headerName": header_name,
+        "headerPrefix": header_prefix,
+    }
+
+
+def _validate_mcp_binding(value: dict) -> dict:
+    endpoint = _validate_mcp_endpoint(value.get("endpoint"))
+    auth_type = value.get("authType", "none")
+    if auth_type == "none":
+        return {"kind": "mcp", "endpoint": endpoint, "authType": "none"}
+    secret_arn = value.get("secretArn")
+    if auth_type == "oauth":
+        return _validate_oauth_binding(value, endpoint, secret_arn)
+    return _validate_header_binding(value, endpoint, auth_type, secret_arn)
+
+
 def _validate_runtime_binding(value: Any) -> dict:
     if not isinstance(value, dict):
         raise CatalogError("tool runtime binding is required")
     kind = value.get("kind")
     if kind == "gateway":
-        operations = value.get("operations")
-        if (
-            not isinstance(operations, list)
-            or not 1 <= len(operations) <= 8
-            or len(set(operations)) != len(operations)
-            or any(
-                not isinstance(operation, str)
-                or not RUNTIME_NAME_PATTERN.fullmatch(operation)
-                for operation in operations
-            )
-        ):
-            raise CatalogError("gateway tool operations are invalid")
-        return {"kind": kind, "operations": operations}
+        return _validate_gateway_binding(value)
     if kind == "mcp":
-        endpoint = _validate_mcp_endpoint(value.get("endpoint"))
-        auth_type = value.get("authType", "none")
-        if auth_type == "none":
-            return {"kind": kind, "endpoint": endpoint, "authType": "none"}
-        secret_arn = value.get("secretArn")
-        if auth_type == "oauth":
-            client_secret_arn = value.get("oauthClientSecretArn")
-            allowed_tools = value.get("allowedTools")
-            if (
-                endpoint != GMAIL_MCP_ENDPOINT
-                or value.get("oauthProvider") != "google"
-                or not isinstance(secret_arn, str)
-                or not secret_arn.startswith("arn:aws:secretsmanager:")
-                or not isinstance(client_secret_arn, str)
-                or not client_secret_arn.startswith("arn:aws:secretsmanager:")
-                or not isinstance(allowed_tools, list)
-                or not allowed_tools
-                or len(allowed_tools) != len(set(allowed_tools))
-                or not set(allowed_tools).issubset(GMAIL_MCP_TOOLS)
-            ):
-                raise CatalogError("OAuth MCP connection is invalid")
-            return {
-                "kind": kind,
-                "endpoint": endpoint,
-                "authType": auth_type,
-                "oauthProvider": "google",
-                "secretArn": secret_arn,
-                "oauthClientSecretArn": client_secret_arn,
-                "allowedTools": allowed_tools,
-            }
-        header_name = value.get("headerName")
-        header_prefix = value.get("headerPrefix", "")
-        if (
-            auth_type not in {"bearer", "api_key"}
-            or not isinstance(secret_arn, str)
-            or not secret_arn.startswith("arn:aws:secretsmanager:")
-            or not isinstance(header_name, str)
-            or not re.fullmatch(r"^(Authorization|X-[A-Za-z0-9-]{1,60})$", header_name)
-            or header_prefix not in {"", "Bearer "}
-        ):
-            raise CatalogError("MCP connection authentication is invalid")
-        return {
-            "kind": kind,
-            "endpoint": endpoint,
-            "authType": auth_type,
-            "secretArn": secret_arn,
-            "headerName": header_name,
-            "headerPrefix": header_prefix,
-        }
+        return _validate_mcp_binding(value)
     allowed_names = RUNTIME_NAMES.get(kind)
     name = value.get("name")
     if not allowed_names or name not in allowed_names:

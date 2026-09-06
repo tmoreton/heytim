@@ -13,9 +13,5 @@ def direct_session_id(user_id: str, bot_id: str) -> str:
     return hashlib.sha256(f"{user_id}:{bot_id}".encode()).hexdigest()
 
 
-def group_session_id(group_id: str, bot_id: str) -> str:
-    return hashlib.sha256(f"group:{group_id}:bot:{bot_id}".encode()).hexdigest()
-
-
 def scoped_session_id(scope: str) -> str:
     return hashlib.sha256(scope.encode()).hexdigest()

@@ -31,6 +31,7 @@ Tools:
 
 Skills:
 
+- `group-intake`
 - `trip-planner`
 - `event-planner`
 - `group-decision`

@@ -8,7 +8,7 @@ from .direct_job import _process_agent_reply
 from .group_job import _process_group_agent_reply, _process_group_agent_round
 from .notifications import _check_push_receipts, _send_push_notification
 from .scheduled_job import _process_scheduled_agent_reply, _request_string
-from .support import QUEUE_URL, sqs
+from .support import ACTIVE_VISIBILITY_SECONDS, QUEUE_URL, sqs
 
 RETRY_VISIBILITY_SECONDS = 10
 
@@ -49,13 +49,27 @@ def _process(record: dict) -> None:
 def handler(event: dict, _context: Any) -> dict:
     failures = []
     for record in event.get("Records", []):
+        receipt_handle = record.get("receiptHandle")
+        if isinstance(receipt_handle, str) and receipt_handle:
+            try:
+                sqs.change_message_visibility(
+                    QueueUrl=QUEUE_URL,
+                    ReceiptHandle=receipt_handle,
+                    VisibilityTimeout=ACTIVE_VISIBILITY_SECONDS,
+                )
+            except Exception:
+                # The queue's longer default still prevents concurrent work. A
+                # failed adjustment only means a timed-out retry will arrive later.
+                logger.exception(
+                    "Could not set active visibility for message %s",
+                    record.get("messageId", "unknown"),
+                )
         try:
             _process(record)
         except Exception:
             logger.exception(
                 "Job failed for message %s", record.get("messageId", "unknown")
             )
-            receipt_handle = record.get("receiptHandle")
             if isinstance(receipt_handle, str) and receipt_handle:
                 try:
                     sqs.change_message_visibility(

@@ -364,28 +364,17 @@ def _gateway_client(operations: list[str]) -> MCPClient | None:
     )
 
 
-def resolve_capabilities(
-    bot: dict, session_id: str, artifact_prefix: str | None = None
-) -> CapabilityConfiguration:
-    bindings = tool_bindings(bot)
-    skills = dynamic_skills(bot)
-    tools = [CUSTOM_TOOLS[item["name"]] for item in bindings if item["kind"] == "local"]
-    if artifact_prefix:
-        tools.extend([artifact_tool(artifact_prefix), image_tool(artifact_prefix)])
-
-    if any(
-        item["kind"] == "agentcore" and item["name"] == "code_interpreter"
-        for item in bindings
-    ):
+def _agentcore_tools(bindings: list[dict], session_id: str) -> list[Any]:
+    tools = []
+    names = {item["name"] for item in bindings if item["kind"] == "agentcore"}
+    if "code_interpreter" in names:
         interpreter = PersistentAgentCoreCodeInterpreter(
             region=AWS_REGION,
             session_name=f"frogbot-{session_id}",
             session_timeout_seconds=7200,
         )
         tools.append(interpreter.code_interpreter)
-    if any(
-        item["kind"] == "agentcore" and item["name"] == "browser" for item in bindings
-    ):
+    if "browser" in names:
         _prepare_playwright_driver()
         tools.append(
             PersistentAgentCoreBrowser(
@@ -394,8 +383,11 @@ def resolve_capabilities(
                 session_timeout=7200,
             ).browser
         )
+    return tools
 
-    gateway_operations = list(
+
+def _gateway_operations(bindings: list[dict]) -> list[str]:
+    return list(
         dict.fromkeys(
             operation
             for item in bindings
@@ -403,11 +395,9 @@ def resolve_capabilities(
             for operation in item["operations"]
         )
     )
-    gateway_client = _gateway_client(gateway_operations)
-    if gateway_client:
-        tools.append(gateway_client)
-    tools.extend(connection_client(item) for item in bindings if item["kind"] == "mcp")
 
+
+def _validate_skill_selection(bot: dict, skills: list[Skill]) -> None:
     skill_ids = bot.get("skillIds", [])
     if not isinstance(skill_ids, list) or not all(
         isinstance(value, str) for value in skill_ids
@@ -415,9 +405,24 @@ def resolve_capabilities(
         raise TypeError("bot.skillIds must be a list of strings")
     if bot.get("skills") is None:
         raise ValueError("bot.skills must be resolved by the catalog service")
-    resolved_skill_ids = {skill.name for skill in skills}
-    if set(skill_ids) != resolved_skill_ids:
+    if set(skill_ids) != {skill.name for skill in skills}:
         raise ValueError("bot.skillIds and resolved bot.skills do not match")
+
+
+def resolve_capabilities(
+    bot: dict, session_id: str, artifact_prefix: str | None = None
+) -> CapabilityConfiguration:
+    bindings = tool_bindings(bot)
+    skills = dynamic_skills(bot)
+    tools = [CUSTOM_TOOLS[item["name"]] for item in bindings if item["kind"] == "local"]
+    if artifact_prefix:
+        tools.extend([artifact_tool(artifact_prefix), image_tool(artifact_prefix)])
+    tools.extend(_agentcore_tools(bindings, session_id))
+    gateway_client = _gateway_client(_gateway_operations(bindings))
+    if gateway_client:
+        tools.append(gateway_client)
+    tools.extend(connection_client(item) for item in bindings if item["kind"] == "mcp")
+    _validate_skill_selection(bot, skills)
 
     return CapabilityConfiguration(
         tools=tools,

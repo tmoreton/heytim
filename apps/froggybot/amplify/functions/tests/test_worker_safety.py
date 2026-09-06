@@ -7,7 +7,7 @@ import sys
 import unittest
 from datetime import UTC, datetime
 from types import ModuleType, SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 
 class ConditionalCheckFailedException(Exception):
@@ -182,16 +182,46 @@ class WorkerSafetyTests(unittest.TestCase):
             "receiptHandle": "receipt-1",
             "body": "{}",
         }
-        with patch.object(self.handler, "_process", side_effect=RuntimeError("nope")):
-            response = self.handler.handler({"Records": [record]}, None)
+        with self.assertLogs(self.handler.logger, level="ERROR") as logs:
+            with patch.object(
+                self.handler, "_process", side_effect=RuntimeError("nope")
+            ):
+                response = self.handler.handler({"Records": [record]}, None)
 
         self.assertEqual(
             response, {"batchItemFailures": [{"itemIdentifier": "queue-message-1"}]}
         )
+        self.assertIn("Job failed for message queue-message-1", logs.output[0])
+        self.assertEqual(
+            self.sqs.change_message_visibility.call_args_list,
+            [
+                call(
+                    QueueUrl="https://sqs.example/jobs",
+                    ReceiptHandle="receipt-1",
+                    VisibilityTimeout=16 * 60,
+                ),
+                call(
+                    QueueUrl="https://sqs.example/jobs",
+                    ReceiptHandle="receipt-1",
+                    VisibilityTimeout=10,
+                ),
+            ],
+        )
+
+    def test_active_job_visibility_covers_the_worker_deadline(self) -> None:
+        record = {
+            "messageId": "queue-message-1",
+            "receiptHandle": "receipt-1",
+            "body": "{}",
+        }
+        with patch.object(self.handler, "_process"):
+            response = self.handler.handler({"Records": [record]}, None)
+
+        self.assertEqual(response, {"batchItemFailures": []})
         self.sqs.change_message_visibility.assert_called_once_with(
             QueueUrl="https://sqs.example/jobs",
             ReceiptHandle="receipt-1",
-            VisibilityTimeout=10,
+            VisibilityTimeout=16 * 60,
         )
 
     def test_group_round_does_not_advance_without_a_completed_reply(self) -> None:

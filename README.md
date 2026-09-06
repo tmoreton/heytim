@@ -66,7 +66,7 @@ order for the preview app, live request path, AgentCore runtime, infrastructure,
 - Automatic reusable outputs for itineraries, budgets, checklists, plans, and other work that belongs outside the chat
 - Owner-controlled chat, bot, and group deletion with pending-work protection and invite revocation
 - A skill library for creating, editing, and sharing reusable ways of working
-- Three starter bots, six focused public skills, and a dynamically refreshed capability catalog
+- Four starter bots, seven focused public skills, and a dynamically refreshed capability catalog
 - Private HTTPS MCP connections with per-user bearer-token or API-key credentials
 - Bot snapshots, conversation snapshots, and live group invitations with 30-day links
 - User-owned AgentCore memory for preferences, facts, and conversation summaries, with in-app review, editing, forgetting, and JSON export
@@ -199,5 +199,6 @@ query string and hand off to the Expo app subdomain.
 - `agentcore/agentcore.json` - AgentCore source-of-truth configuration
 - `apps/froggybot/src/features/` - authentication, invitations, chat UI, and editors
 - `apps/froggybot/amplify/backend.ts` - Cognito, API, DynamoDB, SQS, and Lambda infrastructure
+- `apps/froggybot/amplify/functions/api/starter_bots.py` - the small, deletable new-account starter set
 - `apps/froggybot/amplify/functions/` - authenticated API, shared domain logic, and AgentCore worker
 - [FroggyBot Skills](https://github.com/tmoreton/frogbot-skills) - the only source for public skill instructions and external tool schemas

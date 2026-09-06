@@ -15,6 +15,7 @@ import { SnsAction } from 'aws-cdk-lib/aws-cloudwatch-actions';
 import { Effect, PolicyStatement, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import type { Key } from 'aws-cdk-lib/aws-kms';
 import type { Function as LambdaFunction } from 'aws-cdk-lib/aws-lambda';
+import { FilterPattern, MetricFilter, type LogGroup } from 'aws-cdk-lib/aws-logs';
 import type { Queue } from 'aws-cdk-lib/aws-sqs';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 
@@ -22,6 +23,7 @@ type ObservabilityResources = {
   stack: Stack;
   apiFunction: LambdaFunction;
   workerFunction: LambdaFunction;
+  workerLogGroup: LogGroup;
   jobs: Queue;
   deadLetterQueue: Queue;
   logsKey: Key;
@@ -32,6 +34,7 @@ export function addObservability({
   stack,
   apiFunction,
   workerFunction,
+  workerLogGroup,
   jobs,
   deadLetterQueue,
   logsKey,
@@ -74,10 +77,26 @@ export function addObservability({
   });
   const workerLatencyAlarm = new Alarm(stack, 'WorkerLatencyP99Alarm', {
     metric: workerFunction.metricDuration({ statistic: 'p99', period: Duration.minutes(1) }),
-    threshold: Duration.minutes(5).toMilliseconds(),
+    threshold: Duration.minutes(13).toMilliseconds(),
     comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
-    evaluationPeriods: 3,
-    datapointsToAlarm: 2,
+    evaluationPeriods: 1,
+    datapointsToAlarm: 1,
+    treatMissingData: TreatMissingData.NOT_BREACHING,
+  });
+  const workerJobFailureMetric = new MetricFilter(stack, 'WorkerJobFailureMetric', {
+    logGroup: workerLogGroup,
+    filterPattern: FilterPattern.literal('"Job failed for message"'),
+    metricNamespace: `${stack.stackName}/Worker`,
+    metricName: 'JobFailures',
+    metricValue: '1',
+    defaultValue: 0,
+  }).metric({ statistic: 'Sum', period: Duration.minutes(1) });
+  const workerJobFailureAlarm = new Alarm(stack, 'WorkerJobFailureAlarm', {
+    metric: workerJobFailureMetric,
+    threshold: 0,
+    comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+    evaluationPeriods: 1,
+    datapointsToAlarm: 1,
     treatMissingData: TreatMissingData.NOT_BREACHING,
   });
   const apiThrottleAlarm = new Alarm(stack, 'ApiThrottleAlarm', {
@@ -176,6 +195,7 @@ export function addObservability({
   for (const alarm of [
     apiErrorAlarm,
     workerErrorAlarm,
+    workerJobFailureAlarm,
     apiLatencyAlarm,
     workerLatencyAlarm,
     apiThrottleAlarm,
@@ -201,6 +221,7 @@ export function addObservability({
       alarms: [
         apiErrorAlarm,
         workerErrorAlarm,
+        workerJobFailureAlarm,
         apiLatencyAlarm,
         workerLatencyAlarm,
         apiThrottleAlarm,

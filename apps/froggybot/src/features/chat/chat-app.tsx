@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -15,7 +15,7 @@ import { ActionSheet } from '@/components/action-sheet';
 import { endSession } from '@/lib/auth';
 import { createApi } from '@/lib/api';
 import { chiefFirst } from '@/lib/bot-branding';
-import type { Attachment, Bootstrap, Bot, BotDraft, CapabilitySelection, Group, GroupDraft, GroupMember, Invitation, Message } from '@/lib/types';
+import type { Attachment, Bot, BotDraft, CapabilitySelection, Group, GroupDraft, GroupMember, Invitation, Message } from '@/lib/types';
 
 import { AccountSettings } from './account-settings';
 import { BotActionSheets, type BotAction } from './bot-action-sheets';
@@ -29,6 +29,7 @@ import { ALL_BOTS_REPLY_TARGET } from './message-composer';
 import { ScheduledTasks } from './scheduled-tasks';
 import { SkillLibrary } from './skill-library';
 import { useAttachments } from './use-attachments';
+import { useChatData } from './use-chat-data';
 import { useConversationLinks } from './use-conversation-links';
 import { useMessageDictation } from './use-message-dictation';
 
@@ -39,7 +40,6 @@ type Props = {
   onSignedOut: () => void;
 };
 
-const MESSAGE_REFRESH_MS = 900;
 const directTurnId = (message: Message) => message.id.replace(/-assistant$/, '');
 
 export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Props) {
@@ -47,16 +47,29 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
   const insets = useSafeAreaInsets();
   const wide = width >= 760;
   const api = useMemo(() => createApi(demo), [demo]);
-  const messageRequest = useRef(0);
-  const [data, setData] = useState<Bootstrap>();
-  const [selection, setSelection] = useState<Selection>();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const chat = useChatData(api);
+  const {
+    data,
+    setData,
+    selection,
+    setSelection,
+    messages,
+    setMessages,
+    loadingMessages,
+    setLoadingMessages,
+    error,
+    setError,
+    pending,
+    chooseAvailableSelection,
+    loadBootstrap,
+    loadMessages,
+    openConversation: setActiveConversation,
+    invalidateMessages,
+  } = chat;
   const [drawerOpen, setDrawerOpen] = useState(wide);
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState('');
-  const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState('');
   const [editor, setEditor] = useState<'new' | 'edit' | undefined>(initialCapability ? 'edit' : undefined);
   const [suggestedCapability, setSuggestedCapability] = useState(initialCapability);
   const [groupEditor, setGroupEditor] = useState<'new' | 'edit' | undefined>();
@@ -72,12 +85,6 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
   const editingBot = selectedBot ?? (suggestedCapability ? data?.bots[0] : undefined);
   const selectedGroup = selection?.kind === 'group' ? data?.groups.find((group) => group.id === selection.id) : undefined;
   const selected = selectedBot ?? selectedGroup;
-  const pending = messages.some((message) =>
-    ['pending', 'running', 'waiting', 'needs_input', 'awaiting_approval'].includes(message.status),
-  );
-  const refreshing = messages.some((message) =>
-    ['pending', 'running', 'waiting'].includes(message.status),
-  );
   const activeBotName = messages.find(
     (message) => ['pending', 'running'].includes(message.status) && message.authorType === 'bot',
   )?.authorName;
@@ -111,31 +118,11 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
   const { listening } = dictation;
   const clearAttachmentDraft = attachmentDraft.clear;
 
-  const chooseAvailableSelection = useCallback((next: Bootstrap, current?: Selection): Selection | undefined => {
-    if (current?.kind === 'bot' && next.bots.some((bot) => bot.id === current.id)) return current;
-    if (current?.kind === 'group' && next.groups.some((group) => group.id === current.id)) return current;
-    if (next.groups[0]) return { kind: 'group', id: next.groups[0].id };
-    if (next.bots[0]) return { kind: 'bot', id: next.bots[0].id };
-    return undefined;
-  }, []);
-
-  const loadBootstrap = useCallback(async () => {
-    try {
-      const next = await api.bootstrap();
-      setData(next);
-      setSelection((current) => chooseAvailableSelection(next, current));
-    } catch (value) {
-      setError(value instanceof Error ? value.message : 'Could not load your bots.');
-    }
-  }, [api, chooseAvailableSelection]);
-
   const openConversation = useCallback((next: Selection, closeDrawer = true) => {
-    setMessages([]);
-    setLoadingMessages(true);
     clearAttachmentDraft();
-    setSelection(next);
+    setActiveConversation(next);
     if (closeDrawer) setDrawerOpen(false);
-  }, [clearAttachmentDraft]);
+  }, [clearAttachmentDraft, setActiveConversation]);
 
   const links = useConversationLinks({
     api,
@@ -144,83 +131,6 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
     loadBootstrap,
     openConversation,
   });
-
-  const loadMessages = useCallback(async () => {
-    if (!selection) return;
-    const requestId = ++messageRequest.current;
-    try {
-      const next = selection.kind === 'group'
-        ? await api.groupMessages(selection.id)
-        : await api.messages(selection.id);
-      if (requestId === messageRequest.current) {
-        setMessages(next);
-        setError('');
-      }
-    } catch (value) {
-      if (requestId === messageRequest.current) {
-        setError(value instanceof Error ? value.message : 'Could not load this conversation.');
-      }
-    } finally {
-      if (requestId === messageRequest.current) setLoadingMessages(false);
-    }
-  }, [api, selection]);
-
-  useEffect(() => {
-    let active = true;
-    api
-      .bootstrap()
-      .then((next) => {
-        if (!active) return;
-        setData(next);
-        setLoadingMessages(Boolean(next.groups[0] ?? next.bots[0]));
-        setSelection((current) => chooseAvailableSelection(next, current));
-      })
-      .catch((value) => {
-        if (active) setError(value instanceof Error ? value.message : 'Could not load your bots.');
-      });
-    return () => {
-      active = false;
-    };
-  }, [api, chooseAvailableSelection]);
-
-  useEffect(() => {
-    if (!selection) return;
-    let active = true;
-    const requestId = ++messageRequest.current;
-    const request = selection.kind === 'group' ? api.groupMessages(selection.id) : api.messages(selection.id);
-    request
-      .then((next) => {
-        if (!active || requestId !== messageRequest.current) return;
-        setMessages(next);
-        setError('');
-      })
-      .catch((value) => {
-        if (active && requestId === messageRequest.current) {
-          setError(value instanceof Error ? value.message : 'Could not load this conversation.');
-        }
-      })
-      .finally(() => {
-        if (active && requestId === messageRequest.current) setLoadingMessages(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [api, selection]);
-
-  useEffect(() => {
-    if (!refreshing) return;
-    let active = true;
-    let timer: ReturnType<typeof setTimeout>;
-    const poll = async () => {
-      await loadMessages();
-      if (active) timer = setTimeout(poll, MESSAGE_REFRESH_MS);
-    };
-    timer = setTimeout(poll, MESSAGE_REFRESH_MS);
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [loadMessages, refreshing]);
 
   const selectBot = (bot: Bot) => {
     dictation.abort();
@@ -345,7 +255,7 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
   const refreshAfterDeletion = async () => {
     const next = await api.bootstrap();
     const nextSelection = chooseAvailableSelection(next, selection);
-    messageRequest.current += 1;
+    invalidateMessages();
     setData(next);
     setMessages([]);
     setError('');
@@ -361,7 +271,7 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
       if (pendingBotAction === 'clear') {
         await api.clearBotChat(selectedBot.id);
         const next = await api.bootstrap();
-        messageRequest.current += 1;
+        invalidateMessages();
         setData(next);
         setMessages([]);
         setError('');

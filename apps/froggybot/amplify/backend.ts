@@ -17,6 +17,7 @@ import path from 'node:path';
 
 import { preSignUp } from './auth/pre-sign-up/resource';
 import { auth, emailCodeMessage } from './auth/resource';
+import { AUTHENTICATED_ROUTES } from './infrastructure/api-routes';
 import { addObservability } from './infrastructure/observability';
 
 const backend = defineBackend({ auth, preSignUp });
@@ -229,7 +230,9 @@ const deadLetterQueue = new Queue(stack, 'AgentJobsDeadLetter', {
 const jobs = new Queue(stack, 'AgentJobs', {
   encryption: QueueEncryption.SQS_MANAGED,
   enforceSSL: true,
-  visibilityTimeout: Duration.minutes(25),
+  // AWS recommends at least six times the Lambda timeout. Each active worker
+  // narrows its own message to 16 minutes so a hard timeout still retries soon.
+  visibilityTimeout: Duration.minutes(90),
   retentionPeriod: Duration.days(4),
   deadLetterQueue: { queue: deadLetterQueue, maxReceiveCount: 3 },
 });
@@ -280,7 +283,7 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
   handler: 'worker.handler.handler',
   code: Code.fromAsset(path.resolve('amplify/functions')),
   logGroup: workerLogGroup,
-  timeout: Duration.minutes(6),
+  timeout: Duration.minutes(14),
   environment: {
     ...functionDefaults.environment,
     AGENT_RUNTIME_ARN: runtimeArn,
@@ -353,6 +356,13 @@ apiFunction.addToRolePolicy(
     actions: ['iam:PassRole'],
     resources: [taskScheduleRole.roleArn],
     conditions: { StringEquals: { 'iam:PassedToService': 'scheduler.amazonaws.com' } },
+  }),
+);
+apiFunction.addToRolePolicy(
+  new PolicyStatement({
+    effect: Effect.ALLOW,
+    actions: ['bedrock-agentcore:StopRuntimeSession'],
+    resources: [runtimeArn, `${runtimeArn}/runtime-endpoint/*`],
   }),
 );
 workerFunction.addEventSource(
@@ -482,55 +492,7 @@ httpApi.addRoutes({
   integration,
 });
 
-for (const [method, routePath] of [
-  [HttpMethod.GET, '/bootstrap'],
-  [HttpMethod.POST, '/bots'],
-  [HttpMethod.PUT, '/bots/{botId}'],
-  [HttpMethod.DELETE, '/bots/{botId}'],
-  [HttpMethod.GET, '/bots/{botId}/messages'],
-  [HttpMethod.POST, '/bots/{botId}/messages'],
-  [HttpMethod.POST, '/bots/{botId}/messages/{turnId}/approve'],
-  [HttpMethod.POST, '/bots/{botId}/messages/{turnId}/cancel'],
-  [HttpMethod.DELETE, '/bots/{botId}/messages'],
-  [HttpMethod.GET, '/bots/{botId}/schedules'],
-  [HttpMethod.POST, '/bots/{botId}/schedules'],
-  [HttpMethod.PUT, '/bots/{botId}/schedules/{scheduleId}'],
-  [HttpMethod.DELETE, '/bots/{botId}/schedules/{scheduleId}'],
-  [HttpMethod.POST, '/bots/{botId}/schedules/{scheduleId}/run'],
-  [HttpMethod.POST, '/groups'],
-  [HttpMethod.PUT, '/groups/{groupId}'],
-  [HttpMethod.DELETE, '/groups/{groupId}'],
-  [HttpMethod.GET, '/groups/{groupId}/messages'],
-  [HttpMethod.POST, '/groups/{groupId}/messages'],
-  [HttpMethod.POST, '/groups/{groupId}/invites'],
-  [HttpMethod.GET, '/groups/{groupId}/files/{fileId}/download'],
-  [HttpMethod.DELETE, '/groups/{groupId}/members/{memberId}'],
-  [HttpMethod.POST, '/group-invites/{token}/join'],
-  [HttpMethod.PUT, '/devices/push-token'],
-  [HttpMethod.DELETE, '/devices/push-token'],
-  [HttpMethod.POST, '/uploads'],
-  [HttpMethod.POST, '/uploads/{fileId}/complete'],
-  [HttpMethod.GET, '/files/{fileId}/download'],
-  [HttpMethod.DELETE, '/account'],
-  [HttpMethod.GET, '/memory'],
-  [HttpMethod.POST, '/memory/export'],
-  [HttpMethod.PUT, '/memory/{memoryRecordId}'],
-  [HttpMethod.DELETE, '/memory/{memoryRecordId}'],
-  [HttpMethod.GET, '/shares'],
-  [HttpMethod.POST, '/shares'],
-  [HttpMethod.DELETE, '/shares/{token}'],
-  [HttpMethod.POST, '/shares/{token}/import'],
-  [HttpMethod.POST, '/skills'],
-  [HttpMethod.GET, '/skills/{skillId}'],
-  [HttpMethod.PUT, '/skills/{skillId}'],
-  [HttpMethod.POST, '/skills/{skillId}/share'],
-  [HttpMethod.POST, '/skill-shares/{token}/import'],
-  [HttpMethod.GET, '/connections'],
-  [HttpMethod.POST, '/connections/gmail/authorization'],
-  [HttpMethod.POST, '/connections'],
-  [HttpMethod.PUT, '/connections/{connectionId}'],
-  [HttpMethod.DELETE, '/connections/{connectionId}'],
-] as const) {
+for (const [method, routePath] of AUTHENTICATED_ROUTES) {
   httpApi.addRoutes({ path: routePath, methods: [method], integration, authorizer });
 }
 
@@ -538,6 +500,7 @@ const { alarmTopic, monthlyBudgetName } = addObservability({
   stack,
   apiFunction,
   workerFunction,
+  workerLogGroup,
   jobs,
   deadLetterQueue,
   logsKey,

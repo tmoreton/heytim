@@ -67,6 +67,9 @@ The API handler routes requests. Domain modules validate ownership and update ap
 worker handler routes queue jobs. Worker modules claim work, invoke AgentCore, save the result, and
 queue the final notification.
 
+New-account examples live in `amplify/functions/api/starter_bots.py`. They contain only bot prompts
+and capability IDs; the referenced skill instructions still come from the public skills repository.
+
 The same pattern covers groups, schedules, uploads, sharing, and account deletion. Each domain has a
 matching file under `amplify/functions/api` or `amplify/functions/worker`.
 
@@ -100,8 +103,8 @@ or removes them.
 generated behavior under `agentcore/cdk`.
 
 `apps/froggybot/amplify/backend.ts` composes the application stack. It creates Cognito, DynamoDB, S3,
-SQS, Lambda, Scheduler, and the HTTP API. `amplify/infrastructure/observability.ts` adds alarms, the
-dashboard, and the monthly budget. Existing construct IDs and AgentCore resource names are stable;
+SQS, Lambda, Scheduler, and the HTTP API. `amplify/infrastructure/api-routes.ts` lists the authenticated
+API surface, while `observability.ts` adds alarms, the dashboard, and the monthly budget. Existing construct IDs and AgentCore resource names are stable;
 renaming them can replace live resources.
 
 The application backend keeps only the catalog trust and persistence layer:

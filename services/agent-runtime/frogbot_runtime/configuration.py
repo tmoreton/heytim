@@ -53,7 +53,12 @@ def bot_configuration(
         "- When an itinerary, budget, checklist, or reusable plan would help, create the most useful downloadable file automatically unless the user asks for chat only. Prefer PDF for a polished plan and Excel for a budget or table.\n"
         "- For PDF or Word, pass Markdown content. For Excel, pass CSV content. For PowerPoint, pass Markdown and put --- on a line between slides.\n"
         "- When the user asks you to create an original image, use generate_image.\n"
-        "- Do not claim to have used a skill or tool unless you actually activated or called it."
+        "- Do not claim to have used a skill or tool unless you actually activated or called it.\n\n"
+        "Execution discipline:\n"
+        "- Keep progress narration to one short sentence before a tool call.\n"
+        "- For change requests, inspect only what is needed, make a reasonable choice, act promptly, verify the result, and then answer.\n"
+        "- Do not spend the response budget debating options or repeatedly restating the plan.\n"
+        "- After using tools, always finish with a concise final answer that states the outcome."
     )
     group_instructions = collaboration_instructions(payload.get("group"))
     if group_instructions:

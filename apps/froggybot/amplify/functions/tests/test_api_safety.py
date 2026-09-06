@@ -64,10 +64,24 @@ class ApiSafetyTests(ApiTestCase):
         revoke.assert_called_once_with("user-1", "bot-1", scopes={"chat"})
         self.assertEqual(result["revokedShares"], 2)
 
-    def test_chief_is_the_only_default_and_cannot_be_deleted(self) -> None:
+    def test_starter_bots_cover_core_workflows_and_only_chief_is_protected(self) -> None:
         self.assertEqual(
-            [bot["name"] for bot in self.support.DEFAULT_BOTS],
+            [bot["name"] for bot in self.bots.DEFAULT_BOTS],
+            ["Chief", "Trip Planner", "Event Planner", "Research & Reports"],
+        )
+        self.assertEqual(
+            [bot["name"] for bot in self.bots.DEFAULT_BOTS if bot.get("systemRole")],
             ["Chief"],
+        )
+        self.assertEqual(
+            set(self.bots.DEFAULT_BOTS[0]["skillIds"]),
+            {
+                "group-intake",
+                "group-decision",
+                "trip-planner",
+                "event-planner",
+                "shared-budget",
+            },
         )
         with (
             patch.object(
@@ -121,6 +135,32 @@ class ApiSafetyTests(ApiTestCase):
             self.direct_chat._send_message("user-1", "bot-1", {"text": "Hello"})
 
         self.assertEqual(error.exception.status_code, 409)
+
+    def test_cancelling_a_running_turn_stops_its_runtime_session(self) -> None:
+        turn = {
+            "pk": "CHAT#user-1#bot-1",
+            "sk": "TURN#now#turn-1",
+            "id": "turn-1",
+            "status": "RUNNING",
+        }
+        with (
+            patch.object(self.direct_chat, "_get_bot"),
+            patch.object(self.direct_chat, "_get_turn", return_value=turn),
+        ):
+            result = self.direct_chat._cancel_bot_turn(
+                "user-1", "bot-1", "turn-1"
+            )
+
+        self.assertEqual(result, {"cancelled": True})
+        self.agentcore.stop_runtime_session.assert_called_once_with(
+            agentRuntimeArn=(
+                "arn:aws:bedrock-agentcore:us-east-1:123:runtime/test"
+            ),
+            qualifier="DEFAULT",
+            runtimeSessionId=self.direct_chat.direct_session_id(
+                "user-1", "bot-1"
+            ),
+        )
 
     def test_interactive_message_waits_for_one_time_approval(self) -> None:
         with (

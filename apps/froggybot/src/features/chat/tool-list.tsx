@@ -1,15 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { providerLabel } from '@/lib/capability-labels';
 import type { Capability, CapabilitySelection, Connection } from '@/lib/types';
-
-const providerLabel = (provider?: string) => {
-  if (provider === 'stan') return 'Stan';
-  if (provider === 'agentcore') return 'AgentCore';
-  if (provider === 'agentcore-gateway') return 'Connected service';
-  if (provider === 'mcp') return 'Private MCP';
-  if (provider === 'gmail') return 'Google';
-  return 'FroggyBot';
-};
 
 const isConnection = (tool: Capability): tool is Connection =>
   tool.source === 'user' && tool.editable === true && typeof (tool as Connection).endpoint === 'string';

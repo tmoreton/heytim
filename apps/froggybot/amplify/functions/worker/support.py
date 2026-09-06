@@ -15,7 +15,11 @@ AGENT_RUNTIME_ARN = os.environ["AGENT_RUNTIME_ARN"]
 AGENT_RUNTIME_QUALIFIER = os.environ.get("AGENT_RUNTIME_QUALIFIER", "DEFAULT")
 QUEUE_URL = os.environ["QUEUE_URL"]
 FILES_BUCKET_NAME = os.environ["FILES_BUCKET_NAME"]
-WORK_LEASE_SECONDS = 7 * 60
+# Keep the lease beyond the Lambda deadline so a timed-out attempt cannot overlap
+# with its retry. The handler shortens each active message's SQS visibility to the
+# same window while the queue retains a conservative default.
+ACTIVE_VISIBILITY_SECONDS = 16 * 60
+WORK_LEASE_SECONDS = ACTIVE_VISIBILITY_SECONDS
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts"
@@ -27,7 +31,7 @@ agentcore = boto3.client(
     config=Config(
         retries={"total_max_attempts": 5, "mode": "adaptive"},
         connect_timeout=5,
-        read_timeout=260,
+        read_timeout=13 * 60,
     ),
 )
 sqs = boto3.client(

@@ -48,6 +48,8 @@ def read_agent_stream(
     fallback_chunks: list[str] = []
     tool_names: list[str] = []
     final_text = ""
+    saw_message_frame = False
+    last_stop_reason = ""
 
     for raw_line in lines:
         if not raw_line:
@@ -57,6 +59,7 @@ def read_agent_stream(
             continue
 
         if "messageStart" in event:
+            saw_message_frame = True
             message_chunks = []
             tool_names = []
 
@@ -76,8 +79,10 @@ def read_agent_stream(
         message_stop = event.get("messageStop")
         if not isinstance(message_stop, dict):
             continue
+        saw_message_frame = True
         message_text = "".join(message_chunks).strip()
         stop_reason = message_stop.get("stopReason")
+        last_stop_reason = stop_reason if isinstance(stop_reason, str) else "unknown"
         if stop_reason == "tool_use":
             step = _clean_step(message_text)
             if not step and tool_names:
@@ -87,14 +92,15 @@ def read_agent_stream(
                 progress = progress[-12:]
                 if on_progress:
                     on_progress(list(progress))
-        elif message_text:
+        elif stop_reason == "end_turn" and message_text:
             final_text = message_text
         message_chunks = []
         tool_names = []
 
-    result = final_text.strip() or "".join(message_chunks).strip()
+    result = final_text.strip()
+    if not result and not saw_message_frame:
+        result = "".join(message_chunks).strip() or "".join(fallback_chunks).strip()
     if not result:
-        result = "".join(fallback_chunks).strip()
-    if not result:
-        raise ValueError("AgentCore returned no assistant text")
+        detail = f" (last stop reason: {last_stop_reason})" if last_stop_reason else ""
+        raise ValueError(f"AgentCore stream ended without a completed assistant turn{detail}")
     return result

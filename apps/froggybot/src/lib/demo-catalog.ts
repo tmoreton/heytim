@@ -39,13 +39,19 @@ const fetchCatalog = async (): Promise<DemoCatalog> => {
     throw new Error('The public capability library is invalid.');
   }
 
+  const enabledToolIds = new Set(catalog.tools.flatMap((raw): string[] => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+    const item = raw as Record<string, unknown>;
+    const id = shortText(item.id);
+    return id && item.enabled === true ? [id] : [];
+  }));
   const tools = catalog.tools.flatMap((raw): Capability[] => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
     const item = raw as Record<string, unknown>;
     const id = shortText(item.id);
     const name = shortText(item.name);
     const description = shortText(item.description);
-    if (!id || !name || !description || item.enabled !== true) return [];
+    if (!id || !name || !description || item.enabled !== true || item.listed === false) return [];
     return [{
       id,
       name,
@@ -58,8 +64,6 @@ const fetchCatalog = async (): Promise<DemoCatalog> => {
       ...publicMetadata(item),
     }];
   });
-  const toolIds = new Set(tools.map((tool) => tool.id));
-
   const listedSkills = catalog.skills.flatMap((raw): CatalogSkill[] => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
     const item = raw as Record<string, unknown>;
@@ -74,7 +78,7 @@ const fetchCatalog = async (): Promise<DemoCatalog> => {
       !description ||
       !Number.isInteger(item.version) ||
       path !== `skills/${id}/SKILL.md` ||
-      !requiredToolIds.every((toolId) => toolIds.has(toolId))
+      !requiredToolIds.every((toolId) => enabledToolIds.has(toolId))
     ) return [];
     return [{
       id,

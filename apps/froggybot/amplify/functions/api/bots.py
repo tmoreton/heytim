@@ -6,12 +6,14 @@ from shared.catalog import CatalogError
 from shared.cleanup import has_pending_work
 
 from .attachments import _public_file
-from .support import (
+from .starter_bots import (
     ALLOWED_COLORS,
     CHIEF_COLOR,
     CHIEF_SYSTEM_ROLE,
     DEFAULT_BOT_COLOR,
     DEFAULT_BOTS,
+)
+from .support import (
     ApiError,
     _bot_sk,
     _group_pk,
@@ -232,6 +234,23 @@ def _ensure_chief(user_id: str, bots: list[dict]) -> list[dict]:
     return [chief, *bots]
 
 
+def _seed_starter_bots(user_id: str) -> list[dict]:
+    seeded = []
+    for seed in DEFAULT_BOTS:
+        role = seed.get("systemRole")
+        values = _bot_values(user_id, seed, system_role=role)
+        values["lastMessage"] = seed["lastMessage"]
+        seeded.append(
+            _put_bot(
+                user_id,
+                values,
+                bot_id=seed["id"],
+                system_role=role,
+            )
+        )
+    return seeded
+
+
 def _list_turns(user_id: str, bot_id: str, limit: int = 100) -> list[dict]:
     items = table.query(
         KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
@@ -328,7 +347,11 @@ def _bootstrap(user_id: str) -> dict:
     initialized = table.get_item(Key=_user_state_key(user_id), ConsistentRead=True).get(
         "Item"
     )
-    bots = _ensure_chief(user_id, bots)
+    bots = (
+        _seed_starter_bots(user_id)
+        if not initialized and not bots
+        else _ensure_chief(user_id, bots)
+    )
     if not initialized:
         table.put_item(
             Item={

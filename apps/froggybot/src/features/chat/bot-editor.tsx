@@ -14,6 +14,7 @@ import {
 
 import { BotAvatar } from '@/components/bot-avatar';
 import { BOT_COLORS, CHIEF_COLOR, displayBotColor } from '@/lib/bot-branding';
+import { requiredToolLabels } from '@/lib/capability-labels';
 import type { Bot, BotDraft, Capability, CapabilitySelection, Skill, SkillDetail } from '@/lib/types';
 
 const emptyDraft: BotDraft = {
@@ -330,7 +331,7 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
                     <Text style={styles.skillDetailLabel}>Required tools</Text>
                     <Text style={styles.skillToolList}>
                       {detail.requiredToolIds.length
-                        ? detail.requiredToolIds.map((id) => tools.find((tool) => tool.id === id)?.name ?? id).join(' · ')
+                        ? requiredToolLabels(detail.requiredToolIds, tools).join(' · ')
                         : 'None'}
                     </Text>
                   </View>

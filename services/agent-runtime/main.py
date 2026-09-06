@@ -13,6 +13,7 @@ from frogbot_runtime.memory import (
     record_completed_turn,
 )
 from frogbot_runtime.request import messages_from_payload
+from frogbot_runtime.streaming import stream_with_token_recovery
 from frogbot_runtime.telemetry import install_private_tracer
 from model.load import load_model
 
@@ -58,7 +59,7 @@ async def invoke(payload, context):
     )
     completed = False
     try:
-        async for event in agent.stream_async(messages):
+        async for event in stream_with_token_recovery(agent, messages, logger=log):
             if not isinstance(event, dict) or "event" not in event:
                 continue
             block_start = event["event"].get("contentBlockStart")

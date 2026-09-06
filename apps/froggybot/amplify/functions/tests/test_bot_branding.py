@@ -58,6 +58,46 @@ class BotBrandingTests(unittest.TestCase):
 
         self.assertEqual(ordered[0]["id"], "chief")
 
+    def test_empty_signup_gets_the_idempotent_starter_set(self) -> None:
+        with (
+            patch.object(self.bots.catalog, "sync_official"),
+            patch.object(
+                self.bots.catalog,
+                "validate_and_pin",
+                side_effect=lambda _user, ids, _existing=None: {
+                    skill_id: 1 for skill_id in ids
+                },
+            ),
+            patch.object(
+                self.bots.catalog,
+                "get_version",
+                return_value={"requiredToolIds": []},
+            ),
+            patch.object(
+                self.bots.catalog,
+                "validate_tools",
+                side_effect=lambda _user, ids: list(dict.fromkeys(ids)),
+            ),
+            patch.object(self.bots.catalog, "approval_tool_ids", return_value=[]),
+        ):
+            seeded = self.bots._seed_starter_bots("new-user")
+
+        self.assertEqual(
+            [bot["id"] for bot in seeded],
+            [
+                "starter-chief",
+                "starter-trip-planner",
+                "starter-event-planner",
+                "starter-research-reports",
+            ],
+        )
+        self.assertEqual(seeded[0]["systemRole"], "chief")
+        self.assertNotIn("systemRole", seeded[1])
+        self.assertEqual(
+            [bot["lastMessage"] for bot in seeded],
+            [seed["lastMessage"] for seed in self.bots.DEFAULT_BOTS],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

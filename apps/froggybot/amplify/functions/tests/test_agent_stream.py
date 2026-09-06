@@ -56,6 +56,29 @@ class AgentStreamTests(unittest.TestCase):
 
         self.assertEqual(answer, "Hello")
 
+    def test_tool_progress_is_not_accepted_as_a_completed_answer(self) -> None:
+        lines = [
+            _line({"messageStart": {"role": "assistant"}}),
+            _line({"contentBlockDelta": {"delta": {"text": "I will inspect it."}}}),
+            _line(
+                {"contentBlockStart": {"start": {"toolUse": {"name": "read"}}}}
+            ),
+            _line({"messageStop": {"stopReason": "tool_use"}}),
+        ]
+
+        with self.assertRaisesRegex(ValueError, "without a completed assistant turn"):
+            read_agent_stream(lines)
+
+    def test_max_tokens_stop_is_not_accepted_as_a_completed_answer(self) -> None:
+        lines = [
+            _line({"messageStart": {"role": "assistant"}}),
+            _line({"contentBlockDelta": {"delta": {"text": "Partial answer"}}}),
+            _line({"messageStop": {"stopReason": "max_tokens"}}),
+        ]
+
+        with self.assertRaisesRegex(ValueError, "last stop reason: max_tokens"):
+            read_agent_stream(lines)
+
 
 if __name__ == "__main__":
     unittest.main()

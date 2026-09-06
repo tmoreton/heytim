@@ -147,6 +147,10 @@ class ApiTestCase(unittest.TestCase):
             "SCHEDULE_GROUP_NAME": "schedules",
             "SCHEDULE_ROLE_ARN": "arn:aws:iam::123:role/scheduler",
             "USER_POOL_ID": "us-east-1_pool",
+            "AGENT_RUNTIME_ARN": (
+                "arn:aws:bedrock-agentcore:us-east-1:123:runtime/test"
+            ),
+            "AGENT_RUNTIME_QUALIFIER": "DEFAULT",
             "FILES_BUCKET_NAME": "frogbot-user-files-123-us-east-1",
             "GOOGLE_OAUTH_SECRET_ARN": (
                 "arn:aws:secretsmanager:us-east-1:123:secret:"
