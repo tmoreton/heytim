@@ -198,6 +198,7 @@ class ApiTestCase(unittest.TestCase):
             cls.google_oauth = importlib.import_module("api.google_oauth")
             cls.memories = importlib.import_module("api.memories")
             cls.schedules = importlib.import_module("api.schedules")
+            cls.group_schedules = importlib.import_module("api.group_schedules")
             cls.sharing = importlib.import_module("api.sharing")
             cls.account = importlib.import_module("api.account")
 

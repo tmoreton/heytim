@@ -156,6 +156,7 @@ class WorkerTestCase(unittest.TestCase):
             cls.job_lifecycle = importlib.import_module("worker.job_lifecycle")
             cls.background_work = importlib.import_module("worker.background_work")
             cls.notifications = importlib.import_module("worker.notifications")
+            cls.scheduled_group_job = importlib.import_module("worker.scheduled_group_job")
 
     def setUp(self) -> None:
         self.table.fail_condition = False

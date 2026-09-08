@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib
 import json
 from unittest.mock import patch
 
@@ -11,7 +10,7 @@ from worker_test_case import WorkerTestCase
 class GroupScheduleApiTests(ApiTestCase):
     def setUp(self):
         super().setUp()
-        self.module = importlib.import_module("api.group_schedules")
+        self.module = self.group_schedules
         self.addCleanup(patch.stopall)
         patch.object(self.module, "table", self.data_table).start()
         self.require_member = patch.object(self.module, "_require_group_member", return_value=({}, [])).start()
@@ -57,7 +56,7 @@ class GroupScheduleApiTests(ApiTestCase):
 class ScheduledGroupWorkerTests(WorkerTestCase):
     def setUp(self):
         super().setUp()
-        self.module = importlib.import_module("worker.scheduled_group_job")
+        self.module = self.scheduled_group_job
         self.addCleanup(patch.stopall)
         patch.object(self.module, "table", self.table).start()
         patch.object(self.module, "_account_is_active", return_value=True).start()

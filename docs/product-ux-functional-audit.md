@@ -13,7 +13,7 @@ The repository has now completed the in-product release-gate work identified by 
 - The private-beta sign-in screen now offers a concrete access-request action.
 - The separate public site now labels the private beta, offers a direct access-request path, demonstrates decision provenance, and gives every bot a representative request and result preview.
 
-The current verification pass completed with all 21 Expo diagnostics, 10 frontend tests, 141 backend tests, 83 runtime tests, TypeScript checks, lint, source-size checks, and desktop/mobile browser journeys passing.
+The current verification pass completed with all 21 Expo diagnostics, 10 frontend tests, 152 backend tests, 83 runtime tests, TypeScript checks, lint, source-size checks, and desktop/mobile browser journeys passing.
 
 Two categories remain outside a safe code-only implementation: a production AWS target and alert recipient need real deployment values and an accountable destination, and the roadmap's metric-gated expansion items require user evidence before investment. Moderated user sessions, a production deploy/rollback/restore drill, global search, full notification/reply/mention parity, and the P2 expansion remain follow-up work rather than claims of completion.
 
