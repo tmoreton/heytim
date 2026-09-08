@@ -16,7 +16,9 @@ import { ActionSheet } from '@/components/action-sheet';
 import { BotAvatar } from '@/components/bot-avatar';
 import { PageSheet } from '@/components/page-sheet';
 import { GroupAvatar, PersonAvatar } from '@/components/participant-avatar';
-import type { Bot, Group, GroupDraft, GroupMember } from '@/lib/types';
+import type { Bot, Group, GroupDraft, GroupMember, MemoryRecord, MemorySnapshot } from '@/lib/types';
+
+import { MemorySettings } from './memory-settings';
 
 type Props = {
   group?: Group;
@@ -26,9 +28,25 @@ type Props = {
   onShare: () => Promise<string>;
   onRemoveMember: (member: GroupMember) => Promise<void>;
   onDelete: () => Promise<void>;
+  onLoadMemory: (groupId: string) => Promise<MemorySnapshot>;
+  onCreateMemory: (groupId: string, content: string) => Promise<MemoryRecord>;
+  onUpdateMemory: (groupId: string, recordId: string, content: string) => Promise<MemoryRecord>;
+  onDeleteMemory: (groupId: string, recordId: string) => Promise<void>;
 };
 
-export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMember, onDelete }: Props) {
+export function GroupEditor({
+  group,
+  bots,
+  onClose,
+  onSave,
+  onShare,
+  onRemoveMember,
+  onDelete,
+  onLoadMemory,
+  onCreateMemory,
+  onUpdateMemory,
+  onDeleteMemory,
+}: Props) {
   const editable = !group || group.isOwner;
   const chief = bots.find((bot) => bot.systemRole === 'chief');
   const [name, setName] = useState(group?.name ?? '');
@@ -46,6 +64,7 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
   const [pendingRemoval, setPendingRemoval] = useState<GroupMember>();
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [memoryManagerOpen, setMemoryManagerOpen] = useState(false);
   const displayedBots = editable ? bots : (group?.bots ?? []);
 
   const save = async () => {
@@ -111,6 +130,24 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
     }
   };
 
+  if (group && memoryManagerOpen) {
+    return (
+      <MemorySettings
+        title={`${group.name} memory`}
+        introTitle="Memory shared by this group"
+        introCopy="Every bot in this group can recall these items. Private memories from members and bot owners are never copied here."
+        editable={group.isOwner}
+        visibleKinds={['fact', 'preference', 'summary']}
+        creatableKinds={['fact']}
+        onClose={() => setMemoryManagerOpen(false)}
+        onLoad={() => onLoadMemory(group.id)}
+        onCreate={(_kind, content) => onCreateMemory(group.id, content)}
+        onUpdate={(recordId, content) => onUpdateMemory(group.id, recordId, content)}
+        onDelete={(recordId) => onDeleteMemory(group.id, recordId)}
+      />
+    );
+  }
+
   return (
     <PageSheet onClose={onClose}>
       <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -175,9 +212,9 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
           ) : null}
 
           <View style={styles.memoryCard}>
-            <Text style={styles.memoryTitle}>Shared group memory</Text>
+            <Text style={styles.memoryTitle}>Pinned group notebook</Text>
             <Text style={styles.memorySubtitle}>
-              Goals, preferences, and standing decisions every FroggyBot should remember. Everyone can see it; the owner can edit it.
+              Goals and standing decisions always shown to every bot. Everyone can see it; the owner can edit it.
             </Text>
             {editable ? (
               <TextInput
@@ -197,6 +234,21 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
               </Text>
             )}
             {editable ? <Text style={styles.memoryCount}>{memory.length.toLocaleString()} / 4,000</Text> : null}
+            {group?.memoryUpdatedAt ? (
+              <Text style={styles.memoryMeta}>
+                Updated by {group.memoryUpdatedByName ?? 'the group owner'} · {new Date(group.memoryUpdatedAt).toLocaleDateString()}
+              </Text>
+            ) : null}
+            {group ? (
+              <Pressable
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.memoryManageButton, pressed && styles.pressed]}
+                onPress={() => setMemoryManagerOpen(true)}>
+                <Text style={styles.memoryManageText}>
+                  {group.isOwner ? 'Manage learned group memory' : 'View learned group memory'}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
 
           <Text style={styles.label}>FroggyBots</Text>
@@ -320,6 +372,9 @@ const styles = StyleSheet.create({
   memoryValue: { color: '#35332D', fontSize: 14, lineHeight: 21, marginTop: 12 },
   memoryEmpty: { color: '#98948B', fontStyle: 'italic' },
   memoryCount: { alignSelf: 'flex-end', color: '#9A968E', fontSize: 10, marginTop: 6 },
+  memoryMeta: { color: '#98948B', fontSize: 11, marginTop: 8 },
+  memoryManageButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#E8F3ED', marginTop: 12 },
+  memoryManageText: { color: '#007A3D', fontSize: 13, fontWeight: '700' },
   label: { fontSize: 14, fontWeight: '700', color: '#24231F', marginBottom: 5 },
   peopleLabel: { marginTop: 27 },
   sectionSubtitle: { color: '#858179', fontSize: 13, marginBottom: 11 },

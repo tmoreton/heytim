@@ -44,7 +44,9 @@ Expo app
 
 The request path is asynchronous so a long agent turn is not limited by an HTTP request timeout.
 The app polls only while a response is pending. DynamoDB is the source of truth for chat history;
-the worker derives a stable AgentCore session ID from the user and bot IDs. In a team round, bots reply
+the worker derives stable, non-PII AgentCore actor and session IDs. Direct chats use a private user actor
+and per-bot session. Groups use an isolated group actor and one shared memory session, so a bot never
+imports its owner's private memory into a room. In a team round, bots reply
 one at a time so every later bot sees the people, the full bot roster, and earlier bot contributions.
 The first bot coordinates the round, specialists add distinct perspectives, and the coordinator returns
 one final synthesized team answer.
@@ -62,14 +64,15 @@ order for the preview app, live request path, AgentCore runtime, infrastructure,
 - Private image and document uploads, plus downloadable text, Markdown, CSV, JSON, HTML, PDF, Word, Excel,
   PowerPoint, and generated PNG artifacts in direct or shared group conversations
 - Per-bot name, description, prompt, color, tools, and version-pinned skills
-- Shared groups with owner-editable memory, one-link passwordless participation, single-bot replies, and ordered team collaboration rounds
+- Shared groups with a pinned owner-editable notebook, reviewable learned group memory, one-link passwordless participation, single-bot replies, and ordered team collaboration rounds
 - Automatic reusable outputs for itineraries, budgets, checklists, plans, and other work that belongs outside the chat
 - Owner-controlled chat, bot, and group deletion with pending-work protection and invite revocation
 - A skill library for creating, editing, and sharing reusable ways of working
 - Chief as the protected built-in, plus seven installable bot templates and seven focused public skills from the dynamically refreshed catalog
 - Private HTTPS MCP connections with per-user bearer-token or API-key credentials
 - Bot snapshots, conversation snapshots, and live group invitations with 30-day links
-- User-owned AgentCore memory for preferences, facts, and conversation summaries, with in-app review, editing, forgetting, and JSON export
+- Scoped AgentCore memory: private user preferences/facts, per-bot summaries, and isolated shared group preferences/facts/summaries, with in-app creation, review, editing, and forgetting
+- Explicit clear-chat choices for preserving or forgetting conversation memory; bot and group deletion also enqueue matching memory cleanup
 - Persistent two-hour browser and code-interpreter sessions; browser use requires one-time approval for each turn
 - DynamoDB persistence, encrypted queues and topics, retries, work leases, cancellation, and a dead-letter queue
 - CloudTrail audit logs, API access logs, X-Ray tracing, service alarms, and a CloudWatch dashboard

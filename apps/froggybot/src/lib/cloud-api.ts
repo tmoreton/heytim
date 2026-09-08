@@ -72,7 +72,12 @@ export const createCloudApi = (): FrogBotApi => ({
     method: botId ? 'PUT' : 'POST',
     body: JSON.stringify(draft),
   }),
-  clearBotChat: async (botId) => { await request(apiRoutes.botMessages(botId), { method: 'DELETE' }); },
+  clearBotChat: async (botId, forgetMemory = false) => {
+    await request(apiRoutes.botMessages(botId), {
+      method: 'DELETE',
+      body: JSON.stringify({ forgetMemory }),
+    });
+  },
   deleteBot: async (botId) => { await request(apiRoutes.bot(botId), { method: 'DELETE' }); },
   uploadAttachment: async (asset) => {
     const ticket = await request<{
@@ -151,12 +156,28 @@ export const createCloudApi = (): FrogBotApi => ({
   },
   sharedLinks: () => request<{ shares: SharedLink[] }>(apiRoutes.shares).then((value) => value.shares),
   memories: () => request<MemorySnapshot>(apiRoutes.memory),
+  createMemory: (kind, content) => request<MemoryRecord>(apiRoutes.memory, {
+    method: 'POST',
+    body: JSON.stringify({ kind, content }),
+  }),
   updateMemory: (recordId, content) => request<MemoryRecord>(apiRoutes.memoryRecord(recordId), {
     method: 'PUT',
     body: JSON.stringify({ content }),
   }),
   deleteMemory: async (recordId) => { await request(apiRoutes.memoryRecord(recordId), { method: 'DELETE' }); },
   exportMemory: () => request<{ url: string }>(apiRoutes.memoryExport, { method: 'POST' }).then((value) => value.url),
+  groupMemories: (groupId) => request<MemorySnapshot>(apiRoutes.groupMemory(groupId)),
+  createGroupMemory: (groupId, content) => request<MemoryRecord>(apiRoutes.groupMemory(groupId), {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  }),
+  updateGroupMemory: (groupId, recordId, content) => request<MemoryRecord>(
+    apiRoutes.groupMemoryRecord(groupId, recordId),
+    { method: 'PUT', body: JSON.stringify({ content }) },
+  ),
+  deleteGroupMemory: async (groupId, recordId) => {
+    await request(apiRoutes.groupMemoryRecord(groupId, recordId), { method: 'DELETE' });
+  },
   revokeShare: async (token) => { await request(apiRoutes.share(token), { method: 'DELETE' }); },
   deleteAccount: async () => { await request(apiRoutes.account, { method: 'DELETE' }); },
   share: (botId, scope) => request<{ url: string }>(apiRoutes.shares, {

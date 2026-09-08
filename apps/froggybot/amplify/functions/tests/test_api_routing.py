@@ -54,6 +54,24 @@ class ApiRoutingTests(unittest.TestCase):
         self.assertEqual(response["statusCode"], 200)
         group_messages.assert_called_once_with("user-1", "group-1")
 
+    def test_group_memory_reaches_the_scoped_memory_domain(self) -> None:
+        snapshot = {"records": [], "rawConversationRetentionDays": 30}
+        with patch.object(
+            self.routes, "_list_group_memories", return_value=snapshot
+        ) as memories:
+            response = self.routes.route_authenticated(
+                "user-1",
+                "Tim",
+                "GET",
+                "/groups/group-1/memory",
+                {"groupId": "group-1"},
+                {},
+                route_key="GET /groups/{groupId}/memory",
+            )
+
+        self.assertEqual(response["statusCode"], 200)
+        memories.assert_called_once_with("user-1", "group-1")
+
     def test_bot_documents_reach_the_authenticated_bot_library(self) -> None:
         with (
             patch.object(self.routes, "_get_bot") as get_bot,

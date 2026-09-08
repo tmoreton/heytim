@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import secrets
 import uuid
@@ -8,12 +9,14 @@ from typing import Any
 
 from shared.cleanup import has_pending_work, purge_group
 from shared.invites import invite_token_hash, invite_url
+from shared.memory_identity import group_memory_actor_id
 
 from .bots import _get_bot
 from .support import (
     CHIEF_SYSTEM_ROLE,
     FILES_BUCKET_NAME,
     PUBLIC_WEB_BASE_URL,
+    QUEUE_URL,
     ApiError,
     _active_access_invite,
     _bot_color,
@@ -27,6 +30,7 @@ from .support import (
     _validate_string,
     invite_access_table,
     s3,
+    sqs,
     table,
 )
 
@@ -108,6 +112,16 @@ def _public_group(user_id: str, group_id: str, items: list[dict] | None = None) 
         "id": meta["id"],
         "name": meta["name"],
         "memory": meta.get("memory", ""),
+        **(
+            {"memoryUpdatedAt": meta["memoryUpdatedAt"]}
+            if isinstance(meta.get("memoryUpdatedAt"), str)
+            else {}
+        ),
+        **(
+            {"memoryUpdatedByName": meta["memoryUpdatedByName"]}
+            if isinstance(meta.get("memoryUpdatedByName"), str)
+            else {}
+        ),
         "ownerId": meta["ownerId"],
         "currentUserId": user_id,
         "isOwner": meta["ownerId"] == user_id,
@@ -179,6 +193,11 @@ def _create_group(user_id: str, display_name: str, value: dict) -> dict:
         "id": group_id,
         "name": name,
         "memory": memory,
+        **(
+            {"memoryUpdatedAt": current, "memoryUpdatedByName": display_name}
+            if memory
+            else {}
+        ),
         "ownerId": user_id,
         "createdAt": current,
         "updatedAt": current,
@@ -225,10 +244,18 @@ def _update_group(user_id: str, group_id: str, value: dict) -> dict:
     bot_ids = _validate_bot_ids(value.get("botIds", list(current_bot_ids)))
     selected_bots = [_public_bot(_get_bot(user_id, bot_id)) for bot_id in bot_ids]
     current = _now()
-    with table.batch_writer() as batch:
-        batch.put_item(
-            Item={**meta, "name": name, "memory": memory, "updatedAt": current}
+    memory_changed = memory != meta.get("memory", "")
+    owner = _group_member(items, user_id) or {}
+    updated_meta = {**meta, "name": name, "memory": memory, "updatedAt": current}
+    if memory_changed:
+        updated_meta.update(
+            {
+                "memoryUpdatedAt": current,
+                "memoryUpdatedByName": owner.get("name", "Group owner"),
+            }
         )
+    with table.batch_writer() as batch:
+        batch.put_item(Item=updated_meta)
         for bot_id in current_bot_ids - set(bot_ids):
             batch.delete_item(Key={"pk": _group_pk(group_id), "sk": f"BOT#{bot_id}"})
         for bot in selected_bots:
@@ -354,6 +381,15 @@ def _delete_group(user_id: str, group_id: str) -> dict:
 
 def _purge_group(group_id: str, items: list[dict] | None = None) -> None:
     items = items or _partition_items(_group_pk(group_id))
+    sqs.send_message(
+        QueueUrl=QUEUE_URL,
+        MessageBody=json.dumps(
+            {
+                "type": "DELETE_MEMORY_ACTOR",
+                "actorId": group_memory_actor_id(group_id),
+            }
+        ),
+    )
     purge_group(
         table,
         invite_access_table,

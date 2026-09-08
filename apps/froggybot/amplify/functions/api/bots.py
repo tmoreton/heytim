@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import uuid
 
 from boto3.dynamodb.conditions import Attr
 from shared.catalog import CatalogError
 from shared.cleanup import has_pending_work
+from shared.memory_identity import direct_session_id, memory_actor_id
 
 from .attachments import _public_file
 from .bot_documents import _delete_bot_documents, _preserve_bot_documents
@@ -16,6 +18,7 @@ from .bot_roles import (
 )
 from .bot_setup import ensure_chief, install_bot_template
 from .support import (
+    QUEUE_URL,
     ApiError,
     _bot_sk,
     _group_pk,
@@ -28,6 +31,7 @@ from .support import (
     _user_state_key,
     _validate_string,
     catalog,
+    sqs,
     table,
 )
 
@@ -428,13 +432,32 @@ def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:
     return _put_bot(user_id, values, bot_id, previous.get("systemRole"))
 
 
-def _clear_bot_chat(user_id: str, bot_id: str) -> dict:
+def _forget_bot_conversation(user_id: str, bot_id: str) -> dict[str, bool]:
+    sqs.send_message(
+        QueueUrl=QUEUE_URL,
+        MessageBody=json.dumps(
+            {
+                "type": "DELETE_MEMORY_SESSION",
+                "actorId": memory_actor_id(user_id),
+                "sessionId": direct_session_id(user_id, bot_id),
+            }
+        ),
+    )
+    return {"queued": True}
+
+
+def _clear_bot_chat(user_id: str, bot_id: str, *, forget_memory: bool = False) -> dict:
     _get_bot(user_id, bot_id)
     turns = _partition_items(_turn_pk(user_id, bot_id))
     if has_pending_work(turns):
         raise ApiError(
             409, "Wait for this FroggyBot to finish before clearing the chat"
         )
+    forgotten_memory = (
+        _forget_bot_conversation(user_id, bot_id)
+        if forget_memory
+        else {"queued": False}
+    )
     preserved_documents = _preserve_bot_documents(user_id, bot_id, turns)
     revoked_shares = _revoke_bot_shares(user_id, bot_id, scopes={"chat"})
     with table.batch_writer() as batch:
@@ -454,6 +477,7 @@ def _clear_bot_chat(user_id: str, bot_id: str) -> dict:
         "deletedTurns": len(turns),
         "preservedDocuments": preserved_documents,
         "revokedShares": revoked_shares,
+        "forgottenMemory": forgotten_memory,
     }
 
 
@@ -497,6 +521,8 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
         if meta:
             group_meta_updates.append({**meta, "updatedAt": _now()})
 
+    forgotten_memory = _forget_bot_conversation(user_id, bot_id)
+
     for schedule_item in schedules:
         _delete_remote_schedule(schedule_item)
 
@@ -526,5 +552,6 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
         "deleted": True,
         "deletedTurns": len(turns),
         "revokedShares": revoked_shares,
+        "forgottenMemory": forgotten_memory,
         **document_deletion,
     }

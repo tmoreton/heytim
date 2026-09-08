@@ -28,6 +28,9 @@ export const apiRoutes = {
   groupMember: (groupId: string, memberId: string) =>
     `/groups/${segment(groupId)}/members/${segment(memberId)}`,
   groupMessages: (groupId: string) => `/groups/${segment(groupId)}/messages`,
+  groupMemory: (groupId: string) => `/groups/${segment(groupId)}/memory`,
+  groupMemoryRecord: (groupId: string, recordId: string) =>
+    `/groups/${segment(groupId)}/memory/${segment(recordId)}`,
   joinGroup: (token: string) => `/group-invites/${segment(token)}/join`,
   memory: '/memory',
   memoryExport: '/memory/export',

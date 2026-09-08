@@ -165,6 +165,7 @@ def _invoke(
     event_id: str | None = None,
     artifact_prefix: str | None = None,
     group_context: dict | None = None,
+    memory: dict | None = None,
     continuation: list[dict] | None = None,
     on_progress: ProgressCallback | None = None,
 ) -> AgentInvocationResult:
@@ -206,11 +207,14 @@ def _invoke(
         },
         "team": _team_roster(user_id, bot_id),
     }
-    if group_context is None and event_id:
+    if memory is not None:
+        payload["memory"] = memory
+    elif group_context is None and event_id:
         payload["memory"] = {
             "actorId": memory_actor_id(user_id),
             "sessionId": session_id,
             "eventId": event_id,
+            "scope": "personal",
         }
     if artifact_prefix:
         payload["artifacts"] = {"prefix": artifact_prefix}

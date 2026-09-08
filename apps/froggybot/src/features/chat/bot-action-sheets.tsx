@@ -1,7 +1,7 @@
 import { ActionSheet } from '@/components/action-sheet';
 import type { Bot } from '@/lib/types';
 
-export type BotAction = 'clear' | 'delete';
+export type BotAction = 'clear' | 'clearAndForget' | 'delete';
 
 type Props = {
   bot?: Bot;
@@ -13,7 +13,7 @@ type Props = {
   onSchedule: () => void;
   onShareSetup: () => void;
   onRequestAction: (action: BotAction) => void;
-  onConfirmAction: () => void;
+  onConfirmAction: (action: BotAction) => void;
   onCloseConfirmation: () => void;
 };
 
@@ -53,16 +53,15 @@ export function BotActionSheets({
         title={pendingAction === 'delete' ? `Delete ${bot?.name ?? 'this bot'}?` : 'Clear this conversation?'}
         message={
           pendingAction === 'delete'
-            ? 'This permanently deletes the FroggyBot, its direct chat, generated documents, and removes it from your groups.'
-            : 'This permanently deletes every message in this direct chat but keeps the FroggyBot.'
+            ? 'This permanently deletes the FroggyBot, its direct chat, conversation memory, generated documents, and removes it from your groups.'
+            : 'Choose whether to delete only the visible messages or also forget this bot’s conversation summary and raw memory events. Your personal facts and preferences stay in Memory settings.'
         }
-        options={[
-          {
-            label: pendingAction === 'delete' ? 'Delete bot' : 'Clear conversation',
-            destructive: true,
-            onPress: onConfirmAction,
-          },
-        ]}
+        options={pendingAction === 'delete'
+          ? [{ label: 'Delete bot', destructive: true, onPress: () => onConfirmAction('delete') }]
+          : [
+              { label: 'Clear messages only', destructive: true, onPress: () => onConfirmAction('clear') },
+              { label: 'Clear messages and conversation memory', destructive: true, onPress: () => onConfirmAction('clearAndForget') },
+            ]}
         onClose={onCloseConfirmation}
       />
     </>

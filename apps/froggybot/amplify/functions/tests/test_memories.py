@@ -97,6 +97,71 @@ class MemoryTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.status_code, 404)
 
+    def test_manual_memory_is_created_in_the_private_actor_namespace(self) -> None:
+        self.agentcore.batch_create_memory_records.return_value = {
+            "successfulRecords": [{"memoryRecordId": "mem-created"}],
+            "failedRecords": [],
+        }
+        with (
+            patch.object(self.memories, "FROGBOT_MEMORY_ID", "memory-1"),
+            patch.object(self.memories, "memory_actor_id", return_value="actor"),
+        ):
+            result = self.memories._create_user_memory(
+                "user-1", {"kind": "fact", "content": "I live in Boston."}
+            )
+
+        request = self.agentcore.batch_create_memory_records.call_args.kwargs
+        record = request["records"][0]
+        self.assertEqual(record["namespaces"], ["/facts/actor/"])
+        self.assertEqual(record["metadata"]["frogbotSource"]["stringValue"], "manual")
+        self.assertEqual(result["scope"], "personal")
+
+    def test_group_memory_requires_owner_and_uses_group_namespace(self) -> None:
+        self.agentcore.batch_create_memory_records.return_value = {
+            "successfulRecords": [{"memoryRecordId": "mem-group"}],
+            "failedRecords": [],
+        }
+        with (
+            patch.object(self.memories, "FROGBOT_MEMORY_ID", "memory-1"),
+            patch.object(
+                self.memories, "group_memory_actor_id", return_value="group-actor"
+            ),
+            patch.object(self.memories, "_require_group_memory_access") as require,
+        ):
+            result = self.memories._create_group_memory(
+                "user-1", "group-1", {"content": "Ship on Friday."}
+            )
+
+        require.assert_called_once_with("user-1", "group-1", owner=True)
+        record = self.agentcore.batch_create_memory_records.call_args.kwargs["records"][
+            0
+        ]
+        self.assertEqual(record["namespaces"], ["/facts/group-actor/"])
+        self.assertEqual(result["scope"], "group")
+
+    def test_group_memory_list_includes_group_owned_preferences(self) -> None:
+        preference = {
+            "memoryRecordId": "mem-group-preference",
+            "content": {"text": json.dumps({"preference": "Prefer short updates"})},
+            "createdAt": datetime(2026, 9, 6, tzinfo=UTC),
+        }
+        with (
+            patch.object(self.memories, "FROGBOT_MEMORY_ID", "memory-1"),
+            patch.object(
+                self.memories, "group_memory_actor_id", return_value="group-actor"
+            ),
+            patch.object(self.memories, "_require_group_memory_access") as require,
+            patch.object(
+                self.memories, "_memory_pages", side_effect=[[], [preference], []]
+            ),
+        ):
+            result = self.memories._list_group_memories("user-1", "group-1")
+
+        require.assert_called_once_with("user-1", "group-1")
+        self.assertEqual(result["records"][0]["kind"], "preference")
+        self.assertEqual(result["records"][0]["content"], "Prefer short updates")
+        self.assertEqual(result["records"][0]["scope"], "group")
+
     def test_memory_update_preserves_its_private_namespace(self) -> None:
         record = {
             "memoryRecordId": "mem-owned",
@@ -143,9 +208,7 @@ class MemoryTests(unittest.TestCase):
             patch.object(self.memories, "FROGBOT_MEMORY_ID", "memory-1"),
             patch.object(self.memories, "_owned_memory_record") as owned,
         ):
-            result = self.memories._delete_user_memory_record(
-                "user-1", "mem-owned"
-            )
+            result = self.memories._delete_user_memory_record("user-1", "mem-owned")
 
         owned.assert_called_once_with("user-1", "mem-owned")
         self.agentcore.batch_delete_memory_records.assert_called_once_with(

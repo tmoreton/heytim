@@ -4,6 +4,7 @@ import json
 import logging
 
 from shared.group_chat import group_round_step
+from shared.memory_identity import group_memory_actor_id, group_memory_session_id
 from shared.work_state import is_claimable
 
 from .agent import _get_group_context, _get_group_history, _invoke, _progress_updater
@@ -155,6 +156,7 @@ def _process_group_agent_reply(
             bot,
             history=_get_group_history(group_id, bot_id),
             session_scope=f"group:{group_id}:bot:{bot_id}",
+            event_id=reply["id"],
             artifact_prefix=_group_generated_artifact_prefix(group_id, reply["id"]),
             group_context=_get_group_context(
                 group_id,
@@ -163,6 +165,18 @@ def _process_group_agent_reply(
                 round_size,
                 round_role,
                 coordinator_bot_id,
+            ),
+            memory=(
+                {
+                    "actorId": group_memory_actor_id(group_id),
+                    "sessionId": group_memory_session_id(group_id),
+                    "eventId": reply["id"],
+                    "scope": "group",
+                    "userText": request["userText"],
+                }
+                if isinstance(request.get("userText"), str)
+                and request["userText"].strip()
+                else None
             ),
             continuation=reply.get("backgroundResults"),
             on_progress=_progress_updater(reply_key, lease_owner),

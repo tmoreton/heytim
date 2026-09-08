@@ -12,6 +12,9 @@ Groups can include several people and several FroggyBots. Invite links grant acc
 whether it came from a person or a bot, and the sender can keep a message human-only, choose one bot, or run an ordered
 team round. Every bot receives the group roster and shared transcript; later bots build on replies already made.
 The first bot coordinates the round and returns after the specialist turns with one final team answer.
+Each group also has an owner-editable pinned notebook and its own isolated AgentCore memory actor. Bots recall
+group preferences, facts, and summaries inside that room, but private user preferences and direct-chat summaries are never copied
+into the group. Group members can review learned memory, while only the owner can add, correct, or forget it.
 
 ## Run the interface locally
 

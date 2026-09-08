@@ -119,6 +119,8 @@ export type Group = {
   id: string;
   name: string;
   memory: string;
+  memoryUpdatedAt?: string;
+  memoryUpdatedByName?: string;
   ownerId: string;
   currentUserId: string;
   isOwner: boolean;
@@ -153,6 +155,8 @@ export type MemoryRecord = {
   kind: 'fact' | 'preference' | 'summary';
   content: string;
   createdAt: string;
+  scope: 'personal' | 'group';
+  source: 'manual' | 'learned' | string;
   botId?: string;
   botName?: string;
 };

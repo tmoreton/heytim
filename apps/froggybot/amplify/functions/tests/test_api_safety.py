@@ -69,6 +69,19 @@ class ApiSafetyTests(ApiTestCase):
         self.assertEqual(result["preservedDocuments"], 3)
         self.assertEqual(result["revokedShares"], 2)
 
+    def test_clearing_chat_can_queue_conversation_memory_deletion(self) -> None:
+        with (
+            patch.object(self.bots, "_get_bot", return_value={"id": "bot-1"}),
+            patch.object(self.bots, "_partition_items", return_value=[]),
+            patch.object(self.bots, "_preserve_bot_documents", return_value=0),
+            patch.object(self.bots, "_revoke_bot_shares", return_value=0),
+        ):
+            result = self.bots._clear_bot_chat("user-1", "bot-1", forget_memory=True)
+
+        body = self.sqs.send_message.call_args.kwargs["MessageBody"]
+        self.assertIn('"type": "DELETE_MEMORY_SESSION"', body)
+        self.assertEqual(result["forgottenMemory"], {"queued": True})
+
     def test_chief_is_a_required_public_template_and_remains_protected(self) -> None:
         self.assertFalse(hasattr(self.bots, "DEFAULT_BOTS"))
         with (

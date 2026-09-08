@@ -438,6 +438,7 @@ apiFunction.addToRolePolicy(
     actions: [
       'bedrock-agentcore:ListMemoryRecords',
       'bedrock-agentcore:GetMemoryRecord',
+      'bedrock-agentcore:BatchCreateMemoryRecords',
       'bedrock-agentcore:BatchUpdateMemoryRecords',
       'bedrock-agentcore:BatchDeleteMemoryRecords',
     ],

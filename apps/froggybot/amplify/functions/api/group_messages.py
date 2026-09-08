@@ -167,6 +167,7 @@ def _send_group_message(
                         "type": "GROUP_AGENT_ROUND",
                         "requestedBy": user_id,
                         "groupId": group_id,
+                        "userText": text,
                         "replyTarget": ALL_BOTS_REPLY_TARGET
                         if reply_bot_id == ALL_BOTS_REPLY_TARGET
                         else "bot",

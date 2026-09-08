@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -12,10 +13,12 @@ from bedrock_agentcore.memory.integrations.strands.memorystore import (
     create_agentcore_memory_stores,
 )
 from botocore.config import Config
-from strands.memory import MemoryManager
+from strands.memory import MemoryEntry, MemoryStore, SearchOptions
 
 MEMORY_ID = os.environ.get("MEMORY_FROGBOTMEMORY_ID")
 _IDENTITY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+_MEMORY_SCOPES = {"personal", "group"}
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -23,6 +26,71 @@ class MemoryContext:
     actor_id: str
     session_id: str
     event_id: str
+    scope: str = "personal"
+    user_text: str | None = None
+
+
+class BalancedMemoryStore:
+    """Recall from every memory category without registration-order starvation."""
+
+    def __init__(
+        self,
+        name: str,
+        stores: list[tuple[str, MemoryStore]],
+        *,
+        max_search_results: int = 6,
+    ) -> None:
+        self.name = name
+        self.description = "Scoped AgentCore memories, balanced across categories."
+        self.max_search_results = max_search_results
+        self.writable = False
+        self.extraction = None
+        self._stores = stores
+
+    async def search(
+        self, query: str, options: SearchOptions | None = None
+    ) -> list[MemoryEntry]:
+        want = (
+            options.get("max_search_results")
+            if options and "max_search_results" in options
+            else self.max_search_results
+        )
+        if type(want) is not int or want < 1:
+            raise ValueError("Memory result limit must be a positive integer")
+        per_store = max(1, (want + len(self._stores) - 1) // len(self._stores))
+        settled = await asyncio.gather(
+            *(
+                store.search(query, {"max_search_results": per_store})
+                for _label, store in self._stores
+            ),
+            return_exceptions=True,
+        )
+        buckets: list[list[MemoryEntry]] = []
+        for (label, store), outcome in zip(self._stores, settled, strict=True):
+            if isinstance(outcome, BaseException):
+                logger.warning(
+                    "Memory category %s could not be searched: %s", store.name, outcome
+                )
+                buckets.append([])
+                continue
+            buckets.append(
+                [
+                    MemoryEntry(
+                        content=f"{label}: {entry.content}",
+                        metadata=entry.metadata,
+                    )
+                    for entry in outcome
+                ]
+            )
+
+        results: list[MemoryEntry] = []
+        for index in range(per_store):
+            for bucket in buckets:
+                if index < len(bucket):
+                    results.append(bucket[index])
+                    if len(results) == want:
+                        return results
+        return results
 
 
 def memory_context_from_payload(payload: dict) -> MemoryContext | None:
@@ -47,43 +115,69 @@ def memory_context_from_payload(payload: dict) -> MemoryContext | None:
         ):
             raise ValueError(f"memory.{source} is invalid")
         values[target] = value
+    scope = raw.get("scope", "personal")
+    if scope not in _MEMORY_SCOPES:
+        raise ValueError("memory.scope is invalid")
+    user_text = raw.get("userText")
+    if user_text is not None and (
+        not isinstance(user_text, str)
+        or not user_text.strip()
+        or len(user_text) > 12_000
+    ):
+        raise ValueError("memory.userText is invalid")
+    values["scope"] = scope
+    values["user_text"] = user_text.strip() if isinstance(user_text, str) else None
     return MemoryContext(**values)
 
 
-def memory_manager(context: MemoryContext | None) -> MemoryManager | None:
-    """Build recall-only stores; each completed turn is written once separately."""
+def memory_stores(context: MemoryContext | None) -> list[MemoryStore] | None:
+    """Build one balanced, recall-only store for Stan and its delegates."""
     if context is None or not MEMORY_ID:
         return None
-    stores = create_agentcore_memory_stores(
+    namespaces = [
+        {
+            "name": "preferences",
+            "namespace": "/preferences/{actorId}/",
+            "max_search_results": 2,
+            "min_score": 0.45,
+        },
+        {
+            "name": "facts",
+            "namespace": "/facts/{actorId}/",
+            "max_search_results": 2,
+            "min_score": 0.4,
+        },
+        {
+            "name": "summaries",
+            "namespace": "/summaries/{actorId}/{sessionId}/",
+            "max_search_results": 2,
+            "min_score": 0.4,
+        },
+    ]
+    if context.scope == "personal":
+        labels = [
+            "Personal preference",
+            "Personal fact",
+            "This bot's conversation summary",
+        ]
+    else:
+        labels = [
+            "Shared group preference",
+            "Shared group fact",
+            "Group conversation summary",
+        ]
+    category_stores = create_agentcore_memory_stores(
         memory_id=MEMORY_ID,
         actor_id=context.actor_id,
         session_id=context.session_id,
-        namespaces=[
-            {
-                "name": "preferences",
-                "namespace": "/preferences/{actorId}/",
-                "max_search_results": 3,
-                "min_score": 0.45,
-            },
-            {
-                "name": "facts",
-                "namespace": "/facts/{actorId}/",
-                "max_search_results": 3,
-                "min_score": 0.4,
-            },
-            {
-                "name": "summaries",
-                "namespace": "/summaries/{actorId}/{sessionId}/",
-                "max_search_results": 3,
-                "min_score": 0.4,
-            },
-        ],
+        namespaces=namespaces,
         extraction=False,
     )
-    return MemoryManager(
-        stores=stores,
-        injection={"trigger": "userTurn", "max_entries": 6},
+    balanced = BalancedMemoryStore(
+        f"{context.scope}-memory",
+        list(zip(labels, category_stores, strict=True)),
     )
+    return [balanced]
 
 
 def message_text(message: Any, role: str) -> str | None:
@@ -131,6 +225,7 @@ async def record_completed_turn(
     client=None,
 ) -> None:
     """Persist exactly one completed user/assistant turn with retry idempotency."""
+    user_text = context.user_text if context and context.user_text else user_text
     if context is None or not MEMORY_ID or not user_text or not assistant_text:
         return
     target = client or _memory_client()
@@ -141,6 +236,10 @@ async def record_completed_turn(
         sessionId=context.session_id,
         eventTimestamp=datetime.now(UTC),
         clientToken=context.event_id,
+        metadata={
+            "frogbotScope": {"stringValue": context.scope},
+            "frogbotSource": {"stringValue": "conversation"},
+        },
         payload=[
             {"conversational": {"role": "USER", "content": {"text": user_text}}},
             {

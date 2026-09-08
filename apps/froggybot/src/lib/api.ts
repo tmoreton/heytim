@@ -37,7 +37,7 @@ export interface FrogBotApi {
   messages(botId: string): Promise<Message[]>;
   botDocuments(botId: string): Promise<BotDocument[]>;
   saveBot(draft: BotDraft, botId?: string): Promise<Bot>;
-  clearBotChat(botId: string): Promise<void>;
+  clearBotChat(botId: string, forgetMemory?: boolean): Promise<void>;
   deleteBot(botId: string): Promise<void>;
   uploadAttachment(asset: UploadAsset): Promise<Attachment>;
   downloadFile(fileId: string, groupId?: string): Promise<string>;
@@ -59,9 +59,14 @@ export interface FrogBotApi {
   unregisterPushToken(token: string): Promise<void>;
   sharedLinks(): Promise<SharedLink[]>;
   memories(): Promise<MemorySnapshot>;
+  createMemory(kind: 'fact' | 'preference', content: string): Promise<MemoryRecord>;
   updateMemory(recordId: string, content: string): Promise<MemoryRecord>;
   deleteMemory(recordId: string): Promise<void>;
   exportMemory(): Promise<string>;
+  groupMemories(groupId: string): Promise<MemorySnapshot>;
+  createGroupMemory(groupId: string, content: string): Promise<MemoryRecord>;
+  updateGroupMemory(groupId: string, recordId: string, content: string): Promise<MemoryRecord>;
+  deleteGroupMemory(groupId: string, recordId: string): Promise<void>;
   revokeShare(token: string): Promise<void>;
   deleteAccount(): Promise<void>;
   share(botId: string, scope: 'bot' | 'chat'): Promise<string>;

@@ -9,8 +9,12 @@ parent `pyproject.toml`; the packaged distribution manifest is then checked agai
 evaluation outputs, scripts, caches, and the vendored wheel cannot enter the deployment archive.
 
 Conversation history is persisted by the application backend in DynamoDB. AgentCore Memory recalls
-user-scoped preferences and facts plus conversation-scoped summaries. The worker supplies stable,
-non-PII actor and session identifiers, and completed turns are written with an idempotency token.
+private user-scoped preferences and facts plus per-bot summaries in direct chats. Group invocations instead
+receive an isolated group actor and shared group session, so they recall only group preferences, facts, and summaries.
+The worker supplies stable, non-PII identifiers, and completed turns are written with an idempotency token.
+FrogBot passes a balanced, recall-only AgentCore store to Stan. Stan owns the Strands `MemoryManager`, injects
+the store on each model turn, exposes semantic search, and gives delegated agents a read-only view of the same
+scope. Durable writes remain explicit AgentCore events after completed top-level turns.
 
 The latest user turn may contain reviewed image or document blocks stored in FroggyBot's private S3
 bucket. Both uploads and generated artifacts are bound to the invoking user's hashed identity. When
@@ -66,12 +70,13 @@ agentcore invoke --dev 'What can you do?'
 ```
 
 The production worker sends structured invocation payloads containing `messages`, `bot`, and, for
-direct turns, trusted `memory` and `artifacts` envelopes. The runtime validates every field, permits
+direct and group turns, trusted `memory` and `artifacts` envelopes. The runtime validates every field, permits
 attachments only on the latest user message, binds file paths to that user's identity, and strips any
 trailing tool-use block before invoking Strands. Direct payloads contain at most 100 recent messages. Strands
 automatically compacts at 85% of the model context window by summarizing the oldest 30% and preserving at least the
-newest 10 messages. AgentCore independently extracts and retrieves preferences, facts, and per-session topic summaries
-so older topics remain available after they leave the recent-message window.
+newest 10 messages. Direct AgentCore scopes retrieve preferences, facts, and per-bot topic summaries. Group scopes
+retrieve group preferences, facts, and group-wide topic summaries without reading any member's private actor namespace. Balanced
+retrieval prevents one category from consuming the full injection limit before the other categories are considered.
 
 Remote MCP connections accept HTTPS public endpoints only. The runtime resolves the hostname when it
 validates the catalog binding and again before every request, and it disables HTTP redirects. OAuth

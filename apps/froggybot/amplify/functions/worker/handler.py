@@ -8,6 +8,7 @@ from .account_cleanup import _delete_account
 from .background_work import _process_background_work
 from .direct_job import _process_agent_reply
 from .group_job import _process_group_agent_reply, _process_group_agent_round
+from .memory_cleanup_job import _delete_memory_actor, _delete_memory_session
 from .notifications import _check_push_receipts, _send_push_notification
 from .scheduled_job import _process_scheduled_agent_reply, _request_string
 from .support import ACTIVE_VISIBILITY_SECONDS, QUEUE_URL, catalog, sqs
@@ -28,6 +29,12 @@ def _process(record: dict) -> None:
             _request_string(request, "userId", 255),
             _request_string(request, "username", 255),
         )
+        return
+    if request_type == "DELETE_MEMORY_ACTOR":
+        _delete_memory_actor(request)
+        return
+    if request_type == "DELETE_MEMORY_SESSION":
+        _delete_memory_session(request)
         return
     if request_type == "PUSH_NOTIFICATION":
         _send_push_notification(request)

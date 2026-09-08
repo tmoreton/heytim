@@ -263,15 +263,17 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
     setOverlay({ kind: 'botEditor', mode: bot ? 'edit' : 'new', capability });
   };
 
-  const runBotDeletion = async () => {
+  const runBotDeletion = async (requestedAction?: BotAction) => {
     if (!selectedBot || overlay.kind !== 'botConfirmation') return;
+    const action = requestedAction ?? overlay.action;
     dictation.abort();
     try {
-      if (overlay.action === 'clear') {
-        await api.clearBotChat(selectedBot.id);
+      if (action === 'clear' || action === 'clearAndForget') {
+        await api.clearBotChat(selectedBot.id, action === 'clearAndForget');
         const next = await api.bootstrap();
         replaceBootstrap(next);
         clearMessages();
+        setOverlay({ kind: 'none' });
         return;
       }
       await api.deleteBot(selectedBot.id);
@@ -436,6 +438,10 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
           onShare={shareGroup}
           onRemoveMember={removeGroupMember}
           onDelete={deleteGroup}
+          onLoadMemory={api.groupMemories}
+          onCreateMemory={api.createGroupMemory}
+          onUpdateMemory={api.updateGroupMemory}
+          onDeleteMemory={api.deleteGroupMemory}
         />
       ) : null}
       {overlay.kind === 'skillLibrary' ? (
@@ -491,6 +497,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
         <MemorySettings
           onClose={() => setOverlay({ kind: 'none' })}
           onLoad={api.memories}
+          onCreate={api.createMemory}
           onUpdate={api.updateMemory}
           onDelete={api.deleteMemory}
           onExport={api.exportMemory}
@@ -510,7 +517,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
         }}
         onShareSetup={shareBot}
         onRequestAction={(action) => setOverlay({ kind: 'botConfirmation', action })}
-        onConfirmAction={runBotDeletion}
+        onConfirmAction={(action) => void runBotDeletion(action)}
         onCloseConfirmation={() => setOverlay({ kind: 'none' })}
       />
       <ActionSheet

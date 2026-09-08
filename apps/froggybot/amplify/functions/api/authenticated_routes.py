@@ -38,9 +38,14 @@ from .groups import (
     _update_group,
 )
 from .memories import (
+    _create_group_memory,
+    _create_user_memory,
+    _delete_group_memory_record,
     _delete_user_memory_record,
     _export_user_memories,
+    _list_group_memories,
     _list_user_memories,
+    _update_group_memory,
     _update_user_memory,
 )
 from .schedules import (
@@ -91,6 +96,8 @@ def _library_route(
         )
     if method == "GET" and path == "/memory":
         return _response(200, _list_user_memories(user_id))
+    if method == "POST" and path == "/memory":
+        return _response(201, _create_user_memory(user_id, _body(event)))
     if method == "POST" and path == "/memory/export":
         return _response(200, _export_user_memories(user_id))
     if method == "PUT" and path.startswith("/memory/"):
@@ -151,6 +158,28 @@ def _group_admin_route(
     params: dict,
     event: dict,
 ) -> dict | None:
+    group_id = params.get("groupId", "")
+    if method == "GET" and path.endswith("/memory"):
+        return _response(200, _list_group_memories(user_id, group_id))
+    if method == "POST" and path.endswith("/memory"):
+        return _response(201, _create_group_memory(user_id, group_id, _body(event)))
+    if method == "PUT" and "/memory/" in path:
+        return _response(
+            200,
+            _update_group_memory(
+                user_id,
+                group_id,
+                params.get("memoryRecordId", ""),
+                _body(event),
+            ),
+        )
+    if method == "DELETE" and "/memory/" in path:
+        return _response(
+            200,
+            _delete_group_memory_record(
+                user_id, group_id, params.get("memoryRecordId", "")
+            ),
+        )
     if method == "POST" and path == "/groups":
         return _response(201, _create_group(user_id, display_name, _body(event)))
     if method == "PUT" and path.startswith("/groups/") and "/members/" not in path:
@@ -280,7 +309,14 @@ def _direct_chat_route(
             200, _cancel_bot_turn(user_id, bot_id, params.get("turnId", ""))
         )
     if method == "DELETE" and path.startswith("/bots/") and path.endswith("/messages"):
-        return _response(200, _clear_bot_chat(user_id, bot_id))
+        return _response(
+            200,
+            _clear_bot_chat(
+                user_id,
+                bot_id,
+                forget_memory=_body(event).get("forgetMemory") is True,
+            ),
+        )
     return None
 
 
@@ -364,6 +400,7 @@ ROUTE_HANDLERS: dict[str, Route] = {
         "PUT /connections/{connectionId}",
         "DELETE /connections/{connectionId}",
         "GET /memory",
+        "POST /memory",
         "POST /memory/export",
         "PUT /memory/{memoryRecordId}",
         "DELETE /memory/{memoryRecordId}",
@@ -377,6 +414,10 @@ ROUTE_HANDLERS: dict[str, Route] = {
     **_route_map(
         _group_admin_route,
         "POST /groups",
+        "GET /groups/{groupId}/memory",
+        "POST /groups/{groupId}/memory",
+        "PUT /groups/{groupId}/memory/{memoryRecordId}",
+        "DELETE /groups/{groupId}/memory/{memoryRecordId}",
         "PUT /groups/{groupId}",
         "POST /groups/{groupId}/invites",
         "POST /group-invites/{token}/join",

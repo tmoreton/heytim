@@ -9,7 +9,7 @@ from boto3.dynamodb.conditions import Attr
 
 from shared.cleanup import delete_share_record, purge_group
 from shared.keys import group_pk, push_owner_key, user_pk, user_state_key
-from shared.memory_cleanup import delete_user_memory
+from shared.memory_cleanup import delete_group_memory, delete_user_memory
 from shared.memory_identity import direct_session_id, memory_actor_id, scoped_session_id
 from shared.schedules import delete_remote_schedule
 from shared.storage import delete_object_versions
@@ -248,6 +248,7 @@ class AccountCleanupService:
                 (item for item in group_items if item.get("entity") == "GROUP"), None
             )
             if meta and meta.get("ownerId") == user_id:
+                delete_group_memory(self.agentcore, self.config.memory_id, group_id)
                 purge_group(
                     self.table,
                     self.invite_access_table,

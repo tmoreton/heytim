@@ -8,7 +8,7 @@ from frogbot_runtime.configuration import bot_configuration
 from frogbot_runtime.memory import (
     latest_assistant_text,
     memory_context_from_payload,
-    memory_manager,
+    memory_stores,
     message_text,
     record_completed_turn,
 )
@@ -28,7 +28,7 @@ async def invoke(payload, context):
     memory_context = memory_context_from_payload(payload)
     actor_id = memory_context.actor_id if memory_context else None
     messages = messages_from_payload(payload, actor_id)
-    memories = memory_manager(memory_context)
+    memories = memory_stores(memory_context)
     session_id = getattr(context, "session_id", "unknown")
     config = bot_configuration(payload, session_id, actor_id)
     log.info(
@@ -48,8 +48,8 @@ async def invoke(payload, context):
         builtin_tools=config.builtin_tools,
         plugins=config.plugins,
         builtin_plugins=config.builtin_plugins,
-        memory=False,
-        memory_manager=memories,
+        memory=bool(memories),
+        memory_store=memories,
         context_management="auto",
         conversation_manager=SummarizingConversationManager(
             summary_ratio=0.3,
