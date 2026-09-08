@@ -12,8 +12,9 @@ tests/     Fast unit tests with local AWS fakes
 persist requests. Worker modules claim durable work and complete it safely. Shared modules do not
 depend on either entrypoint.
 
-`api/starter_bots.py` is the only local definition of the small new-account starter set. It points to
-public skill IDs but does not duplicate skill instructions.
+`api/bot_roles.py` defines Chief's protected application role and reserved branding, but not its bot content.
+Chief and every specialist come from the public catalog; setup requires and installs Chief as a user-owned,
+version-pinned copy.
 
 The whole `amplify/functions` directory is packaged for each Lambda, so relative package imports are
 available in AWS and in the local test command.

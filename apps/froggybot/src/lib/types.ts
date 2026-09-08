@@ -8,11 +8,28 @@ export type Bot = {
   extraToolIds?: string[];
   alwaysAllowedToolIds?: string[];
   skillIds: string[];
+  templateId?: string;
+  templateVersion?: number;
   systemRole?: 'chief';
   createdAt: string;
   updatedAt: string;
   lastMessage: string;
   lastMessageAt: string;
+};
+
+export type BotTemplate = {
+  id: string;
+  version: number;
+  name: string;
+  tagline: string;
+  prompt: string;
+  color: string;
+  skillIds: string[];
+  toolIds: string[];
+  category?: string;
+  author?: string;
+  tags?: string[];
+  featured?: boolean;
 };
 
 export type Attachment = {
@@ -206,6 +223,8 @@ export type SkillDraft = Pick<SkillDetail, 'name' | 'description' | 'instruction
 
 export type Bootstrap = {
   bots: Bot[];
+  botTemplates: BotTemplate[];
+  needsBotOnboarding: boolean;
   groups: Group[];
   tools: Capability[];
   skills: Skill[];

@@ -147,7 +147,9 @@ export function ConnectionEditor({
         <>
           <Text style={styles.label}>{draft.authType === 'bearer' ? 'Bearer token' : 'API key'}</Text>
           <Text style={styles.help}>
-            {connection?.hasCredential ? 'Leave blank to keep the current credential.' : 'Saved securely after you connect.'}
+            {connection?.hasCredential
+              ? 'Leave blank to keep the current credential. Replace it with a token from the provider’s API or developer settings.'
+              : 'Get this from the MCP provider’s API or developer settings, then paste it here. FrogBot encrypts it and never adds it to bots, skills, or shared links.'}
           </Text>
           <TextInput
             accessibilityLabel="Connection credential"

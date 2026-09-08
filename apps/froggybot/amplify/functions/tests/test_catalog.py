@@ -88,7 +88,6 @@ TEST_SKILLS = [
     }
 ]
 
-
 class FakeConditionalCheckFailed(Exception):
     def __init__(self) -> None:
         super().__init__("conditional check failed")
@@ -216,8 +215,7 @@ class CatalogServiceTests(unittest.TestCase):
         self.table = FakeTable()
         self.secrets = FakeSecrets()
         self.catalog = CatalogService(self.table, self.secrets)
-        self.catalog._store_official(TEST_TOOLS, TEST_SKILLS)
-
+        self.catalog._store_official(TEST_TOOLS, TEST_SKILLS, [])
     def test_cold_start_performs_initial_sync(self) -> None:
         sync_module._last_sync_at = 0
         calls = []
@@ -583,8 +581,9 @@ class CatalogServiceTests(unittest.TestCase):
                 {"id": "old_tool", "name": "Old", "description": "Old tool."},
             ],
             [*TEST_SKILLS, stale],
+            [],
         )
-        self.catalog._store_official(TEST_TOOLS, TEST_SKILLS)
+        self.catalog._store_official(TEST_TOOLS, TEST_SKILLS, [])
 
         self.assertNotIn(("SYSTEM#TOOLS", "TOOL#old_tool"), self.table.items)
         self.assertNotIn(("SYSTEM#SKILLS", "SKILL#old-skill"), self.table.items)

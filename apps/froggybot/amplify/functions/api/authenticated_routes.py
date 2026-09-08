@@ -15,6 +15,7 @@ from .bots import (
     _create_bot,
     _delete_bot,
     _get_bot,
+    _install_bot_template,
     _list_turns,
     _messages_from_turns,
     _update_bot,
@@ -232,6 +233,10 @@ def _bot_route(
     bot_id = params.get("botId", "")
     if method == "GET" and path == "/bootstrap":
         return _response(200, _bootstrap(user_id))
+    if method == "POST" and path.startswith("/bot-templates/"):
+        return _response(
+            201, _install_bot_template(user_id, params.get("templateId", ""))
+        )
     if method == "POST" and path == "/bots":
         return _response(201, _create_bot(user_id, _body(event)))
     if method == "PUT" and path.startswith("/bots/"):

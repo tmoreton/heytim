@@ -51,6 +51,8 @@ class BotBrandingTests(unittest.TestCase):
                     "name": "Chief",
                     "color": self.support.CHIEF_COLOR,
                     "systemRole": "chief",
+                    "templateId": "chief",
+                    "templateVersion": 1,
                     "lastMessageAt": "2026-09-01T20:00:00Z",
                 },
             ],
@@ -58,8 +60,21 @@ class BotBrandingTests(unittest.TestCase):
 
         self.assertEqual(ordered[0]["id"], "chief")
 
-    def test_empty_signup_gets_the_idempotent_starter_set(self) -> None:
+    def test_empty_signup_installs_chief_from_the_public_catalog(self) -> None:
+        template = {
+            "id": "chief",
+            "version": 3,
+            "name": "Chief",
+            "tagline": "Coordinates the team.",
+            "prompt": "Use this catalog prompt, not an app fallback.",
+            "color": self.support.CHIEF_COLOR,
+            "skillIds": ["group-intake"],
+            "toolIds": ["current_time"],
+        }
         with (
+            patch.object(
+                self.bots.catalog, "get_bot_template", return_value=template
+            ) as get_template,
             patch.object(self.bots.catalog, "sync_official"),
             patch.object(
                 self.bots.catalog,
@@ -80,23 +95,67 @@ class BotBrandingTests(unittest.TestCase):
             ),
             patch.object(self.bots.catalog, "approval_tool_ids", return_value=[]),
         ):
-            seeded = self.bots._seed_starter_bots("new-user")
+            seeded = self.bots._ensure_chief("new-user", [])
 
+        get_template.assert_called_once_with("chief")
         self.assertEqual(
             [bot["id"] for bot in seeded],
-            [
-                "starter-chief",
-                "starter-trip-planner",
-                "starter-event-planner",
-                "starter-research-reports",
-            ],
+            ["catalog-chief"],
         )
         self.assertEqual(seeded[0]["systemRole"], "chief")
-        self.assertNotIn("systemRole", seeded[1])
-        self.assertEqual(
-            [bot["lastMessage"] for bot in seeded],
-            [seed["lastMessage"] for seed in self.bots.DEFAULT_BOTS],
-        )
+        self.assertEqual(seeded[0]["templateId"], "chief")
+        self.assertEqual(seeded[0]["templateVersion"], 3)
+        self.assertEqual(seeded[0]["prompt"], template["prompt"])
+
+    def test_legacy_starter_bot_is_linked_to_its_catalog_template(self) -> None:
+        legacy = {
+            "id": "starter-trip-planner",
+            "name": "Trip Planner",
+            "skillVersions": {},
+            "extraToolIds": [],
+        }
+        with (
+            patch.object(self.bots, "_list_bots", return_value=[legacy]),
+            patch.object(self.bots, "_ensure_chief", return_value=[legacy]),
+            patch.object(self.bots, "_list_groups", return_value=[]),
+            patch.object(self.bots.catalog, "list_bot_templates", return_value=[]),
+            patch.object(self.bots.catalog, "list_tools", return_value=[]),
+            patch.object(self.bots.catalog, "list_skills", return_value=[]),
+        ):
+            self.bots.table.items[("USER#new-user", "STATE")] = {
+                "pk": "USER#new-user",
+                "sk": "STATE",
+            }
+            result = self.bots._bootstrap("new-user")
+
+        self.assertEqual(result["bots"][0]["templateId"], "trip-planner")
+        self.assertEqual(result["bots"][0]["templateVersion"], 1)
+
+    def test_first_bootstrap_returns_chief_and_catalog_onboarding(self) -> None:
+        chief = {
+            "id": "catalog-chief",
+            "systemRole": "chief",
+            "templateId": "chief",
+            "templateVersion": 1,
+            "skillVersions": {},
+            "extraToolIds": [],
+        }
+        templates = [{"id": "trip-planner", "version": 1}]
+        with (
+            patch.object(self.bots, "_list_bots", return_value=[]),
+            patch.object(self.bots, "_ensure_chief", return_value=[chief]),
+            patch.object(self.bots, "_list_groups", return_value=[]),
+            patch.object(
+                self.bots.catalog, "list_bot_templates", return_value=templates
+            ),
+            patch.object(self.bots.catalog, "list_tools", return_value=[]),
+            patch.object(self.bots.catalog, "list_skills", return_value=[]),
+        ):
+            result = self.bots._bootstrap("brand-new-user")
+
+        self.assertEqual(result["bots"], [chief])
+        self.assertEqual(result["botTemplates"], templates)
+        self.assertTrue(result["needsBotOnboarding"])
 
 
 if __name__ == "__main__":

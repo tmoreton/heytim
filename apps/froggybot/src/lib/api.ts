@@ -9,6 +9,7 @@ import {
   demoDeleteGroup,
   demoGetSkill,
   demoImportSkill,
+  demoInstallBotTemplate,
   demoJoinGroup,
   demoMessages,
   demoGroupMessages,
@@ -110,6 +111,12 @@ export const createApi = (demo: boolean) => ({
     ).then((value) => ({ ...value, token }));
   },
   bootstrap: async (): Promise<Bootstrap> => (demo ? demoBootstrap() : request<Bootstrap>('/bootstrap')),
+  installBotTemplate: async (templateId: string): Promise<Bot> =>
+    demo
+      ? demoInstallBotTemplate(templateId)
+      : request<Bot>(`/bot-templates/${encodeURIComponent(templateId)}/install`, {
+          method: 'POST',
+        }),
   messages: async (botId: string): Promise<Message[]> =>
     demo
       ? demoMessages(botId)

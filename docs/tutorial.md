@@ -67,8 +67,10 @@ The API handler routes requests. Domain modules validate ownership and update ap
 worker handler routes queue jobs. Worker modules claim work, invoke AgentCore, save the result, and
 queue the final notification.
 
-New-account examples live in `amplify/functions/api/starter_bots.py`. They contain only bot prompts
-and capability IDs; the referenced skill instructions still come from the public skills repository.
+Chief and the specialists are minimal templates from the public catalog. Setup requires Chief and marks its
+installed copy with the protected coordinator role; onboarding lets each person choose any additional bots they want.
+`amplify/functions/api/bot_roles.py` contains only that application role and reserved branding, not Chief's prompt
+or capabilities.
 
 The same pattern covers groups, schedules, uploads, sharing, and account deletion. Each domain has a
 matching file under `amplify/functions/api` or `amplify/functions/worker`.
@@ -122,12 +124,14 @@ catalog.py             User libraries, version pinning, importing, and sharing
 connections.py         Private MCP metadata and encrypted credential lifecycle
 ```
 
-The external `frogbot-skills` repository owns the public website, catalog, and contribution review. Each entry includes
-display metadata for `froggybot.com/library/`; tool entries also list the human-readable actions they expose. The
+The external `frogbot-skills` repository owns the public website, bot templates, capability catalog, and contribution
+review. Each entry includes display metadata for `froggybot.com/library/`; tool entries also list the human-readable
+actions they expose. The
 backend keeps the last successfully reviewed release if a refresh fails; it does not carry a second bundled catalog.
 The unauthenticated `GET /public/catalog` route returns only sanitized, currently usable listings. A public directory link
-carries the selected skill or tool to `app.froggybot.com/app`, where the bot editor preselects it and still requires
-an explicit save. The public site deploys from its own repository, independently of app releases.
+carries a selected bot, skill, or tool to `app.froggybot.com/app`. Bot links open the installable library, while
+skill and tool links open the bot editor and still require an explicit save. The public site deploys from its own
+repository, independently of app releases.
 
 The runtime still contains reviewed implementations for local and managed tools plus a strict execution allowlist.
 Those pieces run with server permissions, so they cannot be downloaded from a community repository. Public names,

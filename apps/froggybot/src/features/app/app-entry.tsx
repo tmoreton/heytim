@@ -13,10 +13,11 @@ type Props = {
   invitation?: Invitation;
   invitePreview?: InvitePreview;
   initialCapability?: CapabilitySelection;
+  initialBotTemplateId?: string;
   preview?: boolean;
 };
 
-export function AppEntry({ invitation, invitePreview, initialCapability, preview = false }: Props = {}) {
+export function AppEntry({ invitation, invitePreview, initialCapability, initialBotTemplateId, preview = false }: Props = {}) {
   const [state, setState] = useState<AppState>(preview ? 'demo' : cloudConfigured ? 'loading' : 'signedOut');
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export function AppEntry({ invitation, invitePreview, initialCapability, preview
     <ChatApp
       demo={state === 'demo'}
       invitation={invitation}
+      initialBotTemplateId={initialBotTemplateId}
       initialCapability={initialCapability}
       onSignedOut={() => setState('signedOut')}
     />

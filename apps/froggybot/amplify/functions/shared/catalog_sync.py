@@ -11,10 +11,16 @@ import urllib.request
 import uuid
 
 from .catalog_rules import (
+    BOT_CATALOG_FIELDS,
+    BOT_COLORS,
+    MAX_BOT_PROMPT,
     MAX_SKILL_INSTRUCTIONS,
+    MAX_SKILLS_PER_BOT,
+    MAX_TOOLS_PER_BOT,
     TOOL_RISKS,
     CatalogError,
     _now,
+    _public_bot_template,
     _public_skill,
     _validate_catalog_metadata,
     _validate_id,
@@ -213,7 +219,7 @@ class CatalogSyncMixin:
     def _sync_remote(self) -> None:
         catalog = _fetch_json(CATALOG_URL)
         if (
-            catalog.get("schemaVersion") != 2
+            catalog.get("schemaVersion") != 3
             or catalog.get("repository") != ALLOWED_REPOSITORY
         ):
             raise CatalogError("Capability catalog source is not trusted")
@@ -222,7 +228,12 @@ class CatalogSyncMixin:
             raise CatalogError("Capability catalog release is invalid")
         raw_tools = catalog.get("tools")
         raw_skills = catalog.get("skills")
-        if not isinstance(raw_tools, list) or not isinstance(raw_skills, list):
+        raw_bots = catalog.get("bots")
+        if (
+            not isinstance(raw_tools, list)
+            or not isinstance(raw_skills, list)
+            or not isinstance(raw_bots, list)
+        ):
             raise CatalogError("Capability catalog lists are invalid")
 
         parsed_tools = []
@@ -289,9 +300,70 @@ class CatalogSyncMixin:
             )
         if len({item["id"] for item in skills}) != len(skills):
             raise CatalogError("Capability catalog skill IDs must be unique")
-        self._store_official(tools, skills)
+        skill_ids = {item["id"] for item in skills}
 
-    def _store_official(self, tools: list[dict], skills: list[dict]) -> None:
+        bots = []
+        for raw in raw_bots:
+            if not isinstance(raw, dict):
+                raise CatalogError("Bot catalog entry is invalid")
+            bot_id = _validate_id(raw.get("id"), "bot id")
+            unsupported_fields = set(raw) - BOT_CATALOG_FIELDS
+            if unsupported_fields:
+                raise CatalogError(
+                    f"{bot_id} has unsupported bot fields: "
+                    f"{', '.join(sorted(unsupported_fields))}"
+            )
+            version = raw.get("version")
+            if (
+                not isinstance(version, int)
+                or isinstance(version, bool)
+                or not 1 <= version <= 1_000_000
+            ):
+                raise CatalogError(f"{bot_id} version is invalid")
+            selected_skills = raw.get("skillIds", [])
+            selected_tools = raw.get("toolIds", [])
+            if (
+                not isinstance(selected_skills, list)
+                or len(selected_skills) > MAX_SKILLS_PER_BOT
+                or any(not isinstance(item, str) for item in selected_skills)
+                or len(selected_skills) != len(set(selected_skills))
+                or set(selected_skills) - skill_ids
+            ):
+                raise CatalogError(f"{bot_id} skillIds are invalid")
+            if (
+                not isinstance(selected_tools, list)
+                or len(selected_tools) > MAX_TOOLS_PER_BOT
+                or any(not isinstance(item, str) for item in selected_tools)
+                or len(selected_tools) != len(set(selected_tools))
+                or set(selected_tools) - tool_ids
+            ):
+                raise CatalogError(f"{bot_id} toolIds are invalid")
+            color = raw.get("color", "#58BEAA")
+            if color not in BOT_COLORS:
+                raise CatalogError(f"{bot_id} color is invalid")
+            bots.append(
+                {
+                    "id": bot_id,
+                    "version": version,
+                    "name": _validate_text(raw.get("name"), "bot name", 48),
+                    "tagline": _validate_text(raw.get("tagline"), "bot tagline", 120),
+                    "prompt": _validate_text(
+                        raw.get("prompt"), "bot prompt", MAX_BOT_PROMPT
+                    ),
+                    "color": color,
+                    "skillIds": selected_skills,
+                    "toolIds": selected_tools,
+                    "source": "official",
+                    **_validate_catalog_metadata(raw),
+                }
+            )
+        if len({item["id"] for item in bots}) != len(bots):
+            raise CatalogError("Bot catalog IDs must be unique")
+        self._store_official(tools, skills, bots)
+
+    def _store_official(
+        self, tools: list[dict], skills: list[dict], bots: list[dict]
+    ) -> None:
         current = _now()
         existing_tools = self.table.query(
             KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
@@ -301,8 +373,13 @@ class CatalogSyncMixin:
             KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
             ExpressionAttributeValues={":pk": "SYSTEM#SKILLS", ":prefix": "SKILL#"},
         ).get("Items", [])
+        existing_bots = self.table.query(
+            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+            ExpressionAttributeValues={":pk": "SYSTEM#BOTS", ":prefix": "BOT#"},
+        ).get("Items", [])
         tool_keys = {f"TOOL#{tool['id']}" for tool in tools}
         skill_keys = {f"SKILL#{skill['id']}" for skill in skills}
+        bot_keys = {f"BOT#{bot['id']}" for bot in bots}
         with self.table.batch_writer() as batch:
             for item in existing_tools:
                 if item.get("sk") not in tool_keys:
@@ -310,6 +387,9 @@ class CatalogSyncMixin:
             for item in existing_skills:
                 if item.get("sk") not in skill_keys:
                     batch.delete_item(Key={"pk": "SYSTEM#SKILLS", "sk": item["sk"]})
+            for item in existing_bots:
+                if item.get("sk") not in bot_keys:
+                    batch.delete_item(Key={"pk": "SYSTEM#BOTS", "sk": item["sk"]})
             for tool in tools:
                 batch.put_item(
                     Item={
@@ -331,6 +411,22 @@ class CatalogSyncMixin:
                     "sk": _version_key(skill["version"]),
                     "entity": "SKILL_VERSION",
                     **skill,
+                    "updatedAt": current,
+                }
+                batch.put_item(Item=listing)
+                batch.put_item(Item=version)
+            for bot in bots:
+                listing = {
+                    "pk": "SYSTEM#BOTS",
+                    "sk": f"BOT#{bot['id']}",
+                    "entity": "BOT_TEMPLATE_LISTING",
+                    **_public_bot_template({**bot, "updatedAt": current}),
+                }
+                version = {
+                    "pk": f"BOT_TEMPLATE#{bot['id']}",
+                    "sk": _version_key(bot["version"]),
+                    "entity": "BOT_TEMPLATE_VERSION",
+                    **bot,
                     "updatedAt": current,
                 }
                 batch.put_item(Item=listing)

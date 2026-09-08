@@ -2,6 +2,7 @@ import { HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
 
 export const AUTHENTICATED_ROUTES = [
   [HttpMethod.GET, '/bootstrap'],
+  [HttpMethod.POST, '/bot-templates/{templateId}/install'],
   [HttpMethod.POST, '/bots'],
   [HttpMethod.PUT, '/bots/{botId}'],
   [HttpMethod.DELETE, '/bots/{botId}'],

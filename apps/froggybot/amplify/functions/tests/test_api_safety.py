@@ -69,25 +69,8 @@ class ApiSafetyTests(ApiTestCase):
         self.assertEqual(result["preservedDocuments"], 3)
         self.assertEqual(result["revokedShares"], 2)
 
-    def test_starter_bots_cover_core_workflows_and_only_chief_is_protected(self) -> None:
-        self.assertEqual(
-            [bot["name"] for bot in self.bots.DEFAULT_BOTS],
-            ["Chief", "Trip Planner", "Event Planner", "Research & Reports"],
-        )
-        self.assertEqual(
-            [bot["name"] for bot in self.bots.DEFAULT_BOTS if bot.get("systemRole")],
-            ["Chief"],
-        )
-        self.assertEqual(
-            set(self.bots.DEFAULT_BOTS[0]["skillIds"]),
-            {
-                "group-intake",
-                "group-decision",
-                "trip-planner",
-                "event-planner",
-                "shared-budget",
-            },
-        )
+    def test_chief_is_a_required_public_template_and_remains_protected(self) -> None:
+        self.assertFalse(hasattr(self.bots, "DEFAULT_BOTS"))
         with (
             patch.object(
                 self.bots,

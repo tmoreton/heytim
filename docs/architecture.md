@@ -15,11 +15,11 @@ agentcore/               Declarative AgentCore infrastructure and gateway schema
 `src/lib`. The signed-in chat is composed from a drawer, header, message list, composer, and
 focused bot/group/skill editors. Web and iOS use the same feature code.
 
-The public website uses `/` for positioning and `/library` for the searchable skill, tool, and action directory.
+The public website uses `/` for positioning and `/library` for the searchable bot, skill, tool, and action directory.
 The directory reads sanitized catalog metadata from `/public/catalog` and falls back to the same reviewed GitHub
 source if the API is temporarily unavailable. `/invite` previews a share link before opening the app or sign-up
-experience. `/app` hosts the authenticated product. Catalog links use `/app?skill=…` or `/app?tool=…` to preselect
-the capability in a review-before-save bot editor. Development builds may use
+experience. `/app` hosts the authenticated product. Catalog links use `/app?bot=…` to open the bot library, or
+`/app?skill=…` and `/app?tool=…` to preselect a capability in a review-before-save bot editor. Development builds may use
 `/app?preview=1` to exercise the complete UI without calling AWS; production builds ignore that
 flag.
 
@@ -107,7 +107,8 @@ server; its credential is encrypted in Secrets Manager, resolved only during inv
 telemetry, catalog responses, and shares. Endpoint validation blocks local-network targets and the runtime repeats
 DNS checks before connecting.
 The separate `frogbot-skills` repository is the public website and capability publishing boundary. Pull requests are validated there;
-the backend then validates and caches releases before exposing only public metadata to signed-out visitors.
+the backend then validates and caches releases before exposing only public metadata to signed-out visitors. Chief is a required public
+template: first-time setup installs it and applies the protected coordinator role without duplicating its prompt or capabilities in app code.
 
 ## Invariants
 

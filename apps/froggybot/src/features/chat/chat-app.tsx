@@ -21,6 +21,7 @@ import { AccountSettings } from './account-settings';
 import { BotActionSheets, type BotAction } from './bot-action-sheets';
 import { BotDocuments } from './bot-documents';
 import { BotEditor } from './bot-editor';
+import { BotLibrary } from './bot-library';
 import { styles } from './chat-app.styles';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationDrawer, type ConversationSelection as Selection } from './conversation-drawer';
@@ -38,13 +39,14 @@ type Props = {
   demo: boolean;
   invitation?: Invitation;
   initialCapability?: CapabilitySelection;
+  initialBotTemplateId?: string;
   onSignedOut: () => void;
 };
 
 const directTurnId = (message: Message) => message.id.replace(/-assistant$/, '');
 const ACTIVE_RESPONSE_STATUSES = new Set<Message['status']>(['pending', 'running']);
 
-export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Props) {
+export function ChatApp({ demo, invitation, initialCapability, initialBotTemplateId, onSignedOut }: Props) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const wide = width >= 760;
@@ -76,6 +78,8 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
   const [suggestedCapability, setSuggestedCapability] = useState(initialCapability);
   const [groupEditor, setGroupEditor] = useState<'new' | 'edit' | undefined>();
   const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
+  const [botLibraryRequested, setBotLibraryRequested] = useState(Boolean(initialBotTemplateId));
+  const [botOnboardingDismissed, setBotOnboardingDismissed] = useState(false);
   const [botMenuOpen, setBotMenuOpen] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [memorySettingsOpen, setMemorySettingsOpen] = useState(false);
@@ -123,6 +127,8 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
   const { attachments, uploading: uploadingAttachment } = attachmentDraft;
   const { listening } = dictation;
   const clearAttachmentDraft = attachmentDraft.clear;
+  const botLibraryOnboarding = Boolean(data?.needsBotOnboarding && !botOnboardingDismissed && !botLibraryRequested);
+  const botLibraryOpen = botLibraryRequested || botLibraryOnboarding;
 
   const openConversation = useCallback((next: Selection, closeDrawer = true) => {
     clearAttachmentDraft();
@@ -159,6 +165,21 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
     setLoadingMessages(true);
     clearAttachmentDraft();
     setSelection({ kind: 'bot', id: saved.id });
+  };
+
+  const installBotTemplate = async (templateId: string) => {
+    const saved = await api.installBotTemplate(templateId);
+    setBotLibraryRequested(true);
+    setData((current) => current ? {
+      ...current,
+      bots: chiefFirst([saved, ...current.bots]),
+      needsBotOnboarding: false,
+    } : current);
+    setMessages([]);
+    setLoadingMessages(true);
+    clearAttachmentDraft();
+    setSelection({ kind: 'bot', id: saved.id });
+    return saved;
   };
 
   const saveGroup = async (value: GroupDraft) => {
@@ -352,6 +373,10 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
       onSearchChange={setSearch}
       onSelectBot={selectBot}
       onSelectGroup={selectGroup}
+      onOpenBotLibrary={() => {
+        setBotOnboardingDismissed(true);
+        setBotLibraryRequested(true);
+      }}
       onCreateBot={() => setEditor('new')}
       onCreateGroup={() => setGroupEditor('new')}
       onOpenAccount={() => setAccountSettingsOpen(true)}
@@ -419,6 +444,20 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
           }}
           onSave={saveBot}
           onLoadSkill={api.skill}
+        />
+      ) : null}
+      {botLibraryOpen && data ? (
+        <BotLibrary
+          bots={data.bots}
+          templates={data.botTemplates ?? []}
+          skills={data.skills}
+          onboarding={botLibraryOnboarding}
+          initialTemplateId={initialBotTemplateId}
+          onClose={() => {
+            setBotLibraryRequested(false);
+            setBotOnboardingDismissed(true);
+          }}
+          onInstall={installBotTemplate}
         />
       ) : null}
       {groupEditor ? (

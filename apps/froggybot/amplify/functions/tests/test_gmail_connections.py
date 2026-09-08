@@ -18,6 +18,7 @@ class GmailConnectionTests(unittest.TestCase):
         self.catalog._store_official(
             test_catalog.TEST_TOOLS,
             test_catalog.TEST_SKILLS,
+            [],
         )
 
     def test_oauth_connection_is_private_and_tool_filtered(self) -> None:

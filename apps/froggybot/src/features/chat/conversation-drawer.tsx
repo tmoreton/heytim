@@ -23,6 +23,7 @@ type Props = {
   onSearchChange: (value: string) => void;
   onSelectBot: (bot: Bot) => void;
   onSelectGroup: (group: Group) => void;
+  onOpenBotLibrary: () => void;
   onCreateBot: () => void;
   onCreateGroup: () => void;
   onOpenAccount: () => void;
@@ -51,6 +52,7 @@ export function ConversationDrawer({
   onSearchChange,
   onSelectBot,
   onSelectGroup,
+  onOpenBotLibrary,
   onCreateBot,
   onCreateGroup,
   onOpenAccount,
@@ -152,11 +154,12 @@ export function ConversationDrawer({
       </View>
       <ActionSheet
         visible={createMenuOpen}
-        title="Create new"
-        message="Start a private bot chat or bring people and bots together."
+        title="Add to your team"
+        message="Choose a ready-made specialist, create your own bot, or start a group."
         options={[
+          { label: 'Explore bot library', onPress: onOpenBotLibrary },
+          { label: 'Create custom bot', onPress: onCreateBot },
           { label: 'New group', onPress: onCreateGroup },
-          { label: 'New bot', onPress: onCreateBot },
         ]}
         onClose={() => setCreateMenuOpen(false)}
       />

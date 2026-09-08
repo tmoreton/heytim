@@ -1,10 +1,10 @@
-import type { Capability, Skill, SkillDetail } from './types';
+import type { BotTemplate, Capability, Skill, SkillDetail } from './types';
 
 const CATALOG_URL = 'https://froggybot.com/catalog.json';
 const CATALOG_REPOSITORY = 'tmoreton/frogbot-skills';
 
 type CatalogSkill = Skill & { path: string };
-type DemoCatalog = { tools: Capability[]; skills: Skill[] };
+type DemoCatalog = { botTemplates: BotTemplate[]; tools: Capability[]; skills: Skill[] };
 
 let catalogRequest: Promise<DemoCatalog> | undefined;
 let catalogSkills = new Map<string, CatalogSkill>();
@@ -31,8 +31,9 @@ const fetchCatalog = async (): Promise<DemoCatalog> => {
   }
   const catalog = value as Record<string, unknown>;
   if (
-    catalog.schemaVersion !== 2 ||
+    catalog.schemaVersion !== 3 ||
     catalog.repository !== CATALOG_REPOSITORY ||
+    !Array.isArray(catalog.bots) ||
     !Array.isArray(catalog.tools) ||
     !Array.isArray(catalog.skills)
   ) {
@@ -94,7 +95,40 @@ const fetchCatalog = async (): Promise<DemoCatalog> => {
     }];
   });
   catalogSkills = new Map(listedSkills.map((skill) => [skill.id, skill]));
+  const skillIds = new Set(listedSkills.map((skill) => skill.id));
+  const botTemplates = catalog.bots.flatMap((raw): BotTemplate[] => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+    const item = raw as Record<string, unknown>;
+    const id = shortText(item.id);
+    const name = shortText(item.name);
+    const tagline = shortText(item.tagline);
+    const prompt = shortText(item.prompt);
+    const color = shortText(item.color, '#58BEAA');
+    const skillIdsForBot = stringList(item.skillIds);
+    const toolIds = stringList(item.toolIds);
+    if (
+      !id ||
+      !name ||
+      !tagline ||
+      !prompt ||
+      !Number.isInteger(item.version) ||
+      !skillIdsForBot.every((skillId) => skillIds.has(skillId)) ||
+      !toolIds.every((toolId) => enabledToolIds.has(toolId))
+    ) return [];
+    return [{
+      id,
+      version: item.version as number,
+      name,
+      tagline,
+      prompt,
+      color,
+      skillIds: skillIdsForBot,
+      toolIds,
+      ...publicMetadata(item),
+    }];
+  });
   return {
+    botTemplates,
     tools,
     skills: listedSkills.map(({ path: _path, ...skill }) => skill),
   };

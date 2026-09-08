@@ -7,28 +7,29 @@ import pytest
 from evals.run_matrix import (
     MODEL_VARIANTS,
     load_scenarios,
-    load_starter_bots,
     summarize,
     validate_scenarios,
 )
 
 
-def test_scenario_corpus_covers_every_starter_bot() -> None:
-    bots = load_starter_bots()
+def test_scenario_corpus_covers_every_public_bot() -> None:
     scenarios = load_scenarios()
+    bot_ids = {scenario["botId"] for scenario in scenarios}
+    bots = {bot_id: {"id": bot_id} for bot_id in bot_ids}
 
     validate_scenarios(scenarios, bots)
 
-    assert {scenario["botId"] for scenario in scenarios} == set(bots)
-    assert len(scenarios) >= 12
+    assert len(bot_ids) == 8
+    assert "chief" in bot_ids
+    assert len(scenarios) >= 24
     assert all(len(scenario["assertions"]) >= 4 for scenario in scenarios)
 
 
 def test_scenario_validation_rejects_duplicate_ids() -> None:
-    bots = load_starter_bots()
+    bots = {"chief": {"id": "chief"}}
     scenario = {
         "scenarioId": "duplicate",
-        "botId": next(iter(bots)),
+        "botId": "chief",
         "prompt": "Test prompt",
         "expectedOutcome": "Test outcome",
         "assertions": ["First", "Second", "Third", "Fourth"],

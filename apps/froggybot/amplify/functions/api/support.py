@@ -14,7 +14,7 @@ from botocore.config import Config
 from shared.catalog import CatalogService
 from shared.invites import invite_token_hash
 
-from .starter_bots import (
+from .bot_roles import (
     CHIEF_COLOR,
     CHIEF_SYSTEM_ROLE,
     DEFAULT_BOT_COLOR,

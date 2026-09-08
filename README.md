@@ -66,7 +66,7 @@ order for the preview app, live request path, AgentCore runtime, infrastructure,
 - Automatic reusable outputs for itineraries, budgets, checklists, plans, and other work that belongs outside the chat
 - Owner-controlled chat, bot, and group deletion with pending-work protection and invite revocation
 - A skill library for creating, editing, and sharing reusable ways of working
-- Four starter bots, seven focused public skills, and a dynamically refreshed capability catalog
+- Chief as the protected built-in, plus seven installable bot templates and seven focused public skills from the dynamically refreshed catalog
 - Private HTTPS MCP connections with per-user bearer-token or API-key credentials
 - Bot snapshots, conversation snapshots, and live group invitations with 30-day links
 - User-owned AgentCore memory for preferences, facts, and conversation summaries, with in-app review, editing, forgetting, and JSON export
@@ -141,12 +141,16 @@ Set `FROGBOT_AGENT_RUNTIME_QUALIFIER` only if the runtime should use a qualifier
 `DEFAULT`. Deploy with an IAM Identity Center or least-privilege role; the deployment runbook must
 never use AWS account-root credentials.
 
-## Skills and tools
+## Bots, skills, and tools
 
 The reviewed public catalog and marketing site live in [FroggyBot Skills](https://github.com/tmoreton/frogbot-skills).
-Visitors can browse its reviewed skills, tools, and actions without signing in at
-`https://froggybot.com/library/`. Search, categories, trust labels, and deep links make the catalog useful as
-a storefront; opening an item takes a member to a preselected, review-before-save bot edit.
+Visitors can browse its ready-made bots without signing in at `https://froggybot.com/library/`; skills and tool
+definitions remain composable catalog internals. Search, categories, trust labels, and deep links make the bot
+directory useful as a storefront. A bot link opens the installable bot library.
+Bot templates contain only identity, a prompt, skill references, and any directly required tool references.
+Model selection, reasoning level, credentials, schedules, memory, and approvals remain app concerns.
+Chief is one of those public templates. New-account setup requires it and applies the protected coordinator role
+after installation; the app does not keep a fallback Chief prompt or capability list.
 Skill releases use immutable Git tags, and every bot stores the exact skill version it selected. Updating a skill
 therefore does not silently change an existing bot or a previously shared bot. Catalog refreshes add or remove
 listings without deleting old versions that existing bots still need.
@@ -199,6 +203,6 @@ query string and hand off to the Expo app subdomain.
 - `agentcore/agentcore.json` - AgentCore source-of-truth configuration
 - `apps/froggybot/src/features/` - authentication, invitations, chat UI, and editors
 - `apps/froggybot/amplify/backend.ts` - Cognito, API, DynamoDB, SQS, and Lambda infrastructure
-- `apps/froggybot/amplify/functions/api/starter_bots.py` - the small, deletable new-account starter set
+- `apps/froggybot/amplify/functions/api/bot_roles.py` - Chief's protected role and reserved branding, not its bot configuration
 - `apps/froggybot/amplify/functions/` - authenticated API, shared domain logic, and AgentCore worker
-- [FroggyBot Skills](https://github.com/tmoreton/frogbot-skills) - the only source for public skill instructions and external tool schemas
+- [FroggyBot Skills](https://github.com/tmoreton/frogbot-skills) - the only source for public bot templates, skill instructions, and external tool schemas

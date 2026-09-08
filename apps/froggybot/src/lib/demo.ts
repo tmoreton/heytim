@@ -1,6 +1,7 @@
 import type {
   Bootstrap,
   Bot,
+  BotTemplate,
   BotDocument,
   BotDraft,
   Connection,
@@ -14,26 +15,12 @@ import type {
   SkillDraft,
 } from './types';
 import { loadDemoCatalog, loadDemoSkill } from './demo-catalog';
-import { CHIEF_COLOR, chiefFirst, displayBotColor } from './bot-branding';
+import { CHIEF_COLOR, CHIEF_TEMPLATE_ID, chiefFirst, displayBotColor } from './bot-branding';
+import { createDemoChief } from './demo-chief';
 
 const timestamp = new Date().toISOString();
 
 let bots: Bot[] = [
-  {
-    id: 'chief',
-    name: 'Chief',
-    tagline: 'Keeps the work moving and connects the dots.',
-    color: CHIEF_COLOR,
-    prompt: 'Act as my chief of staff and the sole coordinator for my other bots. Gather missing input, preserve each person\'s constraints, and turn decisions into clear next actions.',
-    toolIds: ['current_time', 'web', 'web_search', 'calculator', 'task_list', 'code_interpreter'],
-    extraToolIds: ['current_time'],
-    skillIds: ['group-intake', 'group-decision', 'trip-planner', 'event-planner', 'shared-budget'],
-    systemRole: 'chief',
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    lastMessage: 'I pulled the loose ends into one short plan.',
-    lastMessageAt: timestamp,
-  },
   {
     id: 'trip-planner',
     name: 'Trip Planner',
@@ -43,6 +30,8 @@ let bots: Bot[] = [
     toolIds: ['web', 'web_search', 'calculator', 'task_list', 'code_interpreter'],
     extraToolIds: [],
     skillIds: ['group-intake', 'trip-planner', 'shared-budget'],
+    templateId: 'trip-planner',
+    templateVersion: 1,
     createdAt: timestamp,
     updatedAt: timestamp,
     lastMessage: 'Tell me who is traveling and what matters most to each person.',
@@ -57,6 +46,8 @@ let bots: Bot[] = [
     toolIds: ['web_search', 'calculator', 'task_list', 'code_interpreter'],
     extraToolIds: [],
     skillIds: ['group-intake', 'event-planner', 'group-decision', 'shared-budget'],
+    templateId: 'event-planner',
+    templateVersion: 1,
     createdAt: timestamp,
     updatedAt: timestamp,
     lastMessage: 'What are we organizing, and who needs to be involved?',
@@ -71,6 +62,8 @@ let bots: Bot[] = [
     toolIds: ['web', 'web_search', 'task_list', 'delegate', 'calculator', 'code_interpreter'],
     extraToolIds: [],
     skillIds: ['deep-research', 'data-analyst'],
+    templateId: 'research-reports',
+    templateVersion: 1,
     createdAt: timestamp,
     updatedAt: timestamp,
     lastMessage: 'Give me the question or data, and I will return the useful conclusion.',
@@ -90,16 +83,7 @@ let groups: Group[] = [
       { id: 'demo-user', name: 'You', role: 'owner' },
       { id: 'jordan', name: 'Jordan', role: 'member' },
     ],
-    bots: [
-      {
-        id: 'chief',
-        ownerId: 'demo-user',
-        name: 'Chief',
-        tagline: bots[0].tagline,
-        color: bots[0].color,
-        systemRole: 'chief',
-      },
-    ],
+    bots: [],
     createdAt: timestamp,
     updatedAt: timestamp,
     lastMessage: 'I will turn that into the launch checklist.',
@@ -204,7 +188,7 @@ const groupMessages = new Map<string, Message[]>([
         authorType: 'bot',
         authorId: 'chief',
         authorName: 'Chief',
-        authorColor: bots[0].color,
+        authorColor: CHIEF_COLOR,
         text: 'Yes. I will turn that into the launch checklist and call out the decisions that still need an owner.',
         createdAt: timestamp,
         status: 'complete',
@@ -213,10 +197,42 @@ const groupMessages = new Map<string, Message[]>([
   ],
 ]);
 
+const ensureDemoChief = (chief: Bot) => {
+  if (bots.some((bot) => bot.systemRole === 'chief')) return;
+  bots = chiefFirst([chief, ...bots]);
+  groups = groups.map((group) => ({
+    ...group,
+    bots: [
+      {
+        id: chief.id,
+        ownerId: 'demo-user',
+        name: chief.name,
+        tagline: chief.tagline,
+        color: chief.color,
+        systemRole: 'chief',
+      },
+      ...group.bots.filter((bot) => bot.systemRole !== 'chief'),
+    ],
+  }));
+  groupMessages.set(
+    'launch-room',
+    (groupMessages.get('launch-room') ?? []).map((message) =>
+      message.authorId === CHIEF_TEMPLATE_ID
+        ? { ...message, authorName: chief.name, authorColor: chief.color }
+        : message,
+    ),
+  );
+};
+
 export const demoBootstrap = async (): Promise<Bootstrap> => {
-  const catalog = await loadDemoCatalog().catch(() => ({ tools: [], skills: [] }));
+  const catalog = await loadDemoCatalog();
+  const chiefTemplate = catalog.botTemplates.find((template) => template.id === CHIEF_TEMPLATE_ID);
+  if (!chiefTemplate) throw new Error('The required Chief bot is unavailable.');
+  ensureDemoChief(createDemoChief(chiefTemplate, catalog.skills, timestamp));
   return {
     bots: chiefFirst(bots),
+    botTemplates: catalog.botTemplates,
+    needsBotOnboarding: false,
     groups: groups.map((group) => ({
       ...group,
       members: [...group.members],
@@ -228,6 +244,43 @@ export const demoBootstrap = async (): Promise<Bootstrap> => {
       ...personalSkills.map(({ instructions: _instructions, ...skill }) => skill),
     ],
   };
+};
+
+export const demoInstallBotTemplate = async (templateId: string): Promise<Bot> => {
+  const catalog = await loadDemoCatalog();
+  const template = catalog.botTemplates.find((item) => item.id === templateId);
+  if (!template) throw new Error('Bot not found in the library.');
+  if (bots.some((bot) => bot.templateId === template.id)) {
+    throw new Error('This bot is already in your team.');
+  }
+  const requiredToolIds = catalog.skills
+    .filter((skill) => template.skillIds.includes(skill.id))
+    .flatMap((skill) => skill.requiredToolIds);
+  return demoSaveBotTemplate(template, [...new Set([...template.toolIds, ...requiredToolIds])]);
+};
+
+const demoSaveBotTemplate = (template: BotTemplate, toolIds: string[]): Bot => {
+  const current = new Date().toISOString();
+  const bot: Bot = {
+    id: `bot-${template.id}-${Date.now()}`,
+    name: template.name,
+    tagline: template.tagline,
+    prompt: template.prompt,
+    color: template.color,
+    skillIds: template.skillIds,
+    toolIds,
+    extraToolIds: template.toolIds,
+    alwaysAllowedToolIds: [],
+    templateId: template.id,
+    templateVersion: template.version,
+    createdAt: current,
+    updatedAt: current,
+    lastMessage: 'Tell me what you would like help with.',
+    lastMessageAt: current,
+  };
+  bots = chiefFirst([bot, ...bots]);
+  messages.set(bot.id, []);
+  return bot;
 };
 
 export const demoMessages = (botId: string): Message[] => [...(messages.get(botId) ?? [])];

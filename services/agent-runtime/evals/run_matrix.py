@@ -4,7 +4,6 @@ import argparse
 import asyncio
 import json
 import random
-import runpy
 import sys
 import time
 import urllib.request
@@ -18,7 +17,6 @@ from botocore.config import Config
 from evals.reporting import MODEL_VARIANTS, ModelVariant, markdown_report, summarize
 
 RUNTIME_ROOT = Path(__file__).resolve().parents[1]
-REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
@@ -33,15 +31,6 @@ from model.usage import UsageAccumulator, UsageTrackingModel
 CATALOG_URL = "https://froggybot.com/catalog.json"
 TRUSTED_REPOSITORY = "tmoreton/frogbot-skills"
 SCENARIOS_PATH = Path(__file__).with_name("scenarios.json")
-STARTER_BOTS_PATH = (
-    REPOSITORY_ROOT
-    / "apps"
-    / "froggybot"
-    / "amplify"
-    / "functions"
-    / "api"
-    / "starter_bots.py"
-)
 
 
 def _json_from_url(url: str) -> dict[str, Any]:
@@ -77,9 +66,13 @@ def _skill_instructions(document: str) -> str:
     return instructions
 
 
-def load_skill_snapshot() -> tuple[str, dict[str, dict[str, Any]]]:
+def load_catalog_snapshot() -> tuple[
+    str,
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
+]:
     catalog = _json_from_url(CATALOG_URL)
-    if catalog.get("schemaVersion") != 2:
+    if catalog.get("schemaVersion") != 3:
         raise ValueError("Unsupported capability catalog schema")
     if catalog.get("repository") != TRUSTED_REPOSITORY:
         raise ValueError("Capability catalog repository is not trusted")
@@ -104,15 +97,15 @@ def load_skill_snapshot() -> tuple[str, dict[str, dict[str, Any]]]:
             "instructions": _skill_instructions(document),
             "requiredToolIds": raw.get("requiredToolIds", []),
         }
-    return release, skills
-
-
-def load_starter_bots() -> dict[str, dict[str, Any]]:
-    namespace = runpy.run_path(str(STARTER_BOTS_PATH))
-    bots = namespace.get("DEFAULT_BOTS")
-    if not isinstance(bots, list):
-        raise TypeError("Starter bot definitions are unavailable")
-    return {bot["id"]: bot for bot in bots}
+    bots: dict[str, dict[str, Any]] = {}
+    for raw in catalog.get("bots", []):
+        if not isinstance(raw, dict):
+            raise TypeError("Capability catalog contains an invalid bot")
+        bot_id = raw.get("id")
+        if not isinstance(bot_id, str) or not bot_id:
+            raise TypeError("Capability catalog bot metadata is invalid")
+        bots[bot_id] = raw
+    return release, skills, bots
 
 
 def load_scenarios(path: Path = SCENARIOS_PATH) -> list[dict[str, Any]]:
@@ -147,6 +140,11 @@ def validate_scenarios(
             or any(not isinstance(item, str) or not item.strip() for item in assertions)
         ):
             raise ValueError(f"{scenario_id} needs non-empty assertions")
+    missing = set(bots) - {
+        scenario["botId"] for scenario in scenarios if isinstance(scenario, dict)
+    }
+    if missing:
+        raise ValueError(f"Missing scenarios for bots: {', '.join(sorted(missing))}")
 
 
 def _selected_skill_snapshot(
@@ -402,7 +400,7 @@ async def judge_scenario(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Compare FroggyBot starter behavior across GLM model variants."
+        description="Compare public FroggyBot behavior across GLM model variants."
     )
     parser.add_argument(
         "--scenario",
@@ -431,9 +429,7 @@ async def async_main(args: argparse.Namespace) -> int:
     if not 0 <= args.min_pass_rate <= 1:
         raise ValueError("Minimum pass rate must be between 0 and 1")
 
-    bots = load_starter_bots()
     scenarios = load_scenarios()
-    validate_scenarios(scenarios, bots)
     if args.scenario:
         requested = set(args.scenario)
         known = {scenario["scenarioId"] for scenario in scenarios}
@@ -449,7 +445,8 @@ async def async_main(args: argparse.Namespace) -> int:
         if not args.variant or variant.name in set(args.variant)
     ]
 
-    catalog_release, skills = await asyncio.to_thread(load_skill_snapshot)
+    catalog_release, skills, bots = await asyncio.to_thread(load_catalog_snapshot)
+    validate_scenarios(scenarios, bots)
     api_key = await _openrouter_api_key()
     semaphore = asyncio.Semaphore(args.concurrency)
     tasks = [

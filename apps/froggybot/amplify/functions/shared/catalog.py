@@ -15,6 +15,7 @@ from .catalog_rules import (
     MAX_TOOLS_PER_BOT,
     CatalogError,
     _now,
+    _public_bot_template,
     _public_skill,
     _public_tool,
     _validate_id,
@@ -55,6 +56,13 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
             ExpressionAttributeValues={":pk": "SYSTEM#TOOLS", ":prefix": "TOOL#"},
         ).get("Items", [])
 
+    def _official_bot_items(self) -> list[dict]:
+        self.sync_official()
+        return self.table.query(
+            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+            ExpressionAttributeValues={":pk": "SYSTEM#BOTS", ":prefix": "BOT#"},
+        ).get("Items", [])
+
     def _available_tool_items(self, user_id: str | None = None) -> list[dict]:
         items = self._official_tool_items()
         if user_id:
@@ -86,12 +94,56 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
             ),
             key=lambda item: (not item.get("featured", False), item["name"].lower()),
         )
+        skill_ids = {skill["id"] for skill in skills}
+        bots = sorted(
+            (
+                _public_bot_template(item)
+                for item in self._official_bot_items()
+                if set(item.get("skillIds", [])).issubset(skill_ids)
+                and set(item.get("toolIds", [])).issubset(tool_ids)
+            ),
+            key=lambda item: (not item.get("featured", False), item["name"].lower()),
+        )
         return {
+            "bots": bots,
             "skills": skills,
             "tools": tools,
             "repositoryUrl": CATALOG_REPOSITORY_URL,
             "contributionUrl": f"{CATALOG_REPOSITORY_URL}/blob/main/CONTRIBUTING.md",
         }
+
+    def list_bot_templates(self, user_id: str) -> list[dict]:
+        available_skill_ids = {skill["id"] for skill in self.list_skills(user_id)}
+        available_tool_ids = {
+            item["id"] for item in self._available_tool_items(user_id)
+        }
+        return sorted(
+            (
+                _public_bot_template(item)
+                for item in self._official_bot_items()
+                if set(item.get("skillIds", [])).issubset(available_skill_ids)
+                and set(item.get("toolIds", [])).issubset(available_tool_ids)
+            ),
+            key=lambda item: (not item.get("featured", False), item["name"].lower()),
+        )
+
+    def get_bot_template(self, template_id: str) -> dict:
+        template_id = _validate_id(template_id, "bot template id")
+        self.sync_official()
+
+        def read() -> dict | None:
+            return self.table.get_item(
+                Key={"pk": "SYSTEM#BOTS", "sk": f"BOT#{template_id}"},
+                ConsistentRead=True,
+            ).get("Item")
+
+        item = read()
+        if not item:
+            self.sync_official(force=True)
+            item = read()
+        if not item:
+            raise CatalogError("Bot template not found")
+        return _public_bot_template(item)
 
     def list_skills(self, user_id: str) -> list[dict]:
         self.sync_official()

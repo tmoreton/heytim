@@ -10,6 +10,7 @@ MAX_SKILLS_PER_BOT = 12
 MAX_TOOLS_PER_BOT = 12
 MAX_SKILL_INSTRUCTIONS = 20_000
 MAX_CATALOG_TAGS = 6
+MAX_BOT_PROMPT = 12_000
 ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 TOOL_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_]{0,63}$")
 RUNTIME_NAME_PATTERN = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]{0,127}$")
@@ -21,6 +22,29 @@ RUNTIME_NAMES = {
     "stan_subagent": {"generalist"},
 }
 TOOL_RISKS = {"read", "sandbox", "interactive"}
+BOT_COLORS = {
+    "#007A3D",
+    "#58BEAA",
+    "#FFAA34",
+    "#6C5CE7",
+    "#3984F6",
+    "#F46A27",
+    "#E95383",
+}
+BOT_CATALOG_FIELDS = {
+    "id",
+    "version",
+    "name",
+    "tagline",
+    "prompt",
+    "color",
+    "category",
+    "author",
+    "tags",
+    "featured",
+    "skillIds",
+    "toolIds",
+}
 GMAIL_MCP_ENDPOINT = "https://gmailmcp.googleapis.com/mcp/v1"
 GMAIL_MCP_TOOLS = {
     "create_draft",
@@ -276,6 +300,25 @@ def _public_tool(item: dict) -> dict:
         "hasCredential",
         "connectionStatus",
         "connectedAccount",
+        "updatedAt",
+    )
+    return {key: item[key] for key in keys if key in item}
+
+
+def _public_bot_template(item: dict) -> dict:
+    keys = (
+        "id",
+        "version",
+        "name",
+        "tagline",
+        "prompt",
+        "color",
+        "skillIds",
+        "toolIds",
+        "category",
+        "author",
+        "tags",
+        "featured",
         "updatedAt",
     )
     return {key: item[key] for key in keys if key in item}

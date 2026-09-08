@@ -7,13 +7,13 @@ from shared.cleanup import has_pending_work
 
 from .attachments import _public_file
 from .bot_documents import _delete_bot_documents, _preserve_bot_documents
-from .starter_bots import (
+from .bot_roles import (
     ALLOWED_COLORS,
     CHIEF_COLOR,
     CHIEF_SYSTEM_ROLE,
     DEFAULT_BOT_COLOR,
-    DEFAULT_BOTS,
 )
+from .bot_setup import ensure_chief, install_bot_template
 from .support import (
     ApiError,
     _bot_sk,
@@ -29,6 +29,12 @@ from .support import (
     catalog,
     table,
 )
+
+LEGACY_BOT_TEMPLATE_IDS = {
+    "starter-trip-planner": "trip-planner",
+    "starter-event-planner": "event-planner",
+    "starter-research-reports": "research-reports",
+}
 
 
 def _list_groups(user_id: str) -> list[dict]:
@@ -181,6 +187,9 @@ def _put_bot(
     if system_role == CHIEF_SYSTEM_ROLE:
         item["systemRole"] = CHIEF_SYSTEM_ROLE
         item["color"] = CHIEF_COLOR
+    for key in ("templateId", "templateVersion"):
+        if key in values:
+            item[key] = values[key]
     table.put_item(Item=item)
     return _public_bot(item)
 
@@ -199,57 +208,13 @@ def _list_bots(user_id: str) -> list[dict]:
 
 
 def _ensure_chief(user_id: str, bots: list[dict]) -> list[dict]:
-    if any(bot.get("systemRole") == CHIEF_SYSTEM_ROLE for bot in bots):
-        return sorted(bots, key=lambda bot: bot.get("systemRole") != CHIEF_SYSTEM_ROLE)
+    return ensure_chief(user_id, bots, _bot_values, _put_bot)
 
-    legacy = next(
-        (bot for bot in bots if str(bot.get("name", "")).strip().casefold() == "chief"),
-        None,
+
+def _install_bot_template(user_id: str, template_id: str) -> dict:
+    return install_bot_template(
+        user_id, template_id, _list_bots, _bot_values, _put_bot
     )
-    if legacy:
-        table.update_item(
-            Key={"pk": _user_pk(user_id), "sk": _bot_sk(legacy["id"])},
-            UpdateExpression="SET systemRole = :role, color = :color, updatedAt = :now",
-            ExpressionAttributeValues={
-                ":role": CHIEF_SYSTEM_ROLE,
-                ":color": CHIEF_COLOR,
-                ":now": _now(),
-            },
-        )
-        return sorted(
-            [
-                {**bot, "systemRole": CHIEF_SYSTEM_ROLE, "color": CHIEF_COLOR}
-                if bot["id"] == legacy["id"]
-                else bot
-                for bot in bots
-            ],
-            key=lambda bot: bot.get("systemRole") != CHIEF_SYSTEM_ROLE,
-        )
-
-    seed = DEFAULT_BOTS[0]
-    chief = _put_bot(
-        user_id,
-        _bot_values(user_id, seed, system_role=CHIEF_SYSTEM_ROLE),
-        system_role=CHIEF_SYSTEM_ROLE,
-    )
-    return [chief, *bots]
-
-
-def _seed_starter_bots(user_id: str) -> list[dict]:
-    seeded = []
-    for seed in DEFAULT_BOTS:
-        role = seed.get("systemRole")
-        values = _bot_values(user_id, seed, system_role=role)
-        values["lastMessage"] = seed["lastMessage"]
-        seeded.append(
-            _put_bot(
-                user_id,
-                values,
-                bot_id=seed["id"],
-                system_role=role,
-            )
-        )
-    return seeded
 
 
 def _list_turns(user_id: str, bot_id: str, limit: int = 100) -> list[dict]:
@@ -348,11 +313,8 @@ def _bootstrap(user_id: str) -> dict:
     initialized = table.get_item(Key=_user_state_key(user_id), ConsistentRead=True).get(
         "Item"
     )
-    bots = (
-        _seed_starter_bots(user_id)
-        if not initialized and not bots
-        else _ensure_chief(user_id, bots)
-    )
+    needs_bot_onboarding = not initialized and not bots
+    bots = _ensure_chief(user_id, bots)
     if not initialized:
         table.put_item(
             Item={
@@ -364,6 +326,24 @@ def _bootstrap(user_id: str) -> dict:
     if bots:
         migrated = []
         for bot in bots:
+            legacy_template_id = LEGACY_BOT_TEMPLATE_IDS.get(bot["id"])
+            if legacy_template_id and not bot.get("templateId"):
+                table.update_item(
+                    Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot["id"])},
+                    UpdateExpression=(
+                        "SET templateId = :templateId, "
+                        "templateVersion = :templateVersion"
+                    ),
+                    ExpressionAttributeValues={
+                        ":templateId": legacy_template_id,
+                        ":templateVersion": 1,
+                    },
+                )
+                bot = {
+                    **bot,
+                    "templateId": legacy_template_id,
+                    "templateVersion": 1,
+                }
             if isinstance(bot.get("skillVersions"), dict) and isinstance(
                 bot.get("extraToolIds"), list
             ):
@@ -401,6 +381,8 @@ def _bootstrap(user_id: str) -> dict:
         bots = migrated
     return {
         "bots": bots,
+        "botTemplates": catalog.list_bot_templates(user_id),
+        "needsBotOnboarding": needs_bot_onboarding,
         "groups": _list_groups(user_id),
         "tools": catalog.list_tools(user_id),
         "skills": catalog.list_skills(user_id),
@@ -419,6 +401,16 @@ def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:
             "createdAt": previous["createdAt"],
             "lastMessage": previous.get("lastMessage", "Ready when you are."),
             "lastMessageAt": previous.get("lastMessageAt", previous["createdAt"]),
+            **(
+                {"templateId": previous["templateId"]}
+                if "templateId" in previous
+                else {}
+            ),
+            **(
+                {"templateVersion": previous["templateVersion"]}
+                if "templateVersion" in previous
+                else {}
+            ),
         }
     )
     if catalog.approval_tool_names(user_id, values["toolIds"]) and _schedule_items(

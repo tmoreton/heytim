@@ -70,6 +70,23 @@ class ApiRoutingTests(unittest.TestCase):
         get_bot.assert_called_once_with("user-1", "bot-1")
         list_documents.assert_called_once_with("user-1", "bot-1")
 
+    def test_bot_template_install_reaches_the_bot_domain(self) -> None:
+        installed = {"id": "installed-bot", "templateId": "decision-coach"}
+        with patch.object(
+            self.routes, "_install_bot_template", return_value=installed
+        ) as install:
+            response = self.routes.route_authenticated(
+                "user-1",
+                "Tim",
+                "POST",
+                "/bot-templates/decision-coach/install",
+                {"templateId": "decision-coach"},
+                {},
+            )
+
+        self.assertEqual(response["statusCode"], 201)
+        install.assert_called_once_with("user-1", "decision-coach")
+
     def test_unknown_authenticated_route_returns_not_found(self) -> None:
         with self.assertRaises(self.support.ApiError) as error:
             self.routes.route_authenticated("user-1", "Tim", "GET", "/unknown", {}, {})
