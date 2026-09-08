@@ -7,6 +7,7 @@
     {"id": "chief", "name": "Chief", "tagline": "Coordinates.", "isCurrent": true},
     {"id": "builder", "name": "Builder", "tagline": "Builds.", "isCurrent": false}
   ],
+  "decisions": [],
   "round": {
     "position": 1,
     "size": 3,

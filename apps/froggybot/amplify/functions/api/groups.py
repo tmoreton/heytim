@@ -7,6 +7,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from boto3.dynamodb.conditions import Attr
 from shared.cleanup import has_pending_work, purge_group
 from shared.invites import invite_token_hash, invite_url
 from shared.memory_identity import group_memory_actor_id
@@ -42,7 +43,7 @@ def _group_items(group_id: str) -> list[dict]:
         Key={"pk": _group_pk(group_id), "sk": "META"}, ConsistentRead=True
     ).get("Item")
     items = [meta] if meta else []
-    for prefix in ("BOT#", "USER#"):
+    for prefix in ("BOT#", "USER#", "DECISION#"):
         items.extend(
             table.query(
                 KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
@@ -108,6 +109,23 @@ def _public_group(user_id: str, group_id: str, items: list[dict] | None = None) 
             item["name"].lower(),
         ),
     )
+    decisions = sorted(
+        (
+            {
+                "id": item["id"],
+                "text": item["text"],
+                "sourceMessageId": item["sourceMessageId"],
+                "sourceAuthorName": item.get("sourceAuthorName", "FroggyBot"),
+                "createdById": item["createdById"],
+                "createdByName": item.get("createdByName", "Group member"),
+                "createdAt": item["createdAt"],
+            }
+            for item in items
+            if item.get("entity") == "GROUP_DECISION"
+        ),
+        key=lambda item: item["createdAt"],
+        reverse=True,
+    )
     return {
         "id": meta["id"],
         "name": meta["name"],
@@ -131,7 +149,97 @@ def _public_group(user_id: str, group_id: str, items: list[dict] | None = None) 
         "lastMessageAt": meta.get("lastMessageAt", meta["createdAt"]),
         "members": members,
         "bots": bots,
+        "decisions": decisions,
     }
+
+
+def _public_decision(item: dict) -> dict:
+    return {
+        key: item[key]
+        for key in (
+            "id",
+            "text",
+            "sourceMessageId",
+            "sourceAuthorName",
+            "createdById",
+            "createdByName",
+            "createdAt",
+        )
+    }
+
+
+def _save_group_decision(
+    user_id: str, display_name: str, group_id: str, value: dict
+) -> dict:
+    _, items = _require_group_member(user_id, group_id)
+    message_id = _validate_string(value.get("messageId"), "messageId", 64)
+    existing = next(
+        (
+            item
+            for item in items
+            if item.get("entity") == "GROUP_DECISION"
+            and item.get("sourceMessageId") == message_id
+        ),
+        None,
+    )
+    if existing:
+        return _public_decision(existing)
+    source = next(
+        (
+            item
+            for item in _partition_items(_group_pk(group_id), "MESSAGE#")
+            if item.get("id") == message_id
+        ),
+        None,
+    )
+    if (
+        not source
+        or source.get("authorType") != "bot"
+        or source.get("status") != "COMPLETE"
+        or not isinstance(source.get("text"), str)
+        or not source["text"].strip()
+    ):
+        raise ApiError(400, "Only a completed FroggyBot answer can be saved as a decision")
+    decision_id = message_id
+    decision = {
+        "pk": _group_pk(group_id),
+        "sk": f"DECISION#{decision_id}",
+        "entity": "GROUP_DECISION",
+        "id": decision_id,
+        "text": source["text"].strip()[:4_000],
+        "sourceMessageId": message_id,
+        "sourceAuthorName": str(source.get("authorName", "FroggyBot"))[:60],
+        "createdById": user_id,
+        "createdByName": display_name[:60],
+        "createdAt": _now(),
+    }
+    try:
+        table.put_item(Item=decision, ConditionExpression=Attr("pk").not_exists())
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        winner = table.get_item(
+            Key={"pk": _group_pk(group_id), "sk": f"DECISION#{decision_id}"},
+            ConsistentRead=True,
+        ).get("Item")
+        if winner:
+            return _public_decision(winner)
+        raise
+    return _public_decision(decision)
+
+
+def _delete_group_decision(user_id: str, group_id: str, decision_id: str) -> dict:
+    meta, _ = _require_group_member(user_id, group_id)
+    decision_id = _validate_string(decision_id, "decisionId", 64)
+    key = {"pk": _group_pk(group_id), "sk": f"DECISION#{decision_id}"}
+    decision = table.get_item(Key=key, ConsistentRead=True).get("Item")
+    if not decision or decision.get("entity") != "GROUP_DECISION":
+        raise ApiError(404, "Decision not found")
+    if decision.get("createdById") != user_id and meta.get("ownerId") != user_id:
+        raise ApiError(
+            403,
+            "Only the person who saved this decision or the group owner can remove it",
+        )
+    table.delete_item(Key=key)
+    return {"deleted": True}
 
 
 def _list_groups(user_id: str) -> list[dict]:
@@ -375,6 +483,10 @@ def _delete_group(user_id: str, group_id: str) -> dict:
         raise ApiError(
             409, "Wait for the FroggyBots to finish before deleting this group"
         )
+    from .group_schedules import _delete_group_schedule, _list_group_schedules
+
+    for task in _list_group_schedules(user_id, group_id):
+        _delete_group_schedule(user_id, group_id, task["id"])
     _purge_group(group_id, items)
     return {"deleted": True}
 

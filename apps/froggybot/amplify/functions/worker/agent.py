@@ -9,7 +9,11 @@ from shared.agent_stream import ProgressCallback, read_agent_stream
 from shared.group_chat import group_history_from_items, group_runtime_context
 from shared.memory_identity import direct_session_id, memory_actor_id, scoped_session_id
 
-from .artifacts import _attachment_blocks, _generated_artifact_prefix
+from .artifacts import (
+    _attachment_blocks,
+    _generated_artifact_prefix,
+    _group_attachment_blocks,
+)
 from .support import (
     AGENT_RUNTIME_ARN,
     AGENT_RUNTIME_QUALIFIER,
@@ -74,7 +78,9 @@ def _get_history(
     return messages
 
 
-def _get_group_history(group_id: str, bot_id: str) -> list[dict]:
+def _get_group_history(
+    group_id: str, bot_id: str, current_message_id: str | None = None
+) -> list[dict]:
     items = table.query(
         KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
         ExpressionAttributeValues={":pk": _group_pk(group_id), ":prefix": "MESSAGE#"},
@@ -82,7 +88,16 @@ def _get_group_history(group_id: str, bot_id: str) -> list[dict]:
         Limit=40,
         ConsistentRead=True,
     ).get("Items", [])
-    return group_history_from_items(items, bot_id)
+    history = group_history_from_items(items, bot_id)
+    if current_message_id:
+        message = next(
+            (item for item in items if item.get("id") == current_message_id), None
+        )
+        if message and history and history[-1].get("role") == "user":
+            history[-1]["content"].extend(
+                _group_attachment_blocks(message, group_id)
+            )
+    return history
 
 
 def _get_group_context(
@@ -99,7 +114,7 @@ def _get_group_context(
     if not meta:
         raise ValueError("Group no longer exists")
     items = [meta]
-    for prefix in ("BOT#", "USER#"):
+    for prefix in ("BOT#", "USER#", "DECISION#"):
         items.extend(
             table.query(
                 KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
@@ -164,6 +179,7 @@ def _invoke(
     session_scope: str | None = None,
     event_id: str | None = None,
     artifact_prefix: str | None = None,
+    attachment_prefix: str | None = None,
     group_context: dict | None = None,
     memory: dict | None = None,
     continuation: list[dict] | None = None,
@@ -224,6 +240,8 @@ def _invoke(
         }
     if group_context is not None:
         payload["group"] = group_context
+    if attachment_prefix is not None:
+        payload["attachmentPrefix"] = attachment_prefix
     normalized_continuation = _continuation_payload(continuation)
     if normalized_continuation:
         payload["continuation"] = normalized_continuation

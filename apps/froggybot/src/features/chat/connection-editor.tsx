@@ -78,7 +78,7 @@ export function ConnectionEditor({
         value={draft.name}
         onChangeText={(name) => onChange({ ...draft, name })}
         placeholder="My notes"
-        placeholderTextColor="#9B978F"
+        placeholderTextColor="#6E6A62"
         maxLength={80}
       />
 
@@ -89,7 +89,7 @@ export function ConnectionEditor({
         value={draft.description}
         onChangeText={(description) => onChange({ ...draft, description })}
         placeholder="Search and update my notes"
-        placeholderTextColor="#9B978F"
+        placeholderTextColor="#6E6A62"
         maxLength={240}
       />
 
@@ -101,7 +101,7 @@ export function ConnectionEditor({
         value={draft.endpoint}
         onChangeText={(endpoint) => onChange({ ...draft, endpoint })}
         placeholder="https://mcp.example.com/mcp"
-        placeholderTextColor="#9B978F"
+        placeholderTextColor="#6E6A62"
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType="url"
@@ -119,6 +119,7 @@ export function ConnectionEditor({
             key={value}
             accessibilityRole="radio"
             accessibilityState={{ checked: draft.authType === value }}
+            aria-checked={draft.authType === value}
             style={[styles.choice, draft.authType === value && styles.choiceActive]}
             onPress={() => onChange({ ...draft, authType: value })}>
             <Text style={[styles.choiceText, draft.authType === value && styles.choiceTextActive]}>{label}</Text>
@@ -135,7 +136,7 @@ export function ConnectionEditor({
             value={draft.headerName}
             onChangeText={(headerName) => onChange({ ...draft, headerName })}
             placeholder="X-API-Key"
-            placeholderTextColor="#9B978F"
+            placeholderTextColor="#6E6A62"
             autoCapitalize="none"
             autoCorrect={false}
             maxLength={64}
@@ -157,7 +158,7 @@ export function ConnectionEditor({
             value={draft.credential}
             onChangeText={(credential) => onChange({ ...draft, credential })}
             placeholder={connection?.hasCredential ? 'Current credential is hidden' : 'Paste credential'}
-            placeholderTextColor="#9B978F"
+            placeholderTextColor="#6E6A62"
             autoCapitalize="none"
             autoCorrect={false}
             secureTextEntry
@@ -180,6 +181,7 @@ export function ConnectionEditor({
             key={value}
             accessibilityRole="radio"
             accessibilityState={{ checked: draft.risk === value }}
+            aria-checked={draft.risk === value}
             style={[styles.accessChoice, draft.risk === value && styles.accessChoiceActive]}
             onPress={() => onChange({ ...draft, risk: value })}>
             <Text style={styles.accessTitle}>{label}</Text>
@@ -206,7 +208,7 @@ const styles = StyleSheet.create({
   oauthAccount: { color: '#007A3D', fontSize: 14, fontWeight: '700', marginTop: 5 },
   oauthText: { color: '#527060', fontSize: 13, lineHeight: 20, marginTop: 10 },
   label: { color: '#24231F', fontSize: 14, fontWeight: '700', marginTop: 20, marginBottom: 8 },
-  help: { color: '#858179', fontSize: 12, lineHeight: 17, marginTop: -4, marginBottom: 9 },
+  help: { color: '#6E6A62', fontSize: 12, lineHeight: 17, marginTop: -4, marginBottom: 9 },
   input: { minHeight: 48, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: '#DDDAD2', backgroundColor: 'white', color: '#24231F', fontSize: 15 },
   choices: { flexDirection: 'row', gap: 7 },
   choice: { flex: 1, minHeight: 42, paddingHorizontal: 6, borderRadius: 12, borderWidth: 1, borderColor: '#DDDAD2', alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' },

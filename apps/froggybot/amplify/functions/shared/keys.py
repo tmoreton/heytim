@@ -29,6 +29,10 @@ def group_pk(group_id: str) -> str:
     return f"GROUP#{group_id}"
 
 
+def group_message_sk(created_at: str, message_id: str, order: int = 0) -> str:
+    return f"MESSAGE#{created_at}#{order:02d}#{message_id}"
+
+
 def push_token_key(user_id: str, token_id: str) -> dict[str, str]:
     return {"pk": user_pk(user_id), "sk": f"PUSH#{token_id}"}
 

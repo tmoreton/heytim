@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import urllib.parse
 import uuid
 from datetime import UTC, datetime
@@ -22,6 +23,8 @@ from .support import (
     s3,
     table,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _attachment_spec(filename: Any, size: Any) -> dict:
@@ -191,6 +194,59 @@ def _resolve_attachments(user_id: str, value: Any) -> list[dict]:
         }
         for item in attachments
     ]
+
+
+def _resolve_group_attachments(
+    user_id: str, group_id: str, value: Any
+) -> list[dict]:
+    """Copy caller-owned uploads into the room before sharing them with members."""
+    if not FILES_BUCKET_NAME:
+        raise ApiError(503, "File uploads are not configured")
+    try:
+        uuid.UUID(group_id)
+    except (ValueError, AttributeError) as exc:
+        raise ApiError(400, "groupId is invalid") from exc
+    attachments = _resolve_attachments(user_id, value)
+    copied_keys: list[str] = []
+    group_attachments: list[dict] = []
+    try:
+        for item in attachments:
+            extension = (
+                f".{item['name'].rsplit('.', 1)[-1].lower()}"
+                if "." in item["name"]
+                else ""
+            )
+            object_key = f"groups/{group_id}/uploads/{item['id']}{extension}"
+            s3.copy_object(
+                Bucket=FILES_BUCKET_NAME,
+                CopySource={"Bucket": FILES_BUCKET_NAME, "Key": item["objectKey"]},
+                Key=object_key,
+                ContentType=item["contentType"],
+                MetadataDirective="REPLACE",
+                ServerSideEncryption="AES256",
+            )
+            copied_keys.append(object_key)
+            group_attachments.append(
+                {
+                    **item,
+                    "pk": _group_pk(group_id),
+                    "sk": f"FILE#{item['id']}",
+                    "entity": "FILE",
+                    "status": "READY",
+                    "source": "uploaded",
+                    "uploadedBy": user_id,
+                    "objectKey": object_key,
+                    "readyAt": _now(),
+                }
+            )
+    except Exception:
+        for object_key in copied_keys:
+            try:
+                s3.delete_object(Bucket=FILES_BUCKET_NAME, Key=object_key)
+            except Exception:
+                logger.warning("Could not remove a partially copied group attachment", exc_info=True)
+        raise
+    return group_attachments
 
 
 def _download_file(user_id: str, file_id: str) -> dict:

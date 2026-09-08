@@ -56,7 +56,7 @@ export function ConversationHeader({
         <>
           <GroupAvatar group={group} size={34} />
           <Identity name={group.name} status={status} />
-          <HeaderAction label="Details" onPress={onEditGroup} />
+          <HeaderAction label="Context" onPress={onEditGroup} />
         </>
       ) : bot ? (
         <>

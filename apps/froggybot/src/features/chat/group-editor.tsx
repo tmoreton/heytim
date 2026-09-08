@@ -16,6 +16,7 @@ import { ActionSheet } from '@/components/action-sheet';
 import { BotAvatar } from '@/components/bot-avatar';
 import { PageSheet } from '@/components/page-sheet';
 import { GroupAvatar, PersonAvatar } from '@/components/participant-avatar';
+import { messagePreview } from '@/lib/message-preview';
 import type { Bot, Group, GroupDraft, GroupMember, MemoryRecord, MemorySnapshot } from '@/lib/types';
 
 import { MemorySettings } from './memory-settings';
@@ -28,6 +29,7 @@ type Props = {
   onShare: () => Promise<string>;
   onRemoveMember: (member: GroupMember) => Promise<void>;
   onDelete: () => Promise<void>;
+  onDeleteDecision: (decisionId: string) => Promise<void>;
   onLoadMemory: (groupId: string) => Promise<MemorySnapshot>;
   onCreateMemory: (groupId: string, content: string) => Promise<MemoryRecord>;
   onUpdateMemory: (groupId: string, recordId: string, content: string) => Promise<MemoryRecord>;
@@ -42,6 +44,7 @@ export function GroupEditor({
   onShare,
   onRemoveMember,
   onDelete,
+  onDeleteDecision,
   onLoadMemory,
   onCreateMemory,
   onUpdateMemory,
@@ -65,6 +68,7 @@ export function GroupEditor({
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [memoryManagerOpen, setMemoryManagerOpen] = useState(false);
+  const [deletingDecisionId, setDeletingDecisionId] = useState<string>();
   const displayedBots = editable ? bots : (group?.bots ?? []);
 
   const save = async () => {
@@ -149,13 +153,13 @@ export function GroupEditor({
   }
 
   return (
-    <PageSheet onClose={onClose}>
+    <PageSheet accessibilityLabel={group ? `${group.name} room context` : 'Create a group'} onClose={onClose}>
       <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
           <Pressable accessibilityRole="button" hitSlop={12} onPress={onClose}>
             <Text style={styles.headerAction}>{editable ? 'Cancel' : 'Done'}</Text>
           </Pressable>
-          <Text style={styles.title}>{group ? 'Group details' : 'New group'}</Text>
+          <Text style={styles.title}>{group ? 'Room context' : 'New group'}</Text>
           {editable ? (
             <Pressable accessibilityRole="button" accessibilityState={{ busy: saving, disabled: saving }} hitSlop={12} disabled={saving} onPress={save}>
               {saving ? <ActivityIndicator color="#007A3D" /> : <Text style={[styles.headerAction, styles.save]}>Save</Text>}
@@ -176,7 +180,7 @@ export function GroupEditor({
                   value={name}
                   onChangeText={setName}
                   placeholder="Group name"
-                  placeholderTextColor="#A4A098"
+                  placeholderTextColor="#6E6A62"
                   maxLength={64}
                 />
               ) : (
@@ -212,17 +216,17 @@ export function GroupEditor({
           ) : null}
 
           <View style={styles.memoryCard}>
-            <Text style={styles.memoryTitle}>Pinned group notebook</Text>
+            <Text style={styles.memoryTitle}>Pinned facts</Text>
             <Text style={styles.memorySubtitle}>
-              Goals and standing decisions always shown to every bot. Everyone can see it; the owner can edit it.
+              Goals, constraints, and accepted decisions shown to every specialist. Everyone can see them; the owner can edit them.
             </Text>
             {editable ? (
               <TextInput
-                accessibilityLabel="Shared group memory"
+                accessibilityLabel="Pinned room facts"
                 multiline
                 maxLength={4000}
                 placeholder="Example: We are planning a four-day trip in October. Keep the total under $1,200 per person and always include vegetarian options."
-                placeholderTextColor="#A19D95"
+                placeholderTextColor="#6E6A62"
                 style={styles.memoryInput}
                 textAlignVertical="top"
                 value={memory}
@@ -230,7 +234,7 @@ export function GroupEditor({
               />
             ) : (
               <Text style={[styles.memoryValue, !memory && styles.memoryEmpty]}>
-                {memory || 'The owner has not added shared memory yet.'}
+                {memory || 'The owner has not pinned any room facts yet.'}
               </Text>
             )}
             {editable ? <Text style={styles.memoryCount}>{memory.length.toLocaleString()} / 4,000</Text> : null}
@@ -245,14 +249,45 @@ export function GroupEditor({
                 style={({ pressed }) => [styles.memoryManageButton, pressed && styles.pressed]}
                 onPress={() => setMemoryManagerOpen(true)}>
                 <Text style={styles.memoryManageText}>
-                  {group.isOwner ? 'Manage learned group memory' : 'View learned group memory'}
+                  {group.isOwner ? 'Manage what FroggyBot learned' : 'View what FroggyBot learned'}
                 </Text>
               </Pressable>
             ) : null}
           </View>
 
-          <Text style={styles.label}>FroggyBots</Text>
-          <Text style={styles.sectionSubtitle}>Pick the bots people can ask to join the conversation.</Text>
+          {group ? (
+            <View style={styles.decisionCard}>
+              <Text style={styles.memoryTitle}>Decisions</Text>
+              <Text style={styles.memorySubtitle}>Accepted team answers saved by people in this room.</Text>
+              {group.decisions.length ? group.decisions.map((decision) => (
+                <View key={decision.id} style={styles.decisionRow}>
+                  <View style={styles.rowText}>
+                    <Text style={styles.decisionText}>{messagePreview(decision.text, 220)}</Text>
+                    <Text style={styles.memoryMeta}>
+                      From {decision.sourceAuthorName} · saved by {decision.createdByName} · {new Date(decision.createdAt).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  {group.isOwner || decision.createdById === group.currentUserId ? (
+                    <Pressable
+                      accessibilityLabel={`Remove decision saved by ${decision.createdByName}`}
+                      accessibilityRole="button"
+                      disabled={deletingDecisionId === decision.id}
+                      onPress={() => {
+                        setDeletingDecisionId(decision.id);
+                        void onDeleteDecision(decision.id)
+                          .catch((value) => setError(value instanceof Error ? value.message : 'Could not remove the decision.'))
+                          .finally(() => setDeletingDecisionId(undefined));
+                      }}>
+                      <Text style={styles.removeText}>{deletingDecisionId === decision.id ? 'Removing…' : 'Remove'}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              )) : <Text style={styles.memoryEmpty}>Save a final team answer to keep the decision here.</Text>}
+            </View>
+          ) : null}
+
+          <Text style={styles.label}>Specialists</Text>
+          <Text style={styles.sectionSubtitle}>Choose the FroggyBots people can bring into this room. Files attached to messages stay scoped to current room members.</Text>
           {displayedBots.map((bot) => {
             const active = botIds.includes(bot.id);
             const availableToEdit = editable && bot.systemRole !== 'chief';
@@ -261,6 +296,7 @@ export function GroupEditor({
                 key={bot.id}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: active, disabled: !availableToEdit }}
+                aria-checked={active}
                 disabled={!availableToEdit}
                 style={[styles.row, active && styles.rowActive]}
                 onPress={() => setBotIds((current) => (active ? current.filter((id) => id !== bot.id) : [...current, bot.id]))}>
@@ -353,7 +389,7 @@ const styles = StyleSheet.create({
   identityText: { flex: 1, gap: 5 },
   nameInput: { fontSize: 23, fontWeight: '700', color: '#171714', padding: 0 },
   groupName: { fontSize: 23, fontWeight: '700', color: '#171714' },
-  groupMeta: { color: '#7B776F', fontSize: 13 },
+  groupMeta: { color: '#6E6A62', fontSize: 13 },
   newGroupMark: { width: 62, height: 62, borderRadius: 22, backgroundColor: '#DCEDE4', alignItems: 'center', justifyContent: 'center' },
   newGroupMarkText: { color: '#007A3D', fontSize: 24, fontWeight: '900' },
   inviteCard: { backgroundColor: '#EAF5EF', borderWidth: 1, borderColor: '#C9E2D4', borderRadius: 20, padding: 15, marginBottom: 28 },
@@ -370,19 +406,22 @@ const styles = StyleSheet.create({
   memorySubtitle: { color: '#77736B', fontSize: 12, lineHeight: 18, marginTop: 4 },
   memoryInput: { minHeight: 128, borderWidth: 1, borderColor: '#DEDAD1', borderRadius: 14, backgroundColor: '#FAFAF7', color: '#292822', fontSize: 14, lineHeight: 20, paddingHorizontal: 12, paddingVertical: 11, marginTop: 12 },
   memoryValue: { color: '#35332D', fontSize: 14, lineHeight: 21, marginTop: 12 },
-  memoryEmpty: { color: '#98948B', fontStyle: 'italic' },
-  memoryCount: { alignSelf: 'flex-end', color: '#9A968E', fontSize: 10, marginTop: 6 },
-  memoryMeta: { color: '#98948B', fontSize: 11, marginTop: 8 },
+  memoryEmpty: { color: '#6E6A62', fontStyle: 'italic' },
+  memoryCount: { alignSelf: 'flex-end', color: '#6E6A62', fontSize: 10, marginTop: 6 },
+  memoryMeta: { color: '#6E6A62', fontSize: 11, marginTop: 8 },
   memoryManageButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#E8F3ED', marginTop: 12 },
   memoryManageText: { color: '#007A3D', fontSize: 13, fontWeight: '700' },
+  decisionCard: { borderWidth: 1, borderColor: '#C9E2D4', borderRadius: 20, backgroundColor: '#F4FAF6', padding: 15, marginBottom: 28 },
+  decisionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 12, marginTop: 10, borderTopWidth: 1, borderColor: '#D7E7DC' },
+  decisionText: { color: '#2C342F', fontSize: 13, lineHeight: 19, fontWeight: '600' },
   label: { fontSize: 14, fontWeight: '700', color: '#24231F', marginBottom: 5 },
   peopleLabel: { marginTop: 27 },
-  sectionSubtitle: { color: '#858179', fontSize: 13, marginBottom: 11 },
+  sectionSubtitle: { color: '#6E6A62', fontSize: 13, marginBottom: 11 },
   row: { minHeight: 62, flexDirection: 'row', gap: 11, alignItems: 'center', paddingHorizontal: 12, paddingVertical: 9, borderRadius: 14, marginBottom: 7, backgroundColor: 'white', borderWidth: 1, borderColor: '#E4E1DA' },
   rowActive: { borderColor: '#8AB99F', backgroundColor: '#EAF5EF' },
   rowText: { flex: 1, minWidth: 0 },
   rowTitle: { color: '#24231F', fontSize: 15, fontWeight: '600' },
-  rowSubtitle: { color: '#858179', fontSize: 12, marginTop: 2 },
+  rowSubtitle: { color: '#6E6A62', fontSize: 12, marginTop: 2 },
   check: { width: 22, height: 22, borderRadius: 7, borderWidth: 1, borderColor: '#C9C5BD', alignItems: 'center' },
   checkActive: { backgroundColor: '#007A3D', borderColor: '#007A3D' },
   checkMark: { color: 'white', fontSize: 14, fontWeight: '800' },

@@ -102,7 +102,7 @@ export function SkillForm({ draft, tools, onChange }: {
         value={draft.name}
         onChangeText={(name) => onChange({ ...draft, name })}
         placeholder="Customer interview analyst"
-        placeholderTextColor="#9B978F"
+        placeholderTextColor="#6E6A62"
         maxLength={80}
       />
       <Text style={styles.fieldLabel}>When should the bot use it?</Text>
@@ -112,7 +112,7 @@ export function SkillForm({ draft, tools, onChange }: {
         value={draft.description}
         onChangeText={(description) => onChange({ ...draft, description })}
         placeholder="Analyze interview notes and identify recurring themes"
-        placeholderTextColor="#9B978F"
+        placeholderTextColor="#6E6A62"
         maxLength={240}
       />
       <Text style={styles.fieldLabel}>Full instructions</Text>
@@ -123,7 +123,7 @@ export function SkillForm({ draft, tools, onChange }: {
         value={draft.instructions}
         onChangeText={(instructions) => onChange({ ...draft, instructions })}
         placeholder="1. Identify the decision…\n2. Group evidence into themes…\n3. Return findings with confidence and gaps…"
-        placeholderTextColor="#9B978F"
+        placeholderTextColor="#6E6A62"
         maxLength={20000}
         multiline
         textAlignVertical="top"
@@ -138,6 +138,7 @@ export function SkillForm({ draft, tools, onChange }: {
             key={tool.id}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: active }}
+            aria-checked={active}
             style={[styles.toolRow, active && styles.toolRowActive]}
             onPress={() => toggleTool(tool.id)}>
             <View style={[styles.check, active && styles.checkActive]}>{active ? <Text style={styles.checkText}>✓</Text> : null}</View>
@@ -155,6 +156,7 @@ export function SkillForm({ draft, tools, onChange }: {
             key={visibility}
             accessibilityRole="radio"
             accessibilityState={{ checked: draft.visibility === visibility }}
+            aria-checked={draft.visibility === visibility}
             style={[styles.visibilityChoice, draft.visibility === visibility && styles.visibilityChoiceActive]}
             onPress={() => onChange({ ...draft, visibility })}>
             <Text style={[styles.visibilityText, draft.visibility === visibility && styles.visibilityTextActive]}>

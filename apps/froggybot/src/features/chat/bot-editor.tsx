@@ -78,6 +78,7 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
   const [skillDetails, setSkillDetails] = useState<Record<string, SkillDetail>>({});
   const [expandedSkillId, setExpandedSkillId] = useState<string>();
   const [loadingSkillId, setLoadingSkillId] = useState<string>();
+  const [advanced, setAdvanced] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const chief = bot?.systemRole === 'chief';
@@ -162,7 +163,7 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
   };
 
   return (
-    <PageSheet onClose={onClose}>
+    <PageSheet accessibilityLabel={bot ? `Edit ${bot.name}` : 'Create a FroggyBot'} onClose={onClose}>
       <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
           <Pressable accessibilityRole="button" hitSlop={12} onPress={onClose}>
@@ -195,7 +196,7 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
                 value={draft.name}
                 onChangeText={(name) => setDraft((value) => ({ ...value, name }))}
                 placeholder="Bot name"
-                placeholderTextColor="#A4A098"
+                placeholderTextColor="#6E6A62"
                 maxLength={48}
               />
               <TextInput
@@ -204,7 +205,7 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
                 value={draft.tagline}
                 onChangeText={(tagline) => setDraft((value) => ({ ...value, tagline }))}
                 placeholder="What this bot is best at"
-                placeholderTextColor="#A4A098"
+                placeholderTextColor="#6E6A62"
                 maxLength={120}
               />
             </View>
@@ -228,24 +229,38 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
             {chief ? 'Chief always uses FroggyBot green.' : 'FroggyBot green is reserved for Chief.'}
           </Text>
 
-          <Text style={styles.label}>Bot prompt</Text>
+          <Text style={styles.label}>What should this bot help with?</Text>
           <Text style={styles.sectionSubtitle}>
-            Editable any time. Include the accounts or handles it should follow, plus its role, priorities, tone, and
-            boundaries.
+            Describe its role, the result it should produce, and any boundaries that always matter.
           </Text>
           <TextInput
             accessibilityLabel="Full bot prompt"
             style={styles.promptInput}
             value={draft.prompt}
             onChangeText={(prompt) => setDraft((value) => ({ ...value, prompt }))}
-            placeholder="Act as my… Focus on account @… Always… Never… Keep responses…"
-            placeholderTextColor="#A4A098"
+            placeholder="Help our group… Always include… Never… Keep responses…"
+            placeholderTextColor="#6E6A62"
             multiline
             textAlignVertical="top"
             maxLength={12000}
           />
           <Text style={styles.characterCount}>{draft.prompt.length.toLocaleString()} / 12,000</Text>
 
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: advanced }}
+            style={styles.advancedToggle}
+            onPress={() => setAdvanced((value) => !value)}>
+            <View style={styles.advancedToggleCopy}>
+              <Text style={styles.advancedToggleTitle}>{advanced ? 'Hide advanced settings' : 'Show advanced settings'}</Text>
+              <Text style={styles.advancedToggleText}>
+                {draft.skillIds.length} skills · {effectiveToolCount} tools selected
+              </Text>
+            </View>
+            <Text style={styles.advancedChevron}>{advanced ? '⌃' : '⌄'}</Text>
+          </Pressable>
+
+          {advanced ? <>
           <View style={styles.guide}>
             <Text style={styles.guideTitle}>What happens when you chat</Text>
             <Text style={styles.guideText}>The prompt is always active. The model then chooses a matching skill and calls its full instructions. It uses an available tool only when the request needs it.</Text>
@@ -290,17 +305,13 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
             return (
               <View key={skill.id} style={[styles.capability, active && styles.capabilityActive]}>
                 <View style={styles.capabilityTop}>
-                  <Pressable
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: active }}
-                    hitSlop={8}
-                    style={[styles.check, active && styles.checkActive]}
-                    onPress={() => toggleSkill(skill.id)}>
+                  <View style={[styles.check, active && styles.checkActive]}>
                     {active ? <Text style={styles.checkMark}>✓</Text> : null}
-                  </Pressable>
+                  </View>
                   <Pressable
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: active }}
+                    aria-checked={active}
                     style={styles.capabilityText}
                     onPress={() => toggleSkill(skill.id)}>
                     <Text style={styles.capabilityName}>{skill.name}</Text>
@@ -356,6 +367,7 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
                 key={tool.id}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: active, disabled: required }}
+                aria-checked={active}
                 disabled={required}
                 style={[styles.tool, active && styles.capabilityActive, required && styles.requiredTool]}
                 onPress={() => toggleTool(tool.id)}>
@@ -370,6 +382,16 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
               </Pressable>
             );
           })}
+          </> : (
+            <View style={styles.quickNote}>
+              <Text style={styles.quickNoteTitle}>Ready with safe defaults</Text>
+              <Text style={styles.quickNoteText}>
+                {bot
+                  ? 'Existing skills and tools stay attached. Open advanced settings only when you want to change how this bot works.'
+                  : 'Start with a clear outcome. You can add specialist playbooks and tools later in advanced settings.'}
+              </Text>
+            </View>
+          )}
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -397,7 +419,15 @@ const styles = StyleSheet.create({
   colorSelected: { borderColor: '#007A3D' },
   colorNote: { marginTop: 0, marginBottom: 26 },
   promptInput: { minHeight: 190, padding: 15, borderRadius: 15, borderWidth: 1, borderColor: '#DDDAD2', backgroundColor: 'white', color: '#24231F', fontSize: 15, lineHeight: 21 },
-  characterCount: { color: '#9B978F', fontSize: 11, textAlign: 'right', marginTop: 5 },
+  characterCount: { color: '#6E6A62', fontSize: 11, textAlign: 'right', marginTop: 5 },
+  advancedToggle: { minHeight: 62, marginTop: 20, paddingHorizontal: 15, paddingVertical: 11, borderRadius: 15, borderWidth: 1, borderColor: '#D8D4CB', backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 12 },
+  advancedToggleCopy: { flex: 1 },
+  advancedToggleTitle: { color: '#263A2F', fontSize: 14, fontWeight: '800' },
+  advancedToggleText: { color: '#6E6A62', fontSize: 11, marginTop: 3 },
+  advancedChevron: { color: '#007A3D', fontSize: 20, fontWeight: '700' },
+  quickNote: { padding: 14, borderRadius: 15, backgroundColor: '#EEF4F0', marginTop: 12 },
+  quickNoteTitle: { color: '#2C4939', fontSize: 13, fontWeight: '800' },
+  quickNoteText: { color: '#5C6E64', fontSize: 12, lineHeight: 17, marginTop: 3 },
   guide: { padding: 16, borderRadius: 17, backgroundColor: '#E9F4EE', borderWidth: 1, borderColor: '#CBE2D5', marginTop: 24 },
   guideTitle: { color: '#173E2A', fontSize: 15, fontWeight: '800' },
   guideText: { color: '#567162', fontSize: 13, lineHeight: 19, marginTop: 5 },
@@ -409,7 +439,7 @@ const styles = StyleSheet.create({
   alwaysAllowedName: { flex: 1, color: '#2B4435', fontSize: 13, fontWeight: '700' },
   requireApproval: { color: '#A0493D', fontSize: 12, fontWeight: '700' },
   sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginTop: 28 },
-  sectionSubtitle: { color: '#858179', fontSize: 13, lineHeight: 18, marginTop: -4, marginBottom: 10 },
+  sectionSubtitle: { color: '#6E6A62', fontSize: 13, lineHeight: 18, marginTop: -4, marginBottom: 10 },
   count: { color: '#007A3D', fontSize: 11, fontWeight: '700', marginTop: 2 },
   capability: { padding: 13, borderRadius: 14, marginBottom: 8, backgroundColor: 'white', borderWidth: 1, borderColor: '#E4E1DA' },
   capabilityTop: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
@@ -422,7 +452,7 @@ const styles = StyleSheet.create({
   capabilityText: { flex: 1, minWidth: 0 },
   capabilityName: { fontSize: 15, color: '#24231F', fontWeight: '700' },
   capabilityDescription: { fontSize: 13, lineHeight: 18, color: '#77736B', marginTop: 2 },
-  capabilityMeta: { fontSize: 10.5, lineHeight: 15, color: '#99958C', marginTop: 5 },
+  capabilityMeta: { fontSize: 10.5, lineHeight: 15, color: '#6E6A62', marginTop: 5 },
   requiredMeta: { color: '#007A3D', fontWeight: '700' },
   detailsButton: { minWidth: 46, minHeight: 30, alignItems: 'center', justifyContent: 'center' },
   detailsButtonText: { color: '#007A3D', fontSize: 12, fontWeight: '800' },

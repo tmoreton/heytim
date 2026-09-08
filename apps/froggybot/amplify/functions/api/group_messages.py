@@ -9,7 +9,7 @@ from shared.group_chat import (
     select_group_reply_targets,
 )
 
-from .attachments import _public_file
+from .attachments import _public_file, _resolve_group_attachments
 from .bots import _get_bot
 from .groups import _require_group_member
 from .support import (
@@ -67,9 +67,10 @@ def _list_group_messages(user_id: str, group_id: str, limit: int = 100) -> list[
                     "roundSize": item.get("roundSize"),
                     "roundRole": item.get("roundRole"),
                     "attachments": [
-                        _public_file(artifact)
-                        for artifact in item.get("artifacts", [])
-                        if isinstance(artifact, dict)
+                        _public_file(file)
+                        for source in ("attachments", "artifacts")
+                        for file in item.get(source, [])
+                        if isinstance(file, dict)
                     ],
                 }.items()
                 if value is not None
@@ -82,7 +83,6 @@ def _send_group_message(
     user_id: str, display_name: str, group_id: str, value: dict
 ) -> dict:
     meta, items = _require_group_member(user_id, group_id)
-    text = _validate_string(value.get("text"), "text", 8_000)
     reply_bot_id = value.get("replyBotId")
     if reply_bot_id is not None and (
         not isinstance(reply_bot_id, str) or not reply_bot_id
@@ -105,6 +105,13 @@ def _send_group_message(
                 409,
                 "Interactive tools currently require approval in a direct chat.",
             )
+    attachments = _resolve_group_attachments(
+        user_id, group_id, value.get("attachmentIds")
+    )
+    raw_text = value.get("text", "")
+    if attachments and isinstance(raw_text, str) and not raw_text.strip():
+        raw_text = "Please review the attached files."
+    text = _validate_string(raw_text, "text", 8_000)
     coordinator_bot_id = reply_bots[0]["botId"] if reply_bots else None
 
     current = _now()
@@ -121,6 +128,9 @@ def _send_group_message(
         "createdAt": current,
         "status": "COMPLETE",
     }
+    if attachments:
+        message["attachments"] = attachments
+        message["uploadedBy"] = user_id
     replies = []
     for order, group_bot in enumerate(reply_bots, start=1):
         reply_id = str(uuid.uuid4())
@@ -147,6 +157,8 @@ def _send_group_message(
         )
     with table.batch_writer() as batch:
         batch.put_item(Item=message)
+        for attachment in attachments:
+            batch.put_item(Item=attachment)
         for reply in replies:
             batch.put_item(Item=reply)
         batch.put_item(
@@ -167,6 +179,7 @@ def _send_group_message(
                         "type": "GROUP_AGENT_ROUND",
                         "requestedBy": user_id,
                         "groupId": group_id,
+                        "messageId": message_id,
                         "userText": text,
                         "replyTarget": ALL_BOTS_REPLY_TARGET
                         if reply_bot_id == ALL_BOTS_REPLY_TARGET

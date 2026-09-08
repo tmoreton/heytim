@@ -4,7 +4,7 @@
   "title": "FroggyBot group runtime context v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "name", "memory", "people", "bots", "round"],
+  "required": ["schemaVersion", "name", "memory", "people", "bots", "decisions", "round"],
   "properties": {
     "schemaVersion": {"const": 1},
     "name": {"type": "string", "minLength": 1, "maxLength": 64},
@@ -35,6 +35,21 @@
           "name": {"type": "string", "minLength": 1, "maxLength": 60},
           "tagline": {"type": "string", "maxLength": 120},
           "isCurrent": {"type": "boolean"}
+        }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "sourceAuthorName", "createdByName", "createdAt"],
+        "properties": {
+          "text": {"type": "string", "minLength": 1, "maxLength": 1000},
+          "sourceAuthorName": {"type": "string", "minLength": 1, "maxLength": 60},
+          "createdByName": {"type": "string", "minLength": 1, "maxLength": 40},
+          "createdAt": {"type": "string", "maxLength": 32}
         }
       }
     },

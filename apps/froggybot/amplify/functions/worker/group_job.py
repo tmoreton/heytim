@@ -5,6 +5,7 @@ import logging
 
 from shared.group_chat import group_round_step
 from shared.memory_identity import group_memory_actor_id, group_memory_session_id
+from shared.time import utc_now_iso
 from shared.work_state import is_claimable
 
 from .agent import _get_group_context, _get_group_history, _invoke, _progress_updater
@@ -19,6 +20,7 @@ from .job_lifecycle import (
     begin_attempt,
     finish_failed_attempt,
 )
+from .notifications import _update_schedule_result
 from .support import (
     QUEUE_URL,
     _account_is_active,
@@ -67,6 +69,7 @@ def _queue_group_reply_notifications(
                     "botName": bot["name"],
                     "messageId": reply["id"],
                     "answer": answer,
+                    **({"scheduleId": reply["scheduleId"], "scheduleName": reply.get("scheduleName", "Group report")} if reply.get("source") == "schedule" else {}),
                     "notificationId": (
                         f"group:{group_id}:{reply['id']}:{user_id}"
                     ),
@@ -154,10 +157,13 @@ def _process_group_agent_reply(
             bot_owner_id,
             bot_id,
             bot,
-            history=_get_group_history(group_id, bot_id),
+            history=_get_group_history(
+                group_id, bot_id, request.get("messageId")
+            ),
             session_scope=f"group:{group_id}:bot:{bot_id}",
             event_id=reply["id"],
             artifact_prefix=_group_generated_artifact_prefix(group_id, reply["id"]),
+            attachment_prefix=f"groups/{group_id}/uploads/",
             group_context=_get_group_context(
                 group_id,
                 bot_id,
@@ -260,6 +266,14 @@ def _process_group_agent_round(record: dict, request: dict) -> None:
     replies = request.get("replies")
     index = request.get("nextReplyIndex", 0)
     reply, final_reply = group_round_step(replies, index)
+    if request.get("scheduleId"):
+        user_id = request.get("requestedBy")
+        group_id = request["groupId"]
+        meta = table.get_item(Key={"pk": _group_pk(group_id), "sk": "META"}, ConsistentRead=True).get("Item")
+        member = table.get_item(Key={"pk": _group_pk(group_id), "sk": f"USER#{user_id}"}, ConsistentRead=True).get("Item")
+        bot_member = table.get_item(Key={"pk": _group_pk(group_id), "sk": f"BOT#{reply['botId']}"}, ConsistentRead=True).get("Item")
+        if not meta or not member or not bot_member or meta.get("ownerId") != user_id or not _account_is_active(user_id):
+            return
     _activate_group_reply(request["groupId"], reply["replyKey"])
     answer = _process_group_agent_reply(
         record,
@@ -276,3 +290,7 @@ def _process_group_agent_round(record: dict, request: dict) -> None:
             QueueUrl=QUEUE_URL,
             MessageBody=json.dumps({**request, "nextReplyIndex": index + 1}),
         )
+    if answer is not None and final_reply and request.get("scheduleId"):
+        states = [table.get_item(Key={"pk": _group_pk(request["groupId"]), "sk": entry["replyKey"]}, ConsistentRead=True).get("Item", {}) for entry in replies]
+        status = "error" if any(item.get("status") == "ERROR" for item in states) else "complete"
+        _update_schedule_result({"source": "schedule", "scheduleId": request["scheduleId"], "userId": request["requestedBy"]}, status, utc_now_iso())

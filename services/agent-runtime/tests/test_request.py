@@ -179,3 +179,53 @@ def test_attachment_from_another_user_is_rejected(monkeypatch) -> None:
             },
             "a" * 64,
         )
+
+
+def test_group_message_accepts_only_its_room_scoped_attachment(monkeypatch) -> None:
+    group_id = "12345678-1234-1234-1234-123456789012"
+    monkeypatch.setattr(
+        "frogbot_runtime.request.FILES_BUCKET_NAME",
+        "frogbot-user-files-123-us-east-1",
+    )
+
+    class FakeS3:
+        def get_object(self, **_request):
+            return {"ContentLength": 9, "Body": BytesIO(b"Room file")}
+
+    monkeypatch.setattr("frogbot_runtime.request._s3", FakeS3())
+    payload = {
+        "group": {"name": "Trip"},
+        "attachmentPrefix": f"groups/{group_id}/uploads/",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"text": "Review this."},
+                    {
+                        "document": {
+                            "format": "pdf",
+                            "source": {
+                                "s3Location": {
+                                    "uri": (
+                                        "s3://frogbot-user-files-123-us-east-1/"
+                                        f"groups/{group_id}/uploads/file.pdf"
+                                    )
+                                }
+                            },
+                        }
+                    },
+                ],
+            }
+        ],
+    }
+
+    messages = messages_from_payload(payload)
+    assert messages[0]["content"][1]["document"]["source"] == {
+        "bytes": b"Room file"
+    }
+
+    payload["attachmentPrefix"] = (
+        "groups/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/uploads/"
+    )
+    with pytest.raises(ValueError, match="outside"):
+        messages_from_payload(payload)

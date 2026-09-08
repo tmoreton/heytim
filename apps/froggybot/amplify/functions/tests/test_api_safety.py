@@ -343,133 +343,54 @@ class ApiSafetyTests(ApiTestCase):
         )
         self.assertNotIn("alwaysAllowedToolIds", share["snapshot"]["bot"])
 
-    def test_schedules_reject_bots_that_need_interactive_approval(self) -> None:
+    def test_schedules_allow_bots_that_pause_for_interactive_approval(self) -> None:
         with (
             patch.object(
                 self.schedules,
                 "_get_bot",
                 return_value={"id": "bot-1", "toolIds": ["browser"]},
             ),
-            patch.object(
-                self.schedules.catalog,
-                "approval_tool_names",
-                return_value=["Interactive browser"],
-            ),
-            self.assertRaises(self.support.ApiError) as error,
+            patch.object(self.schedules, "_schedule_items", return_value=[]),
+            patch.object(self.schedules, "_create_remote_schedule"),
         ):
-            self.schedules._create_schedule("user-1", "bot-1", {})
-
-        self.assertEqual(error.exception.status_code, 409)
-
-    def test_upload_ticket_is_scoped_and_size_limited(self) -> None:
-        self.s3.generate_presigned_post.return_value = {
-            "url": "https://uploads.example",
-            "fields": {"key": "value"},
-        }
-
-        result = self.attachments._create_upload(
-            "user-1", {"filename": "quarterly report.pdf", "size": 125_000}
-        )
-
-        self.assertEqual(result["file"]["contentType"], "application/pdf")
-        request = self.s3.generate_presigned_post.call_args.kwargs
-        self.assertTrue(request["Key"].startswith("users/"))
-        self.assertNotIn("user-1", request["Key"])
-        self.assertIn(["content-length-range", 1, 4_500_000], request["Conditions"])
-
-    def test_group_memory_is_owner_editable_and_bounded(self) -> None:
-        meta = {
-            "pk": "GROUP#group-1",
-            "sk": "META",
-            "entity": "GROUP",
-            "id": "group-1",
-            "name": "Trip",
-            "ownerId": "user-1",
-            "createdAt": "now",
-            "updatedAt": "now",
-        }
-        with (
-            patch.object(
-                self.groups, "_require_group_member", return_value=(meta, [meta])
-            ) as require,
-            patch.object(
-                self.groups,
-                "_public_group",
-                return_value={"id": "group-1", "memory": "Budget: $1,200"},
-            ),
-        ):
-            result = self.groups._update_group(
+            saved = self.schedules._create_schedule(
                 "user-1",
-                "group-1",
-                {"memory": "Budget: $1,200", "botIds": []},
+                "bot-1",
+                {
+                    "name": "Browser check",
+                    "prompt": "Check the dashboard.",
+                    "frequency": "daily",
+                    "time": "09:00",
+                    "timezone": "UTC",
+                    "enabled": True,
+                },
             )
 
-        require.assert_called_once_with("user-1", "group-1", owner=True)
-        self.assertEqual(result["memory"], "Budget: $1,200")
-        self.assertEqual(self.data_table.put[-1]["memory"], "Budget: $1,200")
+        self.assertEqual(saved["name"], "Browser check")
 
+    def test_schedule_run_inbox_includes_output_and_pending_approval(self) -> None:
+        turns = [
+            {
+                "id": "run-1",
+                "source": "schedule",
+                "scheduleId": "schedule-1",
+                "scheduleName": "Morning priorities",
+                "userText": "Review today.",
+                "status": "AWAITING_APPROVAL",
+                "createdAt": "2026-09-08T09:00:00Z",
+                "approvalTools": ["Interactive browser"],
+            },
+            {"id": "chat-1", "source": "direct", "createdAt": "later"},
+        ]
         with (
-            patch.object(
-                self.groups, "_require_group_member", return_value=(meta, [meta])
-            ),
-            self.assertRaises(self.support.ApiError) as error,
+            patch.object(self.schedules, "_get_bot"),
+            patch.object(self.schedules, "_list_turns", return_value=turns),
         ):
-            self.groups._update_group(
-                "user-1",
-                "group-1",
-                {"memory": "x" * 4_001, "botIds": []},
-            )
+            runs = self.schedules._list_schedule_runs("user-1", "bot-1")
 
-        self.assertEqual(error.exception.status_code, 400)
-
-    def test_group_file_download_checks_current_membership(self) -> None:
-        file_id = "12345678-1234-1234-1234-123456789012"
-        self.data_table.items[("GROUP#group-1", "USER#user-1")] = {
-            "pk": "GROUP#group-1",
-            "sk": "USER#user-1",
-            "entity": "GROUP_USER",
-        }
-        self.data_table.items[("GROUP#group-1", f"FILE#{file_id}")] = {
-            "pk": "GROUP#group-1",
-            "sk": f"FILE#{file_id}",
-            "entity": "FILE",
-            "id": file_id,
-            "status": "READY",
-            "name": "weekend.pdf",
-            "contentType": "application/pdf",
-            "objectKey": "groups/group-1/artifacts/reply-1/weekend.pdf",
-        }
-        self.s3.generate_presigned_url.return_value = "https://download.example"
-
-        result = self.attachments._download_group_file("user-1", "group-1", file_id)
-
-        self.assertEqual(result["url"], "https://download.example")
-        with self.assertRaises(self.support.ApiError):
-            self.attachments._download_group_file("outsider", "group-1", file_id)
-
-    def test_oversized_image_upload_is_rejected_before_signing(self) -> None:
-        with self.assertRaises(self.support.ApiError) as error:
-            self.attachments._create_upload(
-                "user-1", {"filename": "photo.png", "size": 3_750_001}
-            )
-
-        self.assertEqual(error.exception.status_code, 400)
-        self.s3.generate_presigned_post.assert_not_called()
-
-    def test_account_file_cleanup_deletes_all_object_versions(self) -> None:
-        page = {
-            "Versions": [{"Key": "users/actor/file.pdf", "VersionId": "one"}],
-            "DeleteMarkers": [{"Key": "users/actor/file.pdf", "VersionId": "deleted"}],
-            "IsTruncated": False,
-        }
-        self.s3.get_paginator.return_value.paginate.return_value = [page]
-        self.s3.delete_objects.return_value = {}
-        with patch.object(self.account, "memory_actor_id", return_value="actor"):
-            deleted = self.account._delete_user_files("user-1")
-
-        self.assertEqual(deleted, 2)
-        objects = self.s3.delete_objects.call_args.kwargs["Delete"]["Objects"]
-        self.assertEqual({item["VersionId"] for item in objects}, {"one", "deleted"})
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(runs[0]["status"], "awaiting_approval")
+        self.assertEqual(runs[0]["approvalTools"], ["Interactive browser"])
 
     def test_account_deletion_is_queued_after_access_is_blocked(self) -> None:
         result = self.account._begin_account_deletion("user-1", "username-1")

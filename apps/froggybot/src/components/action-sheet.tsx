@@ -1,5 +1,7 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useModalFocus } from './use-modal-focus';
+
 type ActionSheetOption = {
   label: string;
   onPress: () => void;
@@ -15,9 +17,17 @@ type Props = {
 };
 
 export function ActionSheet({ visible, title, message, options, onClose }: Props) {
+  const modalRef = useModalFocus(onClose, visible);
+  if (!visible) return null;
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View accessibilityViewIsModal style={styles.layer}>
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View
+        ref={modalRef}
+        accessibilityLabel={title}
+        accessibilityViewIsModal
+        aria-modal
+        role="alertdialog"
+        style={styles.layer}>
         <Pressable accessibilityLabel="Close menu" accessibilityRole="button" style={styles.backdrop} onPress={onClose} />
         <View style={styles.sheet}>
           <Text accessibilityRole="header" style={styles.title}>

@@ -53,26 +53,29 @@ export function MessageComposer({
   const cannotSend = (!draft.trim() && attachments.length === 0) || unavailable;
   const replyHint = group
     ? activeReplyBotId === ALL_BOTS_REPLY_TARGET
-      ? 'Team replies · one final answer, with a shared file when useful.'
+      ? 'Bring in the team · specialists contribute and Chief gives one final answer.'
       : activeReplyBotId
         ? `${group.bots.find((bot) => bot.id === activeReplyBotId)?.name ?? 'One FroggyBot'} replies · ask for itineraries, budgets, lists, or PDFs.`
-        : 'People only · no FroggyBot will reply.'
+        : 'Just the group · post without an AI reply.'
     : 'Bots can make mistakes. Check important work.';
   return (
     <View style={[styles.wrap, { paddingBottom: 6 + bottomInset }]}>
       {group ? (
         <ScrollView
+          accessibilityLabel="Who should reply"
+          accessibilityRole="radiogroup"
           horizontal
           keyboardShouldPersistTaps="handled"
           showsHorizontalScrollIndicator={false}
+          style={styles.horizontalScroller}
           contentContainerStyle={styles.replyPicker}>
-          <ReplyChip active={!activeReplyBotId} label="People only" onPress={() => onReplyTargetChange(null)}>
+          <ReplyChip active={!activeReplyBotId} label="Just the group" onPress={() => onReplyTargetChange(null)}>
             <PersonAvatar name="People" size={24} />
           </ReplyChip>
           {group.bots.length > 1 ? (
             <ReplyChip
               active={activeReplyBotId === ALL_BOTS_REPLY_TARGET}
-              label="Team replies"
+              label="Bring in the team"
               onPress={() => onReplyTargetChange(ALL_BOTS_REPLY_TARGET)}>
               <GroupAvatar group={group} size={24} />
             </ReplyChip>
@@ -92,6 +95,7 @@ export function MessageComposer({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          style={styles.horizontalScroller}
           contentContainerStyle={styles.attachmentList}>
           {attachments.map((file) => (
             <View key={file.id} style={styles.attachmentChip}>
@@ -132,7 +136,7 @@ export function MessageComposer({
           value={draft}
           onChangeText={onDraftChange}
           placeholder={listening ? 'Listening...' : selectedName ? `Message ${selectedName}` : 'Choose a chat'}
-          placeholderTextColor="#9C9991"
+          placeholderTextColor="#6E6A62"
           multiline
           maxLength={8000}
           editable={Boolean(selectedName) && !pending}
@@ -195,8 +199,9 @@ function ReplyChip({
 }) {
   return (
     <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: active }}
+      aria-checked={active}
       style={[styles.replyChip, active && styles.replyChipActive]}
       onPress={onPress}>
       {children}
@@ -218,7 +223,8 @@ function MicIcon({ active }: { active: boolean }) {
 
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: 12, paddingTop: 8, backgroundColor: '#FBFBF9', alignItems: 'center' },
-  replyPicker: { width: '100%', maxWidth: 780, gap: 7, paddingBottom: 7 },
+  horizontalScroller: { width: '100%', maxWidth: 780 },
+  replyPicker: { gap: 7, paddingBottom: 7 },
   replyChip: {
     minHeight: 44,
     flexDirection: 'row',
@@ -234,7 +240,7 @@ const styles = StyleSheet.create({
   replyChipActive: { borderColor: '#7CAB90', backgroundColor: '#E6F2EB' },
   replyChipText: { color: '#67635C', fontSize: 12, fontWeight: '600' },
   replyChipTextActive: { color: '#006B35' },
-  attachmentList: { width: '100%', maxWidth: 780, gap: 7, paddingBottom: 7 },
+  attachmentList: { gap: 7, paddingBottom: 7 },
   attachmentChip: {
     maxWidth: 250,
     minHeight: 38,
@@ -249,7 +255,7 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   attachmentName: { maxWidth: 135, color: '#34322D', fontSize: 12, fontWeight: '700' },
-  attachmentSize: { color: '#89857D', fontSize: 10 },
+  attachmentSize: { color: '#6E6A62', fontSize: 10 },
   attachmentRemove: { color: '#625E56', fontSize: 20, lineHeight: 22 },
   uploadingChip: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 11 },
   uploadingText: { color: '#657168', fontSize: 12, fontWeight: '600' },
@@ -306,6 +312,6 @@ const styles = StyleSheet.create({
   sendLabel: { color: 'white', fontSize: 22, fontWeight: '700', marginTop: -3 },
   stopButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#E8E5DE', alignItems: 'center', justifyContent: 'center' },
   stopIcon: { width: 12, height: 12, borderRadius: 2, backgroundColor: '#4F4C45' },
-  hint: { color: '#A19D95', fontSize: 10, marginTop: 5 },
+  hint: { color: '#6E6A62', fontSize: 10, marginTop: 5 },
   pressed: { opacity: 0.7 },
 });

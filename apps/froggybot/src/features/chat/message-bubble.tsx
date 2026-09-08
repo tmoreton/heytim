@@ -18,6 +18,8 @@ type Props = {
   onApprove?: (message: Message, always: boolean) => Promise<void>;
   onReject?: (message: Message) => Promise<void>;
   onOpenFile?: (file: Attachment) => Promise<void>;
+  decisionSaved?: boolean;
+  onSaveDecision?: (message: Message) => Promise<void>;
   onActivityExpand?: () => void;
 };
 
@@ -48,6 +50,8 @@ export function MessageBubble({
   onApprove,
   onReject,
   onOpenFile,
+  decisionSaved,
+  onSaveDecision,
   onActivityExpand,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
@@ -55,6 +59,9 @@ export function MessageBubble({
   const [downloadingFileIds, setDownloadingFileIds] = useState<Set<string>>(() => new Set());
   const [downloadedFileIds, setDownloadedFileIds] = useState<Set<string>>(() => new Set());
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [decisionState, setDecisionState] = useState<'idle' | 'saving' | 'saved' | 'error'>(
+    decisionSaved ? 'saved' : 'idle',
+  );
   const copyFeedbackTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mine = groupMode && message.authorType === 'user' && message.isMine;
   const assistant = groupMode ? !mine : message.role === 'assistant';
@@ -261,6 +268,29 @@ export function MessageBubble({
                 </Text>
               </Pressable>
             ) : null}
+            {groupMode && message.roundRole === 'synthesizer' && message.status === 'complete' && onSaveDecision ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ busy: decisionState === 'saving', disabled: decisionState === 'saving' || decisionState === 'saved' }}
+                disabled={decisionState === 'saving' || decisionState === 'saved'}
+                style={styles.decisionButton}
+                onPress={() => {
+                  setDecisionState('saving');
+                  void onSaveDecision(message)
+                    .then(() => setDecisionState('saved'))
+                    .catch(() => setDecisionState('error'));
+                }}>
+                <Text style={styles.decisionButtonText}>
+                  {decisionState === 'saving'
+                    ? 'Saving…'
+                    : decisionState === 'saved'
+                      ? 'Saved to decisions'
+                      : decisionState === 'error'
+                        ? 'Try saving decision again'
+                        : 'Save decision'}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -310,6 +340,8 @@ const styles = StyleSheet.create({
   contributionPreview: { color: '#24231F', fontSize: 15, lineHeight: 21 },
   contributionToggle: { alignSelf: 'flex-start', marginTop: 8, paddingVertical: 3 },
   contributionToggleText: { color: '#007A3D', fontSize: 11, fontWeight: '700' },
+  decisionButton: { alignSelf: 'flex-start', minHeight: 40, justifyContent: 'center', marginTop: 8, paddingRight: 8 },
+  decisionButtonText: { color: '#006B35', fontSize: 12, fontWeight: '800' },
   copyPressed: { opacity: 0.72 },
   copyFeedback: { alignSelf: 'flex-end', color: '#007A3D', fontSize: 10, fontWeight: '800', marginTop: 5 },
   userCopyFeedback: { color: 'rgba(255,255,255,0.8)' },

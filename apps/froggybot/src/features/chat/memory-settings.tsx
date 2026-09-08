@@ -157,7 +157,7 @@ export function MemorySettings({
   const visibleSections = sections.filter((section) => visibleKinds.includes(section.kind));
 
   return (
-    <PageSheet onClose={onClose}>
+    <PageSheet accessibilityLabel="Memory settings" onClose={onClose}>
       <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
           <Text accessibilityRole="header" style={styles.title}>{title}</Text>
@@ -214,7 +214,7 @@ export function MemorySettings({
                 maxLength={16_000}
                 multiline
                 placeholder="What should the bots remember?"
-                placeholderTextColor="#A19D95"
+                placeholderTextColor="#6E6A62"
                 style={styles.input}
                 value={newMemory}
                 onChangeText={setNewMemory}
@@ -250,10 +250,10 @@ export function MemorySettings({
                           onChangeText={setDraft}
                         />
                         <View style={styles.actions}>
-                          <Pressable disabled={busy} hitSlop={8} onPress={() => setEditing(undefined)}>
+                          <Pressable accessibilityRole="button" disabled={busy} hitSlop={8} onPress={() => setEditing(undefined)}>
                             <Text style={styles.cancel}>Cancel</Text>
                           </Pressable>
-                          <Pressable disabled={busy || !draft.trim()} hitSlop={8} onPress={() => void save()}>
+                          <Pressable accessibilityRole="button" disabled={busy || !draft.trim()} hitSlop={8} onPress={() => void save()}>
                             <Text style={styles.save}>Save</Text>
                           </Pressable>
                         </View>
@@ -271,10 +271,10 @@ export function MemorySettings({
                           </Text>
                           {editable ? (
                             <View style={styles.actions}>
-                              <Pressable disabled={busy} hitSlop={8} onPress={() => startEditing(record)}>
+                              <Pressable accessibilityRole="button" disabled={busy} hitSlop={8} onPress={() => startEditing(record)}>
                                 <Text style={styles.edit}>Edit</Text>
                               </Pressable>
-                              <Pressable disabled={busy} hitSlop={8} onPress={() => setPendingDelete(record)}>
+                              <Pressable accessibilityRole="button" disabled={busy} hitSlop={8} onPress={() => setPendingDelete(record)}>
                                 <Text style={styles.forget}>Forget</Text>
                               </Pressable>
                             </View>
@@ -326,11 +326,11 @@ const styles = StyleSheet.create({
   loader: { marginVertical: 28 },
   section: { borderRadius: 18, borderWidth: 1, borderColor: '#E2DED6', backgroundColor: '#FFFFFF', padding: 16 },
   sectionTitle: { color: '#282722', fontSize: 16, fontWeight: '800' },
-  empty: { color: '#8B877F', fontSize: 13, marginTop: 12 },
+  empty: { color: '#6E6A62', fontSize: 13, marginTop: 12 },
   record: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: '#E2DED6', marginTop: 13, paddingTop: 13 },
   recordText: { color: '#38362F', fontSize: 14, lineHeight: 21 },
   metaRow: { minHeight: 28, flexDirection: 'row', alignItems: 'flex-end', gap: 12, marginTop: 9 },
-  meta: { flex: 1, color: '#98948B', fontSize: 11 },
+  meta: { flex: 1, color: '#6E6A62', fontSize: 11 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   edit: { color: '#007A3D', fontSize: 13, fontWeight: '700' },
   forget: { color: '#A53A32', fontSize: 13, fontWeight: '700' },

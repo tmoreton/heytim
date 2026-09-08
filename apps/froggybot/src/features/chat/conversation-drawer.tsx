@@ -5,6 +5,7 @@ import { ActionSheet } from '@/components/action-sheet';
 import { BotAvatar } from '@/components/bot-avatar';
 import { GroupAvatar } from '@/components/participant-avatar';
 import { chiefFirst, displayBotColor } from '@/lib/bot-branding';
+import { messagePreview } from '@/lib/message-preview';
 import type { Bot, ConversationSelection, Group } from '@/lib/types';
 type DrawerItem = { kind: 'group'; value: Group } | { kind: 'bot'; value: Bot };
 
@@ -25,6 +26,7 @@ type Props = {
   onCreateBot: () => void;
   onCreateGroup: () => void;
   onOpenAccount: () => void;
+  onClose?: () => void;
 };
 
 const friendlyDate = (value: string) => {
@@ -54,6 +56,7 @@ export function ConversationDrawer({
   onCreateBot,
   onCreateGroup,
   onOpenAccount,
+  onClose,
 }: Props) {
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const query = search.trim().toLowerCase();
@@ -73,13 +76,24 @@ export function ConversationDrawer({
           <Text style={styles.appName}>FroggyBot</Text>
           <Text style={styles.appTagline}>Your AI team</Text>
         </View>
-        <Pressable
-          accessibilityLabel="Create bot or group"
-          accessibilityRole="button"
-          style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}
-          onPress={() => setCreateMenuOpen(true)}>
-          <Text style={styles.addLabel}>+</Text>
-        </Pressable>
+        <View style={styles.topActions}>
+          <Pressable
+            accessibilityLabel="Create bot or group"
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}
+            onPress={() => setCreateMenuOpen(true)}>
+            <Text style={styles.addLabel}>+</Text>
+          </Pressable>
+          {onClose ? (
+            <Pressable
+              accessibilityLabel="Close chats and groups"
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
+              onPress={onClose}>
+              <Text style={styles.closeLabel}>×</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
       <TextInput
         accessibilityLabel="Search chats"
@@ -87,7 +101,7 @@ export function ConversationDrawer({
         onChangeText={onSearchChange}
         style={styles.search}
         placeholder="Search chats"
-        placeholderTextColor="#9B978F"
+        placeholderTextColor="#6E6A62"
         autoCorrect={false}
       />
       <SectionList
@@ -126,7 +140,7 @@ export function ConversationDrawer({
                   )}
                 </View>
                 <Text numberOfLines={1} style={[styles.preview, processing && styles.processingPreview]}>
-                  {processing ? `${processingName} is working…` : item.value.lastMessage}
+                  {processing ? `${processingName} is working…` : messagePreview(item.value.lastMessage)}
                 </Text>
               </View>
             </Pressable>
@@ -169,19 +183,22 @@ const styles = StyleSheet.create({
   drawer: { flex: 1, backgroundColor: '#F2F1ED', borderRightWidth: StyleSheet.hairlineWidth, borderColor: '#D9D6CF' },
   top: { minHeight: 70, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   appName: { color: '#007A3D', fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
-  appTagline: { color: '#8B877F', fontSize: 12, marginTop: 1 },
+  appTagline: { color: '#6E6A62', fontSize: 12, marginTop: 1 },
+  topActions: { flexDirection: 'row', gap: 7 },
   addButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' },
   addLabel: { color: '#22211D', fontSize: 25, fontWeight: '300', marginTop: -2 },
+  closeButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  closeLabel: { color: '#44423D', fontSize: 27, fontWeight: '300', marginTop: -2 },
   search: { height: 44, marginHorizontal: 12, borderRadius: 12, backgroundColor: '#E6E4DF', paddingHorizontal: 13, color: '#1F1E1A', fontSize: 14 },
   list: { padding: 8, paddingTop: 11 },
-  sectionLabel: { color: '#8B877F', fontSize: 11, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', paddingHorizontal: 9, paddingTop: 9, paddingBottom: 5, backgroundColor: '#F2F1ED' },
-  noResults: { color: '#858179', fontSize: 13, lineHeight: 19, paddingHorizontal: 14, paddingTop: 24 },
+  sectionLabel: { color: '#6E6A62', fontSize: 11, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', paddingHorizontal: 9, paddingTop: 9, paddingBottom: 5, backgroundColor: '#F2F1ED' },
+  noResults: { color: '#6E6A62', fontSize: 13, lineHeight: 19, paddingHorizontal: 14, paddingTop: 24 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 11, minHeight: 64, paddingHorizontal: 9, borderRadius: 13 },
   rowSelected: { backgroundColor: '#E4F1EA' },
   rowText: { flex: 1, minWidth: 0 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   name: { flex: 1, color: '#26251F', fontSize: 15, fontWeight: '600' },
-  date: { color: '#A09C94', fontSize: 11 },
+  date: { color: '#6E6A62', fontSize: 11 },
   preview: { color: '#77736B', fontSize: 12, marginTop: 3 },
   processingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 9, backgroundColor: '#D9EDDF', paddingHorizontal: 6, paddingVertical: 3 },
   processingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#007A3D' },
@@ -192,7 +209,7 @@ const styles = StyleSheet.create({
   profileDot: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#007A3D' },
   profileText: { flex: 1 },
   profileTitle: { color: '#282722', fontSize: 13, fontWeight: '600' },
-  profileSubtitle: { color: '#8B877F', fontSize: 11, marginTop: 1 },
-  accountChevron: { color: '#969188', fontSize: 22 },
+  profileSubtitle: { color: '#6E6A62', fontSize: 11, marginTop: 1 },
+  accountChevron: { color: '#6E6A62', fontSize: 22 },
   pressed: { opacity: 0.7 },
 });

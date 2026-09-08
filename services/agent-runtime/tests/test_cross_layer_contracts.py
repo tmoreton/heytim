@@ -16,6 +16,8 @@ from frogbot_runtime.request import (
 from group_context import (
     GROUP_CONTEXT_SCHEMA_VERSION,
     MAX_BOTS,
+    MAX_DECISION_CHARS,
+    MAX_DECISIONS,
     MAX_MEMORY_CHARS,
     MAX_PEOPLE,
     MAX_ROUND_REPLIES,
@@ -69,6 +71,8 @@ def test_group_consumer_limits_and_roles_match_amplify_producer() -> None:
     assert MAX_BOTS == producer.MAX_GROUP_BOTS
     assert MAX_ROUND_REPLIES == producer.MAX_GROUP_ROUND_REPLIES
     assert MAX_MEMORY_CHARS == producer.MAX_GROUP_MEMORY_CHARS
+    assert MAX_DECISIONS == producer.MAX_GROUP_DECISIONS
+    assert MAX_DECISION_CHARS == producer.MAX_GROUP_DECISION_CHARS
     assert ROUND_ROLES == producer.ROUND_ROLES
 
     payload = producer.group_runtime_context(

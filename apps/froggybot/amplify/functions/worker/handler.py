@@ -10,6 +10,7 @@ from .direct_job import _process_agent_reply
 from .group_job import _process_group_agent_reply, _process_group_agent_round
 from .memory_cleanup_job import _delete_memory_actor, _delete_memory_session
 from .notifications import _check_push_receipts, _send_push_notification
+from .scheduled_group_job import _process_scheduled_group_round
 from .scheduled_job import _process_scheduled_agent_reply, _request_string
 from .support import ACTIVE_VISIBILITY_SECONDS, QUEUE_URL, catalog, sqs
 
@@ -53,6 +54,9 @@ def _process(record: dict) -> None:
         return
     if request_type == "SCHEDULED_AGENT_REPLY":
         _process_scheduled_agent_reply(record, request)
+        return
+    if request_type == "SCHEDULED_GROUP_ROUND":
+        _process_scheduled_group_round(record, request)
         return
     if request_type != "AGENT_REPLY":
         raise ValueError(f"Unknown job type: {request_type}")

@@ -12,7 +12,8 @@ from shared.schedules import (
     scheduler_name,
 )
 
-from .bots import _get_bot
+from .attachments import _public_file
+from .bots import _get_bot, _list_turns
 from .support import (
     QUEUE_ARN,
     SCHEDULE_DLQ_ARN,
@@ -26,7 +27,6 @@ from .support import (
     _schedule_key,
     _user_pk,
     _validate_string,
-    catalog,
     scheduler,
     table,
 )
@@ -35,7 +35,7 @@ from .support import (
 def _schedule_items(user_id: str, bot_id: str | None = None) -> list[dict]:
     items = _partition_items(_user_pk(user_id), "SCHEDULE#")
     if bot_id is not None:
-        items = [item for item in items if item.get("botId") == bot_id]
+        items = [item for item in items if item.get("botId") == bot_id and not item.get("groupId")]
     return sorted(items, key=lambda item: item.get("createdAt", ""), reverse=True)
 
 
@@ -43,7 +43,7 @@ def _get_schedule(user_id: str, bot_id: str, schedule_id: str) -> dict:
     item = table.get_item(
         Key=_schedule_key(user_id, schedule_id), ConsistentRead=True
     ).get("Item")
-    if not item or item.get("botId") != bot_id:
+    if not item or item.get("botId") != bot_id or item.get("groupId"):
         raise ApiError(404, "Scheduled task not found")
     return item
 
@@ -109,9 +109,10 @@ def _schedule_target(item: dict) -> dict:
         "RoleArn": SCHEDULE_ROLE_ARN,
         "Input": json.dumps(
             {
-                "type": "SCHEDULED_AGENT_REPLY",
+                "type": "SCHEDULED_GROUP_ROUND" if item.get("groupId") else "SCHEDULED_AGENT_REPLY",
                 "userId": item["userId"],
                 "botId": item["botId"],
+                **({"groupId": item["groupId"]} if item.get("groupId") else {}),
                 "scheduleId": item["id"],
                 "executionId": "<aws.scheduler.execution-id>",
                 "scheduledTime": "<aws.scheduler.scheduled-time>",
@@ -164,13 +165,41 @@ def _list_schedules(user_id: str, bot_id: str) -> list[dict]:
     return [_public_schedule(item) for item in _schedule_items(user_id, bot_id)]
 
 
-def _create_schedule(user_id: str, bot_id: str, value: dict) -> dict:
-    bot = _get_bot(user_id, bot_id)
-    if catalog.approval_tool_names(user_id, bot.get("toolIds", [])):
-        raise ApiError(
-            409,
-            "Interactive tools cannot run on a schedule because they require your approval.",
+def _list_schedule_runs(user_id: str, bot_id: str) -> list[dict]:
+    _get_bot(user_id, bot_id)
+    runs = []
+    for turn in reversed(_list_turns(user_id, bot_id)):
+        if turn.get("source") != "schedule":
+            continue
+        runs.append(
+            {
+                key: value
+                for key, value in {
+                    "id": turn.get("id"),
+                    "botId": bot_id,
+                    "scheduleId": turn.get("scheduleId"),
+                    "scheduleName": turn.get("scheduleName", "Scheduled task"),
+                    "prompt": turn.get("userText", ""),
+                    "status": str(turn.get("status", "PENDING")).lower(),
+                    "createdAt": turn.get("createdAt"),
+                    "completedAt": turn.get("completedAt"),
+                    "output": turn.get("assistantText"),
+                    "activity": turn.get("activity", []),
+                    "approvalTools": turn.get("approvalTools"),
+                    "attachments": [
+                        _public_file(item)
+                        for item in turn.get("artifacts", [])
+                        if isinstance(item, dict)
+                    ],
+                }.items()
+                if value is not None
+            }
         )
+    return runs
+
+
+def _create_schedule(user_id: str, bot_id: str, value: dict) -> dict:
+    _get_bot(user_id, bot_id)
     if len(_schedule_items(user_id)) >= SCHEDULE_LIMIT:
         raise ApiError(400, f"You can create up to {SCHEDULE_LIMIT} scheduled tasks")
     schedule_id = str(uuid.uuid4())
@@ -196,12 +225,7 @@ def _create_schedule(user_id: str, bot_id: str, value: dict) -> dict:
 
 
 def _update_schedule(user_id: str, bot_id: str, schedule_id: str, value: dict) -> dict:
-    bot = _get_bot(user_id, bot_id)
-    if catalog.approval_tool_names(user_id, bot.get("toolIds", [])):
-        raise ApiError(
-            409,
-            "Interactive tools cannot run on a schedule because they require your approval.",
-        )
+    _get_bot(user_id, bot_id)
     previous = _get_schedule(user_id, bot_id, schedule_id)
     item = {
         **previous,

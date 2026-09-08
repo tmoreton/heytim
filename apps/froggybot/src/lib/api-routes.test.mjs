@@ -11,4 +11,8 @@ test('encodes every dynamic API path segment', () => {
     '/groups/group%2Fone/memory/memory%3Ftwo',
   );
   assert.equal(apiRoutes.botScheduleRun('bot/one', 'schedule?two'), '/bots/bot%2Fone/schedules/schedule%3Ftwo/run');
+  assert.equal(
+    apiRoutes.groupDecision('group/one', 'decision?two'),
+    '/groups/group%2Fone/decisions/decision%3Ftwo',
+  );
 });

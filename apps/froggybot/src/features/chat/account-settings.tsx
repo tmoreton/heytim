@@ -91,7 +91,7 @@ export function AccountSettings({
   };
 
   return (
-    <PageSheet onClose={onClose}>
+    <PageSheet accessibilityLabel="Account settings" onClose={onClose}>
       <View style={styles.page}>
         <View style={styles.header}>
           <Text accessibilityRole="header" style={styles.title}>Account</Text>
@@ -167,7 +167,7 @@ export function AccountSettings({
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{demo ? 'Preview mode' : 'Session'}</Text>
-            <Pressable style={({ pressed }) => [styles.button, pressed && styles.pressed]} onPress={() => void onSignOut()}>
+            <Pressable accessibilityRole="button" style={({ pressed }) => [styles.button, pressed && styles.pressed]} onPress={() => void onSignOut()}>
               <Text style={styles.buttonText}>{demo ? 'Exit preview' : 'Log out'}</Text>
             </Pressable>
           </View>
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   sectionTitle: { color: '#282722', fontSize: 16, fontWeight: '800' },
   sectionCopy: { color: '#77736B', fontSize: 13, lineHeight: 19, marginTop: 5, marginBottom: 12 },
   loader: { marginVertical: 18 },
-  empty: { color: '#8B877F', fontSize: 13, marginTop: 14 },
+  empty: { color: '#6E6A62', fontSize: 13, marginTop: 14 },
   settingsRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 8 },
   skillMark: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#E0EDE6', alignItems: 'center', justifyContent: 'center' },
   skillMarkText: { color: '#007A3D', fontSize: 14, fontWeight: '900' },
@@ -220,12 +220,12 @@ const styles = StyleSheet.create({
   memoryMarkText: { color: '#6C5CE7', fontSize: 14, fontWeight: '900' },
   settingsText: { flex: 1, minWidth: 0 },
   settingsTitle: { color: '#282722', fontSize: 14, fontWeight: '700' },
-  settingsCopy: { color: '#8B877F', fontSize: 12, marginTop: 3 },
-  chevron: { color: '#969188', fontSize: 22 },
+  settingsCopy: { color: '#6E6A62', fontSize: 12, marginTop: 3 },
+  chevron: { color: '#6E6A62', fontSize: 22 },
   shareRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderColor: '#E2DED6', marginTop: 12, paddingTop: 12 },
   shareText: { flex: 1, minWidth: 0 },
   shareTitle: { color: '#282722', fontSize: 14, fontWeight: '700' },
-  shareMeta: { color: '#8B877F', fontSize: 12, marginTop: 3 },
+  shareMeta: { color: '#6E6A62', fontSize: 12, marginTop: 3 },
   revoke: { minWidth: 68, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: '#FCECE8' },
   revokeText: { color: '#A53A32', fontSize: 13, fontWeight: '700' },
   button: { minHeight: 48, marginTop: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: '#E4F1EA' },

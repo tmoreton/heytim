@@ -29,12 +29,15 @@ from .direct_chat import (
 )
 from .google_oauth import _begin_gmail_authorization
 from .group_messages import _list_group_messages, _send_group_message
+from .group_schedules import group_schedule_route
 from .groups import (
     _create_group,
     _create_group_invite,
     _delete_group,
+    _delete_group_decision,
     _join_group,
     _remove_group_member,
+    _save_group_decision,
     _update_group,
 )
 from .memories import (
@@ -51,6 +54,7 @@ from .memories import (
 from .schedules import (
     _create_schedule,
     _delete_schedule,
+    _list_schedule_runs,
     _list_schedules,
     _update_schedule,
 )
@@ -159,6 +163,18 @@ def _group_admin_route(
     event: dict,
 ) -> dict | None:
     group_id = params.get("groupId", "")
+    if method == "POST" and path.endswith("/decisions"):
+        return _response(
+            201,
+            _save_group_decision(user_id, display_name, group_id, _body(event)),
+        )
+    if method == "DELETE" and "/decisions/" in path:
+        return _response(
+            200,
+            _delete_group_decision(
+                user_id, group_id, params.get("decisionId", "")
+            ),
+        )
     if method == "GET" and path.endswith("/memory"):
         return _response(200, _list_group_memories(user_id, group_id))
     if method == "POST" and path.endswith("/memory"):
@@ -219,6 +235,10 @@ def _schedule_route(
     if method == "GET" and path.startswith("/bots/") and path.endswith("/schedules"):
         return _response(
             200, {"schedules": _list_schedules(user_id, params.get("botId", ""))}
+        )
+    if method == "GET" and path.startswith("/bots/") and path.endswith("/runs"):
+        return _response(
+            200, {"runs": _list_schedule_runs(user_id, params.get("botId", ""))}
         )
     if method == "POST" and path.startswith("/bots/") and path.endswith("/schedules"):
         return _response(
@@ -393,6 +413,15 @@ def _route_map(handler: Route, *route_keys: str) -> dict[str, Route]:
 
 ROUTE_HANDLERS: dict[str, Route] = {
     **_route_map(
+        group_schedule_route,
+        "GET /groups/{groupId}/schedules",
+        "GET /groups/{groupId}/runs",
+        "POST /groups/{groupId}/schedules",
+        "PUT /groups/{groupId}/schedules/{scheduleId}",
+        "DELETE /groups/{groupId}/schedules/{scheduleId}",
+        "POST /groups/{groupId}/schedules/{scheduleId}/run",
+    ),
+    **_route_map(
         _library_route,
         "GET /connections",
         "POST /connections/gmail/authorization",
@@ -414,6 +443,8 @@ ROUTE_HANDLERS: dict[str, Route] = {
     **_route_map(
         _group_admin_route,
         "POST /groups",
+        "POST /groups/{groupId}/decisions",
+        "DELETE /groups/{groupId}/decisions/{decisionId}",
         "GET /groups/{groupId}/memory",
         "POST /groups/{groupId}/memory",
         "PUT /groups/{groupId}/memory/{memoryRecordId}",
@@ -427,6 +458,7 @@ ROUTE_HANDLERS: dict[str, Route] = {
     **_route_map(
         _schedule_route,
         "GET /bots/{botId}/schedules",
+        "GET /bots/{botId}/runs",
         "POST /bots/{botId}/schedules",
         "POST /bots/{botId}/schedules/{scheduleId}/run",
         "PUT /bots/{botId}/schedules/{scheduleId}",

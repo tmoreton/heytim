@@ -194,6 +194,7 @@ class ApiTestCase(unittest.TestCase):
             cls.bots = importlib.import_module("api.bots")
             cls.direct_chat = importlib.import_module("api.direct_chat")
             cls.groups = importlib.import_module("api.groups")
+            cls.group_messages = importlib.import_module("api.group_messages")
             cls.google_oauth = importlib.import_module("api.google_oauth")
             cls.memories = importlib.import_module("api.memories")
             cls.schedules = importlib.import_module("api.schedules")

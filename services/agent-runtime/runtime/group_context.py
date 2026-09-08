@@ -7,6 +7,8 @@ MAX_PEOPLE = 50
 MAX_BOTS = 12
 MAX_ROUND_REPLIES = MAX_BOTS + 1
 MAX_MEMORY_CHARS = 4_000
+MAX_DECISIONS = 10
+MAX_DECISION_CHARS = 1_000
 GROUP_CONTEXT_SCHEMA_VERSION = 1
 ROUND_ROLES = {"solo", "lead", "contributor", "synthesizer"}
 
@@ -37,11 +39,16 @@ def collaboration_instructions(value: Any) -> str:
     memory = memory.strip()
     raw_people = value.get("people", [])
     raw_bots = value.get("bots", [])
+    raw_decisions = value.get("decisions", [])
     raw_round = value.get("round", {})
     if not isinstance(raw_people, list) or len(raw_people) > MAX_PEOPLE:
         raise ValueError(f"group.people must contain at most {MAX_PEOPLE} people")
     if not isinstance(raw_bots, list) or not raw_bots or len(raw_bots) > MAX_BOTS:
         raise ValueError(f"group.bots must contain between 1 and {MAX_BOTS} bots")
+    if not isinstance(raw_decisions, list) or len(raw_decisions) > MAX_DECISIONS:
+        raise ValueError(
+            f"group.decisions must contain at most {MAX_DECISIONS} decisions"
+        )
     if not isinstance(raw_round, dict):
         raise TypeError("group.round must be an object")
 
@@ -76,6 +83,34 @@ def collaboration_instructions(value: Any) -> str:
     if current_count != 1:
         raise ValueError("group.bots must identify exactly one current bot")
 
+    decisions = []
+    for decision in raw_decisions:
+        if not isinstance(decision, dict):
+            raise TypeError("each group decision must be an object")
+        created_at = decision.get("createdAt", "")
+        if not isinstance(created_at, str) or len(created_at) > 32:
+            raise ValueError("group decision createdAt must be text up to 32 characters")
+        decisions.append(
+            {
+                "text": _text(
+                    decision.get("text"),
+                    "group decision text",
+                    MAX_DECISION_CHARS,
+                ),
+                "sourceAuthorName": _text(
+                    decision.get("sourceAuthorName"),
+                    "group decision sourceAuthorName",
+                    60,
+                ),
+                "createdByName": _text(
+                    decision.get("createdByName"),
+                    "group decision createdByName",
+                    40,
+                ),
+                "createdAt": created_at,
+            }
+        )
+
     position = raw_round.get("position")
     size = raw_round.get("size")
     round_role = raw_round.get("role", "solo")
@@ -97,6 +132,7 @@ def collaboration_instructions(value: Any) -> str:
             "sharedMemory": memory,
             "people": people,
             "bots": bots,
+            "decisions": decisions,
             "round": {
                 "position": position,
                 "size": size,
@@ -115,7 +151,9 @@ def collaboration_instructions(value: Any) -> str:
         "Treat earlier bot messages as colleague contributions: respond to their substance, build on or respectfully "
         "correct them, and do not repeat them. Never impersonate another participant or invent a reply that is not in "
         "the transcript. The group owner controls sharedMemory. Treat it as durable group context, use it when relevant, "
-        "and never claim that a chat message changed it. "
+        "and never claim that a chat message changed it. The decisions array contains room-approved outcomes with their "
+        "source and saver. Treat those as durable decisions, use them when relevant, and explicitly flag rather than "
+        "silently override a conflict. "
         f"You are reply {position} of {size}. "
     )
     if round_role == "lead":
@@ -136,7 +174,10 @@ def collaboration_instructions(value: Any) -> str:
         role_instructions = (
             f"You are the coordinator, {coordinator_name}, returning after the other bots contributed. Produce one final, "
             "self-contained team answer to the person's latest request. Integrate the strongest useful points, resolve "
-            "conflicts, and deliver the actual outcome or next actions. Do not narrate the orchestration, merely recap each "
+            "conflicts, and deliver the actual outcome or next actions. When making a recommendation or decision, include "
+            "a brief 'Why this choice' or 'Inputs used' section that names the room constraints and specialist evidence that "
+            "actually affected it. Attribute claims only when the transcript supports that attribution, and never invent "
+            "sources or citations. Do not narrate the orchestration, merely recap each "
             "bot, or ask for information unless it is genuinely required. If a reusable file would help, create one final "
             "artifact for the group. Match the depth the person requested and default to a concise answer."
         )

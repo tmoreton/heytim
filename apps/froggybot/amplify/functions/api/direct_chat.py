@@ -370,10 +370,5 @@ def _update_cancelled_schedule(user_id: str, turn: dict, cancelled_at: str) -> N
 
 def _run_schedule_now(user_id: str, bot_id: str, schedule_id: str) -> dict:
     schedule_item = _get_schedule(user_id, bot_id, schedule_id)
-    bot = _get_bot(user_id, bot_id)
-    if catalog.approval_tool_names(user_id, bot.get("toolIds", [])):
-        raise ApiError(
-            409,
-            "Interactive tools cannot run on a schedule because they require your approval.",
-        )
+    _get_bot(user_id, bot_id)
     return _start_bot_turn(user_id, bot_id, schedule_item["prompt"], schedule_item)

@@ -14,6 +14,7 @@ export const apiRoutes = {
     `/bots/${segment(botId)}/schedules/${segment(scheduleId)}`,
   botScheduleRun: (botId: string, scheduleId: string) =>
     `/bots/${segment(botId)}/schedules/${segment(scheduleId)}/run`,
+  botScheduleRuns: (botId: string) => `/bots/${segment(botId)}/runs`,
   botTemplateInstall: (templateId: string) => `/bot-templates/${segment(templateId)}/install`,
   connection: (connectionId: string) => `/connections/${segment(connectionId)}`,
   connections: '/connections',
@@ -22,12 +23,19 @@ export const apiRoutes = {
   fileDownload: (fileId: string) => `/files/${segment(fileId)}/download`,
   group: (groupId: string) => `/groups/${segment(groupId)}`,
   groups: '/groups',
+  groupSchedules: (groupId: string) => `/groups/${segment(groupId)}/schedules`,
+  groupSchedule: (groupId: string, scheduleId: string) => `/groups/${segment(groupId)}/schedules/${segment(scheduleId)}`,
+  groupScheduleRun: (groupId: string, scheduleId: string) => `/groups/${segment(groupId)}/schedules/${segment(scheduleId)}/run`,
+  groupScheduleRuns: (groupId: string) => `/groups/${segment(groupId)}/runs`,
   groupFileDownload: (groupId: string, fileId: string) =>
     `/groups/${segment(groupId)}/files/${segment(fileId)}/download`,
   groupInvites: (groupId: string) => `/groups/${segment(groupId)}/invites`,
   groupMember: (groupId: string, memberId: string) =>
     `/groups/${segment(groupId)}/members/${segment(memberId)}`,
   groupMessages: (groupId: string) => `/groups/${segment(groupId)}/messages`,
+  groupDecisions: (groupId: string) => `/groups/${segment(groupId)}/decisions`,
+  groupDecision: (groupId: string, decisionId: string) =>
+    `/groups/${segment(groupId)}/decisions/${segment(decisionId)}`,
   groupMemory: (groupId: string) => `/groups/${segment(groupId)}/memory`,
   groupMemoryRecord: (groupId: string, recordId: string) =>
     `/groups/${segment(groupId)}/memory/${segment(recordId)}`,

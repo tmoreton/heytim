@@ -25,6 +25,20 @@ type Props = {
 const countLabel = (count: number, singular: string) =>
   `${count} ${count === 1 ? singular : `${singular}s`}`;
 
+const templateExample = (template: BotTemplate) => {
+  const identity = `${template.id} ${template.name} ${template.category ?? ''}`.toLowerCase();
+  if (identity.includes('trip') || identity.includes('travel')) {
+    return 'Ask: “Plan a walkable weekend under $1,200.” → itinerary, budget, bookings, and owners.';
+  }
+  if (identity.includes('event')) {
+    return 'Ask: “Plan our 40-person launch dinner.” → options, budget, run of show, and checklist.';
+  }
+  if (identity.includes('research') || identity.includes('report')) {
+    return 'Ask: “Compare these three options with current sources.” → recommendation, evidence, and a shareable report.';
+  }
+  return `Ask ${template.name} for a concrete outcome → a checked recommendation and the next actions.`;
+};
+
 export function BotLibrary({
   bots,
   templates,
@@ -36,6 +50,7 @@ export function BotLibrary({
 }: Props) {
   const [installingId, setInstallingId] = useState<string>();
   const [error, setError] = useState('');
+  const [expandedExampleId, setExpandedExampleId] = useState<string>();
   const installedIds = useMemo(
     () => new Set(bots.flatMap((bot) => (bot.templateId ? [bot.templateId] : []))),
     [bots],
@@ -66,7 +81,7 @@ export function BotLibrary({
   };
 
   return (
-    <PageSheet onClose={onClose}>
+    <PageSheet accessibilityLabel="FroggyBot library" onClose={onClose}>
       <View style={styles.page}>
         <View style={styles.header}>
           <View style={styles.headerSpacer} />
@@ -110,6 +125,18 @@ export function BotLibrary({
                       : 'Prompt only'}
                     {effectiveToolIds.size ? ` · ${countLabel(effectiveToolIds.size, 'required tool')}` : ''}
                   </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: expandedExampleId === template.id }}
+                    hitSlop={8}
+                    onPress={() => setExpandedExampleId((value) => value === template.id ? undefined : template.id)}>
+                    <Text style={styles.exampleAction}>
+                      {expandedExampleId === template.id ? 'Hide example' : 'See an example'}
+                    </Text>
+                  </Pressable>
+                  {expandedExampleId === template.id ? (
+                    <Text style={styles.example}>{templateExample(template)}</Text>
+                  ) : null}
                 </View>
                 <Pressable
                   accessibilityLabel={installed ? `${template.name} is added` : `Add ${template.name}`}
@@ -167,7 +194,9 @@ const styles = StyleSheet.create({
   name: { flexShrink: 1, color: '#24231F', fontSize: 15, fontWeight: '800' },
   badge: { color: '#007A3D', backgroundColor: '#E4F1EA', overflow: 'hidden', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, fontSize: 10, fontWeight: '700' },
   tagline: { color: '#6F6B64', fontSize: 12, lineHeight: 17, marginTop: 4 },
-  meta: { color: '#918D84', fontSize: 10.5, lineHeight: 15, marginTop: 5 },
+  meta: { color: '#6E6A62', fontSize: 10.5, lineHeight: 15, marginTop: 5 },
+  exampleAction: { color: '#006E37', fontSize: 11, fontWeight: '800', marginTop: 7 },
+  example: { color: '#4F4C46', fontSize: 11.5, lineHeight: 17, marginTop: 6, padding: 9, borderRadius: 10, backgroundColor: '#F1F6F3' },
   addButton: { minWidth: 62, minHeight: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, backgroundColor: '#007A3D' },
   addedButton: { backgroundColor: '#E4F1EA' },
   addText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },

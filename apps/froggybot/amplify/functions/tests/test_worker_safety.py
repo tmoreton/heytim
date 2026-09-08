@@ -349,7 +349,7 @@ class WorkerSafetyTests(WorkerTestCase):
 
         cleanup.assert_called_once_with("user-1", "username-1")
 
-    def test_legacy_schedule_cannot_bypass_interactive_tool_approval(self) -> None:
+    def test_scheduled_work_pauses_for_interactive_tool_approval(self) -> None:
         turn = {
             "pk": "CHAT#user-1#bot-1",
             "sk": "TURN#now#turn-1",
@@ -367,22 +367,13 @@ class WorkerSafetyTests(WorkerTestCase):
             "name": "Browser bot",
             "toolIds": ["browser"],
         }
-        finish = MagicMock(return_value="later")
         with (
             patch.object(
                 self.direct_job.catalog,
-                "approval_tool_names",
-                return_value=["Interactive browser"],
-            ),
-            patch.object(
-                self.direct_job.catalog,
                 "unapproved_tools",
-                return_value=[],
+                return_value=[{"id": "browser", "name": "Interactive browser"}],
             ),
-            patch.object(self.direct_job, "_claim_work", return_value="lease-1"),
-            patch.object(self.direct_job, "_finish_work", finish),
             patch.object(self.direct_job, "_update_schedule_result") as update_schedule,
-            patch.object(self.direct_job, "_queue_reply_notification") as notify,
             patch.object(self.direct_job, "_invoke") as invoke,
         ):
             self.direct_job._process_agent_reply(
@@ -391,9 +382,12 @@ class WorkerSafetyTests(WorkerTestCase):
             )
 
         invoke.assert_not_called()
-        self.assertEqual(finish.call_args.args[2:4], ("ERROR", "assistantText"))
-        update_schedule.assert_called_once()
-        notify.assert_called_once()
+        update_schedule.assert_called_once_with(turn, "awaiting_approval", "now")
+        approval_update = self.table.updates[-1]
+        self.assertEqual(
+            approval_update["ExpressionAttributeValues"][":awaiting"],
+            "AWAITING_APPROVAL",
+        )
 
     def test_unapproved_direct_work_is_returned_to_the_approval_state(self) -> None:
         turn = {

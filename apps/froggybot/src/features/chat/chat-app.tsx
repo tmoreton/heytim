@@ -3,6 +3,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   Pressable,
   Share,
@@ -22,6 +23,7 @@ import { BotDocuments } from './bot-documents';
 import { BotEditor } from './bot-editor';
 import { BotLibrary } from './bot-library';
 import { styles } from './chat-app.styles';
+import type { ChatOverlay } from './chat-overlay';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationDrawer } from './conversation-drawer';
 import { GroupEditor } from './group-editor';
@@ -44,19 +46,6 @@ type Props = {
 };
 
 const directTurnId = (message: Message) => message.id.replace(/-assistant$/, '');
-
-type ChatOverlay =
-  | { kind: 'none' }
-  | { kind: 'botEditor'; mode: 'new' | 'edit'; capability?: CapabilitySelection }
-  | { kind: 'botLibrary' }
-  | { kind: 'groupEditor'; mode: 'new' | 'edit' }
-  | { kind: 'skillLibrary' }
-  | { kind: 'account' }
-  | { kind: 'memory' }
-  | { kind: 'documents'; bot: Bot }
-  | { kind: 'schedule'; bot: Bot }
-  | { kind: 'botMenu' }
-  | { kind: 'botConfirmation'; action: BotAction };
 
 export function ChatApp({ demo, invitation, initialCapability, initialBotTemplateId, onSignedOut }: Props) {
   const { width } = useWindowDimensions();
@@ -127,7 +116,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
   const dictation = useMessageDictation(draft, setDraft, setError);
   const attachmentDraft = useAttachments({
     api,
-    disabled: !selectedBot || pending || sending,
+    disabled: !selected || pending || sending,
     setError,
   });
   const { attachments, uploading: uploadingAttachment } = attachmentDraft;
@@ -151,6 +140,8 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
     loadBootstrap,
     openConversation,
   });
+  const baseContentHidden =
+    (!wide && drawerOpen) || overlay.kind !== 'none' || botLibraryOnboarding || Boolean(links.pendingSkill);
 
   const selectBot = (bot: Bot) => {
     dictation.abort();
@@ -191,7 +182,14 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
     dictation.stop();
     setDraft('');
     try {
-      if (selectedGroup) await api.sendGroupMessage(selectedGroup.id, text, activeReplyBotId);
+      if (selectedGroup) {
+        await api.sendGroupMessage(
+          selectedGroup.id,
+          text,
+          activeReplyBotId,
+          attachments.map((item) => item.id),
+        );
+      }
       else if (selectedBot) await api.sendMessage(selectedBot, text, attachments.map((item) => item.id));
       attachmentDraft.clear();
       await loadMessages();
@@ -345,18 +343,34 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
       onSelectBot={selectBot}
       onSelectGroup={selectGroup}
       onOpenBotLibrary={() => {
+        setDrawerOpen(false);
         setBotOnboardingDismissed(true);
         setOverlay({ kind: 'botLibrary' });
       }}
-      onCreateBot={() => setOverlay({ kind: 'botEditor', mode: 'new' })}
-      onCreateGroup={() => setOverlay({ kind: 'groupEditor', mode: 'new' })}
-      onOpenAccount={() => setOverlay({ kind: 'account' })}
+      onCreateBot={() => {
+        setDrawerOpen(false);
+        setOverlay({ kind: 'botEditor', mode: 'new' });
+      }}
+      onCreateGroup={() => {
+        setDrawerOpen(false);
+        setOverlay({ kind: 'groupEditor', mode: 'new' });
+      }}
+      onOpenAccount={() => {
+        setDrawerOpen(false);
+        setOverlay({ kind: 'account' });
+      }}
+      onClose={!wide ? () => setDrawerOpen(false) : undefined}
     />
   );
 
   return (
     <View style={styles.safeArea}>
-      <KeyboardAvoidingView style={styles.safeArea} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView
+        accessibilityElementsHidden={baseContentHidden}
+        aria-hidden={baseContentHidden}
+        importantForAccessibility={baseContentHidden ? 'no-hide-descendants' : 'auto'}
+        style={styles.safeArea}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.shell}>
           {wide && drawerOpen ? <View style={styles.wideDrawer}>{drawer}</View> : null}
           <ConversationPanel
@@ -381,6 +395,11 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
             onToggleDrawer={() => setDrawerOpen((value) => !value)}
             onEditGroup={() => setOverlay({ kind: 'groupEditor', mode: 'edit' })}
             onOpenBotMenu={() => setOverlay({ kind: 'botMenu' })}
+            onOpenDocuments={() => selectedBot && setOverlay({ kind: 'documents', bot: selectedBot })}
+            onOpenScheduledWork={() => {
+              if (selectedGroup?.isOwner) setOverlay({ kind: 'groupSchedule', group: selectedGroup });
+              else if (selectedBot) setOverlay({ kind: 'schedule', bot: selectedBot });
+            }}
             onDraftChange={setDraft}
             onAddAttachment={() => void attachmentDraft.pick()}
             onRemoveAttachment={attachmentDraft.remove}
@@ -391,16 +410,36 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
             onApprove={respondToApproval}
             onReject={(message) => respondToApproval(message)}
             onOpenFile={openFile}
+            onSaveDecision={async (message) => {
+              if (!selectedGroup) return;
+              const decision = await api.saveGroupDecision(selectedGroup.id, message.id);
+              upsertGroup({ ...selectedGroup, decisions: [decision, ...selectedGroup.decisions.filter((item) => item.id !== decision.id)] });
+            }}
           />
 
-          {!wide && drawerOpen ? (
-            <View style={styles.mobileDrawerLayer}>
-              <Pressable style={styles.backdrop} onPress={() => setDrawerOpen(false)} />
-              <View style={[styles.mobileDrawer, { width: Math.min(width * 0.86, 340) }]}>{drawer}</View>
-            </View>
-          ) : null}
         </View>
       </KeyboardAvoidingView>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={!wide && drawerOpen}
+        onRequestClose={() => setDrawerOpen(false)}>
+        <View
+          accessibilityLabel="Chats and groups"
+          accessibilityViewIsModal
+          aria-modal
+          role="dialog"
+          style={styles.mobileDrawerLayer}>
+          <Pressable
+            accessibilityLabel="Dismiss chats and groups"
+            accessibilityRole="button"
+            style={styles.backdrop}
+            onPress={() => setDrawerOpen(false)}
+          />
+          <View style={[styles.mobileDrawer, { width: Math.min(width * 0.86, 340) }]}>{drawer}</View>
+        </View>
+      </Modal>
 
       {overlay.kind === 'botEditor' && data ? (
         <BotEditor
@@ -438,6 +477,11 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
           onShare={shareGroup}
           onRemoveMember={removeGroupMember}
           onDelete={deleteGroup}
+          onDeleteDecision={async (decisionId) => {
+            if (!selectedGroup) return;
+            await api.deleteGroupDecision(selectedGroup.id, decisionId);
+            upsertGroup({ ...selectedGroup, decisions: selectedGroup.decisions.filter((item) => item.id !== decisionId) });
+          }}
           onLoadMemory={api.groupMemories}
           onCreateMemory={api.createGroupMemory}
           onUpdateMemory={api.updateGroupMemory}
@@ -463,14 +507,29 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
         <ScheduledTasks
           bot={overlay.bot}
           onClose={() => setOverlay({ kind: 'none' })}
-          onList={api.schedules}
-          onSave={api.saveSchedule}
-          onDelete={api.deleteSchedule}
-          onRun={api.runSchedule}
+            onList={api.schedules}
+            onListRuns={api.scheduleRuns}
+            onSave={api.saveSchedule}
+            onDelete={api.deleteSchedule}
+            onRun={api.runSchedule}
+            onApproveRun={(runId) => api.approveMessage(overlay.bot.id, runId)}
+            onCancelRun={(runId) => api.cancelMessage(overlay.bot.id, runId)}
           onTriggered={async () => {
             clearMessages(true);
             await loadMessages();
           }}
+        />
+      ) : null}
+      {overlay.kind === 'groupSchedule' ? (
+        <ScheduledTasks
+          bot={{ id: overlay.group.id, name: overlay.group.name, color: '#58BEAA' }}
+          onClose={() => setOverlay({ kind: 'none' })}
+          onList={api.groupSchedules}
+          onListRuns={api.groupScheduleRuns}
+          onSave={api.saveGroupSchedule}
+          onDelete={api.deleteGroupSchedule}
+          onRun={api.runGroupSchedule}
+          onTriggered={async () => { clearMessages(true); await loadMessages(); }}
         />
       ) : null}
       {overlay.kind === 'documents' ? (

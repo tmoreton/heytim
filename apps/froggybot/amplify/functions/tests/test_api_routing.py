@@ -72,6 +72,43 @@ class ApiRoutingTests(unittest.TestCase):
         self.assertEqual(response["statusCode"], 200)
         memories.assert_called_once_with("user-1", "group-1")
 
+    def test_group_decision_reaches_the_room_outcome_domain(self) -> None:
+        saved = {"id": "decision-1"}
+        with patch.object(
+            self.routes, "_save_group_decision", return_value=saved
+        ) as save:
+            response = self.routes.route_authenticated(
+                "user-1",
+                "Tim",
+                "POST",
+                "/groups/group-1/decisions",
+                {"groupId": "group-1"},
+                {"body": '{"messageId":"message-1"}'},
+                route_key="POST /groups/{groupId}/decisions",
+            )
+
+        self.assertEqual(response["statusCode"], 201)
+        save.assert_called_once_with(
+            "user-1", "Tim", "group-1", {"messageId": "message-1"}
+        )
+
+    def test_schedule_runs_reach_the_run_inbox(self) -> None:
+        with patch.object(
+            self.routes, "_list_schedule_runs", return_value=[]
+        ) as runs:
+            response = self.routes.route_authenticated(
+                "user-1",
+                "Tim",
+                "GET",
+                "/bots/bot-1/runs",
+                {"botId": "bot-1"},
+                {},
+                route_key="GET /bots/{botId}/runs",
+            )
+
+        self.assertEqual(response["statusCode"], 200)
+        runs.assert_called_once_with("user-1", "bot-1")
+
     def test_bot_documents_reach_the_authenticated_bot_library(self) -> None:
         with (
             patch.object(self.routes, "_get_bot") as get_bot,

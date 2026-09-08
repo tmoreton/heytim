@@ -67,7 +67,7 @@ export function BotDocuments({ bot, onClose, onList, onOpen }: Props) {
   };
 
   return (
-    <PageSheet onClose={onClose}>
+    <PageSheet accessibilityLabel={`${bot.name} documents`} onClose={onClose}>
       <View style={styles.page}>
         <View style={styles.header}>
           <Text accessibilityRole="header" style={styles.title}>Documents</Text>
@@ -152,10 +152,10 @@ const styles = StyleSheet.create({
   formatText: { color: '#007A3D', fontSize: 10, fontWeight: '900', letterSpacing: 0.4 },
   documentCopy: { flex: 1 },
   documentName: { color: '#282722', fontSize: 15, lineHeight: 20, fontWeight: '700' },
-  documentMeta: { color: '#8B877F', fontSize: 12, marginTop: 4 },
+  documentMeta: { color: '#6E6A62', fontSize: 12, marginTop: 4 },
   openText: { color: '#007A3D', fontSize: 13, fontWeight: '800' },
   empty: { alignItems: 'center', padding: 34, marginTop: 22, borderRadius: 20, borderWidth: 1, borderStyle: 'dashed', borderColor: '#D8D4CB' },
   emptyTitle: { color: '#24231F', fontSize: 17, fontWeight: '800' },
-  emptyText: { color: '#858179', fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 6 },
+  emptyText: { color: '#6E6A62', fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 6 },
   pressed: { opacity: 0.68 },
 });

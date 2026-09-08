@@ -53,6 +53,41 @@ def _attachment_blocks(turn: dict, user_id: str) -> list[dict]:
     return blocks
 
 
+def _group_attachment_blocks(message: dict, group_id: str) -> list[dict]:
+    attachments = message.get("attachments", [])
+    if not isinstance(attachments, list):
+        raise TypeError("Group message attachments must be a list")
+    blocks = []
+    group_prefix = f"groups/{group_id}/uploads/"
+    for index, attachment in enumerate(attachments, start=1):
+        if not isinstance(attachment, dict):
+            raise TypeError("Group message attachment must be an object")
+        kind = attachment.get("kind")
+        file_format = attachment.get("format")
+        object_key = attachment.get("objectKey")
+        if (
+            kind not in {"image", "document"}
+            or not isinstance(file_format, str)
+            or not isinstance(object_key, str)
+            or not object_key.startswith(group_prefix)
+        ):
+            raise ValueError("Group message attachment metadata is invalid")
+        source = {"s3Location": {"uri": f"s3://{FILES_BUCKET_NAME}/{object_key}"}}
+        if kind == "image":
+            blocks.append({"image": {"format": file_format, "source": source}})
+        else:
+            blocks.append(
+                {
+                    "document": {
+                        "format": file_format,
+                        "name": f"Attachment {index}",
+                        "source": source,
+                    }
+                }
+            )
+    return blocks
+
+
 def _generated_artifact_prefix(user_id: str, bot_id: str, event_id: str) -> str:
     return f"users/{memory_actor_id(user_id)}/bots/{bot_id}/artifacts/{event_id}"
 

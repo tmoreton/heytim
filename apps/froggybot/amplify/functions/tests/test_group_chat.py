@@ -36,6 +36,14 @@ class GroupChatTests(unittest.TestCase):
                 "tagline": "Connects the dots.",
                 "systemRole": "chief",
             },
+            {
+                "sk": "DECISION#1",
+                "entity": "GROUP_DECISION",
+                "text": "Use the smaller Friday launch.",
+                "sourceAuthorName": "Chief",
+                "createdByName": "Taylor",
+                "createdAt": "2026-09-08T10:00:00Z",
+            },
         ]
 
     def test_all_bots_reply_in_stable_name_order(self) -> None:
@@ -62,6 +70,9 @@ class GroupChatTests(unittest.TestCase):
             [bot["name"] for bot in context["bots"]], ["Chief", "Research Scout"]
         )
         self.assertEqual([bot["isCurrent"] for bot in context["bots"]], [False, True])
+        self.assertEqual(
+            context["decisions"][0]["text"], "Use the smaller Friday launch."
+        )
 
     def test_round_advances_one_bot_at_a_time(self) -> None:
         replies = [{"botId": "chief"}, {"botId": "research"}]

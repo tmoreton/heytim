@@ -28,6 +28,14 @@ class GroupContextTests(unittest.TestCase):
                         "isCurrent": True,
                     },
                 ],
+                "decisions": [
+                    {
+                        "text": "Use the smaller Friday launch.",
+                        "sourceAuthorName": "Chief",
+                        "createdByName": "Taylor",
+                        "createdAt": "2026-09-08T10:00:00Z",
+                    }
+                ],
                 "round": {
                     "position": 2,
                     "size": 3,
@@ -47,6 +55,8 @@ class GroupContextTests(unittest.TestCase):
             instructions,
         )
         self.assertIn("group owner controls sharedMemory", instructions)
+        self.assertIn('"text":"Use the smaller Friday launch."', instructions)
+        self.assertIn("durable decisions", instructions)
 
     def test_synthesizer_must_return_one_final_team_answer(self) -> None:
         instructions = collaboration_instructions(
@@ -65,6 +75,7 @@ class GroupContextTests(unittest.TestCase):
                         "isCurrent": False,
                     },
                 ],
+                "decisions": [],
                 "round": {
                     "position": 3,
                     "size": 3,
@@ -75,6 +86,8 @@ class GroupContextTests(unittest.TestCase):
         )
         self.assertIn("Produce one final, self-contained team answer", instructions)
         self.assertIn("returning after the other bots contributed", instructions)
+        self.assertIn("Why this choice", instructions)
+        self.assertIn("never invent sources or citations", instructions)
 
 
 if __name__ == "__main__":

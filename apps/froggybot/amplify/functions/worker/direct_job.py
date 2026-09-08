@@ -49,9 +49,6 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             user_id, bot_id, turn_key, turn, bot, turn["assistantText"]
         )
         return
-    interactive_tool_names = catalog.approval_tool_names(
-        user_id, bot.get("toolIds", [])
-    )
     unapproved_tools = catalog.unapproved_tools(
         user_id,
         bot.get("toolIds", []),
@@ -59,24 +56,6 @@ def _process_agent_reply(record: dict, request: dict) -> None:
     )
     approval_tools = [item["name"] for item in unapproved_tools]
     approval_tool_ids = [item["id"] for item in unapproved_tools]
-    if turn.get("source") == "schedule" and interactive_tool_names:
-        if not is_claimable(turn.get("status")):
-            return
-        lease_owner = _claim_work(turn_key, record)
-        if not lease_owner:
-            return
-        failure_answer = (
-            "This scheduled task was stopped because interactive tools require "
-            "approval in a direct chat."
-        )
-        failed_at = _finish_work(
-            turn_key, lease_owner, "ERROR", "assistantText", failure_answer
-        )
-        if not failed_at:
-            return
-        _update_schedule_result(turn, "error", failed_at)
-        _queue_reply_notification(user_id, bot_id, turn_key, turn, bot, failure_answer)
-        return
     if approval_tools and not turn.get("approvedAt"):
         try:
             table.update_item(
@@ -96,6 +75,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             )
         except table.meta.client.exceptions.ConditionalCheckFailedException:
             pass
+        _update_schedule_result(turn, "awaiting_approval", turn["createdAt"])
         return
     if not is_claimable(turn.get("status")):
         if turn.get("status") in {"COMPLETE", "ERROR"}:

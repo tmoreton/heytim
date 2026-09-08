@@ -1,4 +1,5 @@
 import type { FrogBotApi } from './api';
+import { deleteDemoGroupDecision, saveDemoGroupDecision } from './demo-decisions';
 import {
   demoBootstrap,
   demoBotDocuments,
@@ -15,6 +16,7 @@ import {
   demoListSchedules,
   demoMessages,
   demoRunSchedule,
+  demoScheduleRuns,
   demoSaveBot,
   demoSaveConnection,
   demoSaveGroup,
@@ -22,6 +24,7 @@ import {
   demoSaveSkill,
   demoSend,
   demoSendGroup,
+  demoUploadAttachment,
 } from './demo';
 
 export const createDemoApi = (): FrogBotApi => ({
@@ -45,14 +48,7 @@ export const createDemoApi = (): FrogBotApi => ({
   saveBot: async (draft, botId) => demoSaveBot(draft, botId),
   clearBotChat: async (botId) => demoClearBotChat(botId),
   deleteBot: async (botId) => demoDeleteBot(botId),
-  uploadAttachment: async (asset) => ({
-    id: `demo-file-${Date.now()}`,
-    name: asset.name,
-    size: asset.size,
-    kind: asset.mimeType?.startsWith('image/') ? 'image' : 'document',
-    format: asset.name.split('.').pop()?.toLowerCase() ?? 'txt',
-    contentType: asset.mimeType ?? 'application/octet-stream',
-  }),
+  uploadAttachment: demoUploadAttachment,
   downloadFile: async () => `data:text/plain;charset=utf-8,${encodeURIComponent('FroggyBot preview attachment')}`,
   sendMessage: async (bot, text) => demoSend(bot, text),
   cancelMessage: async () => {},
@@ -61,13 +57,24 @@ export const createDemoApi = (): FrogBotApi => ({
   saveSchedule: demoSaveSchedule,
   deleteSchedule: demoDeleteSchedule,
   runSchedule: demoRunSchedule,
+  scheduleRuns: demoScheduleRuns,
+  groupSchedules: demoListSchedules,
+  saveGroupSchedule: demoSaveSchedule,
+  deleteGroupSchedule: demoDeleteSchedule,
+  runGroupSchedule: demoRunSchedule,
+  groupScheduleRuns: demoScheduleRuns,
   groupMessages: async (groupId) => demoGroupMessages(groupId),
   saveGroup: async (draft, groupId) => demoSaveGroup(draft, groupId),
   deleteGroup: async (groupId) => demoDeleteGroup(groupId),
-  sendGroupMessage: async (groupId, text, replyBotId) => demoSendGroup(groupId, text, replyBotId),
+  sendGroupMessage: async (groupId, text, replyBotId, attachmentIds) => demoSendGroup(groupId, text, replyBotId, attachmentIds),
   shareGroup: async (groupId) => `https://froggybot.com/invite?kind=group&token=demo-${groupId}`,
   joinGroup: async (token) => demoJoinGroup(token),
   removeGroupMember: async () => {},
+  saveGroupDecision: async (groupId, messageId) => saveDemoGroupDecision(
+    groupId,
+    demoGroupMessages(groupId).find((message) => message.id === messageId),
+  ),
+  deleteGroupDecision: deleteDemoGroupDecision,
   registerPushToken: async () => {},
   unregisterPushToken: async () => {},
   sharedLinks: async () => [],

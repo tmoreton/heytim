@@ -81,6 +81,7 @@ export type ScheduleFrequency = 'daily' | 'weekdays' | 'weekly' | 'monthly';
 export type ScheduledTask = {
   id: string;
   botId: string;
+  groupId?: string;
   name: string;
   prompt: string;
   frequency: ScheduleFrequency;
@@ -92,13 +93,29 @@ export type ScheduledTask = {
   createdAt: string;
   updatedAt: string;
   lastRunAt?: string;
-  lastStatus?: 'pending' | 'complete' | 'error';
+  lastStatus?: 'pending' | 'awaiting_approval' | 'complete' | 'cancelled' | 'error';
 };
 
 export type ScheduledTaskDraft = Pick<
   ScheduledTask,
   'name' | 'prompt' | 'frequency' | 'dayOfWeek' | 'dayOfMonth' | 'time' | 'timezone' | 'enabled'
 >;
+
+export type ScheduleRun = {
+  id: string;
+  botId: string;
+  groupId?: string;
+  scheduleId: string;
+  scheduleName: string;
+  prompt: string;
+  status: Message['status'];
+  createdAt: string;
+  completedAt?: string;
+  output?: string;
+  activity?: string[];
+  approvalTools?: string[];
+  attachments?: Attachment[];
+};
 
 export type GroupMember = {
   id: string;
@@ -115,6 +132,16 @@ export type GroupBot = {
   systemRole?: 'chief';
 };
 
+export type GroupDecision = {
+  id: string;
+  text: string;
+  sourceMessageId: string;
+  sourceAuthorName: string;
+  createdById: string;
+  createdByName: string;
+  createdAt: string;
+};
+
 export type Group = {
   id: string;
   name: string;
@@ -126,6 +153,7 @@ export type Group = {
   isOwner: boolean;
   members: GroupMember[];
   bots: GroupBot[];
+  decisions: GroupDecision[];
   createdAt: string;
   updatedAt: string;
   lastMessage: string;

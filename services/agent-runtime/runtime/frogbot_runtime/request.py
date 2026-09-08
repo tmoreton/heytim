@@ -15,14 +15,21 @@ DOCUMENT_FORMATS = {"pdf", "csv", "doc", "docx", "xls", "xlsx", "html", "txt", "
 IMAGE_FORMATS = {"png", "jpeg", "gif", "webp"}
 FILES_BUCKET_NAME = os.environ.get("FROGBOT_FILES_BUCKET", "")
 _ACTOR_ID_PATTERN = re.compile(r"^[a-f0-9]{64}$")
+_GROUP_ATTACHMENT_PREFIX_PATTERN = re.compile(
+    r"^groups/[a-f0-9-]{36}/uploads/$"
+)
 _s3 = None
 
 
-def _s3_source(value: Any, actor_id: str | None) -> dict:
+def _s3_source(
+    value: Any, actor_id: str | None, group_prefix: str | None = None
+) -> dict:
     global _s3
     if not FILES_BUCKET_NAME:
         raise ValueError("attachment source is invalid")
-    if not isinstance(actor_id, str) or not _ACTOR_ID_PATTERN.fullmatch(actor_id):
+    if group_prefix is None and (
+        not isinstance(actor_id, str) or not _ACTOR_ID_PATTERN.fullmatch(actor_id)
+    ):
         raise ValueError("attachment identity is invalid")
     if not isinstance(value, dict):
         raise TypeError("attachment source must be an object")
@@ -30,7 +37,7 @@ def _s3_source(value: Any, actor_id: str | None) -> dict:
     if not isinstance(location, dict):
         raise TypeError("attachment S3 location must be an object")
     uri = location.get("uri")
-    prefix = f"s3://{FILES_BUCKET_NAME}/users/{actor_id}/"
+    prefix = f"s3://{FILES_BUCKET_NAME}/{group_prefix or f'users/{actor_id}/'}"
     if not isinstance(uri, str) or not uri.startswith(prefix) or len(uri) > 1024:
         raise ValueError("attachment source is outside the FroggyBot file store")
     key = uri[len(f"s3://{FILES_BUCKET_NAME}/") :]
@@ -58,7 +65,12 @@ def _s3_source(value: Any, actor_id: str | None) -> dict:
     return {"bytes": body}
 
 
-def _attachment_block(block: dict, index: int, actor_id: str | None) -> dict:
+def _attachment_block(
+    block: dict,
+    index: int,
+    actor_id: str | None,
+    group_prefix: str | None = None,
+) -> dict:
     if "image" in block:
         image = block["image"]
         if not isinstance(image, dict) or image.get("format") not in IMAGE_FORMATS:
@@ -66,7 +78,7 @@ def _attachment_block(block: dict, index: int, actor_id: str | None) -> dict:
         return {
             "image": {
                 "format": image["format"],
-                "source": _s3_source(image.get("source"), actor_id),
+                "source": _s3_source(image.get("source"), actor_id, group_prefix),
             }
         }
     if "document" in block:
@@ -80,7 +92,9 @@ def _attachment_block(block: dict, index: int, actor_id: str | None) -> dict:
             "document": {
                 "format": document["format"],
                 "name": f"Attachment {index}",
-                "source": _s3_source(document.get("source"), actor_id),
+                "source": _s3_source(
+                    document.get("source"), actor_id, group_prefix
+                ),
             }
         }
     raise TypeError("only text and reviewed attachment content blocks are accepted")
@@ -117,6 +131,14 @@ def messages_from_payload(payload: dict, actor_id: str | None = None) -> list[di
     """Validate and normalize the caller-supplied conversation."""
     if not isinstance(payload, dict):
         raise TypeError("payload must be a JSON object")
+
+    group_prefix = payload.get("attachmentPrefix")
+    if group_prefix is not None and (
+        not isinstance(payload.get("group"), dict)
+        or not isinstance(group_prefix, str)
+        or not _GROUP_ATTACHMENT_PREFIX_PATTERN.fullmatch(group_prefix)
+    ):
+        raise ValueError("group attachment scope is invalid")
 
     raw_messages = payload.get("messages")
     if raw_messages is None:
@@ -172,7 +194,9 @@ def messages_from_payload(payload: dict, actor_id: str | None = None) -> list[di
                 raise ValueError(
                     f"a message can contain at most {MAX_ATTACHMENTS} attachments"
                 )
-            content_blocks.append(_attachment_block(block, attachment_count, actor_id))
+            content_blocks.append(
+                _attachment_block(block, attachment_count, actor_id, group_prefix)
+            )
         if not has_text:
             raise ValueError("each message must contain a text content block")
         messages.append({"role": message["role"], "content": content_blocks})

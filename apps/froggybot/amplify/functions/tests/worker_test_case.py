@@ -13,8 +13,21 @@ class ConditionalCheckFailedException(Exception):
 
 
 class FakeAttr:
-    def __init__(self, _name: str):
-        pass
+    def __init__(self, name: str):
+        self.name = name
+        self.values = {}
+
+    def eq(self, value):
+        self.values[":pk"] = value
+        return self
+
+    def begins_with(self, value):
+        self.values[":prefix"] = value
+        return self
+
+    def __and__(self, other):
+        self.values.update(other.values)
+        return self
 
     def exists(self):
         return self
@@ -59,7 +72,8 @@ class FakeTable:
         item = self.items.get((Key["pk"], Key["sk"]))
         return {"Item": dict(item)} if item else {}
 
-    def query(self, *, ExpressionAttributeValues: dict, **_kwargs) -> dict:
+    def query(self, *, ExpressionAttributeValues: dict | None = None, KeyConditionExpression=None, **_kwargs) -> dict:
+        ExpressionAttributeValues = ExpressionAttributeValues or KeyConditionExpression.values
         pk = ExpressionAttributeValues[":pk"]
         prefix = ExpressionAttributeValues.get(":prefix", "")
         return {
@@ -114,6 +128,7 @@ class WorkerTestCase(unittest.TestCase):
         dynamodb = ModuleType("boto3.dynamodb")
         conditions = ModuleType("boto3.dynamodb.conditions")
         conditions.Attr = FakeAttr
+        conditions.Key = FakeAttr
         botocore = ModuleType("botocore")
         botocore_config = ModuleType("botocore.config")
         botocore_config.Config = FakeConfig

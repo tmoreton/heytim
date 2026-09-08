@@ -7,6 +7,8 @@ MAX_GROUP_CONTEXT_PEOPLE = 50
 MAX_GROUP_BOTS = 12
 MAX_GROUP_ROUND_REPLIES = MAX_GROUP_BOTS + 1
 MAX_GROUP_MEMORY_CHARS = 4_000
+MAX_GROUP_DECISIONS = 10
+MAX_GROUP_DECISION_CHARS = 1_000
 ROUND_ROLES = {"solo", "lead", "contributor", "synthesizer"}
 CHIEF_SYSTEM_ROLE = "chief"
 
@@ -111,6 +113,20 @@ def group_runtime_context(
         }
         for item in group_bots(items)
     ]
+    decisions = [
+        {
+            "text": str(item.get("text", ""))[:MAX_GROUP_DECISION_CHARS],
+            "sourceAuthorName": str(item.get("sourceAuthorName", "FroggyBot"))[:60],
+            "createdByName": str(item.get("createdByName", "Room member"))[:40],
+            "createdAt": str(item.get("createdAt", ""))[:32],
+        }
+        for item in sorted(
+            (item for item in items if item.get("entity") == "GROUP_DECISION"),
+            key=lambda item: str(item.get("createdAt", "")),
+            reverse=True,
+        )[:MAX_GROUP_DECISIONS]
+        if str(item.get("text", "")).strip()
+    ]
     coordinator = next(
         (bot for bot in bots if bot["id"] == coordinator_bot_id),
         next((bot for bot in bots if bot["isCurrent"]), bots[0]),
@@ -120,6 +136,7 @@ def group_runtime_context(
         "memory": str(meta.get("memory", ""))[:MAX_GROUP_MEMORY_CHARS],
         "people": people,
         "bots": bots,
+        "decisions": decisions,
         "round": {
             "position": round_position,
             "size": round_size,

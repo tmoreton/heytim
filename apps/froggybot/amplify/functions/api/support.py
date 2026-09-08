@@ -360,6 +360,7 @@ def _public_schedule(item: dict) -> dict:
         for key in (
             "id",
             "botId",
+            "groupId",
             "name",
             "prompt",
             "frequency",

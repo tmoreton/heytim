@@ -13,6 +13,7 @@ import type {
   MemoryRecord,
   MemorySnapshot,
   Message,
+  ScheduleRun,
   ScheduledTask,
   SharedLink,
   SkillDetail,
@@ -131,22 +132,38 @@ export const createCloudApi = (): FrogBotApi => ({
   runSchedule: async (botId, scheduleId) => {
     await request(apiRoutes.botScheduleRun(botId, scheduleId), { method: 'POST' });
   },
+  scheduleRuns: (botId) => request<{ runs: ScheduleRun[] }>(apiRoutes.botScheduleRuns(botId)).then((value) => value.runs),
+  groupSchedules: (id) => request<{ schedules: ScheduledTask[] }>(apiRoutes.groupSchedules(id)).then((value) => value.schedules),
+  saveGroupSchedule: (id, draft, scheduleId) => request<ScheduledTask>(
+    scheduleId ? apiRoutes.groupSchedule(id, scheduleId) : apiRoutes.groupSchedules(id),
+    { method: scheduleId ? 'PUT' : 'POST', body: JSON.stringify(draft) },
+  ),
+  deleteGroupSchedule: async (id, scheduleId) => { await request(apiRoutes.groupSchedule(id, scheduleId), { method: 'DELETE' }); },
+  runGroupSchedule: async (id, scheduleId) => { await request(apiRoutes.groupScheduleRun(id, scheduleId), { method: 'POST' }); },
+  groupScheduleRuns: (id) => request<{ runs: ScheduleRun[] }>(apiRoutes.groupScheduleRuns(id)).then((value) => value.runs),
   groupMessages: (groupId) => request<{ messages: Message[] }>(apiRoutes.groupMessages(groupId)).then((value) => value.messages),
   saveGroup: (draft, groupId) => request<Group>(groupId ? apiRoutes.group(groupId) : apiRoutes.groups, {
     method: groupId ? 'PUT' : 'POST',
     body: JSON.stringify(draft),
   }),
   deleteGroup: async (groupId) => { await request(apiRoutes.group(groupId), { method: 'DELETE' }); },
-  sendGroupMessage: async (groupId, text, replyBotId) => {
+  sendGroupMessage: async (groupId, text, replyBotId, attachmentIds = []) => {
     await request(apiRoutes.groupMessages(groupId), {
       method: 'POST',
-      body: JSON.stringify({ text, replyBotId }),
+      body: JSON.stringify({ text, replyBotId, attachmentIds }),
     });
   },
   shareGroup: (groupId) => request<{ url: string }>(apiRoutes.groupInvites(groupId), { method: 'POST' }).then((value) => value.url),
   joinGroup: (token) => request<Group>(apiRoutes.joinGroup(token), { method: 'POST' }),
   removeGroupMember: async (groupId, memberId) => {
     await request(apiRoutes.groupMember(groupId, memberId), { method: 'DELETE' });
+  },
+  saveGroupDecision: (groupId, messageId) => request(apiRoutes.groupDecisions(groupId), {
+    method: 'POST',
+    body: JSON.stringify({ messageId }),
+  }),
+  deleteGroupDecision: async (groupId, decisionId) => {
+    await request(apiRoutes.groupDecision(groupId, decisionId), { method: 'DELETE' });
   },
   registerPushToken: async (token) => {
     await request(apiRoutes.devicePushToken, { method: 'PUT', body: JSON.stringify({ token }) });

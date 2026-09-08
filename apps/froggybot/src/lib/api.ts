@@ -9,12 +9,14 @@ import type {
   Connection,
   ConnectionDraft,
   Group,
+  GroupDecision,
   GroupDraft,
   Invitation,
   InvitePreview,
   MemoryRecord,
   MemorySnapshot,
   Message,
+  ScheduleRun,
   ScheduledTask,
   ScheduledTaskDraft,
   SharedLink,
@@ -48,13 +50,21 @@ export interface FrogBotApi {
   saveSchedule(botId: string, draft: ScheduledTaskDraft, scheduleId?: string): Promise<ScheduledTask>;
   deleteSchedule(botId: string, scheduleId: string): Promise<void>;
   runSchedule(botId: string, scheduleId: string): Promise<void>;
+  scheduleRuns(botId: string): Promise<ScheduleRun[]>;
+  groupSchedules(groupId: string): Promise<ScheduledTask[]>;
+  saveGroupSchedule(groupId: string, draft: ScheduledTaskDraft, scheduleId?: string): Promise<ScheduledTask>;
+  deleteGroupSchedule(groupId: string, scheduleId: string): Promise<void>;
+  runGroupSchedule(groupId: string, scheduleId: string): Promise<void>;
+  groupScheduleRuns(groupId: string): Promise<ScheduleRun[]>;
   groupMessages(groupId: string): Promise<Message[]>;
   saveGroup(draft: GroupDraft, groupId?: string): Promise<Group>;
   deleteGroup(groupId: string): Promise<void>;
-  sendGroupMessage(groupId: string, text: string, replyBotId?: string): Promise<void>;
+  sendGroupMessage(groupId: string, text: string, replyBotId?: string, attachmentIds?: string[]): Promise<void>;
   shareGroup(groupId: string): Promise<string>;
   joinGroup(token: string): Promise<Group>;
   removeGroupMember(groupId: string, memberId: string): Promise<void>;
+  saveGroupDecision(groupId: string, messageId: string): Promise<GroupDecision>;
+  deleteGroupDecision(groupId: string, decisionId: string): Promise<void>;
   registerPushToken(token: string): Promise<void>;
   unregisterPushToken(token: string): Promise<void>;
   sharedLinks(): Promise<SharedLink[]>;

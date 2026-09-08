@@ -1,5 +1,6 @@
 import type {
   Bootstrap,
+  Attachment,
   Bot,
   BotTemplate,
   BotDocument,
@@ -9,6 +10,7 @@ import type {
   Group,
   GroupDraft,
   Message,
+  ScheduleRun,
   ScheduledTask,
   ScheduledTaskDraft,
   SkillDetail,
@@ -17,97 +19,24 @@ import type {
 import { loadDemoCatalog, loadDemoSkill } from './demo-catalog';
 import { CHIEF_COLOR, CHIEF_TEMPLATE_ID, chiefFirst, displayBotColor } from './bot-branding';
 import { createDemoChief } from './demo-chief';
+import { demoDecisionsForGroup } from './demo-decisions';
+import {
+  createInitialDemoBots,
+  createInitialDemoGroups,
+  createInitialDemoSchedules,
+} from './demo-fixtures';
 
 const timestamp = new Date().toISOString();
 
-let bots: Bot[] = [
-  {
-    id: 'trip-planner',
-    name: 'Trip Planner',
-    tagline: 'Turns everyone\'s preferences into a trip you can use.',
-    color: '#3984F6',
-    prompt: 'Plan practical group trips and finish with an itinerary, shared budget, packing list, and owner checklist.',
-    toolIds: ['web', 'web_search', 'calculator', 'task_list', 'code_interpreter'],
-    extraToolIds: [],
-    skillIds: ['group-intake', 'trip-planner', 'shared-budget'],
-    templateId: 'trip-planner',
-    templateVersion: 1,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    lastMessage: 'Tell me who is traveling and what matters most to each person.',
-    lastMessageAt: timestamp,
-  },
-  {
-    id: 'event-planner',
-    name: 'Event Planner',
-    tagline: 'Coordinates the decisions, costs, and checklist for an event.',
-    color: '#F46A27',
-    prompt: 'Coordinate group events with clear decisions, costs, owners, due dates, and a final run of show.',
-    toolIds: ['web_search', 'calculator', 'task_list', 'code_interpreter'],
-    extraToolIds: [],
-    skillIds: ['group-intake', 'event-planner', 'group-decision', 'shared-budget'],
-    templateId: 'event-planner',
-    templateVersion: 1,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    lastMessage: 'What are we organizing, and who needs to be involved?',
-    lastMessageAt: timestamp,
-  },
-  {
-    id: 'research-reports',
-    name: 'Research & Reports',
-    tagline: 'Finds reliable answers and turns them into useful files.',
-    color: '#6C5CE7',
-    prompt: 'Research broad questions with current sources, verify data with executable analysis, and create a useful report or editable file.',
-    toolIds: ['web', 'web_search', 'task_list', 'delegate', 'calculator', 'code_interpreter'],
-    extraToolIds: [],
-    skillIds: ['deep-research', 'data-analyst'],
-    templateId: 'research-reports',
-    templateVersion: 1,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    lastMessage: 'Give me the question or data, and I will return the useful conclusion.',
-    lastMessageAt: timestamp,
-  },
-];
+let bots = createInitialDemoBots(timestamp);
 
-let groups: Group[] = [
-  {
-    id: 'launch-room',
-    name: 'Launch crew',
-    memory: 'Launch on Friday. Keep decisions concise, assign one owner per action, and preserve the approved brand voice.',
-    ownerId: 'demo-user',
-    currentUserId: 'demo-user',
-    isOwner: true,
-    members: [
-      { id: 'demo-user', name: 'You', role: 'owner' },
-      { id: 'jordan', name: 'Jordan', role: 'member' },
-    ],
-    bots: [],
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    lastMessage: 'I will turn that into the launch checklist.',
-    lastMessageAt: timestamp,
-  },
-];
-
-let schedules: ScheduledTask[] = [
-  {
-    id: 'morning-priorities',
-    botId: 'chief',
-    name: 'Morning priorities',
-    prompt: 'Review what we have discussed and give me the three most important priorities for today.',
-    frequency: 'daily',
-    time: '09:00',
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-    enabled: true,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  },
-];
+let groups = createInitialDemoGroups(timestamp);
+let schedules = createInitialDemoSchedules(timestamp);
 
 let personalSkills: SkillDetail[] = [];
 let personalConnections: Connection[] = [];
+const uploadedAttachments = new Map<string, Attachment>();
+let scheduleRunItems: ScheduleRun[] = [];
 
 const messages = new Map<string, Message[]>([
   [
@@ -178,7 +107,7 @@ const groupMessages = new Map<string, Message[]>([
         authorId: 'jordan',
         authorName: 'Jordan',
         isMine: false,
-        text: 'Can we turn today\'s decisions into a launch plan?',
+        text: 'I want somewhere walkable with a genuinely good vegetarian dinner.',
         createdAt: timestamp,
         status: 'complete',
       },
@@ -189,7 +118,7 @@ const groupMessages = new Map<string, Message[]>([
         authorId: 'chief',
         authorName: 'Chief',
         authorColor: CHIEF_COLOR,
-        text: 'Yes. I will turn that into the launch checklist and call out the decisions that still need an owner.',
+        text: 'Got it. I’ll keep that as a room constraint and ask the team to compare the strongest options.',
         createdAt: timestamp,
         status: 'complete',
       },
@@ -211,7 +140,16 @@ const ensureDemoChief = (chief: Bot) => {
         color: chief.color,
         systemRole: 'chief',
       },
-      ...group.bots.filter((bot) => bot.systemRole !== 'chief'),
+      ...bots
+        .filter((bot) => ['research-reports', 'trip-planner'].includes(bot.id))
+        .map((bot) => ({
+          id: bot.id,
+          ownerId: 'demo-user',
+          name: bot.name,
+          tagline: bot.tagline,
+          color: bot.color,
+          systemRole: bot.systemRole,
+        })),
     ],
   }));
   groupMessages.set(
@@ -237,6 +175,7 @@ export const demoBootstrap = async (): Promise<Bootstrap> => {
       ...group,
       members: [...group.members],
       bots: [...group.bots],
+      decisions: demoDecisionsForGroup(group.id),
     })),
     tools: [...catalog.tools, ...personalConnections],
     skills: [
@@ -284,6 +223,24 @@ const demoSaveBotTemplate = (template: BotTemplate, toolIds: string[]): Bot => {
 };
 
 export const demoMessages = (botId: string): Message[] => [...(messages.get(botId) ?? [])];
+
+export const demoUploadAttachment = async (asset: {
+  name: string;
+  size: number;
+  mimeType?: string;
+}): Promise<Attachment> => {
+  const attachment: Attachment = {
+    id: `demo-file-${Date.now()}-${uploadedAttachments.size}`,
+    name: asset.name,
+    size: asset.size,
+    kind: asset.mimeType?.startsWith('image/') ? 'image' : 'document',
+    format: asset.name.split('.').pop()?.toLowerCase() ?? 'txt',
+    contentType: asset.mimeType ?? 'application/octet-stream',
+    createdAt: new Date().toISOString(),
+  };
+  uploadedAttachments.set(attachment.id, attachment);
+  return { ...attachment };
+};
 
 export const demoBotDocuments = async (botId: string): Promise<BotDocument[]> =>
   (botDocuments.get(botId) ?? []).map((document) => ({ ...document }));
@@ -342,6 +299,7 @@ export const demoSaveGroup = (draft: GroupDraft, groupId?: string): Group => {
     isOwner: true,
     members: previous?.members ?? [{ id: 'demo-user', name: 'You', role: 'owner' }],
     bots: selectedBots,
+    decisions: previous?.decisions ?? [],
     createdAt: previous?.createdAt ?? now,
     updatedAt: now,
     lastMessage: previous?.lastMessage ?? 'Start the conversation.',
@@ -445,15 +403,43 @@ export const demoDeleteSchedule = async (botId: string, scheduleId: string): Pro
 export const demoRunSchedule = async (botId: string, scheduleId: string): Promise<void> => {
   const task = schedules.find((item) => item.botId === botId && item.id === scheduleId);
   const bot = bots.find((item) => item.id === botId);
-  if (!task || !bot) throw new Error('Scheduled task not found.');
+  const group = groups.find((item) => item.id === botId);
+  if (!task || (!bot && !group)) throw new Error('Scheduled task not found.');
   const current = new Date().toISOString();
   schedules = schedules.map((item) =>
     item.id === task.id ? { ...item, lastRunAt: current, lastStatus: 'pending', updatedAt: current } : item,
   );
-  demoSend(bot, task.prompt, task);
+  const runId = `run-${Date.now()}`;
+  scheduleRunItems = [{
+    id: runId,
+    botId,
+    scheduleId,
+    scheduleName: task.name,
+    prompt: task.prompt,
+    status: 'pending',
+    createdAt: current,
+  }, ...scheduleRunItems];
+  if (bot) demoSend(bot, task.prompt, task);
+  else if (group) demoSendGroup(group.id, task.prompt, 'all');
+  setTimeout(() => {
+    scheduleRunItems = scheduleRunItems.map((run) => run.id === runId ? {
+      ...run,
+      status: 'complete',
+      completedAt: new Date().toISOString(),
+      output: `Today’s priorities are to confirm the owner, verify the deadline, and publish the smallest useful result.`,
+    } : run);
+  }, 900);
 };
 
-export const demoSendGroup = (groupId: string, text: string, replyBotId?: string): void => {
+export const demoScheduleRuns = async (botId: string): Promise<ScheduleRun[]> =>
+  scheduleRunItems.filter((run) => run.botId === botId).map((run) => ({ ...run }));
+
+export const demoSendGroup = (
+  groupId: string,
+  text: string,
+  replyBotId?: string,
+  attachmentIds: string[] = [],
+): void => {
   const current = groupMessages.get(groupId) ?? [];
   const requestId = String(Date.now());
   current.push({
@@ -463,7 +449,11 @@ export const demoSendGroup = (groupId: string, text: string, replyBotId?: string
     authorId: 'demo-user',
     authorName: 'You',
     isMine: true,
-    text,
+    text: text || 'Please review the attached files.',
+    attachments: attachmentIds
+      .map((id) => uploadedAttachments.get(id))
+      .filter((attachment): attachment is Attachment => Boolean(attachment))
+      .map((attachment) => ({ ...attachment })),
     createdAt: new Date().toISOString(),
     status: 'complete',
   });
@@ -504,17 +494,33 @@ export const demoSendGroup = (groupId: string, text: string, replyBotId?: string
   roundBots.forEach((bot, index) => {
     setTimeout(() => {
       const answer = bot.roundRole === 'lead'
-        ? `I’ll coordinate this. My initial approach is to define the outcome, then ask each teammate to strengthen it from their specialty.`
+        ? `I’m coordinating around the room’s fixed constraints: **under $1,200**, no driving, a walkable destination, vegetarian food, and a Sunday return before 6 PM. Research will verify the travel and price assumptions; Trip Planner will turn the best option into a usable itinerary.`
         : bot.roundRole === 'contributor'
-          ? `Building on ${roundBots[index - 1].name}’s contribution, I’d add this from my role: ${bot.tagline}`
+          ? bot.id === 'research-reports'
+            ? `**Evidence check**\n\nPortland, Maine is the strongest fit. The Boston–Portland train is roughly 2½ hours, the Old Port is walkable, and a central one-night stay can fit the budget. Providence is cheaper but feels less like a getaway; New York creates more travel time and budget pressure.`
+            : `**Practical plan**\n\nTake the 8:50 AM train Saturday, leave bags near the Old Port, and keep the day walkable. Book dinner around 7 PM with a vegetarian-first shortlist. On Sunday, use a late-morning lighthouse cruise or waterfront walk, then take the early-afternoon train home to preserve the 6 PM buffer.`
           : bot.roundRole === 'synthesizer'
-            ? `**Team answer**\n\nWe combined the plan and specialist input into one recommendation: start with the smallest useful outcome, verify the important facts, and then take the clearest next action.`
+            ? `**Decision: Portland, Maine**\n\nIt best satisfies the group’s travel-time, walkability, food, and budget constraints.\n\n**Working budget**\n- Train: $180–240\n- Central hotel: $320–420\n- Food: $220\n- Activities and local transport: $120\n- Buffer: $150\n\n**Next steps**\n1. You: confirm the Saturday train by Tuesday.\n2. Jordan: choose between the two dinner options.\n3. Chief: keep the itinerary current after bookings.\n\nI created **portland-weekend-plan.pdf** so the group can use the final itinerary outside this chat.`
             : `I’ll handle this from my role: ${bot.tagline}`;
       groupMessages.set(
         groupId,
         (groupMessages.get(groupId) ?? []).map((message) =>
           message.id === `${requestId}-assistant-${index}`
-            ? { ...message, text: answer, status: 'complete', createdAt: new Date().toISOString() }
+            ? {
+                ...message,
+                text: answer,
+                status: 'complete',
+                createdAt: new Date().toISOString(),
+                attachments: bot.roundRole === 'synthesizer' ? [{
+                  id: `demo-portland-plan-${requestId}`,
+                  name: 'portland-weekend-plan.pdf',
+                  size: 184_000,
+                  kind: 'document' as const,
+                  format: 'pdf',
+                  contentType: 'application/pdf',
+                  createdAt: new Date().toISOString(),
+                }] : undefined,
+              }
             : message.id === `${requestId}-assistant-${index + 1}` && message.status === 'waiting'
               ? { ...message, status: 'pending' }
               : message,

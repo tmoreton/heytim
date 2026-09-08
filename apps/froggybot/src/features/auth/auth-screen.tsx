@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -143,7 +144,7 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo, invitation, inviteP
                   onFocus={() => setFocusedField('code')}
                   onBlur={() => setFocusedField(undefined)}
                   placeholder={'0'.repeat(expectedCodeLength)}
-                  placeholderTextColor="#B7B4AC"
+                  placeholderTextColor="#6E6A62"
                   keyboardType="number-pad"
                   textContentType="oneTimeCode"
                   autoComplete="one-time-code"
@@ -166,7 +167,7 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo, invitation, inviteP
                   onFocus={() => setFocusedField('email')}
                   onBlur={() => setFocusedField(undefined)}
                   placeholder="you@example.com"
-                  placeholderTextColor="#A6A39C"
+                  placeholderTextColor="#6E6A62"
                   keyboardType="email-address"
                   textContentType="emailAddress"
                   autoComplete="email"
@@ -222,6 +223,14 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo, invitation, inviteP
                 {invitation ? 'This invite unlocks your FroggyBot account.' : 'Existing members can always sign back in.'}
               </Text>
             </View>
+            {!invitation && !codeSent ? (
+              <Pressable
+                accessibilityRole="link"
+                style={styles.accessLink}
+                onPress={() => void Linking.openURL('mailto:tmoreton89@gmail.com?subject=FroggyBot%20beta%20access')}>
+                <Text style={styles.accessLinkText}>Need an invite? Request beta access</Text>
+              </Pressable>
+            ) : null}
           </View>
 
           <Text style={styles.footnote}>By continuing, you agree to use your bots responsibly.</Text>
@@ -264,7 +273,7 @@ const styles = StyleSheet.create({
   fieldGroup: { gap: 9 },
   labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   fieldLabel: { color: '#37352F', fontSize: 13, fontWeight: '600' },
-  fieldHint: { color: '#969188', fontSize: 12 },
+  fieldHint: { color: '#6E6A62', fontSize: 12 },
   input: {
     minHeight: 56,
     borderWidth: 1,
@@ -305,6 +314,8 @@ const styles = StyleSheet.create({
     paddingTop: 18,
   },
   assuranceDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#007A3D' },
-  assuranceText: { color: '#8A857C', fontSize: 12.5 },
-  footnote: { color: '#9B978F', fontSize: 12, textAlign: 'center', marginTop: 22 },
+  assuranceText: { color: '#6E6A62', fontSize: 12.5 },
+  accessLink: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  accessLinkText: { color: '#006E37', fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' },
+  footnote: { color: '#6E6A62', fontSize: 12, textAlign: 'center', marginTop: 22 },
 });

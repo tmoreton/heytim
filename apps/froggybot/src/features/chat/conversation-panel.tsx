@@ -40,6 +40,8 @@ type Props = {
   onToggleDrawer: () => void;
   onEditGroup: () => void;
   onOpenBotMenu: () => void;
+  onOpenDocuments: () => void;
+  onOpenScheduledWork: () => void;
   onDraftChange: (value: string) => void;
   onAddAttachment: () => void;
   onRemoveAttachment: (fileId: string) => void;
@@ -50,6 +52,7 @@ type Props = {
   onApprove: (message: Message, always: boolean) => Promise<void>;
   onReject: (message: Message) => Promise<void>;
   onOpenFile: (file: Attachment) => Promise<void>;
+  onSaveDecision: (message: Message) => Promise<void>;
 };
 
 export function ConversationPanel({
@@ -74,6 +77,8 @@ export function ConversationPanel({
   onToggleDrawer,
   onEditGroup,
   onOpenBotMenu,
+  onOpenDocuments,
+  onOpenScheduledWork,
   onDraftChange,
   onAddAttachment,
   onRemoveAttachment,
@@ -84,6 +89,7 @@ export function ConversationPanel({
   onApprove,
   onReject,
   onOpenFile,
+  onSaveDecision,
 }: Props) {
   const list = useRef<FlatList<Message>>(null);
   const pendingScrollFrame = useRef<number | undefined>(undefined);
@@ -136,20 +142,32 @@ export function ConversationPanel({
         </Pressable>
       ) : null}
 
+      {bot || group?.isOwner ? (
+        <View accessibilityLabel={`${group?.name ?? bot?.name} work`} accessibilityRole="toolbar" style={styles.workBar}>
+          {bot ? <><Pressable accessibilityRole="button" style={styles.workAction} onPress={onOpenDocuments}>
+            <Text style={styles.workActionLabel}>Files</Text>
+          </Pressable>
+          <View style={styles.workDivider} /></> : null}
+          <Pressable accessibilityRole="button" style={styles.workAction} onPress={onOpenScheduledWork}>
+            <Text style={styles.workActionLabel}>Tasks & runs</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       {group?.memory ? (
         <Pressable
-          accessibilityLabel="Open shared group memory"
+          accessibilityLabel="Open room context"
           accessibilityRole="button"
           style={({ pressed }) => [styles.memoryBar, pressed && styles.pressed]}
           onPress={onEditGroup}>
-          <Text style={styles.memoryLabel}>SHARED MEMORY</Text>
+          <Text style={styles.memoryLabel}>ROOM CONTEXT</Text>
           <Text numberOfLines={1} style={styles.memoryText}>{group.memory}</Text>
           <Text style={styles.memoryArrow}>›</Text>
         </Pressable>
       ) : null}
 
       {loading ? (
-        <View style={styles.center}>
+        <View accessibilityLabel="Loading conversation" accessibilityRole="progressbar" style={styles.center}>
           <ActivityIndicator color={bot?.color ?? '#007A3D'} />
         </View>
       ) : (
@@ -175,8 +193,12 @@ export function ConversationPanel({
               </View>
             ) : null
           }
-          renderItem={({ item }) => (
-            <MessageBubble
+          renderItem={({ item }) => {
+            const decisionSaved = group?.decisions.some(
+              (decision) => decision.sourceMessageId === item.id,
+            );
+            return <MessageBubble
+              key={`${item.id}:${decisionSaved ? 'saved' : 'open'}`}
               message={item}
               groupMode={Boolean(group)}
               botName={bot?.name}
@@ -184,9 +206,11 @@ export function ConversationPanel({
               onApprove={bot ? onApprove : undefined}
               onReject={bot ? onReject : undefined}
               onOpenFile={onOpenFile}
+              decisionSaved={decisionSaved}
+              onSaveDecision={group ? onSaveDecision : undefined}
               onActivityExpand={preserveScrollPosition}
-            />
-          )}
+            />;
+          }}
         />
       )}
 
@@ -200,7 +224,7 @@ export function ConversationPanel({
         pending={pending}
         sending={sending}
         uploadingAttachment={uploading}
-        canAttach={Boolean(bot)}
+        canAttach={Boolean(bot ?? group)}
         canStop={canStop}
         bottomInset={bottomInset}
         onDraftChange={onDraftChange}
@@ -217,6 +241,10 @@ export function ConversationPanel({
 
 const styles = StyleSheet.create({
   conversation: { flex: 1, backgroundColor: '#FBFBF9' },
+  workBar: { alignSelf: 'center', minHeight: 42, width: '100%', maxWidth: 780, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: 15, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#E7E4DD' },
+  workAction: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 11 },
+  workActionLabel: { color: '#006E37', fontSize: 12, fontWeight: '700' },
+  workDivider: { width: 1, height: 15, backgroundColor: '#D8D4CB' },
   errorBar: { minHeight: 44, backgroundColor: '#FCECE8', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   errorText: { flex: 1, color: '#9E342A', fontSize: 13 },
   errorDismiss: { color: '#9E342A', fontSize: 21 },
@@ -230,6 +258,6 @@ const styles = StyleSheet.create({
   emptyMessages: { flexGrow: 1, justifyContent: 'center' },
   emptyState: { alignItems: 'center', paddingHorizontal: 34, marginTop: -30 },
   emptyTitle: { color: '#201F1B', fontSize: 22, fontWeight: '800', letterSpacing: -0.4, marginTop: 18 },
-  emptyCopy: { color: '#827E76', fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 7, maxWidth: 340 },
+  emptyCopy: { color: '#6E6A62', fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 7, maxWidth: 340 },
   pressed: { opacity: 0.72 },
 });

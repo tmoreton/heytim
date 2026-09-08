@@ -259,7 +259,7 @@ export function SkillLibrary({
           : selected?.name;
 
   return (
-    <PageSheet onClose={onClose}>
+    <PageSheet accessibilityLabel="Skills and tools" onClose={onClose}>
       <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
           <Pressable accessibilityRole="button" hitSlop={12} onPress={mode === 'list' ? onClose : back}>
@@ -298,6 +298,7 @@ export function SkillLibrary({
                     key={value}
                     accessibilityRole="tab"
                     accessibilityState={{ selected: tab === value }}
+                    aria-selected={tab === value}
                     style={[styles.tab, tab === value && styles.tabActive]}
                     onPress={() => setTab(value)}>
                     <Text style={[styles.tabText, tab === value && styles.tabTextActive]}>
