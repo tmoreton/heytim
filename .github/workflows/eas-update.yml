@@ -39,7 +39,7 @@ jobs:
         run: npm ci --prefix amplify
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v9
+        uses: astral-sh/setup-uv@v10.0.1
 
       - name: Verify application and backend
         run: ../../scripts/verify.sh application
@@ -67,7 +67,7 @@ jobs:
           python-version: "3.14"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v9
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
           cache-dependency-glob: services/agent-runtime/uv.lock
