@@ -7,6 +7,7 @@ import pytest
 from evals.run_matrix import (
     MODEL_VARIANTS,
     load_scenarios,
+    select_scenarios,
     summarize,
     validate_scenarios,
 )
@@ -37,6 +38,16 @@ def test_scenario_validation_rejects_duplicate_ids() -> None:
 
     with pytest.raises(ValueError, match="Duplicate"):
         validate_scenarios([scenario, json.loads(json.dumps(scenario))], bots)
+
+
+def test_scenario_selection_happens_after_full_corpus_validation() -> None:
+    scenarios = load_scenarios()
+
+    selected = select_scenarios(scenarios, ["chief_vague_group_trip"])
+
+    assert [scenario["scenarioId"] for scenario in selected] == [
+        "chief_vague_group_trip"
+    ]
 
 
 def test_matrix_defines_low_and_high_for_both_glm_models() -> None:

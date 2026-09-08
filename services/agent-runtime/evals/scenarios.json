@@ -27,11 +27,11 @@
     "scenarioId": "chief_routes_data_report",
     "botId": "chief",
     "prompt": "Which of my starter bots should compare a CSV of survey results, check the calculations, and write a decision-ready conclusion? Answer directly and give me the first handoff instruction.",
-    "expectedOutcome": "Chief should select Research & Reports and provide a compact handoff that includes the decision question, file, relevant fields, units, and desired output.",
+    "expectedOutcome": "Chief should select Data Analyst and provide a compact handoff that asks for the decision question, CSV, relevant fields, units or timeframe, and desired output.",
     "assertions": [
-      "Selects Research & Reports, not Trip Planner or Event Planner.",
+      "Selects Data Analyst, not Research & Reports, Trip Planner, or Event Planner.",
       "Connects the choice to executable data analysis and decision-ready reporting.",
-      "Provides a useful first handoff instruction that names the decision question and CSV.",
+      "Provides a useful first handoff instruction that asks for or names the decision question and CSV.",
       "Includes at least one important analysis input such as relevant fields, units, timeframe, or expected output."
     ]
   },

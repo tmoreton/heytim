@@ -147,6 +147,21 @@ def validate_scenarios(
         raise ValueError(f"Missing scenarios for bots: {', '.join(sorted(missing))}")
 
 
+def select_scenarios(
+    scenarios: list[dict[str, Any]], requested_ids: list[str] | None
+) -> list[dict[str, Any]]:
+    if not requested_ids:
+        return scenarios
+    requested = set(requested_ids)
+    known = {scenario["scenarioId"] for scenario in scenarios}
+    unknown = requested - known
+    if unknown:
+        raise ValueError(f"Unknown scenarios: {', '.join(sorted(unknown))}")
+    return [
+        scenario for scenario in scenarios if scenario["scenarioId"] in requested
+    ]
+
+
 def _selected_skill_snapshot(
     bot: dict[str, Any], skills: dict[str, dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -430,23 +445,15 @@ async def async_main(args: argparse.Namespace) -> int:
         raise ValueError("Minimum pass rate must be between 0 and 1")
 
     scenarios = load_scenarios()
-    if args.scenario:
-        requested = set(args.scenario)
-        known = {scenario["scenarioId"] for scenario in scenarios}
-        unknown = requested - known
-        if unknown:
-            raise ValueError(f"Unknown scenarios: {', '.join(sorted(unknown))}")
-        scenarios = [
-            scenario for scenario in scenarios if scenario["scenarioId"] in requested
-        ]
+    catalog_release, skills, bots = await asyncio.to_thread(load_catalog_snapshot)
+    validate_scenarios(scenarios, bots)
+    scenarios = select_scenarios(scenarios, args.scenario)
     variants = [
         variant
         for variant in MODEL_VARIANTS
         if not args.variant or variant.name in set(args.variant)
     ]
 
-    catalog_release, skills, bots = await asyncio.to_thread(load_catalog_snapshot)
-    validate_scenarios(scenarios, bots)
     api_key = await _openrouter_api_key()
     semaphore = asyncio.Semaphore(args.concurrency)
     tasks = [
