@@ -53,15 +53,17 @@ def _attachment_blocks(turn: dict, user_id: str) -> list[dict]:
     return blocks
 
 
-def _generated_artifact_prefix(user_id: str, event_id: str) -> str:
-    return f"users/{memory_actor_id(user_id)}/artifacts/{event_id}"
+def _generated_artifact_prefix(user_id: str, bot_id: str, event_id: str) -> str:
+    return f"users/{memory_actor_id(user_id)}/bots/{bot_id}/artifacts/{event_id}"
 
 
 def _group_generated_artifact_prefix(group_id: str, event_id: str) -> str:
     return f"groups/{group_id}/artifacts/{event_id}"
 
 
-def _collect_artifacts(prefix: str, partition_key: str) -> list[dict]:
+def _collect_artifacts(
+    prefix: str, partition_key: str, owner: dict[str, str] | None = None
+) -> list[dict]:
     prefix = f"{prefix}/"
     objects = []
     continuation_token = None
@@ -128,6 +130,7 @@ def _collect_artifacts(prefix: str, partition_key: str) -> list[dict]:
             "objectKey": object_key,
             "createdAt": created_at,
             "readyAt": created_at,
+            **(owner or {}),
         }
         try:
             table.put_item(Item=item, ConditionExpression=Attr("pk").not_exists())
@@ -141,9 +144,13 @@ def _collect_artifacts(prefix: str, partition_key: str) -> list[dict]:
     return artifacts
 
 
-def _collect_generated_artifacts(user_id: str, event_id: str) -> list[dict]:
+def _collect_generated_artifacts(
+    user_id: str, bot_id: str, event_id: str
+) -> list[dict]:
     return _collect_artifacts(
-        _generated_artifact_prefix(user_id, event_id), f"USER#{user_id}"
+        _generated_artifact_prefix(user_id, bot_id, event_id),
+        f"USER#{user_id}",
+        {"botId": bot_id},
     )
 
 
@@ -198,9 +205,9 @@ def _delete_artifacts(prefix: str, partition_key: str) -> int:
     return len(objects)
 
 
-def _delete_generated_artifacts(user_id: str, event_id: str) -> int:
+def _delete_generated_artifacts(user_id: str, bot_id: str, event_id: str) -> int:
     return _delete_artifacts(
-        _generated_artifact_prefix(user_id, event_id), f"USER#{user_id}"
+        _generated_artifact_prefix(user_id, bot_id, event_id), f"USER#{user_id}"
     )
 
 

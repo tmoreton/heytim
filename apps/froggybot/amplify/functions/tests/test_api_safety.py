@@ -57,11 +57,16 @@ class ApiSafetyTests(ApiTestCase):
         with (
             patch.object(self.bots, "_get_bot", return_value=bot),
             patch.object(self.bots, "_partition_items", return_value=[]),
+            patch.object(
+                self.bots, "_preserve_bot_documents", return_value=3
+            ) as preserve,
             patch.object(self.bots, "_revoke_bot_shares", return_value=2) as revoke,
         ):
             result = self.bots._clear_bot_chat("user-1", "bot-1")
 
+        preserve.assert_called_once_with("user-1", "bot-1", [])
         revoke.assert_called_once_with("user-1", "bot-1", scopes={"chat"})
+        self.assertEqual(result["preservedDocuments"], 3)
         self.assertEqual(result["revokedShares"], 2)
 
     def test_starter_bots_cover_core_workflows_and_only_chief_is_protected(self) -> None:

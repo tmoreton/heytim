@@ -48,7 +48,6 @@ async def invoke(payload, context):
         builtin_tools=config.builtin_tools,
         plugins=config.plugins,
         builtin_plugins=config.builtin_plugins,
-        builtin_subagents=config.builtin_subagents,
         skills_dir=config.skill_paths or None,
         memory=False,
         memory_manager=memories,

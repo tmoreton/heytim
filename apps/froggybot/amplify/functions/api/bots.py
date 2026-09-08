@@ -6,6 +6,7 @@ from shared.catalog import CatalogError
 from shared.cleanup import has_pending_work
 
 from .attachments import _public_file
+from .bot_documents import _delete_bot_documents, _preserve_bot_documents
 from .starter_bots import (
     ALLOWED_COLORS,
     CHIEF_COLOR,
@@ -437,6 +438,7 @@ def _clear_bot_chat(user_id: str, bot_id: str) -> dict:
         raise ApiError(
             409, "Wait for this FroggyBot to finish before clearing the chat"
         )
+    preserved_documents = _preserve_bot_documents(user_id, bot_id, turns)
     revoked_shares = _revoke_bot_shares(user_id, bot_id, scopes={"chat"})
     with table.batch_writer() as batch:
         for turn in turns:
@@ -453,6 +455,7 @@ def _clear_bot_chat(user_id: str, bot_id: str) -> dict:
     return {
         "deleted": True,
         "deletedTurns": len(turns),
+        "preservedDocuments": preserved_documents,
         "revokedShares": revoked_shares,
     }
 
@@ -501,6 +504,7 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
         _delete_remote_schedule(schedule_item)
 
     revoked_shares = _revoke_bot_shares(user_id, bot_id)
+    document_deletion = _delete_bot_documents(user_id, bot_id, turns)
 
     with table.batch_writer() as batch:
         for turn in turns:
@@ -525,4 +529,5 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
         "deleted": True,
         "deletedTurns": len(turns),
         "revokedShares": revoked_shares,
+        **document_deletion,
     }

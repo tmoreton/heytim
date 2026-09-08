@@ -59,6 +59,17 @@ class FakeTable:
         item = self.items.get((Key["pk"], Key["sk"]))
         return {"Item": dict(item)} if item else {}
 
+    def query(self, *, ExpressionAttributeValues: dict, **_kwargs) -> dict:
+        pk = ExpressionAttributeValues[":pk"]
+        prefix = ExpressionAttributeValues.get(":prefix", "")
+        return {
+            "Items": [
+                dict(item)
+                for (item_pk, sk), item in self.items.items()
+                if item_pk == pk and sk.startswith(prefix)
+            ]
+        }
+
 
 class WorkerSafetyTests(unittest.TestCase):
     @classmethod
@@ -125,9 +136,7 @@ class WorkerSafetyTests(unittest.TestCase):
         self.sqs.reset_mock()
         self.s3.list_objects_v2.return_value = {"Contents": []}
 
-    def test_claim_uses_queue_message_as_lease_owner_and_allows_expired_retry(
-        self,
-    ) -> None:
+    def test_claim_uses_queue_message_as_lease_owner_and_allows_expired_retry(self):
         owner = self.work._claim_work(
             {"pk": "CHAT#1", "sk": "TURN#1"}, {"messageId": "queue-message-1"}
         )
@@ -135,9 +144,7 @@ class WorkerSafetyTests(unittest.TestCase):
         self.assertEqual(owner, "queue-message-1")
         update = self.table.updates[-1]
         self.assertIn("leaseExpiresAt < :now", update["ConditionExpression"])
-        self.assertEqual(
-            update["ExpressionAttributeValues"][":owner"], "queue-message-1"
-        )
+        self.assertEqual(update["ExpressionAttributeValues"][":owner"], "queue-message-1")
 
     def test_failed_conditional_claim_is_treated_as_already_owned(self) -> None:
         self.table.fail_condition = True
@@ -163,9 +170,7 @@ class WorkerSafetyTests(unittest.TestCase):
             update["ConditionExpression"],
             "#status = :running AND leaseOwner = :owner",
         )
-        self.assertEqual(
-            update["ExpressionAttributeValues"][":owner"], "queue-message-1"
-        )
+        self.assertEqual(update["ExpressionAttributeValues"][":owner"], "queue-message-1")
 
     def test_failed_attempt_releases_only_its_own_lease(self) -> None:
         released = self.work._release_work(
@@ -261,6 +266,36 @@ class WorkerSafetyTests(unittest.TestCase):
 
         self.assertEqual(result, [{"status": "completed", "exitCode": 0}])
         self.assertEqual(json.dumps(result), '[{"status": "completed", "exitCode": 0}]')
+
+    def test_team_roster_uses_exact_saved_bot_names_and_roles(self) -> None:
+        self.table.items[("USER#user-1", "BOT#chief")] = {
+            "id": "chief",
+            "name": "Chief",
+            "tagline": "Coordinates the team.",
+        }
+        self.table.items[("USER#user-1", "BOT#research")] = {
+            "id": "research",
+            "name": "Research & Reports",
+            "tagline": "Checks data and writes reports.",
+        }
+
+        roster = self.agent._team_roster("user-1", "chief")
+
+        self.assertEqual(
+            roster,
+            [
+                {
+                    "name": "Chief",
+                    "tagline": "Coordinates the team.",
+                    "isCurrent": True,
+                },
+                {
+                    "name": "Research & Reports",
+                    "tagline": "Checks data and writes reports.",
+                    "isCurrent": False,
+                },
+            ],
+        )
 
     def test_failed_job_is_made_visible_for_a_fast_retry(self) -> None:
         record = {
@@ -445,17 +480,20 @@ class WorkerSafetyTests(unittest.TestCase):
         self.s3.list_objects_v2.return_value = {
             "Contents": [
                 {
-                    "Key": f"users/actor/artifacts/turn-1/{file_id}--results.csv",
+                    "Key": f"users/actor/bots/bot-1/artifacts/turn-1/{file_id}--results.csv",
                     "Size": 42,
                     "LastModified": datetime(2026, 9, 4, tzinfo=UTC),
                 }
             ]
         }
         with patch.object(self.artifacts, "memory_actor_id", return_value="actor"):
-            artifacts = self.artifacts._collect_generated_artifacts("user-1", "turn-1")
+            artifacts = self.artifacts._collect_generated_artifacts(
+                "user-1", "bot-1", "turn-1"
+            )
 
         self.assertEqual(artifacts[0]["name"], "results.csv")
         self.assertEqual(artifacts[0]["contentType"], "text/csv")
+        self.assertEqual(artifacts[0]["botId"], "bot-1")
         self.assertIn(("USER#user-1", f"FILE#{file_id}"), self.table.items)
 
     def test_group_artifacts_become_shared_group_file_records(self) -> None:
@@ -483,12 +521,12 @@ class WorkerSafetyTests(unittest.TestCase):
         self.s3.list_objects_v2.return_value = {
             "Contents": [
                 {
-                    "Key": f"users/actor/artifacts/turn-1/{document_id}--brief.pptx",
+                    "Key": f"users/actor/bots/bot-1/artifacts/turn-1/{document_id}--brief.pptx",
                     "Size": 2048,
                     "LastModified": datetime(2026, 9, 4, tzinfo=UTC),
                 },
                 {
-                    "Key": f"users/actor/artifacts/turn-1/{image_id}--concept.png",
+                    "Key": f"users/actor/bots/bot-1/artifacts/turn-1/{image_id}--concept.png",
                     "Size": 4096,
                     "LastModified": datetime(2026, 9, 4, tzinfo=UTC),
                 },
@@ -496,7 +534,9 @@ class WorkerSafetyTests(unittest.TestCase):
         }
 
         with patch.object(self.artifacts, "memory_actor_id", return_value="actor"):
-            generated = self.artifacts._collect_generated_artifacts("user-1", "turn-1")
+            generated = self.artifacts._collect_generated_artifacts(
+                "user-1", "bot-1", "turn-1"
+            )
 
         self.assertEqual(generated[0]["kind"], "document")
         self.assertEqual(generated[0]["format"], "pptx")
@@ -535,7 +575,7 @@ class WorkerSafetyTests(unittest.TestCase):
 
     def test_partial_generated_artifacts_are_removed_before_retry(self) -> None:
         file_id = "12345678-1234-1234-1234-123456789012"
-        object_key = f"users/actor/artifacts/turn-1/{file_id}--partial.csv"
+        object_key = f"users/actor/bots/bot-1/artifacts/turn-1/{file_id}--partial.csv"
         self.s3.list_objects_v2.return_value = {
             "Contents": [{"Key": object_key}],
             "IsTruncated": False,
@@ -547,7 +587,9 @@ class WorkerSafetyTests(unittest.TestCase):
         }
 
         with patch.object(self.artifacts, "memory_actor_id", return_value="actor"):
-            deleted = self.artifacts._delete_generated_artifacts("user-1", "turn-1")
+            deleted = self.artifacts._delete_generated_artifacts(
+                "user-1", "bot-1", "turn-1"
+            )
 
         self.assertEqual(deleted, 1)
         self.s3.delete_objects.assert_called_once_with(
@@ -555,7 +597,3 @@ class WorkerSafetyTests(unittest.TestCase):
             Delete={"Objects": [{"Key": object_key}], "Quiet": True},
         )
         self.assertNotIn(("USER#user-1", f"FILE#{file_id}"), self.table.items)
-
-
-if __name__ == "__main__":
-    unittest.main()

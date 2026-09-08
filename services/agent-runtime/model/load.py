@@ -8,19 +8,29 @@ from typing import Any, TypeVar
 
 from bedrock_agentcore.identity.auth import requires_api_key
 from pydantic import BaseModel
-from strands.models import CacheConfig, CacheToolsConfig, Model
+from strands.models import (
+    CacheConfig,
+    CacheToolsConfig,
+    Model,
+    ModelRouter,
+    RoutingCandidate,
+)
 from strands.models.bedrock import BedrockModel
 from strands.models.openai import OpenAIModel
 from strands.types.content import Messages, SystemContentBlock
 from strands.types.streaming import StreamEvent
 from strands.types.tools import ToolChoice, ToolSpec
 
+from model.routing import TaskRoutingStrategy
 from model.usage import OpenRouterUsageModel, UsageAccumulator, UsageTrackingModel
 
 log = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 PRIMARY_MODEL_ID = os.environ.get("FROGBOT_PRIMARY_MODEL_ID", "z-ai/glm-5.3-flash")
+PRIMARY_REASONING_EFFORT = os.environ.get("FROGBOT_REASONING_EFFORT", "low")
+ADVANCED_MODEL_ID = os.environ.get("FROGBOT_ADVANCED_MODEL_ID", "z-ai/glm-5.3")
+ADVANCED_REASONING_EFFORT = os.environ.get("FROGBOT_ADVANCED_REASONING_EFFORT", "high")
 FALLBACK_MODEL_ID = os.environ.get(
     "FROGBOT_FALLBACK_MODEL_ID",
     "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -33,6 +43,7 @@ OPENROUTER_CREDENTIAL_PROVIDER = os.environ.get(
     "FROGBOT_OPENROUTER_CREDENTIAL_PROVIDER",
     "FrogBot_OpenRouter",
 )
+SUPPORTED_REASONING_EFFORTS = {"low", "high", "max"}
 
 
 class PrimaryFallbackModel(Model):
@@ -113,7 +124,8 @@ class PrimaryFallbackModel(Model):
                 if _starts_response(event):
                     committed = True
                     log.info(
-                        "Primary model %s began streaming a response", PRIMARY_MODEL_ID
+                        "Primary model %s began streaming a response",
+                        self.primary.get_config().get("model_id", "unknown"),
                     )
                     for buffered_event in buffered:
                         yield buffered_event
@@ -157,11 +169,36 @@ def load_bedrock_model() -> BedrockModel:
     )
 
 
-def _load_openrouter_model(api_key: str) -> OpenAIModel:
+def _load_openrouter_model(
+    api_key: str,
+    *,
+    model_id: str = PRIMARY_MODEL_ID,
+    reasoning_effort: str = PRIMARY_REASONING_EFFORT,
+    max_tokens: int = 4096,
+    temperature: float = 0.3,
+) -> OpenAIModel:
+    if reasoning_effort not in SUPPORTED_REASONING_EFFORTS:
+        supported = ", ".join(sorted(SUPPORTED_REASONING_EFFORTS))
+        raise ValueError(f"reasoning effort must be one of: {supported}")
+    if (
+        not isinstance(max_tokens, int)
+        or isinstance(max_tokens, bool)
+        or max_tokens < 1
+    ):
+        raise ValueError("max_tokens must be a positive integer")
     return OpenRouterUsageModel(
-        model_id=PRIMARY_MODEL_ID,
+        model_id=model_id,
         context_window_limit=200_000,
-        params={"max_tokens": 4096, "temperature": 0.3},
+        params={
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            # GLM 5.3 and Flash default to max reasoning on OpenRouter. That can
+            # consume the completion budget before an agent reaches its next
+            # tool call, so production uses an explicit deploy-time effort.
+            # OpenRouter-specific parameters must travel through the OpenAI
+            # SDK's extra_body escape hatch rather than as top-level kwargs.
+            "extra_body": {"reasoning": {"effort": reasoning_effort}},
+        },
         client_args={
             "api_key": api_key,
             "base_url": OPENROUTER_BASE_URL,
@@ -190,8 +227,8 @@ def _tracked(
     )
 
 
-async def load_model(usage: UsageAccumulator | None = None) -> Model:
-    """Load OpenRouter as primary and Bedrock as a safe fallback."""
+async def load_model(usage: UsageAccumulator | None = None) -> Model | ModelRouter:
+    """Load the task router, with Bedrock as each OpenRouter tier's safe fallback."""
     fallback = _tracked(
         load_bedrock_model(),
         usage,
@@ -205,14 +242,48 @@ async def load_model(usage: UsageAccumulator | None = None) -> Model:
         _log_fallback(error)
         return fallback
     log.info(
-        "Configured primary model %s with Bedrock fallback %s",
+        "Configured model routes %s/%s and %s/%s with Bedrock fallback %s",
         PRIMARY_MODEL_ID,
+        PRIMARY_REASONING_EFFORT,
+        ADVANCED_MODEL_ID,
+        ADVANCED_REASONING_EFFORT,
         FALLBACK_MODEL_ID,
     )
-    primary = _tracked(
-        _load_openrouter_model(api_key),
-        usage,
-        provider="openrouter",
-        model_id=PRIMARY_MODEL_ID,
+    primary = PrimaryFallbackModel(
+        _tracked(
+            _load_openrouter_model(api_key),
+            usage,
+            provider="openrouter",
+            model_id=PRIMARY_MODEL_ID,
+        ),
+        fallback,
     )
-    return PrimaryFallbackModel(primary, fallback)
+    advanced = PrimaryFallbackModel(
+        _tracked(
+            _load_openrouter_model(
+                api_key,
+                model_id=ADVANCED_MODEL_ID,
+                reasoning_effort=ADVANCED_REASONING_EFFORT,
+            ),
+            usage,
+            provider="openrouter",
+            model_id=ADVANCED_MODEL_ID,
+        ),
+        fallback,
+    )
+    return ModelRouter(
+        models=[
+            RoutingCandidate(
+                primary,
+                name="routine",
+                description="Routine conversation and straightforward assistance.",
+            ),
+            RoutingCandidate(
+                advanced,
+                name="advanced",
+                description="Coding, technical implementation, and complex reasoning.",
+            ),
+        ],
+        strategy=TaskRoutingStrategy(),
+        max_switches=0,
+    )

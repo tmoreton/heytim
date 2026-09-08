@@ -50,6 +50,26 @@ class ApiRoutingTests(unittest.TestCase):
         self.assertEqual(response["statusCode"], 200)
         group_messages.assert_called_once_with("user-1", "group-1")
 
+    def test_bot_documents_reach_the_authenticated_bot_library(self) -> None:
+        with (
+            patch.object(self.routes, "_get_bot") as get_bot,
+            patch.object(
+                self.routes, "_list_bot_documents", return_value=[]
+            ) as list_documents,
+        ):
+            response = self.routes.route_authenticated(
+                "user-1",
+                "Tim",
+                "GET",
+                "/bots/bot-1/documents",
+                {"botId": "bot-1"},
+                {},
+            )
+
+        self.assertEqual(response["statusCode"], 200)
+        get_bot.assert_called_once_with("user-1", "bot-1")
+        list_documents.assert_called_once_with("user-1", "bot-1")
+
     def test_unknown_authenticated_route_returns_not_found(self) -> None:
         with self.assertRaises(self.support.ApiError) as error:
             self.routes.route_authenticated("user-1", "Tim", "GET", "/unknown", {}, {})

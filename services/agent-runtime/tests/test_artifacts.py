@@ -80,6 +80,24 @@ def test_artifact_context_is_bound_to_the_invoking_user() -> None:
         )
 
 
+def test_bot_artifact_context_is_bound_to_the_invoking_user() -> None:
+    actor_id = "a" * 64
+    prefix = (
+        f"users/{actor_id}/bots/research-reports/artifacts/"
+        "12345678-1234-1234-1234-123456789012"
+    )
+    assert (
+        artifacts.artifact_prefix_from_payload(
+            {"artifacts": {"prefix": prefix}}, actor_id
+        )
+        == prefix
+    )
+    with pytest.raises(ValueError, match="invoking user"):
+        artifacts.artifact_prefix_from_payload(
+            {"artifacts": {"prefix": prefix}}, "b" * 64
+        )
+
+
 def test_group_artifact_context_requires_group_scope() -> None:
     prefix = (
         "groups/12345678-1234-1234-1234-123456789012/artifacts/"

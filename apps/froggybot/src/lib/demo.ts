@@ -1,6 +1,7 @@
 import type {
   Bootstrap,
   Bot,
+  BotDocument,
   BotDraft,
   Connection,
   ConnectionDraft,
@@ -142,6 +143,46 @@ const messages = new Map<string, Message[]>([
   ['research-reports', []],
 ]);
 
+const botDocuments = new Map<string, BotDocument[]>([
+  [
+    'chief',
+    [
+      {
+        id: 'demo-launch-checklist',
+        name: 'launch-checklist.docx',
+        size: 48_200,
+        kind: 'document',
+        format: 'docx',
+        contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        createdAt: timestamp,
+      },
+    ],
+  ],
+  [
+    'research-reports',
+    [
+      {
+        id: 'demo-market-brief',
+        name: 'market-research-brief.pdf',
+        size: 284_300,
+        kind: 'document',
+        format: 'pdf',
+        contentType: 'application/pdf',
+        createdAt: timestamp,
+      },
+      {
+        id: 'demo-source-data',
+        name: 'source-data.xlsx',
+        size: 91_700,
+        kind: 'document',
+        format: 'xlsx',
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        createdAt: timestamp,
+      },
+    ],
+  ],
+]);
+
 const groupMessages = new Map<string, Message[]>([
   [
     'launch-room',
@@ -191,6 +232,9 @@ export const demoBootstrap = async (): Promise<Bootstrap> => {
 
 export const demoMessages = (botId: string): Message[] => [...(messages.get(botId) ?? [])];
 
+export const demoBotDocuments = async (botId: string): Promise<BotDocument[]> =>
+  (botDocuments.get(botId) ?? []).map((document) => ({ ...document }));
+
 export const demoGroupMessages = (groupId: string): Message[] => [...(groupMessages.get(groupId) ?? [])];
 
 export const demoClearBotChat = (botId: string): void => {
@@ -210,6 +254,7 @@ export const demoDeleteBot = (botId: string): void => {
   bots = bots.filter((bot) => bot.id !== botId);
   schedules = schedules.filter((task) => task.botId !== botId);
   messages.delete(botId);
+  botDocuments.delete(botId);
   groups = groups.map((group) => ({
     ...group,
     bots: group.bots.filter((bot) => bot.id !== botId),

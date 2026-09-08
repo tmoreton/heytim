@@ -5,6 +5,7 @@ export const AUTHENTICATED_ROUTES = [
   [HttpMethod.POST, '/bots'],
   [HttpMethod.PUT, '/bots/{botId}'],
   [HttpMethod.DELETE, '/bots/{botId}'],
+  [HttpMethod.GET, '/bots/{botId}/documents'],
   [HttpMethod.GET, '/bots/{botId}/messages'],
   [HttpMethod.POST, '/bots/{botId}/messages'],
   [HttpMethod.POST, '/bots/{botId}/messages/{turnId}/approve'],

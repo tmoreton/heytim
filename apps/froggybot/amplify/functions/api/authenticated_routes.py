@@ -8,6 +8,7 @@ from .attachments import (
     _download_file,
     _download_group_file,
 )
+from .bot_documents import _list_bot_documents
 from .bots import (
     _bootstrap,
     _clear_bot_chat,
@@ -249,6 +250,9 @@ def _direct_chat_route(
     event: dict,
 ) -> dict | None:
     bot_id = params.get("botId", "")
+    if method == "GET" and path.startswith("/bots/") and path.endswith("/documents"):
+        _get_bot(user_id, bot_id)
+        return _response(200, {"documents": _list_bot_documents(user_id, bot_id)})
     if method == "GET" and path.startswith("/bots/") and path.endswith("/messages"):
         _get_bot(user_id, bot_id)
         return _response(

@@ -26,19 +26,24 @@ async def _events(agent: FakeAgent, prompt: Any) -> list[dict]:
     return [event async for event in stream_with_token_recovery(agent, prompt)]
 
 
-def test_resumes_one_partial_turn_without_repeating_the_prompt() -> None:
-    agent = FakeAgent(failures=1)
+def test_resumes_repeated_partial_turns_without_repeating_the_prompt() -> None:
+    agent = FakeAgent(failures=3)
 
     events = asyncio.run(_events(agent, [{"role": "user"}]))
 
-    assert events == [{"attempt": 1}, {"attempt": 2}]
-    assert agent.prompts == [[{"role": "user"}], None]
+    assert events == [
+        {"attempt": 1},
+        {"attempt": 2},
+        {"attempt": 3},
+        {"attempt": 4},
+    ]
+    assert agent.prompts == [[{"role": "user"}], None, None, None]
 
 
-def test_second_token_limit_is_propagated() -> None:
-    agent = FakeAgent(failures=2)
+def test_token_limit_after_final_continuation_is_propagated() -> None:
+    agent = FakeAgent(failures=4)
 
     with pytest.raises(MaxTokensReachedException, match="partial"):
         asyncio.run(_events(agent, "hello"))
 
-    assert agent.prompts == ["hello", None]
+    assert agent.prompts == ["hello", None, None, None]

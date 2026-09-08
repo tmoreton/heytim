@@ -10,6 +10,7 @@ type Props = {
   label?: string;
   botName?: string;
   botColor?: string;
+  onExpand?: () => void;
 };
 
 export function AgentActivity({
@@ -19,6 +20,7 @@ export function AgentActivity({
   label,
   botName = 'FroggyBot',
   botColor = '#007A3D',
+  onExpand,
 }: Props) {
   const [bounce] = useState(() => new Animated.Value(0));
   const [expanded, setExpanded] = useState(false);
@@ -67,18 +69,30 @@ export function AgentActivity({
   }
 
   if (active) {
-    const latest = steps.at(-1);
     return (
-      <View accessibilityLiveRegion="polite" style={styles.activeCard}>
+      <View style={styles.activeCard}>
         <Animated.View style={frogStyle}>
           <BotAvatar color={botColor} name={botName} size={28} />
         </Animated.View>
         <View style={styles.activeCopy}>
-          <Text style={styles.activeLabel}>{label ?? (latest ? 'Working through it' : 'Thinking')}</Text>
-          {latest ? (
-            <Text numberOfLines={3} style={styles.activeStep}>
-              {latest}
-            </Text>
+          <Text style={styles.activeLabel}>{label ?? (steps.length ? 'Working through it' : 'Thinking')}</Text>
+          {steps.length ? (
+            <View style={styles.activeSteps}>
+              {steps.map((step, index) => {
+                const latest = index === steps.length - 1;
+                return (
+                  <View key={`${index}-${step}`} style={styles.activeStepRow}>
+                    <View style={[styles.stepDot, latest && styles.activeStepDot]} />
+                    <Text
+                      accessibilityLiveRegion={latest ? 'polite' : 'none'}
+                      selectable
+                      style={[styles.activeStep, latest && styles.latestActiveStep]}>
+                      {step}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
           ) : null}
         </View>
       </View>
@@ -87,6 +101,12 @@ export function AgentActivity({
 
   if (!steps.length) return null;
 
+  const toggleExpanded = () => {
+    const nextExpanded = !expanded;
+    if (nextExpanded) onExpand?.();
+    setExpanded(nextExpanded);
+  };
+
   return (
     <View style={styles.completedWrap}>
       <Pressable
@@ -94,7 +114,7 @@ export function AgentActivity({
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         style={({ pressed }) => [styles.completedButton, pressed && styles.pressed]}
-        onPress={() => setExpanded((value) => !value)}>
+        onPress={toggleExpanded}>
         <BotAvatar color={botColor} name={botName} size={22} />
         <Text style={styles.completedLabel}>{steps.length === 1 ? '1 step completed' : `${steps.length} steps completed`}</Text>
         <Text style={[styles.chevron, expanded && styles.chevronExpanded]}>›</Text>
@@ -104,7 +124,7 @@ export function AgentActivity({
           {steps.map((step, index) => (
             <View key={`${index}-${step}`} style={styles.stepRow}>
               <View style={styles.stepDot} />
-              <Text style={styles.stepText}>{step}</Text>
+              <Text selectable style={styles.stepText}>{step}</Text>
             </View>
           ))}
         </View>
@@ -116,7 +136,6 @@ export function AgentActivity({
 const styles = StyleSheet.create({
   activeCard: {
     width: '100%',
-    maxWidth: 360,
     minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
@@ -132,8 +151,12 @@ const styles = StyleSheet.create({
   activeLabel: { color: '#007A3D', fontSize: 12, fontWeight: '700' },
   waitingCard: { backgroundColor: '#FAFAF8', borderColor: '#E6E3DC' },
   waitingLabel: { color: '#77736B', fontSize: 12, fontWeight: '600' },
-  activeStep: { color: '#615E57', fontSize: 12, lineHeight: 17, marginTop: 2 },
-  completedWrap: { maxWidth: 430, marginBottom: 5 },
+  activeSteps: { gap: 6, marginTop: 5 },
+  activeStepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  activeStep: { flex: 1, color: '#77736B', fontSize: 12, lineHeight: 17 },
+  latestActiveStep: { color: '#4D4A44' },
+  activeStepDot: { backgroundColor: '#007A3D' },
+  completedWrap: { width: '100%', marginBottom: 10 },
   completedButton: {
     minHeight: 34,
     flexDirection: 'row',
@@ -149,16 +172,18 @@ const styles = StyleSheet.create({
   chevron: { color: '#77736B', fontSize: 18, lineHeight: 18, transform: [{ rotate: '0deg' }] },
   chevronExpanded: { transform: [{ rotate: '90deg' }] },
   stepList: {
+    alignSelf: 'stretch',
     gap: 7,
     marginLeft: 12,
     marginTop: 8,
     marginBottom: 4,
     paddingLeft: 10,
+    paddingRight: 4,
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderColor: '#C8CEC8',
   },
-  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  stepRow: { width: '100%', flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   stepDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#5D9776', marginTop: 6 },
-  stepText: { flex: 1, color: '#6A675F', fontSize: 11, lineHeight: 16 },
+  stepText: { flex: 1, minWidth: 0, flexShrink: 1, color: '#6A675F', fontSize: 11, lineHeight: 16 },
   pressed: { opacity: 0.65 },
 });

@@ -1144,7 +1144,7 @@ requires-dist = [
     { name = "python-pptx", specifier = ">=1.0.2,<2.0.0" },
     { name = "reportlab", specifier = ">=4.4.4,<5.0.0" },
     { name = "strands-agents", extras = ["openai"], specifier = ">=1.54.0,<2.0.0" },
-    { name = "strands-agents-stan", path = "vendor/strands_agents_stan-0.0.1.dev48+g6ba1843a4-py3-none-any.whl" },
+    { name = "strands-agents-stan", path = "vendor/strands_agents_stan-0.0.1.dev53+g325058d51-py3-none-any.whl" },
     { name = "strands-agents-tools", extras = ["agent-core-browser", "agent-core-code-interpreter"], specifier = ">=0.2.0,<1.0.0" },
 ]
 
@@ -4297,13 +4297,13 @@ otel = [
 
 [[package]]
 name = "strands-agents-stan"
-version = "0.0.1.dev48+g6ba1843a4"
-source = { path = "vendor/strands_agents_stan-0.0.1.dev48+g6ba1843a4-py3-none-any.whl" }
+version = "0.0.1.dev53+g325058d51"
+source = { path = "vendor/strands_agents_stan-0.0.1.dev53+g325058d51-py3-none-any.whl" }
 dependencies = [
     { name = "strands-agents", extra = ["otel"] },
 ]
 wheels = [
-    { filename = "strands_agents_stan-0.0.1.dev48+g6ba1843a4-py3-none-any.whl", hash = "sha256:73553da3b42a9f3520439e467638ed44b63c142fa097fb5b91d6faa9d2b6f9a4" },
+    { filename = "strands_agents_stan-0.0.1.dev53+g325058d51-py3-none-any.whl", hash = "sha256:77b428ad3df81c865ff4738c4180e6c8b2e49992e7e1f07fcfde974df8bd7e8a" },
 ]
 
 [package.metadata]

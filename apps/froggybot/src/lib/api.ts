@@ -3,6 +3,7 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 import { apiUrl } from './cloud';
 import {
   demoBootstrap,
+  demoBotDocuments,
   demoClearBotChat,
   demoDeleteBot,
   demoDeleteGroup,
@@ -27,6 +28,7 @@ import type {
   Attachment,
   Bootstrap,
   Bot,
+  BotDocument,
   BotDraft,
   Connection,
   ConnectionDraft,
@@ -112,6 +114,12 @@ export const createApi = (demo: boolean) => ({
     demo
       ? demoMessages(botId)
       : request<{ messages: Message[] }>(`/bots/${botId}/messages`).then((value) => value.messages),
+  botDocuments: async (botId: string): Promise<BotDocument[]> =>
+    demo
+      ? demoBotDocuments(botId)
+      : request<{ documents: BotDocument[] }>(
+          `/bots/${encodeURIComponent(botId)}/documents`,
+        ).then((value) => value.documents),
   saveBot: async (draft: BotDraft, botId?: string): Promise<Bot> =>
     demo
       ? demoSaveBot(draft, botId)

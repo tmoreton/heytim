@@ -15,6 +15,7 @@ type Props = {
   onApprove?: (message: Message, always: boolean) => Promise<void>;
   onReject?: (message: Message) => Promise<void>;
   onOpenFile?: (file: Attachment) => Promise<void>;
+  onActivityExpand?: () => void;
 };
 
 const roleLabel = (message: Message) => {
@@ -44,6 +45,7 @@ export function MessageBubble({
   onApprove,
   onReject,
   onOpenFile,
+  onActivityExpand,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [approvalAction, setApprovalAction] = useState<'reject' | 'once' | 'always'>();
@@ -77,7 +79,7 @@ export function MessageBubble({
   return (
     <View style={[styles.row, assistant ? styles.assistantRow : styles.userRow, groupMode && styles.groupRow]}>
       {groupMode && !mine ? avatar : null}
-      <View style={[styles.column, !assistant && styles.userColumn]}>
+      <View style={[styles.column, assistant ? styles.assistantColumn : styles.userColumn]}>
         {groupMode ? (
           <Text style={[styles.author, mine && styles.mineAuthor]}>
             {mine ? 'You' : `${authorName}${label ? ` · ${label}` : ''}`}
@@ -93,6 +95,7 @@ export function MessageBubble({
             label={activityLabel(message)}
             botName={authorName}
             botColor={message.authorColor ?? botColor}
+            onExpand={onActivityExpand}
           />
         ) : null}
         {awaitingApproval ? (
@@ -198,13 +201,18 @@ export function MessageBubble({
               );
             })}
             {botMessage && compactContribution && !expanded ? (
-              <Text numberOfLines={4} style={styles.contributionPreview}>
+              <Text selectable selectionColor="#79B393" numberOfLines={4} style={styles.contributionPreview}>
                 {preview}
               </Text>
             ) : botMessage ? (
               <MessageMarkdown>{message.text}</MessageMarkdown>
             ) : (
-              <Text style={[styles.message, assistant ? styles.assistantText : styles.userText]}>{message.text}</Text>
+              <Text
+                selectable
+                selectionColor={assistant ? '#79B393' : '#B8E0CB'}
+                style={[styles.message, assistant ? styles.assistantText : styles.userText]}>
+                {message.text}
+              </Text>
             )}
             {compactContribution ? (
               <Pressable
@@ -226,17 +234,18 @@ export function MessageBubble({
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', marginBottom: 8 },
+  row: { width: '100%', flexDirection: 'row', marginBottom: 8 },
   groupRow: { alignItems: 'flex-end', gap: 7 },
   assistantRow: { justifyContent: 'flex-start' },
   userRow: { justifyContent: 'flex-end' },
-  column: { width: '84%', maxWidth: 650, flexShrink: 1, alignItems: 'flex-start' },
-  userColumn: { alignItems: 'flex-end' },
+  column: { minWidth: 0, flexShrink: 1, alignItems: 'flex-start' },
+  assistantColumn: { flex: 1, maxWidth: '100%' },
+  userColumn: { width: '84%', maxWidth: 650, alignItems: 'flex-end' },
   author: { color: '#77736B', fontSize: 10, fontWeight: '600', marginBottom: 3, marginHorizontal: 6 },
   mineAuthor: { color: '#007A3D' },
   scheduleLabel: { color: '#61766B', fontSize: 10, fontWeight: '700', marginBottom: 4, marginHorizontal: 6 },
   bubble: { maxWidth: '100%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
-  assistantBubble: { width: '100%', backgroundColor: '#EFEFEC', borderTopLeftRadius: 6 },
+  assistantBubble: { width: '84%', maxWidth: 650, backgroundColor: '#EFEFEC', borderTopLeftRadius: 6 },
   teamAnswerBubble: { backgroundColor: '#E9F4EE', borderWidth: 1, borderColor: '#A8CFB9' },
   userBubble: { backgroundColor: '#007A3D', borderBottomRightRadius: 6 },
   errorBubble: { backgroundColor: '#F8E6E1' },

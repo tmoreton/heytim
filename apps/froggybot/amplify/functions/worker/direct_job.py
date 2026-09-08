@@ -109,7 +109,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
         record.get("attributes", {}).get("ApproximateReceiveCount", "1")
     )
     if receive_count > 1:
-        _delete_generated_artifacts(user_id, turn["id"])
+        _delete_generated_artifacts(user_id, bot_id, turn["id"])
     try:
         result = _invoke(
             user_id,
@@ -131,13 +131,13 @@ def _process_agent_reply(record: dict, request: dict) -> None:
                 _queue_background_poll(turn_key, request)
             return
         answer = result.text
-        artifacts = _collect_generated_artifacts(user_id, turn["id"])
+        artifacts = _collect_generated_artifacts(user_id, bot_id, turn["id"])
     except Exception:
         logger.exception("Agent request failed for turn %s", turn.get("id"))
         if receive_count < 3:
             _release_work(turn_key, lease_owner)
             raise
-        _delete_generated_artifacts(user_id, turn["id"])
+        _delete_generated_artifacts(user_id, bot_id, turn["id"])
         failure_answer = "I could not finish that request. Please try again."
         failed_at = _finish_work(
             turn_key, lease_owner, "ERROR", "assistantText", failure_answer
@@ -157,7 +157,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
         artifacts=artifacts,
     )
     if not completed_at:
-        _delete_generated_artifacts(user_id, turn["id"])
+        _delete_generated_artifacts(user_id, bot_id, turn["id"])
         return
     try:
         table.update_item(

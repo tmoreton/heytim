@@ -14,6 +14,8 @@ type Props = {
   bots: Bot[];
   groups: Group[];
   selection?: ConversationSelection;
+  processingConversation?: ConversationSelection;
+  activeBotName?: string;
   search: string;
   demo: boolean;
   topInset: number;
@@ -40,6 +42,8 @@ export function ConversationDrawer({
   bots,
   groups,
   selection,
+  processingConversation,
+  activeBotName,
   search,
   demo,
   topInset,
@@ -93,10 +97,13 @@ export function ConversationDrawer({
         renderSectionHeader={({ section }) => <Text style={styles.sectionLabel}>{section.title}</Text>}
         renderItem={({ item }) => {
           const selected = selection?.kind === item.kind && selection.id === item.value.id;
+          const processing = processingConversation?.kind === item.kind && processingConversation.id === item.value.id;
+          const processingName = item.kind === 'bot' ? item.value.name : activeBotName ?? 'A FroggyBot';
           return (
             <Pressable
+              accessibilityLabel={processing ? `${item.value.name}, ${processingName} is processing` : item.value.name}
               accessibilityRole="button"
-              accessibilityState={{ selected }}
+              accessibilityState={{ selected, busy: processing }}
               style={({ pressed }) => [styles.row, selected && styles.rowSelected, pressed && styles.pressed]}
               onPress={() => (item.kind === 'group' ? onSelectGroup(item.value) : onSelectBot(item.value))}>
               {item.kind === 'group' ? (
@@ -109,10 +116,17 @@ export function ConversationDrawer({
                   <Text numberOfLines={1} style={styles.name}>
                     {item.value.name}
                   </Text>
-                  <Text style={styles.date}>{friendlyDate(item.value.lastMessageAt)}</Text>
+                  {processing ? (
+                    <View style={styles.processingBadge}>
+                      <View style={styles.processingDot} />
+                      <Text style={styles.processingLabel}>Processing</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.date}>{friendlyDate(item.value.lastMessageAt)}</Text>
+                  )}
                 </View>
-                <Text numberOfLines={1} style={styles.preview}>
-                  {item.value.lastMessage}
+                <Text numberOfLines={1} style={[styles.preview, processing && styles.processingPreview]}>
+                  {processing ? `${processingName} is working…` : item.value.lastMessage}
                 </Text>
               </View>
             </Pressable>
@@ -168,6 +182,10 @@ const styles = StyleSheet.create({
   name: { flex: 1, color: '#26251F', fontSize: 15, fontWeight: '600' },
   date: { color: '#A09C94', fontSize: 11 },
   preview: { color: '#77736B', fontSize: 12, marginTop: 3 },
+  processingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 9, backgroundColor: '#D9EDDF', paddingHorizontal: 6, paddingVertical: 3 },
+  processingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#007A3D' },
+  processingLabel: { color: '#006934', fontSize: 9, fontWeight: '800', letterSpacing: 0.2 },
+  processingPreview: { color: '#187044', fontWeight: '600' },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: '#D9D6CF' },
   accountRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 10 },
   profileDot: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#007A3D' },

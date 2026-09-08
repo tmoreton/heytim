@@ -6,7 +6,9 @@ from typing import Any
 
 from strands.types.exceptions import MaxTokensReachedException
 
-MAX_TOKEN_CONTINUATIONS = 1
+# A tool-heavy change can legitimately need more than two model chunks. Keep the
+# cap finite so a model that never concludes still fails instead of looping forever.
+MAX_TOKEN_CONTINUATIONS = 3
 
 
 async def stream_with_token_recovery(
@@ -15,7 +17,7 @@ async def stream_with_token_recovery(
     *,
     logger: logging.Logger | None = None,
 ) -> AsyncIterator[Any]:
-    """Resume one partial model response without restarting completed tool work."""
+    """Resume partial model responses without restarting completed tool work."""
     continuations = 0
     next_prompt = prompt
     while True:

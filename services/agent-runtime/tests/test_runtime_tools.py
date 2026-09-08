@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 RUNTIME_ROOT = Path(__file__).resolve().parents[1]
 if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
@@ -69,13 +71,60 @@ def test_catalog_bindings_select_stan_features_and_local_tools(monkeypatch) -> N
         "background_command",
         "browser",
     ]
-    assert config.builtin_tools == ["web_fetch"]
+    assert config.builtin_tools == ["web_fetch", "subagent"]
     assert config.builtin_plugins == ["todos"]
-    assert config.builtin_subagents == ["generalist"]
     assert "does not need to name a skill or tool" in config.instructions
     assert "activate it with the skills tool" in config.instructions
     assert "actually activated or called it" in config.instructions
+    assert "Never invent decision-changing facts" in config.instructions
+    assert "ask only the necessary questions and stop" in config.instructions
+    assert "For intake, use only a brief acknowledgment" in config.instructions
+    assert "do not present model memory as confirmed" in config.instructions
     assert "platform will resume this same conversation" in config.instructions
+
+
+def test_team_roster_is_validated_and_added_as_context() -> None:
+    config = bot_configuration(
+        {
+            "bot": {
+                "name": "Chief",
+                "prompt": "Route work to the right teammate.",
+                "toolIds": [],
+                "tools": [],
+                "skillIds": [],
+                "skills": [],
+            },
+            "team": [
+                {"name": "Chief", "tagline": "Coordinates.", "isCurrent": True},
+                {
+                    "name": "Research & Reports",
+                    "tagline": "Analyzes data and writes reports.",
+                    "isCurrent": False,
+                },
+            ],
+        }
+    )
+
+    assert '"name":"Research & Reports"' in config.instructions
+    assert "exact best-matching roster name" in config.instructions
+    assert "Do not invent a specialist" in config.instructions
+
+
+def test_team_roster_requires_exactly_one_current_bot() -> None:
+    with pytest.raises(ValueError, match="exactly one current bot"):
+        bot_configuration(
+            {
+                "bot": {
+                    "name": "Chief",
+                    "prompt": "Coordinate.",
+                    "toolIds": [],
+                    "tools": [],
+                    "skillIds": [],
+                    "skills": [],
+                },
+                "team": [{"name": "Chief", "isCurrent": False}],
+            }
+        )
 
 
 def test_background_command_records_durable_task_identity() -> None:

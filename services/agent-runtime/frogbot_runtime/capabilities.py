@@ -218,7 +218,6 @@ class CapabilityConfiguration:
     plugins: list[Any]
     skill_paths: list[str]
     builtin_plugins: list[str]
-    builtin_subagents: list[str]
     background_work: BackgroundWorkTracker
 
 
@@ -477,14 +476,16 @@ def resolve_capabilities(
         tools=tools,
         builtin_tools=[
             item["name"] for item in bindings if item["kind"] == "stan_builtin"
-        ],
+        ]
+        + (
+            ["subagent"]
+            if any(item["kind"] == "stan_subagent" for item in bindings)
+            else []
+        ),
         plugins=[AgentSkills(skills=skills, strict=True)] if skills else [],
         skill_paths=[],
         builtin_plugins=[
             item["name"] for item in bindings if item["kind"] == "stan_plugin"
-        ],
-        builtin_subagents=[
-            item["name"] for item in bindings if item["kind"] == "stan_subagent"
         ],
         background_work=background_work,
     )

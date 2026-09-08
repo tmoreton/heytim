@@ -50,12 +50,17 @@ IMAGE_STYLES = {
     "SOFT_DIGITAL_PAINTING": "soft digital painting",
 }
 USER_PREFIX_PATTERN = re.compile(r"^users/[a-f0-9]{64}/artifacts/[a-f0-9-]{32,64}$")
+BOT_PREFIX_PATTERN = re.compile(
+    r"^users/[a-f0-9]{64}/bots/[A-Za-z0-9][A-Za-z0-9_-]{0,63}/artifacts/[a-f0-9-]{32,64}$"
+)
 GROUP_PREFIX_PATTERN = re.compile(r"^groups/[a-f0-9-]{36}/artifacts/[a-f0-9-]{32,64}$")
 
 
 def _valid_prefix(prefix: str) -> bool:
     return bool(
-        USER_PREFIX_PATTERN.fullmatch(prefix) or GROUP_PREFIX_PATTERN.fullmatch(prefix)
+        USER_PREFIX_PATTERN.fullmatch(prefix)
+        or BOT_PREFIX_PATTERN.fullmatch(prefix)
+        or GROUP_PREFIX_PATTERN.fullmatch(prefix)
     )
 
 
@@ -76,7 +81,7 @@ def artifact_prefix_from_payload(
         return prefix
     if not isinstance(actor_id, str) or not re.fullmatch(r"[a-f0-9]{64}", actor_id):
         raise ValueError("artifacts identity is invalid")
-    if not prefix.startswith(f"users/{actor_id}/artifacts/"):
+    if not prefix.startswith(f"users/{actor_id}/"):
         raise ValueError("artifacts.prefix does not match the invoking user")
     return prefix
 

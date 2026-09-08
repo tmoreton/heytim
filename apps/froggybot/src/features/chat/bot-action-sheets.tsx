@@ -9,6 +9,7 @@ type Props = {
   pendingAction?: BotAction;
   onCloseMenu: () => void;
   onEditBot: () => void;
+  onDocuments: () => void;
   onSchedule: () => void;
   onShareSetup: () => void;
   onShareConversation: () => void;
@@ -23,6 +24,7 @@ export function BotActionSheets({
   pendingAction,
   onCloseMenu,
   onEditBot,
+  onDocuments,
   onSchedule,
   onShareSetup,
   onShareConversation,
@@ -38,6 +40,7 @@ export function BotActionSheets({
         message="Schedule its work, share it, or manage this conversation."
         options={[
           { label: 'Edit bot', onPress: onEditBot },
+          { label: 'Documents', onPress: onDocuments },
           { label: 'Scheduled tasks', onPress: onSchedule },
           { label: 'Share bot setup', onPress: onShareSetup },
           { label: 'Share conversation', onPress: onShareConversation },
@@ -53,7 +56,7 @@ export function BotActionSheets({
         title={pendingAction === 'delete' ? `Delete ${bot?.name ?? 'this bot'}?` : 'Clear this conversation?'}
         message={
           pendingAction === 'delete'
-            ? 'This permanently deletes the FroggyBot, its direct chat, and removes it from your groups.'
+            ? 'This permanently deletes the FroggyBot, its direct chat, generated documents, and removes it from your groups.'
             : 'This permanently deletes every message in this direct chat but keeps the FroggyBot.'
         }
         options={[

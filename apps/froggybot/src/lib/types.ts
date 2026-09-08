@@ -25,6 +25,10 @@ export type Attachment = {
   createdAt?: string;
 };
 
+export type BotDocument = Omit<Attachment, 'createdAt'> & {
+  createdAt: string;
+};
+
 export type Message = {
   id: string;
   role: 'user' | 'assistant';

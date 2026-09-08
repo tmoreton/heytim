@@ -39,6 +39,18 @@
           "value": "z-ai/glm-5.3-flash"
         },
         {
+          "name": "FROGBOT_REASONING_EFFORT",
+          "value": "low"
+        },
+        {
+          "name": "FROGBOT_ADVANCED_MODEL_ID",
+          "value": "z-ai/glm-5.3"
+        },
+        {
+          "name": "FROGBOT_ADVANCED_REASONING_EFFORT",
+          "value": "high"
+        },
+        {
           "name": "FROGBOT_FALLBACK_MODEL_ID",
           "value": "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
         },

@@ -23,6 +23,7 @@ from .support import (
 
 logger = logging.getLogger(__name__)
 RECENT_DIRECT_TURNS = 50
+MAX_TEAM_BOTS = 24
 
 
 @dataclass(frozen=True)
@@ -120,6 +121,40 @@ def _get_group_context(
     )
 
 
+def _team_roster(user_id: str, current_bot_id: str) -> list[dict]:
+    items = table.query(
+        KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+        ExpressionAttributeValues={
+            ":pk": _bot_key(user_id, current_bot_id)["pk"],
+            ":prefix": "BOT#",
+        },
+        ConsistentRead=True,
+    ).get("Items", [])
+    roster = []
+    for item in items:
+        name = item.get("name")
+        tagline = item.get("tagline", "")
+        roster_bot_id = item.get("id")
+        if (
+            not isinstance(name, str)
+            or not name.strip()
+            or not isinstance(tagline, str)
+            or not isinstance(roster_bot_id, str)
+        ):
+            continue
+        roster.append(
+            {
+                "name": name.strip()[:60],
+                "tagline": tagline.strip()[:120],
+                "isCurrent": roster_bot_id == current_bot_id,
+            }
+        )
+    return sorted(
+        roster,
+        key=lambda item: (not item["isCurrent"], item["name"].casefold()),
+    )[:MAX_TEAM_BOTS]
+
+
 def _invoke(
     user_id: str,
     bot_id: str,
@@ -170,6 +205,7 @@ def _invoke(
             "skillIds": bot.get("skillIds", []),
             "skills": resolved_skills,
         },
+        "team": _team_roster(user_id, bot_id),
     }
     if group_context is None and event_id:
         payload["memory"] = {
@@ -180,7 +216,9 @@ def _invoke(
     if artifact_prefix:
         payload["artifacts"] = {"prefix": artifact_prefix}
     elif group_context is None and event_id:
-        payload["artifacts"] = {"prefix": _generated_artifact_prefix(user_id, event_id)}
+        payload["artifacts"] = {
+            "prefix": _generated_artifact_prefix(user_id, bot_id, event_id)
+        }
     if group_context is not None:
         payload["group"] = group_context
     normalized_continuation = _continuation_payload(continuation)

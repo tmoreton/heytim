@@ -41,11 +41,16 @@ Skills:
 
 ## Models
 
-The runtime uses OpenRouter first and Bedrock only when OpenRouter cannot begin a response. The API key is stored in
+The runtime routes each Strands invocation between two OpenRouter tiers without making a separate classifier call.
+Routine requests use GLM 5.3 Flash with low reasoning; coding, technical, and unusually long requests use GLM 5.3 with
+high reasoning. Each tier falls back to Bedrock only when OpenRouter cannot begin a response. The API key is stored in
 AgentCore Identity as `FrogBot_OpenRouter`; it is never placed in runtime environment variables. Model selection stays
 deploy-time configurable through these non-secret values in `agentcore/agentcore.json`:
 
-- `FROGBOT_PRIMARY_MODEL_ID` — defaults to `z-ai/glm-5.3-flash`
+- `FROGBOT_PRIMARY_MODEL_ID` — routine tier; defaults to `z-ai/glm-5.3-flash`
+- `FROGBOT_REASONING_EFFORT` — routine-tier reasoning; defaults to `low`
+- `FROGBOT_ADVANCED_MODEL_ID` — coding and complex tier; defaults to `z-ai/glm-5.3`
+- `FROGBOT_ADVANCED_REASONING_EFFORT` — advanced-tier reasoning; defaults to `high`
 - `FROGBOT_FALLBACK_MODEL_ID` — the Bedrock model used if the primary provider is unavailable
 - `FROGBOT_OPENROUTER_BASE_URL` — the OpenRouter OpenAI-compatible endpoint
 - `FROGBOT_OPENROUTER_CREDENTIAL_PROVIDER` — the AgentCore Identity credential name
@@ -71,3 +76,16 @@ trailing tool-use block before invoking Strands. Direct payloads contain at most
 automatically compacts at 85% of the model context window by summarizing the oldest 30% and preserving at least the
 newest 10 messages. AgentCore independently extracts and retrieves preferences, facts, and per-session topic summaries
 so older topics remain available after they leave the recent-message window.
+
+## Behavioral evaluations
+
+The source-controlled corpus in `evals/scenarios.json` covers Chief, Trip Planner, Event Planner, and Research & Reports.
+The default matrix runs every scenario against GLM 5.3 and GLM 5.3 Flash at both low and high reasoning, then uses the
+Bedrock fallback model as an anonymized assertion-level judge:
+
+```bash
+uv run --frozen python -m evals.run_matrix
+```
+
+Use repeated `--scenario` or `--variant` flags for targeted regressions. Full JSON evidence and a compact Markdown
+comparison are written under `evals/results/`, which is intentionally ignored by Git.

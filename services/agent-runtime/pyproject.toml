@@ -31,7 +31,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-strands-agents-stan = { path = "vendor/strands_agents_stan-0.0.1.dev48+g6ba1843a4-py3-none-any.whl" }
+strands-agents-stan = { path = "vendor/strands_agents_stan-0.0.1.dev53+g325058d51-py3-none-any.whl" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]

@@ -18,6 +18,11 @@ const compactLinkLabel = (url: string) => {
 };
 
 const renderRules: RenderRules = {
+  textgroup: (node, children, _parent, styles) => (
+    <Text key={node.key} selectable selectionColor="#79B393" style={styles.text as TextStyle}>
+      {children}
+    </Text>
+  ),
   link: (node, children, _parent, styles) => {
     const url = node.attributes.href;
     const automatic = node.markup === 'linkify' || node.markup === 'autolink';
@@ -25,6 +30,8 @@ const renderRules: RenderRules = {
       <Text
         key={node.key}
         accessibilityRole="link"
+        selectable
+        selectionColor="#79B393"
         style={styles.link as TextStyle}
         onPress={() => void Linking.openURL(url).catch(() => undefined)}>
         {automatic ? compactLinkLabel(url) : children}

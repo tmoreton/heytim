@@ -7,9 +7,16 @@ from typing import Any
 
 import pytest
 from pydantic import BaseModel
-from strands.models import Model
+from strands.models import (
+    Model,
+    ModelRouter,
+    RoutingAttempt,
+    RoutingCandidate,
+    RoutingContext,
+)
 
 from model import load as model_loader
+from model.routing import ADVANCED_REQUEST_MIN_CHARS, TaskRoutingStrategy
 
 
 class FakeModel(Model):
@@ -65,12 +72,91 @@ def test_load_model_uses_openrouter_primary_and_hides_key(
     monkeypatch.setattr(model_loader, "_openrouter_api_key", key)
     model = asyncio.run(model_loader.load_model())
 
-    assert isinstance(model, model_loader.PrimaryFallbackModel)
-    assert model.primary.get_config()["model_id"] == "z-ai/glm-5.3-flash"
-    assert model.fallback.get_config()["model_id"].startswith(
+    assert isinstance(model, ModelRouter)
+    primary = model.candidates[0].model
+    advanced = model.candidates[1].model
+    assert isinstance(primary, model_loader.PrimaryFallbackModel)
+    assert isinstance(advanced, model_loader.PrimaryFallbackModel)
+    assert primary.primary.get_config()["model_id"] == "z-ai/glm-5.3-flash"
+    assert primary.primary.get_config()["params"]["extra_body"] == {
+        "reasoning": {"effort": "low"}
+    }
+    assert advanced.primary.get_config()["model_id"] == "z-ai/glm-5.3"
+    assert advanced.primary.get_config()["params"]["extra_body"] == {
+        "reasoning": {"effort": "high"}
+    }
+    assert primary.fallback is advanced.fallback
+    assert primary.fallback.get_config()["model_id"].startswith(
         "global.anthropic.claude-sonnet"
     )
-    assert "test-secret" not in repr(model.get_config())
+    assert "test-secret" not in repr(primary.get_config())
+
+
+@pytest.mark.parametrize(
+    ("prompt", "candidate_index"),
+    [
+        ("Summarize these meeting notes.", 0),
+        ("Debug this Python API and add unit tests.", 1),
+        ("x" * ADVANCED_REQUEST_MIN_CHARS, 1),
+    ],
+)
+def test_task_router_selects_by_request_complexity(
+    prompt: str, candidate_index: int
+) -> None:
+    candidates = (
+        RoutingCandidate(FakeModel("routine", []), name="routine"),
+        RoutingCandidate(FakeModel("advanced", []), name="advanced"),
+    )
+    context = RoutingContext(
+        messages=[{"role": "user", "content": [{"text": prompt}]}],
+        system_prompt=None,
+        tool_specs=[],
+        candidates=candidates,
+        invocation_state={},
+    )
+
+    selected = asyncio.run(TaskRoutingStrategy().select(context))
+
+    assert selected is candidates[candidate_index]
+
+
+def test_task_router_declines_after_a_model_failure() -> None:
+    candidates = (
+        RoutingCandidate(FakeModel("routine", []), name="routine"),
+        RoutingCandidate(FakeModel("advanced", []), name="advanced"),
+    )
+    context = RoutingContext(
+        messages=[{"role": "user", "content": [{"text": "Debug this code."}]}],
+        system_prompt=None,
+        tool_specs=[],
+        candidates=candidates,
+        invocation_state={},
+        attempts=(RoutingAttempt(candidates[1], RuntimeError("failed")),),
+    )
+
+    assert asyncio.run(TaskRoutingStrategy().select(context)) is None
+
+
+@pytest.mark.parametrize("effort", ["low", "high", "max"])
+def test_openrouter_model_accepts_supported_reasoning_efforts(effort: str) -> None:
+    model = model_loader._load_openrouter_model(
+        "test-secret",
+        model_id="z-ai/glm-5.3",
+        reasoning_effort=effort,
+        max_tokens=2048,
+        temperature=0.1,
+    )
+
+    config = model.get_config()
+    assert config["model_id"] == "z-ai/glm-5.3"
+    assert config["params"]["max_tokens"] == 2048
+    assert config["params"]["temperature"] == 0.1
+    assert config["params"]["extra_body"] == {"reasoning": {"effort": effort}}
+
+
+def test_openrouter_model_rejects_unsupported_reasoning_effort() -> None:
+    with pytest.raises(ValueError, match="reasoning effort"):
+        model_loader._load_openrouter_model("test-secret", reasoning_effort="medium")
 
 
 def test_load_model_uses_bedrock_when_credential_lookup_fails(

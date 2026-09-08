@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -15,6 +15,8 @@ import type { Attachment, Bot, Group, Message } from '@/lib/types';
 import { ConversationHeader } from './conversation-header';
 import { MessageBubble } from './message-bubble';
 import { MessageComposer } from './message-composer';
+
+const ACTIVITY_EXPANSION_SCROLL_GUARD_MS = 750;
 
 type Props = {
   bot?: Bot;
@@ -84,8 +86,28 @@ export function ConversationPanel({
   onOpenFile,
 }: Props) {
   const list = useRef<FlatList<Message>>(null);
+  const pendingScrollFrame = useRef<number | undefined>(undefined);
+  const blockAutoScrollUntil = useRef(0);
+
   const scrollToLatest = useCallback(() => {
-    requestAnimationFrame(() => list.current?.scrollToEnd({ animated: true }));
+    if (Date.now() < blockAutoScrollUntil.current) return;
+    if (pendingScrollFrame.current !== undefined) cancelAnimationFrame(pendingScrollFrame.current);
+    pendingScrollFrame.current = requestAnimationFrame(() => {
+      pendingScrollFrame.current = undefined;
+      list.current?.scrollToEnd({ animated: true });
+    });
+  }, []);
+
+  const preserveScrollPosition = useCallback(() => {
+    blockAutoScrollUntil.current = Date.now() + ACTIVITY_EXPANSION_SCROLL_GUARD_MS;
+    if (pendingScrollFrame.current !== undefined) {
+      cancelAnimationFrame(pendingScrollFrame.current);
+      pendingScrollFrame.current = undefined;
+    }
+  }, []);
+
+  useEffect(() => () => {
+    if (pendingScrollFrame.current !== undefined) cancelAnimationFrame(pendingScrollFrame.current);
   }, []);
 
   return (
@@ -133,6 +155,7 @@ export function ConversationPanel({
       ) : (
         <FlatList
           ref={list}
+          style={styles.messageList}
           data={messages}
           keyExtractor={(message) => message.id}
           contentContainerStyle={[styles.messages, messages.length === 0 && styles.emptyMessages]}
@@ -161,6 +184,7 @@ export function ConversationPanel({
               onApprove={bot ? onApprove : undefined}
               onReject={bot ? onReject : undefined}
               onOpenFile={onOpenFile}
+              onActivityExpand={preserveScrollPosition}
             />
           )}
         />
@@ -201,6 +225,7 @@ const styles = StyleSheet.create({
   memoryText: { flex: 1, color: '#557063', fontSize: 11 },
   memoryArrow: { color: '#5E806E', fontSize: 20, marginTop: -2 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  messageList: { flex: 1, minHeight: 0 },
   messages: { paddingHorizontal: 14, paddingTop: 24, paddingBottom: 42, maxWidth: 780, width: '100%', alignSelf: 'center' },
   emptyMessages: { flexGrow: 1, justifyContent: 'center' },
   emptyState: { alignItems: 'center', paddingHorizontal: 34, marginTop: -30 },

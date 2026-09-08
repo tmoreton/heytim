@@ -19,6 +19,7 @@ import type { Attachment, Bot, BotDraft, CapabilitySelection, Group, GroupDraft,
 
 import { AccountSettings } from './account-settings';
 import { BotActionSheets, type BotAction } from './bot-action-sheets';
+import { BotDocuments } from './bot-documents';
 import { BotEditor } from './bot-editor';
 import { styles } from './chat-app.styles';
 import { ConversationPanel } from './conversation-panel';
@@ -41,6 +42,7 @@ type Props = {
 };
 
 const directTurnId = (message: Message) => message.id.replace(/-assistant$/, '');
+const ACTIVE_RESPONSE_STATUSES = new Set<Message['status']>(['pending', 'running']);
 
 export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Props) {
   const { width } = useWindowDimensions();
@@ -77,6 +79,7 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
   const [botMenuOpen, setBotMenuOpen] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [memorySettingsOpen, setMemorySettingsOpen] = useState(false);
+  const [documentsBot, setDocumentsBot] = useState<Bot>();
   const [scheduleBot, setScheduleBot] = useState<Bot>();
   const [pendingBotAction, setPendingBotAction] = useState<BotAction>();
   const [replyBotId, setReplyBotId] = useState<string | null>();
@@ -86,8 +89,11 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
   const selectedGroup = selection?.kind === 'group' ? data?.groups.find((group) => group.id === selection.id) : undefined;
   const selected = selectedBot ?? selectedGroup;
   const activeBotName = messages.find(
-    (message) => ['pending', 'running'].includes(message.status) && message.authorType === 'bot',
+    (message) => ACTIVE_RESPONSE_STATUSES.has(message.status) && message.authorType === 'bot',
   )?.authorName;
+  const processingConversation = messages.some((message) => ACTIVE_RESPONSE_STATUSES.has(message.status))
+    ? selection
+    : undefined;
   const waitingBotCount = messages.filter(
     (message) => message.status === 'waiting' && message.authorType === 'bot',
   ).length;
@@ -96,7 +102,7 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
         .reverse()
         .find(
           (message) =>
-            message.role === 'assistant' && ['pending', 'running'].includes(message.status),
+            message.role === 'assistant' && ACTIVE_RESPONSE_STATUSES.has(message.status),
         )
     : undefined;
   const activeReplyBotId = replyBotId === null
@@ -337,6 +343,8 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
       bots={data?.bots ?? []}
       groups={data?.groups ?? []}
       selection={selection}
+      processingConversation={processingConversation}
+      activeBotName={activeBotName}
       search={search}
       demo={demo}
       topInset={insets.top}
@@ -455,6 +463,14 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
           }}
         />
       ) : null}
+      {documentsBot ? (
+        <BotDocuments
+          bot={documentsBot}
+          onClose={() => setDocumentsBot(undefined)}
+          onList={api.botDocuments}
+          onOpen={openFile}
+        />
+      ) : null}
       {accountSettingsOpen ? (
         <AccountSettings
           demo={demo}
@@ -491,6 +507,7 @@ export function ChatApp({ demo, invitation, initialCapability, onSignedOut }: Pr
           setSuggestedCapability(undefined);
           setEditor('edit');
         }}
+        onDocuments={() => setDocumentsBot(selectedBot)}
         onSchedule={() => setScheduleBot(selectedBot)}
         onShareSetup={() => share('bot')}
         onShareConversation={() => share('chat')}
