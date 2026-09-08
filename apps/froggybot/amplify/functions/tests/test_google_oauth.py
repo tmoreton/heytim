@@ -113,6 +113,13 @@ class GoogleOAuthTests(unittest.TestCase):
         )
         ensure_bot.assert_called_once_with("user-1", "connection_123")
 
+    def test_callback_http_budget_fails_before_lambda_timeout(self) -> None:
+        with (
+            patch.object(self.google_oauth.time, "monotonic", return_value=20.0),
+            self.assertRaisesRegex(self.google_oauth.ApiError, "took too long"),
+        ):
+            self.google_oauth._remaining_timeout(20.1)
+
 
 if __name__ == "__main__":
     unittest.main()

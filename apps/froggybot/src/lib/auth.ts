@@ -18,9 +18,9 @@ export type EmailCodeSession = {
   purpose: 'signIn' | 'signUp';
 };
 
-export type EmailCodeStart = EmailCodeSession | { email: string; purpose: 'signedIn' };
+type EmailCodeStart = EmailCodeSession | { email: string; purpose: 'signedIn' };
 
-export const normalizeEmail = (rawEmail: string): string => {
+const normalizeEmail = (rawEmail: string): string => {
   const email = rawEmail.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error('Enter a valid email address.');

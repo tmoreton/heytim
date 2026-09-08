@@ -69,7 +69,7 @@ class PrimaryFallbackModel(Model):
         prompt: Messages,
         system_prompt: str | None = None,
         **kwargs: Any,
-    ) -> AsyncGenerator[dict[str, T | Any], None]:
+    ) -> AsyncGenerator[dict[str, T | Any]]:
         emitted = False
         try:
             async for event in self.primary.structured_output(

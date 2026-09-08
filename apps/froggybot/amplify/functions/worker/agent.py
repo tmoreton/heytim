@@ -175,7 +175,6 @@ def _invoke(
     )
     skill_versions = bot.get("skillVersions")
     if not isinstance(skill_versions, dict):
-        catalog.sync_official()
         skill_versions = catalog.validate_and_pin(user_id, bot.get("skillIds", []))
         table.update_item(
             Key=_bot_key(user_id, bot_id),

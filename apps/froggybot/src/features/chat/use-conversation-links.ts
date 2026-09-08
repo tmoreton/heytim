@@ -7,10 +7,9 @@ import {
   registerForReplyNotifications,
   subscribeToNotificationReplies,
 } from '@/lib/notifications';
-import type { Invitation } from '@/lib/types';
+import type { ConversationSelection, Invitation } from '@/lib/types';
 
-import type { ConversationSelection } from './conversation-drawer';
-import { invitationFromUrl } from '../invites/invitation-url';
+import { invitationFromUrl, invitationUrl } from '../invites/invitation-url';
 
 type PendingSkill = { token: string; importKey: string };
 
@@ -121,10 +120,8 @@ export function useConversationLinks({
   }, [api, loadBootstrap, openConversation]);
 
   useEffect(() => {
-    const invitationUrl = invitation
-      ? `frogbot://invite?kind=${invitation.kind}&token=${encodeURIComponent(invitation.token)}`
-      : undefined;
-    Linking.getInitialURL().then((url) => importUrl(invitationUrl ?? url));
+    const initialInvitationUrl = invitation ? invitationUrl(invitation) : undefined;
+    Linking.getInitialURL().then((url) => importUrl(initialInvitationUrl ?? url));
     const subscription = Linking.addEventListener('url', ({ url }) => importUrl(url));
     return () => subscription.remove();
   }, [importUrl, invitation]);

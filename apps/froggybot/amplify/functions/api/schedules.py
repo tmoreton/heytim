@@ -5,7 +5,12 @@ import uuid
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from boto3.dynamodb.conditions import Attr
-from shared.schedules import DAYS_OF_WEEK, schedule_expression, scheduler_name
+from shared.schedules import (
+    DAYS_OF_WEEK,
+    delete_remote_schedule,
+    schedule_expression,
+    scheduler_name,
+)
 
 from .bots import _get_bot
 from .support import (
@@ -151,12 +156,7 @@ def _update_remote_schedule(item: dict) -> None:
 
 
 def _delete_remote_schedule(item: dict) -> None:
-    try:
-        scheduler.delete_schedule(
-            Name=item["schedulerName"], GroupName=SCHEDULE_GROUP_NAME
-        )
-    except scheduler.exceptions.ResourceNotFoundException:
-        return
+    delete_remote_schedule(scheduler, SCHEDULE_GROUP_NAME, item)
 
 
 def _list_schedules(user_id: str, bot_id: str) -> list[dict]:

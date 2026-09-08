@@ -12,7 +12,6 @@ type Props = {
   onDocuments: () => void;
   onSchedule: () => void;
   onShareSetup: () => void;
-  onShareConversation: () => void;
   onRequestAction: (action: BotAction) => void;
   onConfirmAction: () => void;
   onCloseConfirmation: () => void;
@@ -27,7 +26,6 @@ export function BotActionSheets({
   onDocuments,
   onSchedule,
   onShareSetup,
-  onShareConversation,
   onRequestAction,
   onConfirmAction,
   onCloseConfirmation,
@@ -37,13 +35,12 @@ export function BotActionSheets({
       <ActionSheet
         visible={menuOpen}
         title={bot?.name ?? 'FroggyBot'}
-        message="Schedule its work, share it, or manage this conversation."
+        message="Open its documents, schedule its work, or manage this conversation."
         options={[
           { label: 'Edit bot', onPress: onEditBot },
           { label: 'Documents', onPress: onDocuments },
           { label: 'Scheduled tasks', onPress: onSchedule },
           { label: 'Share bot setup', onPress: onShareSetup },
-          { label: 'Share conversation', onPress: onShareConversation },
           { label: 'Clear conversation', destructive: true, onPress: () => onRequestAction('clear') },
           ...(bot?.systemRole === 'chief'
             ? []

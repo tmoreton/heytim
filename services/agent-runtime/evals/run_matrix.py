@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import random
+import re
 import sys
 import time
 import urllib.request
@@ -16,7 +17,7 @@ from botocore.config import Config
 
 from evals.reporting import MODEL_VARIANTS, ModelVariant, markdown_report, summarize
 
-RUNTIME_ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_ROOT = Path(__file__).resolve().parents[1] / "runtime"
 if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
@@ -77,17 +78,29 @@ def load_catalog_snapshot() -> tuple[
     if catalog.get("repository") != TRUSTED_REPOSITORY:
         raise ValueError("Capability catalog repository is not trusted")
     release = catalog.get("release")
-    if not isinstance(release, str) or not release:
+    if not isinstance(release, str) or not re.fullmatch(r"skills-v[0-9]+", release):
         raise ValueError("Capability catalog release is missing")
 
+    raw_skills = catalog.get("skills")
+    raw_bots = catalog.get("bots")
+    if not isinstance(raw_skills, list) or not isinstance(raw_bots, list):
+        raise TypeError("Capability catalog collections are invalid")
+
     skills: dict[str, dict[str, Any]] = {}
-    for raw in catalog.get("skills", []):
+    for raw in raw_skills:
         if not isinstance(raw, dict):
             raise TypeError("Capability catalog contains an invalid skill")
         skill_id = raw.get("id")
         path = raw.get("path")
-        if not isinstance(skill_id, str) or not isinstance(path, str):
+        if (
+            not isinstance(skill_id, str)
+            or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", skill_id)
+            or not isinstance(path, str)
+            or not re.fullmatch(r"skills/[a-z0-9][a-z0-9-]{0,63}/SKILL\.md", path)
+        ):
             raise TypeError("Capability catalog skill metadata is invalid")
+        if skill_id in skills:
+            raise ValueError(f"Duplicate capability catalog skill: {skill_id}")
         document = _text_from_url(f"https://froggybot.com/{path}")
         skills[skill_id] = {
             "id": skill_id,
@@ -98,12 +111,16 @@ def load_catalog_snapshot() -> tuple[
             "requiredToolIds": raw.get("requiredToolIds", []),
         }
     bots: dict[str, dict[str, Any]] = {}
-    for raw in catalog.get("bots", []):
+    for raw in raw_bots:
         if not isinstance(raw, dict):
             raise TypeError("Capability catalog contains an invalid bot")
         bot_id = raw.get("id")
-        if not isinstance(bot_id, str) or not bot_id:
+        if not isinstance(bot_id, str) or not re.fullmatch(
+            r"[a-z0-9][a-z0-9-]{0,63}", bot_id
+        ):
             raise TypeError("Capability catalog bot metadata is invalid")
+        if bot_id in bots:
+            raise ValueError(f"Duplicate capability catalog bot: {bot_id}")
         bots[bot_id] = raw
     return release, skills, bots
 
@@ -157,9 +174,7 @@ def select_scenarios(
     unknown = requested - known
     if unknown:
         raise ValueError(f"Unknown scenarios: {', '.join(sorted(unknown))}")
-    return [
-        scenario for scenario in scenarios if scenario["scenarioId"] in requested
-    ]
+    return [scenario for scenario in scenarios if scenario["scenarioId"] in requested]
 
 
 def _selected_skill_snapshot(

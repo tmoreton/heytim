@@ -6,26 +6,47 @@ import os
 import boto3
 from botocore.config import Config
 from shared.catalog import CatalogService
+from shared.keys import bot_key as _bot_key
+from shared.keys import group_pk as _group_pk
+from shared.keys import push_owner_key as _push_owner_key
+from shared.keys import push_token_key as _push_token_key
+from shared.keys import schedule_key as _schedule_key
+from shared.keys import turn_pk as _turn_pk
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+__all__ = [
+    "_bot_key",
+    "_group_pk",
+    "_push_owner_key",
+    "_push_token_key",
+    "_schedule_key",
+    "_turn_pk",
+]
+
 TABLE_NAME = os.environ["TABLE_NAME"]
+INVITE_TABLE_NAME = os.environ.get("INVITE_TABLE_NAME", TABLE_NAME)
 AGENT_RUNTIME_ARN = os.environ["AGENT_RUNTIME_ARN"]
 AGENT_RUNTIME_QUALIFIER = os.environ.get("AGENT_RUNTIME_QUALIFIER", "DEFAULT")
 QUEUE_URL = os.environ["QUEUE_URL"]
 FILES_BUCKET_NAME = os.environ["FILES_BUCKET_NAME"]
-# Keep the lease beyond the Lambda deadline so a timed-out attempt cannot overlap
-# with its retry. The handler shortens each active message's SQS visibility to the
-# same window while the queue retains a conservative default.
-ACTIVE_VISIBILITY_SECONDS = 16 * 60
+SCHEDULE_GROUP_NAME = os.environ.get("SCHEDULE_GROUP_NAME", "")
+USER_POOL_ID = os.environ.get("USER_POOL_ID", "")
+FROGBOT_MEMORY_ID = os.environ.get("FROGBOT_MEMORY_ID")
+# Keep the lease and message visibility beyond six times the 14-minute Lambda
+# timeout, as recommended for SQS event sources. Explicit failures are shortened
+# by the handler after the owned work lease is released.
+ACTIVE_VISIBILITY_SECONDS = 85 * 60
 WORK_LEASE_SECONDS = ACTIVE_VISIBILITY_SECONDS
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts"
 
-table = boto3.resource("dynamodb").Table(TABLE_NAME)
-catalog = CatalogService(table)
+dynamodb = boto3.resource("dynamodb")
+table = dynamodb.Table(TABLE_NAME)
+invite_access_table = dynamodb.Table(INVITE_TABLE_NAME)
+catalog = CatalogService(table, refresh_on_read=False)
 agentcore = boto3.client(
     "bedrock-agentcore",
     config=Config(
@@ -48,6 +69,22 @@ s3 = boto3.client(
         retries={"total_max_attempts": 4, "mode": "adaptive"},
         connect_timeout=3,
         read_timeout=15,
+    ),
+)
+cognito = boto3.client(
+    "cognito-idp",
+    config=Config(
+        retries={"total_max_attempts": 4, "mode": "adaptive"},
+        connect_timeout=3,
+        read_timeout=10,
+    ),
+)
+scheduler = boto3.client(
+    "scheduler",
+    config=Config(
+        retries={"total_max_attempts": 4, "mode": "adaptive"},
+        connect_timeout=3,
+        read_timeout=10,
     ),
 )
 GENERATED_ARTIFACT_FORMATS = {
@@ -76,30 +113,6 @@ GENERATED_ARTIFACT_FORMATS = {
 }
 MAX_GENERATED_ARTIFACTS = 20
 MAX_GENERATED_ARTIFACT_BYTES = 8_000_000
-
-
-def _bot_key(user_id: str, bot_id: str) -> dict:
-    return {"pk": f"USER#{user_id}", "sk": f"BOT#{bot_id}"}
-
-
-def _turn_pk(user_id: str, bot_id: str) -> str:
-    return f"CHAT#{user_id}#{bot_id}"
-
-
-def _schedule_key(user_id: str, schedule_id: str) -> dict:
-    return {"pk": f"USER#{user_id}", "sk": f"SCHEDULE#{schedule_id}"}
-
-
-def _group_pk(group_id: str) -> str:
-    return f"GROUP#{group_id}"
-
-
-def _push_token_key(user_id: str, token_id: str) -> dict:
-    return {"pk": f"USER#{user_id}", "sk": f"PUSH#{token_id}"}
-
-
-def _push_owner_key(token_id: str) -> dict:
-    return {"pk": f"PUSH_TOKEN#{token_id}", "sk": "OWNER"}
 
 
 def _account_is_active(user_id: str) -> bool:

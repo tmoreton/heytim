@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +9,7 @@ import {
 } from 'react-native';
 
 import { ActionSheet } from '@/components/action-sheet';
+import { PageSheet } from '@/components/page-sheet';
 import type { SharedLink } from '@/lib/types';
 
 type Props = {
@@ -91,7 +91,7 @@ export function AccountSettings({
   };
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <PageSheet onClose={onClose}>
       <View style={styles.page}>
         <View style={styles.header}>
           <Text accessibilityRole="header" style={styles.title}>Account</Text>
@@ -196,7 +196,7 @@ export function AccountSettings({
         options={[{ label: 'Delete my account', destructive: true, onPress: () => void removeAccount() }]}
         onClose={() => setConfirmDelete(false)}
       />
-    </Modal>
+    </PageSheet>
   );
 }
 

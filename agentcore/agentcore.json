@@ -13,7 +13,7 @@
       "description": "Stan-powered multi-personality chat runtime for the FroggyBot mobile app",
       "build": "CodeZip",
       "entrypoint": "main.py",
-      "codeLocation": "services/agent-runtime/",
+      "codeLocation": "services/agent-runtime/runtime/",
       "runtimeVersion": "PYTHON_3_14",
       "networkMode": "PUBLIC",
       "protocol": "HTTP",
@@ -64,7 +64,7 @@
         },
         {
           "name": "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
-          "value": "false"
+          "value": "NO_CONTENT"
         },
         {
           "name": "OTEL_SEMCONV_STABILITY_OPT_IN",
@@ -125,14 +125,6 @@
   ],
   "knowledgeBases": [],
   "credentials": [
-    {
-      "authorizerType": "ApiKeyCredentialProvider",
-      "name": "FrogBotXApi"
-    },
-    {
-      "authorizerType": "ApiKeyCredentialProvider",
-      "name": "FrogBotYouTubeApi"
-    },
     {
       "authorizerType": "ApiKeyCredentialProvider",
       "name": "FrogBot_OpenRouter"

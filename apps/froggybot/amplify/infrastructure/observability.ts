@@ -28,6 +28,7 @@ type ObservabilityResources = {
   deadLetterQueue: Queue;
   logsKey: Key;
   monthlyBudgetUsd: number;
+  workerConcurrencyLimit: number;
 };
 
 export function addObservability({
@@ -39,6 +40,7 @@ export function addObservability({
   deadLetterQueue,
   logsKey,
   monthlyBudgetUsd,
+  workerConcurrencyLimit,
 }: ObservabilityResources) {
   const lambdaErrorRate = (fn: LambdaFunction, label: string) =>
     new MathExpression({
@@ -113,6 +115,14 @@ export function addObservability({
     comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
     evaluationPeriods: 3,
     datapointsToAlarm: 1,
+    treatMissingData: TreatMissingData.NOT_BREACHING,
+  });
+  const workerConcurrencyAlarm = new Alarm(stack, 'WorkerConcurrencyAlarm', {
+    metric: workerFunction.metric('ConcurrentExecutions', { period: Duration.minutes(1) }),
+    threshold: Math.max(1, Math.floor(workerConcurrencyLimit * 0.8)),
+    comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+    evaluationPeriods: 3,
+    datapointsToAlarm: 2,
     treatMissingData: TreatMissingData.NOT_BREACHING,
   });
   const queueAgeAlarm = new Alarm(stack, 'QueueAgeAlarm', {
@@ -200,6 +210,7 @@ export function addObservability({
     workerLatencyAlarm,
     apiThrottleAlarm,
     workerThrottleAlarm,
+    workerConcurrencyAlarm,
     queueAgeAlarm,
     deadLetterAlarm,
   ]) {
@@ -226,6 +237,7 @@ export function addObservability({
         workerLatencyAlarm,
         apiThrottleAlarm,
         workerThrottleAlarm,
+        workerConcurrencyAlarm,
         queueAgeAlarm,
         deadLetterAlarm,
       ],
@@ -246,6 +258,11 @@ export function addObservability({
       title: 'Worker latency and queue age',
       left: [workerFunction.metricDuration({ statistic: 'p99' })],
       right: [jobs.metricApproximateAgeOfOldestMessage()],
+    }),
+    new GraphWidget({
+      width: 12,
+      title: 'Worker concurrency',
+      left: [workerFunction.metric('ConcurrentExecutions')],
     }),
   );
 

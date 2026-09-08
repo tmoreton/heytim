@@ -11,8 +11,105 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  update:
-    name: Verify and publish the app
+  application:
+    name: Verify application
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/froggybot
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.23.2
+          cache: npm
+          cache-dependency-path: |
+            apps/froggybot/package-lock.json
+            apps/froggybot/amplify/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        run: npm ci --prefix amplify
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v9
+
+      - name: Verify application and backend
+        run: ../../scripts/verify.sh application
+
+  runtime:
+    name: Verify AgentCore runtime
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: services/agent-runtime
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.23.2
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v9
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/agent-runtime/uv.lock
+
+      - name: Install AgentCore CLI
+        run: npm install --global @aws/agentcore@0.28.1
+
+      - name: Verify locked runtime and deployment boundary
+        run: ../../scripts/verify.sh runtime
+
+  agentcore:
+    name: Verify AgentCore configuration
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: agentcore
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.23.2
+          cache: npm
+          cache-dependency-path: agentcore/cdk/package-lock.json
+
+      - name: Install generated CDK dependencies
+        run: npm ci --prefix cdk
+
+      - name: Verify configuration and generated wrapper
+        run: ../scripts/verify.sh agentcore
+
+  publish:
+    name: Publish FroggyBot app
+    if: github.event_name == 'push'
+    needs:
+      - application
+      - runtime
+      - agentcore
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,7 +118,6 @@ jobs:
         working-directory: apps/froggybot
     steps:
       - name: Check for Expo token
-        if: github.event_name == 'push'
         working-directory: .
         run: |
           if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
@@ -37,12 +133,9 @@ jobs:
         with:
           node-version: 22.23.2
           cache: npm
-          cache-dependency-path: |
-            apps/froggybot/package-lock.json
-            apps/froggybot/amplify/package-lock.json
+          cache-dependency-path: apps/froggybot/package-lock.json
 
       - name: Set up EAS
-        if: github.event_name == 'push'
         uses: expo/expo-github-action@v9
         with:
           eas-version: 23.2.0
@@ -51,19 +144,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install backend dependencies
-        run: npm ci --prefix amplify
-
-      - name: Verify source and tests
-        run: npm run verify
-
       - name: Build desktop web app
         run: npm run build:web
 
       - name: Publish production update
-        if: github.event_name == 'push'
         run: eas update --channel production --environment production --message "main@${{ github.sha }}" --non-interactive
 
       - name: Publish desktop web app
-        if: github.event_name == 'push'
         run: eas deploy --prod --environment production --non-interactive

@@ -72,9 +72,10 @@ expire after 400 days.
 
 ## Agent runtime
 
-`services/agent-runtime/main.py` is only the AgentCore transport adapter. `frogbot_runtime/request.py`
-normalizes untrusted invocation payloads, `configuration.py` builds per-bot and per-group
-instructions, and `capabilities.py` assembles only the tools and skills enabled for that bot.
+`services/agent-runtime/runtime/main.py` is only the AgentCore transport adapter. The production-only `runtime/`
+directory is the CodeZip source boundary: `frogbot_runtime/request.py` normalizes untrusted invocation payloads,
+`configuration.py` builds per-bot and per-group instructions, `capability_contract.py` validates the reviewed
+allowlist, and the local, AgentCore, and gateway adapter modules assemble only the tools and skills enabled for that bot.
 Stan and Strands stay behind this boundary so the mobile/API layers do not duplicate agent logic.
 AgentCore OpenTelemetry remains enabled for errors, timings, token usage, and tool activity, while both the
 AWS model instrumentation and Strands tracer redact prompt, response, tool payload, and attachment content.
@@ -129,24 +130,12 @@ template: first-time setup installs it and applies the protected coordinator rol
 
 ## Verification
 
-Run the complete local checks before a deployment:
+Run the complete local checks from the repository root before a deployment:
 
 ```bash
-agentcore validate
-
-cd services/agent-runtime
-uv run ruff check .
-uv run pytest -q
-
-cd ../../apps/froggybot
-npm run verify
-npm run build:web
-uvx ruff check amplify/functions
-uvx bandit -q -r amplify/functions -x amplify/functions/tests
+scripts/verify.sh
 ```
 
-The remaining parity work is tracked by product capability rather than infrastructure severity:
-credentialed third-party connectors and enterprise identity/data governance. Production-scale authenticated
-end-to-end, load, cost-control, and recovery checks are complete. The remaining features require provider
-credentials or product policy before they can be safely enabled. Operational targets and recovery procedures are maintained in
-[`operations.md`](operations.md).
+The [verification guide](verification.md) owns local and CI commands. Operational targets and recovery procedures are
+maintained in [operations.md](operations.md), while dated deployed evidence belongs in
+[verification-history.md](verification-history.md).

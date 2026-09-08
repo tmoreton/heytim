@@ -7,15 +7,20 @@ name = "FrogBot"
 version = "0.1.0"
 description = "AgentCore Runtime Application using Strands SDK"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14,<3.15"
 dependencies = [
     "aws-opentelemetry-distro",
     "bedrock-agentcore >= 1.22.0",
     "boto3 >= 1.35.0",
-    "botocore[crt] >= 1.35.0",
+    "botocore >= 1.35.0",
+    # The toolkit resolves its first supported AgentCore target as manylinux2014.
+    # Pin compiled transitive packages to versions that publish that ARM64 wheel.
+    "greenlet == 3.2.5",
+    # Direct dependency: the hardened remote transport uses MCP's streamable HTTP API.
     "mcp >= 1.29.1, < 2.0.0",
     "mcp-proxy-for-aws >= 1.6.0, < 2.0.0",
     "openpyxl >= 3.1.5, < 4.0.0",
+    "pillow == 12.2.0",
     "python-docx >= 1.2.0, < 2.0.0",
     "python-pptx >= 1.0.2, < 2.0.0",
     "reportlab >= 4.4.4, < 5.0.0",
@@ -26,6 +31,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "jsonschema >= 4.26.0, < 5.0.0",
     "pytest >= 8.4.0, < 9.0.0",
     "ruff >= 0.14.0, < 1.0.0",
 ]
@@ -34,10 +40,10 @@ dev = [
 strands-agents-stan = { path = "vendor/strands_agents_stan-0.0.1.dev53+g325058d51-py3-none-any.whl" }
 
 [tool.hatch.build.targets.wheel]
-packages = ["."]
+packages = ["runtime/frogbot_runtime", "runtime/model"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
 [tool.ruff.lint.isort]
-known-first-party = ["frogbot_runtime", "model"]
+known-first-party = ["frogbot_runtime", "group_context", "model"]

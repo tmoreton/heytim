@@ -1,6 +1,6 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-export type ActionSheetOption = {
+type ActionSheetOption = {
   label: string;
   onPress: () => void;
   destructive?: boolean;

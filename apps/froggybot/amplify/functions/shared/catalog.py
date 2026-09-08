@@ -14,7 +14,6 @@ from .catalog_rules import (
     MAX_SKILLS_PER_BOT,
     MAX_TOOLS_PER_BOT,
     CatalogError,
-    _now,
     _public_bot_template,
     _public_skill,
     _public_tool,
@@ -24,40 +23,44 @@ from .catalog_rules import (
     _validate_tool_ids,
     _version_key,
 )
-from .catalog_sync import (
-    SYNC_LEASE_SECONDS,
-    SYNC_SECONDS,
-    CatalogSyncMixin,
-    _trusted_catalog_url,
-)
+from .catalog_sync import CatalogSyncMixin
 from .connections import ConnectionMixin
+from .time import utc_now_iso as _now
 
 PUBLIC_WEB_BASE_URL = os.environ.get("PUBLIC_WEB_BASE_URL", "https://froggybot.com")
 CATALOG_REPOSITORY_URL = "https://github.com/tmoreton/frogbot-skills"
 
 __all__ = [
-    "SYNC_LEASE_SECONDS",
-    "SYNC_SECONDS",
     "CatalogError",
     "CatalogService",
-    "_trusted_catalog_url",
 ]
 
 
 class CatalogService(CatalogSyncMixin, ConnectionMixin):
-    def __init__(self, table: Any, secrets_manager: Any = None):
+    def __init__(
+        self,
+        table: Any,
+        secrets_manager: Any = None,
+        *,
+        refresh_on_read: bool = True,
+    ):
         self.table = table
         self.secrets_manager = secrets_manager
+        self.refresh_on_read = refresh_on_read
+
+    def _refresh_if_enabled(self) -> None:
+        if self.refresh_on_read:
+            self.sync_official()
 
     def _official_tool_items(self) -> list[dict]:
-        self.sync_official()
+        self._refresh_if_enabled()
         return self.table.query(
             KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
             ExpressionAttributeValues={":pk": "SYSTEM#TOOLS", ":prefix": "TOOL#"},
         ).get("Items", [])
 
     def _official_bot_items(self) -> list[dict]:
-        self.sync_official()
+        self._refresh_if_enabled()
         return self.table.query(
             KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
             ExpressionAttributeValues={":pk": "SYSTEM#BOTS", ":prefix": "BOT#"},
@@ -129,7 +132,7 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
 
     def get_bot_template(self, template_id: str) -> dict:
         template_id = _validate_id(template_id, "bot template id")
-        self.sync_official()
+        self._refresh_if_enabled()
 
         def read() -> dict | None:
             return self.table.get_item(
@@ -138,7 +141,7 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
             ).get("Item")
 
         item = read()
-        if not item:
+        if not item and self.refresh_on_read:
             self.sync_official(force=True)
             item = read()
         if not item:
@@ -146,7 +149,7 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
         return _public_bot_template(item)
 
     def list_skills(self, user_id: str) -> list[dict]:
-        self.sync_official()
+        self._refresh_if_enabled()
         official = self.table.query(
             KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
             ExpressionAttributeValues={":pk": "SYSTEM#SKILLS", ":prefix": "SKILL#"},

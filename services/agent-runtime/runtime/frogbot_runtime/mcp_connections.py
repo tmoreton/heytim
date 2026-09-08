@@ -7,10 +7,14 @@ import socket
 import urllib.error
 import urllib.parse
 import urllib.request
+from contextlib import asynccontextmanager
+from functools import partial
 from typing import Any
 
 import boto3
+import httpx
 from botocore.config import Config
+from mcp.client.streamable_http import streamable_http_client
 from strands.tools.mcp.mcp_client import MCPClient
 
 SECRET_ARN_PATTERN = re.compile(
@@ -69,6 +73,34 @@ def _validated_endpoint(value: Any) -> str:
     ):
         raise ValueError("MCP connection endpoint must resolve publicly")
     return urllib.parse.urlunsplit(("https", hostname, parsed.path or "/", "", ""))
+
+
+async def _validate_outbound_request(request: httpx.Request) -> None:
+    """Re-resolve immediately before connection to narrow DNS-rebinding exposure."""
+    _validated_endpoint(str(request.url))
+
+
+def _secure_http_client(
+    headers: dict[str, str] | None = None,
+    timeout: httpx.Timeout | None = None,
+    auth: httpx.Auth | None = None,
+) -> httpx.AsyncClient:
+    return httpx.AsyncClient(
+        headers=headers,
+        timeout=timeout or httpx.Timeout(30, read=300),
+        auth=auth,
+        follow_redirects=False,
+        event_hooks={"request": [_validate_outbound_request]},
+    )
+
+
+@asynccontextmanager
+async def _secure_streamable_http(endpoint: str, headers: dict[str, str] | None):
+    async with (
+        _secure_http_client(headers=headers) as client,
+        streamable_http_client(endpoint, http_client=client) as streams,
+    ):
+        yield streams
 
 
 def validated_connection_binding(tool_id: str, runtime: dict) -> dict:
@@ -207,8 +239,6 @@ def connection_client(binding: dict) -> MCPClient:
         credential = _secret_value(binding["secretArn"])
         headers = {binding["headerName"]: f"{binding['headerPrefix']}{credential}"}
     options = {
-        "url": binding["endpoint"],
-        "headers": headers,
         "prefix": binding["id"],
         "startup_timeout": 15,
         "continue_on_error": False,
@@ -216,4 +246,7 @@ def connection_client(binding: dict) -> MCPClient:
     }
     if binding["authType"] == "oauth":
         options["tool_filters"] = {"allowed": binding["allowedTools"]}
-    return MCPClient(**options)
+    return MCPClient(
+        partial(_secure_streamable_http, binding["endpoint"], headers),
+        **options,
+    )

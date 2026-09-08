@@ -78,5 +78,5 @@ export function useAttachments({ api, disabled, setError }: Options) {
     }
   }, [api, attachments.length, disabled, setError, uploading]);
 
-  return { attachments, uploading, clear, pick, remove, setAttachments };
+  return { attachments, uploading, clear, pick, remove };
 }

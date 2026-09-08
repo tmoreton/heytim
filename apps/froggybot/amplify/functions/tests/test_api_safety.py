@@ -272,6 +272,7 @@ class ApiSafetyTests(ApiTestCase):
                 "pk": "SHARE#invite-token",
                 "sk": "META",
                 "scope": "bot",
+                "targetId": "bot-1",
                 "expiresAt": 4_102_444_800,
                 "snapshot": {
                     "skills": [],
@@ -283,6 +284,14 @@ class ApiSafetyTests(ApiTestCase):
                         "alwaysAllowedToolIds": ["browser"],
                     },
                 },
+            }
+        )
+        self.invite_table.put_item(
+            Item={
+                "tokenHash": self.support.invite_token_hash("invite-token"),
+                "kind": "bot",
+                "targetId": "bot-1",
+                "expiresAt": 4_102_444_800,
             }
         )
         with (
@@ -435,11 +444,12 @@ class ApiSafetyTests(ApiTestCase):
         self.s3.generate_presigned_post.assert_not_called()
 
     def test_account_file_cleanup_deletes_all_object_versions(self) -> None:
-        self.s3.list_object_versions.return_value = {
+        page = {
             "Versions": [{"Key": "users/actor/file.pdf", "VersionId": "one"}],
             "DeleteMarkers": [{"Key": "users/actor/file.pdf", "VersionId": "deleted"}],
             "IsTruncated": False,
         }
+        self.s3.get_paginator.return_value.paginate.return_value = [page]
         self.s3.delete_objects.return_value = {}
         with patch.object(self.account, "memory_actor_id", return_value="actor"):
             deleted = self.account._delete_user_files("user-1")
@@ -530,19 +540,28 @@ class ApiSafetyTests(ApiTestCase):
         def partitions(pk: str, _prefix=None):
             return user_items if pk == "USER#user-1" else []
 
+        from shared import account_cleanup as cleanup_module
+
+        service = self.account._cleanup_service()
         with (
-            patch.object(self.account, "_partition_items", side_effect=partitions),
+            patch.object(service, "partition_items", side_effect=partitions),
             patch.object(
-                self.account,
-                "_scan_items",
+                service,
+                "scan_items",
                 return_value=[{"pk": "CHAT#user-1#bot-1", "sk": "TURN#1"}],
             ),
-            patch.object(self.account, "_owned_share_records", return_value=[]),
-            patch.object(self.account, "_remove_invite_access_for_user"),
-            patch.object(self.account, "_remove_owned_skills", return_value=0),
-            patch.object(self.account, "_delete_remote_schedule") as delete_schedule,
+            patch.object(service, "owned_share_records", return_value=[]),
+            patch.object(service, "remove_invite_access_for_user"),
+            patch.object(service, "remove_owned_skills", return_value=0),
+            patch.object(service, "delete_user_files", return_value=0),
+            patch.object(
+                cleanup_module,
+                "delete_user_memory",
+                return_value={"events": 0, "records": 0},
+            ),
+            patch.object(cleanup_module, "delete_remote_schedule") as delete_schedule,
         ):
-            result = self.account._delete_account("user-1", "username-1")
+            result = service.delete_account("user-1", "username-1")
 
         delete_schedule.assert_called_once()
         self.cognito.admin_user_global_sign_out.assert_called_once_with(

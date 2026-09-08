@@ -4,6 +4,10 @@ from typing import Any
 
 from boto3.dynamodb.conditions import Attr
 from shared.memory_identity import memory_actor_id
+from shared.storage import (
+    delete_object_version_identifiers,
+    object_version_identifiers,
+)
 
 from .attachments import _public_file
 from .support import (
@@ -129,33 +133,21 @@ def _preserve_bot_documents(user_id: str, bot_id: str, turns: list[dict]) -> int
 
 
 def _version_identifiers(prefix: str, exact_keys: set[str] | None = None) -> list[dict]:
-    paginator = s3.get_paginator("list_object_versions")
-    versions = []
-    for page in paginator.paginate(Bucket=FILES_BUCKET_NAME, Prefix=prefix):
-        for item in [*page.get("Versions", []), *page.get("DeleteMarkers", [])]:
-            key = item.get("Key")
-            version_id = item.get("VersionId")
-            if (
-                isinstance(key, str)
-                and isinstance(version_id, str)
-                and (exact_keys is None or key in exact_keys)
-            ):
-                versions.append({"Key": key, "VersionId": version_id})
-    return versions
+    return object_version_identifiers(
+        s3,
+        FILES_BUCKET_NAME,
+        prefix,
+        exact_keys=exact_keys,
+    )
 
 
 def _delete_versions(versions: list[dict]) -> int:
-    unique = {(item["Key"], item["VersionId"]): item for item in versions}
-    objects = list(unique.values())
-    for offset in range(0, len(objects), 1000):
-        result = s3.delete_objects(
-            Bucket=FILES_BUCKET_NAME,
-            Delete={"Objects": objects[offset : offset + 1000], "Quiet": True},
-        )
-        errors = result.get("Errors", [])
-        if errors:
-            raise RuntimeError(f"S3 did not delete {len(errors)} bot document versions")
-    return len(objects)
+    return delete_object_version_identifiers(
+        s3,
+        FILES_BUCKET_NAME,
+        versions,
+        resource_label="bot document",
+    )
 
 
 def _delete_bot_documents(user_id: str, bot_id: str, turns: list[dict]) -> dict:

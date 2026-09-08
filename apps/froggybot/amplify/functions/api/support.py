@@ -4,7 +4,6 @@ import hashlib
 import json
 import logging
 import os
-from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -12,7 +11,21 @@ import boto3
 from boto3.dynamodb.conditions import Attr
 from botocore.config import Config
 from shared.catalog import CatalogService
-from shared.invites import invite_token_hash
+from shared.cleanup import delete_share_record
+from shared.invites import (
+    active_invite_access,
+    invite_token_hash,
+    revoke_invite_access,
+)
+from shared.keys import bot_sk as _bot_sk
+from shared.keys import group_pk as _group_pk
+from shared.keys import push_owner_key as _push_owner_key
+from shared.keys import push_token_key as _push_token_key
+from shared.keys import schedule_key as _schedule_key
+from shared.keys import turn_pk as _turn_pk
+from shared.keys import user_pk as _user_pk
+from shared.keys import user_state_key as _user_state_key
+from shared.time import utc_now_iso as _now
 
 from .bot_roles import (
     CHIEF_COLOR,
@@ -22,6 +35,18 @@ from .bot_roles import (
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+__all__ = [
+    "_bot_sk",
+    "_group_pk",
+    "_now",
+    "_push_owner_key",
+    "_push_token_key",
+    "_schedule_key",
+    "_turn_pk",
+    "_user_pk",
+    "_user_state_key",
+]
 
 TABLE_NAME = os.environ["TABLE_NAME"]
 INVITE_TABLE_NAME = os.environ.get("INVITE_TABLE_NAME", TABLE_NAME)
@@ -66,7 +91,7 @@ scheduler = boto3.client(
         read_timeout=10,
     ),
 )
-catalog = CatalogService(table)
+catalog = CatalogService(table, refresh_on_read=False)
 SCHEDULE_LIMIT = 25
 MAX_ATTACHMENTS_PER_MESSAGE = 5
 DOCUMENT_MAX_BYTES = 4_500_000
@@ -100,10 +125,6 @@ class ApiError(Exception):
         super().__init__(message)
         self.status_code = status_code
         self.message = message
-
-
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
 def _json_default(value: Any) -> Any:
@@ -154,30 +175,6 @@ def _body(event: dict) -> dict:
     return value
 
 
-def _user_pk(user_id: str) -> str:
-    return f"USER#{user_id}"
-
-
-def _bot_sk(bot_id: str) -> str:
-    return f"BOT#{bot_id}"
-
-
-def _turn_pk(user_id: str, bot_id: str) -> str:
-    return f"CHAT#{user_id}#{bot_id}"
-
-
-def _user_state_key(user_id: str) -> dict:
-    return {"pk": _user_pk(user_id), "sk": "STATE"}
-
-
-def _schedule_key(user_id: str, schedule_id: str) -> dict:
-    return {"pk": _user_pk(user_id), "sk": f"SCHEDULE#{schedule_id}"}
-
-
-def _group_pk(group_id: str) -> str:
-    return f"GROUP#{group_id}"
-
-
 def _group_message_sk(created_at: str, message_id: str, order: int = 0) -> str:
     return f"MESSAGE#{created_at}#{order:02d}#{message_id}"
 
@@ -196,14 +193,6 @@ def _display_name(event: dict) -> str:
 
 def _push_token_id(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-def _push_token_key(user_id: str, token_id: str) -> dict:
-    return {"pk": _user_pk(user_id), "sk": f"PUSH#{token_id}"}
-
-
-def _push_owner_key(token_id: str) -> dict:
-    return {"pk": f"PUSH_TOKEN#{token_id}", "sk": "OWNER"}
 
 
 def _file_key(user_id: str, file_id: str) -> dict:
@@ -255,7 +244,14 @@ def _ensure_account_active(user_id: str) -> None:
 
 
 def _invite_access_delete(token: str) -> None:
-    invite_access_table.delete_item(Key={"tokenHash": invite_token_hash(token)})
+    revoke_invite_access(invite_access_table, token)
+
+
+def _active_access_invite(kind: str, token: str) -> dict:
+    invite = active_invite_access(invite_access_table, kind, token)
+    if not invite:
+        raise ApiError(404, "This invite is invalid, expired, or revoked")
+    return invite
 
 
 def _share_token(item: dict) -> str | None:
@@ -288,19 +284,7 @@ def _owned_share_records(user_id: str) -> list[dict]:
 
 
 def _delete_share_record(user_id: str, item: dict) -> None:
-    token = _share_token(item)
-    if not token:
-        return
-    entity = item.get("entity")
-    with table.batch_writer() as batch:
-        batch.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
-        batch.delete_item(Key={"pk": _user_pk(user_id), "sk": f"SHARE#{token}"})
-        batch.delete_item(Key={"pk": _user_pk(user_id), "sk": f"INVITE#{token}"})
-        if entity == "GROUP_INVITE" and isinstance(item.get("groupId"), str):
-            batch.delete_item(
-                Key={"pk": _group_pk(item["groupId"]), "sk": f"INVITE#{token}"}
-            )
-    _invite_access_delete(token)
+    delete_share_record(table, invite_access_table, user_id, item)
 
 
 def _revoke_bot_shares(

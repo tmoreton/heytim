@@ -1,7 +1,8 @@
 # FroggyBot capability-parity roadmap
 
-This board separates code that is complete in the repository from functionality that is live in AWS.
-Nothing is considered production-complete until the deployment and authenticated end-to-end checks pass.
+This board separates code that is complete in the repository from functionality verified in the live development
+environment. Nothing is production-complete until a dedicated production target exists and its deployment and
+authenticated end-to-end checks pass.
 
 ## Competitive position — September 2026
 
@@ -60,7 +61,7 @@ clear, trustworthy room.
   service dashboard
 - AgentCore telemetry retains operational spans and token/latency signals while redacting system prompts,
   user messages, model responses, tool payloads, and inline attachment bytes
-- Dependency audit coverage for the mobile app, Amplify backend, AgentCore runtime, and generated CDK app
+- Continuous application, backend, runtime, AgentCore schema, generated-CDK, and Python security verification in CI
 
 ## Priority 1: continuity and user control — implemented and deployed
 
@@ -116,9 +117,12 @@ demand justifies their additional maintenance.
 - Initial service-level objectives, alarm response procedures, recovery runbooks, API tail-latency alarms,
   Lambda throttle alarms, and a consolidated alarm-status dashboard are implemented and deployed
 - Authenticated workflows, concurrency/load testing, recovery drills, and cost budgets are implemented,
-  deployed, and production-verified
+  deployed, and verified in the live development environment
 
-## Production gate
+## Live development deployment evidence
+
+These checks prove the current development deployment. They are inputs to, not substitutes for, a dedicated production
+target and launch review.
 
 1. **Complete:** deployed through `FrogBotDeploymentRole`; the bootstrap access key was removed after use.
 2. **Complete:** AgentCore runtime, memory, gateway, browser, and code-interpreter resources are deployed and
@@ -127,7 +131,7 @@ demand justifies their additional maintenance.
 4. **Complete:** authenticated sign-in/bootstrap, group history, native artifact creation and download,
    attachment upload/read, schedules, share revocation, approval allow/deny, cancellation, and permanent
    account deletion passed in AWS. The destructive checks used only disposable accounts.
-5. **Complete:** a 40-request, concurrency-8 authenticated production run completed with zero failures and
+5. **Complete:** a 40-request, concurrency-8 authenticated live-environment run completed with zero failures and
    2.12-second p99 latency against the five-second objective.
 6. **Complete:** DynamoDB point-in-time restore and S3 version restore passed; the isolated recovery table,
    synthetic objects, and disposable accounts were removed.
@@ -137,6 +141,9 @@ demand justifies their additional maintenance.
 
 ## Decisions required for the remaining parity scope
 
+- **Production environment:** define a separate account/target, networking and egress policy, AgentCore log KMS key and
+  retention, release promotion, rollback, and alarm destinations. Do not rename the existing target or runtime because
+  resource identity changes can replace infrastructure.
 - **Integrations:** choose the calendar, email, files, chat, and task providers; supply provider applications,
   credentials, redirect URLs, scopes, and which operations may write external data.
 - **Enterprise:** define workspace roles, identity provider and SSO protocol, retention periods, export format,

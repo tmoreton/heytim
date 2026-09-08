@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Linking,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 
 import { ActionSheet } from '@/components/action-sheet';
+import { PageSheet } from '@/components/page-sheet';
 import type { MemoryRecord, MemorySnapshot } from '@/lib/types';
 
 type Props = {
@@ -112,7 +112,7 @@ export function MemorySettings({ onClose, onLoad, onUpdate, onDelete, onExport }
   };
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <PageSheet onClose={onClose}>
       <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
           <Text accessibilityRole="header" style={styles.title}>Memory</Text>
@@ -205,7 +205,7 @@ export function MemorySettings({ onClose, onLoad, onUpdate, onDelete, onExport }
         options={[{ label: 'Forget memory', destructive: true, onPress: () => void forget() }]}
         onClose={() => setPendingDelete(undefined)}
       />
-    </Modal>
+    </PageSheet>
   );
 }
 

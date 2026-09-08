@@ -7,10 +7,15 @@ from shared.work_state import is_claimable
 from .agent import _invoke, _progress_updater
 from .artifacts import _collect_generated_artifacts, _delete_generated_artifacts
 from .background_work import _queue_background_poll
+from .job_lifecycle import (
+    FailureDisposition,
+    begin_attempt,
+    finish_failed_attempt,
+)
 from .notifications import _queue_reply_notification, _update_schedule_result
 from .support import _account_is_active, _bot_key, _turn_pk, catalog, table
 from .usage import record_invocation_usage
-from .work import _claim_work, _finish_work, _pause_work, _release_work
+from .work import _claim_work, _finish_work, _pause_work
 
 logger = logging.getLogger(__name__)
 
@@ -105,11 +110,10 @@ def _process_agent_reply(record: dict, request: dict) -> None:
     if not lease_owner:
         return
 
-    receive_count = int(
-        record.get("attributes", {}).get("ApproximateReceiveCount", "1")
-    )
-    if receive_count > 1:
+    def cleanup_artifacts() -> None:
         _delete_generated_artifacts(user_id, bot_id, turn["id"])
+
+    attempt = begin_attempt(record, cleanup_artifacts)
     try:
         result = _invoke(
             user_id,
@@ -134,17 +138,20 @@ def _process_agent_reply(record: dict, request: dict) -> None:
         artifacts = _collect_generated_artifacts(user_id, bot_id, turn["id"])
     except Exception:
         logger.exception("Agent request failed for turn %s", turn.get("id"))
-        if receive_count < 3:
-            _release_work(turn_key, lease_owner)
-            raise
-        _delete_generated_artifacts(user_id, bot_id, turn["id"])
         failure_answer = "I could not finish that request. Please try again."
-        failed_at = _finish_work(
-            turn_key, lease_owner, "ERROR", "assistantText", failure_answer
+        failure = finish_failed_attempt(
+            attempt,
+            turn_key,
+            lease_owner,
+            "assistantText",
+            failure_answer,
+            cleanup_artifacts,
         )
-        if not failed_at:
+        if failure.disposition is FailureDisposition.RETRY:
+            raise
+        if failure.disposition is FailureDisposition.LOST_LEASE:
             return
-        _update_schedule_result(turn, "error", failed_at)
+        _update_schedule_result(turn, "error", failure.completed_at)
         _queue_reply_notification(user_id, bot_id, turn_key, turn, bot, failure_answer)
         return
 
@@ -157,7 +164,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
         artifacts=artifacts,
     )
     if not completed_at:
-        _delete_generated_artifacts(user_id, bot_id, turn["id"])
+        cleanup_artifacts()
         return
     try:
         table.update_item(

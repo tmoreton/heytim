@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -13,6 +12,7 @@ import {
 } from 'react-native';
 
 import { BotAvatar } from '@/components/bot-avatar';
+import { PageSheet } from '@/components/page-sheet';
 import { BOT_COLORS, CHIEF_COLOR, displayBotColor } from '@/lib/bot-branding';
 import { requiredToolLabels } from '@/lib/capability-labels';
 import type { Bot, BotDraft, Capability, CapabilitySelection, Skill, SkillDetail } from '@/lib/types';
@@ -162,7 +162,7 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
   };
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <PageSheet onClose={onClose}>
       <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
           <Pressable accessibilityRole="button" hitSlop={12} onPress={onClose}>
@@ -373,7 +373,7 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         </ScrollView>
       </KeyboardAvoidingView>
-    </Modal>
+    </PageSheet>
   );
 }
 

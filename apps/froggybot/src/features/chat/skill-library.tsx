@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 
 import type { Capability, CapabilitySelection, Connection, ConnectionDraft, Skill, SkillDetail, SkillDraft } from '@/lib/types';
+import { PageSheet } from '@/components/page-sheet';
 
 import { ConnectionEditor, draftForConnection, emptyConnectionDraft } from './connection-editor';
 import { SkillForm, SkillView } from './skill-details';
@@ -259,7 +259,7 @@ export function SkillLibrary({
           : selected?.name;
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <PageSheet onClose={onClose}>
       <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
           <Pressable accessibilityRole="button" hitSlop={12} onPress={mode === 'list' ? onClose : back}>
@@ -362,6 +362,6 @@ export function SkillLibrary({
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         </ScrollView>
       </KeyboardAvoidingView>
-    </Modal>
+    </PageSheet>
   );
 }

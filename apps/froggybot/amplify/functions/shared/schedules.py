@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import UTC, datetime
+from typing import Any
 
 DAYS_OF_WEEK = ("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")
 
@@ -44,3 +45,14 @@ def occurrence_time(value: object, fallback: datetime | None = None) -> str:
 
 def scheduled_turn_id(schedule_id: str, execution_id: str) -> str:
     return hashlib.sha256(f"{schedule_id}:{execution_id}".encode()).hexdigest()[:32]
+
+
+def delete_remote_schedule(
+    scheduler: Any, schedule_group_name: str, item: dict
+) -> None:
+    try:
+        scheduler.delete_schedule(
+            Name=item["schedulerName"], GroupName=schedule_group_name
+        )
+    except scheduler.exceptions.ResourceNotFoundException:
+        return

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import socket
 import urllib.parse
-from datetime import UTC, datetime
 from typing import Any
 
 MAX_SKILLS_PER_BOT = 12
@@ -46,7 +46,7 @@ BOT_CATALOG_FIELDS = {
     "toolIds",
 }
 GMAIL_MCP_ENDPOINT = "https://gmailmcp.googleapis.com/mcp/v1"
-GMAIL_MCP_TOOLS = {
+GMAIL_MCP_TOOLS = (
     "create_draft",
     "list_drafts",
     "get_draft",
@@ -54,15 +54,11 @@ GMAIL_MCP_TOOLS = {
     "get_message",
     "search_threads",
     "list_labels",
-}
+)
 
 
 class CatalogError(Exception):
     pass
-
-
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
 def _version_key(version: int) -> str:
@@ -115,7 +111,24 @@ def _validate_mcp_endpoint(value: Any) -> str:
     else:
         if not address.is_global:
             raise CatalogError("MCP server must use a public hostname")
+    if not _hostname_resolves_publicly(hostname):
+        raise CatalogError("MCP server must resolve only to public addresses")
     return urllib.parse.urlunsplit(("https", hostname, parsed.path or "/", "", ""))
+
+
+def _hostname_resolves_publicly(hostname: str) -> bool:
+    try:
+        results = socket.getaddrinfo(hostname, 443, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        # A connection may be provisioned before DNS. Runtime resolution must
+        # repeat this check immediately before connecting to prevent rebinding.
+        return True
+    addresses = {
+        result[4][0]
+        for result in results
+        if len(result) > 4 and result[4] and isinstance(result[4][0], str)
+    }
+    return bool(addresses) and all(ipaddress.ip_address(value).is_global for value in addresses)
 
 
 def _validate_catalog_metadata(value: dict, *, actions: bool = False) -> dict:

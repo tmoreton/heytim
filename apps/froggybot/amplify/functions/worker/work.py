@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from shared.time import utc_now_iso
+
 from .support import WORK_LEASE_SECONDS, table
 
 
@@ -27,7 +29,7 @@ def _claim_work(item_key: dict, record: dict) -> str | None:
                 ":owner": owner,
                 ":now": now,
                 ":expires": now + WORK_LEASE_SECONDS,
-                ":started": datetime.now(UTC).isoformat(timespec="milliseconds"),
+                ":started": utc_now_iso(),
             },
         )
         return owner
@@ -43,7 +45,7 @@ def _finish_work(
     answer: str,
     artifacts: list[dict] | None = None,
 ) -> str | None:
-    completed_at = datetime.now(UTC).isoformat(timespec="milliseconds")
+    completed_at = utc_now_iso()
     update_expression = "SET #status = :status, #answer = :answer, completedAt = :now"
     values = {
         ":status": status,

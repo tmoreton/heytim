@@ -5,6 +5,8 @@ import { HttpJwtAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import { Trail } from 'aws-cdk-lib/aws-cloudtrail';
 import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb';
+import { Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
+import { SqsQueue } from 'aws-cdk-lib/aws-events-targets';
 import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { Key } from 'aws-cdk-lib/aws-kms';
 import { Code, Function as LambdaFunction, Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
@@ -22,6 +24,24 @@ import { addObservability } from './infrastructure/observability';
 
 const backend = defineBackend({ auth, preSignUp });
 const stack = backend.createStack('FrogBotApp');
+const PUBLIC_WEB_BASE_URL = 'https://froggybot.com';
+const CAPABILITY_CATALOG_URL = `${PUBLIC_WEB_BASE_URL}/catalog.json`;
+const ALLOWED_WEB_ORIGINS = [
+  PUBLIC_WEB_BASE_URL,
+  'https://app.froggybot.com',
+  'https://www.froggybot.com',
+  'https://frogbot.expo.app',
+  'http://localhost:8081',
+  'http://localhost:19006',
+];
+const FUNCTION_ASSET_EXCLUDES = [
+  'tests/**',
+  '**/__pycache__/**',
+  '**/*.pyc',
+  '.pytest_cache/**',
+  '.ruff_cache/**',
+];
+const WORKER_CONCURRENCY = 10;
 
 const runtimeArn = process.env.FROGBOT_AGENT_RUNTIME_ARN;
 if (!runtimeArn) {
@@ -114,14 +134,7 @@ const filesBucket = new Bucket(stack, 'UserFiles', {
     {
       allowedHeaders: ['*'],
       allowedMethods: [HttpMethods.GET, HttpMethods.HEAD, HttpMethods.POST],
-      allowedOrigins: [
-        'https://froggybot.com',
-        'https://app.froggybot.com',
-        'https://www.froggybot.com',
-        'https://frogbot.expo.app',
-        'http://localhost:8081',
-        'http://localhost:19006',
-      ],
+      allowedOrigins: ALLOWED_WEB_ORIGINS,
       exposedHeaders: ['etag'],
       maxAge: 3600,
     },
@@ -230,12 +243,22 @@ const deadLetterQueue = new Queue(stack, 'AgentJobsDeadLetter', {
 const jobs = new Queue(stack, 'AgentJobs', {
   encryption: QueueEncryption.SQS_MANAGED,
   enforceSSL: true,
-  // AWS recommends at least six times the Lambda timeout. Each active worker
-  // narrows its own message to 16 minutes so a hard timeout still retries soon.
+  // AWS recommends at least six times the 14-minute Lambda timeout. The worker
+  // uses an 85-minute active visibility/lease and shortens explicit failures.
   visibilityTimeout: Duration.minutes(90),
   retentionPeriod: Duration.days(4),
   deadLetterQueue: { queue: deadLetterQueue, maxReceiveCount: 3 },
 });
+const catalogRefresh = new Rule(stack, 'CatalogRefresh', {
+  schedule: Schedule.rate(Duration.minutes(5)),
+});
+catalogRefresh.addTarget(
+  new SqsQueue(jobs, {
+    deadLetterQueue,
+    retryAttempts: 2,
+    message: RuleTargetInput.fromObject({ type: 'CATALOG_REFRESH' }),
+  }),
+);
 const taskScheduleGroup = new ScheduleGroup(stack, 'TaskSchedules', {
   removalPolicy: RemovalPolicy.DESTROY,
 });
@@ -255,7 +278,9 @@ const functionDefaults = {
 const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
   ...functionDefaults,
   handler: 'api.handler.handler',
-  code: Code.fromAsset(path.resolve('amplify/functions')),
+  code: Code.fromAsset(path.resolve('amplify/functions'), {
+    exclude: FUNCTION_ASSET_EXCLUDES,
+  }),
   logGroup: apiLogGroup,
   timeout: Duration.seconds(15),
   environment: {
@@ -271,9 +296,8 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
     AGENT_RUNTIME_QUALIFIER: process.env.FROGBOT_AGENT_RUNTIME_QUALIFIER ?? 'DEFAULT',
     FROGBOT_MEMORY_ID: memoryId,
     FILES_BUCKET_NAME: filesBucket.bucketName,
-    PUBLIC_WEB_BASE_URL: 'https://froggybot.com',
-    CAPABILITY_CATALOG_URL:
-      'https://froggybot.com/catalog.json',
+    PUBLIC_WEB_BASE_URL,
+    CAPABILITY_CATALOG_URL,
     GOOGLE_OAUTH_SECRET_ARN: googleOAuthSecretArn,
   },
 });
@@ -281,9 +305,12 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
 const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
   ...functionDefaults,
   handler: 'worker.handler.handler',
-  code: Code.fromAsset(path.resolve('amplify/functions')),
+  code: Code.fromAsset(path.resolve('amplify/functions'), {
+    exclude: FUNCTION_ASSET_EXCLUDES,
+  }),
   logGroup: workerLogGroup,
   timeout: Duration.minutes(14),
+  reservedConcurrentExecutions: WORKER_CONCURRENCY,
   environment: {
     ...functionDefaults.environment,
     AGENT_RUNTIME_ARN: runtimeArn,
@@ -297,9 +324,8 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
     USER_POOL_ID: backend.auth.resources.userPool.userPoolId,
     FROGBOT_MEMORY_ID: memoryId,
     FILES_BUCKET_NAME: filesBucket.bucketName,
-    PUBLIC_WEB_BASE_URL: 'https://froggybot.com',
-    CAPABILITY_CATALOG_URL:
-      'https://froggybot.com/catalog.json',
+    PUBLIC_WEB_BASE_URL,
+    CAPABILITY_CATALOG_URL,
   },
 });
 
@@ -343,14 +369,12 @@ jobs.grantSendMessages(workerFunction);
 taskScheduleGroup.grantWriteSchedules(apiFunction);
 taskScheduleGroup.grantDeleteSchedules(apiFunction);
 taskScheduleGroup.grantDeleteSchedules(workerFunction);
-for (const fn of [apiFunction, workerFunction]) {
-  fn.addToRolePolicy(
-    new PolicyStatement({
-      actions: ['cognito-idp:AdminDeleteUser', 'cognito-idp:AdminUserGlobalSignOut'],
-      resources: [backend.auth.resources.userPool.userPoolArn],
-    }),
-  );
-}
+workerFunction.addToRolePolicy(
+  new PolicyStatement({
+    actions: ['cognito-idp:AdminDeleteUser', 'cognito-idp:AdminUserGlobalSignOut'],
+    resources: [backend.auth.resources.userPool.userPoolArn],
+  }),
+);
 apiFunction.addToRolePolicy(
   new PolicyStatement({
     actions: ['iam:PassRole'],
@@ -378,6 +402,7 @@ apiFunction.addToRolePolicy(
 workerFunction.addEventSource(
   new SqsEventSource(jobs, {
     batchSize: 1,
+    maxConcurrency: WORKER_CONCURRENCY,
     reportBatchItemFailures: true,
   }),
 );
@@ -435,14 +460,7 @@ workerFunction.addToRolePolicy(
 
 const httpApi = new HttpApi(stack, 'HttpApi', {
   corsPreflight: {
-    allowOrigins: [
-      'https://froggybot.com',
-      'https://app.froggybot.com',
-      'https://www.froggybot.com',
-      'https://frogbot.expo.app',
-      'http://localhost:8081',
-      'http://localhost:19006',
-    ],
+    allowOrigins: ALLOWED_WEB_ORIGINS,
     allowHeaders: ['authorization', 'content-type'],
     allowMethods: [
       CorsHttpMethod.GET,
@@ -516,12 +534,13 @@ const { alarmTopic, monthlyBudgetName } = addObservability({
   deadLetterQueue,
   logsKey,
   monthlyBudgetUsd,
+  workerConcurrencyLimit: WORKER_CONCURRENCY,
 });
 
 backend.addOutput({
   custom: {
     apiUrl: httpApi.apiEndpoint,
-    shareBaseUrl: 'https://froggybot.com/invite',
+    shareBaseUrl: `${PUBLIC_WEB_BASE_URL}/invite`,
     dataTableName: table.tableName,
     filesBucketName: filesBucket.bucketName,
     alarmTopicArn: alarmTopic.topicArn,

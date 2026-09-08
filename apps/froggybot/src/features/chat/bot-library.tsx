@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +9,7 @@ import {
 } from 'react-native';
 
 import { BotAvatar } from '@/components/bot-avatar';
+import { PageSheet } from '@/components/page-sheet';
 import type { Bot, BotTemplate, Skill } from '@/lib/types';
 
 type Props = {
@@ -66,7 +66,7 @@ export function BotLibrary({
   };
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <PageSheet onClose={onClose}>
       <View style={styles.page}>
         <View style={styles.header}>
           <View style={styles.headerSpacer} />
@@ -146,7 +146,7 @@ export function BotLibrary({
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         </ScrollView>
       </View>
-    </Modal>
+    </PageSheet>
   );
 }
 

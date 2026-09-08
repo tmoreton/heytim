@@ -22,7 +22,6 @@ class BotConfiguration:
     tools: list[Any]
     builtin_tools: list[str]
     plugins: list[Any]
-    skill_paths: list[str]
     builtin_plugins: list[str]
     background_work: BackgroundWorkTracker
 
@@ -171,7 +170,6 @@ def bot_configuration(
         tools=capabilities.tools,
         builtin_tools=capabilities.builtin_tools,
         plugins=capabilities.plugins,
-        skill_paths=capabilities.skill_paths,
         builtin_plugins=capabilities.builtin_plugins,
         background_work=capabilities.background_work,
     )

@@ -1,9 +1,8 @@
 import { useLocalSearchParams } from 'expo-router';
 
 import { AppEntry } from '@/features/app/app-entry';
+import { firstRouteParam } from '@/features/invites/invitation-url';
 import type { CapabilitySelection } from '@/lib/types';
-
-const param = (value?: string | string[]) => Array.isArray(value) ? value[0] : value;
 
 export default function AppPage() {
   const { bot, preview, skill, tool } = useLocalSearchParams<{
@@ -12,9 +11,9 @@ export default function AppPage() {
     skill?: string | string[];
     tool?: string | string[];
   }>();
-  const skillId = param(skill);
-  const toolId = param(tool);
-  const botTemplateId = param(bot);
+  const skillId = firstRouteParam(skill);
+  const toolId = firstRouteParam(tool);
+  const botTemplateId = firstRouteParam(bot);
   const initialCapability: CapabilitySelection | undefined = skillId
     ? { kind: 'skill', id: skillId }
     : toolId
@@ -24,7 +23,7 @@ export default function AppPage() {
     <AppEntry
       initialBotTemplateId={botTemplateId}
       initialCapability={initialCapability}
-      preview={__DEV__ && param(preview) === '1'}
+      preview={__DEV__ && firstRouteParam(preview) === '1'}
     />
   );
 }

@@ -107,8 +107,9 @@ agentcore status --target development --type memory --json
 ```
 
 The development target is account `188757775631` in `us-east-1`. Confirm that both the runtime and
-memory are ready, then copy the deployed runtime ARN from the status output. The runtime uses Claude
-Sonnet 4.5, so model access must be available in that account and region. The private file bucket has
+memory are ready, then copy the deployed runtime ARN from the status output. Model routing is defined only in
+`agentcore/agentcore.json`: OpenRouter supplies the primary and advanced models, with a Bedrock Claude model as the
+fallback. Required provider access must be available in the configured accounts and regions. The private file bucket has
 the deterministic name `frogbot-user-files-188757775631-us-east-1`; when adding another deployment
 target, update `FROGBOT_FILES_BUCKET` and the attachment policy in `agentcore/` for that target.
 
@@ -168,19 +169,17 @@ read-email and create-draft access; refresh tokens stay in a per-user Secrets Ma
 search, read, list, and draft tools, so it cannot send, delete, relabel, archive, or mark email. Gmail access is treated
 as interactive because email is untrusted input, which keeps it out of groups and unattended schedules.
 
-YouTube Research is live through its restricted AgentCore Gateway target. X / Twitter Research is deployed but
-temporarily hidden because the X API account has no remaining credits. This keeps the live tool picker honest and
-prevents a bot from being saved with a tool that cannot run.
+The declarative AgentCore gateway currently exposes only the reviewed web-search connector. Add a provider credential
+and gateway target to `agentcore/agentcore.json` together; do not describe a provider as available until the target is
+deployed, ready, and visible in the reviewed catalog.
 
 ## Verification
 
 ```bash
-agentcore validate
-cd apps/froggybot
-npm run verify
+scripts/verify.sh
 ```
 
-The verification command also prevents authored source files from growing beyond 600 lines.
+See [the verification guide](docs/verification.md) for prerequisites, focused commands, CI coverage, and deployed checks.
 
 ## App releases and websites
 
@@ -197,9 +196,9 @@ query string and hand off to the Expo app subdomain.
 
 ## Key locations
 
-- `services/agent-runtime/main.py` - small AgentCore runtime entrypoint
-- `services/agent-runtime/frogbot_runtime/` - request validation and per-bot capability assembly
-- `services/agent-runtime/frogbot_runtime/capabilities.py` - reviewed implementations and the execution allowlist, not catalog content
+- `services/agent-runtime/runtime/main.py` - small AgentCore runtime entrypoint
+- `services/agent-runtime/runtime/frogbot_runtime/` - production-only runtime source packaged for AgentCore
+- `services/agent-runtime/runtime/frogbot_runtime/capability_contract.py` - reviewed execution allowlist and capability validation
 - `agentcore/agentcore.json` - AgentCore source-of-truth configuration
 - `apps/froggybot/src/features/` - authentication, invitations, chat UI, and editors
 - `apps/froggybot/amplify/backend.ts` - Cognito, API, DynamoDB, SQS, and Lambda infrastructure

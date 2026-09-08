@@ -39,7 +39,9 @@ def _public_route(event: dict, method: str, path: str, params: dict) -> dict | N
 
 def handler(event: dict, _context: Any) -> dict:
     try:
-        method = event.get("requestContext", {}).get("http", {}).get("method", "")
+        request_context = event.get("requestContext", {})
+        method = request_context.get("http", {}).get("method", "")
+        route_key = request_context.get("routeKey", "")
         path = event.get("rawPath", "")
         params = event.get("pathParameters") or {}
 
@@ -59,6 +61,7 @@ def handler(event: dict, _context: Any) -> dict:
             path,
             params,
             event,
+            route_key=route_key,
         )
     except ApiError as exc:
         return _response(exc.status_code, {"message": exc.message})

@@ -351,24 +351,104 @@ def _skill_route(
     return None
 
 
-ROUTES: tuple[Route, ...] = (
-    _library_route,
-    _group_message_route,
-    _group_admin_route,
-    _schedule_route,
-    _direct_chat_route,
-    _bot_route,
-    _file_and_device_route,
-    _sharing_route,
-    _skill_route,
-)
+def _route_map(handler: Route, *route_keys: str) -> dict[str, Route]:
+    return dict.fromkeys(route_keys, handler)
+
+
+ROUTE_HANDLERS: dict[str, Route] = {
+    **_route_map(
+        _library_route,
+        "GET /connections",
+        "POST /connections/gmail/authorization",
+        "POST /connections",
+        "PUT /connections/{connectionId}",
+        "DELETE /connections/{connectionId}",
+        "GET /memory",
+        "POST /memory/export",
+        "PUT /memory/{memoryRecordId}",
+        "DELETE /memory/{memoryRecordId}",
+    ),
+    **_route_map(
+        _group_message_route,
+        "GET /groups/{groupId}/messages",
+        "POST /groups/{groupId}/messages",
+        "GET /groups/{groupId}/files/{fileId}/download",
+    ),
+    **_route_map(
+        _group_admin_route,
+        "POST /groups",
+        "PUT /groups/{groupId}",
+        "POST /groups/{groupId}/invites",
+        "POST /group-invites/{token}/join",
+        "DELETE /groups/{groupId}/members/{memberId}",
+        "DELETE /groups/{groupId}",
+    ),
+    **_route_map(
+        _schedule_route,
+        "GET /bots/{botId}/schedules",
+        "POST /bots/{botId}/schedules",
+        "POST /bots/{botId}/schedules/{scheduleId}/run",
+        "PUT /bots/{botId}/schedules/{scheduleId}",
+        "DELETE /bots/{botId}/schedules/{scheduleId}",
+    ),
+    **_route_map(
+        _bot_route,
+        "GET /bootstrap",
+        "POST /bot-templates/{templateId}/install",
+        "POST /bots",
+        "PUT /bots/{botId}",
+        "DELETE /bots/{botId}",
+    ),
+    **_route_map(
+        _direct_chat_route,
+        "GET /bots/{botId}/documents",
+        "GET /bots/{botId}/messages",
+        "POST /bots/{botId}/messages",
+        "POST /bots/{botId}/messages/{turnId}/approve",
+        "POST /bots/{botId}/messages/{turnId}/cancel",
+        "DELETE /bots/{botId}/messages",
+    ),
+    **_route_map(
+        _file_and_device_route,
+        "PUT /devices/push-token",
+        "DELETE /devices/push-token",
+        "POST /uploads",
+        "POST /uploads/{fileId}/complete",
+        "GET /files/{fileId}/download",
+    ),
+    **_route_map(
+        _sharing_route,
+        "POST /shares",
+        "GET /shares",
+        "DELETE /shares/{token}",
+        "POST /shares/{token}/import",
+    ),
+    **_route_map(
+        _skill_route,
+        "POST /skills",
+        "GET /skills/{skillId}",
+        "PUT /skills/{skillId}",
+        "POST /skills/{skillId}/share",
+        "POST /skill-shares/{token}/import",
+    ),
+}
+AUTHENTICATED_ROUTE_KEYS = frozenset({*ROUTE_HANDLERS, "DELETE /account"})
 
 
 def route_authenticated(
-    user_id: str, display_name: str, method: str, path: str, params: dict, event: dict
+    user_id: str,
+    display_name: str,
+    method: str,
+    path: str,
+    params: dict,
+    event: dict,
+    *,
+    route_key: str,
 ) -> dict:
-    for route in ROUTES:
-        response = route(user_id, display_name, method, path, params, event)
-        if response is not None:
-            return response
-    raise ApiError(404, "Route not found")
+    route = ROUTE_HANDLERS.get(route_key)
+    if route is None:
+        raise ApiError(404, "Route not found")
+    response = route(user_id, display_name, method, path, params, event)
+    if response is None:
+        raise ApiError(404, "Route not found")
+    return response

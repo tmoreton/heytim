@@ -235,6 +235,11 @@ export type CapabilitySelection = {
   id: string;
 };
 
+export type ConversationSelection = {
+  kind: 'bot' | 'group';
+  id: string;
+};
+
 export type BotDraft = Pick<Bot, 'name' | 'tagline' | 'color' | 'prompt' | 'toolIds' | 'skillIds'> & {
   alwaysAllowedToolIds: string[];
 };

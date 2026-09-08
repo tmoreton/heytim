@@ -1,22 +1,18 @@
 from __future__ import annotations
 
 import asyncio
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-RUNTIME_ROOT = Path(__file__).resolve().parents[1]
-if str(RUNTIME_ROOT) not in sys.path:
-    sys.path.insert(0, str(RUNTIME_ROOT))
-
-from frogbot_runtime import capabilities
+from frogbot_runtime import agentcore_adapters, capabilities
 from frogbot_runtime.background_work import (
     BackgroundWorkTracker,
     start_background_command,
 )
+from frogbot_runtime.capability_contract import tool_bindings
 from frogbot_runtime.configuration import bot_configuration
+from frogbot_runtime.local_tools import calculate
 
 
 def test_catalog_bindings_select_stan_features_and_local_tools(monkeypatch) -> None:
@@ -31,9 +27,9 @@ def test_catalog_bindings_select_stan_features_and_local_tools(monkeypatch) -> N
             self.browser = type("Tool", (), {"tool_name": "browser"})()
 
     monkeypatch.setattr(
-        capabilities, "PersistentAgentCoreCodeInterpreter", FakeInterpreter
+        agentcore_adapters, "PersistentAgentCoreCodeInterpreter", FakeInterpreter
     )
-    monkeypatch.setattr(capabilities, "PersistentAgentCoreBrowser", FakeBrowser)
+    monkeypatch.setattr(agentcore_adapters, "PersistentAgentCoreBrowser", FakeBrowser)
     payload = {
         "bot": {
             "name": "Researcher",
@@ -183,7 +179,7 @@ def test_completed_background_work_cannot_restart_during_resume(monkeypatch) -> 
             )()
 
     monkeypatch.setattr(
-        capabilities, "PersistentAgentCoreCodeInterpreter", FakeInterpreter
+        agentcore_adapters, "PersistentAgentCoreCodeInterpreter", FakeInterpreter
     )
     config = bot_configuration(
         {
@@ -227,7 +223,7 @@ def test_catalog_binding_rejects_unreviewed_runtime_features() -> None:
     }
 
     try:
-        capabilities.tool_bindings(bot)
+        tool_bindings(bot)
     except ValueError as error:
         assert "unsupported" in str(error)
     else:
@@ -248,9 +244,9 @@ def test_runtime_rejects_unresolved_catalog_capabilities() -> None:
 
 
 def test_calculator_accepts_arithmetic_and_rejects_code() -> None:
-    assert capabilities.calculate("(8 + 4) / 3") == "4.0"
+    assert calculate("(8 + 4) / 3") == "4.0"
     try:
-        capabilities.calculate("__import__('os').getcwd()")
+        calculate("__import__('os').getcwd()")
     except ValueError as error:
         assert "unsupported" in str(error)
     else:
@@ -278,8 +274,8 @@ def test_code_interpreter_reconnects_ready_session_after_cold_start(
                 ]
             }
 
-    monkeypatch.setattr(capabilities, "CodeInterpreterClient", FakeClient)
-    interpreter = capabilities.PersistentAgentCoreCodeInterpreter(
+    monkeypatch.setattr(agentcore_adapters, "CodeInterpreterClient", FakeClient)
+    interpreter = agentcore_adapters.PersistentAgentCoreCodeInterpreter(
         region="us-east-1",
         session_name="frogbot-conversation-1",
     )
@@ -328,8 +324,8 @@ def test_browser_reconnects_ready_session_after_cold_start(monkeypatch) -> None:
             assert headers == {"x-session": "browser-session-123"}
             return "connected-browser"
 
-    monkeypatch.setattr(capabilities, "BrowserClient", FakeClient)
-    browser = capabilities.PersistentAgentCoreBrowser(
+    monkeypatch.setattr(agentcore_adapters, "BrowserClient", FakeClient)
+    browser = agentcore_adapters.PersistentAgentCoreBrowser(
         region="us-east-1",
         session_name="frogbot-conversation-1",
         session_timeout=7200,

@@ -45,8 +45,13 @@ def _s3_source(value: Any, actor_id: str | None) -> dict:
         )
     response = _s3.get_object(Bucket=FILES_BUCKET_NAME, Key=key)
     if int(response.get("ContentLength", 0)) > MAX_ATTACHMENT_BYTES:
+        response["Body"].close()
         raise ValueError("attachment is too large")
-    body = response["Body"].read(MAX_ATTACHMENT_BYTES + 1)
+    stream = response["Body"]
+    try:
+        body = stream.read(MAX_ATTACHMENT_BYTES + 1)
+    finally:
+        stream.close()
     if not body or len(body) > MAX_ATTACHMENT_BYTES:
         raise ValueError("attachment is empty or too large")
     # Claude accepts inline attachment bytes but not S3 document locations.
@@ -123,6 +128,13 @@ def messages_from_payload(payload: dict, actor_id: str | None = None) -> list[di
         raise ValueError("messages must be a non-empty list")
 
     normalized_messages = strip_trailing_tool_use(raw_messages)[-MAX_HISTORY_MESSAGES:]
+    if not normalized_messages:
+        raise ValueError("messages must contain a user message after normalization")
+    if (
+        not isinstance(normalized_messages[-1], dict)
+        or normalized_messages[-1].get("role") != "user"
+    ):
+        raise ValueError("latest message must be a user message")
     messages: list[dict] = []
     for message_index, message in enumerate(normalized_messages):
         if not isinstance(message, dict) or message.get("role") not in {

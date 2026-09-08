@@ -7,30 +7,20 @@ import uuid
 from typing import Any
 
 from .catalog_rules import (
+    GMAIL_MCP_ENDPOINT,
+    GMAIL_MCP_TOOLS,
     CatalogError,
-    _now,
     _public_tool,
     _validate_mcp_endpoint,
     _validate_text,
     _validate_tool_id,
 )
+from .time import utc_now_iso as _now
 
 AUTH_TYPES = {"none", "bearer", "api_key"}
 HEADER_PATTERN = re.compile(r"^(Authorization|X-[A-Za-z0-9-]{1,60})$")
 MAX_CONNECTIONS = 12
 MAX_CREDENTIAL_LENGTH = 4_096
-GMAIL_MCP_ENDPOINT = "https://gmailmcp.googleapis.com/mcp/v1"
-GMAIL_ALLOWED_TOOLS = [
-    "create_draft",
-    "list_drafts",
-    "get_draft",
-    "get_thread",
-    "get_message",
-    "search_threads",
-    "list_labels",
-]
-
-
 def _secret_name(user_id: str, connection_id: str) -> str:
     owner = hashlib.sha256(user_id.encode("utf-8")).hexdigest()[:24]
     revision = uuid.uuid4().hex[:12]
@@ -283,7 +273,7 @@ class ConnectionMixin:
             "oauthProvider": "google",
             "secretArn": secret_arn,
             "oauthClientSecretArn": client_secret_arn,
-            "allowedTools": GMAIL_ALLOWED_TOOLS,
+            "allowedTools": list(GMAIL_MCP_TOOLS),
         }
         item = {
             "pk": f"USER#{user_id}",

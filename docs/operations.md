@@ -1,8 +1,9 @@
 # FroggyBot operations
 
-This runbook defines the initial production targets and the response steps for the current serverless
-architecture. Review the targets after 30 days of representative traffic and tighten them from observed
-percentiles rather than relaxing them to hide incidents.
+This runbook defines service objectives and response steps for the current serverless architecture. The only
+declarative AgentCore target is named `development` and is explicitly not a production baseline. Treat these objectives
+as launch gates for a future production target; review them after 30 days of representative traffic and tighten them
+from observed percentiles rather than relaxing them to hide incidents.
 
 ## Service objectives
 
@@ -99,19 +100,7 @@ The encrypted alarm topic must have a confirmed operations subscription before a
 destination is deliberately not hard-coded in the repository; use a monitored team address or incident
 system rather than a personal mailbox.
 
-## Latest production verification
+## Verification evidence
 
-Verified in `us-east-1` on 2026-09-05:
-
-- 40 authenticated bootstrap requests at concurrency 8: 40 HTTP 200 responses, zero failures,
-  2.12-second p99 against the five-second gate.
-- Disposable-account workflow: attachment upload/read, schedule create/run/delete, share create/revoke,
-  interactive approval deny and allow-once, cancellation, temporary-bot cleanup, and account deletion passed.
-- Recovery: the DynamoDB point-in-time restore became ACTIVE with the expected partition/sort keys; the S3
-  selected-version restore matched by SHA-256. All temporary recovery resources were removed.
-- Budget: 50% and 80% actual-spend notifications and a 100% forecast notification target the encrypted
-  service alarm topic. Human/incident delivery remains pending until an operations destination is supplied.
-- Telemetry privacy: a synthetic unique marker completed through the live runtime, appeared in zero
-  CloudWatch events, and its three corresponding Strands trace events stored `[REDACTED]` instead.
-- Post-test health: the work queue and dead-letter queue were empty, all disposable identities were gone,
-  and all eight service alarms returned to `OK` through their normal evaluation windows.
+Keep dated deployment and recovery results in [verification-history.md](verification-history.md). This runbook defines
+the checks and response procedures; it does not imply that a historical result describes the current deployment.

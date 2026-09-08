@@ -42,8 +42,6 @@ yarn-error.*
 __pycache__/
 *.py[cod]
 
-example
-
 # generated native folders
 /ios
 /android

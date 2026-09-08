@@ -1,12 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import json
-import sys
-from pathlib import Path
 
-RUNTIME_ROOT = Path(__file__).resolve().parents[1]
-if str(RUNTIME_ROOT) not in sys.path:
-    sys.path.insert(0, str(RUNTIME_ROOT))
+import httpx
+import pytest
 
 from frogbot_runtime import mcp_connections
 
@@ -24,7 +22,8 @@ def test_authenticated_connection_fetches_secret_server_side(monkeypatch) -> Non
     captured = {}
 
     class FakeMCPClient:
-        def __init__(self, **kwargs):
+        def __init__(self, transport, **kwargs):
+            captured["transport"] = transport
             captured.update(kwargs)
 
     monkeypatch.setattr(mcp_connections.socket, "getaddrinfo", _public_address)
@@ -47,9 +46,13 @@ def test_authenticated_connection_fetches_secret_server_side(monkeypatch) -> Non
 
     mcp_connections.connection_client(binding)
 
-    assert captured["url"] == "https://mcp.example.com/mcp"
-    assert captured["headers"] == {"Authorization": "Bearer private-token"}
     assert captured["prefix"] == "connection_1234567890abcdef1234"
+    transport = captured["transport"]
+    assert transport.func is mcp_connections._secure_streamable_http
+    assert transport.args == (
+        "https://mcp.example.com/mcp",
+        {"Authorization": "Bearer private-token"},
+    )
 
 
 def test_connection_rejects_private_dns_results(monkeypatch) -> None:
@@ -68,6 +71,36 @@ def test_connection_rejects_private_dns_results(monkeypatch) -> None:
         assert "public" in str(error)
     else:
         raise AssertionError("private DNS result was accepted")
+
+
+def test_http_transport_revalidates_dns_for_each_request(monkeypatch) -> None:
+    answers = iter(
+        [
+            [(2, 1, 6, "", ("93.184.216.34", 443))],
+            [(2, 1, 6, "", ("10.0.0.5", 443))],
+        ]
+    )
+    monkeypatch.setattr(
+        mcp_connections.socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: next(answers),
+    )
+    mcp_connections._validated_endpoint("https://mcp.example.com/mcp")
+
+    request = httpx.Request("POST", "https://mcp.example.com/mcp")
+    with pytest.raises(ValueError, match="resolve publicly"):
+        asyncio.run(mcp_connections._validate_outbound_request(request))
+
+
+def test_http_transport_does_not_follow_redirects() -> None:
+    client = mcp_connections._secure_http_client()
+    try:
+        assert client.follow_redirects is False
+        assert client.event_hooks["request"] == [
+            mcp_connections._validate_outbound_request
+        ]
+    finally:
+        asyncio.run(client.aclose())
 
 
 def test_google_oauth_connection_refreshes_token_and_filters_tools(monkeypatch) -> None:
@@ -105,7 +138,8 @@ def test_google_oauth_connection_refreshes_token_and_filters_tools(monkeypatch) 
     captured = {}
 
     class FakeMCPClient:
-        def __init__(self, **kwargs):
+        def __init__(self, transport, **kwargs):
+            captured["transport"] = transport
             captured.update(kwargs)
 
     monkeypatch.setattr(mcp_connections.socket, "getaddrinfo", _public_address)
@@ -130,7 +164,10 @@ def test_google_oauth_connection_refreshes_token_and_filters_tools(monkeypatch) 
 
     mcp_connections.connection_client(binding)
 
-    assert captured["headers"] == {"Authorization": "Bearer access-token"}
+    assert captured["transport"].args == (
+        "https://gmailmcp.googleapis.com/mcp/v1",
+        {"Authorization": "Bearer access-token"},
+    )
     assert captured["tool_filters"] == {"allowed": ["search_threads", "create_draft"]}
 
 

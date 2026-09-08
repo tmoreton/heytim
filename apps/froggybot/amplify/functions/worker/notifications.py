@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import urllib.request
@@ -20,6 +21,7 @@ from .support import (
 )
 
 logger = logging.getLogger(__name__)
+NOTIFICATION_DEDUP_SECONDS = 7 * 24 * 60 * 60
 
 
 def _post_json(url: str, payload: Any) -> dict:
@@ -36,7 +38,7 @@ def _post_json(url: str, payload: Any) -> dict:
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=10) as response:  # nosec B310
-        value = json.loads(response.read().decode("utf-8"))
+        value = json.loads(response.read(500_001).decode("utf-8"))
     if not isinstance(value, dict):
         raise TypeError("Expo push service returned an invalid response")
     return value
@@ -55,11 +57,21 @@ def _remove_push_token(user_id: str, token_id: str) -> None:
 
 def _push_tokens(user_id: str) -> list[dict]:
     now = int(datetime.now(UTC).timestamp())
-    items = table.query(
-        KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
-        ExpressionAttributeValues={":pk": f"USER#{user_id}", ":prefix": "PUSH#"},
-        Limit=100,
-    ).get("Items", [])
+    request = {
+        "KeyConditionExpression": "pk = :pk AND begins_with(sk, :prefix)",
+        "ExpressionAttributeValues": {
+            ":pk": f"USER#{user_id}",
+            ":prefix": "PUSH#",
+        },
+    }
+    items = []
+    while True:
+        response = table.query(**request)
+        items.extend(response.get("Items", []))
+        last_key = response.get("LastEvaluatedKey")
+        if not last_key:
+            break
+        request["ExclusiveStartKey"] = last_key
     tokens = []
     for item in items:
         token_id = item.get("tokenId")
@@ -85,10 +97,56 @@ def _notification_copy(answer: str) -> str:
     return clean if len(clean) <= 180 else f"{clean[:177]}..."
 
 
+def _notification_key(request: dict) -> dict[str, str]:
+    notification_id = request.get("notificationId")
+    if not isinstance(notification_id, str) or not notification_id:
+        notification_id = ":".join(
+            str(request.get(field, ""))
+            for field in ("userId", "groupId", "botId", "messageId", "turnId")
+        )
+    digest = hashlib.sha256(notification_id.encode("utf-8")).hexdigest()
+    return {"pk": f"NOTIFICATION#{digest}", "sk": "DELIVERY"}
+
+
+def _claim_notification(request: dict) -> dict | None:
+    key = _notification_key(request)
+    now = int(datetime.now(UTC).timestamp())
+    try:
+        table.put_item(
+            Item={
+                **key,
+                "entity": "NOTIFICATION_DELIVERY",
+                "status": "CLAIMED",
+                "claimedAt": datetime.now(UTC).isoformat(timespec="milliseconds"),
+                "expiresAt": now + NOTIFICATION_DEDUP_SECONDS,
+            },
+            ConditionExpression=Attr("pk").not_exists(),
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return None
+    return key
+
+
+def _finish_notification(key: dict, status: str) -> None:
+    table.update_item(
+        Key=key,
+        UpdateExpression="SET #status = :status, completedAt = :completed",
+        ExpressionAttributeNames={"#status": "status"},
+        ExpressionAttributeValues={
+            ":status": status,
+            ":completed": datetime.now(UTC).isoformat(timespec="milliseconds"),
+        },
+    )
+
+
 def _send_push_notification(request: dict) -> None:
+    delivery_key = _claim_notification(request)
+    if delivery_key is None:
+        return
     user_id = request["userId"]
     tokens = _push_tokens(user_id)
     if not tokens:
+        _finish_notification(delivery_key, "NO_DEVICES")
         return
     notification_data = {
         "botId": request["botId"],
@@ -115,7 +173,13 @@ def _send_push_notification(request: dict) -> None:
         }
         for item in tokens
     ]
-    response = _post_json(EXPO_PUSH_URL, messages)
+    try:
+        response = _post_json(EXPO_PUSH_URL, messages)
+    except Exception:
+        # The remote service may have accepted the request even when the client
+        # did not receive a response. Keep the claim to prevent duplicate pushes.
+        _finish_notification(delivery_key, "UNKNOWN")
+        raise
     tickets = response.get("data", [])
     if isinstance(tickets, dict):
         tickets = [tickets]
@@ -146,6 +210,7 @@ def _send_push_notification(request: dict) -> None:
                 {"type": "PUSH_RECEIPTS", "userId": user_id, "receipts": receipts}
             ),
         )
+    _finish_notification(delivery_key, "SENT")
 
 
 def _check_push_receipts(request: dict) -> None:
@@ -214,6 +279,7 @@ def _queue_reply_notification(
         "botName": bot["name"],
         "messageId": turn["id"],
         "answer": answer,
+        "notificationId": f"direct:{user_id}:{bot_id}:{turn['id']}",
     }
     if turn.get("source") == "schedule":
         payload.update(

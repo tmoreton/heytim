@@ -15,7 +15,7 @@ class FakeAgent:
         self.failures = failures
         self.prompts: list[Any] = []
 
-    async def stream_async(self, prompt: Any) -> AsyncGenerator[dict, None]:
+    async def stream_async(self, prompt: Any) -> AsyncGenerator[dict]:
         self.prompts.append(prompt)
         yield {"attempt": len(self.prompts)}
         if len(self.prompts) <= self.failures:

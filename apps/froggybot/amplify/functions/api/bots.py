@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+from boto3.dynamodb.conditions import Attr
 from shared.catalog import CatalogError
 from shared.cleanup import has_pending_work
 
@@ -62,7 +63,6 @@ def _bot_values(
     system_role: str | None = None,
 ) -> dict:
     previous = previous or {}
-    catalog.sync_official()
     role = system_role or previous.get("systemRole")
     color = value.get("color", previous.get("color", DEFAULT_BOT_COLOR))
     if role == CHIEF_SYSTEM_ROLE:
@@ -316,13 +316,18 @@ def _bootstrap(user_id: str) -> dict:
     needs_bot_onboarding = not initialized and not bots
     bots = _ensure_chief(user_id, bots)
     if not initialized:
-        table.put_item(
-            Item={
-                **_user_state_key(user_id),
-                "entity": "USER_STATE",
-                "initializedAt": _now(),
-            }
-        )
+        try:
+            table.put_item(
+                Item={
+                    **_user_state_key(user_id),
+                    "entity": "USER_STATE",
+                    "initializedAt": _now(),
+                },
+                ConditionExpression=Attr("pk").not_exists(),
+            )
+        except table.meta.client.exceptions.ConditionalCheckFailedException:
+            # A concurrent bootstrap initialized the same deterministic state.
+            pass
     if bots:
         migrated = []
         for bot in bots:

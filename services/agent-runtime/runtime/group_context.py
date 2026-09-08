@@ -7,6 +7,7 @@ MAX_PEOPLE = 50
 MAX_BOTS = 12
 MAX_ROUND_REPLIES = MAX_BOTS + 1
 MAX_MEMORY_CHARS = 4_000
+GROUP_CONTEXT_SCHEMA_VERSION = 1
 ROUND_ROLES = {"solo", "lead", "contributor", "synthesizer"}
 
 
@@ -21,6 +22,11 @@ def collaboration_instructions(value: Any) -> str:
         return ""
     if not isinstance(value, dict):
         raise TypeError("group must be an object")
+    if (
+        value.get("schemaVersion", GROUP_CONTEXT_SCHEMA_VERSION)
+        != GROUP_CONTEXT_SCHEMA_VERSION
+    ):
+        raise ValueError("group.schemaVersion is unsupported")
 
     name = _text(value.get("name"), "group.name", 64)
     memory = value.get("memory", "")

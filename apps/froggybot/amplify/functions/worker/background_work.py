@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 from .support import QUEUE_URL, agentcore, sqs, table
@@ -9,6 +10,8 @@ POLL_DELAY_SECONDS = 30
 IN_PROGRESS_STATUSES = {"submitted", "working"}
 MAX_TASKS = 3
 MAX_OUTPUT_CHARS = 5_000
+MAX_POLL_ATTEMPTS = 120
+MAX_BACKGROUND_AGE_SECONDS = 60 * 60
 REQUIRED_FIELDS = {
     "provider",
     "resourceId",
@@ -81,22 +84,53 @@ def _task_result(work: dict[str, str]) -> tuple[bool, dict]:
     return True, output
 
 
-def _poll_message(item_key: dict, resume_request: dict) -> dict:
+def _poll_message(item_key: dict, resume_request: dict, poll_count: int = 1) -> dict:
     return {
         "type": "BACKGROUND_WORK_POLL",
         "itemKey": item_key,
         "resumeRequest": resume_request,
+        "pollCount": poll_count,
     }
 
 
 def _queue_background_poll(
-    item_key: dict, resume_request: dict, *, delay_seconds: int = POLL_DELAY_SECONDS
+    item_key: dict,
+    resume_request: dict,
+    *,
+    delay_seconds: int = POLL_DELAY_SECONDS,
+    poll_count: int = 1,
 ) -> None:
     sqs.send_message(
         QueueUrl=QUEUE_URL,
         DelaySeconds=delay_seconds,
-        MessageBody=json.dumps(_poll_message(item_key, resume_request)),
+        MessageBody=json.dumps(_poll_message(item_key, resume_request, poll_count)),
     )
+
+
+def _work_age_seconds(work: dict[str, str]) -> float:
+    try:
+        started_at = datetime.fromisoformat(work["startedAt"].replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("pendingWork startedAt is invalid") from exc
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=UTC)
+    return max(0.0, (datetime.now(UTC) - started_at.astimezone(UTC)).total_seconds())
+
+
+def _expired_result(work: dict[str, str]) -> dict:
+    try:
+        agentcore.stop_code_interpreter_session(
+            codeInterpreterIdentifier=work["resourceId"],
+            sessionId=work["sessionId"],
+        )
+    except agentcore.exceptions.ResourceNotFoundException:
+        pass
+    return {
+        "label": work["label"],
+        "status": "expired",
+        "stderr": "The background task exceeded its one-hour execution limit.",
+        "stdout": "",
+    }
 
 
 def _process_background_work(_record: dict, request: dict) -> None:
@@ -123,11 +157,26 @@ def _process_background_work(_record: dict, request: dict) -> None:
         return
 
     pending_work = _validate_pending_work(raw_work)
+    poll_count = request.get("pollCount", 1)
+    if (
+        not isinstance(poll_count, int)
+        or isinstance(poll_count, bool)
+        or poll_count < 1
+    ):
+        raise ValueError("Background work poll count is invalid")
     results = []
     for work in pending_work:
-        complete, result = _task_result(work)
+        if (
+            poll_count >= MAX_POLL_ATTEMPTS
+            or _work_age_seconds(work) >= MAX_BACKGROUND_AGE_SECONDS
+        ):
+            complete, result = True, _expired_result(work)
+        else:
+            complete, result = _task_result(work)
         if not complete:
-            _queue_background_poll(item_key, resume_request)
+            _queue_background_poll(
+                item_key, resume_request, poll_count=poll_count + 1
+            )
             return
         results.append(result)
 

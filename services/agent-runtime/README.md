@@ -1,8 +1,12 @@
 # FroggyBot AgentCore runtime
 
-The runtime uses Strands through the pinned Stan harness in `pyproject.toml`. A caller sends validated
+The runtime uses Strands through the vendored Stan harness declared in `pyproject.toml`. A caller sends validated
 conversation history plus one bot configuration. Each request creates a Strands agent with only that
 bot's selected tools and skills.
+
+Only `runtime/` is copied into the AgentCore CodeZip. Dependency resolution deliberately walks up to the
+parent `pyproject.toml`; the packaged distribution manifest is then checked against `uv.lock`. Tests,
+evaluation outputs, scripts, caches, and the vendored wheel cannot enter the deployment archive.
 
 Conversation history is persisted by the application backend in DynamoDB. AgentCore Memory recalls
 user-scoped preferences and facts plus conversation-scoped summaries. The worker supplies stable,
@@ -23,21 +27,13 @@ Tools:
 - `web_search` - AgentCore Gateway web search
 - `calculator` - restricted arithmetic evaluation
 - `current_time` - IANA timezone lookup
-- `x_search` and `youtube_search` - reviewed gateway targets when credentials are configured
 - `task_list` - Stan todos
 - `delegate` - Stan generalist subagent
 - `code_interpreter` - persistent AgentCore sandbox
 - `browser` - persistent AgentCore browser; the application requires per-turn user approval
 
-Skills:
-
-- `group-intake`
-- `trip-planner`
-- `event-planner`
-- `group-decision`
-- `shared-budget`
-- `deep-research`
-- `data-analyst`
+Skills and bot definitions are resolved from the current schema-version-3 public catalog. The runtime
+does not keep a second hard-coded bot catalog.
 
 ## Models
 
@@ -77,9 +73,36 @@ automatically compacts at 85% of the model context window by summarizing the old
 newest 10 messages. AgentCore independently extracts and retrieves preferences, facts, and per-session topic summaries
 so older topics remain available after they leave the recent-message window.
 
+Remote MCP connections accept HTTPS public endpoints only. The runtime resolves the hostname when it
+validates the catalog binding and again before every request, and it disables HTTP redirects. OAuth
+connections are limited to reviewed Gmail read/draft operations; secrets are fetched server-side.
+
+## Verify the package
+
+Run from `services/agent-runtime`:
+
+```bash
+uv lock --check
+uv run --frozen python scripts/codezip.py source
+cd ../..
+agentcore package --runtime FrogBot
+```
+
+Then verify the produced archive:
+
+```bash
+cd services/agent-runtime
+uv run --frozen python scripts/codezip.py archive ../../agentcore/FrogBot.zip
+```
+
+The archive check fails if required runtime packages are absent, development content is present, or
+an installed distribution version is missing from `uv.lock`. To preview generated package cleanup, run
+`uv run --frozen python scripts/codezip.py clean`; add `--apply` only when those generated outputs can be
+discarded.
+
 ## Behavioral evaluations
 
-The source-controlled corpus in `evals/scenarios.json` covers Chief, Trip Planner, Event Planner, and Research & Reports.
+The source-controlled corpus in `evals/scenarios.json` covers every bot in the current public catalog.
 The default matrix runs every scenario against GLM 5.3 and GLM 5.3 Flash at both low and high reasoning, then uses the
 Bedrock fallback model as an anonymized assertion-level judge:
 

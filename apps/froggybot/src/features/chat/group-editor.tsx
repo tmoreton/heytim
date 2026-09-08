@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -15,6 +14,7 @@ import {
 
 import { ActionSheet } from '@/components/action-sheet';
 import { BotAvatar } from '@/components/bot-avatar';
+import { PageSheet } from '@/components/page-sheet';
 import { GroupAvatar, PersonAvatar } from '@/components/participant-avatar';
 import type { Bot, Group, GroupDraft, GroupMember } from '@/lib/types';
 
@@ -112,7 +112,7 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
   };
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <PageSheet onClose={onClose}>
       <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
           <Pressable accessibilityRole="button" hitSlop={12} onPress={onClose}>
@@ -285,7 +285,7 @@ export function GroupEditor({ group, bots, onClose, onSave, onShare, onRemoveMem
         options={[{ label: 'Delete group', destructive: true, onPress: deleteGroup }]}
         onClose={() => setDeleteConfirmationOpen(false)}
       />
-    </Modal>
+    </PageSheet>
   );
 }
 

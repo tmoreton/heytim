@@ -27,6 +27,8 @@ GMAIL_SCOPES = (
     "https://www.googleapis.com/auth/gmail.compose",
 )
 OAUTH_STATE_SECONDS = 10 * 60
+OAUTH_CALLBACK_BUDGET_SECONDS = 12.0
+OAUTH_REQUEST_MAX_SECONDS = 4.0
 DEFAULT_RETURN_URL = "https://app.froggybot.com/app?oauth=gmail"
 ALLOWED_WEB_RETURN_HOSTS = {
     "app.froggybot.com",
@@ -45,8 +47,8 @@ def _secret_client():
             "secretsmanager",
             config=Config(
                 retries={"total_max_attempts": 4, "mode": "adaptive"},
-                connect_timeout=3,
-                read_timeout=10,
+                connect_timeout=2,
+                read_timeout=3,
             ),
         )
     return _secrets_manager
@@ -155,7 +157,14 @@ def _consume_state(state: Any) -> dict:
     return item
 
 
-def _post_json(url: str, fields: dict[str, str]) -> dict:
+def _remaining_timeout(deadline: float) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining < 0.5:
+        raise ApiError(400, "The Gmail connection took too long. Please try again.")
+    return min(OAUTH_REQUEST_MAX_SECONDS, remaining)
+
+
+def _post_json(url: str, fields: dict[str, str], deadline: float) -> dict:
     request = urllib.request.Request(
         url,
         data=urllib.parse.urlencode(fields).encode("utf-8"),
@@ -163,7 +172,9 @@ def _post_json(url: str, fields: dict[str, str]) -> dict:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:  # nosec B310
+        with urllib.request.urlopen(
+            request, timeout=_remaining_timeout(deadline)
+        ) as response:  # nosec B310
             value = json.loads(response.read(100_001).decode("utf-8"))
     except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError) as exc:
         raise ApiError(400, "Google could not complete the Gmail connection") from exc
@@ -172,7 +183,7 @@ def _post_json(url: str, fields: dict[str, str]) -> dict:
     return value
 
 
-def _exchange_code(code: str, verifier: str) -> dict:
+def _exchange_code(code: str, verifier: str, deadline: float) -> dict:
     client_id, client_secret = _oauth_client()
     return _post_json(
         GOOGLE_OAUTH_ENDPOINT,
@@ -184,16 +195,19 @@ def _exchange_code(code: str, verifier: str) -> dict:
             "grant_type": "authorization_code",
             "redirect_uri": os.environ["GOOGLE_OAUTH_REDIRECT_URI"],
         },
+        deadline,
     )
 
 
-def _gmail_profile(access_token: str) -> str:
+def _gmail_profile(access_token: str, deadline: float) -> str:
     request = urllib.request.Request(
         GMAIL_PROFILE_URL,
         headers={"authorization": f"Bearer {access_token}"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:  # nosec B310
+        with urllib.request.urlopen(
+            request, timeout=_remaining_timeout(deadline)
+        ) as response:  # nosec B310
             value = json.loads(response.read(100_001).decode("utf-8"))
     except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError) as exc:
         raise ApiError(400, "Google could not verify the Gmail account") from exc
@@ -248,6 +262,7 @@ def _redirect(location: str) -> dict:
 
 def _gmail_callback(query: dict) -> dict:
     return_url = DEFAULT_RETURN_URL
+    deadline = time.monotonic() + OAUTH_CALLBACK_BUDGET_SECONDS
     try:
         state = _consume_state(query.get("state"))
         return_url = _return_url(state.get("returnUrl"))
@@ -257,7 +272,7 @@ def _gmail_callback(query: dict) -> dict:
         verifier = state.get("verifier")
         if not isinstance(code, str) or not isinstance(verifier, str):
             raise ApiError(400, "Google did not return an authorization code")
-        token = _exchange_code(code, verifier)
+        token = _exchange_code(code, verifier, deadline)
         granted = set(str(token.get("scope", "")).split())
         if not set(GMAIL_SCOPES).issubset(granted):
             raise ApiError(400, "Gmail read and draft access are both required")
@@ -265,7 +280,7 @@ def _gmail_callback(query: dict) -> dict:
         refresh_token = token.get("refresh_token")
         if not isinstance(access_token, str) or not isinstance(refresh_token, str):
             raise ApiError(400, "Google did not return reusable Gmail access")
-        account = _gmail_profile(access_token)
+        account = _gmail_profile(access_token, deadline)
         connection = catalog.save_gmail_connection(
             state["userId"],
             account,

@@ -33,7 +33,10 @@ const renderRules: RenderRules = {
         selectable
         selectionColor="#79B393"
         style={styles.link as TextStyle}
-        onPress={() => void Linking.openURL(url).catch(() => undefined)}>
+        onPress={(event) => {
+          event.stopPropagation();
+          void Linking.openURL(url).catch(() => undefined);
+        }}>
         {automatic ? compactLinkLabel(url) : children}
       </Text>
     );

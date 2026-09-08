@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import test_api_safety
@@ -29,6 +31,7 @@ class ApiRoutingTests(unittest.TestCase):
                 "/bots/bot-1/messages",
                 {"botId": "bot-1"},
                 {},
+                route_key="GET /bots/{botId}/messages",
             )
 
         self.assertEqual(response["statusCode"], 200)
@@ -45,6 +48,7 @@ class ApiRoutingTests(unittest.TestCase):
                 "/groups/group-1/messages",
                 {"groupId": "group-1"},
                 {},
+                route_key="GET /groups/{groupId}/messages",
             )
 
         self.assertEqual(response["statusCode"], 200)
@@ -64,6 +68,7 @@ class ApiRoutingTests(unittest.TestCase):
                 "/bots/bot-1/documents",
                 {"botId": "bot-1"},
                 {},
+                route_key="GET /bots/{botId}/documents",
             )
 
         self.assertEqual(response["statusCode"], 200)
@@ -82,6 +87,7 @@ class ApiRoutingTests(unittest.TestCase):
                 "/bot-templates/decision-coach/install",
                 {"templateId": "decision-coach"},
                 {},
+                route_key="POST /bot-templates/{templateId}/install",
             )
 
         self.assertEqual(response["statusCode"], 201)
@@ -89,7 +95,15 @@ class ApiRoutingTests(unittest.TestCase):
 
     def test_unknown_authenticated_route_returns_not_found(self) -> None:
         with self.assertRaises(self.support.ApiError) as error:
-            self.routes.route_authenticated("user-1", "Tim", "GET", "/unknown", {}, {})
+            self.routes.route_authenticated(
+                "user-1",
+                "Tim",
+                "GET",
+                "/unknown",
+                {},
+                {},
+                route_key="GET /unknown",
+            )
 
         self.assertEqual(error.exception.status_code, 404)
 
@@ -103,4 +117,20 @@ class ApiRoutingTests(unittest.TestCase):
         self.assertEqual(
             response["headers"]["cache-control"],
             "public, max-age=60, stale-while-revalidate=300",
+        )
+
+    def test_python_dispatch_matches_the_infrastructure_route_manifest(self) -> None:
+        source = (
+            Path(__file__).parents[2] / "infrastructure" / "api-routes.ts"
+        ).read_text(encoding="utf-8")
+        infrastructure_keys = {
+            f"{method} {path}"
+            for method, path in re.findall(
+                r"\[HttpMethod\.([A-Z]+), '([^']+)'\]", source
+            )
+        }
+
+        self.assertEqual(
+            self.routes.AUTHENTICATED_ROUTE_KEYS,
+            infrastructure_keys,
         )

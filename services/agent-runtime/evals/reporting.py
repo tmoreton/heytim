@@ -23,7 +23,7 @@ MODEL_VARIANTS = (
 def _decimal(value: Any) -> Decimal:
     try:
         return Decimal(str(value))
-    except (InvalidOperation, TypeError, ValueError):
+    except InvalidOperation, TypeError, ValueError:
         return Decimal(0)
 
 

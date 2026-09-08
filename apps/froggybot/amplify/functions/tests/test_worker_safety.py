@@ -1,140 +1,35 @@
 from __future__ import annotations
 
-import importlib
 import json
-import os
-import sys
-import unittest
 from datetime import UTC, datetime
 from decimal import Decimal
-from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
-
-class ConditionalCheckFailedException(Exception):
-    pass
+from worker_test_case import WorkerTestCase
 
 
-class FakeAttr:
-    def __init__(self, _name: str):
-        pass
-
-    def exists(self):
-        return self
-
-    def not_exists(self):
-        return self
-
-
-class FakeConfig:
-    def __init__(self, **_kwargs):
-        pass
-
-
-class FakeTable:
-    def __init__(self) -> None:
-        self.fail_condition = False
-        self.items: dict[tuple[str, str], dict] = {}
-        self.updates: list[dict] = []
-        self.meta = SimpleNamespace(
-            client=SimpleNamespace(
-                exceptions=SimpleNamespace(
-                    ConditionalCheckFailedException=ConditionalCheckFailedException
-                )
-            )
+class WorkerSafetyTests(WorkerTestCase):
+    def test_shared_job_lifecycle_retries_before_terminal_failure(self) -> None:
+        cleanup = MagicMock()
+        attempt = self.job_lifecycle.begin_attempt(
+            {"attributes": {"ApproximateReceiveCount": "2"}}, cleanup
         )
 
-    def update_item(self, **kwargs) -> None:
-        self.updates.append(kwargs)
-        if self.fail_condition:
-            raise ConditionalCheckFailedException
+        with patch.object(self.job_lifecycle, "_release_work") as release:
+            outcome = self.job_lifecycle.finish_failed_attempt(
+                attempt,
+                {"pk": "CHAT#1", "sk": "TURN#1"},
+                "lease-1",
+                "assistantText",
+                "failed",
+                cleanup,
+            )
 
-    def put_item(self, *, Item: dict, **_kwargs) -> None:
-        self.items[(Item["pk"], Item["sk"])] = dict(Item)
-
-    def delete_item(self, *, Key: dict) -> None:
-        self.items.pop((Key["pk"], Key["sk"]), None)
-
-    def get_item(self, *, Key: dict, **_kwargs) -> dict:
-        item = self.items.get((Key["pk"], Key["sk"]))
-        return {"Item": dict(item)} if item else {}
-
-    def query(self, *, ExpressionAttributeValues: dict, **_kwargs) -> dict:
-        pk = ExpressionAttributeValues[":pk"]
-        prefix = ExpressionAttributeValues.get(":prefix", "")
-        return {
-            "Items": [
-                dict(item)
-                for (item_pk, sk), item in self.items.items()
-                if item_pk == pk and sk.startswith(prefix)
-            ]
-        }
-
-
-class WorkerSafetyTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.table = FakeTable()
-        cls.agentcore = MagicMock()
-        cls.sqs = MagicMock()
-        cls.s3 = MagicMock()
-
-        def resource(_service: str):
-            return SimpleNamespace(Table=lambda _name: cls.table)
-
-        def client(service: str, **_kwargs):
-            return {
-                "bedrock-agentcore": cls.agentcore,
-                "sqs": cls.sqs,
-                "s3": cls.s3,
-            }[service]
-
-        environment = {
-            "TABLE_NAME": "data",
-            "AGENT_RUNTIME_ARN": "arn:aws:bedrock-agentcore:us-east-1:123:runtime/test",
-            "QUEUE_URL": "https://sqs.example/jobs",
-            "FILES_BUCKET_NAME": "frogbot-user-files-123-us-east-1",
-        }
-        boto3 = ModuleType("boto3")
-        boto3.resource = resource
-        boto3.client = client
-        dynamodb = ModuleType("boto3.dynamodb")
-        conditions = ModuleType("boto3.dynamodb.conditions")
-        conditions.Attr = FakeAttr
-        botocore = ModuleType("botocore")
-        botocore_config = ModuleType("botocore.config")
-        botocore_config.Config = FakeConfig
-
-        sys.modules.pop("worker.handler", None)
-        with (
-            patch.dict(os.environ, environment),
-            patch.dict(
-                sys.modules,
-                {
-                    "boto3": boto3,
-                    "boto3.dynamodb": dynamodb,
-                    "boto3.dynamodb.conditions": conditions,
-                    "botocore": botocore,
-                    "botocore.config": botocore_config,
-                },
-            ),
-        ):
-            cls.handler = importlib.import_module("worker.handler")
-            cls.agent = importlib.import_module("worker.agent")
-            cls.work = importlib.import_module("worker.work")
-            cls.artifacts = importlib.import_module("worker.artifacts")
-            cls.direct_job = importlib.import_module("worker.direct_job")
-            cls.group_job = importlib.import_module("worker.group_job")
-            cls.background_work = importlib.import_module("worker.background_work")
-
-    def setUp(self) -> None:
-        self.table.fail_condition = False
-        self.table.items.clear()
-        self.table.updates.clear()
-        self.s3.reset_mock()
-        self.agentcore.reset_mock()
-        self.sqs.reset_mock()
-        self.s3.list_objects_v2.return_value = {"Contents": []}
+        cleanup.assert_called_once_with()
+        release.assert_called_once()
+        self.assertEqual(
+            outcome.disposition, self.job_lifecycle.FailureDisposition.RETRY
+        )
 
     def test_claim_uses_queue_message_as_lease_owner_and_allows_expired_retry(self):
         owner = self.work._claim_work(
@@ -193,7 +88,7 @@ class WorkerSafetyTests(unittest.TestCase):
                 "sessionId": "session-1",
                 "taskId": "task-1",
                 "label": "Run tests",
-                "startedAt": "2026-09-06T12:00:00Z",
+                "startedAt": datetime.now(UTC).isoformat(),
             }
         ]
 
@@ -216,7 +111,7 @@ class WorkerSafetyTests(unittest.TestCase):
                 "sessionId": "session-1",
                 "taskId": "task-1",
                 "label": "Run tests",
-                "startedAt": "2026-09-06T12:00:00Z",
+                "startedAt": datetime.now(UTC).isoformat(),
             }
         ]
         self.table.items[(item_key["pk"], item_key["sk"])] = {
@@ -258,6 +153,71 @@ class WorkerSafetyTests(unittest.TestCase):
         self.sqs.send_message.assert_called_once_with(
             QueueUrl="https://sqs.example/jobs", MessageBody=json.dumps(resume)
         )
+
+    def test_background_work_stops_polling_after_the_attempt_limit(self) -> None:
+        item_key = {"pk": "CHAT#1", "sk": "TURN#1"}
+        pending = [
+            {
+                "provider": "agentcore_code_interpreter",
+                "resourceId": "aws.codeinterpreter.v1",
+                "sessionId": "session-1",
+                "taskId": "task-1",
+                "label": "Run tests",
+                "startedAt": datetime.now(UTC).isoformat(),
+            }
+        ]
+        self.table.items[(item_key["pk"], item_key["sk"])] = {
+            **item_key,
+            "status": "PENDING",
+            "pendingWork": pending,
+        }
+
+        self.background_work._process_background_work(
+            {"messageId": "poll-final"},
+            {
+                "type": "BACKGROUND_WORK_POLL",
+                "itemKey": item_key,
+                "resumeRequest": {"type": "AGENT_REPLY", "turnKey": "TURN#1"},
+                "pollCount": self.background_work.MAX_POLL_ATTEMPTS,
+            },
+        )
+
+        self.agentcore.invoke_code_interpreter.assert_not_called()
+        results = self.table.updates[-1]["ExpressionAttributeValues"][":results"]
+        self.assertEqual(results[0]["status"], "expired")
+        self.sqs.send_message.assert_called_once()
+
+    def test_push_notification_claim_prevents_duplicate_delivery(self) -> None:
+        self.table.items[("USER#user-1", "PUSH#token-1")] = {
+            "pk": "USER#user-1",
+            "sk": "PUSH#token-1",
+            "tokenId": "token-1",
+            "expoPushToken": "ExpoPushToken[value]",
+            "expiresAt": int(datetime.now(UTC).timestamp()) + 60,
+        }
+        self.table.items[("PUSH_TOKEN#token-1", "OWNER")] = {
+            "pk": "PUSH_TOKEN#token-1",
+            "sk": "OWNER",
+            "userId": "user-1",
+        }
+        request = {
+            "type": "PUSH_NOTIFICATION",
+            "notificationId": "direct:user-1:bot-1:turn-1",
+            "userId": "user-1",
+            "botId": "bot-1",
+            "botName": "Helper",
+            "messageId": "turn-1",
+            "answer": "Done",
+        }
+        with patch.object(
+            self.notifications,
+            "_post_json",
+            return_value={"data": []},
+        ) as post:
+            self.notifications._send_push_notification(request)
+            self.notifications._send_push_notification(request)
+
+        post.assert_called_once()
 
     def test_dynamodb_exit_code_is_json_safe_when_resuming(self) -> None:
         result = self.agent._continuation_payload(
@@ -319,7 +279,7 @@ class WorkerSafetyTests(unittest.TestCase):
                 call(
                     QueueUrl="https://sqs.example/jobs",
                     ReceiptHandle="receipt-1",
-                    VisibilityTimeout=16 * 60,
+                    VisibilityTimeout=85 * 60,
                 ),
                 call(
                     QueueUrl="https://sqs.example/jobs",
@@ -342,8 +302,15 @@ class WorkerSafetyTests(unittest.TestCase):
         self.sqs.change_message_visibility.assert_called_once_with(
             QueueUrl="https://sqs.example/jobs",
             ReceiptHandle="receipt-1",
-            VisibilityTimeout=16 * 60,
+            VisibilityTimeout=85 * 60,
         )
+
+    def test_catalog_refresh_job_runs_outside_the_api_request_path(self) -> None:
+        record = {"body": json.dumps({"type": "CATALOG_REFRESH"})}
+        with patch.object(self.handler.catalog, "sync_official") as refresh:
+            self.handler._process(record)
+
+        refresh.assert_called_once_with(force=True)
 
     def test_group_round_does_not_advance_without_a_completed_reply(self) -> None:
         request = {
@@ -367,8 +334,6 @@ class WorkerSafetyTests(unittest.TestCase):
 
     def test_account_cleanup_job_dispatches_to_idempotent_cleanup(self) -> None:
         cleanup = MagicMock()
-        account = ModuleType("api.account")
-        account._delete_account = cleanup
         record = {
             "body": json.dumps(
                 {
@@ -379,7 +344,7 @@ class WorkerSafetyTests(unittest.TestCase):
             )
         }
 
-        with patch.dict(sys.modules, {"api.account": account}):
+        with patch.object(self.handler, "_delete_account", cleanup):
             self.handler._process(record)
 
         cleanup.assert_called_once_with("user-1", "username-1")

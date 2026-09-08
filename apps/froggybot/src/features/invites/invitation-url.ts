@@ -1,5 +1,13 @@
 import type { Invitation, InviteKind } from '@/lib/types';
 
+const INVITE_KINDS = new Set<InviteKind>(['bot', 'chat', 'group', 'skill']);
+const isInviteKind = (value: string | undefined): value is InviteKind =>
+  Boolean(value && INVITE_KINDS.has(value as InviteKind));
+
+export function firstRouteParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 const pathForKind = (kind: InviteKind) =>
   kind === 'skill' ? '/skill/' : kind === 'group' ? '/group/' : '/share/';
 
@@ -36,4 +44,17 @@ export function invitationFromUrl(url: string | null): Invitation | undefined {
 
   token = token.split(/[?#]/)[0];
   return token ? { kind, token } : undefined;
+}
+
+export function invitationFromParams(
+  kindParam: string | string[] | undefined,
+  tokenParam: string | string[] | undefined,
+): Invitation | undefined {
+  const kind = firstRouteParam(kindParam);
+  const token = firstRouteParam(tokenParam);
+  return isInviteKind(kind) && token ? { kind, token } : undefined;
+}
+
+export function invitationUrl(invitation: Invitation): string {
+  return `frogbot://invite?kind=${invitation.kind}&token=${encodeURIComponent(invitation.token)}`;
 }

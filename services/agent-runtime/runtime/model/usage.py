@@ -32,7 +32,7 @@ def _nonnegative_int(value: Any) -> int:
 def _nonnegative_decimal(value: Any) -> Decimal | None:
     try:
         amount = Decimal(str(value))
-    except (InvalidOperation, TypeError, ValueError):
+    except InvalidOperation, TypeError, ValueError:
         return None
     if not amount.is_finite() or amount < 0:
         return None
@@ -162,7 +162,7 @@ class UsageTrackingModel(Model):
         prompt: Messages,
         system_prompt: str | None = None,
         **kwargs: Any,
-    ) -> AsyncGenerator[dict[str, T | Any], None]:
+    ) -> AsyncGenerator[dict[str, T | Any]]:
         async for event in self.delegate.structured_output(
             output_model,
             prompt,

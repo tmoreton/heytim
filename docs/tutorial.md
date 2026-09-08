@@ -77,17 +77,19 @@ matching file under `amplify/functions/api` or `amplify/functions/worker`.
 
 ## 4. Understand the agent runtime
 
-The deployed runtime starts in `services/agent-runtime/main.py`. Read its supporting modules in this order:
+The deployed runtime starts in `services/agent-runtime/runtime/main.py`. The `runtime/` directory is the production-only
+CodeZip boundary; tests, offline evaluations, and packaging checks remain outside it. Read its supporting modules in this order:
 
-1. `frogbot_runtime/request.py` validates the invocation and loads approved attachments.
-2. `frogbot_runtime/configuration.py` builds direct or group instructions.
-3. `frogbot_runtime/capabilities.py` resolves the bot's enabled tools and pinned skills.
-4. `frogbot_runtime/background_work.py` starts long commands without holding open a model request.
-5. `frogbot_runtime/memory.py` recalls and records long-term memory.
-6. `frogbot_runtime/artifacts.py` exposes generated files to the agent.
-7. The renderer modules turn text into PDF, Word, Excel, PowerPoint, or PNG files. Direct outputs stay private to the
+1. `runtime/frogbot_runtime/request.py` validates the invocation and loads approved attachments.
+2. `runtime/frogbot_runtime/configuration.py` builds direct or group instructions.
+3. `runtime/frogbot_runtime/capability_contract.py` validates enabled tools and pinned skills.
+4. `runtime/frogbot_runtime/local_tools.py`, `agentcore_adapters.py`, and `gateway_tools.py` isolate capability implementations.
+5. `runtime/frogbot_runtime/background_work.py` starts long commands without holding open a model request.
+6. `runtime/frogbot_runtime/memory.py` recalls and records long-term memory.
+7. `runtime/frogbot_runtime/artifacts.py` exposes generated files to the agent.
+8. The renderer modules turn text into PDF, Word, Excel, PowerPoint, or PNG files. Direct outputs stay private to the
    person; group outputs are downloadable by current group members.
-8. `frogbot_runtime/telemetry.py` removes sensitive model content from traces.
+9. `runtime/frogbot_runtime/telemetry.py` removes sensitive model content from traces.
 
 One runtime serves every bot. Bot name, prompt, tools, skill versions, user identity, and conversation
 identity arrive in the request rather than being hard-coded into separate deployments.
@@ -163,20 +165,11 @@ more behavior.
 ## 7. Verify locally
 
 ```bash
-agentcore validate
-
-cd services/agent-runtime
-uv run ruff check .
-uv run pytest -q
-
-cd ../../apps/froggybot
-npm run verify
-npm run build:web
-uvx bandit -q -r amplify/functions -x amplify/functions/tests
+scripts/verify.sh
 ```
 
-`npm run verify` includes the 600-line source-size guard, TypeScript checks, linting, backend tests, and
-Expo project health.
+Run this command from the repository root. The [verification guide](verification.md) lists focused checks for iteration
+and explains what CI and deployed verification cover.
 
 ## 8. Deploy and prove the flow
 

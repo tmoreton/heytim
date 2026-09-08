@@ -6,11 +6,55 @@ import pytest
 
 from evals.run_matrix import (
     MODEL_VARIANTS,
+    load_catalog_snapshot,
     load_scenarios,
     select_scenarios,
     summarize,
     validate_scenarios,
 )
+
+
+def test_catalog_snapshot_uses_schema_three_bot_catalog(monkeypatch) -> None:
+    catalog = {
+        "schemaVersion": 3,
+        "repository": "tmoreton/frogbot-skills",
+        "release": "skills-v42",
+        "skills": [
+            {
+                "id": "analysis",
+                "path": "skills/analysis/SKILL.md",
+                "name": "Analysis",
+                "description": "Analyze evidence.",
+                "version": 2,
+                "requiredToolIds": [],
+            }
+        ],
+        "bots": [{"id": "chief", "name": "Chief", "skillIds": ["analysis"]}],
+    }
+    monkeypatch.setattr("evals.run_matrix._json_from_url", lambda _url: catalog)
+    monkeypatch.setattr(
+        "evals.run_matrix._text_from_url",
+        lambda _url: "---\nname: Analysis\n---\nAnalyze the supplied evidence.",
+    )
+
+    release, skills, bots = load_catalog_snapshot()
+
+    assert release == "skills-v42"
+    assert skills["analysis"]["instructions"] == "Analyze the supplied evidence."
+    assert set(bots) == {"chief"}
+
+
+def test_catalog_snapshot_rejects_retired_schema(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "evals.run_matrix._json_from_url",
+        lambda _url: {
+            "schemaVersion": 2,
+            "repository": "tmoreton/frogbot-skills",
+        },
+    )
+
+    with pytest.raises(ValueError, match="schema"):
+        load_catalog_snapshot()
 
 
 def test_scenario_corpus_covers_every_public_bot() -> None:

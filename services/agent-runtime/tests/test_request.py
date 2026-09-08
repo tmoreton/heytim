@@ -1,14 +1,8 @@
 from __future__ import annotations
 
-import sys
 from io import BytesIO
-from pathlib import Path
 
 import pytest
-
-RUNTIME_ROOT = Path(__file__).resolve().parents[1]
-if str(RUNTIME_ROOT) not in sys.path:
-    sys.path.insert(0, str(RUNTIME_ROOT))
 
 from frogbot_runtime.request import MAX_HISTORY_MESSAGES, messages_from_payload
 
@@ -29,6 +23,29 @@ def test_trailing_tool_use_is_removed_before_invocation() -> None:
         }
     )
     assert messages == [{"role": "user", "content": [{"text": "Research this"}]}]
+
+
+def test_normalization_cannot_remove_the_entire_request() -> None:
+    with pytest.raises(ValueError, match="after normalization"):
+        messages_from_payload(
+            {
+                "messages": [
+                    {"role": "assistant", "content": [{"toolUse": {"name": "web"}}]}
+                ]
+            }
+        )
+
+
+def test_latest_normalized_message_must_be_from_user() -> None:
+    with pytest.raises(ValueError, match="latest message must be a user"):
+        messages_from_payload(
+            {
+                "messages": [
+                    {"role": "user", "content": [{"text": "Question"}]},
+                    {"role": "assistant", "content": [{"text": "Unfinished reply"}]},
+                ]
+            }
+        )
 
 
 def test_history_is_bounded() -> None:

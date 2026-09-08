@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "name": "Launch room",
+  "memory": "Launch Friday.",
+  "people": [{"name": "Taylor", "role": "owner"}],
+  "bots": [
+    {"id": "chief", "name": "Chief", "tagline": "Coordinates.", "isCurrent": true},
+    {"id": "builder", "name": "Builder", "tagline": "Builds.", "isCurrent": false}
+  ],
+  "round": {
+    "position": 1,
+    "size": 3,
+    "role": "lead",
+    "coordinatorName": "Chief"
+  }
+}

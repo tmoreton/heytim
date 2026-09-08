@@ -13,6 +13,11 @@ from .artifacts import (
     _group_generated_artifact_prefix,
 )
 from .background_work import _queue_background_poll
+from .job_lifecycle import (
+    FailureDisposition,
+    begin_attempt,
+    finish_failed_attempt,
+)
 from .support import (
     QUEUE_URL,
     _account_is_active,
@@ -23,7 +28,7 @@ from .support import (
     table,
 )
 from .usage import record_invocation_usage
-from .work import _claim_work, _finish_work, _pause_work, _release_work
+from .work import _claim_work, _finish_work, _pause_work
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +36,21 @@ logger = logging.getLogger(__name__)
 def _queue_group_reply_notifications(
     group_id: str, reply_key: dict, reply: dict, bot: dict, answer: str
 ) -> None:
-    members = table.query(
-        KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
-        ExpressionAttributeValues={":pk": _group_pk(group_id), ":prefix": "USER#"},
-        Limit=100,
-    ).get("Items", [])
+    request = {
+        "KeyConditionExpression": "pk = :pk AND begins_with(sk, :prefix)",
+        "ExpressionAttributeValues": {
+            ":pk": _group_pk(group_id),
+            ":prefix": "USER#",
+        },
+    }
+    members = []
+    while True:
+        response = table.query(**request)
+        members.extend(response.get("Items", []))
+        last_key = response.get("LastEvaluatedKey")
+        if not last_key:
+            break
+        request["ExclusiveStartKey"] = last_key
     for member in members:
         user_id = member.get("userId")
         if not isinstance(user_id, str):
@@ -51,6 +66,9 @@ def _queue_group_reply_notifications(
                     "botName": bot["name"],
                     "messageId": reply["id"],
                     "answer": answer,
+                    "notificationId": (
+                        f"group:{group_id}:{reply['id']}:{user_id}"
+                    ),
                 }
             ),
         )
@@ -118,11 +136,10 @@ def _process_group_agent_reply(
     if not lease_owner:
         return None
 
-    receive_count = int(
-        record.get("attributes", {}).get("ApproximateReceiveCount", "1")
-    )
-    if receive_count > 1:
+    def cleanup_artifacts() -> None:
         _delete_group_generated_artifacts(group_id, reply["id"])
+
+    attempt = begin_attempt(record, cleanup_artifacts)
     try:
         round_position = int(
             request.get("roundPosition", reply.get("roundPosition", 1))
@@ -172,13 +189,18 @@ def _process_group_agent_reply(
         artifacts = _collect_group_generated_artifacts(group_id, reply["id"])
     except Exception:
         logger.exception("Agent request failed for group reply %s", reply.get("id"))
-        if receive_count < 3:
-            _release_work(reply_key, lease_owner)
-            raise
-        _delete_group_generated_artifacts(group_id, reply["id"])
         answer = "I could not finish that request. Please try again."
-        failed_at = _finish_work(reply_key, lease_owner, "ERROR", "text", answer)
-        if not failed_at:
+        failure = finish_failed_attempt(
+            attempt,
+            reply_key,
+            lease_owner,
+            "text",
+            answer,
+            cleanup_artifacts,
+        )
+        if failure.disposition is FailureDisposition.RETRY:
+            raise
+        if failure.disposition is FailureDisposition.LOST_LEASE:
             return None
         if notify:
             _queue_group_reply_notifications(group_id, reply_key, reply, bot, answer)
@@ -188,7 +210,7 @@ def _process_group_agent_reply(
         reply_key, lease_owner, "COMPLETE", "text", answer, artifacts=artifacts
     )
     if not completed_at:
-        _delete_group_generated_artifacts(group_id, reply["id"])
+        cleanup_artifacts()
         return None
     try:
         table.update_item(

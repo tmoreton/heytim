@@ -19,7 +19,6 @@ from .catalog_rules import (
     MAX_TOOLS_PER_BOT,
     TOOL_RISKS,
     CatalogError,
-    _now,
     _public_bot_template,
     _public_skill,
     _validate_catalog_metadata,
@@ -30,6 +29,7 @@ from .catalog_rules import (
     _validate_tool_ids,
     _version_key,
 )
+from .time import utc_now_iso as _now
 
 CATALOG_URL = os.environ.get(
     "CAPABILITY_CATALOG_URL",

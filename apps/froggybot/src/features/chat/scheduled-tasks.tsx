@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -15,6 +14,7 @@ import {
 
 import { ActionSheet } from '@/components/action-sheet';
 import { BotAvatar } from '@/components/bot-avatar';
+import { PageSheet } from '@/components/page-sheet';
 import { describeSchedule, deviceTimezone, formatTime, latestRunLabel, parseTimeInput, WEEKDAYS } from '@/lib/schedules';
 import type { Bot, ScheduledTask, ScheduledTaskDraft } from '@/lib/types';
 
@@ -94,7 +94,7 @@ export function ScheduledTasks({ bot, onClose, onList, onSave, onDelete, onRun, 
   };
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <PageSheet onClose={onClose}>
       {editing ? (
         <TaskEditor
           key={editing === 'new' ? 'new' : editing.id}
@@ -169,7 +169,7 @@ export function ScheduledTasks({ bot, onClose, onList, onSave, onDelete, onRun, 
           : []}
         onClose={() => setPendingDeletion(undefined)}
       />
-    </Modal>
+    </PageSheet>
   );
 }
 

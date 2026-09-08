@@ -14,8 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionSheet } from '@/components/action-sheet';
 import { endSession } from '@/lib/auth';
 import { createApi } from '@/lib/api';
-import { chiefFirst } from '@/lib/bot-branding';
-import type { Attachment, Bot, BotDraft, CapabilitySelection, Group, GroupDraft, GroupMember, Invitation, Message } from '@/lib/types';
+import type { Attachment, Bot, BotDraft, CapabilitySelection, ConversationSelection, Group, GroupDraft, GroupMember, Invitation, Message } from '@/lib/types';
 
 import { AccountSettings } from './account-settings';
 import { BotActionSheets, type BotAction } from './bot-action-sheets';
@@ -24,7 +23,7 @@ import { BotEditor } from './bot-editor';
 import { BotLibrary } from './bot-library';
 import { styles } from './chat-app.styles';
 import { ConversationPanel } from './conversation-panel';
-import { ConversationDrawer, type ConversationSelection as Selection } from './conversation-drawer';
+import { ConversationDrawer } from './conversation-drawer';
 import { GroupEditor } from './group-editor';
 import { MemorySettings } from './memory-settings';
 import { ALL_BOTS_REPLY_TARGET } from './message-composer';
@@ -34,6 +33,7 @@ import { useAttachments } from './use-attachments';
 import { useChatData } from './use-chat-data';
 import { useConversationLinks } from './use-conversation-links';
 import { useMessageDictation } from './use-message-dictation';
+import { isActiveResponse } from './chat-state';
 
 type Props = {
   demo: boolean;
@@ -44,7 +44,19 @@ type Props = {
 };
 
 const directTurnId = (message: Message) => message.id.replace(/-assistant$/, '');
-const ACTIVE_RESPONSE_STATUSES = new Set<Message['status']>(['pending', 'running']);
+
+type ChatOverlay =
+  | { kind: 'none' }
+  | { kind: 'botEditor'; mode: 'new' | 'edit'; capability?: CapabilitySelection }
+  | { kind: 'botLibrary' }
+  | { kind: 'groupEditor'; mode: 'new' | 'edit' }
+  | { kind: 'skillLibrary' }
+  | { kind: 'account' }
+  | { kind: 'memory' }
+  | { kind: 'documents'; bot: Bot }
+  | { kind: 'schedule'; bot: Bot }
+  | { kind: 'botMenu' }
+  | { kind: 'botConfirmation'; action: BotAction };
 
 export function ChatApp({ demo, invitation, initialCapability, initialBotTemplateId, onSignedOut }: Props) {
   const { width } = useWindowDimensions();
@@ -54,48 +66,42 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
   const chat = useChatData(api);
   const {
     data,
-    setData,
     selection,
-    setSelection,
     messages,
-    setMessages,
     loadingMessages,
-    setLoadingMessages,
     error,
     setError,
     pending,
-    chooseAvailableSelection,
     loadBootstrap,
     loadMessages,
     openConversation: setActiveConversation,
-    invalidateMessages,
+    upsertBot,
+    upsertGroup,
+    replaceBootstrap,
+    refreshAfterMutation,
+    clearMessages,
   } = chat;
   const [drawerOpen, setDrawerOpen] = useState(wide);
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
-  const [editor, setEditor] = useState<'new' | 'edit' | undefined>(initialCapability ? 'edit' : undefined);
-  const [suggestedCapability, setSuggestedCapability] = useState(initialCapability);
-  const [groupEditor, setGroupEditor] = useState<'new' | 'edit' | undefined>();
-  const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
-  const [botLibraryRequested, setBotLibraryRequested] = useState(Boolean(initialBotTemplateId));
+  const [overlay, setOverlay] = useState<ChatOverlay>(() => {
+    if (initialBotTemplateId) return { kind: 'botLibrary' };
+    if (initialCapability) return { kind: 'botEditor', mode: 'edit', capability: initialCapability };
+    return { kind: 'none' };
+  });
   const [botOnboardingDismissed, setBotOnboardingDismissed] = useState(false);
-  const [botMenuOpen, setBotMenuOpen] = useState(false);
-  const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
-  const [memorySettingsOpen, setMemorySettingsOpen] = useState(false);
-  const [documentsBot, setDocumentsBot] = useState<Bot>();
-  const [scheduleBot, setScheduleBot] = useState<Bot>();
-  const [pendingBotAction, setPendingBotAction] = useState<BotAction>();
   const [replyBotId, setReplyBotId] = useState<string | null>();
 
   const selectedBot = selection?.kind === 'bot' ? data?.bots.find((bot) => bot.id === selection.id) : undefined;
+  const suggestedCapability = overlay.kind === 'botEditor' ? overlay.capability : undefined;
   const editingBot = selectedBot ?? (suggestedCapability ? data?.bots[0] : undefined);
   const selectedGroup = selection?.kind === 'group' ? data?.groups.find((group) => group.id === selection.id) : undefined;
   const selected = selectedBot ?? selectedGroup;
   const activeBotName = messages.find(
-    (message) => ACTIVE_RESPONSE_STATUSES.has(message.status) && message.authorType === 'bot',
+    (message) => isActiveResponse(message) && message.authorType === 'bot',
   )?.authorName;
-  const processingConversation = messages.some((message) => ACTIVE_RESPONSE_STATUSES.has(message.status))
+  const processingConversation = messages.some(isActiveResponse)
     ? selection
     : undefined;
   const waitingBotCount = messages.filter(
@@ -106,7 +112,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
         .reverse()
         .find(
           (message) =>
-            message.role === 'assistant' && ACTIVE_RESPONSE_STATUSES.has(message.status),
+            message.role === 'assistant' && isActiveResponse(message),
         )
     : undefined;
   const activeReplyBotId = replyBotId === null
@@ -127,10 +133,12 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
   const { attachments, uploading: uploadingAttachment } = attachmentDraft;
   const { listening } = dictation;
   const clearAttachmentDraft = attachmentDraft.clear;
-  const botLibraryOnboarding = Boolean(data?.needsBotOnboarding && !botOnboardingDismissed && !botLibraryRequested);
-  const botLibraryOpen = botLibraryRequested || botLibraryOnboarding;
+  const botLibraryOnboarding = Boolean(
+    data?.needsBotOnboarding && !botOnboardingDismissed && overlay.kind === 'none',
+  );
+  const botLibraryOpen = overlay.kind === 'botLibrary' || botLibraryOnboarding;
 
-  const openConversation = useCallback((next: Selection, closeDrawer = true) => {
+  const openConversation = useCallback((next: ConversationSelection, closeDrawer = true) => {
     clearAttachmentDraft();
     setActiveConversation(next);
     if (closeDrawer) setDrawerOpen(false);
@@ -155,47 +163,25 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
   };
 
   const saveBot = async (value: BotDraft) => {
-    const saved = await api.saveBot(value, editor === 'edit' ? editingBot?.id : undefined);
-    setData((current) => {
-      if (!current) return current;
-      const exists = current.bots.some((bot) => bot.id === saved.id);
-      return { ...current, bots: chiefFirst(exists ? current.bots.map((bot) => (bot.id === saved.id ? saved : bot)) : [saved, ...current.bots]) };
-    });
-    setMessages([]);
-    setLoadingMessages(true);
+    const editing = overlay.kind === 'botEditor' && overlay.mode === 'edit';
+    const saved = await api.saveBot(value, editing ? editingBot?.id : undefined);
     clearAttachmentDraft();
-    setSelection({ kind: 'bot', id: saved.id });
+    upsertBot(saved);
   };
 
   const installBotTemplate = async (templateId: string) => {
     const saved = await api.installBotTemplate(templateId);
-    setBotLibraryRequested(true);
-    setData((current) => current ? {
-      ...current,
-      bots: chiefFirst([saved, ...current.bots]),
-      needsBotOnboarding: false,
-    } : current);
-    setMessages([]);
-    setLoadingMessages(true);
+    setOverlay({ kind: 'botLibrary' });
     clearAttachmentDraft();
-    setSelection({ kind: 'bot', id: saved.id });
+    upsertBot(saved, true);
     return saved;
   };
 
   const saveGroup = async (value: GroupDraft) => {
-    const saved = await api.saveGroup(value, groupEditor === 'edit' ? selectedGroup?.id : undefined);
-    setData((current) => {
-      if (!current) return current;
-      const exists = current.groups.some((group) => group.id === saved.id);
-      return {
-        ...current,
-        groups: exists ? current.groups.map((group) => (group.id === saved.id ? saved : group)) : [saved, ...current.groups],
-      };
-    });
-    setMessages([]);
-    setLoadingMessages(true);
+    const editing = overlay.kind === 'groupEditor' && overlay.mode === 'edit';
+    const saved = await api.saveGroup(value, editing ? selectedGroup?.id : undefined);
     clearAttachmentDraft();
-    setSelection({ kind: 'group', id: saved.id });
+    upsertGroup(saved);
   };
 
   const send = async () => {
@@ -257,14 +243,14 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
     }
   };
 
-  const share = (scope: 'bot' | 'chat') => {
+  const shareBot = () => {
     if (!selectedBot) return;
     api
-      .share(selectedBot.id, scope)
+      .share(selectedBot.id, 'bot')
       .then((url) =>
         Share.share({
           title: `Share ${selectedBot.name}`,
-          message: scope === 'chat' ? `Open my conversation with ${selectedBot.name}: ${url}` : `Add ${selectedBot.name} to FroggyBot: ${url}`,
+          message: `Add ${selectedBot.name} to FroggyBot: ${url}`,
           url,
         }),
       )
@@ -273,40 +259,24 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
 
   const openCapabilityEditor = (capability: CapabilitySelection) => {
     const bot = selectedBot ?? data?.bots[0];
-    setSuggestedCapability(capability);
-    if (bot) setSelection({ kind: 'bot', id: bot.id });
-    setSkillLibraryOpen(false);
-    setEditor(bot ? 'edit' : 'new');
-  };
-
-  const refreshAfterDeletion = async () => {
-    const next = await api.bootstrap();
-    const nextSelection = chooseAvailableSelection(next, selection);
-    invalidateMessages();
-    setData(next);
-    setMessages([]);
-    setError('');
-    clearAttachmentDraft();
-    setSelection(nextSelection);
-    setLoadingMessages(Boolean(nextSelection));
+    if (bot) setActiveConversation({ kind: 'bot', id: bot.id });
+    setOverlay({ kind: 'botEditor', mode: bot ? 'edit' : 'new', capability });
   };
 
   const runBotDeletion = async () => {
-    if (!selectedBot || !pendingBotAction) return;
+    if (!selectedBot || overlay.kind !== 'botConfirmation') return;
     dictation.abort();
     try {
-      if (pendingBotAction === 'clear') {
+      if (overlay.action === 'clear') {
         await api.clearBotChat(selectedBot.id);
         const next = await api.bootstrap();
-        invalidateMessages();
-        setData(next);
-        setMessages([]);
-        setError('');
-        setLoadingMessages(false);
+        replaceBootstrap(next);
+        clearMessages();
         return;
       }
       await api.deleteBot(selectedBot.id);
-      await refreshAfterDeletion();
+      clearAttachmentDraft();
+      await refreshAfterMutation();
     } catch (value) {
       setError(value instanceof Error ? value.message : 'Could not delete that conversation.');
     }
@@ -320,17 +290,16 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
   const removeGroupMember = async (member: GroupMember) => {
     if (!selectedGroup) return;
     await api.removeGroupMember(selectedGroup.id, member.id);
-    const next = await api.bootstrap();
-    setData(next);
     clearAttachmentDraft();
-    setSelection((current) => chooseAvailableSelection(next, current));
+    await loadBootstrap();
   };
 
   const deleteGroup = async () => {
     if (!selectedGroup) return;
     dictation.abort();
     await api.deleteGroup(selectedGroup.id);
-    await refreshAfterDeletion();
+    clearAttachmentDraft();
+    await refreshAfterMutation();
   };
 
   const signOut = async () => {
@@ -355,7 +324,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
     } catch (value) {
       console.warn('Account deletion started, but local sign-out reported an error.', value);
     }
-    setAccountSettingsOpen(false);
+    setOverlay({ kind: 'none' });
     onSignedOut();
   };
 
@@ -375,11 +344,11 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
       onSelectGroup={selectGroup}
       onOpenBotLibrary={() => {
         setBotOnboardingDismissed(true);
-        setBotLibraryRequested(true);
+        setOverlay({ kind: 'botLibrary' });
       }}
-      onCreateBot={() => setEditor('new')}
-      onCreateGroup={() => setGroupEditor('new')}
-      onOpenAccount={() => setAccountSettingsOpen(true)}
+      onCreateBot={() => setOverlay({ kind: 'botEditor', mode: 'new' })}
+      onCreateGroup={() => setOverlay({ kind: 'groupEditor', mode: 'new' })}
+      onOpenAccount={() => setOverlay({ kind: 'account' })}
     />
   );
 
@@ -408,8 +377,8 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
             bottomInset={insets.bottom}
             onDismissError={() => setError('')}
             onToggleDrawer={() => setDrawerOpen((value) => !value)}
-            onEditGroup={() => setGroupEditor('edit')}
-            onOpenBotMenu={() => setBotMenuOpen(true)}
+            onEditGroup={() => setOverlay({ kind: 'groupEditor', mode: 'edit' })}
+            onOpenBotMenu={() => setOverlay({ kind: 'botMenu' })}
             onDraftChange={setDraft}
             onAddAttachment={() => void attachmentDraft.pick()}
             onRemoveAttachment={attachmentDraft.remove}
@@ -431,17 +400,14 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
         </View>
       </KeyboardAvoidingView>
 
-      {editor && data ? (
+      {overlay.kind === 'botEditor' && data ? (
         <BotEditor
-          key={`${editor}-${editingBot?.id ?? 'new'}-${suggestedCapability?.kind ?? ''}-${suggestedCapability?.id ?? ''}`}
-          bot={editor === 'edit' ? editingBot : undefined}
+          key={`${overlay.mode}-${editingBot?.id ?? 'new'}-${suggestedCapability?.kind ?? ''}-${suggestedCapability?.id ?? ''}`}
+          bot={overlay.mode === 'edit' ? editingBot : undefined}
           tools={data?.tools ?? []}
           skills={data?.skills ?? []}
           suggestedCapability={suggestedCapability}
-          onClose={() => {
-            setEditor(undefined);
-            setSuggestedCapability(undefined);
-          }}
+          onClose={() => setOverlay({ kind: 'none' })}
           onSave={saveBot}
           onLoadSkill={api.skill}
         />
@@ -454,29 +420,29 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
           onboarding={botLibraryOnboarding}
           initialTemplateId={initialBotTemplateId}
           onClose={() => {
-            setBotLibraryRequested(false);
             setBotOnboardingDismissed(true);
+            setOverlay({ kind: 'none' });
           }}
           onInstall={installBotTemplate}
         />
       ) : null}
-      {groupEditor ? (
+      {overlay.kind === 'groupEditor' ? (
         <GroupEditor
-          key={`${groupEditor}-${selectedGroup?.id ?? 'new'}`}
-          group={groupEditor === 'edit' ? selectedGroup : undefined}
+          key={`${overlay.mode}-${selectedGroup?.id ?? 'new'}`}
+          group={overlay.mode === 'edit' ? selectedGroup : undefined}
           bots={data?.bots ?? []}
-          onClose={() => setGroupEditor(undefined)}
+          onClose={() => setOverlay({ kind: 'none' })}
           onSave={saveGroup}
           onShare={shareGroup}
           onRemoveMember={removeGroupMember}
           onDelete={deleteGroup}
         />
       ) : null}
-      {skillLibraryOpen ? (
+      {overlay.kind === 'skillLibrary' ? (
         <SkillLibrary
           skills={data?.skills ?? []}
           tools={data?.tools ?? []}
-          onClose={() => setSkillLibraryOpen(false)}
+          onClose={() => setOverlay({ kind: 'none' })}
           onLoad={api.skill}
           onSave={api.saveSkill}
           onShare={api.shareSkill}
@@ -487,50 +453,43 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
           onUse={openCapabilityEditor}
         />
       ) : null}
-      {scheduleBot ? (
+      {overlay.kind === 'schedule' ? (
         <ScheduledTasks
-          bot={scheduleBot}
-          onClose={() => setScheduleBot(undefined)}
+          bot={overlay.bot}
+          onClose={() => setOverlay({ kind: 'none' })}
           onList={api.schedules}
           onSave={api.saveSchedule}
           onDelete={api.deleteSchedule}
           onRun={api.runSchedule}
           onTriggered={async () => {
-            setMessages([]);
-            setLoadingMessages(true);
+            clearMessages(true);
             await loadMessages();
           }}
         />
       ) : null}
-      {documentsBot ? (
+      {overlay.kind === 'documents' ? (
         <BotDocuments
-          bot={documentsBot}
-          onClose={() => setDocumentsBot(undefined)}
+          bot={overlay.bot}
+          onClose={() => setOverlay({ kind: 'none' })}
           onList={api.botDocuments}
           onOpen={openFile}
         />
       ) : null}
-      {accountSettingsOpen ? (
+      {overlay.kind === 'account' ? (
         <AccountSettings
           demo={demo}
-          onClose={() => setAccountSettingsOpen(false)}
-          onOpenMemory={() => {
-            setAccountSettingsOpen(false);
-            setMemorySettingsOpen(true);
-          }}
-          onOpenSkills={() => {
-            setAccountSettingsOpen(false);
-            setSkillLibraryOpen(true);
-          }}
+          onClose={() => setOverlay({ kind: 'none' })}
+          onOpenMemory={() => setOverlay({ kind: 'memory' })}
+          onOpenSkills={() => setOverlay({ kind: 'skillLibrary' })}
           onListShares={api.sharedLinks}
           onRevokeShare={api.revokeShare}
           onDeleteAccount={deleteAccount}
           onSignOut={signOut}
         />
       ) : null}
-      {memorySettingsOpen ? (
+      {overlay.kind === 'memory' ? (
         <MemorySettings
-          onClose={() => setMemorySettingsOpen(false)}
+          onClose={() => setOverlay({ kind: 'none' })}
           onLoad={api.memories}
           onUpdate={api.updateMemory}
           onDelete={api.deleteMemory}
@@ -539,20 +498,20 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
       ) : null}
       <BotActionSheets
         bot={selectedBot}
-        menuOpen={botMenuOpen}
-        pendingAction={pendingBotAction}
-        onCloseMenu={() => setBotMenuOpen(false)}
-        onEditBot={() => {
-          setSuggestedCapability(undefined);
-          setEditor('edit');
+        menuOpen={overlay.kind === 'botMenu'}
+        pendingAction={overlay.kind === 'botConfirmation' ? overlay.action : undefined}
+        onCloseMenu={() => setOverlay({ kind: 'none' })}
+        onEditBot={() => setOverlay({ kind: 'botEditor', mode: 'edit' })}
+        onDocuments={() => {
+          if (selectedBot) setOverlay({ kind: 'documents', bot: selectedBot });
         }}
-        onDocuments={() => setDocumentsBot(selectedBot)}
-        onSchedule={() => setScheduleBot(selectedBot)}
-        onShareSetup={() => share('bot')}
-        onShareConversation={() => share('chat')}
-        onRequestAction={setPendingBotAction}
+        onSchedule={() => {
+          if (selectedBot) setOverlay({ kind: 'schedule', bot: selectedBot });
+        }}
+        onShareSetup={shareBot}
+        onRequestAction={(action) => setOverlay({ kind: 'botConfirmation', action })}
         onConfirmAction={runBotDeletion}
-        onCloseConfirmation={() => setPendingBotAction(undefined)}
+        onCloseConfirmation={() => setOverlay({ kind: 'none' })}
       />
       <ActionSheet
         visible={Boolean(links.pendingSkill)}

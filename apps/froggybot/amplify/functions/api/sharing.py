@@ -14,6 +14,7 @@ from .groups import _group_items
 from .support import (
     PUBLIC_WEB_BASE_URL,
     ApiError,
+    _active_access_invite,
     _bot_color,
     _delete_share_record,
     _group_pk,
@@ -39,6 +40,7 @@ from .support import (
 def _public_invite_preview(kind: str, token: str) -> dict:
     kind = _validate_string(kind, "kind", 16)
     token = _validate_string(token, "invite", 128)
+    access = _active_access_invite(kind, token)
     if kind == "group":
         invite = table.get_item(
             Key={"pk": f"GROUP_INVITE#{token}", "sk": "META"}, ConsistentRead=True
@@ -48,7 +50,7 @@ def _public_invite_preview(kind: str, token: str) -> dict:
         ):
             raise ApiError(404, "This group invite is invalid or expired")
         group_id = invite.get("groupId")
-        if not isinstance(group_id, str):
+        if not isinstance(group_id, str) or access.get("targetId") != group_id:
             raise ApiError(404, "This group invite is invalid")
         items = _group_items(group_id)
         meta = next((item for item in items if item.get("sk") == "META"), None)
@@ -91,7 +93,10 @@ def _public_invite_preview(kind: str, token: str) -> dict:
         ):
             raise ApiError(404, "This FroggyBot invite is invalid or expired")
         bot = share.get("snapshot", {}).get("bot")
-        if not isinstance(bot, dict):
+        if (
+            not isinstance(bot, dict)
+            or access.get("targetId") != share.get("targetId")
+        ):
             raise ApiError(404, "This FroggyBot invite is invalid")
         return {
             "kind": kind,
@@ -116,7 +121,10 @@ def _public_invite_preview(kind: str, token: str) -> dict:
         ):
             raise ApiError(404, "This skill invite is invalid or expired")
         skill = share.get("snapshot")
-        if not isinstance(skill, dict):
+        if (
+            not isinstance(skill, dict)
+            or access.get("targetId") != skill.get("id")
+        ):
             raise ApiError(404, "This skill invite is invalid")
         return {
             "kind": "skill",
@@ -247,7 +255,10 @@ def _create_share(user_id: str, value: dict) -> dict:
             }
             for turn in _list_turns(user_id, bot_id)
         ]
-    if len(json.dumps(snapshot, default=_json_default)) > 350_000:
+    encoded_snapshot = json.dumps(
+        snapshot, default=_json_default, separators=(",", ":")
+    ).encode("utf-8")
+    if len(encoded_snapshot) > 350_000:
         raise ApiError(413, "This conversation is too large to share")
 
     token = secrets.token_urlsafe(18)
@@ -292,6 +303,10 @@ def _import_share(user_id: str, token: str) -> dict:
     ).get("Item")
     if not share or int(share.get("expiresAt", 0)) < int(datetime.now(UTC).timestamp()):
         raise ApiError(404, "This share link is invalid or expired")
+    kind = "chat" if share.get("scope") == "chat" else "bot"
+    access = _active_access_invite(kind, token)
+    if access.get("targetId") != share.get("targetId"):
+        raise ApiError(404, "This share link is invalid or expired")
     for skill in share["snapshot"].get("skills", []):
         try:
             catalog.install_snapshot(user_id, skill)
@@ -327,7 +342,7 @@ def _import_share(user_id: str, token: str) -> dict:
                 "status": "COMPLETE",
             }
         )
-    _record_invite_join("chat" if share.get("scope") == "chat" else "bot", token)
+    _record_invite_join(kind, token)
     return bot
 
 
@@ -369,6 +384,7 @@ def _share_skill(user_id: str, skill_id: str) -> dict:
 
 def _import_skill(user_id: str, token: str) -> dict:
     try:
+        _active_access_invite("skill", token)
         skill = catalog.import_share(user_id, token)
         _record_invite_join("skill", token)
         return skill

@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from shared.cleanup import group_invite_records, group_member_ids, has_pending_work
+from shared.cleanup import has_pending_work, purge_group
 from shared.invites import invite_token_hash, invite_url
 
 from .bots import _get_bot
@@ -15,6 +15,7 @@ from .support import (
     FILES_BUCKET_NAME,
     PUBLIC_WEB_BASE_URL,
     ApiError,
+    _active_access_invite,
     _bot_color,
     _group_pk,
     _now,
@@ -285,6 +286,7 @@ def _create_group_invite(user_id: str, group_id: str) -> dict:
 
 def _join_group(user_id: str, display_name: str, token: str) -> dict:
     token = _validate_string(token, "invite", 128)
+    access = _active_access_invite("group", token)
     invite = table.get_item(
         Key={"pk": f"GROUP_INVITE#{token}", "sk": "META"}, ConsistentRead=True
     ).get("Item")
@@ -293,7 +295,7 @@ def _join_group(user_id: str, display_name: str, token: str) -> dict:
     ):
         raise ApiError(404, "This group invite is invalid or expired")
     group_id = invite.get("groupId")
-    if not isinstance(group_id, str):
+    if not isinstance(group_id, str) or access.get("targetId") != group_id:
         raise ApiError(404, "This group invite is invalid")
     items = _group_items(group_id)
     if not next((item for item in items if item.get("sk") == "META"), None):
@@ -352,79 +354,11 @@ def _delete_group(user_id: str, group_id: str) -> dict:
 
 def _purge_group(group_id: str, items: list[dict] | None = None) -> None:
     items = items or _partition_items(_group_pk(group_id))
-    members = group_member_ids(items)
-    invites = group_invite_records(items)
-    _delete_group_artifacts(group_id)
-    with table.batch_writer() as batch:
-        for item in items:
-            batch.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
-        for member_id in members:
-            batch.delete_item(
-                Key={"pk": _user_pk(member_id), "sk": f"GROUP#{group_id}"}
-            )
-        for token, _token_hash in invites:
-            batch.delete_item(Key={"pk": f"GROUP_INVITE#{token}", "sk": "META"})
-        for invite in items:
-            if (
-                invite.get("entity") == "GROUP_INVITE_POINTER"
-                and isinstance(invite.get("createdBy"), str)
-                and isinstance(invite.get("token"), str)
-            ):
-                batch.delete_item(
-                    Key={
-                        "pk": _user_pk(invite["createdBy"]),
-                        "sk": f"INVITE#{invite['token']}",
-                    }
-                )
-    if invites:
-        with invite_access_table.batch_writer() as batch:
-            for _token, token_hash in invites:
-                batch.delete_item(Key={"tokenHash": token_hash})
-
-
-def _delete_group_artifacts(group_id: str) -> int:
-    if not FILES_BUCKET_NAME:
-        return 0
-    prefix = f"groups/{group_id}/"
-    deleted = 0
-    key_marker = None
-    version_marker = None
-    while True:
-        request: dict[str, Any] = {
-            "Bucket": FILES_BUCKET_NAME,
-            "Prefix": prefix,
-            "MaxKeys": 1000,
-        }
-        if key_marker:
-            request["KeyMarker"] = key_marker
-        if version_marker:
-            request["VersionIdMarker"] = version_marker
-        response = s3.list_object_versions(**request)
-        versions = [
-            {"Key": item["Key"], "VersionId": item["VersionId"]}
-            for item in [
-                *response.get("Versions", []),
-                *response.get("DeleteMarkers", []),
-            ]
-            if isinstance(item.get("Key"), str)
-            and isinstance(item.get("VersionId"), str)
-        ]
-        if versions:
-            result = s3.delete_objects(
-                Bucket=FILES_BUCKET_NAME,
-                Delete={"Objects": versions, "Quiet": True},
-            )
-            errors = result.get("Errors", [])
-            if errors:
-                raise RuntimeError(
-                    f"S3 did not delete {len(errors)} group artifact versions"
-                )
-            deleted += len(versions)
-        if response.get("IsTruncated") is not True:
-            return deleted
-        key_marker = response.get("NextKeyMarker")
-        version_marker = response.get("NextVersionIdMarker")
-        if not isinstance(key_marker, str) or not key_marker:
-            raise RuntimeError(
-                "S3 group artifact pagination did not return a key marker"
-            )
+    purge_group(
+        table,
+        invite_access_table,
+        s3,
+        FILES_BUCKET_NAME,
+        group_id,
+        items,
+    )

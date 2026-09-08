@@ -43,15 +43,13 @@ class FakeModel(Model):
         prompt: Any,
         system_prompt: str | None = None,
         **kwargs: Any,
-    ) -> AsyncGenerator[dict[str, Any], None]:
+    ) -> AsyncGenerator[dict[str, Any]]:
         if self.error:
             raise self.error
         if False:
             yield {}
 
-    async def stream(
-        self, *args: Any, **kwargs: Any
-    ) -> AsyncGenerator[dict[str, Any], None]:
+    async def stream(self, *args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any]]:
         self.calls += 1
         for event in self.events:
             yield event

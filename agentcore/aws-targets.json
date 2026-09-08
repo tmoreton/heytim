@@ -1,7 +1,7 @@
 [
   {
     "name": "development",
-    "description": "FroggyBot development environment",
+    "description": "Live FrogBot development environment; not a production baseline",
     "account": "188757775631",
     "region": "us-east-1"
   }

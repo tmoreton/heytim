@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import * as Clipboard from 'expo-clipboard';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AgentActivity } from '@/components/agent-activity';
@@ -6,6 +7,8 @@ import { BotAvatar } from '@/components/bot-avatar';
 import { MessageMarkdown } from '@/components/message-markdown';
 import { PersonAvatar } from '@/components/participant-avatar';
 import type { Attachment, Message } from '@/lib/types';
+
+import { isActiveResponse } from './chat-state';
 
 type Props = {
   message: Message;
@@ -51,13 +54,15 @@ export function MessageBubble({
   const [approvalAction, setApprovalAction] = useState<'reject' | 'once' | 'always'>();
   const [downloadingFileIds, setDownloadingFileIds] = useState<Set<string>>(() => new Set());
   const [downloadedFileIds, setDownloadedFileIds] = useState<Set<string>>(() => new Set());
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+  const copyFeedbackTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mine = groupMode && message.authorType === 'user' && message.isMine;
   const assistant = groupMode ? !mine : message.role === 'assistant';
   const botMessage = message.role === 'assistant' || message.authorType === 'bot';
   const authorName = message.authorName ?? (botMessage ? botName ?? 'FroggyBot' : 'Person');
   const label = roleLabel(message);
   const queued = message.status === 'waiting';
-  const working = message.status === 'pending' || message.status === 'running';
+  const working = isActiveResponse(message);
   const awaitingApproval = message.status === 'awaiting_approval';
   const actingOnApproval = Boolean(approvalAction);
   const compactContribution =
@@ -75,6 +80,21 @@ export function MessageBubble({
       <PersonAvatar name={authorName} size={31} />
     )
   ) : null;
+
+  useEffect(() => () => {
+    if (copyFeedbackTimeout.current) clearTimeout(copyFeedbackTimeout.current);
+  }, []);
+
+  const copyMessage = async () => {
+    try {
+      const copied = await Clipboard.setStringAsync(message.text);
+      setCopyState(copied ? 'copied' : 'error');
+    } catch {
+      setCopyState('error');
+    }
+    if (copyFeedbackTimeout.current) clearTimeout(copyFeedbackTimeout.current);
+    copyFeedbackTimeout.current = setTimeout(() => setCopyState('idle'), 1600);
+  };
 
   return (
     <View style={[styles.row, assistant ? styles.assistantRow : styles.userRow, groupMode && styles.groupRow]}>
@@ -200,20 +220,36 @@ export function MessageBubble({
                 </Pressable>
               );
             })}
-            {botMessage && compactContribution && !expanded ? (
-              <Text selectable selectionColor="#79B393" numberOfLines={4} style={styles.contributionPreview}>
-                {preview}
-              </Text>
-            ) : botMessage ? (
-              <MessageMarkdown>{message.text}</MessageMarkdown>
-            ) : (
-              <Text
-                selectable
-                selectionColor={assistant ? '#79B393' : '#B8E0CB'}
-                style={[styles.message, assistant ? styles.assistantText : styles.userText]}>
-                {message.text}
-              </Text>
-            )}
+            {message.text ? (
+              <Pressable
+                accessibilityHint="Copies this message to the clipboard"
+                accessibilityLabel={copyState === 'copied' ? 'Message copied' : 'Copy message'}
+                accessibilityRole="button"
+                style={({ pressed }) => pressed && styles.copyPressed}
+                onPress={() => void copyMessage()}>
+                {botMessage && compactContribution && !expanded ? (
+                  <Text selectable selectionColor="#79B393" numberOfLines={4} style={styles.contributionPreview}>
+                    {preview}
+                  </Text>
+                ) : botMessage ? (
+                  <MessageMarkdown>{message.text}</MessageMarkdown>
+                ) : (
+                  <Text
+                    selectable
+                    selectionColor={assistant ? '#79B393' : '#B8E0CB'}
+                    style={[styles.message, assistant ? styles.assistantText : styles.userText]}>
+                    {message.text}
+                  </Text>
+                )}
+                {copyState !== 'idle' ? (
+                  <Text
+                    accessibilityLiveRegion="polite"
+                    style={[styles.copyFeedback, !assistant && styles.userCopyFeedback]}>
+                    {copyState === 'copied' ? 'Copied' : 'Could not copy'}
+                  </Text>
+                ) : null}
+              </Pressable>
+            ) : null}
             {compactContribution ? (
               <Pressable
                 accessibilityRole="button"
@@ -274,5 +310,8 @@ const styles = StyleSheet.create({
   contributionPreview: { color: '#24231F', fontSize: 15, lineHeight: 21 },
   contributionToggle: { alignSelf: 'flex-start', marginTop: 8, paddingVertical: 3 },
   contributionToggleText: { color: '#007A3D', fontSize: 11, fontWeight: '700' },
+  copyPressed: { opacity: 0.72 },
+  copyFeedback: { alignSelf: 'flex-end', color: '#007A3D', fontSize: 10, fontWeight: '800', marginTop: 5 },
+  userCopyFeedback: { color: 'rgba(255,255,255,0.8)' },
   pressed: { opacity: 0.65 },
 });

@@ -4,7 +4,6 @@ IN_FLIGHT_STATUSES = frozenset(
     {"PENDING", "RUNNING", "WAITING", "NEEDS_INPUT", "AWAITING_APPROVAL"}
 )
 CLAIMABLE_STATUSES = frozenset({"PENDING", "RUNNING"})
-TERMINAL_STATUSES = frozenset({"COMPLETE", "ERROR", "CANCELLED"})
 
 
 def is_in_flight(status: object) -> bool:

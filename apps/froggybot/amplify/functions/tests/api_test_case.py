@@ -59,8 +59,7 @@ class FakeBatch:
 
     def delete_item(self, Key: dict) -> None:
         self.table.deleted.append(dict(Key))
-        if "pk" in Key:
-            self.table.items.pop((Key["pk"], Key["sk"]), None)
+        self.table.items.pop(self.table._storage_key(Key), None)
 
 
 class FakeTable:
@@ -77,27 +76,31 @@ class FakeTable:
             )
         )
 
+    @staticmethod
+    def _storage_key(value: dict) -> tuple[str, str]:
+        if "pk" in value and "sk" in value:
+            return value["pk"], value["sk"]
+        return "tokenHash", value["tokenHash"]
+
     @contextmanager
     def batch_writer(self):
         yield FakeBatch(self)
 
     def put_item(self, *, Item: dict, **_kwargs) -> None:
         self.put.append(dict(Item))
-        if "pk" in Item:
-            self.items[(Item["pk"], Item["sk"])] = dict(Item)
+        self.items[self._storage_key(Item)] = dict(Item)
 
     def delete_item(self, *, Key: dict, ReturnValues: str | None = None) -> dict:
         self.deleted.append(dict(Key))
         item = None
-        if "pk" in Key:
-            item = self.items.pop((Key["pk"], Key["sk"]), None)
+        item = self.items.pop(self._storage_key(Key), None)
         return {"Attributes": dict(item)} if ReturnValues == "ALL_OLD" and item else {}
 
     def update_item(self, **kwargs) -> None:
         self.updated.append(kwargs)
 
     def get_item(self, *, Key: dict, **_kwargs) -> dict:
-        item = self.items.get((Key["pk"], Key["sk"]))
+        item = self.items.get(self._storage_key(Key))
         return {"Item": dict(item)} if item else {}
 
     def scan(self, **_kwargs) -> dict:

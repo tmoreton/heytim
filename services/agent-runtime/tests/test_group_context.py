@@ -6,6 +6,10 @@ from group_context import collaboration_instructions
 
 
 class GroupContextTests(unittest.TestCase):
+    def test_rejects_unknown_contract_version(self) -> None:
+        with self.assertRaisesRegex(ValueError, "schemaVersion"):
+            collaboration_instructions({"schemaVersion": 2})
+
     def test_instructions_explain_roster_and_contributor_role(self) -> None:
         instructions = collaboration_instructions(
             {

@@ -8,7 +8,6 @@
     "scheme": "frogbot",
     "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/images/frogbot-icon.png",
       "supportsTablet": true,
       "bundleIdentifier": "com.frogbot.app",
       "appleTeamId": "GVXC5FQ2RP",
@@ -61,7 +60,6 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
       "eas": {
         "projectId": "040c2a82-3c96-494a-aec0-1084b05e6d1a"
       }

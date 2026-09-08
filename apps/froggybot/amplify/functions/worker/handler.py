@@ -4,12 +4,13 @@ import json
 import logging
 from typing import Any
 
+from .account_cleanup import _delete_account
 from .background_work import _process_background_work
 from .direct_job import _process_agent_reply
 from .group_job import _process_group_agent_reply, _process_group_agent_round
 from .notifications import _check_push_receipts, _send_push_notification
 from .scheduled_job import _process_scheduled_agent_reply, _request_string
-from .support import ACTIVE_VISIBILITY_SECONDS, QUEUE_URL, sqs
+from .support import ACTIVE_VISIBILITY_SECONDS, QUEUE_URL, catalog, sqs
 
 RETRY_VISIBILITY_SECONDS = 10
 
@@ -19,9 +20,10 @@ logger = logging.getLogger(__name__)
 def _process(record: dict) -> None:
     request = json.loads(record["body"])
     request_type = request.get("type", "AGENT_REPLY")
+    if request_type == "CATALOG_REFRESH":
+        catalog.sync_official(force=True)
+        return
     if request_type == "DELETE_ACCOUNT":
-        from api.account import _delete_account
-
         _delete_account(
             _request_string(request, "userId", 255),
             _request_string(request, "username", 255),
