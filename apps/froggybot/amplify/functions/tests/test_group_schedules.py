@@ -48,9 +48,11 @@ class GroupScheduleApiTests(ApiTestCase):
 
     def test_direct_route_cannot_access_group_schedule(self):
         item = self.module._save_group_schedule("owner", "work", self.draft)
-        with patch.object(self.schedules, "table", self.data_table):
-            with self.assertRaises(self.support.ApiError):
-                self.schedules._get_schedule("owner", "chief", item["id"])
+        with (
+            patch.object(self.schedules, "table", self.data_table),
+            self.assertRaises(self.support.ApiError),
+        ):
+            self.schedules._get_schedule("owner", "chief", item["id"])
 
 
 class ScheduledGroupWorkerTests(WorkerTestCase):
