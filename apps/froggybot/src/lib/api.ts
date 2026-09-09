@@ -4,6 +4,8 @@ import type {
   Attachment,
   Bootstrap,
   Bot,
+  BotBrowserContext,
+  BotBrowserState,
   BotDocument,
   BotDraft,
   Connection,
@@ -38,6 +40,11 @@ export interface FrogBotApi {
   installBotTemplate(templateId: string): Promise<Bot>;
   messages(botId: string): Promise<Message[]>;
   botDocuments(botId: string): Promise<BotDocument[]>;
+  browserStatus(context: BotBrowserContext): Promise<BotBrowserState>;
+  openBrowser(context: BotBrowserContext): Promise<BotBrowserState>;
+  resumeBrowser(context: BotBrowserContext, rememberLogin: boolean): Promise<BotBrowserState>;
+  closeBrowser(context: BotBrowserContext): Promise<BotBrowserState>;
+  forgetBrowserLogin(context: BotBrowserContext): Promise<BotBrowserState>;
   saveBot(draft: BotDraft, botId?: string): Promise<Bot>;
   clearBotChat(botId: string, forgetMemory?: boolean): Promise<void>;
   deleteBot(botId: string): Promise<void>;

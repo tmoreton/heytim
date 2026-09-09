@@ -58,7 +58,7 @@ def _finish_work(
         update_expression += ", artifacts = :artifacts"
         values[":artifacts"] = artifacts
     update_expression += (
-        " REMOVE leaseOwner, leaseExpiresAt, pendingWork, backgroundResults"
+        " REMOVE leaseOwner, leaseExpiresAt, pendingWork, backgroundResults, runtimeResult"
     )
     try:
         table.update_item(
@@ -83,7 +83,7 @@ def _pause_work(
             UpdateExpression=(
                 "SET #status = :pending, pendingWork = :work, activity = :activity, "
                 "activityUpdatedAt = :updated REMOVE leaseOwner, leaseExpiresAt, "
-                "backgroundResults"
+                "backgroundResults, runtimeResult"
             ),
             ConditionExpression="#status = :running AND leaseOwner = :owner",
             ExpressionAttributeNames={"#status": "status"},

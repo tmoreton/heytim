@@ -366,6 +366,11 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
         <View style={styles.shell}>
           {wide && drawerOpen ? <View style={styles.wideDrawer}>{drawer}</View> : null}
           <ConversationPanel
+            browserApi={api}
+            browserVisible={overlay.kind === 'browser'}
+            onOpenBrowser={() => setOverlay({ kind: 'browser' })}
+            onCloseBrowser={() => setOverlay({ kind: 'none' })}
+            onBrowserResumed={async () => { await Promise.all([loadMessages(), loadBootstrap()]); }}
             key={selectedGroup ? `group:${selectedGroup.id}` : `bot:${selectedBot?.id ?? 'none'}`}
             fullWidth={Platform.OS !== 'web' || !wide}
             bot={selectedBot}
@@ -569,6 +574,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
         pendingAction={overlay.kind === 'botConfirmation' ? overlay.action : undefined}
         onCloseMenu={() => setOverlay({ kind: 'none' })}
         onEditBot={() => setOverlay({ kind: 'botEditor', mode: 'edit' })}
+        onBrowser={() => setOverlay({ kind: 'browser' })}
         onEditGroup={() => setOverlay({ kind: 'groupEditor', mode: 'edit' })}
         onDocuments={() => {
           if (selectedBot) setOverlay({ kind: 'documents', bot: selectedBot });

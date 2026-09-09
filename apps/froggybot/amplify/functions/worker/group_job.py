@@ -142,7 +142,7 @@ def _process_group_agent_reply(
     def cleanup_artifacts() -> None:
         _delete_group_generated_artifacts(group_id, reply["id"])
 
-    attempt = begin_attempt(record, cleanup_artifacts)
+    attempt = begin_attempt(record, lambda: None)
     try:
         round_position = int(
             request.get("roundPosition", reply.get("roundPosition", 1))
@@ -185,6 +185,8 @@ def _process_group_agent_reply(
             ),
             continuation=reply.get("backgroundResults"),
             on_progress=_progress_updater(reply_key, lease_owner),
+            runtime_result=reply.get("runtimeResult"),
+            work_key=reply_key, lease_owner=lease_owner, resume_request=request,
         )
         requested_by = request.get("requestedBy")
         billing_user_id = (
@@ -194,7 +196,7 @@ def _process_group_agent_reply(
         )
         record_invocation_usage(
             billing_user_id,
-            lease_owner,
+            result.usage_event_id or lease_owner,
             result.usage,
             work_type=("group_round" if round_size > 1 else "group"),
             bot_id=bot_id,
@@ -281,6 +283,7 @@ def _process_group_agent_round(record: dict, request: dict) -> None:
     replies = request.get("replies")
     index = request.get("nextReplyIndex", 0)
     reply, final_reply = group_round_step(replies, index)
+    logger.info("Group round %s step %d/%d for reply %s", request.get("messageId"), index + 1, len(replies), reply.get("replyKey"))
     if request.get("scheduleId"):
         user_id = request.get("requestedBy")
         group_id = request["groupId"]
@@ -305,6 +308,7 @@ def _process_group_agent_round(record: dict, request: dict) -> None:
             QueueUrl=QUEUE_URL,
             MessageBody=json.dumps({**request, "nextReplyIndex": index + 1}),
         )
+        logger.info("Group round %s queued step %d/%d", request.get("messageId"), index + 2, len(replies))
     if answer is not None and final_reply and request.get("scheduleId"):
         states = [table.get_item(Key={"pk": _group_pk(request["groupId"]), "sk": entry["replyKey"]}, ConsistentRead=True).get("Item", {}) for entry in replies]
         status = "error" if any(item.get("status") == "ERROR" for item in states) else "complete"

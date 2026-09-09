@@ -10,6 +10,8 @@ import {
 import { BotAvatar } from '@/components/bot-avatar';
 import { GroupAvatar } from '@/components/participant-avatar';
 import type { Attachment, Bot, Group, Message } from '@/lib/types';
+import type { BrowserApi } from '@/lib/browser-api';
+import { BrowserHandoff } from '../browser/browser-handoff';
 
 import { ConversationHeader } from './conversation-header';
 import { MessageBubble } from './message-bubble';
@@ -17,6 +19,11 @@ import { MessageComposer } from './message-composer';
 import { useChatScroll } from './use-chat-scroll';
 
 type Props = {
+  browserApi: BrowserApi;
+  browserVisible: boolean;
+  onOpenBrowser: () => void;
+  onCloseBrowser: () => void;
+  onBrowserResumed: () => Promise<void>;
   fullWidth: boolean;
   bot?: Bot;
   group?: Group;
@@ -54,6 +61,11 @@ type Props = {
 };
 
 export function ConversationPanel({
+  browserApi,
+  browserVisible,
+  onOpenBrowser,
+  onCloseBrowser,
+  onBrowserResumed,
   fullWidth,
   bot,
   group,
@@ -104,6 +116,8 @@ export function ConversationPanel({
         onToggleDrawer={onToggleDrawer}
         onOpenMenu={onOpenMenu}
       />
+
+      {bot && !group ? <BrowserHandoff key={bot.id} api={browserApi} bot={bot} active={pending} visible={browserVisible} onOpen={onOpenBrowser} onClose={onCloseBrowser} onResumed={onBrowserResumed} /> : null}
 
       {error ? (
         <Pressable

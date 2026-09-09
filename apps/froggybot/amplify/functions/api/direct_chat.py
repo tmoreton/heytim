@@ -15,6 +15,7 @@ from .schedules import _get_schedule
 from .support import (
     AGENT_RUNTIME_ARN,
     AGENT_RUNTIME_QUALIFIER,
+    FILES_BUCKET_NAME,
     QUEUE_URL,
     ApiError,
     _bot_sk,
@@ -26,6 +27,7 @@ from .support import (
     _validate_string,
     agentcore,
     catalog,
+    s3,
     sqs,
     table,
 )
@@ -38,6 +40,19 @@ SEND_LEASE_SECONDS = 60
 def _stop_background_work(turn: dict) -> None:
     sessions = set()
     for work in turn.get("pendingWork", []):
+        if isinstance(work, dict) and work.get("provider") == "agentcore_runtime":
+            try:
+                s3.put_object(Bucket=FILES_BUCKET_NAME, Key=f"{work['taskId']}.cancel",
+                              Body=b'{"cancelled":true}', ContentType="application/json")
+                agentcore.stop_runtime_session(
+                    agentRuntimeArn=AGENT_RUNTIME_ARN, qualifier=AGENT_RUNTIME_QUALIFIER,
+                    runtimeSessionId=work["sessionId"],
+                )
+            except agentcore.exceptions.ResourceNotFoundException:
+                pass
+            except Exception:
+                logger.exception("Could not stop background agent; poll will retry")
+            continue
         if not isinstance(work, dict) or work.get("provider") != "agentcore_code_interpreter":
             continue
         resource_id = work.get("resourceId")
@@ -235,7 +250,7 @@ def _interrupt_bot_turn(
             Key={"pk": turn["pk"], "sk": turn["sk"]},
             UpdateExpression=(
                 "SET #status = :cancelled, assistantText = :message, completedAt = :now "
-                "REMOVE leaseOwner, leaseExpiresAt, pendingWork, backgroundResults"
+                "REMOVE leaseOwner, leaseExpiresAt, backgroundResults, runtimeResult"
             ),
             ConditionExpression=(
                 "#status = :pending OR #status = :running OR #status = :waiting OR "
@@ -298,6 +313,13 @@ def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
     )
     lease_owner = _claim_send_lease(user_id, bot_id)
     try:
+        from shared.browser_session_store import BrowserSessionError
+        from shared.browser_sessions import ensure_browser_send_allowed
+
+        try:
+            ensure_browser_send_allowed(table, user_id, bot_id)
+        except BrowserSessionError as exc:
+            raise ApiError(exc.status_code, exc.message) from None
         steered_turn_ids = _steer_active_turns(
             user_id, bot_id, _partition_items(_turn_pk(user_id, bot_id))
         )

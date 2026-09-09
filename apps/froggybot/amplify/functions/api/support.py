@@ -95,6 +95,7 @@ scheduler = boto3.client(
 catalog = CatalogService(table, refresh_on_read=False)
 SCHEDULE_LIMIT = 25
 MAX_ATTACHMENTS_PER_MESSAGE = 5
+MAX_REQUEST_BODY_BYTES = 256_000
 DOCUMENT_MAX_BYTES = 4_500_000
 IMAGE_MAX_BYTES = 3_750_000
 ATTACHMENT_FORMATS = {
@@ -166,7 +167,13 @@ def _username(event: dict) -> str:
 
 
 def _body(event: dict) -> dict:
-    raw = event.get("body") or "{}"
+    raw = event.get("body")
+    if raw is None or raw == "":
+        raw = "{}"
+    if not isinstance(raw, str):
+        raise ApiError(400, "Request body must be valid JSON")
+    if len(raw) > MAX_REQUEST_BODY_BYTES or len(raw.encode("utf-8")) > MAX_REQUEST_BODY_BYTES:
+        raise ApiError(413, "Request body is too large")
     try:
         value = json.loads(raw)
     except json.JSONDecodeError as exc:

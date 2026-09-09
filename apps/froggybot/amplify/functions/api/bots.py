@@ -4,6 +4,8 @@ import json
 import uuid
 
 from boto3.dynamodb.conditions import Attr
+from shared.browser_session_store import BrowserSessionError, context_key
+from shared.browser_sessions import delete_browser_context
 from shared.catalog import CatalogError
 from shared.cleanup import has_pending_work
 from shared.memory_identity import direct_session_id, memory_actor_id
@@ -550,6 +552,10 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
         if meta:
             group_meta_updates.append({**meta, "updatedAt": _now()})
 
+    try:
+        delete_browser_context(table, user_id, bot_id)
+    except BrowserSessionError as exc:
+        raise ApiError(exc.status_code, exc.message) from None
     forgotten_memory = _forget_bot_conversation(user_id, bot_id)
 
     for schedule_item in schedules:
@@ -570,6 +576,7 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
         for meta in group_meta_updates:
             batch.put_item(Item=meta)
         batch.delete_item(Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot_id)})
+        batch.delete_item(Key=context_key(user_id, bot_id))
         batch.put_item(
             Item={
                 **_user_state_key(user_id),

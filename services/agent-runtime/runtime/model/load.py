@@ -11,7 +11,6 @@ from bedrock_agentcore.identity.auth import requires_api_key
 from pydantic import BaseModel
 from strands.models import (
     CacheConfig,
-    CacheToolsConfig,
     Model,
     ModelRouter,
     RoutingCandidate,
@@ -172,8 +171,7 @@ def load_bedrock_model() -> BedrockModel:
         model_id=FALLBACK_MODEL_ID,
         max_tokens=4096,
         temperature=0.3,
-        cache_config=CacheConfig(strategy="auto", ttl="1h"),
-        cache_tools=CacheToolsConfig(type="default", ttl="1h"),
+        cache_config=CacheConfig(strategy="auto", ttl="1h", tools_ttl="1h"),
     )
 
 

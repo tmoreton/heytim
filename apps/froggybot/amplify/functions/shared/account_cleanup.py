@@ -7,6 +7,7 @@ from typing import Any
 
 from boto3.dynamodb.conditions import Attr
 
+from shared.browser_sessions import delete_browser_context
 from shared.cleanup import delete_share_record, purge_group
 from shared.keys import group_pk, push_owner_key, user_pk, user_state_key
 from shared.memory_cleanup import delete_group_memory, delete_user_memory
@@ -138,6 +139,23 @@ class AccountCleanupService:
             request["ExclusiveStartKey"] = last_key
 
     @staticmethod
+    def owned_runtime_work(
+        user_id: str, user_items: list[dict], group_items: dict[str, list[dict]]
+    ) -> list[dict]:
+        items = list(user_items)
+        for entries in group_items.values():
+            owns_group = any(
+                item.get("entity") == "GROUP" and item.get("ownerId") == user_id
+                for item in entries
+            )
+            items.extend(item for item in entries if owns_group or item.get("botOwnerId") == user_id)
+        return [
+            work for item in items for work in item.get("pendingWork", [])
+            if isinstance(work, dict) and work.get("provider") == "agentcore_runtime"
+            and isinstance(work.get("sessionId"), str)
+        ]
+
+    @staticmethod
     def owned_agent_session_ids(
         user_id: str, user_items: list[dict], group_items: dict[str, list[dict]]
     ) -> set[str]:
@@ -146,6 +164,11 @@ class AccountCleanupService:
             for item in user_items
             if item.get("entity") == "BOT" and isinstance(item.get("id"), str)
         }
+        session_ids.update(
+            work["sessionId"] for work in AccountCleanupService.owned_runtime_work(
+                user_id, user_items, group_items
+            )
+        )
         for group_id, items in group_items.items():
             for item in items:
                 bot_id = item.get("botId")
@@ -301,13 +324,22 @@ class AccountCleanupService:
             group_id: self.partition_items(group_pk(group_id))
             for group_id in group_ids
         }
-        session_ids = self.owned_agent_session_ids(
-            user_id, user_items, group_items_by_id
-        )
+        chat_items = self.scan_items(Attr("pk").begins_with(f"CHAT#{user_id}#"))
+        session_items = user_items + chat_items
+        session_ids = self.owned_agent_session_ids(user_id, session_items, group_items_by_id)
 
         self.record_phase(user_id, "SESSIONS")
+        if self.config.files_bucket_name:
+            for work in self.owned_runtime_work(user_id, session_items, group_items_by_id):
+                self.s3.put_object(
+                    Bucket=self.config.files_bucket_name, Key=f"{work['taskId']}.cancel",
+                    Body=b'{"cancelled":true}', ContentType="application/json",
+                )
         self.stop_runtime_sessions(session_ids)
         self.stop_tool_sessions(session_ids)
+        for item in user_items:
+            if item.get("entity") == "BROWSER_SESSION" and isinstance(item.get("botId"), str):
+                delete_browser_context(self.table, user_id, item["botId"], agentcore=self.agentcore)
         self.record_phase(user_id, "SCHEDULES")
         for item in user_items:
             if item.get("entity") == "SCHEDULE":
@@ -335,7 +367,6 @@ class AccountCleanupService:
         push_items = [
             item for item in user_items if item.get("entity") == "PUSH_TOKEN"
         ]
-        chat_items = self.scan_items(Attr("pk").begins_with(f"CHAT#{user_id}#"))
         with self.table.batch_writer() as batch:
             for push_item in push_items:
                 token_id = push_item.get("tokenId")

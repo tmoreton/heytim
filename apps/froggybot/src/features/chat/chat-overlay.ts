@@ -10,6 +10,7 @@ export type ChatOverlay =
   | { kind: 'skillLibrary' }
   | { kind: 'account' }
   | { kind: 'memory' }
+  | { kind: 'browser' }
   | { kind: 'documents'; bot: Bot }
   | { kind: 'schedule'; bot: Bot }
   | { kind: 'groupSchedule'; group: Group }

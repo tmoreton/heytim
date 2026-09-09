@@ -121,9 +121,24 @@ export function useConversationLinks({
 
   useEffect(() => {
     const initialInvitationUrl = invitation ? invitationUrl(invitation) : undefined;
-    Linking.getInitialURL().then((url) => importUrl(initialInvitationUrl ?? url));
-    const subscription = Linking.addEventListener('url', ({ url }) => importUrl(url));
-    return () => subscription.remove();
+    let active = true;
+    const reportImportError = (value: unknown) => {
+      if (!active) return;
+      Alert.alert(
+        'Could not open link',
+        value instanceof Error ? value.message : 'Please try opening the link again.',
+      );
+    };
+    Linking.getInitialURL()
+      .then((url) => importUrl(initialInvitationUrl ?? url))
+      .catch(reportImportError);
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      void importUrl(url).catch(reportImportError);
+    });
+    return () => {
+      active = false;
+      subscription.remove();
+    };
   }, [importUrl, invitation]);
 
   const installSkill = useCallback(async () => {

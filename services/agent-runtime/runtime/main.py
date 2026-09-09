@@ -13,6 +13,7 @@ from frogbot_runtime.memory import (
     record_completed_turn,
 )
 from frogbot_runtime.request import messages_from_payload
+from frogbot_runtime.runtime_jobs import start_runtime_job
 from frogbot_runtime.streaming import (
     AGENT_IDLE_TIMEOUT_SECONDS,
     AGENT_RUN_TIMEOUT_SECONDS,
@@ -45,8 +46,7 @@ INCOMPLETE_TURN_MESSAGE = (
 )
 
 
-@app.entrypoint
-async def invoke(payload, context):
+async def run_agent(payload, context):
     memory_context = memory_context_from_payload(payload)
     actor_id = memory_context.actor_id if memory_context else None
     messages = messages_from_payload(payload, actor_id)
@@ -83,13 +83,23 @@ async def invoke(payload, context):
     terminal_error = None
     try:
         try:
-            async for event in stream_with_token_recovery(agent, messages, logger=log):
+            # Leave time to save the outcome before AgentCore retires the session.
+            budget = (
+                max(30, AGENT_RUN_TIMEOUT_SECONDS - 60)
+                if payload.get("runtimeJob")
+                else min(AGENT_RUN_TIMEOUT_SECONDS, 720)
+            )
+            async for event in stream_with_token_recovery(
+                agent, messages, logger=log, timeout_seconds=budget
+            ):
                 if not isinstance(event, dict) or "event" not in event:
                     continue
                 block_start = event["event"].get("contentBlockStart")
                 if block_start is not None and not block_start.get("start"):
                     continue
                 yield event
+                if "metadata" in event["event"]:
+                    yield {"frogbotControl": {"usage": usage.snapshot()}}
         except AgentRunTimeoutError:
             terminal_error = {
                 "code": "TURN_TIMEOUT",
@@ -134,6 +144,15 @@ async def invoke(payload, context):
                 await agent.memory_manager.flush()
             except Exception:
                 log.exception("Could not flush memory work for session %s", session_id)
+
+
+@app.entrypoint
+async def invoke(payload, context):
+    if isinstance(payload, dict) and payload.get("runtimeJob") is not None:
+        yield await start_runtime_job(app, payload, context, run_agent)
+        return
+    async for event in run_agent(payload, context):
+        yield event
 
 
 if __name__ == "__main__":

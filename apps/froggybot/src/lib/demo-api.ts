@@ -1,6 +1,7 @@
 import { Asset } from 'expo-asset';
 
 import type { FrogBotApi } from './api';
+import { createDemoBrowserApi } from './browser-api';
 import { deleteDemoGroupDecision, saveDemoGroupDecision } from './demo-decisions';
 import {
   demoBootstrap,
@@ -34,6 +35,7 @@ const demoImageUrl = Asset.fromModule(
 ).uri;
 
 export const createDemoApi = (): FrogBotApi => ({
+  ...createDemoBrowserApi(),
   invitePreview: async ({ kind, token }) => {
     const bootstrap = await demoBootstrap();
     return {

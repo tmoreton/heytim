@@ -46,6 +46,9 @@ class FakeTable:
 
 
 class UsageTests(unittest.TestCase):
+    def test_durable_usage_keeps_integer_decimal_token_counts(self):
+        self.assertEqual(self.usage._count(Decimal(1234)), 1234)
+        self.assertEqual(self.usage._count(Decimal("1.2")), 0)
     @classmethod
     def setUpClass(cls) -> None:
         cls.table = FakeTable()

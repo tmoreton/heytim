@@ -9,6 +9,8 @@ amplify/node_modules/
 .amplify/
 dist/
 web-build/
+public/bot-browser/
+public/nice-dcv-web-client-sdk/
 expo-env.d.ts
 
 # Native

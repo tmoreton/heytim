@@ -68,7 +68,7 @@
         },
         {
           "name": "FROGBOT_AGENT_RUN_TIMEOUT_SECONDS",
-          "value": "720"
+          "value": "28800"
         },
         {
           "name": "FROGBOT_AGENT_IDLE_TIMEOUT_SECONDS",

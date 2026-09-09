@@ -35,8 +35,8 @@ SCHEDULE_GROUP_NAME = os.environ.get("SCHEDULE_GROUP_NAME", "")
 USER_POOL_ID = os.environ.get("USER_POOL_ID", "")
 FROGBOT_MEMORY_ID = os.environ.get("FROGBOT_MEMORY_ID")
 # Keep the lease and message visibility beyond six times the 14-minute Lambda
-# timeout, as recommended for SQS event sources. The runtime has a 12-minute
-# wall-clock budget, leaving enough time to durably finish or release the work.
+# timeout, as recommended for SQS event sources. Agent jobs release this lease
+# after dispatch; their independent eight-hour lifetime is tracked by polling.
 ACTIVE_VISIBILITY_SECONDS = 85 * 60
 WORK_LEASE_SECONDS = ACTIVE_VISIBILITY_SECONDS
 
@@ -54,9 +54,8 @@ agentcore = boto3.client(
         # Lambda and strand its durable lease after the runtime has already failed.
         retries={"total_max_attempts": 1, "mode": "standard"},
         connect_timeout=5,
-        # The runtime gets 12 minutes; retain a minute for streamed framing and
-        # another minute for the worker to persist the terminal result.
-        read_timeout=13 * 60,
+        # Only wait for a short background-job acknowledgement.
+        read_timeout=60,
     ),
 )
 sqs = boto3.client(

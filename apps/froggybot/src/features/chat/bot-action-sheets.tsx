@@ -12,6 +12,7 @@ type Props = {
   onEditBot: () => void;
   onEditGroup: () => void;
   onDocuments: () => void;
+  onBrowser: () => void;
   onSchedule: () => void;
   onShareSetup: () => void;
   onRequestAction: (action: BotAction) => void;
@@ -28,6 +29,7 @@ export function ConversationActionSheets({
   onEditBot,
   onEditGroup,
   onDocuments,
+  onBrowser,
   onSchedule,
   onShareSetup,
   onRequestAction,
@@ -51,6 +53,7 @@ export function ConversationActionSheets({
     : [
         { label: 'Bot settings', onPress: onEditBot },
         { label: 'Files', onPress: onDocuments },
+        { label: 'Browser connection', onPress: onBrowser },
         { label: 'Tasks & runs', onPress: onSchedule },
         { label: 'Share bot setup', onPress: onShareSetup },
         { label: 'Clear conversation', destructive: true, onPress: () => onRequestAction('clear' as const) },

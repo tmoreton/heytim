@@ -8,6 +8,7 @@ from group_context import collaboration_instructions
 
 from .artifacts import artifact_prefix_from_payload
 from .background_work import BackgroundWorkTracker
+from .browser_session import managed_browser_from_payload
 from .capabilities import resolve_capabilities
 
 MAX_INSTRUCTIONS_CHARS = 12_000
@@ -146,6 +147,7 @@ def bot_configuration(
         session_id,
         artifact_prefix,
         allow_background_work=not continuation_instructions,
+        managed_browser=managed_browser_from_payload(payload, actor_id, artifact_prefix),
     )
     instructions = (
         f"Your name is {name.strip()}. You are one member of the user's team of AI assistants.\n\n"
@@ -171,6 +173,15 @@ def bot_configuration(
     )
     if team_instructions:
         instructions = f"{instructions}\n\n{team_instructions}"
+    if any(getattr(tool, "tool_name", "") == "browser" for tool in capabilities.tools):
+        instructions += (
+            "\n- Browser logins belong to this bot's private in-app browser, not the "
+            "user's normal desktop browser. If a site requires sign-in, stop and "
+            "ask the user to select Open bot browser in this direct chat, sign in "
+            "there, and choose Resume bot. Never request passwords, cookies, or "
+            "session tokens in chat. Do not bypass a login or human-control block. "
+            "A saved login does not grant approval for new external actions."
+        )
     if any(
         getattr(tool, "tool_name", "") == "background_command"
         for tool in capabilities.tools

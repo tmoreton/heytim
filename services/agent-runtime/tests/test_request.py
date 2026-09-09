@@ -4,7 +4,13 @@ from io import BytesIO
 
 import pytest
 
-from frogbot_runtime.request import MAX_HISTORY_MESSAGES, messages_from_payload
+from frogbot_runtime.request import (
+    MAX_CONTENT_BLOCKS_PER_MESSAGE,
+    MAX_HISTORY_MESSAGES,
+    MAX_HISTORY_TEXT_CHARS,
+    MAX_MESSAGE_CHARS,
+    messages_from_payload,
+)
 
 
 def test_prompt_is_normalized_to_a_user_message() -> None:
@@ -56,6 +62,25 @@ def test_history_is_bounded() -> None:
     messages = messages_from_payload({"messages": raw})
     assert len(messages) == MAX_HISTORY_MESSAGES
     assert messages[0]["content"][0]["text"] == "Message 5"
+
+
+def test_content_blocks_per_message_are_bounded() -> None:
+    content = [
+        {"text": f"Block {index}"}
+        for index in range(MAX_CONTENT_BLOCKS_PER_MESSAGE + 1)
+    ]
+    with pytest.raises(ValueError, match="content blocks"):
+        messages_from_payload({"messages": [{"role": "user", "content": content}]})
+
+
+def test_total_history_text_is_bounded() -> None:
+    block_count = MAX_HISTORY_TEXT_CHARS // MAX_MESSAGE_CHARS + 1
+    messages = [
+        {"role": "user", "content": [{"text": "x" * MAX_MESSAGE_CHARS}]}
+        for _ in range(block_count)
+    ]
+    with pytest.raises(ValueError, match="history text is too large"):
+        messages_from_payload({"messages": messages})
 
 
 def test_unreviewed_content_is_rejected() -> None:

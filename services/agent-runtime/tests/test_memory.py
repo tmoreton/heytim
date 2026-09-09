@@ -115,6 +115,26 @@ def test_balanced_store_round_robins_categories() -> None:
     ]
 
 
+def test_balanced_store_bounds_agentcore_search_queries() -> None:
+    queries = []
+
+    class Store:
+        name = "preferences"
+
+        async def search(self, query: str, _options=None) -> list[MemoryEntry]:
+            queries.append(query)
+            return []
+
+    store = memory.BalancedMemoryStore(
+        "personal-memory",
+        [("Preference", Store())],
+    )
+
+    asyncio.run(store.search("x" * (memory.MAX_MEMORY_SEARCH_QUERY_CHARS + 1)))
+
+    assert queries == ["x" * memory.MAX_MEMORY_SEARCH_QUERY_CHARS]
+
+
 def test_group_store_uses_only_the_group_actor_for_each_category(monkeypatch) -> None:
     captured = {}
 
@@ -156,4 +176,4 @@ def test_model_enables_one_hour_prompt_and_tool_caching() -> None:
     model = load_bedrock_model()
 
     assert model.config["cache_config"].ttl == "1h"
-    assert model.config["cache_tools"].ttl == "1h"
+    assert model.config["cache_config"].tools_ttl == "1h"

@@ -1,0 +1,25 @@
+import { StyleSheet } from 'react-native';
+
+export const styles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(18,24,19,0.6)', paddingHorizontal: 8, justifyContent: 'center', alignItems: 'center' },
+  modal: { flex: 1, width: '100%', maxWidth: 1440, maxHeight: 1100, borderRadius: 16, overflow: 'hidden', backgroundColor: '#FAFBF8' },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12, borderBottomWidth: 1, borderColor: '#DCE4DD' },
+  identity: { flex: 1, minWidth: 0 },
+  title: { fontSize: 17, fontWeight: '700', color: '#222C25' },
+  profile: { fontSize: 13, fontWeight: '600', color: '#007A3D', marginTop: 4 },
+  instructions: { maxHeight: 134, flexGrow: 0 },
+  instructionContent: { paddingHorizontal: 12, paddingVertical: 8, gap: 5 },
+  copy: { fontSize: 13, lineHeight: 18, color: '#39443C' },
+  small: { fontSize: 11, lineHeight: 16, color: '#667168' },
+  error: { color: '#A2332C', fontSize: 13 },
+  viewer: { flex: 1, minHeight: 160, overflow: 'hidden', backgroundColor: '#E9EEEA' },
+  placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20, gap: 12 },
+  footer: { padding: 10, gap: 8, borderTopWidth: 1, borderColor: '#DCE4DD' },
+  remember: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  actions: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' },
+  button: { minHeight: 40, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 9, backgroundColor: '#E5EEE7', alignItems: 'center', justifyContent: 'center' },
+  buttonText: { fontSize: 12, fontWeight: '600', color: '#006C36' },
+  primary: { backgroundColor: '#007A3D' },
+  primaryText: { color: '#FFFFFF' },
+  disabled: { opacity: 0.45 },
+});

@@ -200,3 +200,55 @@ Persistent memory currently learns user facts, summaries and preferences. It doe
 not silently rewrite core bot behavior from production conversations. Behavioral
 improvements should be proposed from traces and user corrections, replayed against
 a versioned dataset, reviewed, and A/B tested before promotion.
+
+## Eight-hour agent jobs — September 9, 2026
+
+The complete agent loop now supports AgentCore background execution. App workers
+persist a job reference and enqueue a watchdog before dispatch, then return after
+the short acknowledgement. AgentCore tracks the detached task as HealthyBusy and
+saves public progress, usage, heartbeat, and the final result in the existing
+private file bucket. Workers poll every ten seconds and finish the original direct
+turn or group round, including its existing notification flow.
+
+Each run has a fresh session and a deterministic, scope-bound job key. A conditional
+S3 write prevents duplicate starts, including after lost acknowledgements. A crashed
+run is reported as interrupted, never automatically replayed across external side
+effects. Saved activity is included when a user continues or steers an interrupted
+direct turn. Stop writes a durable cancellation marker before stopping the exact
+runtime session; watchdog polling retries cancellation if needed.
+
+The deployed limit is configured as 28,800 seconds. The agent reserves the final
+minute for saving its outcome before the eight-hour session lifetime. Three minutes
+without agent activity still detects a stalled model/tool, and three minutes without
+a persisted heartbeat detects a crashed runtime. These are independent limits.
+The existing one-hour background shell-command limit remains separate. Normal
+short requests end as soon as they finish; eight hours is a ceiling, not a target.
+
+Validation covers seven-hour healthy jobs, the eight-hour deadline, stalled jobs,
+duplicate dispatch, cancel-before-start, conditional completion, group-round
+resumption, persisted usage, and real SDK request/health/background lifecycle.
+Boundary tests advance timestamps; they do not represent an eight-hour live soak.
+
+Deployment/validation status (20:59 UTC): runtime version 43 is READY with the
+28,800-second setting. Background worker, cancellation, history chunking, and
+owned-session cleanup changes were deployed. Read-only GitHub Engineer turn
+`9183ac75-6676-4e48-8581-a3c947911288` completed with its notification queued;
+turn `e4348d7c-a573-4e31-b73a-b2ce95256c9b` acquired a background session and was
+successfully cancelled through the app API. The runtime suite passed 110 tests;
+backend tests, Ruff, Bandit, type checking, and source-size checks passed.
+
+**Not fully enabled yet:** live group tests exposed Lambda recursive-invocation
+protection dropping the polling chain. CloudWatch `RecursiveInvocationsDropped`
+reported drops at 20:41 and 20:51, matching the stalled test handoffs. The worker's
+deployed recursion setting is still `Terminate`. The prepared worker-only
+`RecursiveLoop.ALLOW` infrastructure change was blocked by deployment safety
+review and requires explicit user approval because it removes AWS's automatic
+recursive-loop cutoff. Application deadlines, heartbeat checks, bounded rounds,
+and concurrency controls remain. No workaround or direct setting mutation was
+attempted. The second diagnostic group round (`e3e3d673-a3de-43cd-8490-db4c1839681f`)
+has a saved YouTube result awaiting completion and a waiting Chief synthesis;
+after approval, resume the saved result without replaying completed contributions
+and repeat the complete round. An eight-hour live soak has not been performed.
+
+Other edits arrived concurrently in this worktree during validation and were
+preserved. No commit or push was made for this change before the approval pause.
