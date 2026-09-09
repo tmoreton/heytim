@@ -7,6 +7,7 @@ import type { Attachment, Group } from '@/lib/types';
 export const ALL_BOTS_REPLY_TARGET = 'all';
 
 type Props = {
+  fullWidth: boolean;
   selectedName?: string;
   group?: Group;
   activeReplyBotId?: string;
@@ -29,6 +30,7 @@ type Props = {
 };
 
 export function MessageComposer({
+  fullWidth,
   selectedName,
   group,
   activeReplyBotId,
@@ -67,7 +69,7 @@ export function MessageComposer({
           horizontal
           keyboardShouldPersistTaps="handled"
           showsHorizontalScrollIndicator={false}
-          style={styles.horizontalScroller}
+          style={[styles.horizontalScroller, fullWidth && styles.mobileWidth]}
           contentContainerStyle={styles.replyPicker}>
           <ReplyChip active={!activeReplyBotId} label="Just the group" onPress={() => onReplyTargetChange(null)}>
             <PersonAvatar name="People" size={24} />
@@ -95,7 +97,7 @@ export function MessageComposer({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={styles.horizontalScroller}
+          style={[styles.horizontalScroller, fullWidth && styles.mobileWidth]}
           contentContainerStyle={styles.attachmentList}>
           {attachments.map((file) => (
             <View key={file.id} style={styles.attachmentChip}>
@@ -118,7 +120,7 @@ export function MessageComposer({
           ) : null}
         </ScrollView>
       ) : null}
-      <View style={styles.composer}>
+      <View style={[styles.composer, fullWidth && styles.mobileWidth]}>
         {canAttach ? (
           <Pressable
             accessibilityLabel="Attach files"
@@ -224,6 +226,7 @@ function MicIcon({ active }: { active: boolean }) {
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: 12, paddingTop: 8, backgroundColor: '#FBFBF9', alignItems: 'center' },
   horizontalScroller: { width: '100%', maxWidth: 780 },
+  mobileWidth: { maxWidth: '100%' },
   replyPicker: { gap: 7, paddingBottom: 7 },
   replyChip: {
     minHeight: 44,

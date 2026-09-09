@@ -1,6 +1,9 @@
 import * as Linking from 'expo-linking';
+import { memo } from 'react';
 import Markdown, { MarkdownIt, type RenderRules } from 'react-native-markdown-renderer';
 import { Platform, StyleSheet, Text, type TextStyle } from 'react-native';
+
+import { MarkdownTable, MarkdownTableCell } from './markdown-table';
 
 type Props = {
   children: string;
@@ -8,6 +11,7 @@ type Props = {
 
 const monospace = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
 const markdown = MarkdownIt({ typographer: true, linkify: true });
+const allowedImageHandlers: string[] = [];
 
 const compactLinkLabel = (url: string) => {
   const match = url.match(/^https?:\/\/(?:www\.)?([^/?#]+)(\/[^?#]*)?/i);
@@ -18,8 +22,14 @@ const compactLinkLabel = (url: string) => {
 };
 
 const renderRules: RenderRules = {
-  textgroup: (node, children, _parent, styles) => (
-    <Text key={node.key} selectable selectionColor="#79B393" style={styles.text as TextStyle}>
+  table: (node, children) => <MarkdownTable key={node.key} node={node}>{children}</MarkdownTable>,
+  th: (node, children) => <MarkdownTableCell key={node.key} node={node}>{children}</MarkdownTableCell>,
+  td: (node, children) => <MarkdownTableCell key={node.key} node={node}>{children}</MarkdownTableCell>,
+  textgroup: (node, children, parent, styles) => (
+    <Text key={node.key} selectable selectionColor="#79B393" style={[
+      styles.text as TextStyle,
+      parent.some((ancestor) => ancestor.type === 'th') && markdownStyles.tableHeading,
+    ]}>
       {children}
     </Text>
   ),
@@ -43,10 +53,10 @@ const renderRules: RenderRules = {
   },
 };
 
-export function MessageMarkdown({ children }: Props) {
+export const MessageMarkdown = memo(function MessageMarkdown({ children }: Props) {
   return (
     <Markdown
-      allowedImageHandlers={[]}
+      allowedImageHandlers={allowedImageHandlers}
       defaultImageHandler={null}
       markdownit={markdown}
       rules={renderRules}
@@ -54,7 +64,7 @@ export function MessageMarkdown({ children }: Props) {
       {children}
     </Markdown>
   );
-}
+});
 
 const markdownStyles = StyleSheet.create({
   text: { color: '#24231F', fontSize: 15, lineHeight: 21 },
@@ -96,8 +106,6 @@ const markdownStyles = StyleSheet.create({
     padding: 10,
     marginBottom: 8,
   },
-  table: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#CBC8C0', marginBottom: 8 },
   tableHeader: { backgroundColor: '#E2E5DF' },
-  tableHeaderCell: { flex: 1, padding: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: '#CBC8C0', fontWeight: '700' },
-  tableRowCell: { flex: 1, padding: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: '#CBC8C0' },
+  tableHeading: { fontWeight: '700' },
 });

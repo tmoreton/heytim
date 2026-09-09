@@ -17,9 +17,10 @@ import type {
   SkillDraft,
 } from './types';
 import { loadDemoCatalog, loadDemoSkill } from './demo-catalog';
-import { CHIEF_COLOR, CHIEF_TEMPLATE_ID, chiefFirst, displayBotColor } from './bot-branding';
+import { CHIEF_TEMPLATE_ID, chiefFirst, displayBotColor } from './bot-branding';
 import { createDemoChief } from './demo-chief';
 import { demoDecisionsForGroup } from './demo-decisions';
+import { createDemoTripMessages } from './demo-trip-brief';
 import {
   createInitialDemoBots,
   createInitialDemoGroups,
@@ -97,33 +98,7 @@ const botDocuments = new Map<string, BotDocument[]>([
 ]);
 
 const groupMessages = new Map<string, Message[]>([
-  [
-    'launch-room',
-    [
-      {
-        id: 'group-human',
-        role: 'user',
-        authorType: 'user',
-        authorId: 'jordan',
-        authorName: 'Jordan',
-        isMine: false,
-        text: 'I want somewhere walkable with a genuinely good vegetarian dinner.',
-        createdAt: timestamp,
-        status: 'complete',
-      },
-      {
-        id: 'group-bot',
-        role: 'assistant',
-        authorType: 'bot',
-        authorId: 'chief',
-        authorName: 'Chief',
-        authorColor: CHIEF_COLOR,
-        text: 'Got it. I’ll keep that as a room constraint and ask the team to compare the strongest options.',
-        createdAt: timestamp,
-        status: 'complete',
-      },
-    ],
-  ],
+  ['launch-room', createDemoTripMessages(timestamp)],
 ]);
 
 const ensureDemoChief = (chief: Bot) => {

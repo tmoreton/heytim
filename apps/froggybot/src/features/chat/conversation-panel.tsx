@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -15,10 +14,10 @@ import type { Attachment, Bot, Group, Message } from '@/lib/types';
 import { ConversationHeader } from './conversation-header';
 import { MessageBubble } from './message-bubble';
 import { MessageComposer } from './message-composer';
-
-const ACTIVITY_EXPANSION_SCROLL_GUARD_MS = 750;
+import { useChatScroll } from './use-chat-scroll';
 
 type Props = {
+  fullWidth: boolean;
   bot?: Bot;
   group?: Group;
   messages: Message[];
@@ -54,6 +53,7 @@ type Props = {
 };
 
 export function ConversationPanel({
+  fullWidth,
   bot,
   group,
   messages,
@@ -87,30 +87,7 @@ export function ConversationPanel({
   onOpenFile,
   onSaveDecision,
 }: Props) {
-  const list = useRef<FlatList<Message>>(null);
-  const pendingScrollFrame = useRef<number | undefined>(undefined);
-  const blockAutoScrollUntil = useRef(0);
-
-  const scrollToLatest = useCallback(() => {
-    if (Date.now() < blockAutoScrollUntil.current) return;
-    if (pendingScrollFrame.current !== undefined) cancelAnimationFrame(pendingScrollFrame.current);
-    pendingScrollFrame.current = requestAnimationFrame(() => {
-      pendingScrollFrame.current = undefined;
-      list.current?.scrollToEnd({ animated: true });
-    });
-  }, []);
-
-  const preserveScrollPosition = useCallback(() => {
-    blockAutoScrollUntil.current = Date.now() + ACTIVITY_EXPANSION_SCROLL_GUARD_MS;
-    if (pendingScrollFrame.current !== undefined) {
-      cancelAnimationFrame(pendingScrollFrame.current);
-      pendingScrollFrame.current = undefined;
-    }
-  }, []);
-
-  useEffect(() => () => {
-    if (pendingScrollFrame.current !== undefined) cancelAnimationFrame(pendingScrollFrame.current);
-  }, []);
+  const { list, onScroll, onLayout, onContentSizeChange, preserveScrollPosition, jumpToLatest, showJumpToLatest } = useChatScroll();
 
   return (
     <View style={styles.conversation}>
@@ -156,11 +133,15 @@ export function ConversationPanel({
       ) : (
         <FlatList
           ref={list}
+          testID="conversation-messages"
           style={styles.messageList}
           data={messages}
           keyExtractor={(message) => message.id}
-          contentContainerStyle={[styles.messages, messages.length === 0 && styles.emptyMessages]}
-          onContentSizeChange={scrollToLatest}
+          contentContainerStyle={[styles.messages, fullWidth && styles.mobileWidth, messages.length === 0 && styles.emptyMessages]}
+          onContentSizeChange={onContentSizeChange}
+          onLayout={onLayout}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           ListEmptyComponent={
             group ? (
               <View style={styles.emptyState}>
@@ -181,6 +162,7 @@ export function ConversationPanel({
               (decision) => decision.sourceMessageId === item.id,
             );
             return <MessageBubble
+              fullWidth={fullWidth}
               key={`${item.id}:${decisionSaved ? 'saved' : 'open'}`}
               message={item}
               groupMode={Boolean(group)}
@@ -197,7 +179,20 @@ export function ConversationPanel({
         />
       )}
 
+      {showJumpToLatest ? (
+        <View style={[styles.jumpContainer, fullWidth && styles.mobileWidth]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Jump to latest message"
+            style={styles.jumpButton}
+            onPress={jumpToLatest}>
+            <Text style={styles.jumpText}>↓ Jump to latest</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       <MessageComposer
+        fullWidth={fullWidth}
         selectedName={(bot ?? group)?.name}
         group={group}
         activeReplyBotId={activeReplyBotId}
@@ -215,7 +210,10 @@ export function ConversationPanel({
         onRemoveAttachment={onRemoveAttachment}
         onReplyTargetChange={onReplyTargetChange}
         onToggleDictation={onToggleDictation}
-        onSend={onSend}
+        onSend={() => {
+          jumpToLatest();
+          onSend();
+        }}
         onStop={onStop}
       />
     </View>
@@ -223,7 +221,7 @@ export function ConversationPanel({
 }
 
 const styles = StyleSheet.create({
-  conversation: { flex: 1, backgroundColor: '#FBFBF9' },
+  conversation: { flex: 1, minWidth: 0, backgroundColor: '#FBFBF9' },
   errorBar: { minHeight: 44, backgroundColor: '#FCECE8', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   errorText: { flex: 1, color: '#9E342A', fontSize: 13 },
   errorDismiss: { color: '#9E342A', fontSize: 21 },
@@ -234,6 +232,10 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   messageList: { flex: 1, minHeight: 0 },
   messages: { paddingHorizontal: 14, paddingTop: 24, paddingBottom: 42, maxWidth: 780, width: '100%', alignSelf: 'center' },
+  mobileWidth: { maxWidth: '100%', paddingHorizontal: 12 },
+  jumpContainer: { maxWidth: 780, width: '100%', alignSelf: 'center' },
+  jumpButton: { alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center', paddingHorizontal: 16, marginRight: 12 },
+  jumpText: { color: '#007A3D', fontSize: 13, fontWeight: '700' },
   emptyMessages: { flexGrow: 1, justifyContent: 'center' },
   emptyState: { alignItems: 'center', paddingHorizontal: 34, marginTop: -30 },
   emptyTitle: { color: '#201F1B', fontSize: 22, fontWeight: '800', letterSpacing: -0.4, marginTop: 18 },

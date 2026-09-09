@@ -374,6 +374,8 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
         <View style={styles.shell}>
           {wide && drawerOpen ? <View style={styles.wideDrawer}>{drawer}</View> : null}
           <ConversationPanel
+            key={selectedGroup ? `group:${selectedGroup.id}` : `bot:${selectedBot?.id ?? 'none'}`}
+            fullWidth={Platform.OS !== 'web' || !wide}
             bot={selectedBot}
             group={selectedGroup}
             messages={messages}

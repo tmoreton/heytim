@@ -121,3 +121,30 @@ search coverage into universal absence claims (for example, that no official
 channel or independent tutorial exists) and overstated secondary announcements.
 Inline delivery is verified; freshness, provenance, calibrated claims, complete
 source URLs and stage discipline remain work for the evidence-contract checkpoint.
+
+### Mobile tables and conversation scrolling, September 9, 2026
+
+- Native mobile and narrow web layouts now use the available bubble width, with
+  normal edge padding. Desktop retains the existing centered 780px conversation
+  and 650px/84% bubble limits; full-width desktop was explicitly not requested.
+- Markdown tables share readable column widths across their headers and rows.
+  Wide tables scroll horizontally inside the bubble, with an overflow hint;
+  links, emphasis, selectable text, and larger native font scales are preserved.
+- Chat scrolling follows the newest content only while the reader is following
+  the bottom. Scrolling up or expanding working notes releases that behavior
+  until the reader returns, sends a message, or chooses “Jump to latest.”
+  Jump targets use measured content height, including padding, rather than
+  FlatList's estimated last-item position. Switching conversations resets it.
+- The React review moved high-frequency scroll tracking into refs and kept
+  unchanged Markdown trees stable across polling, reducing layout churn.
+- Verification: 20 application tests, 165 backend tests, type checks, lint,
+  source-size/security checks, 21 Expo Doctor checks, web export, and iOS Hermes
+  export passed. The repeatable local preview browser test passed at 320, 375,
+  390, 1280, and 1920px with no uncaught errors: history survives incoming team
+  replies, jump/follow and room switching work, desktop stays bounded, and phone
+  tables scroll without page overflow. These are local sample-bot tests and
+  browser viewport checks, not an on-device iOS gesture or live-bot validation.
+- Re-run with an Expo dev server on port 8082 and
+  `node apps/froggybot/scripts/chat-layout-browser-test.mjs http://localhost:8082`.
+  The runner only accepts localhost preview URLs and creates an isolated browser
+  session. It saves screenshots in a temporary directory and closes its session.

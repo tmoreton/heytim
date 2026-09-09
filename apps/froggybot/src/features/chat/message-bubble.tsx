@@ -11,6 +11,7 @@ import type { Attachment, Message } from '@/lib/types';
 import { isActiveResponse } from './chat-state';
 
 type Props = {
+  fullWidth: boolean;
   message: Message;
   groupMode: boolean;
   botName?: string;
@@ -43,6 +44,7 @@ const activityLabel = (message: Message) => {
 };
 
 export function MessageBubble({
+  fullWidth,
   message,
   groupMode,
   botName,
@@ -106,7 +108,7 @@ export function MessageBubble({
   return (
     <View style={[styles.row, assistant ? styles.assistantRow : styles.userRow, groupMode && styles.groupRow]}>
       {groupMode && !mine ? avatar : null}
-      <View style={[styles.column, assistant ? styles.assistantColumn : styles.userColumn]}>
+      <View style={[styles.column, assistant ? styles.assistantColumn : styles.userColumn, fullWidth && styles.mobileColumn]}>
         {groupMode ? (
           <Text style={[styles.author, mine && styles.mineAuthor]}>
             {mine ? 'You' : `${authorName}${label ? ` · ${label}` : ''}`}
@@ -182,6 +184,7 @@ export function MessageBubble({
             style={[
               styles.bubble,
               assistant ? styles.assistantBubble : styles.userBubble,
+              fullWidth && styles.mobileBubble,
               message.roundRole === 'synthesizer' && styles.teamAnswerBubble,
               message.status === 'error' && styles.errorBubble,
             ]}>
@@ -262,7 +265,10 @@ export function MessageBubble({
                 accessibilityRole="button"
                 accessibilityState={{ expanded }}
                 style={({ pressed }) => [styles.contributionToggle, pressed && styles.pressed]}
-                onPress={() => setExpanded((value) => !value)}>
+                onPress={() => {
+                  onActivityExpand?.();
+                  setExpanded((value) => !value);
+                }}>
                 <Text style={styles.contributionToggleText}>
                   {expanded ? 'Hide working note' : 'Show full contribution'}
                 </Text>
@@ -307,6 +313,7 @@ const styles = StyleSheet.create({
   column: { minWidth: 0, flexShrink: 1, alignItems: 'flex-start' },
   assistantColumn: { flex: 1, maxWidth: '100%' },
   userColumn: { width: '84%', maxWidth: 650, alignItems: 'flex-end' },
+  mobileColumn: { flex: 1, width: '100%', maxWidth: '100%' },
   author: { color: '#77736B', fontSize: 10, fontWeight: '600', marginBottom: 3, marginHorizontal: 6 },
   mineAuthor: { color: '#007A3D' },
   scheduleLabel: { color: '#61766B', fontSize: 10, fontWeight: '700', marginBottom: 4, marginHorizontal: 6 },
@@ -314,6 +321,7 @@ const styles = StyleSheet.create({
   assistantBubble: { width: '84%', maxWidth: 650, backgroundColor: '#EFEFEC', borderTopLeftRadius: 6 },
   teamAnswerBubble: { backgroundColor: '#E9F4EE', borderWidth: 1, borderColor: '#A8CFB9' },
   userBubble: { backgroundColor: '#007A3D', borderBottomRightRadius: 6 },
+  mobileBubble: { width: '100%', maxWidth: '100%' },
   errorBubble: { backgroundColor: '#F8E6E1' },
   fileChip: { minWidth: 190, maxWidth: 280, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 11, padding: 8, marginBottom: 8 },
   assistantFileChip: { backgroundColor: '#E1E2DE' },
