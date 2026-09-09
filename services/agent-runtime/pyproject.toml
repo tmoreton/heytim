@@ -11,8 +11,11 @@ requires-python = ">=3.14,<3.15"
 dependencies = [
     "aws-opentelemetry-distro",
     "bedrock-agentcore >= 1.22.0",
-    "boto3 >= 1.35.0",
-    "botocore >= 1.35.0",
+    # AgentCore CodeZip resolves from this file instead of uv.lock. AWS SDK
+    # patch releases are frequent, so pin both halves to keep deployed bundles
+    # identical to the version verified in uv.lock.
+    "boto3 == 1.43.90",
+    "botocore == 1.43.90",
     # The toolkit resolves its first supported AgentCore target as manylinux2014.
     # Pin compiled transitive packages to versions that publish that ARM64 wheel.
     "greenlet == 3.2.5",

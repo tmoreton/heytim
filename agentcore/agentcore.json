@@ -68,7 +68,11 @@
         },
         {
           "name": "FROGBOT_AGENT_RUN_TIMEOUT_SECONDS",
-          "value": "300"
+          "value": "720"
+        },
+        {
+          "name": "FROGBOT_AGENT_IDLE_TIMEOUT_SECONDS",
+          "value": "180"
         },
         {
           "name": "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",

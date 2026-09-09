@@ -725,8 +725,8 @@ dev = [
 requires-dist = [
     { name = "aws-opentelemetry-distro" },
     { name = "bedrock-agentcore", specifier = ">=1.22.0" },
-    { name = "boto3", specifier = ">=1.35.0" },
-    { name = "botocore", specifier = ">=1.35.0" },
+    { name = "boto3", specifier = "==1.43.90" },
+    { name = "botocore", specifier = "==1.43.90" },
     { name = "greenlet", specifier = "==3.2.5" },
     { name = "mcp", specifier = ">=1.29.1,<2.0.0" },
     { name = "mcp-proxy-for-aws", specifier = ">=1.6.0,<2.0.0" },

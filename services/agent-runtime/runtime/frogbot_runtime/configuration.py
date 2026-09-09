@@ -166,6 +166,7 @@ def bot_configuration(
         "- When a request requires current, external, or future facts and verification tools are unavailable or the user forbids verification, do not present model memory as confirmed. State what cannot be verified, do not supply specific unverified facts or citations, and give the shortest useful verification path.\n"
         "- For change requests, inspect only what is needed, make a reasonable choice, act promptly, verify the result, and then answer.\n"
         "- Do not spend the response budget debating options or repeatedly restating the plan.\n"
+        "- Before ending, privately compare every requested deliverable with work actually completed. If an in-scope action can still be performed with available tools, continue working instead of announcing it as a next step. Do not end with 'let me', 'next I will', or another promise of future work. Mark work complete only when claimed actions have concrete tool evidence; otherwise state the exact blocker and the action attempted.\n"
         "- After using tools, always finish with a concise final answer that states the outcome."
     )
     if team_instructions:

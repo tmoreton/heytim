@@ -13,7 +13,14 @@ from frogbot_runtime.memory import (
     record_completed_turn,
 )
 from frogbot_runtime.request import messages_from_payload
-from frogbot_runtime.streaming import AgentRunTimeoutError, stream_with_token_recovery
+from frogbot_runtime.streaming import (
+    AGENT_IDLE_TIMEOUT_SECONDS,
+    AGENT_RUN_TIMEOUT_SECONDS,
+    AgentIncompleteTurnError,
+    AgentRunStalledError,
+    AgentRunTimeoutError,
+    stream_with_token_recovery,
+)
 from frogbot_runtime.telemetry import install_private_tracer
 from model.load import load_model
 from model.usage import UsageAccumulator
@@ -22,9 +29,19 @@ install_private_tracer()
 app = BedrockAgentCoreApp()
 log = app.logger
 TURN_TIMEOUT_MESSAGE = (
-    "I stopped this response because it took longer than five minutes. "
-    "Please try again with a smaller request; completed external actions should "
-    "be verified before repeating them."
+    f"This run reached its {AGENT_RUN_TIMEOUT_SECONDS // 60}-minute safety limit "
+    "before finishing. Send “continue” to resume from the last verified step; "
+    "completed external actions will be checked before anything is repeated."
+)
+TURN_STALLED_MESSAGE = (
+    f"I stopped this run because it produced no activity for "
+    f"{AGENT_IDLE_TIMEOUT_SECONDS // 60} minutes. No completion was recorded; "
+    "send “continue” to resume from the last verified step."
+)
+INCOMPLETE_TURN_MESSAGE = (
+    "I did not mark this request complete because the agent repeatedly ended while "
+    "still promising unfinished work. Send “continue” to resume from the last "
+    "verified step."
 )
 
 
@@ -63,7 +80,7 @@ async def invoke(payload, context):
         ),
     )
     completed = False
-    timed_out = False
+    terminal_error = None
     try:
         try:
             async for event in stream_with_token_recovery(agent, messages, logger=log):
@@ -74,18 +91,28 @@ async def invoke(payload, context):
                     continue
                 yield event
         except AgentRunTimeoutError:
-            timed_out = True
+            terminal_error = {
+                "code": "TURN_TIMEOUT",
+                "message": TURN_TIMEOUT_MESSAGE,
+            }
+        except AgentRunStalledError:
+            terminal_error = {
+                "code": "TURN_STALLED",
+                "message": TURN_STALLED_MESSAGE,
+            }
+        except AgentIncompleteTurnError:
+            terminal_error = {
+                "code": "INCOMPLETE_TURN",
+                "message": INCOMPLETE_TURN_MESSAGE,
+            }
         control = {}
         usage_report = usage.snapshot()
         if usage_report["models"]:
             control["usage"] = usage_report
         if config.background_work.pending:
             control["pendingWork"] = config.background_work.pending
-        elif timed_out:
-            control["terminalError"] = {
-                "code": "TURN_TIMEOUT",
-                "message": TURN_TIMEOUT_MESSAGE,
-            }
+        elif terminal_error:
+            control["terminalError"] = terminal_error
         else:
             completed = True
         if control:
