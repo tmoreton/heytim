@@ -155,3 +155,48 @@ source URLs and stage discipline remain work for the evidence-contract checkpoin
   hint, jump-to-latest control, and measured scroll target. A final browser pass
   explicitly dismissed the responsive drawer before checking phone screenshots;
   all five widths and scrolling scenarios passed with no uncaught errors.
+
+### Completion assurance and longer runs, September 9, 2026
+
+- A live GitHub Engineer turn returned a normal completed answer ending with
+  “Let me fetch it in the sandbox.” A second attempt kept working but reached the
+  former five-minute runtime limit. Production logs confirmed the timeout and
+  repeated invalid code-interpreter calls; neither attempt changed the branch.
+- The shared runtime now checks final response text for a conservative set of
+  unfinished-action endings. It automatically continues the same agent once. If
+  the agent ends that way twice, the request is recorded as incomplete instead
+  of complete. Shared instructions also require a private deliverable/evidence
+  check before ending; instruction-level self-critique is not the sole guard.
+- One run may now work for 12 minutes. A separate three-minute no-stream-activity
+  limit catches stalled model or tool calls. The Lambda worker remains at 14
+  minutes and its AgentCore read timeout is 13 minutes, preserving time to save
+  the terminal state. Work longer than one worker invocation must use the durable
+  background/checkpoint path rather than a larger synchronous timeout.
+- The exact observed unfinished response, a repeated premature ending, a normal
+  conditional follow-up offer, token-limit recovery, total timeout and inactivity
+  timeout have focused regression coverage. Full verification passed: 101 runtime
+  tests, 173 backend tests, 26 app tests, 2 infrastructure tests, configuration
+  validation, type checks, lint, security checks, Expo Doctor and web export.
+- Runtime and worker deployment completed from commit `32c6fd8`; AgentCore reports
+  READY with `FROGBOT_AGENT_RUN_TIMEOUT_SECONDS=720` and
+  `FROGBOT_AGENT_IDLE_TIMEOUT_SECONDS=180`. A structured live invocation returned
+  HTTP 200 and `runtime reliability smoke passed` using GLM-5.3 Flash.
+- The marketplace work was completed directly after the agent failed. Branch
+  `add-strands-agents-plugin` contains commit `5ba44db7` with one file and 14 added
+  lines. PR [anthropics/claude-plugins-official#5984](https://github.com/anthropics/claude-plugins-official/pull/5984)
+  was opened and automatically closed; the official next path is the linked
+  plugin-directory submission form. A post-deploy read-only GitHub Engineer turn
+  `3ad2e60d-436a-4293-8318-8ecfadac5a31` completed in about 36 seconds with the
+  branch, validation, PR state and form URL.
+- That live answer still overgeneralized the auto-close comment as “external PRs
+  are not accepted at all,” while the repository workflow permits a narrow class
+  of additions backed by already-live source repositories. Corrective turn
+  `4323f717-1d86-4bd9-990a-fdf57a622dca` then returned the precise rule and form
+  path in about five seconds without external changes. Completion assurance and
+  explicit correction handling are verified, but factual calibration still needs
+  the planned evidence evaluator and reviewed trace-to-dataset learning loop.
+
+Persistent memory currently learns user facts, summaries and preferences. It does
+not silently rewrite core bot behavior from production conversations. Behavioral
+improvements should be proposed from traces and user corrections, replayed against
+a versioned dataset, reviewed, and A/B tested before promotion.
