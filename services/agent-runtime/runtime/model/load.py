@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import threading
@@ -44,10 +45,17 @@ OPENROUTER_CREDENTIAL_PROVIDER = os.environ.get(
     "FrogBot_OpenRouter",
 )
 SUPPORTED_REASONING_EFFORTS = {"low", "high", "max"}
+PRIMARY_RESPONSE_TIMEOUT_SECONDS = int(
+    os.environ.get("FROGBOT_PRIMARY_RESPONSE_TIMEOUT_SECONDS", "120")
+)
+if not 15 <= PRIMARY_RESPONSE_TIMEOUT_SECONDS <= 600:
+    raise ValueError(
+        "FROGBOT_PRIMARY_RESPONSE_TIMEOUT_SECONDS must be between 15 and 600"
+    )
 
 
 class PrimaryFallbackModel(Model):
-    """Use the primary provider unless it fails before emitting a response."""
+    """Use the primary provider unless its current response fails before completion."""
 
     def __init__(self, primary: Model, fallback: Model) -> None:
         self.primary = primary
@@ -114,25 +122,25 @@ class PrimaryFallbackModel(Model):
         buffered: list[StreamEvent] = []
         committed = False
         try:
-            async for event in self.primary.stream(
-                messages, tool_specs, system_prompt, **call
-            ):
-                if committed:
-                    yield event
-                    continue
-                buffered.append(event)
-                if _starts_response(event):
-                    committed = True
-                    log.info(
-                        "Primary model %s began streaming a response",
-                        self.primary.get_config().get("model_id", "unknown"),
-                    )
-                    for buffered_event in buffered:
-                        yield buffered_event
-                    buffered.clear()
+            async with asyncio.timeout(PRIMARY_RESPONSE_TIMEOUT_SECONDS):
+                async for event in self.primary.stream(
+                    messages, tool_specs, system_prompt, **call
+                ):
+                    if committed:
+                        yield event
+                        continue
+                    buffered.append(event)
+                    if _completes_response(event):
+                        committed = True
+                        log.info(
+                            "Primary model %s completed a response",
+                            self.primary.get_config().get("model_id", "unknown"),
+                        )
+                        for buffered_event in buffered:
+                            yield buffered_event
+                        buffered.clear()
             if not committed:
-                for buffered_event in buffered:
-                    yield buffered_event
+                raise RuntimeError("Primary model stream ended before messageStop")
         except Exception as error:
             if committed:
                 raise
@@ -143,8 +151,8 @@ class PrimaryFallbackModel(Model):
                 yield event
 
 
-def _starts_response(event: StreamEvent) -> bool:
-    return "contentBlockDelta" in event or "messageStop" in event
+def _completes_response(event: StreamEvent) -> bool:
+    return "messageStop" in event
 
 
 def _log_fallback(error: Exception) -> None:

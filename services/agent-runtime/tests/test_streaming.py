@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from strands.types.exceptions import MaxTokensReachedException
 
-from frogbot_runtime.streaming import stream_with_token_recovery
+from frogbot_runtime.streaming import AgentRunTimeoutError, stream_with_token_recovery
 
 
 class FakeAgent:
@@ -47,3 +47,19 @@ def test_token_limit_after_final_continuation_is_propagated() -> None:
         asyncio.run(_events(agent, "hello"))
 
     assert agent.prompts == ["hello", None, None, None]
+
+
+def test_complete_turn_has_a_wall_clock_deadline() -> None:
+    class SlowAgent:
+        async def stream_async(self, _prompt: Any) -> AsyncGenerator[dict]:
+            await asyncio.sleep(1)
+            yield {"too": "late"}
+
+    async def run() -> None:
+        async for _event in stream_with_token_recovery(
+            SlowAgent(), "hello", timeout_seconds=0.01
+        ):
+            pass
+
+    with pytest.raises(AgentRunTimeoutError, match="0.01 seconds"):
+        asyncio.run(run())

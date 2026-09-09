@@ -8,6 +8,10 @@ ProgressCallback = Callable[[list[str]], None]
 ControlCallback = Callable[[dict], None]
 
 
+class AgentTerminalError(RuntimeError):
+    """A deliberate non-retryable failure returned by the agent runtime."""
+
+
 def _clean_step(value: str) -> str:
     return " ".join(value.split()).strip()[:600]
 
@@ -53,6 +57,7 @@ def read_agent_stream(
     final_text = ""
     saw_message_frame = False
     saw_pending_work_control = False
+    terminal_error = ""
     last_stop_reason = ""
 
     for raw_line in lines:
@@ -67,6 +72,11 @@ def read_agent_stream(
             pending_work = control.get("pendingWork")
             if isinstance(pending_work, list) and pending_work:
                 saw_pending_work_control = True
+            raw_error = control.get("terminalError")
+            if isinstance(raw_error, dict):
+                message = raw_error.get("message")
+                if isinstance(message, str) and message.strip():
+                    terminal_error = _clean_step(message)
             if on_control:
                 on_control(control)
             continue
@@ -111,6 +121,8 @@ def read_agent_stream(
         tool_names = []
 
     result = final_text.strip()
+    if terminal_error:
+        raise AgentTerminalError(terminal_error)
     if not result and not saw_message_frame:
         result = "".join(message_chunks).strip() or "".join(fallback_chunks).strip()
     if not result and saw_pending_work_control:

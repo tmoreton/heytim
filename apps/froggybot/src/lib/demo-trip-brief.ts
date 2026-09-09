@@ -45,6 +45,16 @@ export const createDemoTripMessages = (timestamp: string): Message[] => [
   {
     id: 'group-inline-brief', role: 'assistant', authorType: 'bot', authorId: 'chief',
     authorName: 'Chief', authorColor: CHIEF_COLOR, roundRole: 'synthesizer',
-    text: demoTripBrief, createdAt: timestamp, status: 'complete',
+    text: demoTripBrief,
+    attachments: [{
+      id: 'demo-thumbnail-preview',
+      name: 'froggybot-thumbnail-preview.png',
+      size: 17_772,
+      kind: 'image',
+      format: 'png',
+      contentType: 'image/png',
+      createdAt: timestamp,
+    }],
+    createdAt: timestamp, status: 'complete',
   },
 ];

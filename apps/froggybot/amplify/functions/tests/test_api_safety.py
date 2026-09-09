@@ -52,6 +52,26 @@ class ApiSafetyTests(ApiTestCase):
             {"pk": "USER#user-1", "sk": "BOT#1"},
         )
 
+    def test_direct_messages_expose_response_start_and_completion_times(self) -> None:
+        messages = self.bots._messages_from_turns(
+            [
+                {
+                    "id": "turn-1",
+                    "userText": "Ship it",
+                    "assistantText": "Done",
+                    "createdAt": "2026-09-09T18:00:00Z",
+                    "startedAt": "2026-09-09T18:00:02Z",
+                    "activityUpdatedAt": "2026-09-09T18:00:45Z",
+                    "completedAt": "2026-09-09T18:01:05Z",
+                    "status": "COMPLETE",
+                }
+            ]
+        )
+
+        self.assertEqual(messages[1]["startedAt"], "2026-09-09T18:00:02Z")
+        self.assertEqual(messages[1]["activityUpdatedAt"], "2026-09-09T18:00:45Z")
+        self.assertEqual(messages[1]["completedAt"], "2026-09-09T18:01:05Z")
+
     def test_clearing_chat_revokes_only_conversation_shares(self) -> None:
         bot = {"id": "bot-1"}
         with (
@@ -126,14 +146,53 @@ class ApiSafetyTests(ApiTestCase):
 
         self.assertEqual(values["alwaysAllowedToolIds"], [])
 
-    def test_second_message_is_rejected_while_a_turn_is_in_flight(self) -> None:
-        turns = [{"status": "RUNNING"}]
+    def test_second_message_steers_the_active_turn_before_starting_once(self) -> None:
+        turn = {
+            "pk": "CHAT#user-1#bot-1",
+            "sk": "TURN#now#turn-1",
+            "id": "turn-1",
+            "status": "RUNNING",
+        }
         with (
-            patch.object(self.direct_chat, "_get_bot"),
-            patch.object(self.direct_chat, "_partition_items", return_value=turns),
+            patch.object(
+                self.direct_chat,
+                "_get_bot",
+                return_value={"id": "bot-1", "toolIds": []},
+            ),
+            patch.object(self.direct_chat, "_partition_items", return_value=[turn]),
+            patch.object(
+                self.direct_chat.catalog, "unapproved_tools", return_value=[]
+            ),
+        ):
+            result = self.direct_chat._send_message(
+                "user-1", "bot-1", {"text": "Focus on the manifest first"}
+            )
+
+        self.assertEqual(result["status"], "pending")
+        self.assertEqual(result["steeredTurnIds"], ["turn-1"])
+        interruption = next(
+            update
+            for update in self.data_table.updated
+            if update.get("ExpressionAttributeValues", {}).get(":message")
+            == "Steered by you."
+        )
+        self.assertEqual(
+            interruption["ExpressionAttributeValues"][":cancelled"], "CANCELLED"
+        )
+        self.agentcore.stop_runtime_session.assert_called_once()
+        self.sqs.send_message.assert_called_once()
+
+    def test_send_lease_prevents_two_replacement_turns_from_starting(self) -> None:
+        condition_failed = (
+            self.data_table.meta.client.exceptions.ConditionalCheckFailedException()
+        )
+        with (
+            patch.object(
+                self.data_table, "update_item", side_effect=condition_failed
+            ),
             self.assertRaises(self.support.ApiError) as error,
         ):
-            self.direct_chat._send_message("user-1", "bot-1", {"text": "Hello"})
+            self.direct_chat._claim_send_lease("user-1", "bot-1")
 
         self.assertEqual(error.exception.status_code, 409)
 

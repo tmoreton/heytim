@@ -35,8 +35,8 @@ SCHEDULE_GROUP_NAME = os.environ.get("SCHEDULE_GROUP_NAME", "")
 USER_POOL_ID = os.environ.get("USER_POOL_ID", "")
 FROGBOT_MEMORY_ID = os.environ.get("FROGBOT_MEMORY_ID")
 # Keep the lease and message visibility beyond six times the 14-minute Lambda
-# timeout, as recommended for SQS event sources. Explicit failures are shortened
-# by the handler after the owned work lease is released.
+# timeout, as recommended for SQS event sources. The runtime has a five-minute
+# wall-clock budget, leaving enough time to durably finish or release the work.
 ACTIVE_VISIBILITY_SECONDS = 85 * 60
 WORK_LEASE_SECONDS = ACTIVE_VISIBILITY_SECONDS
 
@@ -50,9 +50,11 @@ catalog = CatalogService(table, refresh_on_read=False)
 agentcore = boto3.client(
     "bedrock-agentcore",
     config=Config(
-        retries={"total_max_attempts": 5, "mode": "adaptive"},
+        # SQS owns retries for an invocation. Hidden SDK retries can outlive the
+        # Lambda and strand its durable lease after the runtime has already failed.
+        retries={"total_max_attempts": 1, "mode": "standard"},
         connect_timeout=5,
-        read_timeout=13 * 60,
+        read_timeout=6 * 60,
     ),
 )
 sqs = boto3.client(

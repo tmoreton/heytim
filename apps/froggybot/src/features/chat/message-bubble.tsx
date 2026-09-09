@@ -9,6 +9,8 @@ import { PersonAvatar } from '@/components/participant-avatar';
 import type { Attachment, Message } from '@/lib/types';
 
 import { isActiveResponse } from './chat-state';
+import { MessageAttachment } from './message-attachment';
+import { MessageTimingLabel } from './message-timing-label';
 
 type Props = {
   fullWidth: boolean;
@@ -18,7 +20,8 @@ type Props = {
   botColor?: string;
   onApprove?: (message: Message, always: boolean) => Promise<void>;
   onReject?: (message: Message) => Promise<void>;
-  onOpenFile?: (file: Attachment) => Promise<void>;
+  onOpenFile: (file: Attachment) => Promise<void>;
+  onResolveFile: (fileId: string) => Promise<string>;
   decisionSaved?: boolean;
   onSaveDecision?: (message: Message) => Promise<void>;
   onActivityExpand?: () => void;
@@ -52,14 +55,13 @@ export function MessageBubble({
   onApprove,
   onReject,
   onOpenFile,
+  onResolveFile,
   decisionSaved,
   onSaveDecision,
   onActivityExpand,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [approvalAction, setApprovalAction] = useState<'reject' | 'once' | 'always'>();
-  const [downloadingFileIds, setDownloadingFileIds] = useState<Set<string>>(() => new Set());
-  const [downloadedFileIds, setDownloadedFileIds] = useState<Set<string>>(() => new Set());
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
   const [decisionState, setDecisionState] = useState<'idle' | 'saving' | 'saved' | 'error'>(
     decisionSaved ? 'saved' : 'idle',
@@ -188,55 +190,17 @@ export function MessageBubble({
               message.roundRole === 'synthesizer' && styles.teamAnswerBubble,
               message.status === 'error' && styles.errorBubble,
             ]}>
-            {message.attachments?.map((file) => {
-              const downloading = downloadingFileIds.has(file.id);
-              const downloaded = downloadedFileIds.has(file.id);
-              const action = downloading ? 'Downloading…' : downloaded ? 'Downloaded' : 'Download';
-              return (
-                <Pressable
-                  key={file.id}
-                  accessibilityLabel={`${action} ${file.name}`}
-                  accessibilityRole="button"
-                  accessibilityState={{ busy: downloading, disabled: downloading }}
-                  disabled={downloading}
-                  style={({ pressed }) => [
-                    styles.fileChip,
-                    assistant ? styles.assistantFileChip : styles.userFileChip,
-                    pressed && styles.pressed,
-                  ]}
-                  onPress={() => {
-                    if (!onOpenFile) return;
-                    setDownloadingFileIds((current) => new Set(current).add(file.id));
-                    void onOpenFile(file)
-                      .then(() => {
-                        setDownloadedFileIds((current) => new Set(current).add(file.id));
-                      })
-                      .catch(() => undefined)
-                      .finally(() => {
-                        setDownloadingFileIds((current) => {
-                          const next = new Set(current);
-                          next.delete(file.id);
-                          return next;
-                        });
-                      });
-                  }}>
-                  <Text style={[styles.fileIcon, !assistant && styles.userFileText]}>↓</Text>
-                  <View style={styles.fileDetails}>
-                    <Text numberOfLines={1} style={[styles.fileName, !assistant && styles.userFileText]}>{file.name}</Text>
-                    <Text style={[styles.fileSize, !assistant && styles.userFileMeta]}>
-                      {Math.max(1, Math.round(file.size / 1000))} KB · {action}
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
+            {message.attachments?.map((file) => (
+              <MessageAttachment
+                key={file.id}
+                file={file}
+                assistant={assistant}
+                onOpenFile={onOpenFile}
+                onResolveFile={onResolveFile}
+              />
+            ))}
             {message.text ? (
-              <Pressable
-                accessibilityHint="Copies this message to the clipboard"
-                accessibilityLabel={copyState === 'copied' ? 'Message copied' : 'Copy message'}
-                accessibilityRole="button"
-                style={({ pressed }) => pressed && styles.copyPressed}
-                onPress={() => void copyMessage()}>
+              <View>
                 {botMessage && compactContribution && !expanded ? (
                   <Text selectable selectionColor="#79B393" numberOfLines={4} style={styles.contributionPreview}>
                     {preview}
@@ -251,14 +215,19 @@ export function MessageBubble({
                     {message.text}
                   </Text>
                 )}
-                {copyState !== 'idle' ? (
+                <Pressable
+                  accessibilityHint="Copies this message to the clipboard"
+                  accessibilityLabel={copyState === 'copied' ? 'Message copied' : 'Copy message'}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.copyButton, !assistant && styles.userCopyButton, pressed && styles.pressed]}
+                  onPress={() => void copyMessage()}>
                   <Text
                     accessibilityLiveRegion="polite"
-                    style={[styles.copyFeedback, !assistant && styles.userCopyFeedback]}>
-                    {copyState === 'copied' ? 'Copied' : 'Could not copy'}
+                    style={[styles.copyButtonText, !assistant && styles.userCopyButtonText]}>
+                    {copyState === 'copied' ? 'Copied' : copyState === 'error' ? 'Try copy again' : 'Copy'}
                   </Text>
-                ) : null}
-              </Pressable>
+                </Pressable>
+              </View>
             ) : null}
             {compactContribution ? (
               <Pressable
@@ -299,6 +268,7 @@ export function MessageBubble({
             ) : null}
           </View>
         ) : null}
+        <MessageTimingLabel message={message} assistant={assistant} />
       </View>
       {groupMode && mine ? avatar : null}
     </View>
@@ -323,15 +293,6 @@ const styles = StyleSheet.create({
   userBubble: { backgroundColor: '#007A3D', borderBottomRightRadius: 6 },
   mobileBubble: { width: '100%', maxWidth: '100%' },
   errorBubble: { backgroundColor: '#F8E6E1' },
-  fileChip: { minWidth: 190, maxWidth: 280, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 11, padding: 8, marginBottom: 8 },
-  assistantFileChip: { backgroundColor: '#E1E2DE' },
-  userFileChip: { backgroundColor: 'rgba(255,255,255,0.16)' },
-  fileIcon: { color: '#007A3D', fontSize: 20, fontWeight: '700' },
-  fileDetails: { flex: 1 },
-  fileName: { color: '#292823', fontSize: 12, fontWeight: '700' },
-  fileSize: { color: '#77736B', fontSize: 10, marginTop: 1 },
-  userFileText: { color: 'white' },
-  userFileMeta: { color: 'rgba(255,255,255,0.72)' },
   approvalBubble: { backgroundColor: '#FFF7DF', borderColor: '#E7C86A', borderWidth: 1 },
   approvalTitle: { color: '#4B3C0D', fontSize: 14, fontWeight: '800', marginBottom: 5 },
   approvalCopy: { color: '#5E501F', fontSize: 13, lineHeight: 18 },
@@ -350,8 +311,9 @@ const styles = StyleSheet.create({
   contributionToggleText: { color: '#007A3D', fontSize: 11, fontWeight: '700' },
   decisionButton: { alignSelf: 'flex-start', minHeight: 40, justifyContent: 'center', marginTop: 8, paddingRight: 8 },
   decisionButtonText: { color: '#006B35', fontSize: 12, fontWeight: '800' },
-  copyPressed: { opacity: 0.72 },
-  copyFeedback: { alignSelf: 'flex-end', color: '#007A3D', fontSize: 10, fontWeight: '800', marginTop: 5 },
-  userCopyFeedback: { color: 'rgba(255,255,255,0.8)' },
+  copyButton: { alignSelf: 'flex-end', minHeight: 34, justifyContent: 'center', paddingLeft: 12, marginTop: 2 },
+  userCopyButton: { paddingLeft: 14 },
+  copyButtonText: { color: '#007A3D', fontSize: 10, fontWeight: '800' },
+  userCopyButtonText: { color: 'rgba(255,255,255,0.82)' },
   pressed: { opacity: 0.65 },
 });

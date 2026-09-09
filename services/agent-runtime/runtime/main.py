@@ -13,7 +13,7 @@ from frogbot_runtime.memory import (
     record_completed_turn,
 )
 from frogbot_runtime.request import messages_from_payload
-from frogbot_runtime.streaming import stream_with_token_recovery
+from frogbot_runtime.streaming import AgentRunTimeoutError, stream_with_token_recovery
 from frogbot_runtime.telemetry import install_private_tracer
 from model.load import load_model
 from model.usage import UsageAccumulator
@@ -21,6 +21,11 @@ from model.usage import UsageAccumulator
 install_private_tracer()
 app = BedrockAgentCoreApp()
 log = app.logger
+TURN_TIMEOUT_MESSAGE = (
+    "I stopped this response because it took longer than five minutes. "
+    "Please try again with a smaller request; completed external actions should "
+    "be verified before repeating them."
+)
 
 
 @app.entrypoint
@@ -58,20 +63,29 @@ async def invoke(payload, context):
         ),
     )
     completed = False
+    timed_out = False
     try:
-        async for event in stream_with_token_recovery(agent, messages, logger=log):
-            if not isinstance(event, dict) or "event" not in event:
-                continue
-            block_start = event["event"].get("contentBlockStart")
-            if block_start is not None and not block_start.get("start"):
-                continue
-            yield event
+        try:
+            async for event in stream_with_token_recovery(agent, messages, logger=log):
+                if not isinstance(event, dict) or "event" not in event:
+                    continue
+                block_start = event["event"].get("contentBlockStart")
+                if block_start is not None and not block_start.get("start"):
+                    continue
+                yield event
+        except AgentRunTimeoutError:
+            timed_out = True
         control = {}
         usage_report = usage.snapshot()
         if usage_report["models"]:
             control["usage"] = usage_report
         if config.background_work.pending:
             control["pendingWork"] = config.background_work.pending
+        elif timed_out:
+            control["terminalError"] = {
+                "code": "TURN_TIMEOUT",
+                "message": TURN_TIMEOUT_MESSAGE,
+            }
         else:
             completed = True
         if control:

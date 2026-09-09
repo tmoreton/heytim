@@ -101,6 +101,10 @@ const groupMessages = new Map<string, Message[]>([
   ['launch-room', createDemoTripMessages(timestamp)],
 ]);
 
+const processingMessage = (items: Message[]) => (
+  [...items].reverse().find((message) => ['pending', 'running'].includes(message.status))
+);
+
 const ensureDemoChief = (chief: Bot) => {
   if (bots.some((bot) => bot.systemRole === 'chief')) return;
   bots = chiefFirst([chief, ...bots]);
@@ -143,15 +147,23 @@ export const demoBootstrap = async (): Promise<Bootstrap> => {
   if (!chiefTemplate) throw new Error('The required Chief bot is unavailable.');
   ensureDemoChief(createDemoChief(chiefTemplate, catalog.skills, timestamp));
   return {
-    bots: chiefFirst(bots),
+    bots: chiefFirst(bots.map((bot) => ({
+      ...bot,
+      processing: Boolean(processingMessage(messages.get(bot.id) ?? [])),
+    }))),
     botTemplates: catalog.botTemplates,
     needsBotOnboarding: false,
-    groups: groups.map((group) => ({
-      ...group,
-      members: [...group.members],
-      bots: [...group.bots],
-      decisions: demoDecisionsForGroup(group.id),
-    })),
+    groups: groups.map((group) => {
+      const active = processingMessage(groupMessages.get(group.id) ?? []);
+      return {
+        ...group,
+        processing: Boolean(active),
+        processingBotName: active?.authorName,
+        members: [...group.members],
+        bots: [...group.bots],
+        decisions: demoDecisionsForGroup(group.id),
+      };
+    }),
     tools: [...catalog.tools, ...personalConnections],
     skills: [
       ...catalog.skills,
@@ -306,8 +318,14 @@ export const demoSaveBot = (draft: BotDraft, botId?: string): Bot => {
 };
 
 export const demoSend = (bot: Bot, text: string, task?: ScheduledTask): void => {
-  const current = messages.get(bot.id) ?? [];
+  const steeredAt = new Date().toISOString();
+  const current = (messages.get(bot.id) ?? []).map((message) =>
+    message.role === 'assistant' && ['waiting', 'pending', 'running', 'needs_input', 'awaiting_approval'].includes(message.status)
+      ? { ...message, text: 'Steered by you.', status: 'cancelled' as const, completedAt: steeredAt }
+      : message,
+  );
   const requestId = String(Date.now());
+  const startedAt = new Date().toISOString();
   current.push(
     {
       id: `${requestId}-user`,
@@ -315,19 +333,23 @@ export const demoSend = (bot: Bot, text: string, task?: ScheduledTask): void => 
       text,
       source: task ? 'schedule' : undefined,
       scheduleName: task?.name,
-      createdAt: new Date().toISOString(),
+      createdAt: startedAt,
       status: 'complete',
     },
-    { id: `${requestId}-assistant`, role: 'assistant', text: '', createdAt: new Date().toISOString(), status: 'pending' },
+    { id: `${requestId}-assistant`, role: 'assistant', text: '', createdAt: startedAt, startedAt, status: 'pending' },
   );
   messages.set(bot.id, current);
   setTimeout(() => {
+    const stillActive = (messages.get(bot.id) ?? []).some(
+      (message) => message.id === `${requestId}-assistant` && ['pending', 'running'].includes(message.status),
+    );
+    if (!stillActive) return;
     const response = `Understood. I would handle that as ${bot.name}: start with the smallest useful result, verify it, then bring back the decision that needs you.`;
     messages.set(
       bot.id,
       (messages.get(bot.id) ?? []).map((message) =>
         message.id === `${requestId}-assistant`
-          ? { ...message, text: response, status: 'complete', createdAt: new Date().toISOString() }
+          ? { ...message, text: response, status: 'complete', completedAt: new Date().toISOString() }
           : message,
       ),
     );

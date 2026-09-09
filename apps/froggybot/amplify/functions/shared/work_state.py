@@ -12,3 +12,18 @@ def is_in_flight(status: object) -> bool:
 
 def is_claimable(status: object) -> bool:
     return isinstance(status, str) and status in CLAIMABLE_STATUSES
+
+
+def processing_summary(items: list[dict]) -> dict:
+    """Describe the newest visibly active response in a conversation."""
+    current = next(
+        (item for item in items if item.get("status") in CLAIMABLE_STATUSES),
+        None,
+    )
+    if not current:
+        return {"processing": False}
+    name = current.get("authorName")
+    return {
+        "processing": True,
+        **({"processingBotName": name} if isinstance(name, str) and name else {}),
+    }

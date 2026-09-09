@@ -204,6 +204,22 @@ def _process_group_agent_reply(
             if _pause_work(reply_key, lease_owner, result.pending_work):
                 _queue_background_poll(reply_key, request)
             return None
+        if result.terminal_error:
+            cleanup_artifacts()
+            failed_at = _finish_work(
+                reply_key,
+                lease_owner,
+                "ERROR",
+                "text",
+                result.terminal_error,
+            )
+            if not failed_at:
+                return None
+            if notify:
+                _queue_group_reply_notifications(
+                    group_id, reply_key, reply, bot, result.terminal_error
+                )
+            return result.terminal_error
         answer = result.text
         artifacts = _collect_group_generated_artifacts(group_id, reply["id"])
     except Exception:

@@ -42,6 +42,7 @@ __all__ = [
     "_now",
     "_push_owner_key",
     "_push_token_key",
+    "_recent_partition_items",
     "_schedule_key",
     "_turn_pk",
     "_user_pk",
@@ -218,6 +219,18 @@ def _partition_items(partition_key: str, sort_prefix: str | None = None) -> list
         if not last_key:
             return items
         request["ExclusiveStartKey"] = last_key
+
+
+def _recent_partition_items(
+    partition_key: str, sort_prefix: str, limit: int
+) -> list[dict]:
+    return table.query(
+        KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+        ExpressionAttributeValues={":pk": partition_key, ":prefix": sort_prefix},
+        ScanIndexForward=False,
+        Limit=limit,
+        ConsistentRead=True,
+    ).get("Items", [])
 
 
 def _scan_items(filter_expression: Any) -> list[dict]:

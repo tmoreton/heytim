@@ -49,6 +49,7 @@ type Props = {
   onApprove: (message: Message, always: boolean) => Promise<void>;
   onReject: (message: Message) => Promise<void>;
   onOpenFile: (file: Attachment) => Promise<void>;
+  onResolveFile: (fileId: string) => Promise<string>;
   onSaveDecision: (message: Message) => Promise<void>;
 };
 
@@ -85,6 +86,7 @@ export function ConversationPanel({
   onApprove,
   onReject,
   onOpenFile,
+  onResolveFile,
   onSaveDecision,
 }: Props) {
   const { list, onScroll, onLayout, onContentSizeChange, preserveScrollPosition, jumpToLatest, showJumpToLatest } = useChatScroll();
@@ -171,6 +173,7 @@ export function ConversationPanel({
               onApprove={bot ? onApprove : undefined}
               onReject={bot ? onReject : undefined}
               onOpenFile={onOpenFile}
+              onResolveFile={onResolveFile}
               decisionSaved={decisionSaved}
               onSaveDecision={group ? onSaveDecision : undefined}
               onActivityExpand={preserveScrollPosition}

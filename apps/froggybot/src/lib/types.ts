@@ -15,6 +15,8 @@ export type Bot = {
   updatedAt: string;
   lastMessage: string;
   lastMessageAt: string;
+  processing?: boolean;
+  processingBotName?: string;
 };
 
 export type BotTemplate = {
@@ -65,6 +67,9 @@ export type Message = {
   roundSize?: number;
   roundRole?: 'solo' | 'lead' | 'contributor' | 'synthesizer';
   createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  activityUpdatedAt?: string;
   status:
     | 'complete'
     | 'waiting'
@@ -158,6 +163,8 @@ export type Group = {
   updatedAt: string;
   lastMessage: string;
   lastMessageAt: string;
+  processing?: boolean;
+  processingBotName?: string;
 };
 
 export type GroupDraft = Pick<Group, 'name' | 'memory'> & { botIds: string[] };

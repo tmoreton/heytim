@@ -11,6 +11,7 @@ from boto3.dynamodb.conditions import Attr
 from shared.cleanup import has_pending_work, purge_group
 from shared.invites import invite_token_hash, invite_url
 from shared.memory_identity import group_memory_actor_id
+from shared.work_state import processing_summary
 
 from .bots import _get_bot
 from .support import (
@@ -25,6 +26,7 @@ from .support import (
     _now,
     _partition_items,
     _public_bot,
+    _recent_partition_items,
     _record_invite_join,
     _register_access_invite,
     _user_pk,
@@ -150,6 +152,9 @@ def _public_group(user_id: str, group_id: str, items: list[dict] | None = None) 
         "members": members,
         "bots": bots,
         "decisions": decisions,
+        **processing_summary(
+            _recent_partition_items(_group_pk(group_id), "MESSAGE#", 64)
+        ),
     }
 
 

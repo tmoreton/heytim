@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import unittest
 
-from shared.agent_stream import read_agent_stream
+from shared.agent_stream import AgentTerminalError, read_agent_stream
 
 
 def _line(event: dict) -> bytes:
@@ -123,6 +123,25 @@ class AgentStreamTests(unittest.TestCase):
         ]
 
         with self.assertRaisesRegex(ValueError, "without a completed assistant turn"):
+            read_agent_stream(lines)
+
+    def test_terminal_runtime_error_is_non_retryable_and_user_readable(self) -> None:
+        lines = [
+            _line(
+                {
+                    "frogbotControl": {
+                        "terminalError": {
+                            "code": "TURN_TIMEOUT",
+                            "message": "This response exceeded its time limit.",
+                        }
+                    }
+                }
+            )
+        ]
+
+        with self.assertRaisesRegex(
+            AgentTerminalError, "exceeded its time limit"
+        ):
             read_agent_stream(lines)
 
 

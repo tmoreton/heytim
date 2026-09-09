@@ -1,4 +1,15 @@
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type NativeSyntheticEvent,
+  type TextInputKeyPressEventData,
+} from 'react-native';
 
 import { BotAvatar } from '@/components/bot-avatar';
 import { GroupAvatar, PersonAvatar } from '@/components/participant-avatar';
@@ -51,15 +62,28 @@ export function MessageComposer({
   onSend,
   onStop,
 }: Props) {
-  const unavailable = !selectedName || pending || sending || uploadingAttachment;
+  const steering = Boolean(selectedName && pending && !group);
+  const unavailable = !selectedName || (pending && !steering) || sending || uploadingAttachment;
   const cannotSend = (!draft.trim() && attachments.length === 0) || unavailable;
-  const replyHint = group
+  const desktop = Platform.OS === 'web' && !fullWidth;
+  const replyHint = steering
+    ? 'Send a steering message to redirect this response.'
+    : group
     ? activeReplyBotId === ALL_BOTS_REPLY_TARGET
       ? 'Bring in the team · Chief brings the full answer into this chat.'
       : activeReplyBotId
         ? `${group.bots.find((bot) => bot.id === activeReplyBotId)?.name ?? 'One FroggyBot'} replies here · ask for a file when you need one.`
         : 'Just the group · post without an AI reply.'
     : 'Bots can make mistakes. Check important work.';
+  const handleKeyPress = (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    const key = event.nativeEvent as TextInputKeyPressEventData & {
+      shiftKey?: boolean;
+      isComposing?: boolean;
+    };
+    if (!desktop || key.key !== 'Enter' || key.shiftKey || key.isComposing) return;
+    event.preventDefault();
+    if (!cannotSend) onSend();
+  };
   return (
     <View style={[styles.wrap, { paddingBottom: 6 + bottomInset }]}>
       {group ? (
@@ -137,11 +161,16 @@ export function MessageComposer({
           style={styles.input}
           value={draft}
           onChangeText={onDraftChange}
-          placeholder={listening ? 'Listening...' : selectedName ? `Message ${selectedName}` : 'Choose a chat'}
+          onKeyPress={handleKeyPress}
+          placeholder={listening
+            ? 'Listening...'
+            : steering
+              ? `Steer ${selectedName}`
+              : selectedName ? `Message ${selectedName}` : 'Choose a chat'}
           placeholderTextColor="#6E6A62"
           multiline
           maxLength={8000}
-          editable={Boolean(selectedName) && !pending}
+          editable={Boolean(selectedName) && (!pending || steering)}
         />
         {Platform.OS === 'ios' ? (
           <Pressable
@@ -167,9 +196,9 @@ export function MessageComposer({
             onPress={onStop}>
             <View style={styles.stopIcon} />
           </Pressable>
-        ) : (
+        ) : null}
         <Pressable
-          accessibilityLabel="Send message"
+          accessibilityLabel={steering ? 'Send steering message' : 'Send message'}
           accessibilityRole="button"
           accessibilityState={{ disabled: cannotSend, busy: sending || uploadingAttachment }}
           style={({ pressed }) => [
@@ -181,9 +210,10 @@ export function MessageComposer({
           onPress={onSend}>
           {sending ? <ActivityIndicator color="white" size="small" /> : <Text style={styles.sendLabel}>↑</Text>}
         </Pressable>
-        )}
       </View>
-      <Text style={styles.hint}>{replyHint}</Text>
+      <Text style={styles.hint}>
+        {desktop ? `${replyHint} · Enter to send · Shift+Enter for a new line.` : replyHint}
+      </Text>
     </View>
   );
 }

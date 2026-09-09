@@ -1,3 +1,5 @@
+import { Asset } from 'expo-asset';
+
 import type { FrogBotApi } from './api';
 import { deleteDemoGroupDecision, saveDemoGroupDecision } from './demo-decisions';
 import {
@@ -27,6 +29,10 @@ import {
   demoUploadAttachment,
 } from './demo';
 
+const demoImageUrl = Asset.fromModule(
+  require('../../assets/images/frogbot-foreground.png'),
+).uri;
+
 export const createDemoApi = (): FrogBotApi => ({
   invitePreview: async ({ kind, token }) => {
     const bootstrap = await demoBootstrap();
@@ -49,7 +55,9 @@ export const createDemoApi = (): FrogBotApi => ({
   clearBotChat: async (botId) => demoClearBotChat(botId),
   deleteBot: async (botId) => demoDeleteBot(botId),
   uploadAttachment: demoUploadAttachment,
-  downloadFile: async () => `data:text/plain;charset=utf-8,${encodeURIComponent('FroggyBot preview attachment')}`,
+  downloadFile: async (fileId) => fileId === 'demo-thumbnail-preview'
+    ? demoImageUrl
+    : `data:text/plain;charset=utf-8,${encodeURIComponent('FroggyBot preview attachment')}`,
   sendMessage: async (bot, text) => demoSend(bot, text),
   cancelMessage: async () => {},
   approveMessage: async () => {},

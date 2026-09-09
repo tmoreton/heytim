@@ -63,6 +63,14 @@
           "value": "FrogBot_OpenRouter"
         },
         {
+          "name": "FROGBOT_PRIMARY_RESPONSE_TIMEOUT_SECONDS",
+          "value": "120"
+        },
+        {
+          "name": "FROGBOT_AGENT_RUN_TIMEOUT_SECONDS",
+          "value": "300"
+        },
+        {
           "name": "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
           "value": "NO_CONTENT"
         },

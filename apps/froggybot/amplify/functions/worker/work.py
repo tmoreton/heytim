@@ -81,8 +81,9 @@ def _pause_work(
         table.update_item(
             Key=item_key,
             UpdateExpression=(
-                "SET #status = :pending, pendingWork = :work, activity = :activity "
-                "REMOVE leaseOwner, leaseExpiresAt, backgroundResults"
+                "SET #status = :pending, pendingWork = :work, activity = :activity, "
+                "activityUpdatedAt = :updated REMOVE leaseOwner, leaseExpiresAt, "
+                "backgroundResults"
             ),
             ConditionExpression="#status = :running AND leaseOwner = :owner",
             ExpressionAttributeNames={"#status": "status"},
@@ -92,6 +93,7 @@ def _pause_work(
                 ":owner": lease_owner,
                 ":work": pending_work,
                 ":activity": ["Running background work"],
+                ":updated": utc_now_iso(),
             },
         )
         return True

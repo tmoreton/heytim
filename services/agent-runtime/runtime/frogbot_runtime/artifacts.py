@@ -188,7 +188,7 @@ def image_tool(prefix: str, *, client=None, s3_client=None):
         style: str = "PHOTOREALISM",
         negative_prompt: str = "text, watermark, logo, low resolution, distortion",
     ) -> str:
-        """Generate a PNG image and save it for the user to download."""
+        """Create a new PNG from text only. Cannot edit or preserve reference images."""
         if not isinstance(filename, str):
             raise TypeError("filename must be a string")
         raw_name = filename.replace("\\", "/").rsplit("/", 1)[-1].strip()

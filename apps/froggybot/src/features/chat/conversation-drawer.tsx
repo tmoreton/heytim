@@ -13,8 +13,6 @@ type Props = {
   bots: Bot[];
   groups: Group[];
   selection?: ConversationSelection;
-  processingConversation?: ConversationSelection;
-  activeBotName?: string;
   search: string;
   demo: boolean;
   topInset: number;
@@ -43,8 +41,6 @@ export function ConversationDrawer({
   bots,
   groups,
   selection,
-  processingConversation,
-  activeBotName,
   search,
   demo,
   topInset,
@@ -111,8 +107,10 @@ export function ConversationDrawer({
         renderSectionHeader={({ section }) => <Text style={styles.sectionLabel}>{section.title}</Text>}
         renderItem={({ item }) => {
           const selected = selection?.kind === item.kind && selection.id === item.value.id;
-          const processing = processingConversation?.kind === item.kind && processingConversation.id === item.value.id;
-          const processingName = item.kind === 'bot' ? item.value.name : activeBotName ?? 'A FroggyBot';
+          const processing = Boolean(item.value.processing);
+          const processingName = item.kind === 'bot'
+            ? item.value.name
+            : item.value.processingBotName ?? 'A FroggyBot';
           return (
             <Pressable
               accessibilityLabel={processing ? `${item.value.name}, ${processingName} is processing` : item.value.name}

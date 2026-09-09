@@ -7,6 +7,7 @@ from boto3.dynamodb.conditions import Attr
 from shared.catalog import CatalogError
 from shared.cleanup import has_pending_work
 from shared.memory_identity import direct_session_id, memory_actor_id
+from shared.work_state import processing_summary
 
 from .attachments import _public_file
 from .bot_documents import _delete_bot_documents, _preserve_bot_documents
@@ -25,6 +26,7 @@ from .support import (
     _now,
     _partition_items,
     _public_bot,
+    _recent_partition_items,
     _revoke_bot_shares,
     _turn_pk,
     _user_pk,
@@ -204,7 +206,17 @@ def _list_bots(user_id: str) -> list[dict]:
         ExpressionAttributeValues={":pk": _user_pk(user_id), ":prefix": "BOT#"},
     ).get("Items", [])
     bots = sorted(
-        (_public_bot(item) for item in items),
+        (
+            {
+                **_public_bot(item),
+                **processing_summary(
+                    _recent_partition_items(
+                        _turn_pk(user_id, item["id"]), "TURN#", 1
+                    )
+                ),
+            }
+            for item in items
+        ),
         key=lambda item: item["lastMessageAt"],
         reverse=True,
     )
@@ -273,8 +285,19 @@ def _messages_from_turns(turns: list[dict]) -> list[dict]:
                     "role": "assistant",
                     "text": turn["assistantText"],
                     "createdAt": turn.get("completedAt", turn["createdAt"]),
+                    "startedAt": turn.get("startedAt", turn["createdAt"]),
                     "status": turn.get("status", "complete").lower(),
                     "activity": turn.get("activity", []),
+                    **(
+                        {"activityUpdatedAt": turn["activityUpdatedAt"]}
+                        if isinstance(turn.get("activityUpdatedAt"), str)
+                        else {}
+                    ),
+                    **(
+                        {"completedAt": turn["completedAt"]}
+                        if isinstance(turn.get("completedAt"), str)
+                        else {}
+                    ),
                     **(
                         {
                             "attachments": [
@@ -300,8 +323,14 @@ def _messages_from_turns(turns: list[dict]) -> list[dict]:
                     "role": "assistant",
                     "text": "",
                     "createdAt": turn["createdAt"],
+                    "startedAt": turn.get("startedAt", turn["createdAt"]),
                     "status": str(turn.get("status", "PENDING")).lower(),
                     "activity": turn.get("activity", []),
+                    **(
+                        {"activityUpdatedAt": turn["activityUpdatedAt"]}
+                        if isinstance(turn.get("activityUpdatedAt"), str)
+                        else {}
+                    ),
                     **(
                         {"approvalTools": turn["approvalTools"]}
                         if isinstance(turn.get("approvalTools"), list)

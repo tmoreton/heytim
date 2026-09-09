@@ -99,6 +99,8 @@ def test_inline_default_preserves_explicit_export_and_image_tools(monkeypatch) -
     assert (
         "Requested exports and original images remain supported" in config.instructions
     )
+    assert "generate_image is prompt-only" in config.instructions
+    assert "cannot inspect, edit, composite" in config.instructions
 
 
 def test_creator_schedule_examples_request_complete_inline_briefs() -> None:

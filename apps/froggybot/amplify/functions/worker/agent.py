@@ -5,9 +5,10 @@ import logging
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from shared.agent_stream import ProgressCallback, read_agent_stream
+from shared.agent_stream import AgentTerminalError, ProgressCallback, read_agent_stream
 from shared.group_chat import group_history_from_items, group_runtime_context
 from shared.memory_identity import direct_session_id, memory_actor_id, scoped_session_id
+from shared.time import utc_now_iso
 
 from .artifacts import (
     _attachment_blocks,
@@ -35,6 +36,7 @@ class AgentInvocationResult:
     text: str
     pending_work: list[dict] = field(default_factory=list)
     usage: dict | None = None
+    terminal_error: str | None = None
 
 
 def _continuation_payload(value: list[dict] | None) -> list[dict]:
@@ -265,11 +267,20 @@ def _invoke(
         if isinstance(raw_usage, dict):
             usage = raw_usage
 
-    text = read_agent_stream(
-        response["response"].iter_lines(),
-        on_progress,
-        capture_control,
-    )
+    try:
+        text = read_agent_stream(
+            response["response"].iter_lines(),
+            on_progress,
+            capture_control,
+        )
+    except AgentTerminalError as exc:
+        terminal_error = str(exc)
+        return AgentInvocationResult(
+            text=terminal_error,
+            pending_work=pending_work,
+            usage=usage,
+            terminal_error=terminal_error,
+        )
     return AgentInvocationResult(text=text, pending_work=pending_work, usage=usage)
 
 
@@ -278,11 +289,14 @@ def _progress_updater(item_key: dict, lease_owner: str) -> ProgressCallback:
         try:
             table.update_item(
                 Key=item_key,
-                UpdateExpression="SET activity = :activity",
+                UpdateExpression=(
+                    "SET activity = :activity, activityUpdatedAt = :updated"
+                ),
                 ConditionExpression="#status = :running AND leaseOwner = :owner",
                 ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":activity": progress,
+                    ":updated": utc_now_iso(),
                     ":running": "RUNNING",
                     ":owner": lease_owner,
                 },

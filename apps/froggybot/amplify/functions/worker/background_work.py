@@ -185,7 +185,7 @@ def _process_background_work(_record: dict, request: dict) -> None:
             Key=item_key,
             UpdateExpression=(
                 "SET #status = :pending, backgroundResults = :results, "
-                "activity = :activity REMOVE pendingWork"
+                "activity = :activity, activityUpdatedAt = :updated REMOVE pendingWork"
             ),
             ConditionExpression="#status = :pending AND pendingWork = :work",
             ExpressionAttributeNames={"#status": "status"},
@@ -194,6 +194,7 @@ def _process_background_work(_record: dict, request: dict) -> None:
                 ":work": pending_work,
                 ":results": results,
                 ":activity": ["Finishing response"],
+                ":updated": datetime.now(UTC).isoformat(timespec="milliseconds"),
             },
         )
     except table.meta.client.exceptions.ConditionalCheckFailedException:

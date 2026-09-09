@@ -11,6 +11,7 @@ import {
 } from './chat-state';
 
 const MESSAGE_REFRESH_MS = 900;
+const CONVERSATION_REFRESH_MS = 1_200;
 
 export function useChatData(api: FrogBotApi) {
   const bootstrapRequestId = useRef(0);
@@ -133,6 +134,29 @@ export function useChatData(api: FrogBotApi) {
     setLoadingMessages(loading);
   }, [invalidateMessages]);
 
+  const markConversationProcessing = useCallback((
+    target: ConversationSelection,
+    processingBotName?: string,
+  ) => {
+    setData((current) => {
+      if (!current) return current;
+      if (target.kind === 'bot') {
+        return {
+          ...current,
+          bots: current.bots.map((bot) => bot.id === target.id
+            ? { ...bot, processing: true, processingBotName }
+            : bot),
+        };
+      }
+      return {
+        ...current,
+        groups: current.groups.map((group) => group.id === target.id
+          ? { ...group, processing: true, processingBotName }
+          : group),
+      };
+    });
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(() => void loadBootstrap(), 0);
     return () => {
@@ -165,6 +189,24 @@ export function useChatData(api: FrogBotApi) {
     };
   }, [loadMessages, refreshing]);
 
+  const conversationProcessing = Boolean(
+    data?.bots.some((bot) => bot.processing) || data?.groups.some((group) => group.processing),
+  );
+  useEffect(() => {
+    if (!conversationProcessing) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      await loadBootstrap();
+      if (active) timer = setTimeout(poll, CONVERSATION_REFRESH_MS);
+    };
+    timer = setTimeout(poll, CONVERSATION_REFRESH_MS);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [conversationProcessing, loadBootstrap]);
+
   return {
     data,
     selection,
@@ -181,5 +223,6 @@ export function useChatData(api: FrogBotApi) {
     replaceBootstrap,
     refreshAfterMutation,
     clearMessages,
+    markConversationProcessing,
   };
 }

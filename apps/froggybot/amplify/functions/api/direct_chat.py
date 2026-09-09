@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 import uuid
 
 from boto3.dynamodb.conditions import Attr
-from shared.cleanup import has_pending_work
 from shared.memory_identity import direct_session_id
+from shared.work_state import is_in_flight
 
 from .attachments import _resolve_attachments
 from .bots import _get_bot
@@ -30,6 +31,8 @@ from .support import (
 )
 
 logger = logging.getLogger(__name__)
+
+SEND_LEASE_SECONDS = 60
 
 
 def _stop_background_work(turn: dict) -> None:
@@ -64,6 +67,44 @@ def _stop_background_work(turn: dict) -> None:
             pass
         except Exception:
             logger.exception("Could not stop background code session %s", session_id)
+
+
+def _claim_send_lease(user_id: str, bot_id: str) -> str:
+    owner = str(uuid.uuid4())
+    current = int(time.time())
+    try:
+        table.update_item(
+            Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot_id)},
+            UpdateExpression=(
+                "SET sendLeaseOwner = :owner, sendLeaseExpiresAt = :expires"
+            ),
+            ConditionExpression=(
+                "attribute_exists(pk) AND (attribute_not_exists(sendLeaseExpiresAt) "
+                "OR sendLeaseExpiresAt < :now)"
+            ),
+            ExpressionAttributeValues={
+                ":owner": owner,
+                ":now": current,
+                ":expires": current + SEND_LEASE_SECONDS,
+            },
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
+        raise ApiError(409, "Another message is being sent. Try again in a moment") from exc
+    return owner
+
+
+def _release_send_lease(user_id: str, bot_id: str, owner: str) -> None:
+    try:
+        table.update_item(
+            Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot_id)},
+            UpdateExpression="REMOVE sendLeaseOwner, sendLeaseExpiresAt",
+            ConditionExpression="sendLeaseOwner = :owner",
+            ExpressionAttributeValues={":owner": owner},
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        pass
+    except Exception:
+        logger.exception("Could not release the send lease for bot %s", bot_id)
 
 
 def _start_bot_turn(
@@ -176,12 +217,75 @@ def _queue_bot_turn(item: dict, schedule_item: dict | None = None) -> None:
         raise
 
 
+def _interrupt_bot_turn(
+    user_id: str,
+    bot_id: str,
+    turn: dict,
+    message: str,
+    *,
+    strict: bool,
+) -> bool:
+    if not is_in_flight(turn.get("status")):
+        if strict:
+            raise ApiError(409, "This response can no longer be stopped")
+        return False
+    cancelled_at = _now()
+    try:
+        table.update_item(
+            Key={"pk": turn["pk"], "sk": turn["sk"]},
+            UpdateExpression=(
+                "SET #status = :cancelled, assistantText = :message, completedAt = :now "
+                "REMOVE leaseOwner, leaseExpiresAt, pendingWork, backgroundResults"
+            ),
+            ConditionExpression=(
+                "#status = :pending OR #status = :running OR #status = :waiting OR "
+                "#status = :needsInput OR #status = :awaiting"
+            ),
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={
+                ":pending": "PENDING",
+                ":running": "RUNNING",
+                ":waiting": "WAITING",
+                ":needsInput": "NEEDS_INPUT",
+                ":awaiting": "AWAITING_APPROVAL",
+                ":cancelled": "CANCELLED",
+                ":message": message,
+                ":now": cancelled_at,
+            },
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
+        if strict:
+            raise ApiError(409, "This response can no longer be stopped") from exc
+        return False
+    if turn.get("source") == "schedule":
+        _update_cancelled_schedule(user_id, turn, cancelled_at)
+    _stop_background_work(turn)
+    if turn.get("status") == "RUNNING" and AGENT_RUNTIME_ARN:
+        try:
+            agentcore.stop_runtime_session(
+                agentRuntimeArn=AGENT_RUNTIME_ARN,
+                qualifier=AGENT_RUNTIME_QUALIFIER,
+                runtimeSessionId=direct_session_id(user_id, bot_id),
+            )
+        except agentcore.exceptions.ResourceNotFoundException:
+            pass
+        except Exception:
+            logger.exception("Could not stop the interrupted turn %s", turn.get("id"))
+    return True
+
+
+def _steer_active_turns(user_id: str, bot_id: str, turns: list[dict]) -> list[str]:
+    steered = []
+    for turn in reversed(turns):
+        if _interrupt_bot_turn(
+            user_id, bot_id, turn, "Steered by you.", strict=False
+        ) and isinstance(turn.get("id"), str):
+            steered.append(turn["id"])
+    return steered
+
+
 def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
     bot = _get_bot(user_id, bot_id)
-    if has_pending_work(_partition_items(_turn_pk(user_id, bot_id))):
-        raise ApiError(
-            409, "Wait for this FroggyBot to finish before sending another message"
-        )
     attachments = _resolve_attachments(user_id, value.get("attachmentIds"))
     raw_text = value.get("text", "")
     if attachments and isinstance(raw_text, str) and not raw_text.strip():
@@ -192,14 +296,24 @@ def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
         bot.get("toolIds", []),
         bot.get("alwaysAllowedToolIds", []),
     )
-    return _start_bot_turn(
-        user_id,
-        bot_id,
-        text,
-        approval_tools=[item["name"] for item in approval_tools] or None,
-        approval_tool_ids=[item["id"] for item in approval_tools] or None,
-        attachments=attachments or None,
-    )
+    lease_owner = _claim_send_lease(user_id, bot_id)
+    try:
+        steered_turn_ids = _steer_active_turns(
+            user_id, bot_id, _partition_items(_turn_pk(user_id, bot_id))
+        )
+        result = _start_bot_turn(
+            user_id,
+            bot_id,
+            text,
+            approval_tools=[item["name"] for item in approval_tools] or None,
+            approval_tool_ids=[item["id"] for item in approval_tools] or None,
+            attachments=attachments or None,
+        )
+        if steered_turn_ids:
+            result["steeredTurnIds"] = steered_turn_ids
+        return result
+    finally:
+        _release_send_lease(user_id, bot_id, lease_owner)
 
 
 def _get_turn(user_id: str, bot_id: str, turn_id: str) -> dict:
@@ -311,45 +425,7 @@ def _cancel_bot_turn(user_id: str, bot_id: str, turn_id: str) -> dict:
         return {"cancelled": True}
     if turn.get("status") in {"COMPLETE", "ERROR"}:
         raise ApiError(409, "This response has already finished")
-    cancelled_at = _now()
-    try:
-        table.update_item(
-            Key={"pk": turn["pk"], "sk": turn["sk"]},
-            UpdateExpression=(
-                "SET #status = :cancelled, assistantText = :message, completedAt = :now "
-                "REMOVE leaseOwner, leaseExpiresAt, pendingWork, backgroundResults"
-            ),
-            ConditionExpression=(
-                "#status = :pending OR #status = :running OR #status = :awaiting"
-            ),
-            ExpressionAttributeNames={"#status": "status"},
-            ExpressionAttributeValues={
-                ":pending": "PENDING",
-                ":running": "RUNNING",
-                ":awaiting": "AWAITING_APPROVAL",
-                ":cancelled": "CANCELLED",
-                ":message": "Stopped by you.",
-                ":now": cancelled_at,
-            },
-        )
-    except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
-        raise ApiError(409, "This response can no longer be stopped") from exc
-    if turn.get("source") == "schedule":
-        _update_cancelled_schedule(user_id, turn, cancelled_at)
-    _stop_background_work(turn)
-    if turn.get("status") == "RUNNING" and AGENT_RUNTIME_ARN:
-        try:
-            agentcore.stop_runtime_session(
-                agentRuntimeArn=AGENT_RUNTIME_ARN,
-                qualifier=AGENT_RUNTIME_QUALIFIER,
-                runtimeSessionId=direct_session_id(user_id, bot_id),
-            )
-        except agentcore.exceptions.ResourceNotFoundException:
-            pass
-        except Exception:
-            # Cancellation is already durable in DynamoDB. Do not turn a
-            # best-effort remote stop into a failed cancellation response.
-            logger.exception("Could not stop the cancelled turn %s", turn_id)
+    _interrupt_bot_turn(user_id, bot_id, turn, "Stopped by you.", strict=True)
     return {"cancelled": True}
 
 

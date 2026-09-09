@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -15,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionSheet } from '@/components/action-sheet';
 import { endSession } from '@/lib/auth';
 import { createApi } from '@/lib/api';
-import type { Attachment, Bot, BotDraft, CapabilitySelection, ConversationSelection, Group, GroupDraft, GroupMember, Invitation, Message } from '@/lib/types';
+import type { Bot, BotDraft, CapabilitySelection, ConversationSelection, Group, GroupDraft, GroupMember, Invitation, Message } from '@/lib/types';
 
 import { AccountSettings } from './account-settings';
 import { ConversationActionSheets, type BotAction } from './bot-action-sheets';
@@ -27,6 +26,7 @@ import type { ChatOverlay } from './chat-overlay';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationDrawer } from './conversation-drawer';
 import { GroupEditor } from './group-editor';
+import { ImagePreviewModal } from './image-preview-modal';
 import { MemorySettings } from './memory-settings';
 import { ALL_BOTS_REPLY_TARGET } from './message-composer';
 import { ScheduledTasks } from './scheduled-tasks';
@@ -34,6 +34,7 @@ import { SkillLibrary } from './skill-library';
 import { useAttachments } from './use-attachments';
 import { useChatData } from './use-chat-data';
 import { useConversationLinks } from './use-conversation-links';
+import { useFilePreview } from './use-file-preview';
 import { useMessageDictation } from './use-message-dictation';
 import { isActiveResponse } from './chat-state';
 
@@ -69,6 +70,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
     replaceBootstrap,
     refreshAfterMutation,
     clearMessages,
+    markConversationProcessing,
   } = chat;
   const [drawerOpen, setDrawerOpen] = useState(wide);
   const [search, setSearch] = useState('');
@@ -87,12 +89,10 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
   const editingBot = selectedBot ?? (suggestedCapability ? data?.bots[0] : undefined);
   const selectedGroup = selection?.kind === 'group' ? data?.groups.find((group) => group.id === selection.id) : undefined;
   const selected = selectedBot ?? selectedGroup;
+  const filePreview = useFilePreview(api, selectedGroup?.id, setError);
   const activeBotName = messages.find(
     (message) => isActiveResponse(message) && message.authorType === 'bot',
   )?.authorName;
-  const processingConversation = messages.some(isActiveResponse)
-    ? selection
-    : undefined;
   const waitingBotCount = messages.filter(
     (message) => message.status === 'waiting' && message.authorType === 'bot',
   ).length;
@@ -113,10 +113,13 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
       : selectedGroup && selectedGroup.bots.length > 1
         ? ALL_BOTS_REPLY_TARGET
         : selectedGroup?.bots[0]?.id;
+  const selectedReplyBotName = activeReplyBotId === ALL_BOTS_REPLY_TARGET
+    ? selectedGroup?.bots.find((bot) => bot.systemRole === 'chief')?.name ?? selectedGroup?.bots[0]?.name
+    : selectedGroup?.bots.find((bot) => bot.id === activeReplyBotId)?.name;
   const dictation = useMessageDictation(draft, setDraft, setError);
   const attachmentDraft = useAttachments({
     api,
-    disabled: !selected || pending || sending,
+    disabled: !selected || (pending && !selectedBot) || sending,
     setError,
   });
   const { attachments, uploading: uploadingAttachment } = attachmentDraft;
@@ -141,7 +144,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
     openConversation,
   });
   const baseContentHidden =
-    (!wide && drawerOpen) || overlay.kind !== 'none' || botLibraryOnboarding || Boolean(links.pendingSkill);
+    (!wide && drawerOpen) || overlay.kind !== 'none' || botLibraryOnboarding || Boolean(links.pendingSkill) || Boolean(filePreview.previewFile);
 
   const selectBot = (bot: Bot) => {
     dictation.abort();
@@ -177,7 +180,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
 
   const send = async () => {
     const text = draft.trim();
-    if ((!text && attachments.length === 0) || !selected || sending || pending || uploadingAttachment) return;
+    if ((!text && attachments.length === 0) || !selected || sending || (pending && !selectedBot) || uploadingAttachment) return;
     setSending(true);
     dictation.stop();
     setDraft('');
@@ -191,6 +194,9 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
         );
       }
       else if (selectedBot) await api.sendMessage(selectedBot, text, attachments.map((item) => item.id));
+      if (selection && (selectedBot || activeReplyBotId)) {
+        markConversationProcessing(selection, selectedBot?.name ?? selectedReplyBotName);
+      }
       attachmentDraft.clear();
       await loadMessages();
     } catch (value) {
@@ -198,18 +204,6 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
       setError(value instanceof Error ? value.message : 'Could not send that message.');
     } finally {
       setSending(false);
-    }
-  };
-
-  const openFile = async (file: Attachment) => {
-    try {
-      const url = await api.downloadFile(file.id, selectedGroup?.id);
-      await Linking.openURL(url);
-      setError('');
-    } catch (value) {
-      const error = value instanceof Error ? value : new Error('Could not download that file.');
-      setError(error.message);
-      throw error;
     }
   };
 
@@ -333,8 +327,6 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
       bots={data?.bots ?? []}
       groups={data?.groups ?? []}
       selection={selection}
-      processingConversation={processingConversation}
-      activeBotName={activeBotName}
       search={search}
       demo={demo}
       topInset={insets.top}
@@ -406,7 +398,8 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
             onStop={() => void stopResponse()}
             onApprove={respondToApproval}
             onReject={(message) => respondToApproval(message)}
-            onOpenFile={openFile}
+            onOpenFile={filePreview.openFile}
+            onResolveFile={filePreview.resolveFile}
             onSaveDecision={async (message) => {
               if (!selectedGroup) return;
               const decision = await api.saveGroupDecision(selectedGroup.id, message.id);
@@ -513,7 +506,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
             onCancelRun={(runId) => api.cancelMessage(overlay.bot.id, runId)}
           onTriggered={async () => {
             clearMessages(true);
-            await loadMessages();
+            await Promise.all([loadMessages(), loadBootstrap()]);
           }}
         />
       ) : null}
@@ -526,7 +519,10 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
           onSave={api.saveGroupSchedule}
           onDelete={api.deleteGroupSchedule}
           onRun={api.runGroupSchedule}
-          onTriggered={async () => { clearMessages(true); await loadMessages(); }}
+          onTriggered={async () => {
+            clearMessages(true);
+            await Promise.all([loadMessages(), loadBootstrap()]);
+          }}
         />
       ) : null}
       {overlay.kind === 'documents' ? (
@@ -534,7 +530,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
           bot={overlay.bot}
           onClose={() => setOverlay({ kind: 'none' })}
           onList={api.botDocuments}
-          onOpen={openFile}
+          onOpen={filePreview.openFile}
         />
       ) : null}
       {overlay.kind === 'account' ? (
@@ -557,6 +553,13 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
           onUpdate={api.updateMemory}
           onDelete={api.deleteMemory}
           onExport={api.exportMemory}
+        />
+      ) : null}
+      {filePreview.previewFile ? (
+        <ImagePreviewModal
+          file={filePreview.previewFile}
+          onClose={filePreview.closePreview}
+          onResolveFile={filePreview.resolveFile}
         />
       ) : null}
       <ConversationActionSheets

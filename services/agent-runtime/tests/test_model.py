@@ -184,7 +184,7 @@ def test_fallback_discards_incomplete_primary_stream() -> None:
     assert fallback.calls == 1
 
 
-def test_fallback_does_not_duplicate_a_started_response() -> None:
+def test_fallback_replaces_an_incomplete_primary_response() -> None:
     primary = FakeModel(
         "primary",
         [{"messageStart": {}}, {"contentBlockDelta": {"delta": {"text": "started"}}}],
@@ -194,7 +194,24 @@ def test_fallback_does_not_duplicate_a_started_response() -> None:
         "fallback", [{"contentBlockDelta": {"delta": {"text": "duplicate"}}}]
     )
 
-    with pytest.raises(RuntimeError, match="interrupted"):
+    events = asyncio.run(_events(model_loader.PrimaryFallbackModel(primary, fallback)))
+
+    assert events == [{"contentBlockDelta": {"delta": {"text": "duplicate"}}}]
+    assert fallback.calls == 1
+
+
+def test_fallback_does_not_repeat_a_completed_primary_response() -> None:
+    primary_events = [
+        {"messageStart": {}},
+        {"contentBlockDelta": {"delta": {"text": "complete"}}},
+        {"messageStop": {"stopReason": "end_turn"}},
+    ]
+    primary = FakeModel("primary", primary_events, RuntimeError("late failure"))
+    fallback = FakeModel(
+        "fallback", [{"contentBlockDelta": {"delta": {"text": "duplicate"}}}]
+    )
+
+    with pytest.raises(RuntimeError, match="late failure"):
         asyncio.run(_events(model_loader.PrimaryFallbackModel(primary, fallback)))
 
     assert fallback.calls == 0

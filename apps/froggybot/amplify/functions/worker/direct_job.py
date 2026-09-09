@@ -114,6 +114,22 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             if _pause_work(turn_key, lease_owner, result.pending_work):
                 _queue_background_poll(turn_key, request)
             return
+        if result.terminal_error:
+            cleanup_artifacts()
+            completed_at = _finish_work(
+                turn_key,
+                lease_owner,
+                "ERROR",
+                "assistantText",
+                result.terminal_error,
+            )
+            if not completed_at:
+                return
+            _update_schedule_result(turn, "error", completed_at)
+            _queue_reply_notification(
+                user_id, bot_id, turn_key, turn, bot, result.terminal_error
+            )
+            return
         answer = result.text
         artifacts = _collect_generated_artifacts(user_id, bot_id, turn["id"])
     except Exception:
