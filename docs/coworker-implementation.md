@@ -148,3 +148,10 @@ source URLs and stage discipline remain work for the evidence-contract checkpoin
   `node apps/froggybot/scripts/chat-layout-browser-test.mjs http://localhost:8082`.
   The runner only accepts localhost preview URLs and creates an isolated browser
   session. It saves screenshots in a temporary directory and closes its session.
+- Released commit `a02c2ca` in successful [run 34374392873](https://github.com/tmoreton/frogbot/actions/runs/34374392873):
+  all three verification jobs, the production mobile update, and desktop web
+  publication completed. The live site returned HTTP 200 and served
+  `entry-5ff6df0893cba66f043da7f77417dccc.js`, containing the new horizontal-table
+  hint, jump-to-latest control, and measured scroll target. A final browser pass
+  explicitly dismissed the responsive drawer before checking phone screenshots;
+  all five widths and scrolling scenarios passed with no uncaught errors.

@@ -85,6 +85,14 @@ try {
 
   for (const width of [390, 375, 320, 1280, 1920]) {
     browser('set', 'viewport', String(width), width < 600 ? '844' : '900');
+    wait();
+    snapshot();
+    if (width < 600 && evaluate(`Boolean(document.querySelector('[aria-label="Close chats and groups"]'))`)) {
+      browser('click', '[aria-label="Close chats and groups"]');
+      wait();
+      snapshot();
+    }
+    assert.equal(evaluate(`document.querySelectorAll('[role="dialog"]').length`), 0, 'No drawer may cover the visual check.');
     evaluate(`document.querySelector('${listSelector}').scrollTop = 300`);
     wait();
     snapshot();
