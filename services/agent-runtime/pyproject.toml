@@ -19,6 +19,9 @@ dependencies = [
     # Direct dependency: the hardened remote transport uses MCP's streamable HTTP API.
     "mcp >= 1.29.1, < 2.0.0",
     "mcp-proxy-for-aws >= 1.6.0, < 2.0.0",
+    # AgentCore CodeZip installs from pyproject, not uv.lock. Keep fresh package
+    # resolution on the tested version; 6.8.0 otherwise drifts from the lock.
+    "multidict == 6.7.1",
     "openpyxl >= 3.1.5, < 4.0.0",
     "pillow == 12.2.0",
     "python-docx >= 1.2.0, < 2.0.0",
