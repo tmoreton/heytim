@@ -88,6 +88,10 @@ class GroupContextTests(unittest.TestCase):
         self.assertIn("returning after the other bots contributed", instructions)
         self.assertIn("Why this choice", instructions)
         self.assertIn("never invent sources or citations", instructions)
+        self.assertIn("inline in this final chat message", instructions)
+        self.assertIn("only if the person explicitly requested an export", instructions)
+        self.assertIn("keep every requested deliverable in the answer", instructions)
+        self.assertNotIn("If a reusable file would help", instructions)
 
 
 if __name__ == "__main__":

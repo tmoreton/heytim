@@ -1,5 +1,30 @@
 [
   {
+    "scenarioId": "chief_creator_brief_inline",
+    "botId": "chief",
+    "prompt": "Prepare a small Heytim.dev creator brief using only these supplied observations: one tester reported that a bot hid its useful answer in a Markdown attachment; another asked for source links next to each recommendation. These are two anecdotal observations, not verified trends. Give me two short opinionated tweet drafts, one tutorial idea with title and thumbnail concept, and two prioritized next steps with proposed owner and a concrete completion check. Research and drafts only.",
+    "expectedOutcome": "Chief should deliver every requested draft and next step directly in the chat, without exporting a file or replacing the brief with a work summary.",
+    "assertions": [
+      "Contains two actual short tweet drafts, not just topics or descriptions of drafts in a file.",
+      "Contains a tutorial title and thumbnail concept inline, without claiming an image was generated.",
+      "Contains two prioritized next steps with proposed owners and concrete completion checks in the message itself.",
+      "Does not create, promise, or claim to have saved an unsolicited file, or make the useful content accessible only through an attachment.",
+      "Labels the two observations as anecdotal, does not call them a popular trend, and does not invent source links, personal experience, or metrics."
+    ]
+  },
+  {
+    "scenarioId": "chief_brief_revision_inline",
+    "botId": "chief",
+    "prompt": "Revise this entire mini-brief after a specialist correction. Prior brief: 'Trend: everyone is abandoning AI coding agents. Tweet draft: AI coding agents are dead. Video: Why coding agents failed. Next step: stop our agent experiments.' Correction: the evidence is one person's complaint about an unverified generated change, not an industry trend. Keep one observation, one opinionated tweet draft, one video title and one concrete next step. Return the revised brief using only this information.",
+    "expectedOutcome": "Chief should show the corrected useful brief inline, not a file-updated message or a changelog, and keep the evidence scope narrow.",
+    "assertions": [
+      "Shows the actual corrected observation, tweet draft, video title and next step in the response.",
+      "Does not substitute a list of corrections or a 'file updated' notification for the revised brief.",
+      "Does not claim to create or update an unsolicited report file or require a download to read the answer.",
+      "Preserves the one-person anecdote limitation and avoids claiming industry-wide abandonment or fabricated metrics."
+    ]
+  },
+  {
     "scenarioId": "chief_vague_group_trip",
     "botId": "chief",
     "prompt": "We should take a group trip sometime. Plan it.",

@@ -65,7 +65,7 @@ order for the preview app, live request path, AgentCore runtime, infrastructure,
   PowerPoint, and generated PNG artifacts in direct or shared group conversations
 - Per-bot name, description, prompt, color, tools, and version-pinned skills
 - Shared groups with a pinned owner-editable notebook, reviewable learned group memory, one-link passwordless participation, single-bot replies, and ordered team collaboration rounds
-- Automatic reusable outputs for itineraries, budgets, checklists, plans, and other work that belongs outside the chat
+- Inline reports, drafts, and next steps in chat, with downloadable documents when explicitly requested
 - Owner-controlled chat, bot, and group deletion with pending-work protection and invite revocation
 - A skill library for creating, editing, and sharing reusable ways of working
 - Chief as the protected built-in, plus seven installable bot templates and seven focused public skills from the dynamically refreshed catalog

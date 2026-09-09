@@ -178,8 +178,10 @@ def collaboration_instructions(value: Any) -> str:
             "a brief 'Why this choice' or 'Inputs used' section that names the room constraints and specialist evidence that "
             "actually affected it. Attribute claims only when the transcript supports that attribution, and never invent "
             "sources or citations. Do not narrate the orchestration, merely recap each "
-            "bot, or ask for information unless it is genuinely required. If a reusable file would help, create one final "
-            "artifact for the group. Match the depth the person requested and default to a concise answer."
+            "bot, or ask for information unless it is genuinely required. Put the complete useful report, drafts, "
+            "source links, and next actions inline in this final chat message. Do not replace them with a file "
+            "or a summary of changes. Create a final artifact only if the person explicitly requested an export. "
+            "Match the depth the person requested and keep every requested deliverable in the answer."
         )
     else:
         role_instructions = (

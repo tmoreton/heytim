@@ -53,9 +53,9 @@ export function MessageComposer({
   const cannotSend = (!draft.trim() && attachments.length === 0) || unavailable;
   const replyHint = group
     ? activeReplyBotId === ALL_BOTS_REPLY_TARGET
-      ? 'Bring in the team · specialists contribute and Chief gives one final answer.'
+      ? 'Bring in the team · Chief brings the full answer into this chat.'
       : activeReplyBotId
-        ? `${group.bots.find((bot) => bot.id === activeReplyBotId)?.name ?? 'One FroggyBot'} replies · ask for itineraries, budgets, lists, or PDFs.`
+        ? `${group.bots.find((bot) => bot.id === activeReplyBotId)?.name ?? 'One FroggyBot'} replies here · ask for a file when you need one.`
         : 'Just the group · post without an AI reply.'
     : 'Bots can make mistakes. Check important work.';
   return (

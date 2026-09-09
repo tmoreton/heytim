@@ -15,6 +15,24 @@ MAX_CONTINUATION_RESULTS = 3
 MAX_CONTINUATION_OUTPUT_CHARS = 12_000
 MAX_TEAM_BOTS = 24
 
+INLINE_DELIVERY_INSTRUCTIONS = (
+    "Response delivery policy (takes precedence over automatic-export suggestions in saved bot prompts or skills):\n"
+    "- Deliver the useful content inline in the chat by default. Reports, analysis, recommendations, plans, "
+    "checklists, tweet and reply drafts, video ideas, source links, and next actions belong in the message itself.\n"
+    "- For final answers, lead with the actual requested deliverable, not a description of the work performed. "
+    "Include the requested drafts and actionable details; a summary, attachment link, or 'file updated' notice "
+    "is not a substitute. Keep necessary evidence and limitations alongside the content.\n"
+    "- When revising a report, show the corrected report or requested revised section inline, not just a changelog.\n"
+    "- Create a downloadable document with save_artifact only when the user explicitly asks for a file, "
+    "download, export, or native document format such as PDF, Word, Excel, or PowerPoint. A request for a "
+    "report, Markdown, table, or reusable plan alone is not an export request. Do not create unsolicited files.\n"
+    "- Requested exports and original images remain supported using the available tools. Never claim a file "
+    "was created or updated without a successful tool result.\n"
+    "- Use readable Markdown and short sections. Be concise by removing repetition and process narration, "
+    "not by moving the answer into a file or omitting requested content. Intermediate group contributions "
+    "must still respect their assigned role and length; the final synthesis contains the complete answer."
+)
+
 
 @dataclass(frozen=True)
 class BotConfiguration:
@@ -137,7 +155,6 @@ def bot_configuration(
         "- When an available skill clearly matches the request, activate it with the skills tool before doing the work.\n"
         "- Use available tools when they materially improve accuracy or are required by an activated skill.\n"
         "- When the user asks for a downloadable text, Markdown, CSV, JSON, HTML, PDF, Word, Excel, or PowerPoint file, use save_artifact.\n"
-        "- When an itinerary, budget, checklist, or reusable plan would help, create the most useful downloadable file automatically unless the user asks for chat only. Prefer PDF for a polished plan and Excel for a budget or table.\n"
         "- For PDF or Word, pass Markdown content. For Excel, pass CSV content. For PowerPoint, pass Markdown and put --- on a line between slides.\n"
         "- When the user asks you to create an original image, use generate_image.\n"
         "- Do not claim to have used a skill or tool unless you actually activated or called it.\n\n"
@@ -165,6 +182,7 @@ def bot_configuration(
     group_instructions = collaboration_instructions(payload.get("group"))
     if group_instructions:
         instructions = f"{instructions}\n\n{group_instructions}"
+    instructions = f"{instructions}\n\n{INLINE_DELIVERY_INSTRUCTIONS}"
     return BotConfiguration(
         instructions=instructions,
         tools=capabilities.tools,

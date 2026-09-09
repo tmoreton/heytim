@@ -62,3 +62,23 @@ content performance or successful side effects from a model's final prose.
   backend suite passed all 165 tests (12 delivery tests), with lint, security and
   source-size checks passing again. Runtime and frontend were not changed.
 - Remaining checkpoints: planned; not implemented by this checklist.
+
+### Inline-first delivery, September 9, 2026
+
+Implemented locally; not deployed or validated with live bots. Following the
+Bedrock runtime guidance, the delivery policy lives in the shared runtime rather
+than a pilot-only bot customization. It overrides automatic-export suggestions
+in older templates and asks final responses to contain the actual report, drafts,
+evidence, and next steps. Corrections return revised content instead of a file
+status or changelog. Explicit document exports and requested images remain
+available. Intermediate group roles retain their contribution constraints.
+
+Updated both example daily prompts and the composer hint. Existing cloud schedules,
+historical messages, attachments, and bot installations have not been rewritten.
+This is instruction-level behavior, not a deterministic tool-permission gate.
+
+Verification: all 95 runtime tests (including eight new inline-delivery checks),
+165 backend tests, 10 application tests, 2 infrastructure tests, configuration
+validation, type checks, lint, security checks, Expo Doctor and web export passed.
+Two new behavioral scenarios cover inline briefs and revised briefs; their corpus
+validation passed, but model execution and real-group trials still await AWS login.

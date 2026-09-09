@@ -10,6 +10,20 @@ Schedules and credentials are never copied into public bot definitions. The same
 
 Scheduled groups reject interactive tools, recheck membership and tool policy during execution, and use deterministic occurrence/reply identities so retries preserve completed contributions. Run history reports a failure if any specialist failed; it does not turn a partial team result into a successful run. Notifications are queued by the worker; actual phone delivery depends on a valid registered device and delivery receipt.
 
+## Report delivery
+
+The runtime defaults to delivering useful content inline: source-linked findings,
+tweet and reply drafts, video ideas, and prioritized next steps belong in the final
+chat message. Revisions show the corrected content, not just a changelog or a
+"file updated" notice. Downloads are reserved for explicit export requests;
+requested documents and generated images remain supported.
+
+This shared runtime policy also takes precedence over older bot templates that
+encourage automatic exports. The example schedules request complete inline briefs.
+Applying the runtime change does not rewrite historical messages or saved schedule
+text; updating those schedules separately requires authenticated pilot access.
+See [implementation status](coworker-implementation.md) for deployment and validation.
+
 ## Pilot state, September 8, 2026
 
 The sole confirmed pilot account has the upgraded GitHub and three social bots, Thumbnail Studio, and two groups: **Heytim.dev** and **strandsagents.com**, each with Chief and the three social specialists. Their notebooks contain separate audiences, voices, research watchlists and daily instructions. Existing connections, approval grants and unrelated bots were preserved.
