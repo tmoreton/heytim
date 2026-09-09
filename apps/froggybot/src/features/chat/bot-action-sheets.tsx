@@ -1,14 +1,16 @@
 import { ActionSheet } from '@/components/action-sheet';
-import type { Bot } from '@/lib/types';
+import type { Bot, Group } from '@/lib/types';
 
 export type BotAction = 'clear' | 'clearAndForget' | 'delete';
 
 type Props = {
   bot?: Bot;
+  group?: Group;
   menuOpen: boolean;
   pendingAction?: BotAction;
   onCloseMenu: () => void;
   onEditBot: () => void;
+  onEditGroup: () => void;
   onDocuments: () => void;
   onSchedule: () => void;
   onShareSetup: () => void;
@@ -17,12 +19,14 @@ type Props = {
   onCloseConfirmation: () => void;
 };
 
-export function BotActionSheets({
+export function ConversationActionSheets({
   bot,
+  group,
   menuOpen,
   pendingAction,
   onCloseMenu,
   onEditBot,
+  onEditGroup,
   onDocuments,
   onSchedule,
   onShareSetup,
@@ -30,22 +34,38 @@ export function BotActionSheets({
   onConfirmAction,
   onCloseConfirmation,
 }: Props) {
+  const menuTitle = group?.name ?? bot?.name ?? 'Conversation';
+  const menuMessage = group
+    ? group.isOwner
+      ? 'Manage this room’s context, decisions, members, and recurring work.'
+      : 'View this room’s shared context, decisions, members, and specialists.'
+    : 'Manage this bot’s settings, files, recurring work, sharing, and conversation.';
+  const menuOptions = group
+    ? [
+        {
+          label: group.isOwner ? 'Room settings' : 'Room context',
+          onPress: onEditGroup,
+        },
+        ...(group.isOwner ? [{ label: 'Tasks & runs', onPress: onSchedule }] : []),
+      ]
+    : [
+        { label: 'Bot settings', onPress: onEditBot },
+        { label: 'Files', onPress: onDocuments },
+        { label: 'Tasks & runs', onPress: onSchedule },
+        { label: 'Share bot setup', onPress: onShareSetup },
+        { label: 'Clear conversation', destructive: true, onPress: () => onRequestAction('clear' as const) },
+        ...(bot?.systemRole === 'chief'
+          ? []
+          : [{ label: 'Delete bot', destructive: true, onPress: () => onRequestAction('delete' as const) }]),
+      ];
+
   return (
     <>
       <ActionSheet
         visible={menuOpen}
-        title={bot?.name ?? 'FroggyBot'}
-        message="Open its documents, schedule its work, or manage this conversation."
-        options={[
-          { label: 'Edit bot', onPress: onEditBot },
-          { label: 'Documents', onPress: onDocuments },
-          { label: 'Scheduled tasks', onPress: onSchedule },
-          { label: 'Share bot setup', onPress: onShareSetup },
-          { label: 'Clear conversation', destructive: true, onPress: () => onRequestAction('clear') },
-          ...(bot?.systemRole === 'chief'
-            ? []
-            : [{ label: 'Delete bot', destructive: true, onPress: () => onRequestAction('delete') }]),
-        ]}
+        title={menuTitle}
+        message={menuMessage}
+        options={menuOptions}
         onClose={onCloseMenu}
       />
       <ActionSheet

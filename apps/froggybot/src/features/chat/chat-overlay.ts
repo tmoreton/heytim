@@ -14,4 +14,5 @@ export type ChatOverlay =
   | { kind: 'schedule'; bot: Bot }
   | { kind: 'groupSchedule'; group: Group }
   | { kind: 'botMenu' }
+  | { kind: 'groupMenu' }
   | { kind: 'botConfirmation'; action: BotAction };

@@ -13,8 +13,7 @@ type Props = {
   waitingBotCount: number;
   topInset: number;
   onToggleDrawer: () => void;
-  onEditGroup: () => void;
-  onOpenBotMenu: () => void;
+  onOpenMenu: () => void;
 };
 
 export function ConversationHeader({
@@ -26,8 +25,7 @@ export function ConversationHeader({
   waitingBotCount,
   topInset,
   onToggleDrawer,
-  onEditGroup,
-  onOpenBotMenu,
+  onOpenMenu,
 }: Props) {
   const status = group
     ? listening
@@ -56,21 +54,22 @@ export function ConversationHeader({
         <>
           <GroupAvatar group={group} size={34} />
           <Identity name={group.name} status={status} />
-          <HeaderAction label="Context" onPress={onEditGroup} />
         </>
       ) : bot ? (
         <>
           <BotAvatar color={bot.color} name={bot.name} size={31} />
           <Identity name={bot.name} status={status} />
-          <Pressable
-            accessibilityLabel={`${bot.name} actions`}
-            accessibilityRole="button"
-            style={styles.moreButton}
-            hitSlop={10}
-            onPress={onOpenBotMenu}>
-            <Text style={styles.moreLabel}>...</Text>
-          </Pressable>
         </>
+      ) : null}
+      {bot || group ? (
+        <Pressable
+          accessibilityLabel={`${group?.name ?? bot?.name} actions`}
+          accessibilityRole="button"
+          style={styles.moreButton}
+          hitSlop={10}
+          onPress={onOpenMenu}>
+          <Text style={styles.moreLabel}>...</Text>
+        </Pressable>
       ) : null}
     </View>
   );
@@ -86,14 +85,6 @@ function Identity({ name, status }: { name: string; status: string }) {
         {status}
       </Text>
     </View>
-  );
-}
-
-function HeaderAction({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable accessibilityRole="button" style={styles.action} hitSlop={10} onPress={onPress}>
-      <Text style={styles.actionLabel}>{label}</Text>
-    </Pressable>
   );
 }
 
@@ -113,8 +104,6 @@ const styles = StyleSheet.create({
   identity: { flex: 1, minWidth: 0 },
   name: { color: '#22211E', fontSize: 15, fontWeight: '700' },
   status: { color: '#007A3D', fontSize: 11, marginTop: 1 },
-  action: { paddingHorizontal: 7, paddingVertical: 7 },
-  actionLabel: { color: '#5B5851', fontSize: 13, fontWeight: '600' },
   moreButton: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center' },
   moreLabel: { color: '#4B4942', fontSize: 19, letterSpacing: 1, marginTop: -7 },
 });

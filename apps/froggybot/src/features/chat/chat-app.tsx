@@ -18,7 +18,7 @@ import { createApi } from '@/lib/api';
 import type { Attachment, Bot, BotDraft, CapabilitySelection, ConversationSelection, Group, GroupDraft, GroupMember, Invitation, Message } from '@/lib/types';
 
 import { AccountSettings } from './account-settings';
-import { BotActionSheets, type BotAction } from './bot-action-sheets';
+import { ConversationActionSheets, type BotAction } from './bot-action-sheets';
 import { BotDocuments } from './bot-documents';
 import { BotEditor } from './bot-editor';
 import { BotLibrary } from './bot-library';
@@ -394,12 +394,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
             onDismissError={() => setError('')}
             onToggleDrawer={() => setDrawerOpen((value) => !value)}
             onEditGroup={() => setOverlay({ kind: 'groupEditor', mode: 'edit' })}
-            onOpenBotMenu={() => setOverlay({ kind: 'botMenu' })}
-            onOpenDocuments={() => selectedBot && setOverlay({ kind: 'documents', bot: selectedBot })}
-            onOpenScheduledWork={() => {
-              if (selectedGroup?.isOwner) setOverlay({ kind: 'groupSchedule', group: selectedGroup });
-              else if (selectedBot) setOverlay({ kind: 'schedule', bot: selectedBot });
-            }}
+            onOpenMenu={() => setOverlay({ kind: selectedGroup ? 'groupMenu' : 'botMenu' })}
             onDraftChange={setDraft}
             onAddAttachment={() => void attachmentDraft.pick()}
             onRemoveAttachment={attachmentDraft.remove}
@@ -562,17 +557,20 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
           onExport={api.exportMemory}
         />
       ) : null}
-      <BotActionSheets
+      <ConversationActionSheets
         bot={selectedBot}
-        menuOpen={overlay.kind === 'botMenu'}
+        group={selectedGroup}
+        menuOpen={overlay.kind === 'botMenu' || overlay.kind === 'groupMenu'}
         pendingAction={overlay.kind === 'botConfirmation' ? overlay.action : undefined}
         onCloseMenu={() => setOverlay({ kind: 'none' })}
         onEditBot={() => setOverlay({ kind: 'botEditor', mode: 'edit' })}
+        onEditGroup={() => setOverlay({ kind: 'groupEditor', mode: 'edit' })}
         onDocuments={() => {
           if (selectedBot) setOverlay({ kind: 'documents', bot: selectedBot });
         }}
         onSchedule={() => {
-          if (selectedBot) setOverlay({ kind: 'schedule', bot: selectedBot });
+          if (selectedGroup?.isOwner) setOverlay({ kind: 'groupSchedule', group: selectedGroup });
+          else if (selectedBot) setOverlay({ kind: 'schedule', bot: selectedBot });
         }}
         onShareSetup={shareBot}
         onRequestAction={(action) => setOverlay({ kind: 'botConfirmation', action })}
