@@ -11,8 +11,8 @@ profiles, data, schedules and permissions.
 - GitHub release run `34305717684` succeeded (application and web).
 - Local verification: 87 runtime tests, 153 backend tests, 10 application tests,
   2 infrastructure tests, type checks, lint, security checks and web export passed.
-- AWS refresh and new live-bot validation await renewal of expired CLI credentials.
-  Root deployment and pilot testing are explicitly authorized for this task only.
+- AWS access was renewed on September 9; deployment and pilot evidence is below.
+  Root deployment and pilot testing were explicitly authorized for this task only.
   No IAM or authentication configuration changes are implied by that authorization.
 
 ## Checkpoints
@@ -52,7 +52,8 @@ content performance or successful side effects from a model's final prose.
 
 ## Progress
 
-- Honest delivery state: implemented locally; not deployed or live-validated.
+- Honest delivery state: deployed September 9; live push acceptance and receipt-check
+  queueing verified. Provider receipts and physical device display remain separate.
   Submission status is ACCEPTED / PARTIALLY_ACCEPTED / REJECTED / UNKNOWN.
   Provider receipt status is tracked separately; it never claims device display.
   A failed receipt-check queue handoff can resume without resending a push.
@@ -65,7 +66,7 @@ content performance or successful side effects from a model's final prose.
 
 ### Inline-first delivery, September 9, 2026
 
-Implemented locally; not deployed or validated with live bots. Following the
+Deployed and checked with the real pilot bots on September 9. Following the
 Bedrock runtime guidance, the delivery policy lives in the shared runtime rather
 than a pilot-only bot customization. It overrides automatic-export suggestions
 in older templates and asks final responses to contain the actual report, drafts,
@@ -73,12 +74,50 @@ evidence, and next steps. Corrections return revised content instead of a file
 status or changelog. Explicit document exports and requested images remain
 available. Intermediate group roles retain their contribution constraints.
 
-Updated both example daily prompts and the composer hint. Existing cloud schedules,
-historical messages, attachments, and bot installations have not been rewritten.
+Updated both example daily prompts, existing pilot schedule prompts, and the
+composer hint. Schedule IDs, timing, enabled state, historical messages,
+attachments, and bot installations were preserved.
 This is instruction-level behavior, not a deterministic tool-permission gate.
 
 Verification: all 95 runtime tests (including eight new inline-delivery checks),
 165 backend tests, 10 application tests, 2 infrastructure tests, configuration
 validation, type checks, lint, security checks, Expo Doctor and web export passed.
 Two new behavioral scenarios cover inline briefs and revised briefs; their corpus
-validation passed, but model execution and real-group trials still await AWS login.
+validation passed. The standalone model matrix has not been run; real-group trials
+are recorded below.
+
+### Deployment and real-bot checks
+
+- Commits: `9c8d8b6` (push state), `6e3bdaa` (inline delivery), and `bc4289a`
+  (package dependency pin) pushed to main.
+- Runtime: AgentCore `DEFAULT` endpoint READY on version **40**, in-place update.
+  API and worker updates completed successfully in `us-east-1`.
+- CI initially caught a fresh CodeZip install choosing `multidict` 6.8.0 outside
+  the 6.7.1 lock. Explicitly pinned the existing locked version; all 95 runtime
+  tests passed again and the deployed staging bundle was verified against the lock.
+- Both existing schedules have the inline brief prompt, remain enabled at 07:00
+  America/New_York, and retain group targets with flexible windows OFF.
+- Version 39 full trials: Heytim.dev round `f3e64055-051c-417c-b903-dfb26391d293`
+  and Strands round `65c5a7c9-4936-48f8-bb8f-240d97e6b68f`: 10/10 replies COMPLETE,
+  zero artifacts. Final answers contain drafts, video ideas, source links and
+  prioritized tasks (4,945 and 8,200 characters respectively).
+- Version 40 smoke tests: Heytim.dev round `2887b185-ce93-4cb5-92fd-4d21e72e251b`
+  and Strands round `77056307-2d13-44d6-a1ef-d41e85e15138`: both COMPLETE with
+  substantive inline answers and zero artifacts, without an explicit chat-only
+  instruction. No new research or social publication was requested in these tests.
+- All four final notification submissions reached ACCEPTED with receipt checks
+  queued. Receipts were still PENDING_RECEIPTS at inspection; no device-delivery
+  claim is made.
+- App/web release: [run 34370708360](https://github.com/tmoreton/frogbot/actions/runs/34370708360)
+  succeeded for `bc4289a`, including all three verification jobs, the production
+  over-the-air update and desktop web publication. The JavaScript bundle served
+  by `app.froggybot.com` contains both new inline-response composer hints.
+
+**Content quality is not yet a pass:** the personal lead reused prior research as
+if the new request were a duplicate and synthesized prematurely. A draft used
+"what worked for me" without supporting owner evidence in the inspected notes.
+The work brief promoted limited
+search coverage into universal absence claims (for example, that no official
+channel or independent tutorial exists) and overstated secondary announcements.
+Inline delivery is verified; freshness, provenance, calibrated claims, complete
+source URLs and stage discipline remain work for the evidence-contract checkpoint.

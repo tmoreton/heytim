@@ -20,8 +20,9 @@ requested documents and generated images remain supported.
 
 This shared runtime policy also takes precedence over older bot templates that
 encourage automatic exports. The example schedules request complete inline briefs.
-Applying the runtime change does not rewrite historical messages or saved schedule
-text; updating those schedules separately requires authenticated pilot access.
+Historical messages and attachments are unchanged. On September 9, both existing
+pilot schedule prompts were updated through the authenticated application API;
+their IDs, time, timezone and enabled state were preserved.
 See [implementation status](coworker-implementation.md) for deployment and validation.
 
 ## Pilot state, September 8, 2026
@@ -37,6 +38,21 @@ The user explicitly authorized a one-off root deployment for this repair; the no
 **Both recurring pilot schedules are installed and enabled**, daily at 07:00 America/New_York. Remote EventBridge state, timezone, group target and disabled flexible window were verified. Each run begins research at 07:00 and notifies on completion; this is not exact 07:00 delivery. The first clock-triggered occurrence has not yet been observed.
 
 Fresh live trials completed all **10 of 10 replies** across both groups and saved the final Markdown reports. Both final notification delivery records reached SENT; this confirms application push handoff, not physical phone delivery. The prior error messages remain in chat history. Source coverage is still partial: Reddit blocks or rate-limits some requests, two personal X topic searches returned provider errors, and the work YouTube home channel remains unresolved. These limitations appeared in completed reports rather than crashing the round. The work Chief also produced a premature preliminary artifact in its lead turn; its later synthesis contained the actual specialist results, but that role-following behavior still needs refinement.
+
+## September 9 deployment follow-up
+
+The inline-first runtime is live on AgentCore version **40**, and the API/worker
+updates are deployed. Both 07:00 Eastern schedules remain enabled. Full trials in
+both groups completed all 10 replies with no artifacts; both final reports include
+the actual content inline. Two further Chief smoke tests on version 40 also
+completed with inline answers and no artifacts. Push submissions were ACCEPTED
+and receipt checks queued; physical phone delivery is not established.
+
+This verifies delivery behavior, not overall research quality. The personal lead
+still reused older material and synthesized early, and some drafts or search-based
+claims went beyond their evidence. See the [implementation evidence and remaining
+issues](coworker-implementation.md) before treating these bots as reliable autonomous
+coworkers.
 
 ## Install another profile
 
