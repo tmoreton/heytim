@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from boto3.dynamodb.conditions import Attr
+from shared.push_delivery import receipt_key, receipt_status, ticket_status
 
 from .support import (
     EXPO_PUSH_URL,
@@ -117,6 +118,7 @@ def _claim_notification(request: dict) -> dict | None:
                 **key,
                 "entity": "NOTIFICATION_DELIVERY",
                 "status": "CLAIMED",
+                "userId": request["userId"],
                 "claimedAt": datetime.now(UTC).isoformat(timespec="milliseconds"),
                 "expiresAt": now + NOTIFICATION_DEDUP_SECONDS,
             },
@@ -142,6 +144,7 @@ def _finish_notification(key: dict, status: str) -> None:
 def _send_push_notification(request: dict) -> None:
     delivery_key = _claim_notification(request)
     if delivery_key is None:
+        _queue_receipt_check(_notification_key(request), request["userId"])
         return
     user_id = request["userId"]
     tokens = _push_tokens(user_id)
@@ -184,16 +187,22 @@ def _send_push_notification(request: dict) -> None:
     if isinstance(tickets, dict):
         tickets = [tickets]
     if not isinstance(tickets, list):
+        _finish_notification(delivery_key, "UNKNOWN")
         raise TypeError("Expo push service returned invalid tickets")
 
     receipts = []
+    rejected = 0
     for item, ticket in zip(tokens, tickets, strict=False):
         if not isinstance(ticket, dict):
             continue
         if ticket.get("status") == "ok" and isinstance(ticket.get("id"), str):
             receipts.append({"id": ticket["id"], "tokenId": item["tokenId"]})
             continue
-        error = ticket.get("details", {}).get("error")
+        if ticket.get("status") != "error":
+            continue
+        rejected += 1
+        details = ticket.get("details")
+        error = details.get("error") if isinstance(details, dict) else None
         if error == "DeviceNotRegistered":
             _remove_push_token(user_id, item["tokenId"])
         else:
@@ -202,15 +211,112 @@ def _send_push_notification(request: dict) -> None:
                 error or ticket.get("message", "unknown error"),
             )
 
-    if receipts:
-        sqs.send_message(
-            QueueUrl=QUEUE_URL,
-            DelaySeconds=900,
-            MessageBody=json.dumps(
-                {"type": "PUSH_RECEIPTS", "userId": user_id, "receipts": receipts}
-            ),
+    unknown = max(0, len(tokens) - len(receipts) - rejected)
+    if len(tickets) != len(tokens):
+        unknown = max(1, unknown)
+    # Keep enough state to distinguish provider acceptance from device receipt.
+    table.update_item(
+        Key=delivery_key,
+        UpdateExpression=(
+            "SET receiptStates = :states, rejectedTickets = :rejected, "
+            "unknownTickets = :unknown, receiptStatus = :status"
+        ),
+        ExpressionAttributeValues={
+            ":states": {
+                receipt_key(item["id"]): {**item, "status": "PENDING"}
+                for item in receipts
+            },
+            ":rejected": rejected,
+            ":unknown": unknown,
+            ":status": "PENDING_RECEIPTS"
+            if receipts
+            else ("UNKNOWN" if unknown else "FAILED"),
+        },
+    )
+    status = ticket_status(len(tokens), len(receipts), rejected)
+    _finish_notification(
+        delivery_key, status if len(tickets) == len(tokens) else "UNKNOWN"
+    )
+    _queue_receipt_check(delivery_key, user_id)
+
+
+def _queue_receipt_check(key: dict, user_id: str) -> None:
+    """Recover a failed queue handoff without submitting the push again."""
+    stored = table.get_item(Key=key, ConsistentRead=True).get("Item", {})
+    if stored.get("userId") != user_id or stored.get("receiptCheckQueued"):
+        return
+    receipts = [
+        {"id": item["id"], "tokenId": item["tokenId"]}
+        for item in stored.get("receiptStates", {}).values()
+        if item.get("status") == "PENDING"
+    ]
+    if not receipts:
+        return
+    sqs.send_message(
+        QueueUrl=QUEUE_URL,
+        DelaySeconds=900,
+        MessageBody=json.dumps(
+            {
+                "type": "PUSH_RECEIPTS",
+                "userId": user_id,
+                "receipts": receipts,
+                "deliveryKey": key,
+            }
+        ),
+    )
+    table.update_item(
+        Key=key,
+        UpdateExpression="SET receiptCheckQueued = :queued",
+        ExpressionAttributeValues={":queued": True},
+    )
+
+
+def _record_receipts(request: dict, receipts: dict, exhausted: bool) -> None:
+    key = request.get("deliveryKey")
+    if not isinstance(key, dict) or key.get("sk") != "DELIVERY":
+        return  # Compatibility with receipt jobs queued before delivery tracking.
+    stored = table.get_item(Key=key, ConsistentRead=True).get("Item", {})
+    if stored.get("userId") != request.get("userId"):
+        return
+    for item in request.get("receipts", []):
+        digest = receipt_key(item["id"])
+        previous = stored.get("receiptStates", {}).get(digest)
+        if not previous or previous.get("status") != "PENDING":
+            continue
+        receipt = receipts.get(item["id"])
+        outcome = receipt.get("status") if isinstance(receipt, dict) else None
+        status = {"ok": "PROVIDER_ACCEPTED", "error": "FAILED"}.get(outcome)
+        if status is None and not exhausted:
+            continue
+        try:
+            table.update_item(
+                Key=key,
+                UpdateExpression="SET receiptStates.#receipt.#status = :status",
+                ConditionExpression=Attr(f"receiptStates.{digest}.status").eq(
+                    "PENDING"
+                ),
+                ExpressionAttributeNames={"#receipt": digest, "#status": "status"},
+                ExpressionAttributeValues={":status": status or "UNKNOWN"},
+            )
+        except table.meta.client.exceptions.ConditionalCheckFailedException:
+            continue  # Another delivery attempt already recorded this receipt.
+    current = table.get_item(Key=key, ConsistentRead=True).get("Item", {})
+    states = current.get("receiptStates", {})
+    try:
+        table.update_item(
+            Key=key,
+            UpdateExpression="SET receiptStatus = :status",
+            ConditionExpression=Attr("receiptStates").eq(states),
+            ExpressionAttributeValues={
+                ":status": receipt_status(
+                    states,
+                    int(current.get("rejectedTickets", 0)),
+                    int(current.get("unknownTickets", 0)),
+                )
+            },
         )
-    _finish_notification(delivery_key, "SENT")
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return  # The concurrent poll will aggregate its newer state.
 
 
 def _check_push_receipts(request: dict) -> None:
@@ -234,7 +340,8 @@ def _check_push_receipts(request: dict) -> None:
     for receipt_id, receipt in receipts.items():
         if not isinstance(receipt, dict) or receipt.get("status") != "error":
             continue
-        error = receipt.get("details", {}).get("error")
+        details = receipt.get("details")
+        error = details.get("error") if isinstance(details, dict) else None
         token_id = tokens_by_receipt.get(receipt_id)
         if error == "DeviceNotRegistered" and isinstance(token_id, str):
             _remove_push_token(request["userId"], token_id)
@@ -247,9 +354,14 @@ def _check_push_receipts(request: dict) -> None:
     missing = [
         item
         for item in receipt_items
-        if isinstance(item, dict) and item.get("id") not in receipts
+        if isinstance(item, dict)
+        and (
+            not isinstance(receipts.get(item.get("id")), dict)
+            or receipts[item["id"]].get("status") not in {"ok", "error"}
+        )
     ]
     attempt = int(request.get("attempt", 1))
+    _record_receipts(request, receipts, exhausted=attempt >= 3)
     if missing and attempt < 3:
         sqs.send_message(
             QueueUrl=QUEUE_URL,
@@ -259,6 +371,7 @@ def _check_push_receipts(request: dict) -> None:
                     "type": "PUSH_RECEIPTS",
                     "userId": request["userId"],
                     "receipts": missing,
+                    "deliveryKey": request.get("deliveryKey"),
                     "attempt": attempt + 1,
                 }
             ),
