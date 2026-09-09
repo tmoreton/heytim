@@ -7,6 +7,8 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
+from frogbot_runtime.artifacts import artifact_prefix_from_payload
+from frogbot_runtime.memory import memory_context_from_payload
 from frogbot_runtime.request import (
     DOCUMENT_FORMATS,
     IMAGE_FORMATS,
@@ -108,6 +110,30 @@ def test_versioned_group_fixture_is_accepted_by_runtime() -> None:
     Draft202012Validator(schema).validate(fixture)
     assert fixture["schemaVersion"] == GROUP_CONTEXT_SCHEMA_VERSION
     assert collaboration_instructions(fixture)
+
+
+def test_worker_group_memory_identity_can_write_only_its_group_artifacts() -> None:
+    path = REPOSITORY_ROOT / "apps/froggybot/amplify/functions/shared/memory_identity.py"
+    spec = importlib.util.spec_from_file_location("memory_identity_producer", path)
+    assert spec and spec.loader
+    producer = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(producer)
+    group_id = "12345678-1234-1234-1234-123456789012"
+    reply_id = "22345678-1234-1234-1234-123456789012"
+    prefix = f"groups/{group_id}/artifacts/{reply_id}"
+    payload = {
+        "group": {},
+        "artifacts": {"prefix": prefix},
+        "memory": {
+            "actorId": producer.group_memory_actor_id(group_id),
+            "sessionId": producer.group_memory_session_id(group_id),
+            "eventId": reply_id,
+            "scope": "group",
+        },
+    }
+    memory = memory_context_from_payload(payload)
+    assert memory is not None
+    assert artifact_prefix_from_payload(payload, memory.actor_id) == prefix
 
 
 def test_attachment_limits_and_formats_match_amplify_producer() -> None:

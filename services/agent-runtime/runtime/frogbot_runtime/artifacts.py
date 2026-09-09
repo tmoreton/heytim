@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import re
@@ -76,8 +77,21 @@ def artifact_prefix_from_payload(
     if not isinstance(prefix, str) or not _valid_prefix(prefix):
         raise ValueError("artifacts.prefix is invalid")
     if GROUP_PREFIX_PATTERN.fullmatch(prefix):
-        if actor_id is not None or not isinstance(payload.get("group"), dict):
+        if not isinstance(payload.get("group"), dict):
             raise ValueError("group artifact scope is invalid")
+        # Group memory now supplies an actor, too. Bind that actor to the file
+        # namespace instead of treating every non-null actor as a personal user.
+        memory = payload.get("memory")
+        if actor_id is not None or memory is not None:
+            group_id = prefix.split("/")[1]
+            expected_actor = hashlib.sha256(f"group:{group_id}".encode()).hexdigest()
+            if (
+                not isinstance(memory, dict)
+                or memory.get("scope") != "group"
+                or memory.get("actorId") != expected_actor
+                or actor_id != expected_actor
+            ):
+                raise ValueError("group artifact scope is invalid")
         return prefix
     if not isinstance(actor_id, str) or not re.fullmatch(r"[a-f0-9]{64}", actor_id):
         raise ValueError("artifacts identity is invalid")

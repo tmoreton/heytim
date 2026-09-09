@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import json
 import zipfile
@@ -111,6 +112,35 @@ def test_group_artifact_context_requires_group_scope() -> None:
     )
     with pytest.raises(ValueError, match="group artifact scope"):
         artifacts.artifact_prefix_from_payload({"artifacts": {"prefix": prefix}})
+
+
+@pytest.mark.parametrize("scope", ["personal", "group"])
+def test_group_artifacts_reject_a_different_groups_or_personal_actor(scope) -> None:
+    group_id = "12345678-1234-1234-1234-123456789012"
+    prefix = f"groups/{group_id}/artifacts/{group_id}"
+    actor_id = hashlib.sha256(b"group:another-group").hexdigest()
+    with pytest.raises(ValueError, match="group artifact scope"):
+        artifacts.artifact_prefix_from_payload(
+            {
+                "group": {}, "artifacts": {"prefix": prefix},
+                "memory": {"scope": scope, "actorId": actor_id},
+            },
+            actor_id,
+        )
+
+
+def test_group_artifacts_reject_a_group_actor_in_a_personal_scope() -> None:
+    group_id = "12345678-1234-1234-1234-123456789012"
+    actor_id = hashlib.sha256(f"group:{group_id}".encode()).hexdigest()
+    with pytest.raises(ValueError, match="group artifact scope"):
+        artifacts.artifact_prefix_from_payload(
+            {
+                "group": {},
+                "artifacts": {"prefix": f"groups/{group_id}/artifacts/{group_id}"},
+                "memory": {"scope": "personal", "actorId": actor_id},
+            },
+            actor_id,
+        )
 
 
 def test_artifact_tool_rejects_binary_and_oversized_outputs(monkeypatch) -> None:

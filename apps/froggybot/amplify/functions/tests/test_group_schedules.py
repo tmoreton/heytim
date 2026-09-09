@@ -114,3 +114,23 @@ class ScheduledGroupWorkerTests(WorkerTestCase):
         with self.assertRaises(ValueError):
             self.module._process_scheduled_group_round({}, self.request)
         self.process.assert_not_called()
+
+    def test_completed_notified_reply_still_finishes_a_retried_round(self):
+        self.table.put_item(Item={
+            "pk": "GROUP#work", "sk": "MESSAGE#reply", "id": "reply",
+            "status": "COMPLETE", "text": "Final brief", "botOwnerId": "owner",
+            "notificationQueued": True,
+        })
+        with (
+            patch.object(self.group_job, "table", self.table),
+            patch.object(self.group_job, "_account_is_active", return_value=True),
+            patch.object(self.group_job, "_queue_group_reply_notifications") as notify,
+            patch.object(self.group_job, "_invoke") as invoke,
+        ):
+            answer = self.group_job._process_group_agent_reply({}, {
+                "groupId": "work", "botId": "chief", "botOwnerId": "owner",
+                "replyKey": "MESSAGE#reply",
+            })
+        self.assertEqual(answer, "Final brief")
+        notify.assert_not_called()
+        invoke.assert_not_called()

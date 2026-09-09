@@ -105,10 +105,9 @@ def _process_group_agent_reply(
         return None
     if (
         reply.get("status") in {"COMPLETE", "ERROR"}
-        and not reply.get("notificationQueued")
         and reply.get("text")
     ):
-        if notify:
+        if notify and not reply.get("notificationQueued"):
             _queue_group_reply_notifications(
                 group_id, reply_key, reply, bot, reply["text"]
             )
