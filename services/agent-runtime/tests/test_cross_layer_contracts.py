@@ -14,6 +14,8 @@ from frogbot_runtime.request import (
     IMAGE_FORMATS,
     MAX_ATTACHMENT_BYTES,
     MAX_ATTACHMENTS,
+    MAX_MESSAGE_CHARS,
+    messages_from_payload,
 )
 from group_context import (
     GROUP_CONTEXT_SCHEMA_VERSION,
@@ -149,3 +151,18 @@ def test_attachment_limits_and_formats_match_amplify_producer() -> None:
     assert producer["IMAGE_MAX_BYTES"] <= MAX_ATTACHMENT_BYTES
     assert DOCUMENT_FORMATS == document_formats
     assert IMAGE_FORMATS == image_formats
+
+
+def test_large_group_transcript_remains_accepted_without_losing_contributions():
+    producer = _load_group_producer()
+    assert producer.MAX_HISTORY_BLOCK_CHARS == MAX_MESSAGE_CHARS
+    items = [
+        {"sk": str(index), "status": "COMPLETE", "text": f"contribution-{index}:" + "a" * 15_000,
+         "authorType": "bot", "authorId": str(index), "authorName": f"Bot {index}"}
+        for index in range(4)
+    ]
+    history = producer.group_history_from_items(items, "synthesizer")
+    validated = messages_from_payload({"messages": history})
+    text = "".join(block["text"] for message in validated for block in message["content"])
+    for index in range(4):
+        assert f"contribution-{index}:" + "a" * 15_000 in text

@@ -38,6 +38,7 @@ def resolve_capabilities(
     artifact_prefix: str | None = None,
     *,
     allow_background_work: bool = True,
+    managed_browser: dict | None = None,
 ) -> CapabilityConfiguration:
     bindings = tool_bindings(bot)
     skills = dynamic_skills(bot)
@@ -50,6 +51,7 @@ def resolve_capabilities(
         session_id,
         background_work,
         allow_background_work=allow_background_work,
+        managed_browser=managed_browser,
     )
     tools.extend(managed_tools)
     github_binding = next(

@@ -9,6 +9,8 @@ from botocore.config import Config
 
 MAX_HISTORY_MESSAGES = 100
 MAX_MESSAGE_CHARS = 12_000
+MAX_CONTENT_BLOCKS_PER_MESSAGE = 24
+MAX_HISTORY_TEXT_CHARS = 240_000
 MAX_ATTACHMENTS = 5
 MAX_ATTACHMENT_BYTES = 4_500_000
 DOCUMENT_FORMATS = {"pdf", "csv", "doc", "docx", "xls", "xlsx", "html", "txt", "md"}
@@ -158,6 +160,7 @@ def messages_from_payload(payload: dict, actor_id: str | None = None) -> list[di
     ):
         raise ValueError("latest message must be a user message")
     messages: list[dict] = []
+    history_text_chars = 0
     for message_index, message in enumerate(normalized_messages):
         if not isinstance(message, dict) or message.get("role") not in {
             "user",
@@ -167,6 +170,10 @@ def messages_from_payload(payload: dict, actor_id: str | None = None) -> list[di
         content = message.get("content")
         if not isinstance(content, list) or not content:
             raise ValueError("each message must contain at least one content block")
+        if len(content) > MAX_CONTENT_BLOCKS_PER_MESSAGE:
+            raise ValueError(
+                f"each message can contain at most {MAX_CONTENT_BLOCKS_PER_MESSAGE} content blocks"
+            )
         content_blocks = []
         attachment_count = 0
         has_text = False
@@ -179,6 +186,9 @@ def messages_from_payload(payload: dict, actor_id: str | None = None) -> list[di
                     raise ValueError(
                         f"message text must be between 1 and {MAX_MESSAGE_CHARS} characters"
                     )
+                history_text_chars += len(text)
+                if history_text_chars > MAX_HISTORY_TEXT_CHARS:
+                    raise ValueError("message history text is too large")
                 content_blocks.append({"text": text})
                 has_text = True
                 continue

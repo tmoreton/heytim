@@ -1,3 +1,16 @@
+export type BotBrowserContext = { botId: string; groupId?: string };
+
+export type BotBrowserState = BotBrowserContext & {
+  status: 'closed' | 'ready' | 'human_control' | 'expired' | 'opening' | 'resuming';
+  contextLabel: string;
+  hasSavedLogin: boolean;
+  sessionExpiresAt?: string;
+  /** Short-lived capability. Keep only in the open viewer's memory, never chat/storage. */
+  liveViewUrl?: string;
+  liveViewExpiresAt?: string;
+  resumedTurnId?: string;
+};
+
 export type Bot = {
   id: string;
   name: string;

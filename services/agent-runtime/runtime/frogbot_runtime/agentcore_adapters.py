@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import os
 import shutil
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -12,10 +14,13 @@ from bedrock_agentcore.tools.browser_client import BrowserClient
 from bedrock_agentcore.tools.code_interpreter_client import (
     CodeInterpreter as CodeInterpreterClient,
 )
+from strands import tool
 from strands_tools.browser import AgentCoreBrowser
 from strands_tools.code_interpreter import AgentCoreCodeInterpreter
 
 from .background_work import BackgroundWorkTracker, background_command_tool
+from .browser_input import CompatibleBrowserInput
+from .code_interpreter_input import CompatibleCodeInterpreterInput
 
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
@@ -23,9 +28,88 @@ AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 class PersistentAgentCoreBrowser(AgentCoreBrowser):
     """Reconnect a conversation to its active AgentCore browser session."""
 
-    def __init__(self, session_name: str, **kwargs: Any):
-        super().__init__(**kwargs)
+    def __init__(
+        self, session_name: str, managed_session: dict | None = None, **kwargs: Any
+    ):
+        # The upstream constructor changes the calling thread's default loop.
+        # Keep that change out of the ASGI server and its background agent tasks.
+        try:
+            previous_loop = asyncio.get_event_loop()
+        except RuntimeError:
+            previous_loop = None
+        try:
+            super().__init__(**kwargs)
+        finally:
+            asyncio.set_event_loop(previous_loop)
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="browser")
         self.session_name = session_name
+        self.managed_session = managed_session
+
+    @tool(name="browser", description=AgentCoreBrowser.browser.tool_spec["description"])
+    async def browser(self, browser_input: CompatibleBrowserInput) -> dict[str, Any]:
+        """Run a validated browser action with provider-compatible input decoding.
+
+        Args:
+            browser_input: Structured action object, not a quoted JSON string.
+        """
+        validated = CompatibleBrowserInput.model_validate(browser_input)
+        return await asyncio.get_running_loop().run_in_executor(
+            self._executor, contextvars.copy_context().run, super().browser, validated
+        )
+
+    def _execute_async(self, action_coro) -> Any:
+        # Every action runs on the single browser worker. Never apply the upstream
+        # nest_asyncio global patch to the agent server's already-running loop.
+        return self._loop.run_until_complete(action_coro)
+
+    def close(self, action) -> dict[str, Any]:
+        result = super().close(action)
+        self._started = False
+        if self.managed_session and result.get("status") == "success":
+            result["content"] = [{"text": (
+                "Browser connection released. The app keeps your private session "
+                "available until you disconnect it or it expires."
+            )}]
+        return result
+
+    async def _async_cleanup(self) -> None:
+        if not self.managed_session:
+            await super()._async_cleanup()
+            return
+        # The app owns this session. Disconnect the driver without closing the
+        # user's tabs, clearing their login, or terminating their remote browser.
+        if self._playwright:
+            await self._playwright.stop()
+        self._playwright = None
+        self._sessions.clear()
+
+    async def _setup_session_from_browser(self, browser_or_context):
+        if not self.managed_session:
+            return await super()._setup_session_from_browser(browser_or_context)
+        if not browser_or_context.contexts:
+            raise ValueError("The private browser has no active browser context")
+        context = browser_or_context.contexts[0]
+        page = context.pages[-1] if context.pages else await context.new_page()
+        return browser_or_context, context, page
+
+    def close_platform(self) -> None:
+        super().close_platform()
+        self._client_dict.clear()
+
+    def _dispose(self) -> None:
+        try:
+            self._cleanup()
+        finally:
+            if not self._loop.is_closed():
+                self._loop.close()
+
+    def __del__(self):
+        # Cleanup must use the same worker as Playwright, never the server loop.
+        try:
+            self._executor.submit(self._dispose)
+            self._executor.shutdown(wait=False)
+        except (AttributeError, RuntimeError):
+            pass  # Partial construction or interpreter shutdown.
 
     def _ready_sessions(self, client: BrowserClient) -> list[dict]:
         items = []
@@ -46,6 +130,24 @@ class PersistentAgentCoreBrowser(AgentCoreBrowser):
         if not self._playwright:
             raise RuntimeError("Playwright not initialized")
         client = BrowserClient(region=self.region, integration_source="strands")
+        if self.managed_session:
+            session = self.managed_session
+            info = await asyncio.to_thread(
+                client.get_session, session["browserIdentifier"], session["sessionId"]
+            )
+            if info.get("name") != session["sessionName"]:
+                raise ValueError("Browser session ownership does not match this bot")
+            if info.get("status") != "READY":
+                raise ValueError("Browser session expired. Open bot browser to reconnect.")
+            stream = info.get("streams", {}).get("automationStream", {})
+            if stream.get("streamStatus") != "ENABLED":
+                raise ValueError("The user controls this browser. Wait for Resume bot.")
+            client.identifier = session["browserIdentifier"]
+            client.session_id = session["sessionId"]
+            cdp_url, cdp_headers = client.generate_ws_headers()
+            return await self._playwright.chromium.connect_over_cdp(
+                endpoint_url=cdp_url, headers=cdp_headers
+            )
         sessions = await asyncio.to_thread(self._ready_sessions, client)
         existing = next(
             (item for item in sessions if item.get("name") == self.session_name),
@@ -62,6 +164,7 @@ class PersistentAgentCoreBrowser(AgentCoreBrowser):
                 session_timeout_seconds=self.session_timeout,
             )
         cdp_url, cdp_headers = client.generate_ws_headers()
+        self._client_dict[client.session_id] = client
         return await self._playwright.chromium.connect_over_cdp(
             endpoint_url=cdp_url,
             headers=cdp_headers,
@@ -77,6 +180,23 @@ class _CodeSession:
 
 class PersistentAgentCoreCodeInterpreter(AgentCoreCodeInterpreter):
     """Reconnect a conversation after the runtime process has restarted."""
+
+    @tool(
+        name="code_interpreter",
+        description=AgentCoreCodeInterpreter.code_interpreter.tool_spec["description"],
+    )
+    def code_interpreter(
+        self, code_interpreter_input: CompatibleCodeInterpreterInput
+    ) -> dict[str, Any]:
+        """Run a validated code action with provider-compatible input decoding.
+
+        Args:
+            code_interpreter_input: Structured action object, not quoted JSON.
+        """
+        validated = CompatibleCodeInterpreterInput.model_validate(
+            code_interpreter_input
+        )
+        return super().code_interpreter(code_interpreter_input=validated)
 
     def _ready_sessions(self, client: CodeInterpreterClient) -> list[dict]:
         items = []
@@ -152,6 +272,7 @@ def agentcore_tools(
     background_work: BackgroundWorkTracker,
     *,
     allow_background_work: bool,
+    managed_browser: dict | None = None,
 ) -> tuple[list[Any], PersistentAgentCoreCodeInterpreter | None]:
     tools = []
     code_interpreter = None
@@ -173,6 +294,7 @@ def agentcore_tools(
                 region=AWS_REGION,
                 session_name=f"frogbot-{session_id}",
                 session_timeout=28800,
+                managed_session=managed_browser,
             ).browser
         )
     return tools, code_interpreter

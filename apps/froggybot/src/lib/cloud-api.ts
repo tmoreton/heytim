@@ -3,6 +3,14 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 import type { FrogBotApi } from './api';
 import { apiRoutes } from './api-routes';
 import { apiUrl } from './cloud';
+import { createBrowserApi } from './browser-api';
+import {
+  API_REQUEST_TIMEOUT_MS,
+  fetchWithTimeout,
+  PUBLIC_REQUEST_TIMEOUT_MS,
+  readableRequestError,
+  UPLOAD_REQUEST_TIMEOUT_MS,
+} from './http';
 import type {
   Attachment,
   Bot,
@@ -36,32 +44,43 @@ const responseBody = async (response: Response): Promise<Record<string, unknown>
 const responseError = (body: Record<string, unknown>, fallback: string) =>
   typeof body.message === 'string' ? body.message : fallback;
 
-const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
+const request = async <T>(path: string, init?: RequestInit, timeoutMs = API_REQUEST_TIMEOUT_MS): Promise<T> => {
   const session = await fetchAuthSession();
   const token = session.tokens?.idToken?.toString();
   if (!token) throw new Error('Your session expired. Please sign in again.');
 
-  const response = await fetch(`${apiUrl}${path}`, {
-    ...init,
-    headers: {
-      authorization: `Bearer ${token}`,
-      'content-type': 'application/json',
-      ...init?.headers,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(`${apiUrl}${path}`, {
+      ...init,
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        ...init?.headers,
+      },
+    }, timeoutMs);
+  } catch (value) {
+    throw readableRequestError(value, 'The request could not be completed.');
+  }
   const body = await responseBody(response);
-  if (!response.ok) throw new Error(responseError(body, `The request failed (${response.status}).`));
+  if (!response.ok) throw Object.assign(new Error(responseError(body, `The request failed (${response.status}).`)), { status: response.status });
   return body as T;
 };
 
 const publicRequest = async <T>(path: string): Promise<T> => {
-  const response = await fetch(`${apiUrl}${path}`);
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(`${apiUrl}${path}`, {}, PUBLIC_REQUEST_TIMEOUT_MS);
+  } catch (value) {
+    throw readableRequestError(value, 'The invite could not be opened.');
+  }
   const body = await responseBody(response);
   if (!response.ok) throw new Error(responseError(body, 'The invite could not be opened.'));
   return body as T;
 };
 
 export const createCloudApi = (): FrogBotApi => ({
+  ...createBrowserApi(request),
   invitePreview: async ({ kind, token }) =>
     publicRequest<Omit<InvitePreview, 'token'>>(apiRoutes.publicInvite(kind, token))
       .then((value) => ({ ...value, token })),
@@ -99,7 +118,16 @@ export const createCloudApi = (): FrogBotApi => ({
         type: ticket.file.contentType,
       } as unknown as Blob);
     }
-    const uploaded = await fetch(ticket.upload.url, { method: 'POST', body: form });
+    let uploaded: Response;
+    try {
+      uploaded = await fetchWithTimeout(
+        ticket.upload.url,
+        { method: 'POST', body: form },
+        UPLOAD_REQUEST_TIMEOUT_MS,
+      );
+    } catch (value) {
+      throw readableRequestError(value, 'The file upload could not be completed.');
+    }
     if (!uploaded.ok) throw new Error(`The file upload failed (${uploaded.status}).`);
     return request<Attachment>(apiRoutes.upload(ticket.file.id), { method: 'POST' });
   },

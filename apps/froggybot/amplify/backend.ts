@@ -9,7 +9,7 @@ import { Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
 import { SqsQueue } from 'aws-cdk-lib/aws-events-targets';
 import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { Key } from 'aws-cdk-lib/aws-kms';
-import { Code, Function as LambdaFunction, Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
+import { Code, Function as LambdaFunction, RecursiveLoop, Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket, BucketEncryption, HttpMethods } from 'aws-cdk-lib/aws-s3';
@@ -20,6 +20,7 @@ import path from 'node:path';
 import { preSignUp } from './auth/pre-sign-up/resource';
 import { auth, emailCodeMessage } from './auth/resource';
 import { AUTHENTICATED_ROUTES } from './infrastructure/api-routes';
+import { addBrowserAccess } from './infrastructure/browser-access';
 import { addObservability } from './infrastructure/observability';
 
 const backend = defineBackend({ auth, preSignUp });
@@ -60,7 +61,10 @@ if (!Number.isFinite(monthlyBudgetUsd) || monthlyBudgetUsd <= 0) {
   throw new Error('FROGBOT_MONTHLY_BUDGET_USD must be a positive number.');
 }
 
-const { cfnUserPool, cfnUserPoolClient } = backend.auth.resources.cfnResources;
+const { cfnIdentityPool, cfnUserPool, cfnUserPoolClient } = backend.auth.resources.cfnResources;
+// The app's public routes use API Gateway directly and never need AWS guest
+// credentials. Keep the identity pool deny-by-default for signed-out devices.
+cfnIdentityPool.allowUnauthenticatedIdentities = false;
 // Cognito username attributes are immutable after creation. These logical IDs
 // intentionally replace the phone-only pool with the current email-only pool.
 cfnUserPool.overrideLogicalId('FrogBotEmailUserPool');
@@ -282,7 +286,7 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
     exclude: FUNCTION_ASSET_EXCLUDES,
   }),
   logGroup: apiLogGroup,
-  timeout: Duration.seconds(15),
+  timeout: Duration.seconds(29),
   environment: {
     ...functionDefaults.environment,
     QUEUE_URL: jobs.queueUrl,
@@ -310,6 +314,11 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
   }),
   logGroup: workerLogGroup,
   timeout: Duration.minutes(14),
+  // Keep AWS recursion protection enabled until the separate long-run change is
+  // explicitly approved. Browser handoff must not silently enable that override.
+  recursiveLoop: process.env.FROGBOT_ALLOW_RECURSIVE_POLLS === 'true'
+    ? RecursiveLoop.ALLOW
+    : RecursiveLoop.TERMINATE,
   reservedConcurrentExecutions: WORKER_CONCURRENCY,
   environment: {
     ...functionDefaults.environment,
@@ -330,6 +339,7 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
 });
 
 table.grantReadWriteData(apiFunction);
+addBrowserAccess(stack, apiFunction, workerFunction);
 inviteAccess.grantReadWriteData(apiFunction);
 inviteAccess.grantReadWriteData(workerFunction);
 table.grantReadWriteData(workerFunction);
@@ -531,6 +541,7 @@ const { alarmTopic, monthlyBudgetName } = addObservability({
   apiFunction,
   workerFunction,
   workerLogGroup,
+  apiAccessLogGroup,
   jobs,
   deadLetterQueue,
   logsKey,

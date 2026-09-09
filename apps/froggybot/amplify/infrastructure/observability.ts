@@ -24,6 +24,7 @@ type ObservabilityResources = {
   apiFunction: LambdaFunction;
   workerFunction: LambdaFunction;
   workerLogGroup: LogGroup;
+  apiAccessLogGroup: LogGroup;
   jobs: Queue;
   deadLetterQueue: Queue;
   logsKey: Key;
@@ -36,6 +37,7 @@ export function addObservability({
   apiFunction,
   workerFunction,
   workerLogGroup,
+  apiAccessLogGroup,
   jobs,
   deadLetterQueue,
   logsKey,
@@ -101,6 +103,25 @@ export function addObservability({
     datapointsToAlarm: 1,
     treatMissingData: TreatMissingData.NOT_BREACHING,
   });
+  // The API adapter intentionally catches domain and unexpected errors to return
+  // useful JSON. Those 5xx responses are successful Lambda invocations, so the
+  // Lambda Errors metric alone cannot detect the failures users actually see.
+  const apiServerErrorMetric = new MetricFilter(stack, 'ApiServerErrorMetric', {
+    logGroup: apiAccessLogGroup,
+    filterPattern: FilterPattern.stringValue('$.status', '=', '5*'),
+    metricNamespace: `${stack.stackName}/Api`,
+    metricName: 'ServerErrors',
+    metricValue: '1',
+    defaultValue: 0,
+  }).metric({ statistic: 'Sum', period: Duration.minutes(1) });
+  const apiServerErrorAlarm = new Alarm(stack, 'ApiServerErrorAlarm', {
+    metric: apiServerErrorMetric,
+    threshold: 0,
+    comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+    evaluationPeriods: 3,
+    datapointsToAlarm: 1,
+    treatMissingData: TreatMissingData.NOT_BREACHING,
+  });
   const apiThrottleAlarm = new Alarm(stack, 'ApiThrottleAlarm', {
     metric: apiFunction.metricThrottles({ period: Duration.minutes(1) }),
     threshold: 0,
@@ -125,8 +146,20 @@ export function addObservability({
     datapointsToAlarm: 2,
     treatMissingData: TreatMissingData.NOT_BREACHING,
   });
+  // SQS keeps actively processed messages in-flight, and those messages keep
+  // aging during a legitimate long agent run. Alert on old work only when a
+  // visible backlog exists, rather than paging for healthy in-flight work.
+  const queueBacklogAge = new MathExpression({
+    expression: 'IF(visible > 0, age, 0)',
+    label: 'Visible backlog age',
+    period: Duration.minutes(1),
+    usingMetrics: {
+      age: jobs.metricApproximateAgeOfOldestMessage({ period: Duration.minutes(1) }),
+      visible: jobs.metricApproximateNumberOfMessagesVisible({ period: Duration.minutes(1) }),
+    },
+  });
   const queueAgeAlarm = new Alarm(stack, 'QueueAgeAlarm', {
-    metric: jobs.metricApproximateAgeOfOldestMessage({ period: Duration.minutes(1) }),
+    metric: queueBacklogAge,
     threshold: Duration.minutes(10).toSeconds(),
     comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
     evaluationPeriods: 3,
@@ -204,6 +237,7 @@ export function addObservability({
   });
   for (const alarm of [
     apiErrorAlarm,
+    apiServerErrorAlarm,
     workerErrorAlarm,
     workerJobFailureAlarm,
     apiLatencyAlarm,
@@ -231,6 +265,7 @@ export function addObservability({
       title: 'Service alarms',
       alarms: [
         apiErrorAlarm,
+        apiServerErrorAlarm,
         workerErrorAlarm,
         workerJobFailureAlarm,
         apiLatencyAlarm,
@@ -257,7 +292,7 @@ export function addObservability({
       width: 12,
       title: 'Worker latency and queue age',
       left: [workerFunction.metricDuration({ statistic: 'p99' })],
-      right: [jobs.metricApproximateAgeOfOldestMessage()],
+      right: [queueBacklogAge],
     }),
     new GraphWidget({
       width: 12,

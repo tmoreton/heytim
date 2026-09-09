@@ -93,7 +93,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
     def cleanup_artifacts() -> None:
         _delete_generated_artifacts(user_id, bot_id, turn["id"])
 
-    attempt = begin_attempt(record, cleanup_artifacts)
+    attempt = begin_attempt(record, lambda: None)
     try:
         result = _invoke(
             user_id,
@@ -102,10 +102,12 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             event_id=turn["id"],
             continuation=turn.get("backgroundResults"),
             on_progress=_progress_updater(turn_key, lease_owner),
+            runtime_result=turn.get("runtimeResult"),
+            work_key=turn_key, lease_owner=lease_owner, resume_request=request,
         )
         record_invocation_usage(
             user_id,
-            lease_owner,
+            result.usage_event_id or lease_owner,
             result.usage,
             work_type=("schedule" if turn.get("source") == "schedule" else "direct"),
             bot_id=bot_id,

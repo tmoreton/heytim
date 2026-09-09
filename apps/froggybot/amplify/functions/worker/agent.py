@@ -6,7 +6,11 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 
 from shared.agent_stream import AgentTerminalError, ProgressCallback, read_agent_stream
-from shared.group_chat import group_history_from_items, group_runtime_context
+from shared.group_chat import (
+    MAX_HISTORY_BLOCK_CHARS,
+    group_history_from_items,
+    group_runtime_context,
+)
 from shared.memory_identity import direct_session_id, memory_actor_id, scoped_session_id
 from shared.time import utc_now_iso
 
@@ -15,6 +19,7 @@ from .artifacts import (
     _generated_artifact_prefix,
     _group_attachment_blocks,
 )
+from .runtime_jobs import queue_runtime_poll, runtime_work
 from .support import (
     AGENT_RUNTIME_ARN,
     AGENT_RUNTIME_QUALIFIER,
@@ -25,6 +30,7 @@ from .support import (
     catalog,
     table,
 )
+from .work import _pause_work
 
 logger = logging.getLogger(__name__)
 RECENT_DIRECT_TURNS = 50
@@ -37,6 +43,7 @@ class AgentInvocationResult:
     pending_work: list[dict] = field(default_factory=list)
     usage: dict | None = None
     terminal_error: str | None = None
+    usage_event_id: str | None = None
 
 
 def _continuation_payload(value: list[dict] | None) -> list[dict]:
@@ -75,8 +82,18 @@ def _get_history(
             messages.append({"role": "user", "content": content})
         if turn.get("assistantText") and turn.get("status") == "COMPLETE":
             messages.append(
-                {"role": "assistant", "content": [{"text": turn["assistantText"]}]}
+                {"role": "assistant", "content": [
+                    {"text": turn["assistantText"][index:index + MAX_HISTORY_BLOCK_CHARS]}
+                    for index in range(0, len(turn["assistantText"]), MAX_HISTORY_BLOCK_CHARS)
+                    if turn["assistantText"][index:index + MAX_HISTORY_BLOCK_CHARS].strip()
+                ]}
             )
+        elif turn.get("status") in {"CANCELLED", "ERROR"} and turn.get("activity"):
+            progress = "\n".join(str(step)[:600] for step in turn["activity"][-12:])
+            messages.append({"role": "assistant", "content": [{"text": (
+                "The previous run was interrupted. These are observations, not proof of completion. "
+                "Verify repository state and other external actions before repeating them.\n" + progress
+            )}]})
     return messages
 
 
@@ -186,7 +203,19 @@ def _invoke(
     memory: dict | None = None,
     continuation: list[dict] | None = None,
     on_progress: ProgressCallback | None = None,
+    runtime_result: dict | None = None,
+    work_key: dict | None = None,
+    lease_owner: str | None = None,
+    resume_request: dict | None = None,
 ) -> AgentInvocationResult:
+    if runtime_result is not None:
+        error = runtime_result.get("terminalError", {}).get("message")
+        return AgentInvocationResult(
+            text=runtime_result.get("text", ""),
+            pending_work=runtime_result.get("pendingWork", []),
+            usage=runtime_result.get("usage"), terminal_error=error,
+            usage_event_id=runtime_result.get("usageEventId"),
+        )
     session_id = (
         scoped_session_id(session_scope)
         if session_scope is not None
@@ -244,9 +273,42 @@ def _invoke(
         payload["group"] = group_context
     if attachment_prefix is not None:
         payload["attachmentPrefix"] = attachment_prefix
+    if group_context is None and event_id and any(
+        tool.get("runtime", {}).get("kind") == "agentcore"
+        and tool.get("runtime", {}).get("name") == "browser"
+        for tool in resolved_tools
+    ):
+        from shared.browser_sessions import runtime_browser_session
+
+        browser_session = runtime_browser_session(table, agentcore, user_id, bot_id)
+        if browser_session:
+            payload["browser"] = {
+                **browser_session,
+                "actorId": memory_actor_id(user_id),
+                "botId": bot_id,
+            }
     normalized_continuation = _continuation_payload(continuation)
     if normalized_continuation:
         payload["continuation"] = normalized_continuation
+    if work_key is not None and lease_owner and resume_request is not None:
+        work = runtime_work(payload, normalized_continuation)
+        if not _pause_work(work_key, lease_owner, [work]):
+            return AgentInvocationResult(text="", pending_work=[work])
+        # Queue recovery before dispatch, including lost acknowledgements. The
+        # runtime's conditional durable claim prevents replay of side effects.
+        queue_runtime_poll(work_key, resume_request)
+        response = agentcore.invoke_agent_runtime(
+            agentRuntimeArn=AGENT_RUNTIME_ARN, qualifier=AGENT_RUNTIME_QUALIFIER,
+            runtimeSessionId=work["sessionId"], contentType="application/json",
+            accept="text/event-stream", payload=json.dumps(payload).encode("utf-8"),
+        )
+        try:
+            # Drain the short acknowledgement so streaming disconnect cannot
+            # cancel the handler before it registers its background task.
+            response["response"].read(65_536)
+        finally:
+            response["response"].close()
+        return AgentInvocationResult(text="", pending_work=[work])
     response = agentcore.invoke_agent_runtime(
         agentRuntimeArn=AGENT_RUNTIME_ARN,
         qualifier=AGENT_RUNTIME_QUALIFIER,

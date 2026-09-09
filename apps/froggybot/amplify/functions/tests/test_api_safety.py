@@ -8,6 +8,27 @@ from api_test_case import ApiTestCase
 
 class ApiSafetyTests(ApiTestCase):
 
+    def test_request_body_rejects_non_text_json_input(self) -> None:
+        with self.assertRaises(self.support.ApiError) as error:
+            self.support._body({"body": {"unexpected": "object"}})
+
+        self.assertEqual(error.exception.status_code, 400)
+
+    def test_request_body_is_bounded_before_json_parsing(self) -> None:
+        oversized = "x" * (self.support.MAX_REQUEST_BODY_BYTES + 1)
+        with self.assertRaises(self.support.ApiError) as error:
+            self.support._body({"body": oversized})
+
+        self.assertEqual(error.exception.status_code, 413)
+
+    def test_stop_background_agent_marks_cancel_before_stopping_its_session(self) -> None:
+        order = []
+        with patch.object(self.direct_chat.s3, "put_object", side_effect=lambda **_k: order.append("marker")) as put, patch.object(self.direct_chat.agentcore, "stop_runtime_session", side_effect=lambda **_k: order.append("stop")) as stop:
+            self.direct_chat._stop_background_work({"pendingWork": [{"provider": "agentcore_runtime", "taskId": "users/actor/runs/run/state.json", "sessionId": "specific-session"}]})
+        self.assertEqual(order, ["marker", "stop"])
+        self.assertIn(b'"cancelled":true', put.call_args.kwargs["Body"])
+        self.assertEqual(stop.call_args.kwargs["runtimeSessionId"], "specific-session")
+
     def test_revoking_a_share_removes_snapshot_pointers_and_signup_access(self) -> None:
         share = {
             "pk": "SHARE#secret-token",

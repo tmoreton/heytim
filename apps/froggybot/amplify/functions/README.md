@@ -18,3 +18,9 @@ version-pinned copy.
 
 The whole `amplify/functions` directory is packaged for each Lambda, so relative package imports are
 available in AWS and in the local test command.
+
+Run `npm run backend:test` from `apps/froggybot`. The command uses the locked
+runtime Python environment through `uv`, including its pinned AWS SDK. Do not
+substitute the operating system's Python packages: older runner-provided SDKs
+do not include AgentCore browser/profile APIs, and missing SDKs skip those
+contract checks.

@@ -47,6 +47,8 @@ MODEL_PRICING_PER_MILLION_USD = {
 
 
 def _count(value: Any) -> int:
+    if isinstance(value, Decimal) and value.is_finite() and value == value.to_integral_value():
+        value = int(value)
     if isinstance(value, bool) or not isinstance(value, int):
         return 0
     return value if 0 <= value <= MAX_TOKEN_COUNT else 0

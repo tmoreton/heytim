@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
+from .runtime_jobs import poll_runtime_work, stop_runtime_work
 from .support import QUEUE_URL, agentcore, sqs, table
 
 POLL_DELAY_SECONDS = 30
@@ -31,7 +32,7 @@ def _validate_pending_work(value: Any) -> list[dict[str, str]]:
             raise ValueError("pendingWork item is invalid")
         if not all(isinstance(raw[field], str) and raw[field] for field in REQUIRED_FIELDS):
             raise ValueError("pendingWork item is invalid")
-        if raw["provider"] != "agentcore_code_interpreter":
+        if raw["provider"] not in {"agentcore_code_interpreter", "agentcore_runtime"}:
             raise ValueError("pendingWork provider is unsupported")
         validated.append({field: raw[field] for field in REQUIRED_FIELDS})
     return validated
@@ -145,11 +146,17 @@ def _process_background_work(_record: dict, request: dict) -> None:
         raise ValueError("Background work poll is invalid")
 
     item = table.get_item(Key=item_key, ConsistentRead=True).get("Item")
-    if not item or item.get("status") in {"CANCELLED", "COMPLETE", "ERROR"}:
+    if not item:
+        return
+    if item.get("status") in {"CANCELLED", "COMPLETE", "ERROR"}:
+        if item.get("status") == "CANCELLED":
+            for work in item.get("pendingWork", []):
+                if work.get("provider") == "agentcore_runtime":
+                    stop_runtime_work(work)
         return
     raw_work = item.get("pendingWork")
     if raw_work is None:
-        if item.get("status") == "PENDING" and item.get("backgroundResults"):
+        if item.get("status") == "PENDING" and (item.get("backgroundResults") or item.get("runtimeResult")):
             sqs.send_message(
                 QueueUrl=QUEUE_URL,
                 MessageBody=json.dumps(resume_request),
@@ -157,6 +164,11 @@ def _process_background_work(_record: dict, request: dict) -> None:
         return
 
     pending_work = _validate_pending_work(raw_work)
+    if any(work["provider"] == "agentcore_runtime" for work in pending_work):
+        if len(pending_work) != 1:
+            raise ValueError("A runtime job must run on its own")
+        poll_runtime_work(item_key, item, pending_work[0], resume_request)
+        return
     poll_count = request.get("pollCount", 1)
     if (
         not isinstance(poll_count, int)

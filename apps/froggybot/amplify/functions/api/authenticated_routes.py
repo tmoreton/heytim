@@ -20,6 +20,7 @@ from .bots import (
     _messages_from_turns,
     _update_bot,
 )
+from .browser_sessions import browser_session_route
 from .connections import _connections, _delete_connection, _save_connection
 from .direct_chat import (
     _approve_bot_turn,
@@ -412,6 +413,14 @@ def _route_map(handler: Route, *route_keys: str) -> dict[str, Route]:
 
 
 ROUTE_HANDLERS: dict[str, Route] = {
+    **_route_map(
+        browser_session_route,
+        "GET /bots/{botId}/browser",
+        "POST /bots/{botId}/browser/open",
+        "POST /bots/{botId}/browser/resume",
+        "POST /bots/{botId}/browser/close",
+        "DELETE /bots/{botId}/browser/profile",
+    ),
     **_route_map(
         group_schedule_route,
         "GET /groups/{groupId}/schedules",

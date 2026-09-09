@@ -11,6 +11,7 @@ MAX_GROUP_DECISIONS = 10
 MAX_GROUP_DECISION_CHARS = 1_000
 ROUND_ROLES = {"solo", "lead", "contributor", "synthesizer"}
 CHIEF_SYSTEM_ROLE = "chief"
+MAX_HISTORY_BLOCK_CHARS = 12_000
 
 
 def is_chief_bot(bot: dict) -> bool:
@@ -148,10 +149,15 @@ def group_runtime_context(
 
 def _append_history(messages: list[dict], role: str, text: str) -> None:
     if messages and messages[-1]["role"] == role:
-        previous = messages[-1]["content"][0]["text"]
-        messages[-1]["content"] = [{"text": f"{previous}\n{text}"}]
-        return
-    messages.append({"role": role, "content": [{"text": text}]})
+        previous = messages[-1]["content"].pop()["text"]
+        text = f"{previous}\n{text}"
+    else:
+        messages.append({"role": role, "content": []})
+    messages[-1]["content"].extend(
+        {"text": text[index:index + MAX_HISTORY_BLOCK_CHARS]}
+        for index in range(0, len(text), MAX_HISTORY_BLOCK_CHARS)
+        if text[index:index + MAX_HISTORY_BLOCK_CHARS].strip()
+    )
 
 
 def group_history_from_items(items: list[dict], current_bot_id: str) -> list[dict]:
@@ -165,7 +171,7 @@ def group_history_from_items(items: list[dict], current_bot_id: str) -> list[dic
             or not text.strip()
         ):
             continue
-        clean_text = text.strip()[:12_000]
+        clean_text = text.strip()[:60_000]
         author_name = str(item.get("authorName", "Participant"))[:60]
         if item.get("authorType") == "bot" and item.get("authorId") == current_bot_id:
             _append_history(messages, "assistant", clean_text)

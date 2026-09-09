@@ -23,7 +23,7 @@
       "require_symbols": true,
       "require_uppercase": true
     },
-    "unauthenticated_identities_enabled": true,
+    "unauthenticated_identities_enabled": false,
     "passwordless": {
       "email_otp_enabled": true,
       "sms_otp_enabled": false

@@ -18,6 +18,7 @@ from strands.memory import MemoryEntry, MemoryStore, SearchOptions
 MEMORY_ID = os.environ.get("MEMORY_FROGBOTMEMORY_ID")
 _IDENTITY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 _MEMORY_SCOPES = {"personal", "group"}
+MAX_MEMORY_SEARCH_QUERY_CHARS = 10_000
 logger = logging.getLogger(__name__)
 
 
@@ -50,6 +51,10 @@ class BalancedMemoryStore:
     async def search(
         self, query: str, options: SearchOptions | None = None
     ) -> list[MemoryEntry]:
+        # AgentCore Memory rejects searchQuery values over 10,000 characters.
+        # A long user turn should degrade to bounded recall instead of failing
+        # every category lookup and polluting the runtime's error telemetry.
+        query = query[:MAX_MEMORY_SEARCH_QUERY_CHARS]
         want = (
             options.get("max_search_results")
             if options and "max_search_results" in options

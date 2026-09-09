@@ -155,6 +155,8 @@ class WorkerTestCase(unittest.TestCase):
             cls.group_job = importlib.import_module("worker.group_job")
             cls.job_lifecycle = importlib.import_module("worker.job_lifecycle")
             cls.background_work = importlib.import_module("worker.background_work")
+            cls.runtime_jobs = importlib.import_module("worker.runtime_jobs")
+            cls.account_cleanup = importlib.import_module("shared.account_cleanup")
             cls.notifications = importlib.import_module("worker.notifications")
             cls.scheduled_group_job = importlib.import_module("worker.scheduled_group_job")
 
