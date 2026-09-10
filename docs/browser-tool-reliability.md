@@ -14,10 +14,10 @@ and drives a nested event loop. Logs showed subsequent AnyIO/ASGI event-loop err
 and the primary model connection failing. This demonstrated why schema-only tests
 were insufficient.
 
-That connection failure also exposed a separate fallback constraint: at least one
-prefixed GitHub MCP tool name exceeds Bedrock's 64-character limit. This remains a
-follow-up for provider-independent tool naming; fixing browser startup does not
-claim to repair every provider failover path.
+That connection failure also exposed a separate model constraint: at least one
+prefixed GitHub MCP tool name exceeded the common 64-character limit. The runtime
+now assigns every remote MCP tool a stable, connection-scoped alias no longer than
+64 characters while retaining the original name for server calls.
 
 ## Shared runtime changes
 

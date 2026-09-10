@@ -101,6 +101,35 @@ def _pause_work(
         return False
 
 
+def _restore_paused_work(
+    item_key: dict,
+    lease_owner: str,
+    pending_work: list[dict],
+) -> bool:
+    """Restore the active lease when a background dispatch never started."""
+    now = int(datetime.now(UTC).timestamp())
+    try:
+        table.update_item(
+            Key=item_key,
+            UpdateExpression=(
+                "SET #status = :running, leaseOwner = :owner, "
+                "leaseExpiresAt = :expires REMOVE pendingWork"
+            ),
+            ConditionExpression="#status = :pending AND pendingWork = :work",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={
+                ":pending": "PENDING",
+                ":running": "RUNNING",
+                ":owner": lease_owner,
+                ":expires": now + WORK_LEASE_SECONDS,
+                ":work": pending_work,
+            },
+        )
+        return True
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return False
+
+
 def _release_work(item_key: dict, lease_owner: str) -> bool:
     """Return a failed attempt to the queue without waiting for its lease to expire."""
     try:

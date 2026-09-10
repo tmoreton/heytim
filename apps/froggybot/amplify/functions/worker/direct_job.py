@@ -4,7 +4,7 @@ import logging
 
 from shared.work_state import is_claimable
 
-from .agent import _invoke, _progress_updater
+from .agent import _invoke, _progress_updater, agent_failure_message
 from .artifacts import _collect_generated_artifacts, _delete_generated_artifacts
 from .background_work import _queue_background_poll
 from .bot_mutations import apply_bot_mutations
@@ -142,9 +142,9 @@ def _process_agent_reply(record: dict, request: dict) -> None:
         if result.bot_mutations:
             apply_bot_mutations(user_id, bot, turn, result.bot_mutations)
         artifacts = _collect_generated_artifacts(user_id, bot_id, turn["id"])
-    except Exception:
+    except Exception as error:
         logger.exception("Agent request failed for turn %s", turn.get("id"))
-        failure_answer = "I could not finish that request. Please try again."
+        failure_answer = agent_failure_message(error)
         failure = finish_failed_attempt(
             attempt,
             turn_key,

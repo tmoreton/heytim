@@ -31,11 +31,20 @@ from .support import (
     catalog,
     table,
 )
-from .work import _pause_work
+from .work import _pause_work, _restore_paused_work
 
 logger = logging.getLogger(__name__)
 RECENT_DIRECT_TURNS = 50
 MAX_TEAM_BOTS = 24
+
+
+def agent_failure_message(error: Exception) -> str:
+    if "Runtime initialization time exceeded" in str(error):
+        return (
+            "FroggyBot could not start its worker after repeated attempts. No agent "
+            "work began and no external actions were taken. Please try again."
+        )
+    return "I could not finish that request. Please try again."
 
 
 @dataclass(frozen=True)
@@ -382,11 +391,21 @@ def _invoke(
         # Queue recovery before dispatch, including lost acknowledgements. The
         # runtime's conditional durable claim prevents replay of side effects.
         queue_runtime_poll(work_key, resume_request)
-        response = agentcore.invoke_agent_runtime(
-            agentRuntimeArn=AGENT_RUNTIME_ARN, qualifier=AGENT_RUNTIME_QUALIFIER,
-            runtimeSessionId=work["sessionId"], contentType="application/json",
-            accept="text/event-stream", payload=json.dumps(payload).encode("utf-8"),
-        )
+        try:
+            response = agentcore.invoke_agent_runtime(
+                agentRuntimeArn=AGENT_RUNTIME_ARN,
+                qualifier=AGENT_RUNTIME_QUALIFIER,
+                runtimeSessionId=work["sessionId"],
+                contentType="application/json",
+                accept="text/event-stream",
+                payload=json.dumps(payload).encode("utf-8"),
+            )
+        except Exception:
+            # A failed cold start happens after the turn was durably paused. Restore
+            # this lease so the SQS attempt can retry instead of waiting for a
+            # heartbeat from a runtime job that never started.
+            _restore_paused_work(work_key, lease_owner, [work])
+            raise
         try:
             # Drain the short acknowledgement so streaming disconnect cannot
             # cancel the handler before it registers its background task.

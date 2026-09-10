@@ -102,6 +102,26 @@ class WorkerSafetyTests(WorkerTestCase):
         self.assertIn("REMOVE leaseOwner", update["UpdateExpression"])
         self.assertEqual(update["ExpressionAttributeValues"][":work"], pending)
 
+    def test_failed_runtime_dispatch_restores_the_active_lease(self) -> None:
+        pending = [{"provider": "agentcore_runtime"}]
+
+        restored = self.work._restore_paused_work(
+            {"pk": "CHAT#1", "sk": "TURN#1"},
+            "queue-message-1",
+            pending,
+        )
+
+        self.assertTrue(restored)
+        update = self.table.updates[-1]
+        self.assertIn("REMOVE pendingWork", update["UpdateExpression"])
+        self.assertEqual(
+            update["ConditionExpression"],
+            "#status = :pending AND pendingWork = :work",
+        )
+        self.assertEqual(
+            update["ExpressionAttributeValues"][":owner"], "queue-message-1"
+        )
+
     def test_completed_background_work_resumes_the_original_job(self) -> None:
         item_key = {"pk": "CHAT#1", "sk": "TURN#1"}
         pending = [

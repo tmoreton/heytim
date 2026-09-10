@@ -8,7 +8,13 @@ from shared.memory_identity import group_memory_actor_id, group_memory_session_i
 from shared.time import utc_now_iso
 from shared.work_state import is_claimable
 
-from .agent import _get_group_context, _get_group_history, _invoke, _progress_updater
+from .agent import (
+    _get_group_context,
+    _get_group_history,
+    _invoke,
+    _progress_updater,
+    agent_failure_message,
+)
 from .artifacts import (
     _collect_group_generated_artifacts,
     _delete_group_generated_artifacts,
@@ -224,9 +230,9 @@ def _process_group_agent_reply(
             return result.terminal_error
         answer = result.text
         artifacts = _collect_group_generated_artifacts(group_id, reply["id"])
-    except Exception:
+    except Exception as error:
         logger.exception("Agent request failed for group reply %s", reply.get("id"))
-        answer = "I could not finish that request. Please try again."
+        answer = agent_failure_message(error)
         failure = finish_failed_attempt(
             attempt,
             reply_key,

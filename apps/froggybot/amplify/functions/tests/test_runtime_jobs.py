@@ -168,6 +168,47 @@ class RuntimeJobTests(WorkerTestCase):
         self.assertEqual(order, ["persist", "poll", "dispatch"])
         self.assertEqual(result.pending_work[0]["provider"], "agentcore_runtime")
 
+    def test_failed_runtime_cold_start_is_restored_for_queue_retry(self):
+        bot = {"name": "Engineer", "prompt": "Work", "skillVersions": {}, "toolIds": []}
+        restored = []
+        with (
+            patch.object(self.agent, "_pause_work", return_value=True),
+            patch.object(self.agent, "queue_runtime_poll"),
+            patch.object(
+                self.agent,
+                "_restore_paused_work",
+                side_effect=lambda *_args: restored.append(True) or True,
+            ),
+            patch.object(self.agent.catalog, "resolve_for_runtime", return_value=[]),
+            patch.object(
+                self.agent.catalog, "resolve_tools_for_runtime", return_value=[]
+            ),
+        ):
+            self.agentcore.invoke_agent_runtime.side_effect = RuntimeError(
+                "Runtime initialization time exceeded"
+            )
+            with self.assertRaisesRegex(RuntimeError, "initialization"):
+                self.agent._invoke(
+                    "user",
+                    "bot",
+                    bot,
+                    event_id="turn",
+                    history=[{"role": "user", "content": [{"text": "work"}]}],
+                    work_key=self.key,
+                    lease_owner="lease",
+                    resume_request=self.resume,
+                )
+
+        self.assertEqual(restored, [True])
+
+    def test_cold_start_failure_message_is_actionable(self):
+        message = self.agent.agent_failure_message(
+            RuntimeError("Runtime initialization time exceeded")
+        )
+
+        self.assertIn("could not start its worker", message)
+        self.assertIn("No agent work began", message)
+
     def test_account_cleanup_only_stops_owned_background_sessions(self):
         def entry(session, owner=None):
             return {"botOwnerId": owner, "pendingWork": [{"provider": "agentcore_runtime", "sessionId": session}]}
