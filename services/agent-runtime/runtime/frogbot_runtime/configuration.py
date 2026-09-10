@@ -193,7 +193,9 @@ def bot_configuration(
             "ask the user to select Open bot browser in this direct chat, sign in "
             "there, and choose Resume bot. Never request passwords, cookies, or "
             "session tokens in chat. Do not bypass a login or human-control block. "
-            "A saved login does not grant approval for new external actions."
+            "A saved login does not grant approval for new external actions. Initialize "
+            "the private browser once per run, reuse the session name returned by the "
+            "tool for every site, and open another tab instead of another session."
         )
     if any(
         getattr(tool, "tool_name", "") == "background_command"

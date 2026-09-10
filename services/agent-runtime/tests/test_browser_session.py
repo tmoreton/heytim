@@ -98,6 +98,96 @@ def test_managed_browser_verifies_live_ownership_and_control(monkeypatch, failur
         browser._executor.shutdown(wait=True)
 
 
+def test_managed_browser_reuses_one_connection_for_different_model_names():
+    browser = agentcore_adapters.PersistentAgentCoreBrowser(
+        session_name="run", managed_session=reference(), region="us-east-1"
+    )
+    remote = object()
+    context = object()
+    page = object()
+    browser.create_browser_session = AsyncMock(return_value=remote)
+    browser._setup_session_from_browser = AsyncMock(
+        return_value=(remote, context, page)
+    )
+    first = agentcore_adapters.CompatibleBrowserInput.model_validate(
+        {
+            "action": {
+                "type": "init_session",
+                "description": "Read the build guide",
+                "session_name": "build-guide",
+            }
+        }
+    )
+    second = agentcore_adapters.CompatibleBrowserInput.model_validate(
+        {
+            "action": {
+                "type": "init_session",
+                "description": "Read the schema",
+                "session_name": "schema-reference",
+            }
+        }
+    )
+
+    async def run():
+        first_action = browser._managed_browser_input(first).action
+        second_action = browser._managed_browser_input(second).action
+        first_result = await browser._async_init_session(first_action)
+        second_result = await browser._async_init_session(second_action)
+        return first_action, second_action, first_result, second_result
+
+    try:
+        first_action, second_action, first_result, second_result = asyncio.run(run())
+        assert first_action.session_name == agentcore_adapters.MANAGED_BROWSER_LOCAL_SESSION
+        assert second_action.session_name == agentcore_adapters.MANAGED_BROWSER_LOCAL_SESSION
+        assert first_result["status"] == "success"
+        assert second_result == {
+            "status": "success",
+            "content": [
+                {
+                    "json": {
+                        "sessionName": agentcore_adapters.MANAGED_BROWSER_LOCAL_SESSION,
+                        "description": "Read the build guide",
+                        "reused": True,
+                    }
+                }
+            ],
+        }
+        browser.create_browser_session.assert_awaited_once()
+        browser._setup_session_from_browser.assert_awaited_once_with(remote)
+        assert list(browser._sessions) == [
+            agentcore_adapters.MANAGED_BROWSER_LOCAL_SESSION
+        ]
+    finally:
+        browser._executor.submit(browser._dispose).result(timeout=5)
+        browser._executor.shutdown(wait=True)
+
+
+def test_managed_browser_rewrites_follow_up_actions_to_canonical_session():
+    browser = agentcore_adapters.PersistentAgentCoreBrowser(
+        session_name="run", managed_session=reference(), region="us-east-1"
+    )
+    action = agentcore_adapters.CompatibleBrowserInput.model_validate(
+        {
+            "action": {
+                "type": "navigate",
+                "session_name": "a-new-name-from-the-model",
+                "url": "https://example.com",
+            }
+        }
+    )
+
+    try:
+        normalized = browser._managed_browser_input(action)
+        assert (
+            normalized.action.session_name
+            == agentcore_adapters.MANAGED_BROWSER_LOCAL_SESSION
+        )
+        assert action.action.session_name == "a-new-name-from-the-model"
+    finally:
+        browser._executor.submit(browser._dispose).result(timeout=5)
+        browser._executor.shutdown(wait=True)
+
+
 def test_managed_cleanup_preserves_remote_tabs_and_login():
     browser = agentcore_adapters.PersistentAgentCoreBrowser(
         session_name="run", managed_session=reference(), region="us-east-1"

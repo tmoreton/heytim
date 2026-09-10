@@ -24,6 +24,12 @@ from .browser_input import CompatibleBrowserInput
 from .code_interpreter_input import CompatibleCodeInterpreterInput
 
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+MANAGED_BROWSER_LOCAL_SESSION = "frogbot-private-browser"
+MANAGED_BROWSER_GUIDANCE = (
+    " A private in-app browser supports one automation connection per run. "
+    "Call init_session once, then reuse the returned sessionName for every site "
+    "and open additional tabs instead of initializing another session."
+)
 
 
 class PersistentAgentCoreBrowser(AgentCoreBrowser):
@@ -48,16 +54,41 @@ class PersistentAgentCoreBrowser(AgentCoreBrowser):
         self.session_name = session_name
         self.managed_session = managed_session
 
-    @tool(name="browser", description=AgentCoreBrowser.browser.tool_spec["description"])
+    @tool(
+        name="browser",
+        description=(
+            AgentCoreBrowser.browser.tool_spec["description"]
+            + MANAGED_BROWSER_GUIDANCE
+        ),
+    )
     async def browser(self, browser_input: CompatibleBrowserInput) -> dict[str, Any]:
         """Run a validated browser action with provider-compatible input decoding.
 
         Args:
             browser_input: Structured action object, not a quoted JSON string.
         """
-        validated = CompatibleBrowserInput.model_validate(browser_input)
+        validated = self._managed_browser_input(
+            CompatibleBrowserInput.model_validate(browser_input)
+        )
         return await asyncio.get_running_loop().run_in_executor(
             self._executor, contextvars.copy_context().run, super().browser, validated
+        )
+
+    def _managed_browser_input(
+        self, browser_input: CompatibleBrowserInput
+    ) -> CompatibleBrowserInput:
+        """Map every managed action to one local handle for the remote browser."""
+        if not self.managed_session:
+            return browser_input
+        action = browser_input.action
+        if not hasattr(action, "session_name"):
+            return browser_input
+        return browser_input.model_copy(
+            update={
+                "action": action.model_copy(
+                    update={"session_name": MANAGED_BROWSER_LOCAL_SESSION}
+                )
+            }
         )
 
     def _execute_async(self, action_coro) -> Any:
@@ -89,6 +120,28 @@ class PersistentAgentCoreBrowser(AgentCoreBrowser):
             await self._playwright.stop()
         self._playwright = None
         self._sessions.clear()
+
+    async def _async_init_session(self, action) -> dict[str, Any]:
+        if not self.managed_session:
+            return await super()._async_init_session(action)
+        action = action.model_copy(
+            update={"session_name": MANAGED_BROWSER_LOCAL_SESSION}
+        )
+        existing = self._sessions.get(MANAGED_BROWSER_LOCAL_SESSION)
+        if existing:
+            return {
+                "status": "success",
+                "content": [
+                    {
+                        "json": {
+                            "sessionName": MANAGED_BROWSER_LOCAL_SESSION,
+                            "description": existing.description,
+                            "reused": True,
+                        }
+                    }
+                ],
+            }
+        return await super()._async_init_session(action)
 
     async def _setup_session_from_browser(self, browser_or_context):
         if not self.managed_session:

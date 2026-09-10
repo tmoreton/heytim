@@ -77,6 +77,8 @@ def test_catalog_bindings_select_stan_features_and_local_tools(monkeypatch) -> N
     assert "For intake, use only a brief acknowledgment" in config.instructions
     assert "do not present model memory as confirmed" in config.instructions
     assert "platform will resume this same conversation" in config.instructions
+    assert "Initialize the private browser once per run" in config.instructions
+    assert "open another tab instead of another session" in config.instructions
 
 
 def test_team_roster_is_validated_and_added_as_context() -> None:
