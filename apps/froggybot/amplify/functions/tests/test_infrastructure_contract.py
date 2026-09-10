@@ -22,12 +22,11 @@ class InfrastructureContractTests(unittest.TestCase):
     def test_signed_out_clients_get_no_aws_credentials(self) -> None:
         self.assertIn("cfnIdentityPool.allowUnauthenticatedIdentities = false", self.backend)
 
-    def test_worker_polling_override_requires_explicit_deployment_opt_in(self) -> None:
+    def test_worker_polling_is_explicitly_allowed(self) -> None:
         worker = self.backend.split("const workerFunction =", 1)[1].split("table.grantReadWriteData", 1)[0]
-        self.assertIn("process.env.FROGBOT_ALLOW_RECURSIVE_POLLS === 'true'", worker)
-        self.assertIn("? RecursiveLoop.ALLOW", worker)
-        self.assertIn(": RecursiveLoop.TERMINATE", worker)
-        self.assertEqual(self.backend.count("recursiveLoop:"), 1)
+        self.assertIn("recursiveLoop: RecursiveLoop.ALLOW", worker)
+        self.assertNotIn("FROGBOT_ALLOW_RECURSIVE_POLLS", self.backend)
+        self.assertEqual(worker.count("recursiveLoop:"), 1)
 
     def test_access_log_5xx_responses_raise_an_alarm(self) -> None:
         self.assertIn("ApiServerErrorMetric", self.observability)

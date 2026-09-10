@@ -314,11 +314,10 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
   }),
   logGroup: workerLogGroup,
   timeout: Duration.minutes(14),
-  // Keep AWS recursion protection enabled until the separate long-run change is
-  // explicitly approved. Browser handoff must not silently enable that override.
-  recursiveLoop: process.env.FROGBOT_ALLOW_RECURSIVE_POLLS === 'true'
-    ? RecursiveLoop.ALLOW
-    : RecursiveLoop.TERMINATE,
+  // Long-running AgentCore jobs intentionally return bounded watchdog messages
+  // to this queue. Allow that lineage past Lambda's approximate 16-hop cutoff;
+  // application deadlines and reserved concurrency provide the guardrails.
+  recursiveLoop: RecursiveLoop.ALLOW,
   reservedConcurrentExecutions: WORKER_CONCURRENCY,
   environment: {
     ...functionDefaults.environment,

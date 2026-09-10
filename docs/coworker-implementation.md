@@ -237,18 +237,14 @@ turn `e4348d7c-a573-4e31-b73a-b2ce95256c9b` acquired a background session and wa
 successfully cancelled through the app API. The runtime suite passed 110 tests;
 backend tests, Ruff, Bandit, type checking, and source-size checks passed.
 
-**Not fully enabled yet:** live group tests exposed Lambda recursive-invocation
-protection dropping the polling chain. CloudWatch `RecursiveInvocationsDropped`
-reported drops at 20:41 and 20:51, matching the stalled test handoffs. The worker's
-deployed recursion setting is still `Terminate`. The prepared worker-only
-`RecursiveLoop.ALLOW` infrastructure change was blocked by deployment safety
-review and requires explicit user approval because it removes AWS's automatic
-recursive-loop cutoff. Application deadlines, heartbeat checks, bounded rounds,
-and concurrency controls remain. No workaround or direct setting mutation was
-attempted. The second diagnostic group round (`e3e3d673-a3de-43cd-8490-db4c1839681f`)
-has a saved YouTube result awaiting completion and a waiting Chief synthesis;
-after approval, resume the saved result without replaying completed contributions
-and repeat the complete round. An eight-hour live soak has not been performed.
+**Enabled September 9, 2026:** live group tests exposed Lambda recursive-invocation
+protection dropping the intentional polling chain. CloudWatch
+`RecursiveInvocationsDropped` reported drops at 20:41 and 20:51, matching the
+stalled test handoffs. After explicit approval, the worker was changed to
+`RecursiveLoop.ALLOW` so bounded watchdog polling can continue past Lambda's
+approximate 16-hop cutoff. Application deadlines, heartbeat checks, bounded
+rounds, the queue dead-letter policy, and concurrency controls remain. An
+eight-hour live soak has not been performed.
 
 Other edits arrived concurrently in this worktree during validation and were
 preserved. No commit or push was made for this change before the approval pause.
