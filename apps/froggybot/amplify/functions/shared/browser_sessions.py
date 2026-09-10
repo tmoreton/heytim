@@ -23,6 +23,7 @@ from .browser_session_aws import (
     automation,
     live_view_url,
     session_args,
+    session_ended,
     stop_session,
 )
 from .browser_session_store import BrowserSessionError, BrowserSessionStore, direct_only
@@ -142,9 +143,24 @@ class BrowserSessionService:
     def get(self) -> dict:
         bot = self.store.authorize()
         record = self.store.read()
+        if self._ended_handoff(record):
+            record = {**record, "status": "EXPIRED", "resumedTurnId": None}
         if record["status"] in {"READY", "HUMAN_CONTROL"} and not self._valid(record):
             record = {**record, "status": "EXPIRED"}
-        return self._view(record, bot)
+        view = self._view(record, bot)
+        if record["status"] in {"OPENING", "RESUMING"}:
+            view["recoveryRequired"] = int(record.get("operationUntil", 0)) <= self._now()
+        return view
+
+    def _ended_handoff(self, record: dict) -> bool:
+        # Only recover an abandoned open/close with affirmative AWS evidence.
+        # Never interrupt a live operation, profile save, or uncertain enqueue.
+        if (record.get("revoked") or int(record.get("operationUntil", 0)) > self._now()
+                or record.get("resumeState") in {"WAIT_PROFILE", "ENQUEUEING", "UNCERTAIN"}):
+            return False
+        abandoned = record["status"] == "OPENING" or (
+            record["status"] == "RESUMING" and record.get("operation") == "close")
+        return abandoned and session_ended(self.agentcore, record, self.name)
 
     def open(self, display=None, url=None) -> dict:
         """API must hold the direct-chat send lease through this whole method."""
@@ -152,9 +168,12 @@ class BrowserSessionService:
         bot = self.store.authorize()
         self.store.ensure_idle()
         record = self.store.read()
+        if self._ended_handoff(record):
+            record = {**record, "status": "EXPIRED"}
         if record["status"] in {"OPENING", "RESUMING"} or record.get("resumeState") in {"ENQUEUEING", "UNCERTAIN"}:
             raise BrowserSessionError(409, "Finish or close the previous browser handoff first")
-        record = self._claim(record, "OPENING", "open", display=display or record.get("display", "desktop"))
+        record = self._claim(record, "OPENING", "open", display=display or record.get("display", "desktop"),
+                             resumeState=None, resumedTurnId=None)
         try:
             if not self._valid(record):
                 stop_session(self.agentcore, record)

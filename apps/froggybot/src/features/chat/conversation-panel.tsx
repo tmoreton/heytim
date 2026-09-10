@@ -119,7 +119,7 @@ export function ConversationPanel({
         onOpenMenu={onOpenMenu}
       />
 
-      {bot && !group ? <BrowserHandoff key={bot.id} api={browserApi} bot={bot} active={pending} visible={browserVisible} initialUrl={browserUrl} onOpen={() => onOpenBrowser()} onClose={onCloseBrowser} onResumed={onBrowserResumed} /> : null}
+      {bot && !group ? <BrowserHandoff key={bot.id} api={browserApi} bot={bot} active={pending} visible={browserVisible} initialUrl={browserUrl} onClose={onCloseBrowser} onResumed={onBrowserResumed} /> : null}
 
       {error ? (
         <Pressable

@@ -19,7 +19,7 @@ const api: BrowserApi = {
   openBrowser: async (_context, options) => {
     counters.url = options?.url ?? ''; counters.display = options?.display ?? 'desktop';
     counters.opens++; emit();
-    if (mode === 'busy') throw Object.assign(new Error('Busy'), { status: 409 });
+    if (mode === 'busy') throw Object.assign(new Error('Wait for the bot to finish or stop it before opening its browser'), { status: 409 });
     const display = options?.display ?? 'desktop';
     state = { ...state, status: 'human_control', resumedTurnId: undefined, display, viewport: browserViewports[display], mobileSiteSupported: true };
     return { ...state,
@@ -49,12 +49,16 @@ function Fixture() {
   }, [visible, active]);
   return <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 1200, height: 900 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
     <h1>Browser handoff local test — no remote browser</h1>
-    <label>Scenario <select aria-label="Scenario" onChange={(event) => { mode = event.target.value; setActive(mode === 'active'); }}><option>normal</option><option>busy</option><option>expiry</option><option>saving</option><option>uncertain</option><option>active</option></select></label>
+    <label>Scenario <select aria-label="Scenario" onChange={(event) => {
+      mode = event.target.value; setActive(mode === 'active');
+      if (mode === 'failed') state = { ...state, status: 'opening', recoveryRequired: true, resumedTurnId: 'old-turn' };
+      if (mode === 'ended') state = { ...state, status: 'expired' };
+    }}><option>normal</option><option>busy</option><option>expiry</option><option>saving</option><option>uncertain</option><option>active</option><option>failed</option><option>ended</option></select></label>
     <button onClick={() => setHasTool(false)}>Remove browser capability</button>
     <button onClick={() => setVisible(true)}>Browser connection</button>
     <MessageMarkdown onOpenLink={(link) => { setUrl(link); setVisible(true); }}>{'[Open example](https://example.com/chat-link)'}</MessageMarkdown>
     <pre id="counters" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{JSON.stringify(counters)}</pre>
-    <BrowserHandoff api={api} bot={{ ...bot, toolIds: hasTool ? ['browser'] : [] }} active={active} initialUrl={url} visible={visible} onOpen={() => setVisible(true)} onClose={() => { setVisible(false); setUrl(undefined); }} onResumed={async () => { counters.refreshed++; emit(); }} />
+    <BrowserHandoff api={api} bot={{ ...bot, toolIds: hasTool ? ['browser'] : [] }} active={active} initialUrl={url} visible={visible} onClose={() => { setVisible(false); setUrl(undefined); }} onResumed={async () => { counters.refreshed++; emit(); }} />
   </SafeAreaProvider>;
 }
 

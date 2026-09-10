@@ -26,7 +26,8 @@ const reset = (scenario = 'normal') => {
 };
 try {
   reset();
-  click('Open bot browser');
+  assert.ok(!text().includes('Open bot browser'), 'No persistent browser button in chat.');
+  click('Browser connection');
   browser('wait', 'iframe');
   assert.equal(counters().opens, 1);
   click('Browser options');
@@ -49,13 +50,13 @@ try {
   assert.equal(evaluate('Boolean(document.querySelector("iframe"))'), false);
   console.log('PASS: direct handoff, default no-save consent, private iframe URL, responsive controls, conversation refresh.');
 
-  reset('busy'); click('Open bot browser');
-  assert.match(text(), /busy.*Wait/s);
+  reset('busy'); click('Browser connection');
+  assert.match(text(), /bot is working.*Wait/s);
   assert.equal(counters().opens, 1);
   assert.equal(evaluate('Boolean(document.querySelector("iframe"))'), false);
   console.log('PASS: active-run conflict surfaces guidance and does not retry.');
 
-  reset('expiry'); click('Open bot browser');
+  reset('expiry'); click('Browser connection');
   browser('wait', '1800');
   assert.match(text(), /viewing connection expired/);
   assert.equal(evaluate('Boolean(document.querySelector("iframe"))'), false);
@@ -63,10 +64,10 @@ try {
   assert.equal(counters().opens, 2);
   console.log('PASS: expiry discards the viewer; explicit Refresh gets a new capability.');
 
-  reset('saving'); click('Open bot browser'); click('Browser options');
+  reset('saving'); click('Browser connection'); click('Browser options');
   snapshot(); browser('find', 'role', 'switch', 'click', '--name', 'Remember login for this bot only');
   click('Resume bot');
-  assert.match(text(), /Saving your private profile/);
+  assert.match(text(), /Saving your login/);
   assert.equal(counters().refreshed, 0, 'Pending profile save must not close the modal or claim a resumed turn.');
   browser('wait', '5000');
   assert.equal(counters().resumes, 3);
@@ -74,12 +75,29 @@ try {
   assert.equal(counters().refreshed, 1);
   console.log('PASS: acknowledged profile save polls with consent and closes only after a ready turn.');
 
-  reset('uncertain'); click('Open bot browser'); click('Resume bot');
+  reset('uncertain'); click('Browser connection'); click('Resume bot');
   browser('wait', '2300');
   assert.equal(counters().resumes, 1);
   assert.equal(counters().refreshed, 0);
   assert.match(text(), /Could not confirm the handoff/);
   console.log('PASS: uncertain resume never retries automatically or claims success.');
+
+  reset('failed'); click('Browser connection');
+  assert.match(text(), /last browser connection did not finish/);
+  assert.equal(counters().opens, 0, 'Never replay an uncertain open automatically.');
+  click('Disconnect');
+  assert.equal(counters().closes, 0, 'Cleanup still requires confirmation.');
+  click('Cancel'); click('Close');
+  assert.match(text(), /Disconnect this browser/);
+  click('Disconnect');
+  assert.equal(counters().closes, 1);
+  assert.equal(counters().forgets, 0);
+  console.log('PASS: failed handoff has visible cleanup, preserves login, and ignores stale resume receipts.');
+
+  reset('ended'); click('Browser connection'); browser('wait', 'iframe');
+  assert.equal(counters().opens, 1);
+  assert.equal(counters().resumes, 0);
+  console.log('PASS: confirmed-ended session can reopen without resuming old work.');
 
   reset(); click('Remove browser capability'); click('Browser connection');
   assert.match(text(), /browser tool is no longer enabled/);

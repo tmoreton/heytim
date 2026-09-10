@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 from api_test_case import ApiTestCase, ConditionalCheckFailedException
 from browser_display_cases import BrowserDisplayCases
+from browser_recovery_cases import BrowserRecoveryCases
 
 
 class Condition:
@@ -86,7 +87,7 @@ class ModuleGlobals:
         del self.values[name]
 
 
-class BrowserSessionTests(BrowserDisplayCases, ApiTestCase):
+class BrowserSessionTests(BrowserDisplayCases, BrowserRecoveryCases, ApiTestCase):
     def setUp(self):
         super().setUp()
         self.module = importlib.import_module("shared.browser_sessions")
@@ -108,6 +109,7 @@ class BrowserSessionTests(BrowserDisplayCases, ApiTestCase):
         self.dp, self.cp = MagicMock(), MagicMock()
         missing = type("NotFound", (Exception,), {})
         self.dp.exceptions.ResourceNotFoundException = missing
+        self.dp.exceptions.ConflictException = type("Conflict", (Exception,), {})
         self.cp.exceptions.ResourceNotFoundException = missing
         self.dp.start_browser_session.return_value = {"sessionId": "session1"}
         self.dp.get_browser_session.return_value = {

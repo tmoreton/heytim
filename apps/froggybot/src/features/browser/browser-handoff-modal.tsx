@@ -18,7 +18,9 @@ export function BrowserHandoffModal({ botName, active, canBrowse, handoff }: { b
   const focus = useModalFocus(handoff.requestClose);
   const { state, busy, expired, confirmation } = handoff;
   const humanControl = state?.status === 'human_control';
-  const canOpen = !busy && !active && canBrowse && !!state && state.status !== 'resuming';
+  const incomplete = state?.status === 'opening' || state?.status === 'resuming';
+  const needsRecovery = Boolean(state?.recoveryRequired);
+  const canOpen = !busy && !active && canBrowse && !!state && !incomplete;
   return (
     <Modal visible animationType="fade" transparent onRequestClose={handoff.requestClose}>
       <View style={[styles.backdrop, compact && styles.mobileBackdrop, { paddingTop: insets.top + (compact ? 0 : 8), paddingBottom: insets.bottom + (compact ? 0 : 8) }]}>
@@ -55,8 +57,9 @@ export function BrowserHandoffModal({ botName, active, canBrowse, handoff }: { b
             ) : (
               <View style={styles.placeholder}>
                 {busy ? <ActivityIndicator color="#007A3D" /> : null}
-                <Text style={styles.copy}>{state?.status === 'resuming' ? 'Saving your private profile and handing control back to the bot…' : busy ? 'Opening browser…' : expired ? 'The viewing connection expired. Refresh to reconnect.' : confirmation ? 'Browser paused while you confirm.' : active ? 'Wait for the bot to finish, or close and stop it in chat.' : 'Open your bot’s private browser.'}</Text>
-                {!busy && !confirmation && canBrowse ? <Button label={humanControl || expired ? 'Refresh connection' : 'Open browser'} disabled={!canOpen} onPress={() => void handoff.open()} /> : null}
+                <Text style={styles.copy}>{confirmation ? 'Browser paused while you confirm.' : state?.status === 'resuming' && handoff.pendingConsent !== undefined ? 'Saving your login and resuming the bot…' : busy ? 'Connecting…' : needsRecovery ? 'The last browser connection did not finish.' : state?.status === 'resuming' ? 'Browser handoff is pending.' : state?.status === 'opening' ? 'Browser connection is pending.' : expired ? 'The viewing connection expired. Refresh to reconnect.' : active ? 'The bot is working. Wait or stop it in chat.' : 'Open your bot’s private browser.'}</Text>
+                {!busy && !confirmation && incomplete ? <Button label={needsRecovery && handoff.pendingConsent === undefined ? 'Disconnect' : 'Check status'} onPress={() => needsRecovery && handoff.pendingConsent === undefined ? handoff.setConfirmation('disconnect') : void handoff.refreshStatus()} /> : null}
+                {!busy && !confirmation && !incomplete && canBrowse ? <Button label={humanControl || expired ? 'Refresh connection' : 'Open browser'} disabled={!canOpen} onPress={() => void handoff.open()} /> : null}
               </View>
             )}
           </View>

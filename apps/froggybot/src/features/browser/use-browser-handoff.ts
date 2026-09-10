@@ -119,7 +119,7 @@ export function useBrowserHandoff(api: BrowserApi, botId: string, onResumed: () 
 
   const requestClose = () => {
     if (busy) return;
-    if (!state || state.status === 'closed' || state.status === 'expired' || state.resumedTurnId) {
+    if (!state || state.status === 'closed' || state.status === 'expired' || (state.status === 'ready' && state.resumedTurnId)) {
       setState((previous) => previous ? withoutLiveView(previous) : undefined);
       onDismiss();
     } else setConfirmation('disconnect');
