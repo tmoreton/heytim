@@ -1,6 +1,7 @@
 """Authenticated direct-chat browser endpoints. No token extraction or storage."""
 from __future__ import annotations
 
+from shared.browser_display import open_options
 from shared.browser_session_aws import browser_clients
 from shared.browser_session_store import BrowserSessionError, direct_only, validate_id
 from shared.browser_sessions import BrowserSessionService
@@ -21,6 +22,8 @@ def browser_session_route(user_id: str, _display_name: str, method: str,
         body = _body(event)
         action = path.rsplit("/", 1)[-1]
         allowed = {"groupId", "rememberLogin"} if action == "resume" else {"groupId"}
+        if action == "open":
+            allowed |= {"url", "display"}
         if method != "POST":
             allowed = set()
         if set(body) - allowed or (method == "POST" and query):
@@ -34,11 +37,12 @@ def browser_session_route(user_id: str, _display_name: str, method: str,
         if method == "GET" and action == "browser":
             value = service.get()
         elif method == "POST" and action == "open":
+            display, url = open_options(body)
             # Use the same lease as _send_message to exclude send/open races.
             service.store.authorize()
             lease = _claim_send_lease(user_id, bot_id)
             try:
-                value = service.open()
+                value = service.open(display=display, url=url)
             finally:
                 _release_send_lease(user_id, bot_id, lease)
         elif method == "POST" and action == "resume":

@@ -22,6 +22,7 @@ type Props = {
   onReject?: (message: Message) => Promise<void>;
   onOpenFile: (file: Attachment) => Promise<void>;
   onResolveFile: (fileId: string) => Promise<string>;
+  onOpenLink?: (url: string) => void;
   decisionSaved?: boolean;
   onSaveDecision?: (message: Message) => Promise<void>;
   onActivityExpand?: () => void;
@@ -56,6 +57,7 @@ export function MessageBubble({
   onReject,
   onOpenFile,
   onResolveFile,
+  onOpenLink,
   decisionSaved,
   onSaveDecision,
   onActivityExpand,
@@ -206,7 +208,7 @@ export function MessageBubble({
                     {preview}
                   </Text>
                 ) : botMessage ? (
-                  <MessageMarkdown>{message.text}</MessageMarkdown>
+                  <MessageMarkdown onOpenLink={onOpenLink}>{message.text}</MessageMarkdown>
                 ) : (
                   <Text
                     selectable

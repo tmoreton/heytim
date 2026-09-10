@@ -1,9 +1,13 @@
 export type BotBrowserContext = { botId: string; groupId?: string };
+export type BotBrowserOpenOptions = { url?: string; display?: 'mobile' | 'desktop' };
 
 export type BotBrowserState = BotBrowserContext & {
   status: 'closed' | 'ready' | 'human_control' | 'expired' | 'opening' | 'resuming';
   contextLabel: string;
   hasSavedLogin: boolean;
+  display?: 'mobile' | 'desktop';
+  viewport?: { width: number; height: number };
+  mobileSiteSupported?: boolean;
   sessionExpiresAt?: string;
   /** Short-lived capability. Keep only in the open viewer's memory, never chat/storage. */
   liveViewUrl?: string;

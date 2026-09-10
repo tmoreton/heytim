@@ -1,5 +1,6 @@
 import * as Linking from 'expo-linking';
-import { memo } from 'react';
+import * as Clipboard from 'expo-clipboard';
+import { memo, useMemo } from 'react';
 import Markdown, { MarkdownIt, type RenderRules } from 'react-native-markdown-renderer';
 import { Platform, StyleSheet, Text, type TextStyle } from 'react-native';
 
@@ -7,6 +8,7 @@ import { MarkdownTable, MarkdownTableCell } from './markdown-table';
 
 type Props = {
   children: string;
+  onOpenLink?: (url: string) => void;
 };
 
 const monospace = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
@@ -21,7 +23,7 @@ const compactLinkLabel = (url: string) => {
   return `${match[1]}${shortPath ? `/${shortPath}` : ''}${path.length > 2 ? '/…' : ''}`;
 };
 
-const renderRules: RenderRules = {
+const renderRules = (onOpenLink?: (url: string) => void): RenderRules => ({
   table: (node, children) => <MarkdownTable key={node.key} node={node}>{children}</MarkdownTable>,
   th: (node, children) => <MarkdownTableCell key={node.key} node={node}>{children}</MarkdownTableCell>,
   td: (node, children) => <MarkdownTableCell key={node.key} node={node}>{children}</MarkdownTableCell>,
@@ -45,21 +47,24 @@ const renderRules: RenderRules = {
         style={styles.link as TextStyle}
         onPress={(event) => {
           event.stopPropagation();
-          void Linking.openURL(url).catch(() => undefined);
-        }}>
+          if (/^https?:\/\//i.test(url) && onOpenLink) onOpenLink(url);
+          else if (/^(https?:\/\/|mailto:|tel:)/i.test(url)) void Linking.openURL(url).catch(() => undefined);
+        }}
+        onLongPress={() => { void Clipboard.setStringAsync(url).catch(() => undefined); }}>
         {automatic ? compactLinkLabel(url) : children}
       </Text>
     );
   },
-};
+});
 
-export const MessageMarkdown = memo(function MessageMarkdown({ children }: Props) {
+export const MessageMarkdown = memo(function MessageMarkdown({ children, onOpenLink }: Props) {
+  const rules = useMemo(() => renderRules(onOpenLink), [onOpenLink]);
   return (
     <Markdown
       allowedImageHandlers={allowedImageHandlers}
       defaultImageHandler={null}
       markdownit={markdown}
-      rules={renderRules}
+      rules={rules}
       style={markdownStyles}>
       {children}
     </Markdown>

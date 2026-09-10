@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import type { BrowserApi } from '@/lib/browser-api';
 import type { Bot } from '@/lib/types';
@@ -8,6 +8,7 @@ import { hasBrowserCapability } from './browser-policy';
 import { useBrowserHandoff } from './use-browser-handoff';
 
 type Props = { api: BrowserApi; bot: Bot; active: boolean; visible: boolean;
+  initialUrl?: string;
   onOpen: () => void; onClose: () => void; onResumed: () => Promise<void> };
 
 export function BrowserHandoff(props: Props) {
@@ -23,8 +24,10 @@ export function BrowserHandoff(props: Props) {
   );
 }
 
-function BrowserDialog({ api, bot, active, onResumed, onClose }: Props) {
-  const handoff = useBrowserHandoff(api, bot.id, onResumed, onClose);
+function BrowserDialog({ api, bot, active, initialUrl, onResumed, onClose }: Props) {
+  const { width } = useWindowDimensions();
+  const handoff = useBrowserHandoff(api, bot.id, onResumed, onClose,
+    { url: initialUrl, display: width < 700 ? 'mobile' : 'desktop' }, !active && hasBrowserCapability(bot));
   return <BrowserHandoffModal botName={bot.name} active={active} canBrowse={hasBrowserCapability(bot)} handoff={handoff} />;
 }
 

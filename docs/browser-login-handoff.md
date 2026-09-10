@@ -1,15 +1,17 @@
 # Private browser login handoff
 
 FroggyBot opens a live view of the **bot's AWS browser**, not an ordinary local
-browser tab. Signing into a link opened from chat does not authenticate the bot.
+browser tab. Direct-chat web links now route into that bot browser. External
+Safari/Chrome sign-ins still do not authenticate the bot.
 
 ## User flow
 
 1. In an owned bot's direct chat, enable the browser tool and wait for its active
    response to finish, or stop that response.
-2. Choose **Open bot browser**, then **Open browser**. Enter the website in the
-   remote browser's address bar and sign in yourself.
-3. Optionally enable **Remember login for this bot only**. This is off by default.
+2. Choose **Open bot browser** or a web link in the bot's response. The idle bot's
+   private browser opens automatically. Sign in yourself.
+3. Under **More**, optionally enable **Remember login for this bot only**. This
+   is off by default. More also contains the mobile/desktop site preference.
 4. Choose **Resume bot**. The viewing connection closes, automation is enabled,
    and one continuation goes through the existing message/tool-approval path.
 5. **Disconnect** ends the browser session but keeps a previously saved profile.
@@ -82,7 +84,12 @@ with `FROGBOT_ALLOW_RECURSIVE_POLLS=false` (or unset); the worker retains
 `RecursiveLoop: Terminate`. The eight-hour polling-chain issue is not resolved
 by this feature.
 
-## Verification record — September 9, 2026
+## Earlier release verification record — September 9, 2026
+
+The mobile/browser/dictation refinement has a deployed, verified backend. See the
+[frontend verification record](../apps/froggybot/src/features/browser/README.md)
+for current cloud checks and the remaining real-device verification. The
+historical results below do not validate those newer edits.
 
 - Runtime version 46 READY at 21:54 UTC; deployment changed only the code archive.
 - Backend deployment completed at 22:01 UTC with five authenticated routes;

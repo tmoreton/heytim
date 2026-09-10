@@ -10,6 +10,12 @@ import time
 import uuid
 from datetime import datetime, timezone
 
+from .browser_display import (
+    VIEWPORTS,
+    extension_configuration,
+    open_options,
+    prepare_browser,
+)
 from .browser_session_aws import (
     BROWSER_IDENTIFIER,
     SESSION_SECONDS,
@@ -70,6 +76,12 @@ class BrowserSessionService:
         result = {"status": status.lower(), "botId": self.store.bot_id,
                   "contextLabel": f"{bot.get('name', 'Bot')} · Private direct chat",
                   "hasSavedLogin": bool(record.get("profileId") and record.get("profileVersion"))}
+        display = record.get("display", "desktop")
+        # The DCV desktop size belongs to the session, not the site preference.
+        # Existing sessions cannot assume AWS's optional resize channel works.
+        viewport = record.get("viewport") or VIEWPORTS["desktop"]
+        result.update(display=display, viewport={key: int(viewport[key]) for key in ("width", "height")},
+                      mobileSiteSupported=bool(record.get("mobileExtension")))
         if record.get("sessionExpiresAt"):
             result["sessionExpiresAt"] = _iso(int(record["sessionExpiresAt"]))
         if record.get("resumedTurnId"):
@@ -109,7 +121,10 @@ class BrowserSessionService:
         request = {"browserIdentifier": BROWSER_IDENTIFIER, "name": self.name,
                    "sessionTimeoutSeconds": SESSION_SECONDS,
                    "clientToken": record["startToken"],
-                   "viewPort": {"width": 1440, "height": 900}}
+                   "viewPort": VIEWPORTS[record.get("display", "desktop")]}
+        extensions = extension_configuration()
+        if extensions:
+            request["extensions"] = extensions
         if record.get("profileId") and record.get("profileVersion"):
             request["profileConfiguration"] = {"profileIdentifier": record["profileId"]}
         try:
@@ -120,6 +135,8 @@ class BrowserSessionService:
         created = result.get("createdAt")
         started = int(created.timestamp()) if isinstance(created, datetime) else self._now()
         return self.store.write(record, sessionId=result["sessionId"], sessionName=self.name,
+                                mobileExtension=bool(extensions),
+                                viewport=request["viewPort"],
                                 sessionExpiresAt=min(started, self._now()) + SESSION_SECONDS)
 
     def get(self) -> dict:
@@ -129,20 +146,31 @@ class BrowserSessionService:
             record = {**record, "status": "EXPIRED"}
         return self._view(record, bot)
 
-    def open(self) -> dict:
+    def open(self, display=None, url=None) -> dict:
         """API must hold the direct-chat send lease through this whole method."""
+        display, url = open_options({"display": display, "url": url})
         bot = self.store.authorize()
         self.store.ensure_idle()
         record = self.store.read()
         if record["status"] in {"OPENING", "RESUMING"} or record.get("resumeState") in {"ENQUEUEING", "UNCERTAIN"}:
             raise BrowserSessionError(409, "Finish or close the previous browser handoff first")
-        record = self._claim(record, "OPENING", "open")
+        record = self._claim(record, "OPENING", "open", display=display or record.get("display", "desktop"))
         try:
             if not self._valid(record):
                 stop_session(self.agentcore, record)
                 record = self.store.write(record, sessionId=None, startToken=None)
                 record = self._start(record)
-            automation(self.agentcore, record, False)
+            if display or url:
+                # No worker can run while the send lease / OPENING state is held.
+                # Configure only before issuing a human viewer capability, then
+                # always disable automation, even on failed setup/navigation.
+                try:
+                    automation(self.agentcore, record, True)
+                    prepare_browser(self.agentcore, record, record["display"], url)
+                finally:
+                    automation(self.agentcore, record, False)
+            else:
+                automation(self.agentcore, record, False)
             # Sign only after AWS has disabled automation, never on GET or resume.
             url = self.signer(self.agentcore, record["sessionId"])
             record = self.store.write(record, status="HUMAN_CONTROL", operationUntil=0,

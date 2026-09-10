@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { BrowserApi } from '@/lib/browser-api';
-import type { BotBrowserState } from '@/lib/types';
+import type { BotBrowserOpenOptions, BotBrowserState } from '@/lib/types';
 
 import { browserError, isLiveViewUrl, liveViewDeadline, withoutLiveView } from './browser-policy';
 import { resumeBrowserWithProfilePolling } from './resume-browser';
 
-export function useBrowserHandoff(api: BrowserApi, botId: string, onResumed: () => Promise<void>, onDismiss: () => void) {
+export function useBrowserHandoff(api: BrowserApi, botId: string, onResumed: () => Promise<void>, onDismiss: () => void,
+  options: BotBrowserOpenOptions = {}, autoOpen = false) {
   const [state, setState] = useState<BotBrowserState>();
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -16,6 +17,7 @@ export function useBrowserHandoff(api: BrowserApi, botId: string, onResumed: () 
   const [confirmation, setConfirmation] = useState<'disconnect' | 'forget'>();
   const locked = useRef(false);
   const mounted = useRef(true);
+  const pendingUrl = useRef(options.url);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const accept = (next: BotBrowserState, allowLiveView = false) => {
@@ -40,11 +42,21 @@ export function useBrowserHandoff(api: BrowserApi, botId: string, onResumed: () 
     }
   };
 
-  const open = () => run('open', async () => {
+  const open = (requested: BotBrowserOpenOptions = {}) => run('open', async () => {
     setPendingConsent(undefined);
     setExpired(false);
     setState((previous) => previous ? withoutLiveView(previous) : undefined);
-    const next = await api.openBrowser({ botId });
+    const url = requested.url ?? pendingUrl.current;
+    // Consume on the first attempt, including a manual open after an active run.
+    // An uncertain response must never cause Refresh to repeat navigation.
+    pendingUrl.current = undefined;
+    let next: BotBrowserState;
+    try {
+      next = await api.openBrowser({ botId }, { display: state?.display ?? options.display, ...requested, url });
+    } catch (value) {
+      if (value && typeof value === 'object' && 'status' in value && value.status === 409) pendingUrl.current = url;
+      throw value;
+    }
     if (next.status === 'human_control') {
       if (!isLiveViewUrl(next.liveViewUrl) || liveViewDeadline(next) <= Date.now()) {
         accept(next);
@@ -54,16 +66,24 @@ export function useBrowserHandoff(api: BrowserApi, botId: string, onResumed: () 
     } else accept(next);
   });
 
+  // One auto-open per mounted dialog. Refresh never replays the clicked URL.
+  const initial = useRef({ api, botId, open, options, autoOpen });
   useEffect(() => {
     let current = true;
+    const { api, botId, open, options, autoOpen } = initial.current;
     locked.current = true;
-    api.browserStatus({ botId }).then((next) => {
+    api.browserStatus({ botId }).then(async (next) => {
       if (next.botId !== botId || next.groupId) throw new Error('Browser context mismatch');
-      if (current) setState(withoutLiveView(next));
+      if (!current) return;
+      setState(withoutLiveView(next));
+      if (autoOpen && next.status !== 'resuming' && next.status !== 'opening') {
+        locked.current = false;
+        await open(options);
+      }
     }).catch((value) => { if (current) setError(browserError(value, 'status')); })
       .finally(() => { if (current) { locked.current = false; setBusy(false); } });
     return () => { current = false; };
-  }, [api, botId]);
+  }, []);
 
   const resume = () => run('resume', async () => {
     setState((previous) => previous ? withoutLiveView(previous) : undefined);

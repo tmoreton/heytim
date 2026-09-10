@@ -2,6 +2,7 @@ import { Component, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { isLiveViewUrl } from '../browser-policy';
+import { viewerViewport } from '../browser-display';
 import { VIEWER_CONNECT, VIEWER_READY } from '../viewer-location';
 import { installPrivateViewerStorage } from './memory-storage';
 
@@ -25,13 +26,14 @@ const connect = async (event: MessageEvent) => {
   if (used || event.data?.type !== VIEWER_CONNECT || !isLiveViewUrl(event.data?.signedUrl)) return;
   used = true;
   const signedUrl: string = event.data.signedUrl;
+  const viewport = viewerViewport(event.data.viewport);
   try {
     installPrivateViewerStorage(window);
     // Third-party diagnostics can contain stream URLs. Silence only this
     // disposable document's console, never the parent application console.
     for (const method of ['debug', 'info', 'log', 'warn', 'error', 'trace'] as const) window.console[method] = () => {};
     const { BrowserLiveView } = await import('bedrock-agentcore/browser/live-view');
-    root.render(<ViewerBoundary><BrowserLiveView signedUrl={signedUrl} remoteWidth={1440} remoteHeight={900} /></ViewerBoundary>);
+    root.render(<ViewerBoundary><BrowserLiveView signedUrl={signedUrl} remoteWidth={viewport.width} remoteHeight={viewport.height} /></ViewerBoundary>);
   } catch { root.render(<p role="alert">{failure}</p>); }
 };
 
