@@ -7,16 +7,9 @@ from typing import Any
 
 import pytest
 from pydantic import BaseModel
-from strands.models import (
-    Model,
-    ModelRouter,
-    RoutingAttempt,
-    RoutingCandidate,
-    RoutingContext,
-)
+from strands.models import Model
 
 from model import load as model_loader
-from model.routing import ADVANCED_REQUEST_MIN_CHARS, TaskRoutingStrategy
 
 
 class FakeModel(Model):
@@ -30,6 +23,7 @@ class FakeModel(Model):
         self.events = events
         self.error = error
         self.calls = 0
+        self.last_args: tuple[Any, ...] | None = None
 
     def update_config(self, **model_config: Any) -> None:
         self.config.update(model_config)
@@ -51,17 +45,38 @@ class FakeModel(Model):
 
     async def stream(self, *args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any]]:
         self.calls += 1
+        self.last_args = args
         for event in self.events:
             yield event
         if self.error:
             raise self.error
 
 
+class SequencedFakeModel(FakeModel):
+    def __init__(self, responses: list[list[dict[str, Any]] | Exception]) -> None:
+        super().__init__("openrouter", [])
+        self.responses = responses
+
+    async def stream(self, *args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any]]:
+        response = self.responses[self.calls]
+        self.calls += 1
+        if isinstance(response, Exception):
+            raise response
+        for event in response:
+            yield event
+
+
 async def _events(model: Model) -> list[dict[str, Any]]:
     return [event async for event in model.stream([])]
 
 
-def test_load_model_uses_openrouter_primary_and_hides_key(
+async def _events_with_messages(
+    model: Model, messages: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    return [event async for event in model.stream(messages)]
+
+
+def test_load_model_uses_openrouter_routes_with_bedrock_final_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def key() -> str:
@@ -70,69 +85,26 @@ def test_load_model_uses_openrouter_primary_and_hides_key(
     monkeypatch.setattr(model_loader, "_openrouter_api_key", key)
     model = asyncio.run(model_loader.load_model())
 
-    assert isinstance(model, ModelRouter)
-    primary = model.candidates[0].model
-    advanced = model.candidates[1].model
-    assert isinstance(primary, model_loader.PrimaryFallbackModel)
-    assert isinstance(advanced, model_loader.PrimaryFallbackModel)
-    assert primary.primary.get_config()["model_id"] == "z-ai/glm-5.3-flash"
-    assert primary.primary.get_config()["params"]["extra_body"] == {
-        "reasoning": {"effort": "low"}
-    }
-    assert advanced.primary.get_config()["model_id"] == "z-ai/glm-5.3"
-    assert advanced.primary.get_config()["params"]["extra_body"] == {
+    assert isinstance(model, model_loader.PreResponseFallbackModel)
+    openrouter = model.primary
+    bedrock = model.fallback
+    assert isinstance(openrouter, model_loader.OpenRouterFallbackModel)
+    primary = openrouter.primary
+    fallback = openrouter.fallback
+    assert isinstance(primary, model_loader.ResilientOpenRouterModel)
+    assert isinstance(fallback, model_loader.ResilientOpenRouterModel)
+    assert primary.model.get_config()["model_id"] == "deepseek/deepseek-v4.1-flash"
+    assert primary.model.get_config()["params"]["extra_body"] == {
         "reasoning": {"effort": "high"}
     }
-    assert primary.fallback is advanced.fallback
-    assert primary.fallback.get_config()["model_id"].startswith(
+    assert fallback.model.get_config()["model_id"] == "z-ai/glm-5.3"
+    assert fallback.model.get_config()["params"]["extra_body"] == {
+        "reasoning": {"effort": "high"}
+    }
+    assert bedrock.get_config()["model_id"].startswith(
         "global.anthropic.claude-sonnet"
     )
     assert "test-secret" not in repr(primary.get_config())
-
-
-@pytest.mark.parametrize(
-    ("prompt", "candidate_index"),
-    [
-        ("Summarize these meeting notes.", 0),
-        ("Debug this Python API and add unit tests.", 1),
-        ("x" * ADVANCED_REQUEST_MIN_CHARS, 1),
-    ],
-)
-def test_task_router_selects_by_request_complexity(
-    prompt: str, candidate_index: int
-) -> None:
-    candidates = (
-        RoutingCandidate(FakeModel("routine", []), name="routine"),
-        RoutingCandidate(FakeModel("advanced", []), name="advanced"),
-    )
-    context = RoutingContext(
-        messages=[{"role": "user", "content": [{"text": prompt}]}],
-        system_prompt=None,
-        tool_specs=[],
-        candidates=candidates,
-        invocation_state={},
-    )
-
-    selected = asyncio.run(TaskRoutingStrategy().select(context))
-
-    assert selected is candidates[candidate_index]
-
-
-def test_task_router_declines_after_a_model_failure() -> None:
-    candidates = (
-        RoutingCandidate(FakeModel("routine", []), name="routine"),
-        RoutingCandidate(FakeModel("advanced", []), name="advanced"),
-    )
-    context = RoutingContext(
-        messages=[{"role": "user", "content": [{"text": "Debug this code."}]}],
-        system_prompt=None,
-        tool_specs=[],
-        candidates=candidates,
-        invocation_state={},
-        attempts=(RoutingAttempt(candidates[1], RuntimeError("failed")),),
-    )
-
-    assert asyncio.run(TaskRoutingStrategy().select(context)) is None
 
 
 @pytest.mark.parametrize("effort", ["low", "high", "max"])
@@ -157,7 +129,7 @@ def test_openrouter_model_rejects_unsupported_reasoning_effort() -> None:
         model_loader._load_openrouter_model("test-secret", reasoning_effort="medium")
 
 
-def test_load_model_uses_bedrock_when_credential_lookup_fails(
+def test_load_model_uses_bedrock_when_openrouter_credential_lookup_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def key() -> str:
@@ -166,55 +138,229 @@ def test_load_model_uses_bedrock_when_credential_lookup_fails(
     monkeypatch.setattr(model_loader, "_openrouter_api_key", key)
     model = asyncio.run(model_loader.load_model())
 
-    assert model.get_config()["model_id"].startswith("global.anthropic.claude-sonnet")
+    assert model.get_config()["model_id"].startswith(
+        "global.anthropic.claude-sonnet"
+    )
 
 
-def test_fallback_discards_incomplete_primary_stream() -> None:
-    primary = FakeModel("primary", [{"messageStart": {}}], RuntimeError("unavailable"))
-    fallback_events = [
+def test_retry_discards_incomplete_openrouter_stream() -> None:
+    complete_events = [
         {"messageStart": {}},
         {"contentBlockDelta": {"delta": {"text": "hello"}}},
         {"messageStop": {"stopReason": "end_turn"}},
     ]
-    fallback = FakeModel("fallback", fallback_events)
+    delegate = SequencedFakeModel([[{"messageStart": {}}], complete_events])
 
-    events = asyncio.run(_events(model_loader.PrimaryFallbackModel(primary, fallback)))
+    events = asyncio.run(_events(model_loader.ResilientOpenRouterModel(delegate)))
 
-    assert events == fallback_events
-    assert fallback.calls == 1
-
-
-def test_fallback_replaces_an_incomplete_primary_response() -> None:
-    primary = FakeModel(
-        "primary",
-        [{"messageStart": {}}, {"contentBlockDelta": {"delta": {"text": "started"}}}],
-        RuntimeError("interrupted"),
-    )
-    fallback = FakeModel(
-        "fallback", [{"contentBlockDelta": {"delta": {"text": "duplicate"}}}]
-    )
-
-    events = asyncio.run(_events(model_loader.PrimaryFallbackModel(primary, fallback)))
-
-    assert events == [{"contentBlockDelta": {"delta": {"text": "duplicate"}}}]
-    assert fallback.calls == 1
+    assert events == complete_events
+    assert delegate.calls == 2
 
 
-def test_fallback_does_not_repeat_a_completed_primary_response() -> None:
+def test_retry_replaces_an_empty_openrouter_response() -> None:
+    empty = [{"messageStart": {}}, {"messageStop": {"stopReason": "end_turn"}}]
+    complete = [
+        {"messageStart": {}},
+        {"contentBlockDelta": {"delta": {"text": "complete"}}},
+        {"messageStop": {"stopReason": "end_turn"}},
+    ]
+    delegate = SequencedFakeModel([empty, complete])
+
+    events = asyncio.run(_events(model_loader.ResilientOpenRouterModel(delegate)))
+
+    assert events == complete
+    assert delegate.calls == 2
+
+
+def test_retry_does_not_repeat_a_completed_openrouter_response() -> None:
     primary_events = [
         {"messageStart": {}},
         {"contentBlockDelta": {"delta": {"text": "complete"}}},
         {"messageStop": {"stopReason": "end_turn"}},
     ]
-    primary = FakeModel("primary", primary_events, RuntimeError("late failure"))
-    fallback = FakeModel(
-        "fallback", [{"contentBlockDelta": {"delta": {"text": "duplicate"}}}]
-    )
+    delegate = FakeModel("openrouter", primary_events, RuntimeError("late failure"))
 
     with pytest.raises(RuntimeError, match="late failure"):
-        asyncio.run(_events(model_loader.PrimaryFallbackModel(primary, fallback)))
+        asyncio.run(_events(model_loader.ResilientOpenRouterModel(delegate)))
+
+    assert delegate.calls == 1
+
+
+def test_in_flight_budget_waits_for_openrouter_retry_after(monkeypatch) -> None:
+    class BudgetError(RuntimeError):
+        status_code = 402
+        response = SimpleNamespace(headers={"Retry-After": "120"})
+
+        def __str__(self) -> str:
+            return "in_flight_budget_exhausted"
+
+    complete = [
+        {"messageStart": {}},
+        {"contentBlockDelta": {"delta": {"text": "complete"}}},
+        {"messageStop": {"stopReason": "end_turn"}},
+    ]
+    delegate = SequencedFakeModel([BudgetError(), complete])
+    sleeps = []
+
+    async def sleep(delay: float) -> None:
+        sleeps.append(delay)
+
+    monkeypatch.setattr(model_loader.asyncio, "sleep", sleep)
+
+    events = asyncio.run(_events(model_loader.ResilientOpenRouterModel(delegate)))
+
+    assert events == complete
+    assert sleeps == [120.0]
+
+
+def test_retry_reads_throttling_details_from_wrapped_error(monkeypatch) -> None:
+    class ProviderError(RuntimeError):
+        status_code = 429
+        response = SimpleNamespace(headers={"Retry-After": "3"})
+
+    class ModelThrottledException(RuntimeError):
+        pass
+
+    provider_error = ProviderError("rate limited")
+    wrapped_error = ModelThrottledException("model throttled")
+    wrapped_error.__cause__ = provider_error
+    complete = [
+        {"messageStart": {}},
+        {"contentBlockDelta": {"delta": {"text": "complete"}}},
+        {"messageStop": {"stopReason": "end_turn"}},
+    ]
+    delegate = SequencedFakeModel([wrapped_error, complete])
+    sleeps = []
+
+    async def sleep(delay: float) -> None:
+        sleeps.append(delay)
+
+    monkeypatch.setattr(model_loader.asyncio, "sleep", sleep)
+
+    events = asyncio.run(_events(model_loader.ResilientOpenRouterModel(delegate)))
+
+    assert events == complete
+    assert sleeps == [3.0]
+
+
+def test_retry_handles_streamed_provider_error_without_status(monkeypatch) -> None:
+    class APIError(RuntimeError):
+        pass
+
+    complete = [
+        {"messageStart": {}},
+        {"contentBlockDelta": {"delta": {"text": "complete"}}},
+        {"messageStop": {"stopReason": "end_turn"}},
+    ]
+    delegate = SequencedFakeModel([APIError("Provider returned error"), complete])
+    sleeps = []
+
+    async def sleep(delay: float) -> None:
+        sleeps.append(delay)
+
+    monkeypatch.setattr(model_loader.asyncio, "sleep", sleep)
+
+    events = asyncio.run(_events(model_loader.ResilientOpenRouterModel(delegate)))
+
+    assert events == complete
+    assert delegate.calls == 2
+    assert sleeps == [1.0]
+
+
+def test_deepseek_failure_uses_glm_before_any_response_is_returned() -> None:
+    primary = FakeModel("deepseek/deepseek-v4.1-flash", [], RuntimeError("down"))
+    fallback_events = [
+        {"messageStart": {}},
+        {"contentBlockDelta": {"delta": {"text": "from glm"}}},
+        {"messageStop": {"stopReason": "end_turn"}},
+    ]
+    fallback = FakeModel("z-ai/glm-5.3", fallback_events)
+
+    events = asyncio.run(
+        _events(
+            model_loader.OpenRouterFallbackModel(
+                primary, fallback, fallback_name="GLM on OpenRouter"
+            )
+        )
+    )
+
+    assert events == fallback_events
+    assert primary.calls == 1
+    assert fallback.calls == 1
+
+
+def test_glm_fallback_never_repeats_a_started_deepseek_response() -> None:
+    primary_events = [
+        {"messageStart": {}},
+        {"contentBlockDelta": {"delta": {"text": "started"}}},
+    ]
+    primary = FakeModel(
+        "deepseek/deepseek-v4.1-flash",
+        primary_events,
+        RuntimeError("late failure"),
+    )
+    fallback = FakeModel("z-ai/glm-5.3", [])
+
+    with pytest.raises(RuntimeError, match="late failure"):
+        asyncio.run(
+            _events(
+                model_loader.OpenRouterFallbackModel(
+                    primary, fallback, fallback_name="GLM on OpenRouter"
+                )
+            )
+        )
 
     assert fallback.calls == 0
+
+
+def test_openrouter_exhaustion_uses_independent_bedrock_fallback() -> None:
+    deepseek = FakeModel("deepseek", [], RuntimeError("primary down"))
+    glm = FakeModel("glm", [], RuntimeError("fallback down"))
+    bedrock_events = [
+        {"messageStart": {}},
+        {"contentBlockDelta": {"delta": {"text": "from bedrock"}}},
+        {"messageStop": {"stopReason": "end_turn"}},
+    ]
+    bedrock = FakeModel("bedrock", bedrock_events)
+    openrouter = model_loader.OpenRouterFallbackModel(
+        deepseek, glm, fallback_name="GLM on OpenRouter"
+    )
+    model = model_loader.PreResponseFallbackModel(
+        openrouter, bedrock, fallback_name="Bedrock"
+    )
+
+    events = asyncio.run(_events(model))
+
+    assert events == bedrock_events
+    assert deepseek.calls == 1
+    assert glm.calls == 1
+    assert bedrock.calls == 1
+
+
+def test_bedrock_fallback_removes_openrouter_reasoning_blocks() -> None:
+    delegate = FakeModel(
+        "bedrock",
+        [{"messageStop": {"stopReason": "end_turn"}}],
+    )
+    model = model_loader.ReasoningSafeBedrockModel(delegate)
+    messages = [
+        {
+            "role": "assistant",
+            "content": [
+                {"reasoningContent": {"reasoningText": {"text": "private"}}},
+                {"text": "visible"},
+            ],
+        },
+        {"role": "user", "content": [{"text": "continue"}]},
+    ]
+
+    asyncio.run(_events_with_messages(model, messages))
+
+    assert delegate.last_args is not None
+    assert delegate.last_args[0] == [
+        {"role": "assistant", "content": [{"text": "visible"}]},
+        {"role": "user", "content": [{"text": "continue"}]},
+    ]
 
 
 def test_usage_tracker_aggregates_each_model_call() -> None:
@@ -239,7 +385,7 @@ def test_usage_tracker_aggregates_each_model_call() -> None:
         delegate,
         accumulator,
         provider="openrouter",
-        model_id="z-ai/glm-5.3-flash",
+        model_id="deepseek/deepseek-v4.1-flash",
     )
 
     asyncio.run(_events(model))
@@ -249,7 +395,7 @@ def test_usage_tracker_aggregates_each_model_call() -> None:
     assert report["models"] == [
         {
             "provider": "openrouter",
-            "modelId": "z-ai/glm-5.3-flash",
+            "modelId": "deepseek/deepseek-v4.1-flash",
             "callCount": 2,
             "inputTokens": 200,
             "outputTokens": 50,
@@ -264,7 +410,7 @@ def test_usage_tracker_aggregates_each_model_call() -> None:
 
 def test_openrouter_model_preserves_provider_cost_and_reasoning_tokens() -> None:
     model = model_loader.OpenRouterUsageModel(
-        model_id="z-ai/glm-5.3-flash",
+        model_id="deepseek/deepseek-v4.1-flash",
         client_args={"api_key": "test"},
     )
     event = model.format_chunk(

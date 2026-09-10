@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import ipaddress
 import json
 import re
@@ -15,7 +16,9 @@ import boto3
 import httpx
 from botocore.config import Config
 from mcp.client.streamable_http import streamable_http_client
+from strands.tools.mcp.mcp_agent_tool import MCPAgentTool
 from strands.tools.mcp.mcp_client import MCPClient
+from strands.types import PaginatedList
 
 SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
@@ -40,6 +43,49 @@ GMAIL_MCP_TOOLS = {
 }
 GOOGLE_OAUTH_ENDPOINT = "https://oauth2.googleapis.com/token"
 _secrets_manager = None
+MAX_TOOL_NAME_CHARS = 64
+
+
+def _bounded_tool_name(connection_id: str, remote_name: str) -> str:
+    prefix = f"c{hashlib.sha256(connection_id.encode()).hexdigest()[:10]}"
+    candidate = f"{prefix}_{remote_name}"
+    if len(candidate) <= MAX_TOOL_NAME_CHARS:
+        return candidate
+    suffix = hashlib.sha256(candidate.encode()).hexdigest()[:10]
+    return f"{candidate[: MAX_TOOL_NAME_CHARS - len(suffix) - 1]}_{suffix}"
+
+
+class BoundedMCPClient(MCPClient):
+    """Expose stable MCP aliases that every supported text model can accept."""
+
+    def __init__(self, *args: Any, connection_id: str, **kwargs: Any) -> None:
+        self._frogbot_connection_id = connection_id
+        super().__init__(*args, prefix=None, **kwargs)
+
+    def list_tools_sync(
+        self,
+        pagination_token: str | None = None,
+        prefix: str | None = None,
+        tool_filters: Any = None,
+    ) -> PaginatedList[MCPAgentTool]:
+        page = super().list_tools_sync(
+            pagination_token,
+            prefix="",
+            tool_filters=tool_filters,
+        )
+        tools = [
+            MCPAgentTool(
+                tool.mcp_tool,
+                self,
+                name_override=_bounded_tool_name(
+                    self._frogbot_connection_id,
+                    tool.mcp_tool.name,
+                ),
+                timeout=tool.timeout,
+            )
+            for tool in page
+        ]
+        return PaginatedList(tools, token=page.pagination_token)
 
 
 def _validated_endpoint(value: Any) -> str:
@@ -239,14 +285,14 @@ def connection_client(binding: dict) -> MCPClient:
         credential = _secret_value(binding["secretArn"])
         headers = {binding["headerName"]: f"{binding['headerPrefix']}{credential}"}
     options = {
-        "prefix": binding["id"],
+        "connection_id": binding["id"],
         "startup_timeout": 15,
         "continue_on_error": False,
         "application_name": "FroggyBot",
     }
     if binding["authType"] == "oauth":
         options["tool_filters"] = {"allowed": binding["allowedTools"]}
-    return MCPClient(
+    return BoundedMCPClient(
         partial(_secure_streamable_http, binding["endpoint"], headers),
         **options,
     )

@@ -168,12 +168,3 @@ def test_group_store_uses_only_the_group_actor_for_each_category(monkeypatch) ->
         "facts",
         "summaries",
     ]
-
-
-def test_model_enables_one_hour_prompt_and_tool_caching() -> None:
-    from model.load import load_bedrock_model
-
-    model = load_bedrock_model()
-
-    assert model.config["cache_config"].ttl == "1h"
-    assert model.config["cache_config"].tools_ttl == "1h"

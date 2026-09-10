@@ -36,22 +36,22 @@
         },
         {
           "name": "FROGBOT_PRIMARY_MODEL_ID",
-          "value": "z-ai/glm-5.3-flash"
+          "value": "deepseek/deepseek-v4.1-flash"
         },
         {
           "name": "FROGBOT_REASONING_EFFORT",
-          "value": "low"
-        },
-        {
-          "name": "FROGBOT_ADVANCED_MODEL_ID",
-          "value": "z-ai/glm-5.3"
-        },
-        {
-          "name": "FROGBOT_ADVANCED_REASONING_EFFORT",
           "value": "high"
         },
         {
           "name": "FROGBOT_FALLBACK_MODEL_ID",
+          "value": "z-ai/glm-5.3"
+        },
+        {
+          "name": "FROGBOT_FALLBACK_REASONING_EFFORT",
+          "value": "high"
+        },
+        {
+          "name": "FROGBOT_BEDROCK_FALLBACK_MODEL_ID",
           "value": "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
         },
         {
@@ -67,12 +67,20 @@
           "value": "120"
         },
         {
+          "name": "FROGBOT_OPENROUTER_MAX_ATTEMPTS",
+          "value": "2"
+        },
+        {
+          "name": "FROGBOT_CONTEXT_COMPRESSION_THRESHOLD",
+          "value": "0.20"
+        },
+        {
           "name": "FROGBOT_AGENT_RUN_TIMEOUT_SECONDS",
           "value": "28800"
         },
         {
           "name": "FROGBOT_AGENT_IDLE_TIMEOUT_SECONDS",
-          "value": "180"
+          "value": "360"
         },
         {
           "name": "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",

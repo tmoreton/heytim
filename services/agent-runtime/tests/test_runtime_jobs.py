@@ -119,6 +119,27 @@ def test_background_failures_never_become_false_completion(failure):
     assert json.loads(store.objects["run"])["status"] == "ERROR"
 
 
+def test_openrouter_budget_failure_is_actionable():
+    message = jobs._runtime_failure_message(
+        RuntimeError("in_flight_budget_exhausted")
+    )
+
+    assert "OpenRouter" in message
+    assert "wait a few minutes" in message
+
+
+def test_wrapped_openrouter_auth_failure_is_actionable():
+    class OpenRouterCredentialError(RuntimeError):
+        pass
+
+    wrapped = RuntimeError("event loop failed")
+    wrapped.__cause__ = OpenRouterCredentialError("credential lookup failed")
+
+    message = jobs._runtime_failure_message(wrapped)
+
+    assert "OpenRouter authentication" in message
+
+
 def test_cancellation_before_start_never_calls_agent():
     store = Store()
     store.objects["run.cancel"] = b'{"cancelled":true}'

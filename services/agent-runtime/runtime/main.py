@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
-from strands.agent.conversation_manager import SummarizingConversationManager
 from strands_stan import harness_agent
 
 from frogbot_runtime.configuration import bot_configuration
+from frogbot_runtime.conversation import conversation_manager
 from frogbot_runtime.memory import (
     latest_assistant_text,
     memory_context_from_payload,
@@ -77,11 +77,7 @@ async def run_agent(payload, context):
             memory=bool(memories),
             memory_store=memories,
             context_management="auto",
-            conversation_manager=SummarizingConversationManager(
-                summary_ratio=0.3,
-                preserve_recent_messages=10,
-                proactive_compression={"compression_threshold": 0.85},
-            ),
+            conversation_manager=conversation_manager(),
         )
         try:
             # Leave time to save the outcome before AgentCore retires the session.

@@ -4,6 +4,20 @@ import { ConfigIO } from '@aws/agentcore-cdk';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AgentCoreStack } from '../lib/cdk-stack';
+import { dirtySourceEntries } from '../lib/deploy-preflight';
+
+test('deployment preflight rejects source changes but ignores generated deploy state', () => {
+  expect(
+    dirtySourceEntries(
+      ' M services/agent-runtime/runtime/main.py\n' +
+        ' M agentcore/.cli/deployed-state.json\n' +
+        '?? scratch.txt\n'
+    )
+  ).toEqual([
+    ' M services/agent-runtime/runtime/main.py',
+    '?? scratch.txt',
+  ]);
+});
 
 test('AgentCoreStack synthesizes with a minimal resource spec', () => {
   const app = new cdk.App();

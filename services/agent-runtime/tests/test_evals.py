@@ -94,12 +94,12 @@ def test_scenario_selection_happens_after_full_corpus_validation() -> None:
     ]
 
 
-def test_matrix_defines_low_and_high_for_both_glm_models() -> None:
+def test_matrix_defines_low_and_high_for_primary_and_fallback_models() -> None:
     assert {
         (variant.model_id, variant.reasoning_effort) for variant in MODEL_VARIANTS
     } == {
-        ("z-ai/glm-5.3-flash", "low"),
-        ("z-ai/glm-5.3-flash", "high"),
+        ("deepseek/deepseek-v4.1-flash", "low"),
+        ("deepseek/deepseek-v4.1-flash", "high"),
         ("z-ai/glm-5.3", "low"),
         ("z-ai/glm-5.3", "high"),
     }

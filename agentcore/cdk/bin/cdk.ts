@@ -4,6 +4,7 @@ import { ConfigIO, HarnessSpecSchema, type AwsDeploymentTarget } from '@aws/agen
 import { App, type Environment } from 'aws-cdk-lib';
 import * as path from 'path';
 import * as fs from 'fs';
+import { assertCleanDeploySource } from '../lib/deploy-preflight';
 
 function toEnvironment(target: AwsDeploymentTarget): Environment {
   return {
@@ -23,6 +24,8 @@ function toStackName(projectName: string, targetName: string): string {
 async function main() {
   // Config root is parent of cdk/ directory. The CLI sets process.cwd() to agentcore/cdk/.
   const configRoot = path.resolve(process.cwd(), '..');
+  const projectRoot = path.resolve(configRoot, '..');
+  assertCleanDeploySource(projectRoot);
   const configIO = new ConfigIO({ baseDir: configRoot });
 
   const spec = await configIO.readProjectSpec();
@@ -58,8 +61,6 @@ async function main() {
 
   // Read harness configs: the full validated spec drives the CFN resource; the
   // role-scoped fields drive the IAM role + container build.
-  const projectRoot = path.resolve(configRoot, '..');
-
   // Read non-S3 KB connector-config files and pass their parsed contents to the
   // L3 verbatim. The L3 does not read files; it expects the parsed
   // connectorParameters keyed by the data source's connectorConfigFile path.

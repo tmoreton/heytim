@@ -28,7 +28,7 @@ def test_authenticated_connection_fetches_secret_server_side(monkeypatch) -> Non
 
     monkeypatch.setattr(mcp_connections.socket, "getaddrinfo", _public_address)
     monkeypatch.setattr(mcp_connections, "_secrets_manager", FakeSecrets())
-    monkeypatch.setattr(mcp_connections, "MCPClient", FakeMCPClient)
+    monkeypatch.setattr(mcp_connections, "BoundedMCPClient", FakeMCPClient)
     binding = mcp_connections.validated_connection_binding(
         "connection_1234567890abcdef1234",
         {
@@ -46,7 +46,7 @@ def test_authenticated_connection_fetches_secret_server_side(monkeypatch) -> Non
 
     mcp_connections.connection_client(binding)
 
-    assert captured["prefix"] == "connection_1234567890abcdef1234"
+    assert captured["connection_id"] == "connection_1234567890abcdef1234"
     transport = captured["transport"]
     assert transport.func is mcp_connections._secure_streamable_http
     assert transport.args == (
@@ -149,7 +149,7 @@ def test_google_oauth_connection_refreshes_token_and_filters_tools(monkeypatch) 
         "urlopen",
         lambda *_args, **_kwargs: FakeResponse(),
     )
-    monkeypatch.setattr(mcp_connections, "MCPClient", FakeMCPClient)
+    monkeypatch.setattr(mcp_connections, "BoundedMCPClient", FakeMCPClient)
     binding = mcp_connections.validated_connection_binding(
         "connection_1234567890abcdef1234",
         {
@@ -169,6 +169,27 @@ def test_google_oauth_connection_refreshes_token_and_filters_tools(monkeypatch) 
         {"Authorization": "Bearer access-token"},
     )
     assert captured["tool_filters"] == {"allowed": ["search_threads", "create_draft"]}
+
+
+def test_remote_tool_names_are_stable_and_bounded() -> None:
+    connection_id = "connection_9890808d645c4c1b8d3e"
+    remote_name = "add_reply_to_pull_request_comment"
+
+    name = mcp_connections._bounded_tool_name(connection_id, remote_name)
+
+    assert len(name) <= 64
+    assert name == mcp_connections._bounded_tool_name(connection_id, remote_name)
+    assert remote_name in name
+
+
+def test_very_long_remote_tool_names_keep_unique_hashes() -> None:
+    connection_id = "connection_9890808d645c4c1b8d3e"
+    shared = "long_remote_tool_name_" + "x" * 100
+    first = mcp_connections._bounded_tool_name(connection_id, shared + "a")
+    second = mcp_connections._bounded_tool_name(connection_id, shared + "b")
+
+    assert len(first) == len(second) == 64
+    assert first != second
 
 
 def test_google_oauth_connection_rejects_destructive_tools(monkeypatch) -> None:

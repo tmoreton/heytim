@@ -23,7 +23,6 @@ if str(RUNTIME_ROOT) not in sys.path:
 
 from frogbot_runtime.configuration import bot_configuration
 from model.load import (
-    FALLBACK_MODEL_ID,
     _load_openrouter_model,
     _openrouter_api_key,
 )
@@ -32,6 +31,7 @@ from model.usage import UsageAccumulator, UsageTrackingModel
 CATALOG_URL = "https://froggybot.com/catalog.json"
 TRUSTED_REPOSITORY = "tmoreton/frogbot-skills"
 SCENARIOS_PATH = Path(__file__).with_name("scenarios.json")
+DEFAULT_JUDGE_MODEL_ID = "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
 
 def _json_from_url(url: str) -> dict[str, Any]:
@@ -447,7 +447,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-tokens", type=int, default=4096)
     parser.add_argument("--timeout-seconds", type=int, default=180)
     parser.add_argument("--no-judge", action="store_true")
-    parser.add_argument("--judge-model-id", default=FALLBACK_MODEL_ID)
+    parser.add_argument("--judge-model-id", default=DEFAULT_JUDGE_MODEL_ID)
     parser.add_argument("--min-pass-rate", type=float, default=0)
     parser.add_argument("--output", type=Path)
     return parser.parse_args()

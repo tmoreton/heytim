@@ -27,6 +27,45 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
+def _runtime_failure_message(error: Exception) -> str:
+    chain: list[BaseException] = []
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen and len(chain) < 8:
+        seen.add(id(current))
+        chain.append(current)
+        current = current.__cause__ or current.__context__
+    detail = " ".join(str(item) for item in chain)
+    type_names = {type(item).__name__ for item in chain}
+    if "in_flight_budget_exhausted" in detail:
+        return (
+            "OpenRouter remained at its temporary in-flight budget after retrying. "
+            "Saved progress is available; wait a few minutes, then continue."
+        )
+    if "IncompleteOpenRouterResponseError" in type_names:
+        return (
+            "OpenRouter returned no completed answer after retrying. Saved progress "
+            "is available; continue to resume from the last verified step."
+        )
+    status_codes = {getattr(item, "status_code", None) for item in chain}
+    if "OpenRouterCredentialError" in type_names or status_codes.intersection(
+        {401, 403}
+    ):
+        return (
+            "OpenRouter authentication is unavailable. No completion was recorded; "
+            "please try again after the service connection is restored."
+        )
+    if "OpenRouter" in detail or any(name.startswith("API") for name in type_names):
+        return (
+            "OpenRouter could not complete the model response after retrying. Saved "
+            "progress is available; continue to resume from the last verified step."
+        )
+    return (
+        "The agent encountered an unexpected runtime error. Its saved progress is "
+        "available; verify completed external actions before continuing."
+    )
+
+
 class RunState:
     """Bounded, public progress and final output; never persist tool arguments."""
 
@@ -145,11 +184,9 @@ async def _execute(client, key, state, runner, payload, context) -> None:
             await asyncio.wait({task}, timeout=HEARTBEAT_SECONDS)
         if not state.value.get("terminalError"):
             await task
-    except Exception:
+    except Exception as error:
         log.exception("Background agent job failed")
-        state.fail(
-            "The agent run was interrupted. Its saved progress is available; verify completed external actions before continuing."
-        )
+        state.fail(_runtime_failure_message(error))
     finally:
         if not task.done():
             task.cancel()

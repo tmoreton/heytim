@@ -13,8 +13,8 @@ class ModelVariant:
 
 
 MODEL_VARIANTS = (
-    ModelVariant("glm-5.3-flash-low", "z-ai/glm-5.3-flash", "low"),
-    ModelVariant("glm-5.3-flash-high", "z-ai/glm-5.3-flash", "high"),
+    ModelVariant("deepseek-v4.1-flash-low", "deepseek/deepseek-v4.1-flash", "low"),
+    ModelVariant("deepseek-v4.1-flash-high", "deepseek/deepseek-v4.1-flash", "high"),
     ModelVariant("glm-5.3-low", "z-ai/glm-5.3", "low"),
     ModelVariant("glm-5.3-high", "z-ai/glm-5.3", "high"),
 )
@@ -96,7 +96,7 @@ def summarize(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def markdown_report(report: dict[str, Any]) -> str:
     lines = [
-        "# FroggyBot GLM behavioral evaluation",
+        "# FroggyBot model behavioral evaluation",
         "",
         f"Run: {report['createdAt']}",
         f"Catalog release: {report['catalogRelease']}",

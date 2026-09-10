@@ -41,19 +41,22 @@ does not keep a second hard-coded bot catalog.
 
 ## Models
 
-The runtime routes each Strands invocation between two OpenRouter tiers without making a separate classifier call.
-Routine requests use GLM 5.3 Flash with low reasoning; coding, technical, and unusually long requests use GLM 5.3 with
-high reasoning. Each tier falls back to Bedrock only when OpenRouter cannot begin a response. The API key is stored in
+Every Strands invocation uses DeepSeek V4.1 Flash on OpenRouter with high reasoning. If DeepSeek fails before returning
+any response, the runtime uses GLM 5.3 on OpenRouter, then Bedrock Claude as an independent final fallback. Both
+OpenRouter models retry bounded transient, provider, or empty responses before falling through. Tool-heavy histories
+are summarized once they reach 20% of the model context window. The API key is stored in
 AgentCore Identity as `FrogBot_OpenRouter`; it is never placed in runtime environment variables. Model selection stays
 deploy-time configurable through these non-secret values in `agentcore/agentcore.json`:
 
-- `FROGBOT_PRIMARY_MODEL_ID` — routine tier; defaults to `z-ai/glm-5.3-flash`
-- `FROGBOT_REASONING_EFFORT` — routine-tier reasoning; defaults to `low`
-- `FROGBOT_ADVANCED_MODEL_ID` — coding and complex tier; defaults to `z-ai/glm-5.3`
-- `FROGBOT_ADVANCED_REASONING_EFFORT` — advanced-tier reasoning; defaults to `high`
-- `FROGBOT_FALLBACK_MODEL_ID` — the Bedrock model used if the primary provider is unavailable
+- `FROGBOT_PRIMARY_MODEL_ID` — default for every task; defaults to `deepseek/deepseek-v4.1-flash`
+- `FROGBOT_REASONING_EFFORT` — default-model reasoning; defaults to `high`
+- `FROGBOT_FALLBACK_MODEL_ID` — used only after a pre-response primary failure; defaults to `z-ai/glm-5.3`
+- `FROGBOT_FALLBACK_REASONING_EFFORT` — fallback reasoning; defaults to `high`
+- `FROGBOT_BEDROCK_FALLBACK_MODEL_ID` — independent final fallback; defaults to Bedrock Claude Sonnet 4.5
 - `FROGBOT_OPENROUTER_BASE_URL` — the OpenRouter OpenAI-compatible endpoint
 - `FROGBOT_OPENROUTER_CREDENTIAL_PROVIDER` — the AgentCore Identity credential name
+- `FROGBOT_OPENROUTER_MAX_ATTEMPTS` — total attempts before a pre-response OpenRouter failure is returned
+- `FROGBOT_CONTEXT_COMPRESSION_THRESHOLD` — ratio that triggers tool-pair-safe history summarization
 
 ## Develop
 
