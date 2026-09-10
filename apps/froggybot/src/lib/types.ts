@@ -8,6 +8,8 @@ export type BotBrowserState = BotBrowserContext & {
   display?: 'mobile' | 'desktop';
   viewport?: { width: number; height: number };
   mobileSiteSupported?: boolean;
+  /** A previous operation ended without a confirmed handoff. Explicit cleanup is needed. */
+  recoveryRequired?: boolean;
   sessionExpiresAt?: string;
   /** Short-lived capability. Keep only in the open viewer's memory, never chat/storage. */
   liveViewUrl?: string;

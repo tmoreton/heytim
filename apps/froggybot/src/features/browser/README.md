@@ -1,7 +1,7 @@
 # Private bot browser handoff (frontend)
 
-V1 is owned **direct chat only**. The toolbar appears for a bot with the `browser`
-tool. Every owned direct bot also has **Browser connection** in its actions menu,
+V1 is owned **direct chat only**. Chat links open the browser directly; there is
+no persistent browser button or spacer. Every owned direct bot has **Browser connection** in its actions menu,
 so a removed browser capability cannot hide Disconnect / Forget login. Groups do
 not expose this UI; their browser credentials must never fall back to a personal
 session. The server is the authorization authority.
@@ -91,9 +91,11 @@ already includes WebView; no new native dependency was added by this refinement.
   S3 extension versions were cleaned up. No existing bot session was touched.
 - Backend and exact-object extension asset deployed successfully at 01:00 UTC
   September 10 (September 9 Eastern). No stateful resources were replaced and
-  the deployed template retained `Terminate`. A post-deploy read found the live
-  worker set to `Allow` despite that template; the drift was corrected and a
-  second read confirmed `Terminate`. The cause of the drift was not established.
+  the deployed template retained `Terminate`. The release operator restored live
+  `Terminate` before discovering that concurrent main commit `d98de1a` had
+  deliberately enabled `Allow`. That source change is preserved, but live worker
+  protection remains `Terminate` pending confirmation to re-enable `Allow`.
+  Browser-only hotfixes must not change the worker configuration incidentally.
 - A fresh disposable bot through the deployed API passed mobile setup, navigation
   to example.com, signed human handoff, and desktop-site override. The API role
   did not reproduce the root-created-session 404. The test browser and bot were
@@ -108,9 +110,30 @@ already includes WebView; no new native dependency was added by this refinement.
   check. Do not interpret backend success as an on-device verification result.
 
 Browser mutations have a 40-second client timeout, above the 29-second API limit.
-The bot must be idle before opening; a 409 asks the user to wait or stop in chat.
+The bot must be idle before opening. Only an actual active-run conflict asks the
+user to wait or stop in chat. Failed handoffs, expired sessions and in-progress
+browser operations have separate fixed, credential-safe messages.
 The frontend never stops an active bot automatically or resumes it while the
 person is entering credentials.
+
+An abandoned open/close is reopenable only after its operation lease expires and
+AWS confirms that the exact owned session is terminated or missing. GET reports
+this as expired without writing or launching anything. An explicit open still
+checks bot idleness and claims the existing send/state leases. Uncertain starts,
+live sessions, profile saves and uncertain resumes are never automatically
+replayed. Failed handoffs show a confirmed Disconnect action, not an unusable
+Open button. AWS Stop conflicts count as successful cleanup only after a fresh
+read confirms termination. Saved profiles are preserved unless explicitly forgotten.
+
+September 9 recovery verification: the affected GitHub Engineer was idle, but its
+record retained OPENING (then CLOSE_FAILED) for a remotely TERMINATED session.
+AWS Stop returned ConflictException/409 for that exact terminated session. The
+tested cleanup reconciled it to CLOSED without forgetting a profile or enqueuing
+work. A subsequent read showed a new READY handoff with a saved login. Regression
+checks passed: 49 frontend tests, 248 backend tests, type/lint/security/build
+checks, and the isolated browser UI flow at desktop, 390px and 320px. Coverage
+includes confirmed-dead versus unknown sessions, cleanup conflicts, operation
+leases, ownership, no uncertain replay, link opening and no persistent button.
 
 `resuming` means pending, not success. Only an acknowledged `resuming` result
 permits another `/resume` with the same consent, bounded to eight attempts and a

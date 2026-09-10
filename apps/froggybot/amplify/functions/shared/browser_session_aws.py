@@ -61,3 +61,23 @@ def stop_session(agentcore, record: dict) -> None:
             agentcore.stop_browser_session(**session_args(record))
         except agentcore.exceptions.ResourceNotFoundException:
             pass
+        except agentcore.exceptions.ConflictException:
+            # AWS rejects Stop for an already-terminated session. A conflict
+            # alone is NOT proof of termination (it can also mean still busy).
+            if not session_ended(agentcore, record, record.get("sessionName")):
+                raise
+
+
+def session_ended(agentcore, record: dict, expected_name: str | None) -> bool:
+    """Confirm remote termination; a timeout or local expiry is not evidence."""
+    if not record.get("sessionId"):
+        return False
+    try:
+        session = agentcore.get_browser_session(**session_args(record))
+    except agentcore.exceptions.ResourceNotFoundException:
+        return True
+    if expected_name and session.get("name") != expected_name:
+        from .browser_session_store import BrowserSessionError
+
+        raise BrowserSessionError(403, "Browser session does not belong to this context")
+    return session.get("status") == "TERMINATED"

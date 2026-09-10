@@ -37,6 +37,16 @@ test('view lifetime fails closed and never exceeds either expiry', () => {
 test('user-facing errors never expose provider details or signed credentials', () => {
   const providerError = new Error(url);
   assert.ok(!browserError(providerError, 'open').includes('Signature'));
-  assert.match(browserError({ status: 409 }, 'open'), /Wait.*stop/);
+  assert.match(browserError({ status: 409 }, 'open'), /Check status/);
   assert.match(browserError(providerError, 'resume'), /already have resumed/);
+});
+
+test('conflicts distinguish active work from failed handoffs without leaking unknown details', () => {
+  const conflict = (message) => browserError(Object.assign(new Error(message), { status: 409 }), 'open');
+  assert.match(conflict('Wait for the bot to finish or stop it before opening its browser'), /bot is working/);
+  assert.match(conflict('Finish or close the previous browser handoff first'), /Disconnect/);
+  assert.doesNotMatch(conflict('Finish or close the previous browser handoff first'), /stop.*chat/);
+  assert.match(conflict('A browser operation is still in progress'), /Check status/);
+  assert.match(conflict('The browser session expired. Open it again before resuming'), /session ended/);
+  assert.doesNotMatch(conflict(url), /Signature/);
 });
