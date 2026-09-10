@@ -5,6 +5,7 @@ import type {
   Bootstrap,
   Bot,
   BotBrowserContext,
+  BotBrowserOpenOptions,
   BotBrowserState,
   BotDocument,
   BotDraft,
@@ -41,7 +42,7 @@ export interface FrogBotApi {
   messages(botId: string): Promise<Message[]>;
   botDocuments(botId: string): Promise<BotDocument[]>;
   browserStatus(context: BotBrowserContext): Promise<BotBrowserState>;
-  openBrowser(context: BotBrowserContext): Promise<BotBrowserState>;
+  openBrowser(context: BotBrowserContext, options?: BotBrowserOpenOptions): Promise<BotBrowserState>;
   resumeBrowser(context: BotBrowserContext, rememberLogin: boolean): Promise<BotBrowserState>;
   closeBrowser(context: BotBrowserContext): Promise<BotBrowserState>;
   forgetBrowserLogin(context: BotBrowserContext): Promise<BotBrowserState>;

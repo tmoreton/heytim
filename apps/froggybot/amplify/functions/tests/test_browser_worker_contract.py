@@ -75,4 +75,7 @@ class BrowserWorkerContractTests(WorkerTestCase):
         self.assertIn("aws:ResourceTag/frogbot:managed-by", policy)
         self.assertNotIn("ListBrowserProfiles", policy)
         self.assertNotIn("authenticatedUserIamRole", policy)
-        self.assertNotIn("ConnectBrowserAutomationStream", policy)
+        # API now uses fixed CDP commands BEFORE signing human access. Neither
+        # the worker nor a user IAM role gets a generic automation capability.
+        self.assertEqual(policy.count("ConnectBrowserAutomationStream"), 1)
+        self.assertNotIn("ConnectBrowserAutomationStream", policy.split("worker.addToRolePolicy")[1])

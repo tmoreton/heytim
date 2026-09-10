@@ -1,5 +1,5 @@
 import type { FrogBotApi } from './api';
-import type { BotBrowserContext, BotBrowserState } from './types';
+import type { BotBrowserContext, BotBrowserOpenOptions, BotBrowserState } from './types';
 
 export type BrowserApi = Pick<FrogBotApi,
   'browserStatus' | 'openBrowser' | 'resumeBrowser' | 'closeBrowser' | 'forgetBrowserLogin'>;
@@ -11,15 +11,15 @@ export const browserPath = ({ botId, groupId }: BotBrowserContext, action = '', 
   `/bots/${encodeURIComponent(botId)}/browser${action ? `/${action}` : ''}${query && groupId ? `?groupId=${encodeURIComponent(groupId)}` : ''}`;
 
 export function createBrowserApi(request: Request): BrowserApi {
-  const post = (context: BotBrowserContext, action: string, rememberLogin?: boolean) =>
+  const post = (context: BotBrowserContext, action: string, rememberLogin?: boolean, options?: BotBrowserOpenOptions) =>
     request<BotBrowserState>(browserPath(context, action), {
       method: 'POST',
       cache: 'no-store',
-      body: JSON.stringify({ ...(context.groupId ? { groupId: context.groupId } : {}), ...(rememberLogin === undefined ? {} : { rememberLogin }) }),
+      body: JSON.stringify({ ...options, ...(context.groupId ? { groupId: context.groupId } : {}), ...(rememberLogin === undefined ? {} : { rememberLogin }) }),
     }, BROWSER_MUTATION_TIMEOUT_MS);
   return {
     browserStatus: (context) => request(browserPath(context, '', true), { cache: 'no-store' }),
-    openBrowser: (context) => post(context, 'open'),
+    openBrowser: (context, options) => post(context, 'open', undefined, options),
     resumeBrowser: (context, rememberLogin) => post(context, 'resume', rememberLogin),
     closeBrowser: (context) => post(context, 'close'),
     forgetBrowserLogin: (context) => request(browserPath(context, 'profile', true), { method: 'DELETE', cache: 'no-store' }, BROWSER_MUTATION_TIMEOUT_MS),

@@ -1,6 +1,8 @@
 import { ArnFormat, Stack } from 'aws-cdk-lib';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import type { Function as LambdaFunction } from 'aws-cdk-lib/aws-lambda';
+import { Asset } from 'aws-cdk-lib/aws-s3-assets';
+import path from 'node:path';
 
 /** Only the authenticated app API may issue human browser access or save logins. */
 export function addBrowserAccess(
@@ -8,6 +10,18 @@ export function addBrowserAccess(
   api: LambdaFunction,
   worker: LambdaFunction,
 ) {
+  const mobileView = new Asset(stack, 'BrowserMobileView', {
+    path: path.resolve('amplify/browser-extension'),
+  });
+  for (const fn of [api, worker]) {
+    // Asset.grantRead grants bucket-wide access; only this extension ZIP is needed.
+    fn.addToRolePolicy(new PolicyStatement({
+      actions: ['s3:GetObject', 's3:GetObjectVersion'],
+      resources: [mobileView.bucket.arnForObjects(mobileView.s3ObjectKey)],
+    }));
+    fn.addEnvironment('FROGBOT_BROWSER_EXTENSION_BUCKET', mobileView.s3BucketName);
+    fn.addEnvironment('FROGBOT_BROWSER_EXTENSION_KEY', mobileView.s3ObjectKey);
+  }
   const browserArn = stack.formatArn({
     service: 'bedrock-agentcore',
     account: 'aws',
@@ -28,6 +42,7 @@ export function addBrowserAccess(
       'bedrock-agentcore:StopBrowserSession',
       'bedrock-agentcore:UpdateBrowserStream',
       'bedrock-agentcore:ConnectBrowserLiveViewStream',
+      'bedrock-agentcore:ConnectBrowserAutomationStream',
       'bedrock-agentcore:SaveBrowserSessionProfile',
     ],
     resources: [browserArn],

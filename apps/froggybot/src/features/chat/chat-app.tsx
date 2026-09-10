@@ -116,7 +116,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
   const selectedReplyBotName = activeReplyBotId === ALL_BOTS_REPLY_TARGET
     ? selectedGroup?.bots.find((bot) => bot.systemRole === 'chief')?.name ?? selectedGroup?.bots[0]?.name
     : selectedGroup?.bots.find((bot) => bot.id === activeReplyBotId)?.name;
-  const dictation = useMessageDictation(draft, setDraft, setError);
+  const dictation = useMessageDictation(draft, setDraft, setError, selected?.id ?? '');
   const attachmentDraft = useAttachments({
     api,
     disabled: !selected || (pending && !selectedBot) || sending,
@@ -182,7 +182,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
     const text = draft.trim();
     if ((!text && attachments.length === 0) || !selected || sending || (pending && !selectedBot) || uploadingAttachment) return;
     setSending(true);
-    dictation.stop();
+    dictation.abort();
     setDraft('');
     try {
       if (selectedGroup) {
@@ -367,8 +367,8 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
           {wide && drawerOpen ? <View style={styles.wideDrawer}>{drawer}</View> : null}
           <ConversationPanel
             browserApi={api}
-            browserVisible={overlay.kind === 'browser'}
-            onOpenBrowser={() => setOverlay({ kind: 'browser' })}
+            browserVisible={overlay.kind === 'browser'} browserUrl={overlay.kind === 'browser' ? overlay.url : undefined}
+            onOpenBrowser={(url) => setOverlay({ kind: 'browser', url })}
             onCloseBrowser={() => setOverlay({ kind: 'none' })}
             onBrowserResumed={async () => { await Promise.all([loadMessages(), loadBootstrap()]); }}
             key={selectedGroup ? `group:${selectedGroup.id}` : `bot:${selectedBot?.id ?? 'none'}`}

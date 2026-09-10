@@ -30,6 +30,9 @@ test('browser API uses agreed methods, explicit consent, no cache and longer mut
   assert.ok(BROWSER_MUTATION_TIMEOUT_MS > 29_000);
   await api.resumeBrowser({ ...context, groupId: 'work' }, true);
   assert.deepEqual(JSON.parse(calls.at(-1)[1].body), { groupId: 'work', rememberLogin: true });
+  await api.openBrowser(context, { display: 'mobile', url: 'https://example.com/page?q=x#section' });
+  assert.deepEqual(JSON.parse(calls.at(-1)[1].body), { display: 'mobile', url: 'https://example.com/page?q=x#section' });
+  assert.equal(calls.at(-1)[0], '/bots/private/browser/open', 'Website URLs stay out of request paths and query logs.');
 });
 
 test('demo does not claim a real browser, saved login or resumed bot', async () => {

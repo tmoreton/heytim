@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "FroggyBot Mobile View",
+  "version": "1.0.0",
+  "description": "Requests mobile sites in this isolated bot browser. No browsing data is collected.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1L1qICu9j7+rrHAinrxp5WNk3Diuf1Y000E8iET86yOBXpa5zwV3SQwEjUFz/xCr08BYqRb/XCkx4z8M+LsiZOLCc0lVaSyYMCg7WqhB+2ifWdOtHDJwoz/Mjy+M3tqg4gqgWySAJY4AZJ0mXT3cImU8xAPJPhv8TZxEawY8jVuvn0yMvwzcn7WJd9ivAUGDUL1HGg/8YMP5eu24VUWpDJfXzV4hxXGXvFNnjKlOF083QdT9gPkpl3GiIqQFk6Zf/QIYuMiHx5dvMzOnPZSITiJNAkqjs0sqGB/+IiP0E3Q8xPlr7LhkpZ8OXDSxAY8wP/+zMfx7nDHqvsF+Zi4B4QIDAQAB",
+  "permissions": ["declarativeNetRequestWithHostAccess"],
+  "host_permissions": ["http://*/*", "https://*/*"]
+}

@@ -9,7 +9,8 @@ const app = resolve(here, '../../../..');
 const bundle = await build({ entryPoints: [resolve(here, 'ui-fixture.tsx')], bundle: true, write: false,
   absWorkingDir: app, platform: 'browser', format: 'iife', jsx: 'automatic',
   define: { 'process.env.NODE_ENV': '"production"', __DEV__: 'false' },
-  alias: { 'react-native': 'react-native-web', 'react-native-safe-area-context': resolve(app, 'node_modules/react-native-safe-area-context/src/index.tsx') },
+  alias: { 'react-native': 'react-native-web', 'react-native-safe-area-context': resolve(app, 'node_modules/react-native-safe-area-context/src/index.tsx'),
+    'expo-clipboard': resolve(here, 'fixture-device-api.ts'), 'expo-linking': resolve(here, 'fixture-device-api.ts') },
   resolveExtensions: ['.web.tsx', '.web.ts', '.web.js', '.tsx', '.ts', '.js'],
 });
 createServer((request, response) => {

@@ -11,6 +11,7 @@ from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from api_test_case import ApiTestCase, ConditionalCheckFailedException
+from browser_display_cases import BrowserDisplayCases
 
 
 class Condition:
@@ -85,7 +86,7 @@ class ModuleGlobals:
         del self.values[name]
 
 
-class BrowserSessionTests(ApiTestCase):
+class BrowserSessionTests(BrowserDisplayCases, ApiTestCase):
     def setUp(self):
         super().setUp()
         self.module = importlib.import_module("shared.browser_sessions")
@@ -443,7 +444,7 @@ class BrowserSessionTests(ApiTestCase):
     def test_route_holds_send_lease_during_open_and_sets_no_store(self):
         order = []
         service = MagicMock()
-        service.open.side_effect = lambda: order.append("open") or {"status": "human_control"}
+        service.open.side_effect = lambda **_kwargs: order.append("open") or {"status": "human_control"}
         with (patch.object(self.routes, "browser_clients", return_value=(self.dp, self.cp)),
               patch.object(self.routes, "BrowserSessionService", return_value=service),
               patch.object(self.routes, "_claim_send_lease", side_effect=lambda *_a: order.append("claim") or "lease"),

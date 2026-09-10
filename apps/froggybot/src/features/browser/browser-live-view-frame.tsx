@@ -3,8 +3,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 import { viewerLocation, VIEWER_CONNECT, VIEWER_READY } from './viewer-location';
+import type { BotBrowserState } from '@/lib/types';
 
-export default function BrowserLiveViewFrame({ signedUrl }: { signedUrl: string }) {
+export default function BrowserLiveViewFrame({ signedUrl, viewport }: { signedUrl: string; viewport?: BotBrowserState['viewport'] }) {
   const frame = useRef<WebView>(null);
   const [failed, setFailed] = useState(false);
   const uri = viewerLocation(process.env.EXPO_PUBLIC_BROWSER_VIEWER_ORIGIN || 'https://app.froggybot.com');
@@ -20,7 +21,7 @@ export default function BrowserLiveViewFrame({ signedUrl }: { signedUrl: string 
     onMessage={(event) => {
       if (event.nativeEvent.url !== uri || event.nativeEvent.data !== VIEWER_READY) return;
       // In-memory bridge only. Never put a signed capability in source.uri, history or storage.
-      const payload = JSON.stringify({ type: VIEWER_CONNECT, signedUrl }).replace(/</g, '\\u003c');
+      const payload = JSON.stringify({ type: VIEWER_CONNECT, signedUrl, viewport }).replace(/</g, '\\u003c');
       frame.current?.injectJavaScript(`window.dispatchEvent(new MessageEvent('message', {data: ${payload}, origin: window.location.origin, source: window})); true;`);
     }}
     onError={() => setFailed(true)}

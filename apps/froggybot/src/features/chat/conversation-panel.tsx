@@ -21,7 +21,8 @@ import { useChatScroll } from './use-chat-scroll';
 type Props = {
   browserApi: BrowserApi;
   browserVisible: boolean;
-  onOpenBrowser: () => void;
+  browserUrl?: string;
+  onOpenBrowser: (url?: string) => void;
   onCloseBrowser: () => void;
   onBrowserResumed: () => Promise<void>;
   fullWidth: boolean;
@@ -63,6 +64,7 @@ type Props = {
 export function ConversationPanel({
   browserApi,
   browserVisible,
+  browserUrl,
   onOpenBrowser,
   onCloseBrowser,
   onBrowserResumed,
@@ -117,7 +119,7 @@ export function ConversationPanel({
         onOpenMenu={onOpenMenu}
       />
 
-      {bot && !group ? <BrowserHandoff key={bot.id} api={browserApi} bot={bot} active={pending} visible={browserVisible} onOpen={onOpenBrowser} onClose={onCloseBrowser} onResumed={onBrowserResumed} /> : null}
+      {bot && !group ? <BrowserHandoff key={bot.id} api={browserApi} bot={bot} active={pending} visible={browserVisible} initialUrl={browserUrl} onOpen={() => onOpenBrowser()} onClose={onCloseBrowser} onResumed={onBrowserResumed} /> : null}
 
       {error ? (
         <Pressable
@@ -188,6 +190,7 @@ export function ConversationPanel({
               onReject={bot ? onReject : undefined}
               onOpenFile={onOpenFile}
               onResolveFile={onResolveFile}
+              onOpenLink={bot && !group ? onOpenBrowser : undefined}
               decisionSaved={decisionSaved}
               onSaveDecision={group ? onSaveDecision : undefined}
               onActivityExpand={preserveScrollPosition}
