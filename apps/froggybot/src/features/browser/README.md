@@ -91,7 +91,9 @@ already includes WebView; no new native dependency was added by this refinement.
   S3 extension versions were cleaned up. No existing bot session was touched.
 - Backend and exact-object extension asset deployed successfully at 01:00 UTC
   September 10 (September 9 Eastern). No stateful resources were replaced and
-  worker recursion protection remains `Terminate`.
+  the deployed template retained `Terminate`. A post-deploy read found the live
+  worker set to `Allow` despite that template; the drift was corrected and a
+  second read confirmed `Terminate`. The cause of the drift was not established.
 - A fresh disposable bot through the deployed API passed mobile setup, navigation
   to example.com, signed human handoff, and desktop-site override. The API role
   did not reproduce the root-created-session 404. The test browser and bot were
