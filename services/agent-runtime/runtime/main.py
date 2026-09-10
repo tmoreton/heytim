@@ -52,7 +52,7 @@ async def run_agent(payload, context):
     messages = messages_from_payload(payload, actor_id)
     memories = memory_stores(memory_context)
     session_id = getattr(context, "session_id", "unknown")
-    config = bot_configuration(payload, session_id, actor_id)
+    config = bot_configuration(payload, session_id, actor_id, messages)
     log.info(
         "Invoking FroggyBot session %s with %d history messages",
         session_id,
@@ -60,28 +60,29 @@ async def run_agent(payload, context):
     )
 
     usage = UsageAccumulator()
-    model = await load_model(usage)
-    agent = harness_agent(
-        model=model,
-        web_fetch_model=model,
-        caching=False,
-        instructions=config.instructions,
-        tools=config.tools,
-        builtin_tools=config.builtin_tools,
-        plugins=config.plugins,
-        builtin_plugins=config.builtin_plugins,
-        memory=bool(memories),
-        memory_store=memories,
-        context_management="auto",
-        conversation_manager=SummarizingConversationManager(
-            summary_ratio=0.3,
-            preserve_recent_messages=10,
-            proactive_compression={"compression_threshold": 0.85},
-        ),
-    )
+    agent = None
     completed = False
     terminal_error = None
     try:
+        model = await load_model(usage)
+        agent = harness_agent(
+            model=model,
+            web_fetch_model=model,
+            caching=False,
+            instructions=config.instructions,
+            tools=config.tools,
+            builtin_tools=config.builtin_tools,
+            plugins=config.plugins,
+            builtin_plugins=config.builtin_plugins,
+            memory=bool(memories),
+            memory_store=memories,
+            context_management="auto",
+            conversation_manager=SummarizingConversationManager(
+                summary_ratio=0.3,
+                preserve_recent_messages=10,
+                proactive_compression={"compression_threshold": 0.85},
+            ),
+        )
         try:
             # Leave time to save the outcome before AgentCore retires the session.
             budget = (
@@ -125,10 +126,20 @@ async def run_agent(payload, context):
             control["terminalError"] = terminal_error
         else:
             completed = True
+        if config.capability_configuration.bot_mutations.pending:
+            control["botMutations"] = (
+                config.capability_configuration.bot_mutations.pending
+            )
         if control:
             yield {"frogbotControl": control}
     finally:
-        if completed:
+        try:
+            await config.close()
+        except Exception:
+            log.exception(
+                "Could not release turn capabilities for session %s", session_id
+            )
+        if completed and agent is not None:
             try:
                 await record_completed_turn(
                     memory_context,
@@ -139,7 +150,7 @@ async def run_agent(payload, context):
                 log.exception(
                     "Could not persist long-term memory for session %s", session_id
                 )
-        if agent.memory_manager:
+        if agent is not None and agent.memory_manager:
             try:
                 await agent.memory_manager.flush()
             except Exception:

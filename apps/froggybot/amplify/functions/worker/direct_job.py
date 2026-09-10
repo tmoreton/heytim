@@ -7,6 +7,7 @@ from shared.work_state import is_claimable
 from .agent import _invoke, _progress_updater
 from .artifacts import _collect_generated_artifacts, _delete_generated_artifacts
 from .background_work import _queue_background_poll
+from .bot_mutations import apply_bot_mutations
 from .job_lifecycle import (
     FailureDisposition,
     begin_attempt,
@@ -104,6 +105,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             on_progress=_progress_updater(turn_key, lease_owner),
             runtime_result=turn.get("runtimeResult"),
             work_key=turn_key, lease_owner=lease_owner, resume_request=request,
+            allow_bot_management=turn.get("source") != "schedule",
         )
         record_invocation_usage(
             user_id,
@@ -112,6 +114,10 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             work_type=("schedule" if turn.get("source") == "schedule" else "direct"),
             bot_id=bot_id,
         )
+        if result.bot_mutations and (result.pending_work or result.terminal_error):
+            raise ValueError(
+                "A bot change cannot be combined with unfinished or failed work"
+            )
         if result.pending_work:
             if _pause_work(turn_key, lease_owner, result.pending_work):
                 _queue_background_poll(turn_key, request)
@@ -133,6 +139,8 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             )
             return
         answer = result.text
+        if result.bot_mutations:
+            apply_bot_mutations(user_id, bot, turn, result.bot_mutations)
         artifacts = _collect_generated_artifacts(user_id, bot_id, turn["id"])
     except Exception:
         logger.exception("Agent request failed for turn %s", turn.get("id"))

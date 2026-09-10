@@ -5,9 +5,10 @@ from typing import Any
 
 from strands.vended_plugins.skills import AgentSkills
 
-from .agentcore_adapters import agentcore_tools
+from .agentcore_adapters import PersistentAgentCoreBrowser, agentcore_tools
 from .artifacts import artifact_tool, image_tool
 from .background_work import BackgroundWorkTracker
+from .bot_management import BotMutationTracker, bot_management_tools
 from .capability_contract import (
     dynamic_skills,
     tool_bindings,
@@ -20,6 +21,7 @@ from .mcp_connections import (
     connection_client,
     connection_credential,
 )
+from .memes import meme_tool
 from .repository_workspace import repository_workspace_tool
 
 
@@ -30,6 +32,12 @@ class CapabilityConfiguration:
     plugins: list[Any]
     builtin_plugins: list[str]
     background_work: BackgroundWorkTracker
+    bot_mutations: BotMutationTracker
+    browser: PersistentAgentCoreBrowser | None
+
+    async def close(self) -> None:
+        if self.browser:
+            await self.browser.aclose()
 
 
 def resolve_capabilities(
@@ -39,14 +47,30 @@ def resolve_capabilities(
     *,
     allow_background_work: bool = True,
     managed_browser: dict | None = None,
+    bot_management: dict | None = None,
+    image_attachments: list[bytes] | None = None,
 ) -> CapabilityConfiguration:
     bindings = tool_bindings(bot)
     skills = dynamic_skills(bot)
     background_work = BackgroundWorkTracker()
-    tools = [CUSTOM_TOOLS[item["name"]] for item in bindings if item["kind"] == "local"]
+    bot_mutations = BotMutationTracker()
+    tools = [
+        CUSTOM_TOOLS[item["name"]]
+        for item in bindings
+        if item["kind"] == "local" and item["name"] in CUSTOM_TOOLS
+    ]
+    local_names = {
+        item["name"] for item in bindings if item["kind"] == "local"
+    }
+    if "bot_manager" in local_names and bot_management is not None:
+        tools.extend(bot_management_tools(bot_management, bot_mutations))
     if artifact_prefix:
         tools.extend([artifact_tool(artifact_prefix), image_tool(artifact_prefix)])
-    managed_tools, interpreter = agentcore_tools(
+        if "meme_composer" in local_names:
+            tools.append(
+                meme_tool(artifact_prefix, image_attachments or [])
+            )
+    managed_tools, interpreter, browser = agentcore_tools(
         bindings,
         session_id,
         background_work,
@@ -95,6 +119,8 @@ def resolve_capabilities(
             item["name"] for item in bindings if item["kind"] == "stan_plugin"
         ],
         background_work=background_work,
+        bot_mutations=bot_mutations,
+        browser=browser,
     )
 
 

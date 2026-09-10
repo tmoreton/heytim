@@ -129,3 +129,19 @@ def test_managed_cleanup_preserves_remote_tabs_and_login():
     finally:
         browser._executor.submit(browser._dispose).result(timeout=5)
         browser._executor.shutdown(wait=True)
+
+
+def test_managed_aclose_is_idempotent_and_releases_driver():
+    browser = agentcore_adapters.PersistentAgentCoreBrowser(
+        session_name="run", managed_session=reference(), region="us-east-1"
+    )
+    stop = AsyncMock()
+    browser._playwright = SimpleNamespace(stop=stop)
+    browser._started = True
+
+    asyncio.run(browser.aclose())
+    asyncio.run(browser.aclose())
+
+    stop.assert_awaited_once()
+    assert browser._disposed is True
+    assert browser._loop.is_closed()

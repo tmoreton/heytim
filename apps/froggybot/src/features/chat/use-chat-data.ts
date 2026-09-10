@@ -8,6 +8,8 @@ import {
   chooseAvailableSelection,
   isPendingMessage,
   isRefreshingMessage,
+  reconcileBootstrap,
+  reconcileMessages,
 } from './chat-state';
 
 const MESSAGE_REFRESH_MS = 900;
@@ -46,7 +48,7 @@ export function useChatData(api: FrogBotApi) {
     try {
       const next = await readMessages(target);
       if (currentRequest === messageRequestId.current) {
-        setMessages(next);
+        setMessages((current) => reconcileMessages(current, next));
         setError('');
       }
     } catch (value) {
@@ -69,7 +71,7 @@ export function useChatData(api: FrogBotApi) {
       if (currentRequest !== bootstrapRequestId.current) return;
       const initialLoad = !initialized.current;
       initialized.current = true;
-      setData(next);
+      setData((current) => reconcileBootstrap(current, next));
       setSelection((current) => chooseAvailableSelection(next, current));
       if (initialLoad) setLoadingMessages(Boolean(next.groups[0] ?? next.bots[0]));
       setError('');
@@ -113,7 +115,7 @@ export function useChatData(api: FrogBotApi) {
 
   const replaceBootstrap = useCallback((next: Bootstrap, resetMessages = false) => {
     const nextSelection = chooseAvailableSelection(next, selection);
-    setData(next);
+    setData((current) => reconcileBootstrap(current, next));
     if (resetMessages) {
       invalidateMessages();
       setMessages([]);

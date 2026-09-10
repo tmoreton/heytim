@@ -6,6 +6,8 @@ import {
   isActiveResponse,
   isPendingMessage,
   isRefreshingMessage,
+  reconcileBootstrap,
+  reconcileMessages,
 } from './chat-state.ts';
 
 const message = (status) => ({ id: status, role: 'assistant', text: '', createdAt: '', status });
@@ -26,4 +28,35 @@ test('keeps an available selection and otherwise uses the first conversation', (
   assert.deepEqual(chooseAvailableSelection(bootstrap, { kind: 'bot', id: 'missing' }), {
     kind: 'group', id: 'group-1',
   });
+});
+
+test('reuses unchanged message arrays and individual unchanged messages', () => {
+  const current = [
+    { ...message('complete'), id: 'one', text: 'First' },
+    { ...message('running'), id: 'two', text: 'Second', activity: ['Working'] },
+  ];
+  const unchanged = reconcileMessages(current, structuredClone(current));
+  assert.equal(unchanged, current);
+
+  const changedInput = structuredClone(current);
+  changedInput[1].activity.push('Still working');
+  const changed = reconcileMessages(current, changedInput);
+  assert.notEqual(changed, current);
+  assert.equal(changed[0], current[0]);
+  assert.notEqual(changed[1], current[1]);
+});
+
+test('reuses an unchanged bootstrap response', () => {
+  const current = {
+    bots: [{ id: 'bot-1', toolIds: ['browser'] }],
+    groups: [],
+    botTemplates: [],
+    needsBotOnboarding: false,
+    tools: [],
+    skills: [],
+  };
+  assert.equal(reconcileBootstrap(current, structuredClone(current)), current);
+  const changed = structuredClone(current);
+  changed.bots[0].toolIds.push('search');
+  assert.notEqual(reconcileBootstrap(current, changed), current);
 });

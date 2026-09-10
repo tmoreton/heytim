@@ -148,7 +148,7 @@ def poll_runtime_work(
             return
     result = {
         key: state[key]
-        for key in ("text", "pendingWork", "usage", "terminalError")
+        for key in ("text", "pendingWork", "usage", "terminalError", "botMutations")
         if key in state
     }
     result["usageEventId"] = f"runtime:{work['sessionId']}"

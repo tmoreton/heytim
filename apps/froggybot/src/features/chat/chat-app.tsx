@@ -35,7 +35,6 @@ import { useAttachments } from './use-attachments';
 import { useChatData } from './use-chat-data';
 import { useConversationLinks } from './use-conversation-links';
 import { useFilePreview } from './use-file-preview';
-import { useMessageDictation } from './use-message-dictation';
 import { isActiveResponse } from './chat-state';
 
 type Props = {
@@ -74,7 +73,6 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
   } = chat;
   const [drawerOpen, setDrawerOpen] = useState(wide);
   const [search, setSearch] = useState('');
-  const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [overlay, setOverlay] = useState<ChatOverlay>(() => {
     if (initialBotTemplateId) return { kind: 'botLibrary' };
@@ -116,14 +114,12 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
   const selectedReplyBotName = activeReplyBotId === ALL_BOTS_REPLY_TARGET
     ? selectedGroup?.bots.find((bot) => bot.systemRole === 'chief')?.name ?? selectedGroup?.bots[0]?.name
     : selectedGroup?.bots.find((bot) => bot.id === activeReplyBotId)?.name;
-  const dictation = useMessageDictation(draft, setDraft, setError, selected?.id ?? '');
   const attachmentDraft = useAttachments({
     api,
     disabled: !selected || (pending && !selectedBot) || sending,
     setError,
   });
   const { attachments, uploading: uploadingAttachment } = attachmentDraft;
-  const { listening } = dictation;
   const clearAttachmentDraft = attachmentDraft.clear;
   const botLibraryOnboarding = Boolean(
     data?.needsBotOnboarding && !botOnboardingDismissed && overlay.kind === 'none',
@@ -147,12 +143,10 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
     (!wide && drawerOpen) || overlay.kind !== 'none' || botLibraryOnboarding || Boolean(links.pendingSkill) || Boolean(filePreview.previewFile);
 
   const selectBot = (bot: Bot) => {
-    dictation.abort();
     openConversation({ kind: 'bot', id: bot.id }, !wide);
   };
 
   const selectGroup = (group: Group) => {
-    dictation.abort();
     openConversation({ kind: 'group', id: group.id }, !wide);
   };
 
@@ -178,12 +172,9 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
     upsertGroup(saved);
   };
 
-  const send = async () => {
-    const text = draft.trim();
-    if ((!text && attachments.length === 0) || !selected || sending || (pending && !selectedBot) || uploadingAttachment) return;
+  const send = async (text: string) => {
+    if ((!text && attachments.length === 0) || !selected || sending || (pending && !selectedBot) || uploadingAttachment) return false;
     setSending(true);
-    dictation.abort();
-    setDraft('');
     try {
       if (selectedGroup) {
         await api.sendGroupMessage(
@@ -199,9 +190,10 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
       }
       attachmentDraft.clear();
       await loadMessages();
+      return true;
     } catch (value) {
-      setDraft(text);
       setError(value instanceof Error ? value.message : 'Could not send that message.');
+      return false;
     } finally {
       setSending(false);
     }
@@ -258,7 +250,6 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
   const runBotDeletion = async (requestedAction?: BotAction) => {
     if (!selectedBot || overlay.kind !== 'botConfirmation') return;
     const action = requestedAction ?? overlay.action;
-    dictation.abort();
     try {
       if (action === 'clear' || action === 'clearAndForget') {
         await api.clearBotChat(selectedBot.id, action === 'clearAndForget');
@@ -290,14 +281,12 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
 
   const deleteGroup = async () => {
     if (!selectedGroup) return;
-    dictation.abort();
     await api.deleteGroup(selectedGroup.id);
     clearAttachmentDraft();
     await refreshAfterMutation();
   };
 
   const signOut = async () => {
-    dictation.abort();
     if (!demo) {
       try {
         await links.unregisterPushToken();
@@ -311,7 +300,6 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
 
   const deleteAccount = async () => {
     if (demo) return;
-    dictation.abort();
     await api.deleteAccount();
     try {
       await endSession();
@@ -378,9 +366,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
             messages={messages}
             loading={loadingMessages}
             error={error}
-            draft={draft}
             attachments={attachments}
-            listening={listening}
             pending={pending}
             sending={sending}
             uploading={uploadingAttachment}
@@ -390,16 +376,15 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
             activeReplyBotId={activeReplyBotId}
             topInset={insets.top}
             bottomInset={insets.bottom}
+            onError={setError}
             onDismissError={() => setError('')}
             onToggleDrawer={() => setDrawerOpen((value) => !value)}
             onEditGroup={() => setOverlay({ kind: 'groupEditor', mode: 'edit' })}
             onOpenMenu={() => setOverlay({ kind: selectedGroup ? 'groupMenu' : 'botMenu' })}
-            onDraftChange={setDraft}
             onAddAttachment={() => void attachmentDraft.pick()}
             onRemoveAttachment={attachmentDraft.remove}
             onReplyTargetChange={setReplyBotId}
-            onToggleDictation={() => void dictation.toggle()}
-            onSend={() => void send()}
+            onSend={send}
             onStop={() => void stopResponse()}
             onApprove={respondToApproval}
             onReject={(message) => respondToApproval(message)}

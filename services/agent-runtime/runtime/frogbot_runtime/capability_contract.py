@@ -14,6 +14,7 @@ STAN_BUILTIN_TOOLS = {"web_fetch"}
 STAN_PLUGINS = {"todos"}
 STAN_SUBAGENTS = {"generalist"}
 AGENTCORE_TOOLS = {"browser", "code_interpreter"}
+CONTEXTUAL_LOCAL_TOOLS = {"bot_manager", "meme_composer"}
 
 
 def dynamic_skills(bot: dict) -> list[Skill]:
@@ -111,7 +112,7 @@ def tool_bindings(bot: dict) -> list[dict]:
             name = runtime.get("name")
             allowed = {
                 "agentcore": AGENTCORE_TOOLS,
-                "local": set(CUSTOM_TOOLS),
+                "local": set(CUSTOM_TOOLS) | CONTEXTUAL_LOCAL_TOOLS,
                 "stan_builtin": STAN_BUILTIN_TOOLS,
                 "stan_plugin": STAN_PLUGINS,
                 "stan_subagent": STAN_SUBAGENTS,

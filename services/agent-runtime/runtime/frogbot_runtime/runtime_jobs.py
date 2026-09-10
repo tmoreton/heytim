@@ -46,7 +46,7 @@ class RunState:
         event = value.get("event", value)
         control = event.get("frogbotControl")
         if isinstance(control, dict):
-            for key in ("usage", "pendingWork", "terminalError"):
+            for key in ("usage", "pendingWork", "terminalError", "botMutations"):
                 if key in control:
                     self.value[key] = control[key]
             return

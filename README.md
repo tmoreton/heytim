@@ -68,7 +68,7 @@ order for the preview app, live request path, AgentCore runtime, infrastructure,
 - Inline reports, drafts, and next steps in chat, with downloadable documents when explicitly requested
 - Owner-controlled chat, bot, and group deletion with pending-work protection and invite revocation
 - A skill library for creating, editing, and sharing reusable ways of working
-- Chief as the protected built-in, plus seven installable bot templates and seven focused public skills from the dynamically refreshed catalog
+- Chief as the protected built-in, plus eight installable bot templates and eight focused public skills from the dynamically refreshed catalog
 - Private HTTPS MCP connections with per-user bearer-token or API-key credentials
 - Bot snapshots, conversation snapshots, and live group invitations with 30-day links
 - Scoped AgentCore memory: private user preferences/facts, per-bot summaries, and isolated shared group preferences/facts/summaries, with in-app creation, review, editing, and forgetting

@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 
 from shared.agent_stream import AgentTerminalError, ProgressCallback, read_agent_stream
+from shared.catalog import CatalogError
 from shared.group_chat import (
     MAX_HISTORY_BLOCK_CHARS,
     group_history_from_items,
@@ -41,6 +42,7 @@ MAX_TEAM_BOTS = 24
 class AgentInvocationResult:
     text: str
     pending_work: list[dict] = field(default_factory=list)
+    bot_mutations: list[dict] = field(default_factory=list)
     usage: dict | None = None
     terminal_error: str | None = None
     usage_event_id: str | None = None
@@ -189,6 +191,62 @@ def _team_roster(user_id: str, current_bot_id: str) -> list[dict]:
     )[:MAX_TEAM_BOTS]
 
 
+def _bot_management_context(user_id: str) -> dict:
+    bot_items = table.query(
+        KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+        ExpressionAttributeValues={
+            ":pk": f"USER#{user_id}",
+            ":prefix": "BOT#",
+        },
+        ConsistentRead=True,
+    ).get("Items", [])
+    bots = []
+    for item in bot_items[:MAX_TEAM_BOTS]:
+        if not isinstance(item.get("id"), str) or not isinstance(
+            item.get("name"), str
+        ):
+            continue
+        bots.append(
+            {
+                key: item[key]
+                for key in (
+                    "id",
+                    "name",
+                    "tagline",
+                    "prompt",
+                    "color",
+                    "toolIds",
+                    "skillIds",
+                    "systemRole",
+                )
+                if key in item
+            }
+        )
+
+    def concise(items: list[dict], keys: tuple[str, ...]) -> list[dict]:
+        return [
+            {key: item[key] for key in keys if key in item}
+            for item in items
+            if isinstance(item, dict)
+        ]
+
+    return {
+        "bots": bots,
+        "templates": concise(
+            catalog.list_bot_templates(user_id),
+            ("id", "name", "tagline", "category", "color", "toolIds", "skillIds"),
+        ),
+        "tools": concise(
+            catalog.list_tools(user_id),
+            ("id", "name", "description", "category"),
+        ),
+        "skills": concise(
+            catalog.list_skills(user_id),
+            ("id", "name", "description", "category", "requiredToolIds"),
+        ),
+    }
+
+
 def _invoke(
     user_id: str,
     bot_id: str,
@@ -207,12 +265,14 @@ def _invoke(
     work_key: dict | None = None,
     lease_owner: str | None = None,
     resume_request: dict | None = None,
+    allow_bot_management: bool = False,
 ) -> AgentInvocationResult:
     if runtime_result is not None:
         error = runtime_result.get("terminalError", {}).get("message")
         return AgentInvocationResult(
             text=runtime_result.get("text", ""),
             pending_work=runtime_result.get("pendingWork", []),
+            bot_mutations=runtime_result.get("botMutations", []),
             usage=runtime_result.get("usage"), terminal_error=error,
             usage_event_id=runtime_result.get("usageEventId"),
         )
@@ -230,13 +290,31 @@ def _invoke(
             ExpressionAttributeValues={":versions": skill_versions},
         )
     resolved_skills = catalog.resolve_for_runtime(skill_versions)
-    tool_ids = list(dict.fromkeys(bot.get("toolIds", [])))
+    tool_ids = [
+        tool_id
+        for tool_id in dict.fromkeys(bot.get("toolIds", []))
+        if tool_id != "bot_manager"
+    ]
     for skill in resolved_skills:
         tool_ids.extend(
             tool_id
             for tool_id in skill.get("requiredToolIds", [])
             if tool_id not in tool_ids
         )
+    bot_management = None
+    if (
+        allow_bot_management
+        and group_context is None
+        and event_id
+        and bot.get("systemRole") == "chief"
+    ):
+        try:
+            catalog.resolve_tools_for_runtime(user_id, ["bot_manager"])
+        except CatalogError:
+            pass
+        else:
+            tool_ids.append("bot_manager")
+            bot_management = _bot_management_context(user_id)
     resolved_tools = catalog.resolve_tools_for_runtime(user_id, tool_ids)
     payload = {
         "messages": (
@@ -247,6 +325,11 @@ def _invoke(
         "bot": {
             "name": bot["name"],
             "prompt": bot["prompt"],
+            **(
+                {"systemRole": bot["systemRole"]}
+                if isinstance(bot.get("systemRole"), str)
+                else {}
+            ),
             "toolIds": tool_ids,
             "tools": resolved_tools,
             "skillIds": bot.get("skillIds", []),
@@ -254,6 +337,8 @@ def _invoke(
         },
         "team": _team_roster(user_id, bot_id),
     }
+    if bot_management is not None:
+        payload["botManagement"] = bot_management
     if memory is not None:
         payload["memory"] = memory
     elif group_context is None and event_id:
@@ -318,6 +403,7 @@ def _invoke(
         payload=json.dumps(payload).encode("utf-8"),
     )
     pending_work: list[dict] = []
+    bot_mutations: list[dict] = []
     usage: dict | None = None
 
     def capture_control(control: dict) -> None:
@@ -325,6 +411,11 @@ def _invoke(
         raw_work = control.get("pendingWork")
         if isinstance(raw_work, list):
             pending_work.extend(item for item in raw_work if isinstance(item, dict))
+        raw_mutations = control.get("botMutations")
+        if isinstance(raw_mutations, list):
+            bot_mutations.extend(
+                item for item in raw_mutations if isinstance(item, dict)
+            )
         raw_usage = control.get("usage")
         if isinstance(raw_usage, dict):
             usage = raw_usage
@@ -340,10 +431,16 @@ def _invoke(
         return AgentInvocationResult(
             text=terminal_error,
             pending_work=pending_work,
+            bot_mutations=bot_mutations,
             usage=usage,
             terminal_error=terminal_error,
         )
-    return AgentInvocationResult(text=text, pending_work=pending_work, usage=usage)
+    return AgentInvocationResult(
+        text=text,
+        pending_work=pending_work,
+        bot_mutations=bot_mutations,
+        usage=usage,
+    )
 
 
 def _progress_updater(item_key: dict, lease_owner: str) -> ProgressCallback:

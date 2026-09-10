@@ -1,3 +1,4 @@
+import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -17,6 +18,7 @@ import { ConversationHeader } from './conversation-header';
 import { MessageBubble } from './message-bubble';
 import { MessageComposer } from './message-composer';
 import { useChatScroll } from './use-chat-scroll';
+import { useMessageDictation } from './use-message-dictation';
 
 type Props = {
   browserApi: BrowserApi;
@@ -31,9 +33,7 @@ type Props = {
   messages: Message[];
   loading: boolean;
   error: string;
-  draft: string;
   attachments: Attachment[];
-  listening: boolean;
   pending: boolean;
   sending: boolean;
   uploading: boolean;
@@ -43,16 +43,15 @@ type Props = {
   activeReplyBotId?: string;
   topInset: number;
   bottomInset: number;
+  onError: (message: string) => void;
   onDismissError: () => void;
   onToggleDrawer: () => void;
   onEditGroup: () => void;
   onOpenMenu: () => void;
-  onDraftChange: (value: string) => void;
   onAddAttachment: () => void;
   onRemoveAttachment: (fileId: string) => void;
   onReplyTargetChange: (botId: string | null) => void;
-  onToggleDictation: () => void;
-  onSend: () => void;
+  onSend: (text: string) => Promise<boolean>;
   onStop: () => void;
   onApprove: (message: Message, always: boolean) => Promise<void>;
   onReject: (message: Message) => Promise<void>;
@@ -60,6 +59,122 @@ type Props = {
   onResolveFile: (fileId: string) => Promise<string>;
   onSaveDecision: (message: Message) => Promise<void>;
 };
+
+type ChatScroll = ReturnType<typeof useChatScroll>;
+type MessageListProps = {
+  fullWidth: boolean;
+  bot?: Bot;
+  group?: Group;
+  messages: Message[];
+  loading: boolean;
+  list: ChatScroll['list'];
+  onScroll: ChatScroll['onScroll'];
+  onLayout: ChatScroll['onLayout'];
+  onContentSizeChange: ChatScroll['onContentSizeChange'];
+  onActivityExpand: ChatScroll['preserveScrollPosition'];
+  onOpenBrowser: (url?: string) => void;
+  onApprove: (message: Message, always: boolean) => Promise<void>;
+  onReject: (message: Message) => Promise<void>;
+  onOpenFile: (file: Attachment) => Promise<void>;
+  onResolveFile: (fileId: string) => Promise<string>;
+  onSaveDecision: (message: Message) => Promise<void>;
+};
+
+const StableMessageBubble = memo(MessageBubble);
+const StableBrowserHandoff = memo(BrowserHandoff);
+const messageKey = (message: Message) => message.id;
+
+function useStableCallback<Args extends unknown[], Result>(callback: (...args: Args) => Result) {
+  const callbackRef = useRef(callback);
+  useLayoutEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+  return useCallback((...args: Args) => callbackRef.current(...args), []);
+}
+
+const ConversationMessages = memo(function ConversationMessages({
+  fullWidth,
+  bot,
+  group,
+  messages,
+  loading,
+  list,
+  onScroll,
+  onLayout,
+  onContentSizeChange,
+  onActivityExpand,
+  onOpenBrowser,
+  onApprove,
+  onReject,
+  onOpenFile,
+  onResolveFile,
+  onSaveDecision,
+}: MessageListProps) {
+  if (loading) {
+    return (
+      <View accessibilityLabel="Loading conversation" accessibilityRole="progressbar" style={styles.center}>
+        <ActivityIndicator color={bot?.color ?? '#007A3D'} />
+      </View>
+    );
+  }
+
+  return (
+    <FlatList
+      ref={list}
+      testID="conversation-messages"
+      style={styles.messageList}
+      data={messages}
+      keyExtractor={messageKey}
+      contentContainerStyle={[
+        styles.messages,
+        fullWidth && styles.mobileWidth,
+        messages.length === 0 && styles.emptyMessages,
+      ]}
+      onContentSizeChange={onContentSizeChange}
+      onLayout={onLayout}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
+      ListEmptyComponent={
+        group ? (
+          <View style={styles.emptyState}>
+            <GroupAvatar group={group} size={76} />
+            <Text style={styles.emptyTitle}>Welcome to {group.name}</Text>
+            <Text style={styles.emptyCopy}>Bring people in with one link, keep the group’s memory in one place, and ask a FroggyBot for an itinerary, budget, checklist, or polished PDF.</Text>
+          </View>
+        ) : bot ? (
+          <View style={styles.emptyState}>
+            <BotAvatar color={bot.color} name={bot.name} size={70} />
+            <Text style={styles.emptyTitle}>Talk to {bot.name}</Text>
+            <Text style={styles.emptyCopy}>{bot.tagline || 'Start with the outcome you want.'}</Text>
+          </View>
+        ) : null
+      }
+      renderItem={({ item }) => {
+        const decisionSaved = group?.decisions.some(
+          (decision) => decision.sourceMessageId === item.id,
+        );
+        return (
+          <StableMessageBubble
+            fullWidth={fullWidth}
+            key={`${item.id}:${decisionSaved ? 'saved' : 'open'}`}
+            message={item}
+            groupMode={Boolean(group)}
+            botName={bot?.name}
+            botColor={bot?.color}
+            onApprove={bot ? onApprove : undefined}
+            onReject={bot ? onReject : undefined}
+            onOpenFile={onOpenFile}
+            onResolveFile={onResolveFile}
+            onOpenLink={bot && !group ? onOpenBrowser : undefined}
+            decisionSaved={decisionSaved}
+            onSaveDecision={group ? onSaveDecision : undefined}
+            onActivityExpand={onActivityExpand}
+          />
+        );
+      }}
+    />
+  );
+});
 
 export function ConversationPanel({
   browserApi,
@@ -74,9 +189,7 @@ export function ConversationPanel({
   messages,
   loading,
   error,
-  draft,
   attachments,
-  listening,
   pending,
   sending,
   uploading,
@@ -86,15 +199,14 @@ export function ConversationPanel({
   activeReplyBotId,
   topInset,
   bottomInset,
+  onError,
   onDismissError,
   onToggleDrawer,
   onEditGroup,
   onOpenMenu,
-  onDraftChange,
   onAddAttachment,
   onRemoveAttachment,
   onReplyTargetChange,
-  onToggleDictation,
   onSend,
   onStop,
   onApprove,
@@ -104,6 +216,28 @@ export function ConversationPanel({
   onSaveDecision,
 }: Props) {
   const { list, onScroll, onLayout, onContentSizeChange, preserveScrollPosition, jumpToLatest, showJumpToLatest } = useChatScroll();
+  const [draft, setDraft] = useState('');
+  const stableOnSend = useStableCallback(onSend);
+  const stableOpenBrowser = useStableCallback(onOpenBrowser);
+  const stableCloseBrowser = useStableCallback(onCloseBrowser);
+  const stableBrowserResumed = useStableCallback(onBrowserResumed);
+  const stableApprove = useStableCallback(onApprove);
+  const stableReject = useStableCallback(onReject);
+  const stableOpenFile = useStableCallback(onOpenFile);
+  const stableResolveFile = useStableCallback(onResolveFile);
+  const stableSaveDecision = useStableCallback(onSaveDecision);
+  const { listening, abort: abortDictation, toggle: toggleDictation } = useMessageDictation(
+    draft,
+    setDraft,
+    onError,
+    (bot ?? group)?.id ?? '',
+  );
+  const submitDraft = useCallback(async () => {
+    const text = draft.trim();
+    abortDictation();
+    setDraft('');
+    if (!await stableOnSend(text)) setDraft(text);
+  }, [abortDictation, draft, stableOnSend]);
 
   return (
     <View style={styles.conversation}>
@@ -119,7 +253,18 @@ export function ConversationPanel({
         onOpenMenu={onOpenMenu}
       />
 
-      {bot && !group ? <BrowserHandoff key={bot.id} api={browserApi} bot={bot} active={pending} visible={browserVisible} initialUrl={browserUrl} onClose={onCloseBrowser} onResumed={onBrowserResumed} /> : null}
+      {bot && !group ? (
+        <StableBrowserHandoff
+          key={bot.id}
+          api={browserApi}
+          bot={bot}
+          active={pending}
+          visible={browserVisible}
+          initialUrl={browserUrl}
+          onClose={stableCloseBrowser}
+          onResumed={stableBrowserResumed}
+        />
+      ) : null}
 
       {error ? (
         <Pressable
@@ -144,60 +289,24 @@ export function ConversationPanel({
         </Pressable>
       ) : null}
 
-      {loading ? (
-        <View accessibilityLabel="Loading conversation" accessibilityRole="progressbar" style={styles.center}>
-          <ActivityIndicator color={bot?.color ?? '#007A3D'} />
-        </View>
-      ) : (
-        <FlatList
-          ref={list}
-          testID="conversation-messages"
-          style={styles.messageList}
-          data={messages}
-          keyExtractor={(message) => message.id}
-          contentContainerStyle={[styles.messages, fullWidth && styles.mobileWidth, messages.length === 0 && styles.emptyMessages]}
-          onContentSizeChange={onContentSizeChange}
-          onLayout={onLayout}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
-          ListEmptyComponent={
-            group ? (
-              <View style={styles.emptyState}>
-                <GroupAvatar group={group} size={76} />
-                <Text style={styles.emptyTitle}>Welcome to {group.name}</Text>
-                <Text style={styles.emptyCopy}>Bring people in with one link, keep the group’s memory in one place, and ask a FroggyBot for an itinerary, budget, checklist, or polished PDF.</Text>
-              </View>
-            ) : bot ? (
-              <View style={styles.emptyState}>
-                <BotAvatar color={bot.color} name={bot.name} size={70} />
-                <Text style={styles.emptyTitle}>Talk to {bot.name}</Text>
-                <Text style={styles.emptyCopy}>{bot.tagline || 'Start with the outcome you want.'}</Text>
-              </View>
-            ) : null
-          }
-          renderItem={({ item }) => {
-            const decisionSaved = group?.decisions.some(
-              (decision) => decision.sourceMessageId === item.id,
-            );
-            return <MessageBubble
-              fullWidth={fullWidth}
-              key={`${item.id}:${decisionSaved ? 'saved' : 'open'}`}
-              message={item}
-              groupMode={Boolean(group)}
-              botName={bot?.name}
-              botColor={bot?.color}
-              onApprove={bot ? onApprove : undefined}
-              onReject={bot ? onReject : undefined}
-              onOpenFile={onOpenFile}
-              onResolveFile={onResolveFile}
-              onOpenLink={bot && !group ? onOpenBrowser : undefined}
-              decisionSaved={decisionSaved}
-              onSaveDecision={group ? onSaveDecision : undefined}
-              onActivityExpand={preserveScrollPosition}
-            />;
-          }}
-        />
-      )}
+      <ConversationMessages
+        fullWidth={fullWidth}
+        bot={bot}
+        group={group}
+        messages={messages}
+        loading={loading}
+        list={list}
+        onContentSizeChange={onContentSizeChange}
+        onLayout={onLayout}
+        onScroll={onScroll}
+        onActivityExpand={preserveScrollPosition}
+        onOpenBrowser={stableOpenBrowser}
+        onApprove={stableApprove}
+        onReject={stableReject}
+        onOpenFile={stableOpenFile}
+        onResolveFile={stableResolveFile}
+        onSaveDecision={stableSaveDecision}
+      />
 
       {showJumpToLatest ? (
         <View style={[styles.jumpContainer, fullWidth && styles.mobileWidth]}>
@@ -225,14 +334,14 @@ export function ConversationPanel({
         canAttach={Boolean(bot ?? group)}
         canStop={canStop}
         bottomInset={bottomInset}
-        onDraftChange={onDraftChange}
+        onDraftChange={setDraft}
         onAddAttachment={onAddAttachment}
         onRemoveAttachment={onRemoveAttachment}
         onReplyTargetChange={onReplyTargetChange}
-        onToggleDictation={onToggleDictation}
+        onToggleDictation={() => void toggleDictation()}
         onSend={() => {
           jumpToLatest();
-          onSend();
+          void submitDraft();
         }}
         onStop={onStop}
       />

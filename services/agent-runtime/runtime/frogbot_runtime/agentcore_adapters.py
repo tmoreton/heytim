@@ -8,6 +8,7 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from bedrock_agentcore.tools.browser_client import BrowserClient
@@ -42,6 +43,8 @@ class PersistentAgentCoreBrowser(AgentCoreBrowser):
         finally:
             asyncio.set_event_loop(previous_loop)
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="browser")
+        self._dispose_lock = Lock()
+        self._disposed = False
         self.session_name = session_name
         self.managed_session = managed_session
 
@@ -66,10 +69,14 @@ class PersistentAgentCoreBrowser(AgentCoreBrowser):
         result = super().close(action)
         self._started = False
         if self.managed_session and result.get("status") == "success":
-            result["content"] = [{"text": (
-                "Browser connection released. The app keeps your private session "
-                "available until you disconnect it or it expires."
-            )}]
+            result["content"] = [
+                {
+                    "text": (
+                        "Browser connection released. The app keeps your private session "
+                        "available until you disconnect it or it expires."
+                    )
+                }
+            ]
         return result
 
     async def _async_cleanup(self) -> None:
@@ -97,18 +104,33 @@ class PersistentAgentCoreBrowser(AgentCoreBrowser):
         self._client_dict.clear()
 
     def _dispose(self) -> None:
+        with self._dispose_lock:
+            if self._disposed:
+                return
+            try:
+                self._cleanup()
+            finally:
+                if not self._loop.is_closed():
+                    self._loop.close()
+                self._disposed = True
+
+    async def aclose(self) -> None:
+        """Release the local automation connection before the turn returns."""
+        if self._disposed:
+            return
         try:
-            self._cleanup()
+            await asyncio.get_running_loop().run_in_executor(
+                self._executor, self._dispose
+            )
         finally:
-            if not self._loop.is_closed():
-                self._loop.close()
+            self._executor.shutdown(wait=True, cancel_futures=True)
 
     def __del__(self):
         # Cleanup must use the same worker as Playwright, never the server loop.
         try:
             self._executor.submit(self._dispose)
             self._executor.shutdown(wait=False)
-        except (AttributeError, RuntimeError):
+        except AttributeError, RuntimeError:
             pass  # Partial construction or interpreter shutdown.
 
     def _ready_sessions(self, client: BrowserClient) -> list[dict]:
@@ -138,7 +160,9 @@ class PersistentAgentCoreBrowser(AgentCoreBrowser):
             if info.get("name") != session["sessionName"]:
                 raise ValueError("Browser session ownership does not match this bot")
             if info.get("status") != "READY":
-                raise ValueError("Browser session expired. Open bot browser to reconnect.")
+                raise ValueError(
+                    "Browser session expired. Open bot browser to reconnect."
+                )
             stream = info.get("streams", {}).get("automationStream", {})
             if stream.get("streamStatus") != "ENABLED":
                 raise ValueError("The user controls this browser. Wait for Resume bot.")
@@ -273,9 +297,14 @@ def agentcore_tools(
     *,
     allow_background_work: bool,
     managed_browser: dict | None = None,
-) -> tuple[list[Any], PersistentAgentCoreCodeInterpreter | None]:
+) -> tuple[
+    list[Any],
+    PersistentAgentCoreCodeInterpreter | None,
+    PersistentAgentCoreBrowser | None,
+]:
     tools = []
     code_interpreter = None
+    browser = None
     names = {item["name"] for item in bindings if item["kind"] == "agentcore"}
     if "code_interpreter" in names:
         interpreter = PersistentAgentCoreCodeInterpreter(
@@ -289,12 +318,11 @@ def agentcore_tools(
         code_interpreter = interpreter
     if "browser" in names:
         _prepare_playwright_driver()
-        tools.append(
-            PersistentAgentCoreBrowser(
-                region=AWS_REGION,
-                session_name=f"frogbot-{session_id}",
-                session_timeout=28800,
-                managed_session=managed_browser,
-            ).browser
+        browser = PersistentAgentCoreBrowser(
+            region=AWS_REGION,
+            session_name=f"frogbot-{session_id}",
+            session_timeout=28800,
+            managed_session=managed_browser,
         )
-    return tools, code_interpreter
+        tools.append(browser.browser)
+    return tools, code_interpreter, browser
