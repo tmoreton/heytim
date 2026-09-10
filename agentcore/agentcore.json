@@ -51,10 +51,6 @@
           "value": "high"
         },
         {
-          "name": "FROGBOT_BEDROCK_FALLBACK_MODEL_ID",
-          "value": "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
-        },
-        {
           "name": "FROGBOT_OPENROUTER_BASE_URL",
           "value": "https://openrouter.ai/api/v1"
         },

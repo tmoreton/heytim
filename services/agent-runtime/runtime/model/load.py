@@ -9,8 +9,7 @@ from typing import Any, TypeVar
 
 from bedrock_agentcore.identity.auth import requires_api_key
 from pydantic import BaseModel
-from strands.models import CacheConfig, Model
-from strands.models.bedrock import BedrockModel
+from strands.models import Model
 from strands.models.openai import OpenAIModel
 from strands.types.content import Messages, SystemContentBlock
 from strands.types.streaming import StreamEvent
@@ -28,10 +27,6 @@ PRIMARY_REASONING_EFFORT = os.environ.get("FROGBOT_REASONING_EFFORT", "high")
 FALLBACK_MODEL_ID = os.environ.get("FROGBOT_FALLBACK_MODEL_ID", "z-ai/glm-5.3")
 FALLBACK_REASONING_EFFORT = os.environ.get(
     "FROGBOT_FALLBACK_REASONING_EFFORT", "high"
-)
-BEDROCK_FALLBACK_MODEL_ID = os.environ.get(
-    "FROGBOT_BEDROCK_FALLBACK_MODEL_ID",
-    "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
 )
 OPENROUTER_BASE_URL = os.environ.get(
     "FROGBOT_OPENROUTER_BASE_URL",
@@ -152,62 +147,6 @@ class PreResponseFallbackModel(Model):
 
 
 OpenRouterFallbackModel = PreResponseFallbackModel
-
-
-class ReasoningSafeBedrockModel(Model):
-    """Remove provider-specific reasoning blocks before calling Bedrock."""
-
-    def __init__(self, model: Model) -> None:
-        self.model = model
-
-    @property
-    def stateful(self) -> bool:
-        return self.model.stateful
-
-    def update_config(self, **model_config: Any) -> None:
-        self.model.update_config(**model_config)
-
-    def get_config(self) -> Any:
-        return self.model.get_config()
-
-    async def structured_output(
-        self,
-        output_model: type[T],
-        prompt: Messages,
-        system_prompt: str | None = None,
-        **kwargs: Any,
-    ) -> AsyncGenerator[dict[str, T | Any]]:
-        async for event in self.model.structured_output(
-            output_model,
-            _without_reasoning_content(prompt),
-            system_prompt,
-            **kwargs,
-        ):
-            yield event
-
-    async def stream(
-        self,
-        messages: Messages,
-        tool_specs: list[ToolSpec] | None = None,
-        system_prompt: str | None = None,
-        *,
-        tool_choice: ToolChoice | None = None,
-        system_prompt_content: list[SystemContentBlock] | None = None,
-        invocation_state: dict[str, Any] | None = None,
-        cancel_signal: threading.Event | None = None,
-        **kwargs: Any,
-    ) -> AsyncIterable[StreamEvent]:
-        async for event in self.model.stream(
-            _without_reasoning_content(messages),
-            tool_specs,
-            system_prompt,
-            tool_choice=tool_choice,
-            system_prompt_content=system_prompt_content,
-            invocation_state=invocation_state,
-            cancel_signal=cancel_signal,
-            **kwargs,
-        ):
-            yield event
 
 
 class ResilientOpenRouterModel(Model):
@@ -335,23 +274,6 @@ def _usable_response(events: list[StreamEvent]) -> bool:
     return stop_reason is not None
 
 
-def _without_reasoning_content(messages: Messages) -> Messages:
-    cleaned = []
-    for message in messages:
-        content = message.get("content")
-        if not isinstance(content, list):
-            cleaned.append(message)
-            continue
-        blocks = [
-            block
-            for block in content
-            if not (isinstance(block, dict) and "reasoningContent" in block)
-        ]
-        if blocks:
-            cleaned.append({**message, "content": blocks})
-    return cleaned
-
-
 def _exception_chain(error: BaseException) -> list[BaseException]:
     chain: list[BaseException] = []
     seen: set[int] = set()
@@ -446,17 +368,6 @@ async def _openrouter_api_key(*, api_key: str) -> str:
     return api_key
 
 
-def load_bedrock_model() -> ReasoningSafeBedrockModel:
-    return ReasoningSafeBedrockModel(
-        BedrockModel(
-            model_id=BEDROCK_FALLBACK_MODEL_ID,
-            max_tokens=4096,
-            temperature=0.3,
-            cache_config=CacheConfig(strategy="auto", ttl="1h", tools_ttl="1h"),
-        )
-    )
-
-
 def _load_openrouter_model(
     api_key: str,
     *,
@@ -515,25 +426,19 @@ def _tracked(
 
 
 async def load_model(usage: UsageAccumulator | None = None) -> Model:
-    """Load two OpenRouter routes with an independent Bedrock final fallback."""
-    bedrock = _tracked(
-        load_bedrock_model(),
-        usage,
-        provider="bedrock",
-        model_id=BEDROCK_FALLBACK_MODEL_ID,
-    )
+    """Load DeepSeek with GLM as its OpenRouter-only fallback."""
     try:
         api_key = await _openrouter_api_key()
-    except Exception as error:  # noqa: BLE001
-        _log_fallback(error, "Bedrock")
-        return bedrock
+    except Exception as error:
+        raise OpenRouterCredentialError(
+            "OpenRouter credential lookup failed"
+        ) from error
     log.info(
-        "Configured OpenRouter primary %s/%s with fallback %s/%s and Bedrock final fallback %s",
+        "Configured OpenRouter primary %s/%s with fallback %s/%s",
         PRIMARY_MODEL_ID,
         PRIMARY_REASONING_EFFORT,
         FALLBACK_MODEL_ID,
         FALLBACK_REASONING_EFFORT,
-        BEDROCK_FALLBACK_MODEL_ID,
     )
     primary = ResilientOpenRouterModel(
         _tracked(
@@ -555,13 +460,8 @@ async def load_model(usage: UsageAccumulator | None = None) -> Model:
             model_id=FALLBACK_MODEL_ID,
         )
     )
-    openrouter = OpenRouterFallbackModel(
+    return OpenRouterFallbackModel(
         primary,
         fallback,
         fallback_name="GLM on OpenRouter",
-    )
-    return PreResponseFallbackModel(
-        openrouter,
-        bedrock,
-        fallback_name="Bedrock",
     )

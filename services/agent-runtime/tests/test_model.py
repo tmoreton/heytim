@@ -70,13 +70,7 @@ async def _events(model: Model) -> list[dict[str, Any]]:
     return [event async for event in model.stream([])]
 
 
-async def _events_with_messages(
-    model: Model, messages: list[dict[str, Any]]
-) -> list[dict[str, Any]]:
-    return [event async for event in model.stream(messages)]
-
-
-def test_load_model_uses_openrouter_routes_with_bedrock_final_fallback(
+def test_load_model_uses_deepseek_with_glm_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def key() -> str:
@@ -86,11 +80,8 @@ def test_load_model_uses_openrouter_routes_with_bedrock_final_fallback(
     model = asyncio.run(model_loader.load_model())
 
     assert isinstance(model, model_loader.PreResponseFallbackModel)
-    openrouter = model.primary
-    bedrock = model.fallback
-    assert isinstance(openrouter, model_loader.OpenRouterFallbackModel)
-    primary = openrouter.primary
-    fallback = openrouter.fallback
+    primary = model.primary
+    fallback = model.fallback
     assert isinstance(primary, model_loader.ResilientOpenRouterModel)
     assert isinstance(fallback, model_loader.ResilientOpenRouterModel)
     assert primary.model.get_config()["model_id"] == "deepseek/deepseek-v4.1-flash"
@@ -101,9 +92,6 @@ def test_load_model_uses_openrouter_routes_with_bedrock_final_fallback(
     assert fallback.model.get_config()["params"]["extra_body"] == {
         "reasoning": {"effort": "high"}
     }
-    assert bedrock.get_config()["model_id"].startswith(
-        "global.anthropic.claude-sonnet"
-    )
     assert "test-secret" not in repr(primary.get_config())
 
 
@@ -129,18 +117,18 @@ def test_openrouter_model_rejects_unsupported_reasoning_effort() -> None:
         model_loader._load_openrouter_model("test-secret", reasoning_effort="medium")
 
 
-def test_load_model_uses_bedrock_when_openrouter_credential_lookup_fails(
+def test_load_model_fails_closed_when_openrouter_credential_lookup_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def key() -> str:
         raise RuntimeError("unavailable")
 
     monkeypatch.setattr(model_loader, "_openrouter_api_key", key)
-    model = asyncio.run(model_loader.load_model())
-
-    assert model.get_config()["model_id"].startswith(
-        "global.anthropic.claude-sonnet"
-    )
+    with pytest.raises(
+        model_loader.OpenRouterCredentialError,
+        match="OpenRouter credential lookup failed",
+    ):
+        asyncio.run(model_loader.load_model())
 
 
 def test_retry_discards_incomplete_openrouter_stream() -> None:
@@ -311,56 +299,6 @@ def test_glm_fallback_never_repeats_a_started_deepseek_response() -> None:
         )
 
     assert fallback.calls == 0
-
-
-def test_openrouter_exhaustion_uses_independent_bedrock_fallback() -> None:
-    deepseek = FakeModel("deepseek", [], RuntimeError("primary down"))
-    glm = FakeModel("glm", [], RuntimeError("fallback down"))
-    bedrock_events = [
-        {"messageStart": {}},
-        {"contentBlockDelta": {"delta": {"text": "from bedrock"}}},
-        {"messageStop": {"stopReason": "end_turn"}},
-    ]
-    bedrock = FakeModel("bedrock", bedrock_events)
-    openrouter = model_loader.OpenRouterFallbackModel(
-        deepseek, glm, fallback_name="GLM on OpenRouter"
-    )
-    model = model_loader.PreResponseFallbackModel(
-        openrouter, bedrock, fallback_name="Bedrock"
-    )
-
-    events = asyncio.run(_events(model))
-
-    assert events == bedrock_events
-    assert deepseek.calls == 1
-    assert glm.calls == 1
-    assert bedrock.calls == 1
-
-
-def test_bedrock_fallback_removes_openrouter_reasoning_blocks() -> None:
-    delegate = FakeModel(
-        "bedrock",
-        [{"messageStop": {"stopReason": "end_turn"}}],
-    )
-    model = model_loader.ReasoningSafeBedrockModel(delegate)
-    messages = [
-        {
-            "role": "assistant",
-            "content": [
-                {"reasoningContent": {"reasoningText": {"text": "private"}}},
-                {"text": "visible"},
-            ],
-        },
-        {"role": "user", "content": [{"text": "continue"}]},
-    ]
-
-    asyncio.run(_events_with_messages(model, messages))
-
-    assert delegate.last_args is not None
-    assert delegate.last_args[0] == [
-        {"role": "assistant", "content": [{"text": "visible"}]},
-        {"role": "user", "content": [{"text": "continue"}]},
-    ]
 
 
 def test_usage_tracker_aggregates_each_model_call() -> None:

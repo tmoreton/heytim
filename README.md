@@ -111,8 +111,8 @@ agentcore status --target development --type memory --json
 
 The development target is account `188757775631` in `us-east-1`. Confirm that both the runtime and
 memory are ready, then copy the deployed runtime ARN from the status output. Model selection is defined only in
-`agentcore/agentcore.json`: OpenRouter uses DeepSeek V4.1 Flash with GLM 5.3 as a bounded pre-response fallback,
-then Bedrock Claude as an independent final fallback. CDK synthesis refuses uncommitted source so production releases
+`agentcore/agentcore.json`: OpenRouter uses DeepSeek V4.1 Flash with GLM 5.3 as a bounded pre-response fallback.
+CDK synthesis refuses uncommitted source so production releases
 come from a reproducible Git snapshot. Required provider access must be available in the configured accounts and regions. The private file bucket has
 the deterministic name `frogbot-user-files-188757775631-us-east-1`; when adding another deployment
 target, update `FROGBOT_FILES_BUCKET` and the attachment policy in `agentcore/` for that target.
