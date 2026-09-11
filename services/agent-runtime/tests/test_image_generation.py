@@ -3,12 +3,11 @@ from __future__ import annotations
 import asyncio
 import base64
 import io
-import json
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageDraw
 
-from frogbot_runtime import artifacts
+from frogbot_runtime import artifacts, image_generation
 from frogbot_runtime.image_generation import image_generation_tools
 
 
@@ -20,28 +19,50 @@ class FakeS3:
         self.requests.append(request)
 
 
-class FakeBedrock:
-    def __init__(self, payloads: list[dict]):
-        self.payloads = list(payloads)
+class FakeResponse:
+    def __init__(self, status_code: int, payload: dict, headers: dict | None = None):
+        self.status_code = status_code
+        self.payload = payload
+        self.headers = headers or {}
+
+    def json(self) -> dict:
+        return self.payload
+
+
+class FakeHttpClient:
+    def __init__(self, responses: list[FakeResponse]):
+        self.responses = list(responses)
         self.requests: list[dict] = []
 
-    def invoke_model(self, **request) -> dict:
-        self.requests.append(request)
-        payload = self.payloads.pop(0)
-        return {"body": io.BytesIO(json.dumps(payload).encode())}
+    async def post(self, url: str, **request) -> FakeResponse:
+        self.requests.append({"url": url, **request})
+        return self.responses.pop(0)
 
 
-def _image_bytes(width: int = 640, height: int = 480, mode: str = "RGB") -> bytes:
+def _image_bytes(width: int = 640, height: int = 480) -> bytes:
     output = io.BytesIO()
-    color = (88, 190, 170, 255) if mode == "RGBA" else "#58BEAA"
-    Image.new(mode, (width, height), color).save(output, format="PNG")
+    Image.new("RGB", (width, height), "#58BEAA").save(output, format="PNG")
     return output.getvalue()
 
 
-def _factory(monkeypatch, payloads: list[dict], references: list[dict] | None = None):
+def _logo_bytes() -> bytes:
+    output = io.BytesIO()
+    image = Image.new("RGBA", (400, 400), (0, 0, 0, 0))
+    ImageDraw.Draw(image).ellipse((40, 40, 360, 360), fill=(95, 94, 255, 255))
+    image.save(output, format="PNG")
+    return output.getvalue()
+
+
+def _factory(
+    monkeypatch, responses: list[FakeResponse], references: list[dict] | None = None
+):
     prefix = f"users/{'a' * 64}/artifacts/12345678-1234-1234-1234-123456789012"
     storage = FakeS3()
-    bedrock = FakeBedrock(payloads)
+    http = FakeHttpClient(responses)
+
+    async def api_key() -> str:
+        return "secret-openrouter-key"
+
     monkeypatch.setattr(artifacts, "FILES_BUCKET_NAME", "files")
     tools = {
         item.tool_name: item
@@ -49,17 +70,20 @@ def _factory(monkeypatch, payloads: list[dict], references: list[dict] | None = 
             prefix,
             references,
             s3_client=storage,
-            bedrock_client=bedrock,
+            http_client=http,
+            api_key_loader=api_key,
         )
     }
-    return tools, storage, bedrock
+    return tools, storage, http
 
 
-def test_image_generator_calls_bedrock_and_saves_png(monkeypatch) -> None:
-    encoded = base64.b64encode(_image_bytes()).decode()
-    tools, storage, bedrock = _factory(
-        monkeypatch, [{"images": [encoded], "finish_reasons": [None]}]
-    )
+def _success(width: int = 640, height: int = 480) -> FakeResponse:
+    encoded = base64.b64encode(_image_bytes(width, height)).decode()
+    return FakeResponse(200, {"data": [{"b64_json": encoded}]})
+
+
+def test_image_generator_calls_openrouter_and_saves_png(monkeypatch) -> None:
+    tools, storage, http = _factory(monkeypatch, [_success()])
 
     result = asyncio.run(
         tools["generate_image"](
@@ -70,15 +94,18 @@ def test_image_generator_calls_bedrock_and_saves_png(monkeypatch) -> None:
     )
 
     assert result == (
-        "Saved frog launch.png as an original image created with Amazon Bedrock."
+        "Saved frog launch.png as an original image created with OpenRouter."
     )
-    request = bedrock.requests[0]
-    assert request["modelId"] == "stability.stable-image-core-v1:1"
-    assert request["contentType"] == "application/json"
-    body = json.loads(request["body"])
-    assert body["prompt"] == "A cheerful frog launching a tiny rocket"
-    assert body["aspect_ratio"] == "16:9"
-    assert body["output_format"] == "png"
+    request = http.requests[0]
+    assert request["url"] == "https://openrouter.ai/api/v1/images"
+    assert request["headers"]["Authorization"] == "Bearer secret-openrouter-key"
+    assert request["json"] == {
+        "model": "openai/gpt-image-2.5-sunburst",
+        "prompt": "A cheerful frog launching a tiny rocket",
+        "aspect_ratio": "16:9",
+        "quality": "high",
+        "output_format": "png",
+    }
     saved = storage.requests[0]
     assert saved["ContentType"] == "image/png"
     assert saved["ServerSideEncryption"] == "AES256"
@@ -87,54 +114,52 @@ def test_image_generator_calls_bedrock_and_saves_png(monkeypatch) -> None:
     assert output.size == (640, 480)
 
 
-def test_thumbnail_preserves_selected_recent_images_and_exact_text(monkeypatch) -> None:
-    encoded = base64.b64encode(_image_bytes(1200, 700)).decode()
+def test_thumbnail_sends_full_composition_and_references_to_openrouter(
+    monkeypatch,
+) -> None:
     references = [
-        {"name": "logo.png", "body": _image_bytes(400, 400, "RGBA")},
+        {"name": "logo.png", "body": _logo_bytes()},
         {"name": "portrait.jpg", "body": _image_bytes(800, 800)},
     ]
-    tools, storage, bedrock = _factory(
-        monkeypatch,
-        [{"images": [encoded], "finish_reasons": [None]}],
-        references,
-    )
+    tools, storage, http = _factory(monkeypatch, [_success(1536, 1024)], references)
 
     result = asyncio.run(
         tools["create_youtube_thumbnail"](
             "comparison.png",
-            "orange and teal technology faceoff",
-            "CLAUDE CODE VS CODEX",
-            "WHICH ONE WINS?",
+            "two coding assistants racing through processor tracks",
+            "I TESTED BOTH",
+            "ONE WINS",
             portrait_image_number=2,
             logo_image_numbers=[1],
         )
     )
 
     assert result == (
-        "Saved comparison.png as a 1280x720 YouTube thumbnail using the selected recent images."
+        "Saved comparison.png as an OpenRouter-generated 1280x720 YouTube thumbnail "
+        "using the selected recent images."
     )
-    request = json.loads(bedrock.requests[0]["body"])
+    request = http.requests[0]["json"]
     assert request["aspect_ratio"] == "16:9"
-    assert request["prompt"].startswith(
-        "Create a premium editorial YouTube thumbnail background"
-    )
-    assert "orange and teal technology faceoff" in request["prompt"]
-    assert "warm orange" in request["prompt"]
-    assert "lower-left for a portrait" in request["prompt"]
-    assert "generic desk with monitors" in request["negative_prompt"]
+    assert request["quality"] == "high"
+    assert "complete, finished premium YouTube thumbnail" in request["prompt"]
+    assert 'headline: "I TESTED BOTH"' in request["prompt"]
+    assert 'secondary line: "ONE WINS"' in request["prompt"]
+    assert "do not put them inside a circle" in request["prompt"]
+    assert "or place it inside a white tile" in request["prompt"]
+    assert len(request["input_references"]) == 2
+    portrait = request["input_references"][0]["image_url"]["url"]
+    logo = request["input_references"][1]["image_url"]["url"]
+    assert portrait.startswith("data:image/jpeg;base64,")
+    assert logo.startswith("data:image/png;base64,")
     output = Image.open(io.BytesIO(storage.requests[0]["Body"]))
     assert output.format == "PNG"
     assert output.size == (1280, 720)
-    assert output.getpixel((500, 350)) != output.getpixel((900, 350))
 
 
 def test_thumbnail_keeps_single_subject_briefs_out_of_comparison_mode(
     monkeypatch,
 ) -> None:
-    encoded = base64.b64encode(_image_bytes(1200, 700)).decode()
-    tools, _, bedrock = _factory(
-        monkeypatch, [{"images": [encoded], "finish_reasons": [None]}]
-    )
+    tools, _, http = _factory(monkeypatch, [_success(1200, 700)])
 
     asyncio.run(
         tools["create_youtube_thumbnail"](
@@ -144,13 +169,39 @@ def test_thumbnail_keeps_single_subject_briefs_out_of_comparison_mode(
         )
     )
 
-    prompt = json.loads(bedrock.requests[0]["body"])["prompt"]
-    assert "one dominant visual metaphor" in prompt
-    assert "two opposing visual worlds" not in prompt
+    prompt = http.requests[0]["json"]["prompt"]
+    assert "one unmistakable focal story" in prompt
+    assert "warm-amber versus cool-cyan" not in prompt
+    assert "input_references" not in http.requests[0]["json"]
 
 
-def test_image_generator_rejects_invalid_inputs_and_model_data(monkeypatch) -> None:
-    tools, storage, _ = _factory(monkeypatch, [{"images": ["not base64"]}])
+def test_image_generator_retries_a_transient_openrouter_failure(monkeypatch) -> None:
+    tools, storage, http = _factory(monkeypatch, [FakeResponse(502, {}), _success()])
+
+    async def no_sleep(_delay: float) -> None:
+        return None
+
+    monkeypatch.setattr(image_generation.asyncio, "sleep", no_sleep)
+    asyncio.run(tools["generate_image"]("retry.png", "A frog trying again"))
+
+    assert len(http.requests) == 2
+    assert len(storage.requests) == 1
+
+
+def test_image_generator_does_not_retry_an_auth_failure(monkeypatch) -> None:
+    tools, storage, http = _factory(monkeypatch, [FakeResponse(401, {})])
+
+    with pytest.raises(RuntimeError, match="rejected.*credential"):
+        asyncio.run(tools["generate_image"]("auth.png", "A frog"))
+
+    assert len(http.requests) == 1
+    assert storage.requests == []
+
+
+def test_image_generator_rejects_invalid_inputs_and_remote_data(monkeypatch) -> None:
+    tools, storage, _ = _factory(
+        monkeypatch, [FakeResponse(200, {"data": [{"b64_json": "not base64"}]})]
+    )
 
     with pytest.raises(ValueError, match="end in .png"):
         asyncio.run(tools["generate_image"]("image.jpg", "a frog"))
@@ -164,7 +215,7 @@ def test_image_generator_rejects_invalid_inputs_and_model_data(monkeypatch) -> N
 
 
 def test_thumbnail_rejects_an_unavailable_reference(monkeypatch) -> None:
-    tools, _, bedrock = _factory(monkeypatch, [], [])
+    tools, _, http = _factory(monkeypatch, [], [])
     with pytest.raises(ValueError, match="unavailable"):
         asyncio.run(
             tools["create_youtube_thumbnail"](
@@ -174,4 +225,4 @@ def test_thumbnail_rejects_an_unavailable_reference(monkeypatch) -> None:
                 portrait_image_number=1,
             )
         )
-    assert bedrock.requests == []
+    assert http.requests == []

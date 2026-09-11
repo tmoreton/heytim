@@ -114,7 +114,8 @@ agentcore status --target development --type memory --json
 The development target is account `188757775631` in `us-east-1`. Confirm that both the runtime and
 memory are ready, then copy the deployed runtime ARN from the status output. Model selection is defined only in
 `agentcore/agentcore.json`: OpenRouter uses DeepSeek V4.1 Flash with GLM 5.3 as a bounded pre-response fallback, while
-the separately selected image tool uses Stable Image Core on Amazon Bedrock.
+the separately selected image tool uses GPT Image 2.5 Sunburst through OpenRouter. Finished thumbnails send the full
+composition and selected recent image references to OpenRouter, then normalize the result to 1280x720.
 CDK synthesis refuses uncommitted source so production releases
 come from a reproducible Git snapshot. Required provider access must be available in the configured accounts and regions. The private file bucket has
 the deterministic name `frogbot-user-files-188757775631-us-east-1`; when adding another deployment

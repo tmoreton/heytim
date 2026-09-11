@@ -32,11 +32,11 @@
         },
         {
           "name": "FROGBOT_IMAGE_MODEL_ID",
-          "value": "stability.stable-image-core-v1:1"
+          "value": "openai/gpt-image-2.5-sunburst"
         },
         {
-          "name": "FROGBOT_IMAGE_REGION",
-          "value": "us-west-2"
+          "name": "FROGBOT_IMAGE_QUALITY",
+          "value": "high"
         },
         {
           "name": "FROGBOT_IMAGE_REQUEST_TIMEOUT_SECONDS",
@@ -44,7 +44,7 @@
         },
         {
           "name": "FROGBOT_IMAGE_MAX_ATTEMPTS",
-          "value": "4"
+          "value": "2"
         },
         {
           "name": "FROGBOT_PRIMARY_MODEL_ID",

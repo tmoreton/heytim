@@ -20,12 +20,6 @@
       "Resource": "arn:aws:s3:::frogbot-user-files-188757775631-us-east-1/meme-templates/*"
     },
     {
-      "Sid": "GenerateFrogBotImages",
-      "Effect": "Allow",
-      "Action": "bedrock:InvokeModel",
-      "Resource": "arn:aws:bedrock:us-west-2::foundation-model/stability.stable-image-core-v1:1"
-    },
-    {
       "Sid": "ReadFrogBotConnectionCredentials",
       "Effect": "Allow",
       "Action": "secretsmanager:GetSecretValue",
