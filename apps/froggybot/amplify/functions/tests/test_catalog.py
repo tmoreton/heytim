@@ -404,6 +404,7 @@ class CatalogServiceTests(unittest.TestCase):
     def test_retired_tool_is_removed_but_unknown_tools_are_rejected(self) -> None:
         selected = self.catalog.validate_tools("owner", ["web", "meme_composer", "web"])
         self.assertEqual(selected, ["web"])
+        self.assertEqual(self.catalog.retired_tool_ids(), ["meme_composer"])
         with self.assertRaisesRegex(CatalogError, "Unknown tools: never_existed"):
             self.catalog.validate_tools("owner", ["web", "never_existed"])
 

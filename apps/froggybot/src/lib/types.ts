@@ -285,6 +285,7 @@ export type Bootstrap = {
   needsBotOnboarding: boolean;
   groups: Group[];
   tools: Capability[];
+  retiredToolIds: string[];
   skills: Skill[];
 };
 

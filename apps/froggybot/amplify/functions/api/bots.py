@@ -425,6 +425,7 @@ def _bootstrap(user_id: str) -> dict:
         "needsBotOnboarding": needs_bot_onboarding,
         "groups": _list_groups(user_id),
         "tools": catalog.list_tools(user_id),
+        "retiredToolIds": catalog.retired_tool_ids(),
         "skills": catalog.list_skills(user_id),
     }
 

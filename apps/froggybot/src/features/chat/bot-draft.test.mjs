@@ -9,9 +9,9 @@ const bot = {
   tagline: 'Find useful answers',
   prompt: 'Research carefully.',
   color: '#3984F6',
-  toolIds: ['web', 'meme_composer', 'retired_tool'],
-  extraToolIds: ['web', 'meme_composer', 'retired_tool'],
-  alwaysAllowedToolIds: ['web', 'meme_composer'],
+  toolIds: ['web', 'internal_tool', 'meme_composer', 'retired_tool'],
+  extraToolIds: ['web', 'internal_tool', 'meme_composer', 'retired_tool'],
+  alwaysAllowedToolIds: ['web', 'internal_tool', 'meme_composer'],
   skillIds: ['planner', 'retired-skill'],
   createdAt: '',
   updatedAt: '',
@@ -30,15 +30,15 @@ const skills = [{
   editable: false,
 }];
 
-test('removes capabilities that are no longer in the catalog before saving', () => {
-  const draft = createBotDraft(bot, skills, tools, '#58BEAA');
+test('removes explicitly retired tools while preserving supported hidden tools', () => {
+  const draft = createBotDraft(bot, skills, tools, ['meme_composer', 'retired_tool'], '#58BEAA');
 
-  assert.deepEqual(draft.toolIds, ['web']);
-  assert.deepEqual(draft.alwaysAllowedToolIds, ['web']);
+  assert.deepEqual(draft.toolIds, ['web', 'internal_tool']);
+  assert.deepEqual(draft.alwaysAllowedToolIds, ['web', 'internal_tool']);
   assert.deepEqual(draft.skillIds, ['planner']);
 });
 
 test('adds only suggestions that still exist in the catalog', () => {
-  assert.deepEqual(createBotDraft(undefined, skills, tools, '#58BEAA', { kind: 'tool', id: 'web' }).toolIds, ['web']);
-  assert.deepEqual(createBotDraft(undefined, skills, tools, '#58BEAA', { kind: 'tool', id: 'retired_tool' }).toolIds, []);
+  assert.deepEqual(createBotDraft(undefined, skills, tools, [], '#58BEAA', { kind: 'tool', id: 'web' }).toolIds, ['web']);
+  assert.deepEqual(createBotDraft(undefined, skills, tools, [], '#58BEAA', { kind: 'tool', id: 'retired_tool' }).toolIds, []);
 });

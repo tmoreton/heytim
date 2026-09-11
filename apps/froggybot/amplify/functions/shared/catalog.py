@@ -83,6 +83,9 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
             key=lambda item: item["name"].lower(),
         )
 
+    def retired_tool_ids(self) -> list[str]:
+        return sorted(RETIRED_TOOL_IDS)
+
     def public_catalog(self) -> dict:
         tools = self.list_tools()
         tool_ids = {tool["id"] for tool in self._available_tool_items()}

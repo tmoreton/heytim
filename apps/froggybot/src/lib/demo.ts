@@ -165,6 +165,7 @@ export const demoBootstrap = async (): Promise<Bootstrap> => {
       };
     }),
     tools: [...catalog.tools, ...personalConnections],
+    retiredToolIds: [],
     skills: [
       ...catalog.skills,
       ...personalSkills.map(({ instructions: _instructions, ...skill }) => skill),

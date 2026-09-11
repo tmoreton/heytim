@@ -426,6 +426,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
           key={`${overlay.mode}-${editingBot?.id ?? 'new'}-${suggestedCapability?.kind ?? ''}-${suggestedCapability?.id ?? ''}`}
           bot={overlay.mode === 'edit' ? editingBot : undefined}
           tools={data?.tools ?? []}
+          retiredToolIds={data.retiredToolIds ?? []}
           skills={data?.skills ?? []}
           suggestedCapability={suggestedCapability}
           onClose={() => setOverlay({ kind: 'none' })}

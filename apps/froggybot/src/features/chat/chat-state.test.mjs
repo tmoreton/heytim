@@ -62,6 +62,7 @@ test('reuses an unchanged bootstrap response', () => {
     botTemplates: [],
     needsBotOnboarding: false,
     tools: [],
+    retiredToolIds: [],
     skills: [],
   };
   assert.equal(reconcileBootstrap(current, structuredClone(current)), current);

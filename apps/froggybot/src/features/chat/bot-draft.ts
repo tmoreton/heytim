@@ -4,15 +4,21 @@ const uniqueKnownIds = (ids: string[], knownIds: Set<string>) => (
   [...new Set(ids.filter((id) => knownIds.has(id)))]
 );
 
+const uniqueActiveToolIds = (ids: string[], retiredIds: Set<string>) => (
+  [...new Set(ids.filter((id) => !retiredIds.has(id)))]
+);
+
 export const createBotDraft = (
   bot: Bot | undefined,
   skills: Skill[],
   tools: Capability[],
+  retiredToolIds: string[],
   defaultColor: string,
   suggested?: CapabilitySelection,
 ): BotDraft => {
   const knownSkillIds = new Set(skills.map((skill) => skill.id));
   const knownToolIds = new Set(tools.map((tool) => tool.id));
+  const retiredToolIdSet = new Set(retiredToolIds);
   const selectedSkillIds = bot ? uniqueKnownIds(bot.skillIds, knownSkillIds) : [];
   const requiredToolIds = new Set(
     skills
@@ -20,9 +26,9 @@ export const createBotDraft = (
       .flatMap((skill) => skill.requiredToolIds),
   );
   const extraToolIds = bot
-    ? uniqueKnownIds(
+    ? uniqueActiveToolIds(
         bot.extraToolIds ?? bot.toolIds.filter((toolId) => !requiredToolIds.has(toolId)),
-        knownToolIds,
+        retiredToolIdSet,
       )
     : [];
   const effectiveToolIds = new Set([...extraToolIds, ...requiredToolIds]);
@@ -33,9 +39,9 @@ export const createBotDraft = (
         prompt: bot.prompt,
         color: bot.color,
         toolIds: extraToolIds,
-        alwaysAllowedToolIds: uniqueKnownIds(
+        alwaysAllowedToolIds: uniqueActiveToolIds(
           (bot.alwaysAllowedToolIds ?? []).filter((id) => effectiveToolIds.has(id)),
-          knownToolIds,
+          retiredToolIdSet,
         ),
         skillIds: selectedSkillIds,
       }

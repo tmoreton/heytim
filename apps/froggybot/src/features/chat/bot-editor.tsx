@@ -22,6 +22,7 @@ import { createBotDraft } from './bot-draft';
 type Props = {
   bot?: Bot;
   tools: Capability[];
+  retiredToolIds: string[];
   skills: Skill[];
   suggestedCapability?: CapabilitySelection;
   onClose: () => void;
@@ -29,11 +30,12 @@ type Props = {
   onLoadSkill: (skillId: string) => Promise<SkillDetail>;
 };
 
-export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, onSave, onLoadSkill }: Props) {
+export function BotEditor({ bot, tools, retiredToolIds, skills, suggestedCapability, onClose, onSave, onLoadSkill }: Props) {
   const [draft, setDraft] = useState<BotDraft>(() => createBotDraft(
     bot ? { ...bot, color: displayBotColor(bot) } : undefined,
     skills,
     tools,
+    retiredToolIds,
     BOT_COLORS[0],
     suggestedCapability,
   ));
