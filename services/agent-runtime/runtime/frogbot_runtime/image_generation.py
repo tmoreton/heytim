@@ -33,6 +33,19 @@ MAX_IMAGE_PIXELS = 20_000_000
 MAX_IMAGE_SIDE = 4_096
 MAX_REFERENCE_IMAGES = 5
 ASPECT_RATIOS = {"square": "1:1", "youtube": "16:9", "portrait": "9:16"}
+COMPARISON_PATTERN = re.compile(
+    r"\b(vs\.?|versus|compare|comparison|both|better|wins?|face[- ]?off)\b",
+    re.IGNORECASE,
+)
+DEFAULT_NEGATIVE_PROMPT = (
+    "unreadable text, misspelled words, random letters, watermark, signature, "
+    "duplicate subjects, blurry, low contrast"
+)
+THUMBNAIL_NEGATIVE_PROMPT = (
+    f"{DEFAULT_NEGATIVE_PROMPT}, generic stock photo, generic desk with monitors, "
+    "rows of glowing spheres, stock dashboard, tiny interface details, muddy darkness, "
+    "weak hierarchy, flat lighting, cluttered composition, frames, cards, badges, people, faces"
+)
 
 if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{1,127}", IMAGE_MODEL_ID):
     raise ValueError("FROGBOT_IMAGE_MODEL_ID is invalid")
@@ -122,13 +135,15 @@ def _client():
     )
 
 
-def _invoke_image(target, prompt: str, aspect_ratio: str) -> bytes:
+def _invoke_image(
+    target,
+    prompt: str,
+    aspect_ratio: str,
+    negative_prompt: str = DEFAULT_NEGATIVE_PROMPT,
+) -> bytes:
     request = {
         "prompt": prompt,
-        "negative_prompt": (
-            "unreadable text, misspelled words, random letters, watermark, signature, "
-            "duplicate subjects, blurry, low contrast"
-        ),
+        "negative_prompt": negative_prompt,
         "aspect_ratio": aspect_ratio,
         "output_format": "png",
         "seed": secrets.randbelow(4_294_967_295),
@@ -193,6 +208,64 @@ def _cover(image: Image.Image, size: tuple[int, int]) -> Image.Image:
     return ImageOps.fit(image, size, method=Image.Resampling.LANCZOS)
 
 
+def _is_comparison(*values: str) -> bool:
+    return bool(COMPARISON_PATTERN.search(" ".join(values)))
+
+
+def _thumbnail_background_prompt(
+    prompt: str, *, comparison: bool, has_portrait: bool, logo_count: int
+) -> str:
+    story = (
+        "Build two opposing visual worlds with one hero element on each side, warm orange "
+        "on the left and electric cyan-blue on the right, separated by a strong central "
+        "tension line or diagonal energy."
+        if comparison
+        else "Build one dominant visual metaphor with an obvious focal subject and intentional asymmetry."
+    )
+    reserved = ["the upper 28 percent for a large headline"]
+    if has_portrait:
+        reserved.append("the lower-left for a portrait")
+    if logo_count:
+        reserved.append("the lower-right for logo marks")
+    return (
+        "Create a premium editorial YouTube thumbnail background designed to stay readable "
+        f"at small mobile size. The video's visual idea is: {prompt}. {story} Use large crisp "
+        "shapes, strong foreground and midground depth, saturated complementary color, "
+        "cinematic rim lighting, dramatic clean contrast, and polished modern tech-channel "
+        f"art direction. Keep {', and '.join(reserved)} visually quiet and uncluttered. "
+        "Background artwork only; render no words, letters, numbers, logos, watermarks, UI "
+        "screenshots, frames, cards, badges, people, or faces."
+    )
+
+
+def _grade_thumbnail(canvas: Image.Image, *, comparison: bool) -> None:
+    overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    width, height = canvas.size
+    draw.rectangle((0, 0, width, 205), fill=(2, 9, 18, 78))
+    draw.rectangle((0, height - 150, width, height), fill=(2, 9, 18, 54))
+    if comparison:
+        draw.polygon(
+            ((0, 0), (width * 0.58, 0), (width * 0.43, height), (0, height)),
+            fill=(244, 91, 32, 54),
+        )
+        draw.polygon(
+            (
+                (width * 0.48, 0),
+                (width, 0),
+                (width, height),
+                (width * 0.62, height),
+            ),
+            fill=(31, 117, 255, 50),
+        )
+        draw.line(
+            ((width * 0.55, 0), (width * 0.52, height)),
+            fill=(255, 255, 255, 72),
+            width=5,
+        )
+    canvas.alpha_composite(overlay)
+
+
 def _open_reference(reference: dict) -> Image.Image:
     try:
         source = Image.open(io.BytesIO(reference["body"]))
@@ -238,11 +311,14 @@ def _compose_thumbnail(
     subheadline: str,
     portrait_number: int,
     logo_numbers: list[int],
+    *,
+    comparison: bool,
 ) -> bytes:
     canvas = _cover(
         Image.open(io.BytesIO(background)).convert("RGB"), (1280, 720)
     ).convert("RGBA")
-    canvas.alpha_composite(Image.new("RGBA", canvas.size, (0, 0, 0, 42)))
+    canvas.alpha_composite(Image.new("RGBA", canvas.size, (0, 0, 0, 30)))
+    _grade_thumbnail(canvas, comparison=comparison)
     draw = ImageDraw.Draw(canvas)
 
     if portrait_number:
@@ -271,9 +347,14 @@ def _compose_thumbnail(
         for index, logo in enumerate(selected_logos):
             x = start_x + index * (card_width + gap)
             draw.rounded_rectangle(
+                (x - 9, 429, x + card_width + 9, 637),
+                radius=34,
+                fill=(35, 116, 255, 82),
+            )
+            draw.rounded_rectangle(
                 (x, 438, x + card_width, 628),
                 radius=28,
-                fill=(255, 255, 255, 238),
+                fill=(8, 18, 32, 224),
                 outline=(255, 255, 255, 255),
                 width=4,
             )
@@ -371,14 +452,18 @@ def image_generation_tools(
             _reference(references, portrait_image_number)
         for number in logo_numbers:
             _reference(references, number)
+        comparison = _is_comparison(clean_prompt, clean_headline, clean_subheadline)
         background = await asyncio.to_thread(
             _invoke_image,
             generator,
-            (
-                f"{clean_prompt}. Abstract cinematic background only, clean empty surfaces, "
-                "strong contrast, no labels, no interface panels, no people."
+            _thumbnail_background_prompt(
+                clean_prompt,
+                comparison=comparison,
+                has_portrait=bool(portrait_image_number),
+                logo_count=len(logo_numbers),
             ),
             "16:9",
+            THUMBNAIL_NEGATIVE_PROMPT,
         )
         image = _compose_thumbnail(
             background,
@@ -387,6 +472,7 @@ def image_generation_tools(
             clean_subheadline,
             portrait_image_number,
             logo_numbers,
+            comparison=comparison,
         )
         artifacts._put_artifact(storage, prefix, safe_name, image, "image/png")
         used = (

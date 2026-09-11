@@ -113,10 +113,40 @@ def test_thumbnail_preserves_selected_recent_images_and_exact_text(monkeypatch) 
     assert result == (
         "Saved comparison.png as a 1280x720 YouTube thumbnail using the selected recent images."
     )
-    assert json.loads(bedrock.requests[0]["body"])["aspect_ratio"] == "16:9"
+    request = json.loads(bedrock.requests[0]["body"])
+    assert request["aspect_ratio"] == "16:9"
+    assert request["prompt"].startswith(
+        "Create a premium editorial YouTube thumbnail background"
+    )
+    assert "orange and teal technology faceoff" in request["prompt"]
+    assert "warm orange" in request["prompt"]
+    assert "lower-left for a portrait" in request["prompt"]
+    assert "generic desk with monitors" in request["negative_prompt"]
     output = Image.open(io.BytesIO(storage.requests[0]["Body"]))
     assert output.format == "PNG"
     assert output.size == (1280, 720)
+    assert output.getpixel((500, 350)) != output.getpixel((900, 350))
+
+
+def test_thumbnail_keeps_single_subject_briefs_out_of_comparison_mode(
+    monkeypatch,
+) -> None:
+    encoded = base64.b64encode(_image_bytes(1200, 700)).decode()
+    tools, _, bedrock = _factory(
+        monkeypatch, [{"images": [encoded], "finish_reasons": [None]}]
+    )
+
+    asyncio.run(
+        tools["create_youtube_thumbnail"](
+            "launch.png",
+            "a frog launching a new coding tool",
+            "SHIP FASTER",
+        )
+    )
+
+    prompt = json.loads(bedrock.requests[0]["body"])["prompt"]
+    assert "one dominant visual metaphor" in prompt
+    assert "two opposing visual worlds" not in prompt
 
 
 def test_image_generator_rejects_invalid_inputs_and_model_data(monkeypatch) -> None:
