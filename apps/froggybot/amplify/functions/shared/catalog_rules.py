@@ -16,7 +16,13 @@ TOOL_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_]{0,63}$")
 RUNTIME_NAME_PATTERN = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]{0,127}$")
 RUNTIME_NAMES = {
     "agentcore": {"browser", "code_interpreter"},
-    "local": {"bot_manager", "calculator", "current_time", "meme_composer"},
+    "local": {
+        "bot_manager",
+        "calculator",
+        "current_time",
+        "image_generator",
+        "meme_lord",
+    },
     "stan_builtin": {"web_fetch"},
     "stan_plugin": {"todos"},
     "stan_subagent": {"generalist"},

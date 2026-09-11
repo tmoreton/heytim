@@ -8,6 +8,7 @@ from shared.schedules import occurrence_time, schedule_expression, scheduled_tur
 
 class ScheduleTests(unittest.TestCase):
     def test_builds_supported_recurring_cron_expressions(self) -> None:
+        self.assertEqual(schedule_expression("hourly", "00:00"), "cron(0 * * * ? *)")
         self.assertEqual(schedule_expression("daily", "09:30"), "cron(30 9 * * ? *)")
         self.assertEqual(
             schedule_expression("weekdays", "08:15"),

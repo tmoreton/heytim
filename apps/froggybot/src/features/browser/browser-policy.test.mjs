@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { browserError, hasBrowserCapability, isLiveViewUrl, liveViewDeadline, withoutLiveView } from './browser-policy.ts';
+import { browserError, hasBrowserCapability, isLiveViewUrl, liveViewDeadline, shouldUseBotBrowserForChatLinks, withoutLiveView } from './browser-policy.ts';
 import { viewerLocation } from './viewer-location.ts';
 
 const url = 'https://bedrock-agentcore.us-east-1.amazonaws.com/browser-streams/aws.browser.v1/sessions/test/live-view?X-Amz-Signature=test';
@@ -24,6 +24,14 @@ test('capability checks include explicit and skill-derived browser tool ids', ()
   assert.equal(hasBrowserCapability({ toolIds: ['browser'] }), true);
   assert.equal(hasBrowserCapability({ toolIds: [], extraToolIds: ['browser'] }), true);
   assert.equal(hasBrowserCapability({ toolIds: ['code_interpreter'] }), false);
+});
+
+test('chat links use the private browser only when the direct bot can browse', () => {
+  assert.equal(shouldUseBotBrowserForChatLinks({ toolIds: ['browser'] }, false), true);
+  assert.equal(shouldUseBotBrowserForChatLinks({ toolIds: [], extraToolIds: ['browser'] }, false), true);
+  assert.equal(shouldUseBotBrowserForChatLinks({ toolIds: [] }, false), false);
+  assert.equal(shouldUseBotBrowserForChatLinks({ toolIds: ['browser'] }, true), false);
+  assert.equal(shouldUseBotBrowserForChatLinks(undefined, false), false);
 });
 
 test('view lifetime fails closed and never exceeds either expiry', () => {

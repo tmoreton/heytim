@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from frogbot_runtime import artifacts
+from frogbot_runtime import artifacts, image_generation
 from frogbot_runtime.configuration import (
     INLINE_DELIVERY_INSTRUCTIONS,
     bot_configuration,
@@ -77,13 +77,31 @@ def test_delivery_policy_applies_to_every_group_role(role: str) -> None:
         assert "inline in this final chat message" in config.instructions
 
 
-def test_inline_default_preserves_explicit_export_and_image_tools(monkeypatch) -> None:
+def test_inline_default_preserves_explicit_export_and_meme_tools(monkeypatch) -> None:
     monkeypatch.setattr(artifacts, "FILES_BUCKET_NAME", "test-inline-exports")
     monkeypatch.setattr(artifacts.boto3, "client", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(
+        image_generation.boto3, "client", lambda *_args, **_kwargs: object()
+    )
     actor_id = "a" * 64
     config = bot_configuration(
         {
-            "bot": {"tools": [], "skills": []},
+            "bot": {
+                "tools": [
+                    {
+                        "id": "meme_lord",
+                        "runtime": {"kind": "local", "name": "meme_lord"},
+                    },
+                    {
+                        "id": "image_generator",
+                        "runtime": {
+                            "kind": "local",
+                            "name": "image_generator",
+                        },
+                    },
+                ],
+                "skills": [],
+            },
             "artifacts": {
                 "prefix": f"users/{actor_id}/artifacts/12345678-1234-1234-1234-123456789012"
             },
@@ -92,15 +110,18 @@ def test_inline_default_preserves_explicit_export_and_image_tools(monkeypatch) -
     )
 
     assert {tool.tool_name for tool in config.tools} == {
-        "save_artifact",
+        "compose_meme",
         "generate_image",
+        "save_artifact",
+        "search_meme_templates",
     }
     assert "only when the user explicitly asks for a file" in config.instructions
     assert (
         "Requested exports and original images remain supported" in config.instructions
     )
-    assert "generate_image is prompt-only" in config.instructions
-    assert "cannot inspect, edit, composite" in config.instructions
+    assert "private template catalog" in config.instructions
+    assert "does not generate or broadly edit imagery" in config.instructions
+    assert "one original image from a text prompt" in config.instructions
 
 
 def test_creator_schedule_examples_request_complete_inline_briefs() -> None:

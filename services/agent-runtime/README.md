@@ -19,8 +19,10 @@ scope. Durable writes remain explicit AgentCore events after completed top-level
 The latest user turn may contain reviewed image or document blocks stored in FroggyBot's private S3
 bucket. Both uploads and generated artifacts are bound to the invoking user's hashed identity. When
 requested, the runtime can save downloadable text, Markdown, CSV, JSON, HTML, PDF, Word, Excel, and
-PowerPoint artifacts. It can also generate original PNG images with Stability AI Stable Image Core. Binary files
-are rendered inside the runtime, so the language model never has to emit base64 file data. Browser
+PowerPoint artifacts. Meme Lord bots can search a private S3-backed catalog of popular Imgflip templates and
+overlay captions locally in each template's native text regions; they can also caption an image attached to the latest user
+message. That path does not invoke an image model. A separately selected Image generator tool creates original images from
+text prompts with Meta Muse Image through OpenRouter. Binary files are rendered inside the runtime, so the language model never has to emit base64 file data. Browser
 and code-interpreter sessions use stable conversation names and reconnect after a runtime restart.
 
 ## Supported capabilities
@@ -35,6 +37,8 @@ Tools:
 - `delegate` - Stan generalist subagent
 - `code_interpreter` - persistent AgentCore sandbox
 - `browser` - persistent AgentCore browser; the application requires per-turn user approval
+- `meme_lord` - private stored-template search and deterministic local caption rendering
+- `image_generator` - original text-to-image generation with Meta Muse Image; external generation requires approval by default
 
 Skills and bot definitions are resolved from the current schema-version-3 public catalog. The runtime
 does not keep a second hard-coded bot catalog.
@@ -56,6 +60,27 @@ deploy-time configurable through these non-secret values in `agentcore/agentcore
 - `FROGBOT_OPENROUTER_CREDENTIAL_PROVIDER` — the AgentCore Identity credential name
 - `FROGBOT_OPENROUTER_MAX_ATTEMPTS` — total attempts before a pre-response OpenRouter failure is returned
 - `FROGBOT_CONTEXT_COMPRESSION_THRESHOLD` — ratio that triggers tool-pair-safe history summarization
+- `FROGBOT_MEME_TEMPLATE_PREFIX` — private S3 prefix containing `catalog.json` and normalized template PNGs
+- `FROGBOT_IMAGE_MODEL_ID` — original-image model; defaults to `meta/muse-image`
+- `FROGBOT_IMAGE_REQUEST_TIMEOUT_SECONDS` — maximum duration of one OpenRouter image request
+- `FROGBOT_IMAGE_MAX_ATTEMPTS` — bounded attempts for failed, non-completed image requests
+
+## Meme template catalog
+
+The checked-in sync command copies up to the current top 100 static templates from Imgflip's official free API into
+the configured private files bucket. It validates Imgflip hosts and image dimensions, normalizes each source to PNG,
+and stores Imgflip's template-specific text regions, alignment, colors, capitalization, rotation, search aliases, and
+source attribution. Templates without published placement metadata receive a safe positional fallback. The command
+publishes `catalog.json` only after every selected image has uploaded and never deletes older objects.
+
+```bash
+uv run --frozen python scripts/sync_meme_templates.py \
+  --bucket frogbot-user-files-188757775631-us-east-1 \
+  --prefix meme-templates/v1
+```
+
+The full Imgflip database is user-generated, changes continuously, and is not mirrored by this project. Add any
+other template only after confirming that FroggyBot has the right to store and use it.
 
 ## Develop
 

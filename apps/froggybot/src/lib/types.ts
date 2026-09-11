@@ -100,7 +100,7 @@ export type Message = {
     | 'error';
 };
 
-export type ScheduleFrequency = 'daily' | 'weekdays' | 'weekly' | 'monthly';
+export type ScheduleFrequency = 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'monthly';
 
 export type ScheduledTask = {
   id: string;

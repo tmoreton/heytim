@@ -17,6 +17,14 @@ export const isPendingMessage = (message: Message): boolean =>
 export const isActiveResponse = (message: Message): boolean =>
   ACTIVE_RESPONSE_STATUSES.has(message.status);
 
+export const composerPrimaryAction = (
+  canStop: boolean,
+  draft: string,
+  attachmentCount: number,
+  busy: boolean,
+): 'stop' | 'send' =>
+  canStop && !draft.trim() && attachmentCount === 0 && !busy ? 'stop' : 'send';
+
 function sameJsonValue(left: unknown, right: unknown): boolean {
   if (Object.is(left, right)) return true;
   if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;

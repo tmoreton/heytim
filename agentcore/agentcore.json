@@ -27,12 +27,20 @@
           "value": "frogbot-user-files-188757775631-us-east-1"
         },
         {
-          "name": "FROGBOT_IMAGE_MODEL_ID",
-          "value": "stability.stable-image-core-v1:1"
+          "name": "FROGBOT_MEME_TEMPLATE_PREFIX",
+          "value": "meme-templates/v1"
         },
         {
-          "name": "FROGBOT_IMAGE_MODEL_REGION",
-          "value": "us-west-2"
+          "name": "FROGBOT_IMAGE_MODEL_ID",
+          "value": "meta/muse-image"
+        },
+        {
+          "name": "FROGBOT_IMAGE_REQUEST_TIMEOUT_SECONDS",
+          "value": "300"
+        },
+        {
+          "name": "FROGBOT_IMAGE_MAX_ATTEMPTS",
+          "value": "2"
         },
         {
           "name": "FROGBOT_PRIMARY_MODEL_ID",

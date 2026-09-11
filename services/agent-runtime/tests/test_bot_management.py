@@ -28,8 +28,8 @@ def _context() -> dict:
         "templates": [{"id": "meme-maker", "name": "Meme Maker"}],
         "tools": [
             {
-                "id": "meme_composer",
-                "name": "Meme composer",
+                "id": "meme_lord",
+                "name": "Meme Lord",
                 "description": "Caption images.",
             }
         ],
@@ -62,13 +62,13 @@ def test_chief_can_stage_a_custom_bot_with_reviewed_capabilities() -> None:
         "Social Memes",
         "Makes captioned images.",
         "Create concise memes from supplied templates.",
-        tool_ids=["meme_composer"],
+        tool_ids=["meme_lord"],
         skill_ids=["meme-maker"],
     )
 
     mutation = tracker.pending[0]
     assert mutation["action"] == "create"
-    assert mutation["value"]["toolIds"] == ["meme_composer"]
+    assert mutation["value"]["toolIds"] == ["meme_lord"]
     assert mutation["value"]["skillIds"] == ["meme-maker"]
 
 
@@ -120,15 +120,15 @@ def test_catalog_bindings_expose_chief_and_meme_tools(monkeypatch) -> None:
             "name": "Chief",
             "prompt": "Coordinate.",
             "systemRole": "chief",
-            "toolIds": ["bot_manager", "meme_composer"],
+            "toolIds": ["bot_manager", "meme_lord"],
             "tools": [
                 {
                     "id": "bot_manager",
                     "runtime": {"kind": "local", "name": "bot_manager"},
                 },
                 {
-                    "id": "meme_composer",
-                    "runtime": {"kind": "local", "name": "meme_composer"},
+                    "id": "meme_lord",
+                    "runtime": {"kind": "local", "name": "meme_lord"},
                 },
             ],
             "skillIds": [],
@@ -154,10 +154,10 @@ def test_catalog_bindings_expose_chief_and_meme_tools(monkeypatch) -> None:
     assert {item.tool_name for item in config.tools} == {
         "compose_meme",
         "create_bot",
-        "generate_image",
         "install_bot_template",
         "list_bot_options",
         "save_artifact",
+        "search_meme_templates",
         "update_bot",
     }
     assert "Bot management is available only in this direct Chief chat" in (

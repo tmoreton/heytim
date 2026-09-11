@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
-import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AgentActivity } from '@/components/agent-activity';
 import { BotAvatar } from '@/components/bot-avatar';
@@ -64,11 +64,9 @@ export function MessageBubble({
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [approvalAction, setApprovalAction] = useState<'reject' | 'once' | 'always'>();
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
   const [decisionState, setDecisionState] = useState<'idle' | 'saving' | 'saved' | 'error'>(
     decisionSaved ? 'saved' : 'idle',
   );
-  const copyFeedbackTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mine = groupMode && message.authorType === 'user' && message.isMine;
   const assistant = groupMode ? !mine : message.role === 'assistant';
   const botMessage = message.role === 'assistant' || message.authorType === 'bot';
@@ -94,19 +92,15 @@ export function MessageBubble({
     )
   ) : null;
 
-  useEffect(() => () => {
-    if (copyFeedbackTimeout.current) clearTimeout(copyFeedbackTimeout.current);
-  }, []);
-
   const copyMessage = async () => {
     try {
       const copied = await Clipboard.setStringAsync(message.text);
-      setCopyState(copied ? 'copied' : 'error');
+      AccessibilityInfo.announceForAccessibility(
+        copied ? 'Message copied to clipboard' : 'Could not copy message',
+      );
     } catch {
-      setCopyState('error');
+      AccessibilityInfo.announceForAccessibility('Could not copy message');
     }
-    if (copyFeedbackTimeout.current) clearTimeout(copyFeedbackTimeout.current);
-    copyFeedbackTimeout.current = setTimeout(() => setCopyState('idle'), 1600);
   };
 
   return (
@@ -202,34 +196,27 @@ export function MessageBubble({
               />
             ))}
             {message.text ? (
-              <View>
+              <Pressable
+                accessibilityActions={[{ name: 'copy', label: 'Copy message' }]}
+                accessibilityHint="Press and hold to copy this message"
+                delayLongPress={450}
+                onAccessibilityAction={(event) => {
+                  if (event.nativeEvent.actionName === 'copy') void copyMessage();
+                }}
+                onLongPress={() => void copyMessage()}>
                 {botMessage && compactContribution && !expanded ? (
-                  <Text selectable selectionColor="#79B393" numberOfLines={4} style={styles.contributionPreview}>
+                  <Text numberOfLines={4} style={styles.contributionPreview}>
                     {preview}
                   </Text>
                 ) : botMessage ? (
                   <MessageMarkdown onOpenLink={onOpenLink}>{message.text}</MessageMarkdown>
                 ) : (
                   <Text
-                    selectable
-                    selectionColor={assistant ? '#79B393' : '#B8E0CB'}
                     style={[styles.message, assistant ? styles.assistantText : styles.userText]}>
                     {message.text}
                   </Text>
                 )}
-                <Pressable
-                  accessibilityHint="Copies this message to the clipboard"
-                  accessibilityLabel={copyState === 'copied' ? 'Message copied' : 'Copy message'}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [styles.copyButton, !assistant && styles.userCopyButton, pressed && styles.pressed]}
-                  onPress={() => void copyMessage()}>
-                  <Text
-                    accessibilityLiveRegion="polite"
-                    style={[styles.copyButtonText, !assistant && styles.userCopyButtonText]}>
-                    {copyState === 'copied' ? 'Copied' : copyState === 'error' ? 'Try copy again' : 'Copy'}
-                  </Text>
-                </Pressable>
-              </View>
+              </Pressable>
             ) : null}
             {compactContribution ? (
               <Pressable
@@ -313,9 +300,5 @@ const styles = StyleSheet.create({
   contributionToggleText: { color: '#007A3D', fontSize: 11, fontWeight: '700' },
   decisionButton: { alignSelf: 'flex-start', minHeight: 40, justifyContent: 'center', marginTop: 8, paddingRight: 8 },
   decisionButtonText: { color: '#006B35', fontSize: 12, fontWeight: '800' },
-  copyButton: { alignSelf: 'flex-end', minHeight: 34, justifyContent: 'center', paddingLeft: 12, marginTop: 2 },
-  userCopyButton: { paddingLeft: 14 },
-  copyButtonText: { color: '#007A3D', fontSize: 10, fontWeight: '800' },
-  userCopyButtonText: { color: 'rgba(255,255,255,0.82)' },
   pressed: { opacity: 0.65 },
 });

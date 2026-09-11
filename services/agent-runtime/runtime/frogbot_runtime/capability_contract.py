@@ -14,7 +14,11 @@ STAN_BUILTIN_TOOLS = {"web_fetch"}
 STAN_PLUGINS = {"todos"}
 STAN_SUBAGENTS = {"generalist"}
 AGENTCORE_TOOLS = {"browser", "code_interpreter"}
-CONTEXTUAL_LOCAL_TOOLS = {"bot_manager", "meme_composer"}
+CONTEXTUAL_LOCAL_TOOLS = {
+    "bot_manager",
+    "image_generator",
+    "meme_lord",
+}
 
 
 def dynamic_skills(bot: dict) -> list[Skill]:

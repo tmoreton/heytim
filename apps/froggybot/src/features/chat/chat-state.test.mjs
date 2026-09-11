@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   chooseAvailableSelection,
+  composerPrimaryAction,
   isActiveResponse,
   isPendingMessage,
   isRefreshingMessage,
@@ -19,6 +20,14 @@ test('classifies message lifecycle states consistently', () => {
   assert.equal(isRefreshingMessage(message('waiting')), true);
   assert.equal(isPendingMessage(message('awaiting_approval')), true);
   assert.equal(isPendingMessage(message('complete')), false);
+});
+
+test('shows only one composer action while a response is running', () => {
+  assert.equal(composerPrimaryAction(true, '', 0, false), 'stop');
+  assert.equal(composerPrimaryAction(true, 'Redirect this response', 0, false), 'send');
+  assert.equal(composerPrimaryAction(true, '', 1, false), 'send');
+  assert.equal(composerPrimaryAction(true, '', 0, true), 'send');
+  assert.equal(composerPrimaryAction(false, '', 0, false), 'send');
 });
 
 test('keeps an available selection and otherwise uses the first conversation', () => {

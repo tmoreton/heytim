@@ -13,6 +13,7 @@ import { GroupAvatar } from '@/components/participant-avatar';
 import type { Attachment, Bot, Group, Message } from '@/lib/types';
 import type { BrowserApi } from '@/lib/browser-api';
 import { BrowserHandoff } from '../browser/browser-handoff';
+import { shouldUseBotBrowserForChatLinks } from '../browser/browser-policy';
 
 import { ConversationHeader } from './conversation-header';
 import { MessageBubble } from './message-bubble';
@@ -165,7 +166,7 @@ const ConversationMessages = memo(function ConversationMessages({
             onReject={bot ? onReject : undefined}
             onOpenFile={onOpenFile}
             onResolveFile={onResolveFile}
-            onOpenLink={bot && !group ? onOpenBrowser : undefined}
+            onOpenLink={shouldUseBotBrowserForChatLinks(bot, Boolean(group)) ? onOpenBrowser : undefined}
             decisionSaved={decisionSaved}
             onSaveDecision={group ? onSaveDecision : undefined}
             onActivityExpand={onActivityExpand}

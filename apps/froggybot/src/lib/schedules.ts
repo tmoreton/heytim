@@ -40,6 +40,7 @@ export const formatTime = (value: string): string => {
 
 export const describeSchedule = (task: Pick<ScheduledTaskDraft, 'frequency' | 'dayOfWeek' | 'dayOfMonth' | 'time'>) => {
   const time = formatTime(task.time);
+  if (task.frequency === 'hourly') return 'Every hour';
   if (task.frequency === 'daily') return `Every day at ${time}`;
   if (task.frequency === 'weekdays') return `Weekdays at ${time}`;
   if (task.frequency === 'monthly') return `Monthly on day ${task.dayOfMonth ?? 1} at ${time}`;

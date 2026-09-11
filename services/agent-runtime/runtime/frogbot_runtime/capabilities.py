@@ -6,7 +6,7 @@ from typing import Any
 from strands.vended_plugins.skills import AgentSkills
 
 from .agentcore_adapters import PersistentAgentCoreBrowser, agentcore_tools
-from .artifacts import artifact_tool, image_tool
+from .artifacts import artifact_tool
 from .background_work import BackgroundWorkTracker
 from .bot_management import BotMutationTracker, bot_management_tools
 from .capability_contract import (
@@ -15,13 +15,14 @@ from .capability_contract import (
     validate_skill_selection,
 )
 from .gateway_tools import gateway_client, gateway_operations
+from .image_generation import image_generation_tool
 from .local_tools import CUSTOM_TOOLS
 from .mcp_connections import (
     GITHUB_MCP_ENDPOINT,
     connection_client,
     connection_credential,
 )
-from .memes import meme_tool
+from .memes import meme_tools
 from .repository_workspace import repository_workspace_tool
 
 
@@ -65,11 +66,11 @@ def resolve_capabilities(
     if "bot_manager" in local_names and bot_management is not None:
         tools.extend(bot_management_tools(bot_management, bot_mutations))
     if artifact_prefix:
-        tools.extend([artifact_tool(artifact_prefix), image_tool(artifact_prefix)])
-        if "meme_composer" in local_names:
-            tools.append(
-                meme_tool(artifact_prefix, image_attachments or [])
-            )
+        tools.append(artifact_tool(artifact_prefix))
+        if "meme_lord" in local_names:
+            tools.extend(meme_tools(artifact_prefix, image_attachments or []))
+        if "image_generator" in local_names:
+            tools.append(image_generation_tool(artifact_prefix))
     managed_tools, interpreter, browser = agentcore_tools(
         bindings,
         session_id,

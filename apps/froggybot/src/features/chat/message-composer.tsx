@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -14,6 +15,8 @@ import {
 import { BotAvatar } from '@/components/bot-avatar';
 import { GroupAvatar, PersonAvatar } from '@/components/participant-avatar';
 import type { Attachment, Group } from '@/lib/types';
+
+import { composerPrimaryAction } from './chat-state';
 
 export const ALL_BOTS_REPLY_TARGET = 'all';
 
@@ -62,9 +65,16 @@ export function MessageComposer({
   onSend,
   onStop,
 }: Props) {
+  const [inputHeight, setInputHeight] = useState(38);
   const steering = Boolean(selectedName && pending && !group);
   const unavailable = !selectedName || (pending && !steering) || sending || uploadingAttachment;
   const cannotSend = (!draft.trim() && attachments.length === 0) || unavailable;
+  const primaryAction = composerPrimaryAction(
+    canStop,
+    draft,
+    attachments.length,
+    sending || uploadingAttachment,
+  );
   const desktop = Platform.OS === 'web' && !fullWidth;
   const replyHint = steering
     ? 'Send a steering message to redirect this response.'
@@ -158,9 +168,12 @@ export function MessageComposer({
         ) : null}
         <TextInput
           accessibilityLabel={selectedName ? `Message ${selectedName}` : 'Message'}
-          style={styles.input}
+          style={[styles.input, { height: draft ? inputHeight : 38 }]}
           value={draft}
           onChangeText={onDraftChange}
+          onContentSizeChange={({ nativeEvent }) => {
+            setInputHeight(Math.max(38, Math.min(112, nativeEvent.contentSize.height)));
+          }}
           onKeyPress={handleKeyPress}
           placeholder={listening
             ? 'Listening...'
@@ -169,6 +182,7 @@ export function MessageComposer({
               : selectedName ? `Message ${selectedName}` : 'Choose a chat'}
           placeholderTextColor="#6E6A62"
           multiline
+          numberOfLines={1}
           maxLength={8000}
           editable={Boolean(selectedName) && (!pending || steering)}
         />
@@ -188,7 +202,7 @@ export function MessageComposer({
             <MicIcon active={listening} />
           </Pressable>
         ) : null}
-        {canStop ? (
+        {primaryAction === 'stop' ? (
           <Pressable
             accessibilityLabel="Stop response"
             accessibilityRole="button"
@@ -196,20 +210,21 @@ export function MessageComposer({
             onPress={onStop}>
             <View style={styles.stopIcon} />
           </Pressable>
-        ) : null}
-        <Pressable
-          accessibilityLabel={steering ? 'Send steering message' : 'Send message'}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: cannotSend, busy: sending || uploadingAttachment }}
-          style={({ pressed }) => [
-            styles.sendButton,
-            cannotSend && styles.sendDisabled,
-            pressed && styles.pressed,
-          ]}
-          disabled={cannotSend}
-          onPress={onSend}>
-          {sending ? <ActivityIndicator color="white" size="small" /> : <Text style={styles.sendLabel}>↑</Text>}
-        </Pressable>
+        ) : (
+          <Pressable
+            accessibilityLabel={steering ? 'Send steering message' : 'Send message'}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: cannotSend, busy: sending || uploadingAttachment }}
+            style={({ pressed }) => [
+              styles.sendButton,
+              cannotSend && styles.sendDisabled,
+              pressed && styles.pressed,
+            ]}
+            disabled={cannotSend}
+            onPress={onSend}>
+            {sending ? <ActivityIndicator color="white" size="small" /> : <Text style={styles.sendLabel}>↑</Text>}
+          </Pressable>
+        )}
       </View>
       <Text style={styles.hint}>
         {desktop ? `${replyHint} · Enter to send · Shift+Enter for a new line.` : replyHint}

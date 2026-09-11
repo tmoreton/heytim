@@ -13,6 +13,7 @@ test('normalizes supported 12-hour and 24-hour times', () => {
 });
 
 test('describes recurring schedules in user-facing terms', () => {
+  assert.equal(describeSchedule({ frequency: 'hourly', time: '00:00' }), 'Every hour');
   assert.equal(describeSchedule({ frequency: 'weekly', dayOfWeek: 'FRI', time: '16:30' }), 'Every Friday at 4:30 PM');
   assert.equal(describeSchedule({ frequency: 'monthly', dayOfMonth: 15, time: '08:00' }), 'Monthly on day 15 at 8:00 AM');
 });

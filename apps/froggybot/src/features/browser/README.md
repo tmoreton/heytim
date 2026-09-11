@@ -1,6 +1,7 @@
 # Private bot browser handoff (frontend)
 
-V1 is owned **direct chat only**. Chat links open the browser directly; there is
+V1 is owned **direct chat only**. Chat links open the private browser only when
+that bot has the browser capability; otherwise they behave like normal links. There is
 no persistent browser button or spacer. Every owned direct bot has **Browser connection** in its actions menu,
 so a removed browser capability cannot hide Disconnect / Forget login. Groups do
 not expose this UI; their browser credentials must never fall back to a personal
@@ -26,9 +27,10 @@ session. The server is the authorization authority.
   **1440×900**. The viewer receives the session's actual dimensions. Do not
   assume DCV can resize an existing session: its optional display channel may
   be unavailable. Existing desktop sessions show migration guidance on mobile.
-- Direct-chat Markdown links open the bot browser automatically and navigate in
-  the same private profile. Long-press copies a link. Groups retain external link
-  behavior: group credentials must not silently use a personal browser profile.
+- Direct-chat Markdown links open the bot browser automatically only for bots with
+  the browser capability and navigate in the same private profile. Other bots and
+  groups retain external link behavior. Long-press copies a link; group credentials
+  must not silently use a personal browser profile.
 - Mobile chrome is near full screen, with privacy/help/maintenance controls under
   **More**. The desktop conversation's message widths are unchanged.
 

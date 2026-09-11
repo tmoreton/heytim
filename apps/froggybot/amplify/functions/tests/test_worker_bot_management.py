@@ -45,7 +45,7 @@ class WorkerBotManagementTests(WorkerTestCase):
             patch.object(
                 self.agent.catalog,
                 "list_tools",
-                return_value=[{"id": "meme_composer", "name": "Meme composer"}],
+                return_value=[{"id": "meme_lord", "name": "Meme Lord"}],
             ),
             patch.object(
                 self.agent.catalog,
@@ -195,7 +195,7 @@ class WorkerBotManagementTests(WorkerTestCase):
             "tagline": "Makes memes.",
             "prompt": "Caption supplied images.",
             "color": "#E95383",
-            "toolIds": ["meme_composer"],
+            "toolIds": ["meme_lord"],
             "skillIds": ["meme-maker"],
         }
         api = SimpleNamespace(

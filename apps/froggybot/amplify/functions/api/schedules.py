@@ -51,7 +51,7 @@ def _get_schedule(user_id: str, bot_id: str, schedule_id: str) -> dict:
 def _schedule_values(value: dict, previous: dict | None = None) -> dict:
     prior = previous or {}
     frequency = value.get("frequency", prior.get("frequency", "daily"))
-    if frequency not in {"daily", "weekdays", "weekly", "monthly"}:
+    if frequency not in {"hourly", "daily", "weekdays", "weekly", "monthly"}:
         raise ApiError(400, "Choose a supported schedule frequency")
 
     time_value = _validate_string(

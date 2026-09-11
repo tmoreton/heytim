@@ -255,7 +255,7 @@ function TaskEditor({
   const [error, setError] = useState('');
 
   const validatedDraft = (): ScheduledTaskDraft | undefined => {
-    const time = parseTimeInput(timeText);
+    const time = draft.frequency === 'hourly' ? '00:00' : parseTimeInput(timeText);
     if (!draft.name.trim() || !draft.prompt.trim()) {
       setError('Give this task a name and tell the bot what to do.');
       return undefined;
@@ -352,6 +352,7 @@ function TaskEditor({
         <Text style={styles.label}>Repeat</Text>
         <View accessibilityLabel="Repeat frequency" accessibilityRole="radiogroup" style={styles.frequencyGrid}>
           {([
+            ['hourly', 'Hourly'],
             ['daily', 'Daily'],
             ['weekdays', 'Weekdays'],
             ['weekly', 'Weekly'],
@@ -411,21 +412,29 @@ function TaskEditor({
           </>
         ) : null}
 
-        <Text style={styles.label}>Time</Text>
-        <TextInput
-          accessibilityLabel="Task time"
-          style={styles.input}
-          value={timeText}
-          maxLength={8}
-          placeholder="9:00 AM"
-          placeholderTextColor="#6E6A62"
-          onChangeText={setTimeText}
-          onBlur={() => {
-            const parsed = parseTimeInput(timeText);
-            if (parsed) setTimeText(formatTime(parsed));
-          }}
-        />
-        <Text style={styles.help}>Uses {draft.timezone.replaceAll('_', ' ')} and follows daylight saving time.</Text>
+        {draft.frequency === 'hourly' ? (
+          <Text style={[styles.help, styles.hourlyHelp]}>
+            Runs every hour on the hour in {draft.timezone.replaceAll('_', ' ')}.
+          </Text>
+        ) : (
+          <>
+            <Text style={styles.label}>Time</Text>
+            <TextInput
+              accessibilityLabel="Task time"
+              style={styles.input}
+              value={timeText}
+              maxLength={8}
+              placeholder="9:00 AM"
+              placeholderTextColor="#6E6A62"
+              onChangeText={setTimeText}
+              onBlur={() => {
+                const parsed = parseTimeInput(timeText);
+                if (parsed) setTimeText(formatTime(parsed));
+              }}
+            />
+            <Text style={styles.help}>Uses {draft.timezone.replaceAll('_', ' ')} and follows daylight saving time.</Text>
+          </>
+        )}
 
         <View style={styles.enabledRow}>
           <View style={styles.enabledCopy}>
@@ -508,6 +517,7 @@ const styles = StyleSheet.create({
   dayText: { color: '#69665F', fontSize: 13, fontWeight: '800' },
   dayTextActive: { color: '#FFFFFF' },
   help: { color: '#6E6A62', fontSize: 12, lineHeight: 17, marginTop: 6 },
+  hourlyHelp: { marginTop: 18 },
   enabledRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 15, marginTop: 24, borderRadius: 15, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2DFD8' },
   enabledCopy: { flex: 1 },
   enabledTitle: { color: '#24231F', fontSize: 15, fontWeight: '700' },

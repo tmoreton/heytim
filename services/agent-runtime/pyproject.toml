@@ -19,6 +19,8 @@ dependencies = [
     # The toolkit resolves its first supported AgentCore target as manylinux2014.
     # Pin compiled transitive packages to versions that publish that ARM64 wheel.
     "greenlet == 3.2.5",
+    # Direct dependency: the original-image tool calls OpenRouter's Image API.
+    "httpx == 0.28.1",
     # Direct dependency: the hardened remote transport uses MCP's streamable HTTP API.
     "mcp >= 1.29.1, < 2.0.0",
     "mcp-proxy-for-aws >= 1.6.0, < 2.0.0",
@@ -34,6 +36,9 @@ dependencies = [
     "strands-agents[openai] == 1.55.0",
     "strands-agents-tools[agent_core_browser,agent_core_code_interpreter] >= 0.2.0, < 1.0.0",
     "strands-agents-stan",
+    # CodeZip resolves transitive instrumentation dependencies afresh. Keep its
+    # ARM64 wheel identical to the version recorded in uv.lock.
+    "wrapt == 2.4.0",
 ]
 
 [dependency-groups]

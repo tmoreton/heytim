@@ -14,6 +14,8 @@ def schedule_expression(
     day_of_month: int | None = None,
 ) -> str:
     hour, minute = time_of_day.split(":", 1)
+    if frequency == "hourly":
+        return "cron(0 * * * ? *)"
     if frequency == "daily":
         return f"cron({int(minute)} {int(hour)} * * ? *)"
     if frequency == "weekdays":

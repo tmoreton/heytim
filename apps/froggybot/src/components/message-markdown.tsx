@@ -28,7 +28,7 @@ const renderRules = (onOpenLink?: (url: string) => void): RenderRules => ({
   th: (node, children) => <MarkdownTableCell key={node.key} node={node}>{children}</MarkdownTableCell>,
   td: (node, children) => <MarkdownTableCell key={node.key} node={node}>{children}</MarkdownTableCell>,
   textgroup: (node, children, parent, styles) => (
-    <Text key={node.key} selectable selectionColor="#79B393" style={[
+    <Text key={node.key} style={[
       styles.text as TextStyle,
       parent.some((ancestor) => ancestor.type === 'th') && markdownStyles.tableHeading,
     ]}>
@@ -42,15 +42,16 @@ const renderRules = (onOpenLink?: (url: string) => void): RenderRules => ({
       <Text
         key={node.key}
         accessibilityRole="link"
-        selectable
-        selectionColor="#79B393"
         style={styles.link as TextStyle}
         onPress={(event) => {
           event.stopPropagation();
           if (/^https?:\/\//i.test(url) && onOpenLink) onOpenLink(url);
           else if (/^(https?:\/\/|mailto:|tel:)/i.test(url)) void Linking.openURL(url).catch(() => undefined);
         }}
-        onLongPress={() => { void Clipboard.setStringAsync(url).catch(() => undefined); }}>
+        onLongPress={(event) => {
+          event.stopPropagation();
+          void Clipboard.setStringAsync(url).catch(() => undefined);
+        }}>
         {automatic ? compactLinkLabel(url) : children}
       </Text>
     );

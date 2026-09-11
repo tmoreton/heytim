@@ -30,6 +30,16 @@ class GroupScheduleApiTests(ApiTestCase):
         self.assertEqual(target["groupId"], "work")
         self.assertNotIn("prompt", target)
 
+    def test_group_schedule_supports_hourly_tasks(self):
+        result = self.module._save_group_schedule(
+            "owner", "work", {**self.draft, "frequency": "hourly"}
+        )
+        item = self.create.call_args.args[0]
+        request = self.schedules._remote_schedule_request(item)
+
+        self.assertEqual(result["frequency"], "hourly")
+        self.assertEqual(request["ScheduleExpression"], "cron(0 * * * ? *)")
+
     def test_cannot_update_another_groups_schedule(self):
         item = self.module._save_group_schedule("owner", "work", self.draft)
         with self.assertRaises(self.support.ApiError):

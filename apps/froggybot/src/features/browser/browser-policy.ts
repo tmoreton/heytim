@@ -4,6 +4,10 @@ export function hasBrowserCapability(bot: Bot): boolean {
   return [...bot.toolIds, ...(bot.extraToolIds ?? [])].includes('browser');
 }
 
+export function shouldUseBotBrowserForChatLinks(bot: Bot | undefined, groupMode: boolean): boolean {
+  return Boolean(bot && !groupMode && hasBrowserCapability(bot));
+}
+
 export function isLiveViewUrl(value: unknown): value is string {
   if (typeof value !== 'string') return false;
   try {
