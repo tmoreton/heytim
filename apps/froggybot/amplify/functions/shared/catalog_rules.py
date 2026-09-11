@@ -9,6 +9,7 @@ from typing import Any
 MAX_SKILLS_PER_BOT = 12
 MAX_TOOLS_PER_BOT = 12
 MAX_SKILL_INSTRUCTIONS = 20_000
+RETIRED_TOOL_IDS = frozenset({"meme_composer"})
 MAX_CATALOG_TAGS = 6
 MAX_BOT_PROMPT = 12_000
 ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")

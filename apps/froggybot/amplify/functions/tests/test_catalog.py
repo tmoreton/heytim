@@ -350,9 +350,7 @@ class CatalogServiceTests(unittest.TestCase):
         self.assertEqual(imported["relationship"], "installed")
         self.assertEqual(imported["requiredToolIds"], ["current_time"])
 
-    def test_all_catalog_tools_are_visible_and_resolve_to_reviewed_runtime_bindings(
-        self,
-    ) -> None:
+    def test_catalog_tools_are_visible_and_use_reviewed_runtime_bindings(self) -> None:
         tools = self.catalog.list_tools()
         self.assertEqual(len(tools), len(TEST_TOOLS))
         self.assertEqual(
@@ -402,6 +400,12 @@ class CatalogServiceTests(unittest.TestCase):
             self.catalog.unapproved_tools("owner", ["web", "browser"], ["browser"]),
             [],
         )
+
+    def test_retired_tool_is_removed_but_unknown_tools_are_rejected(self) -> None:
+        selected = self.catalog.validate_tools("owner", ["web", "meme_composer", "web"])
+        self.assertEqual(selected, ["web"])
+        with self.assertRaisesRegex(CatalogError, "Unknown tools: never_existed"):
+            self.catalog.validate_tools("owner", ["web", "never_existed"])
 
     def test_private_mcp_connection_is_user_scoped_and_resolves_without_secret(
         self,

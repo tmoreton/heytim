@@ -17,15 +17,7 @@ import { BOT_COLORS, CHIEF_COLOR, displayBotColor } from '@/lib/bot-branding';
 import { requiredToolLabels } from '@/lib/capability-labels';
 import type { Bot, BotDraft, Capability, CapabilitySelection, Skill, SkillDetail } from '@/lib/types';
 
-const emptyDraft: BotDraft = {
-  name: '',
-  tagline: '',
-  prompt: '',
-  color: BOT_COLORS[0],
-  toolIds: [],
-  alwaysAllowedToolIds: [],
-  skillIds: [],
-};
+import { createBotDraft } from './bot-draft';
 
 type Props = {
   bot?: Bot;
@@ -37,44 +29,14 @@ type Props = {
   onLoadSkill: (skillId: string) => Promise<SkillDetail>;
 };
 
-const extraToolsForBot = (bot: Bot, skills: Skill[]) => {
-  if (bot.extraToolIds) return bot.extraToolIds;
-  const required = new Set(
-    skills
-      .filter((skill) => bot.skillIds.includes(skill.id))
-      .flatMap((skill) => skill.requiredToolIds),
-  );
-  return bot.toolIds.filter((toolId) => !required.has(toolId));
-};
-
-const botDraft = (
-  bot: Bot | undefined,
-  skills: Skill[],
-  tools: Capability[],
-  suggested?: CapabilitySelection,
-): BotDraft => {
-  const draft = bot
-    ? {
-        name: bot.name,
-        tagline: bot.tagline,
-        prompt: bot.prompt,
-        color: displayBotColor(bot),
-        toolIds: extraToolsForBot(bot, skills),
-        alwaysAllowedToolIds: bot.alwaysAllowedToolIds ?? [],
-        skillIds: bot.skillIds,
-      }
-    : emptyDraft;
-  if (suggested?.kind === 'skill' && skills.some((skill) => skill.id === suggested.id)) {
-    return { ...draft, skillIds: [...new Set([...draft.skillIds, suggested.id])] };
-  }
-  if (suggested?.kind === 'tool' && tools.some((tool) => tool.id === suggested.id)) {
-    return { ...draft, toolIds: [...new Set([...draft.toolIds, suggested.id])] };
-  }
-  return draft;
-};
-
 export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, onSave, onLoadSkill }: Props) {
-  const [draft, setDraft] = useState<BotDraft>(() => botDraft(bot, skills, tools, suggestedCapability));
+  const [draft, setDraft] = useState<BotDraft>(() => createBotDraft(
+    bot ? { ...bot, color: displayBotColor(bot) } : undefined,
+    skills,
+    tools,
+    BOT_COLORS[0],
+    suggestedCapability,
+  ));
   const [skillDetails, setSkillDetails] = useState<Record<string, SkillDetail>>({});
   const [expandedSkillId, setExpandedSkillId] = useState<string>();
   const [loadingSkillId, setLoadingSkillId] = useState<string>();
@@ -179,6 +141,7 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
             {saving ? <ActivityIndicator color="#007A3D" /> : <Text style={[styles.headerAction, styles.save]}>Save</Text>}
           </Pressable>
         </View>
+        {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {suggestedItem ? (
@@ -392,7 +355,6 @@ export function BotEditor({ bot, tools, skills, suggestedCapability, onClose, on
               </Text>
             </View>
           )}
-          {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </PageSheet>
@@ -460,5 +422,5 @@ const styles = StyleSheet.create({
   skillDetailLabel: { color: '#466454', fontSize: 10, fontWeight: '800', letterSpacing: 0.55, textTransform: 'uppercase', marginBottom: 5, marginTop: 4 },
   skillInstructions: { color: '#302F2A', fontSize: 13, lineHeight: 20 },
   skillToolList: { color: '#007A3D', fontSize: 12, lineHeight: 18, fontWeight: '700' },
-  error: { color: '#B83C32', marginTop: 16 },
+  error: { color: '#8F2F27', backgroundColor: '#FCEBE8', borderBottomWidth: 1, borderColor: '#E8B7B0', paddingHorizontal: 20, paddingVertical: 11, fontSize: 13, fontWeight: '700' },
 });

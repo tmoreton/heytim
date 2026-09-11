@@ -13,6 +13,7 @@ from .catalog_rules import (
     MAX_SKILL_INSTRUCTIONS,
     MAX_SKILLS_PER_BOT,
     MAX_TOOLS_PER_BOT,
+    RETIRED_TOOL_IDS,
     CatalogError,
     _public_bot_template,
     _public_skill,
@@ -220,7 +221,11 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
             isinstance(item, str) for item in tool_ids
         ):
             raise CatalogError("toolIds must be a list")
-        unique = list(dict.fromkeys(tool_ids))
+        unique = [
+            tool_id
+            for tool_id in dict.fromkeys(tool_ids)
+            if tool_id not in RETIRED_TOOL_IDS
+        ]
         allowed = {item["id"] for item in self._available_tool_items(user_id)}
         unknown = set(unique) - allowed
         if unknown:
