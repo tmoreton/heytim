@@ -26,9 +26,13 @@ from .code_interpreter_input import CompatibleCodeInterpreterInput
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 MANAGED_BROWSER_LOCAL_SESSION = "frogbot-private-browser"
 MANAGED_BROWSER_GUIDANCE = (
-    " A private in-app browser supports one automation connection per run. "
-    "Call init_session once, then reuse the returned sessionName for every site "
-    "and open additional tabs instead of initializing another session."
+    " This is the bot's private in-app browser, not the user's desktop browser. "
+    "It supports one automation connection per run: call init_session once, reuse "
+    "its sessionName for every site, and open tabs instead of another session. If a "
+    "site requires sign-in or human control, ask the user to open the bot browser, "
+    "complete it there, and resume the bot. Never request passwords, cookies, or "
+    "session tokens in chat or bypass the block. A saved login does not authorize a "
+    "new external action."
 )
 
 

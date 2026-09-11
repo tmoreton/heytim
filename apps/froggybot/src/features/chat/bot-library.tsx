@@ -25,19 +25,8 @@ type Props = {
 const countLabel = (count: number, singular: string) =>
   `${count} ${count === 1 ? singular : `${singular}s`}`;
 
-const templateExample = (template: BotTemplate) => {
-  const identity = `${template.id} ${template.name} ${template.category ?? ''}`.toLowerCase();
-  if (identity.includes('trip') || identity.includes('travel')) {
-    return 'Ask: “Plan a walkable weekend under $1,200.” → itinerary, budget, bookings, and owners.';
-  }
-  if (identity.includes('event')) {
-    return 'Ask: “Plan our 40-person launch dinner.” → options, budget, run of show, and checklist.';
-  }
-  if (identity.includes('research') || identity.includes('report')) {
-    return 'Ask: “Compare these three options with current sources.” → recommendation, evidence, and a shareable report.';
-  }
-  return `Ask ${template.name} for a concrete outcome → a checked recommendation and the next actions.`;
-};
+const templateExample = (template: BotTemplate) =>
+  `Ask ${template.name} for a concrete outcome → a checked recommendation and the next actions.`;
 
 export function BotLibrary({
   bots,

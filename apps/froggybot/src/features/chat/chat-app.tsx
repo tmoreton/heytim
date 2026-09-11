@@ -1,7 +1,6 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -20,6 +19,7 @@ import type { Bot, BotDraft, CapabilitySelection, ConversationSelection, Group, 
 import { ConversationActionSheets, type BotAction } from './bot-action-sheets';
 import { styles } from './chat-app.styles';
 import type { ChatOverlay } from './chat-overlay';
+import { ChatOverlays } from './chat-overlays';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationDrawer } from './conversation-drawer';
 import { ALL_BOTS_REPLY_TARGET } from './message-composer';
@@ -38,16 +38,6 @@ type Props = {
 };
 
 const directTurnId = (message: Message) => message.id.replace(/-assistant$/, '');
-
-const AccountSettings = lazy(() => import('./account-settings').then((module) => ({ default: module.AccountSettings })));
-const BotDocuments = lazy(() => import('./bot-documents').then((module) => ({ default: module.BotDocuments })));
-const BotEditor = lazy(() => import('./bot-editor').then((module) => ({ default: module.BotEditor })));
-const BotLibrary = lazy(() => import('./bot-library').then((module) => ({ default: module.BotLibrary })));
-const GroupEditor = lazy(() => import('./group-editor').then((module) => ({ default: module.GroupEditor })));
-const ImagePreviewModal = lazy(() => import('./image-preview-modal').then((module) => ({ default: module.ImagePreviewModal })));
-const MemorySettings = lazy(() => import('./memory-settings').then((module) => ({ default: module.MemorySettings })));
-const ScheduledTasks = lazy(() => import('./scheduled-tasks').then((module) => ({ default: module.ScheduledTasks })));
-const SkillLibrary = lazy(() => import('./skill-library').then((module) => ({ default: module.SkillLibrary })));
 
 export function ChatApp({ demo, invitation, initialCapability, initialBotTemplateId, onSignedOut }: Props) {
   const { width } = useWindowDimensions();
@@ -291,6 +281,20 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
     await refreshAfterMutation();
   };
 
+  const deleteGroupDecision = async (decisionId: string) => {
+    if (!selectedGroup) return;
+    await api.deleteGroupDecision(selectedGroup.id, decisionId);
+    upsertGroup({
+      ...selectedGroup,
+      decisions: selectedGroup.decisions.filter((item) => item.id !== decisionId),
+    });
+  };
+
+  const refreshAfterSchedule = async () => {
+    clearMessages(true);
+    await Promise.all([loadMessages(), loadBootstrap()]);
+  };
+
   const signOut = async () => {
     if (!demo) {
       try {
@@ -429,144 +433,39 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
         </View>
       </Modal>
 
-      <Suspense fallback={(
-        <View accessibilityLabel="Loading" accessibilityRole="progressbar" style={styles.overlayLoading}>
-          <ActivityIndicator color="#007A3D" size="large" />
-        </View>
-      )}>
-      {overlay.kind === 'botEditor' && data ? (
-        <BotEditor
-          key={`${overlay.mode}-${editingBot?.id ?? 'new'}-${suggestedCapability?.kind ?? ''}-${suggestedCapability?.id ?? ''}`}
-          bot={overlay.mode === 'edit' ? editingBot : undefined}
-          tools={data?.tools ?? []}
-          retiredToolIds={data.retiredToolIds ?? []}
-          skills={data?.skills ?? []}
-          suggestedCapability={suggestedCapability}
-          onClose={() => setOverlay({ kind: 'none' })}
-          onSave={saveBot}
-          onLoadSkill={api.skill}
-        />
-      ) : null}
-      {botLibraryOpen && data ? (
-        <BotLibrary
-          bots={data.bots}
-          templates={data.botTemplates ?? []}
-          skills={data.skills}
-          onboarding={botLibraryOnboarding}
-          initialTemplateId={initialBotTemplateId}
-          onClose={() => {
-            setBotOnboardingDismissed(true);
-            setOverlay({ kind: 'none' });
-          }}
-          onInstall={installBotTemplate}
-        />
-      ) : null}
-      {overlay.kind === 'groupEditor' ? (
-        <GroupEditor
-          key={`${overlay.mode}-${selectedGroup?.id ?? 'new'}`}
-          group={overlay.mode === 'edit' ? selectedGroup : undefined}
-          bots={data?.bots ?? []}
-          onClose={() => setOverlay({ kind: 'none' })}
-          onSave={saveGroup}
-          onShare={shareGroup}
-          onRemoveMember={removeGroupMember}
-          onDelete={deleteGroup}
-          onDeleteDecision={async (decisionId) => {
-            if (!selectedGroup) return;
-            await api.deleteGroupDecision(selectedGroup.id, decisionId);
-            upsertGroup({ ...selectedGroup, decisions: selectedGroup.decisions.filter((item) => item.id !== decisionId) });
-          }}
-          onLoadMemory={api.groupMemories}
-          onCreateMemory={api.createGroupMemory}
-          onUpdateMemory={api.updateGroupMemory}
-          onDeleteMemory={api.deleteGroupMemory}
-        />
-      ) : null}
-      {overlay.kind === 'skillLibrary' ? (
-        <SkillLibrary
-          skills={data?.skills ?? []}
-          tools={data?.tools ?? []}
-          onClose={() => setOverlay({ kind: 'none' })}
-          onLoad={api.skill}
-          onSave={api.saveSkill}
-          onShare={api.shareSkill}
-          onSaveConnection={api.saveConnection}
-          onDeleteConnection={api.deleteConnection}
-          onBeginGmailConnection={api.beginGmailConnection}
-          onChanged={loadBootstrap}
-          onUse={openCapabilityEditor}
-        />
-      ) : null}
-      {overlay.kind === 'schedule' ? (
-        <ScheduledTasks
-          bot={overlay.bot}
-          onClose={() => setOverlay({ kind: 'none' })}
-            onList={api.schedules}
-            onListRuns={api.scheduleRuns}
-            onSave={api.saveSchedule}
-            onDelete={api.deleteSchedule}
-            onRun={api.runSchedule}
-            onApproveRun={(runId) => api.approveMessage(overlay.bot.id, runId)}
-            onCancelRun={(runId) => api.cancelMessage(overlay.bot.id, runId)}
-          onTriggered={async () => {
-            clearMessages(true);
-            await Promise.all([loadMessages(), loadBootstrap()]);
-          }}
-        />
-      ) : null}
-      {overlay.kind === 'groupSchedule' ? (
-        <ScheduledTasks
-          bot={{ id: overlay.group.id, name: overlay.group.name, color: '#58BEAA' }}
-          onClose={() => setOverlay({ kind: 'none' })}
-          onList={api.groupSchedules}
-          onListRuns={api.groupScheduleRuns}
-          onSave={api.saveGroupSchedule}
-          onDelete={api.deleteGroupSchedule}
-          onRun={api.runGroupSchedule}
-          onTriggered={async () => {
-            clearMessages(true);
-            await Promise.all([loadMessages(), loadBootstrap()]);
-          }}
-        />
-      ) : null}
-      {overlay.kind === 'documents' ? (
-        <BotDocuments
-          bot={overlay.bot}
-          onClose={() => setOverlay({ kind: 'none' })}
-          onList={api.botDocuments}
-          onOpen={filePreview.openFile}
-        />
-      ) : null}
-      {overlay.kind === 'account' ? (
-        <AccountSettings
-          demo={demo}
-          onClose={() => setOverlay({ kind: 'none' })}
-          onOpenMemory={() => setOverlay({ kind: 'memory' })}
-          onOpenSkills={() => setOverlay({ kind: 'skillLibrary' })}
-          onListShares={api.sharedLinks}
-          onRevokeShare={api.revokeShare}
-          onDeleteAccount={deleteAccount}
-          onSignOut={signOut}
-        />
-      ) : null}
-      {overlay.kind === 'memory' ? (
-        <MemorySettings
-          onClose={() => setOverlay({ kind: 'none' })}
-          onLoad={api.memories}
-          onCreate={api.createMemory}
-          onUpdate={api.updateMemory}
-          onDelete={api.deleteMemory}
-          onExport={api.exportMemory}
-        />
-      ) : null}
-      {filePreview.previewFile ? (
-        <ImagePreviewModal
-          file={filePreview.previewFile}
-          onClose={filePreview.closePreview}
-          onResolveFile={filePreview.resolveFile}
-        />
-      ) : null}
-      </Suspense>
+      <ChatOverlays
+        api={api}
+        overlay={overlay}
+        data={data}
+        demo={demo}
+        editingBot={editingBot}
+        selectedGroup={selectedGroup}
+        suggestedCapability={suggestedCapability}
+        botLibraryOpen={botLibraryOpen}
+        botLibraryOnboarding={botLibraryOnboarding}
+        initialBotTemplateId={initialBotTemplateId}
+        previewFile={filePreview.previewFile}
+        onOverlayChange={setOverlay}
+        onDismissBotLibrary={() => {
+          setBotOnboardingDismissed(true);
+          setOverlay({ kind: 'none' });
+        }}
+        onSaveBot={saveBot}
+        onInstallBotTemplate={installBotTemplate}
+        onSaveGroup={saveGroup}
+        onShareGroup={shareGroup}
+        onRemoveGroupMember={removeGroupMember}
+        onDeleteGroup={deleteGroup}
+        onDeleteGroupDecision={deleteGroupDecision}
+        onBootstrapChanged={loadBootstrap}
+        onOpenCapabilityEditor={openCapabilityEditor}
+        onDeleteAccount={deleteAccount}
+        onSignOut={signOut}
+        onScheduleTriggered={refreshAfterSchedule}
+        onOpenFile={filePreview.openFile}
+        onClosePreview={filePreview.closePreview}
+        onResolveFile={filePreview.resolveFile}
+      />
       <ConversationActionSheets
         bot={selectedBot}
         group={selectedGroup}

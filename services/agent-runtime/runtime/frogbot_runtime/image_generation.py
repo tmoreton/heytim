@@ -352,7 +352,12 @@ def image_generation_tools(
     async def generate_image(
         filename: str, prompt: str, aspect_ratio: str = "square"
     ) -> str:
-        """Create one original image with the configured OpenRouter image model."""
+        """Create one original image with the configured OpenRouter image model.
+
+        Set aspect_ratio to youtube for 16:9, portrait for 9:16, or square for 1:1.
+        For a YouTube thumbnail needing exact text or supplied portraits/logos, use
+        create_youtube_thumbnail instead.
+        """
         safe_name = _safe_png_name(filename)
         clean_prompt = _prompt(prompt)
         if aspect_ratio not in ASPECT_RATIOS:
@@ -372,7 +377,12 @@ def image_generation_tools(
         portrait_image_number: int = 0,
         logo_image_numbers: list[int] | None = None,
     ) -> str:
-        """Create a complete 1280x720 thumbnail with OpenRouter, exact copy, and selected recent images."""
+        """Create a complete 1280x720 YouTube thumbnail through OpenRouter.
+
+        Preserves exact headline copy and can include recent user-supplied portraits
+        and logos. Select those files by their numbers in the IMAGE_REFERENCES manifest.
+        Check that manifest before claiming a recent image is unavailable.
+        """
         safe_name = _safe_png_name(filename)
         clean_prompt = _clean_text(background_prompt, "background_prompt", 2_000)
         clean_headline = _clean_text(headline, "headline", 80)

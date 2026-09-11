@@ -124,7 +124,11 @@ def artifact_tool(prefix: str, *, client=None):
 
     @tool
     def save_artifact(filename: str, content: str) -> str:
-        """Save a downloadable file. Use Markdown for PDF/DOCX, CSV for XLSX, and --- between PPTX slides."""
+        """Create a file only for an explicit download, export, or native-document request.
+
+        Do not use this for an ordinary report, plan, table, or Markdown response. Use
+        Markdown source for PDF/DOCX, CSV for XLSX, and `---` between PPTX slides.
+        """
         safe_name, extension, content_type = _artifact_name(filename)
         if not isinstance(content, str):
             raise TypeError("content must be a string")

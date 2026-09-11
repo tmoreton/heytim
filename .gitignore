@@ -1,3 +1,7 @@
 .DS_Store
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
 services/agent-runtime/.agentcore.json
 services/agent-runtime/evals/results/

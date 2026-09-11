@@ -23,8 +23,8 @@ requested, the runtime can save downloadable text, Markdown, CSV, JSON, HTML, PD
 PowerPoint artifacts. Meme Lord bots can search a private S3-backed catalog of popular Imgflip templates and
 overlay captions locally in each template's native text regions; they can also caption a recent user image.
 That path does not invoke an image model. A separately selected Image generator tool creates original images with
-Stable Image Core on Amazon Bedrock. It can also generate a background and deterministically compose a 1280x720
-YouTube thumbnail with exact recent user images and crisp text. Binary files are rendered inside the runtime, so the language model never has to emit base64 file data. Browser
+the configured OpenRouter image model. It can also send the complete composition, exact copy, and selected recent
+images in one request, then normalize the resulting YouTube thumbnail to 1280x720. Binary files are rendered inside the runtime, so the language model never has to emit base64 file data. Browser
 and code-interpreter sessions use stable conversation names and reconnect after a runtime restart.
 
 ## Supported capabilities
@@ -40,7 +40,7 @@ Tools:
 - `code_interpreter` - persistent AgentCore sandbox
 - `browser` - persistent AgentCore browser; the application requires per-turn user approval
 - `meme_lord` - private stored-template search and deterministic local caption rendering
-- `image_generator` - Bedrock text-to-image generation plus exact 1280x720 thumbnail composition from recent user images
+- `image_generator` - OpenRouter image generation plus reference-aware exact 1280x720 thumbnails from recent user images
 
 Skills and bot definitions are resolved from the current schema-version-3 public catalog. The runtime
 does not keep a second hard-coded bot catalog.
@@ -63,10 +63,10 @@ deploy-time configurable through these non-secret values in `agentcore/agentcore
 - `FROGBOT_OPENROUTER_MAX_ATTEMPTS` — total attempts before a pre-response OpenRouter failure is returned
 - `FROGBOT_CONTEXT_COMPRESSION_THRESHOLD` — ratio that triggers tool-pair-safe history summarization
 - `FROGBOT_MEME_TEMPLATE_PREFIX` — private S3 prefix containing `catalog.json` and normalized template PNGs
-- `FROGBOT_IMAGE_MODEL_ID` — original-image model; defaults to `stability.stable-image-core-v1:1`
-- `FROGBOT_IMAGE_REGION` — Bedrock image inference region; defaults to `us-west-2`
-- `FROGBOT_IMAGE_REQUEST_TIMEOUT_SECONDS` — maximum duration of one Bedrock image request
-- `FROGBOT_IMAGE_MAX_ATTEMPTS` — total adaptive SDK attempts for retryable Bedrock image failures
+- `FROGBOT_IMAGE_MODEL_ID` — OpenRouter image model; defaults to `openai/gpt-image-2.5-sunburst`
+- `FROGBOT_IMAGE_QUALITY` — requested image quality; defaults to `high`
+- `FROGBOT_IMAGE_REQUEST_TIMEOUT_SECONDS` — maximum duration of one OpenRouter image request
+- `FROGBOT_IMAGE_MAX_ATTEMPTS` — total attempts for retryable OpenRouter image failures
 
 ## Meme template catalog
 
@@ -148,3 +148,9 @@ uv run --frozen python -m evals.run_matrix
 
 Use repeated `--scenario` or `--variant` flags for targeted regressions. Full JSON evidence and a compact Markdown
 comparison are written under `evals/results/`, which is intentionally ignored by Git.
+
+Before a catalog release is published, evaluate its proposed bot and skill definitions directly:
+
+```bash
+uv run --frozen python -m evals.run_matrix --catalog /path/to/frogbot-skills/catalog.json
+```

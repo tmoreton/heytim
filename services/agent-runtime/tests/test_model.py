@@ -266,7 +266,7 @@ def test_deepseek_failure_uses_glm_before_any_response_is_returned() -> None:
 
     events = asyncio.run(
         _events(
-            model_loader.OpenRouterFallbackModel(
+            model_loader.PreResponseFallbackModel(
                 primary, fallback, fallback_name="GLM on OpenRouter"
             )
         )
@@ -292,7 +292,7 @@ def test_glm_fallback_never_repeats_a_started_deepseek_response() -> None:
     with pytest.raises(RuntimeError, match="late failure"):
         asyncio.run(
             _events(
-                model_loader.OpenRouterFallbackModel(
+                model_loader.PreResponseFallbackModel(
                     primary, fallback, fallback_name="GLM on OpenRouter"
                 )
             )

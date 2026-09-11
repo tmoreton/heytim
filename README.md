@@ -64,13 +64,13 @@ order for the preview app, live request path, AgentCore runtime, infrastructure,
 - Private image and document uploads, plus downloadable text, Markdown, CSV, JSON, HTML, PDF, Word, Excel,
   PowerPoint, and generated PNG artifacts in direct or shared group conversations
 - Meme Lord rendering from private S3 templates with template-aware caption placement, plus a separately selectable
-  Amazon Bedrock image tool for original images and exact-text YouTube thumbnails built from recent user images
+  OpenRouter image tool for original images and exact-text YouTube thumbnails built from recent user images
 - Per-bot name, description, prompt, color, tools, and version-pinned skills
 - Shared groups with a pinned owner-editable notebook, reviewable learned group memory, one-link passwordless participation, single-bot replies, and ordered team collaboration rounds
 - Inline reports, drafts, and next steps in chat, with downloadable documents when explicitly requested
 - Owner-controlled chat, bot, and group deletion with pending-work protection and invite revocation
 - A skill library for creating, editing, and sharing reusable ways of working
-- Chief as the protected built-in, plus eight installable bot templates and eight focused public skills from the dynamically refreshed catalog
+- Chief as the protected built-in, plus ten installable bot templates and eleven focused public skills from the dynamically refreshed catalog
 - Private HTTPS MCP connections with per-user bearer-token or API-key credentials
 - Bot snapshots, conversation snapshots, and live group invitations with 30-day links
 - Scoped AgentCore memory: private user preferences/facts, per-bot summaries, and isolated shared group preferences/facts/summaries, with in-app creation, review, editing, and forgetting

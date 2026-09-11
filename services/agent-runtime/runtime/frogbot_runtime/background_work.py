@@ -107,8 +107,9 @@ def background_command_tool(interpreter: Any, tracker: BackgroundWorkTracker):
         """Run a long shell command asynchronously in the persistent secure sandbox.
 
         Use this instead of synchronous code execution when a build, test suite, or
-        other command may take more than a couple of minutes. The platform resumes
-        the conversation automatically when the command finishes.
+        other command may take more than a couple of minutes. After it starts, call no
+        more tools and end the response. The platform resumes this conversation when
+        the command finishes.
         """
         return start_background_command(interpreter, tracker, command, label)
 

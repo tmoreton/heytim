@@ -127,22 +127,35 @@ def _recent_image_references(user_id: str, bot_id: str) -> list[dict]:
         if not isinstance(attachments, list):
             continue
         for attachment in attachments:
+            attachment_id = attachment.get("id") if isinstance(attachment, dict) else None
             if (
                 not isinstance(attachment, dict)
                 or attachment.get("kind") != "image"
-                or attachment.get("id") in seen
+                or not isinstance(attachment_id, str)
+                or not attachment_id
+                or attachment_id in seen
             ):
                 continue
-            blocks = _attachment_blocks({"attachments": [attachment]}, user_id)
+            try:
+                blocks = _attachment_blocks({"attachments": [attachment]}, user_id)
+            except (TypeError, ValueError):
+                # Historical uploads are optional context. One malformed record
+                # must not prevent the user's current message from running.
+                continue
             if not blocks or "image" not in blocks[0]:
                 continue
+            attachment_name = attachment.get("name")
             references.append(
                 {
-                    "name": attachment.get("name", f"Image {len(references) + 1}"),
+                    "name": (
+                        attachment_name
+                        if isinstance(attachment_name, str) and attachment_name.strip()
+                        else f"Image {len(references) + 1}"
+                    ),
                     "image": blocks[0]["image"],
                 }
             )
-            seen.add(attachment.get("id"))
+            seen.add(attachment_id)
             if len(references) >= MAX_RECENT_IMAGE_REFERENCES:
                 return references
     return references

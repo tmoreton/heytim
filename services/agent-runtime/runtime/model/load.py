@@ -146,9 +146,6 @@ class PreResponseFallbackModel(Model):
                 yield event
 
 
-OpenRouterFallbackModel = PreResponseFallbackModel
-
-
 class ResilientOpenRouterModel(Model):
     """Retry an OpenRouter response only before any model output is committed."""
 
@@ -460,7 +457,7 @@ async def load_model(usage: UsageAccumulator | None = None) -> Model:
             model_id=FALLBACK_MODEL_ID,
         )
     )
-    return OpenRouterFallbackModel(
+    return PreResponseFallbackModel(
         primary,
         fallback,
         fallback_name="GLM on OpenRouter",

@@ -116,14 +116,37 @@ def test_inline_default_preserves_explicit_export_and_meme_tools(monkeypatch) ->
         "save_artifact",
         "search_meme_templates",
     }
+    descriptions = {
+        tool.tool_name: tool.tool_spec["description"] for tool in config.tools
+    }
     assert "only when the user explicitly asks for a file" in config.instructions
     assert (
         "Requested exports and original images remain supported" in config.instructions
     )
-    assert "private template catalog" in config.instructions
-    assert "does not generate or broadly edit imagery" in config.instructions
-    assert "original images through Amazon Bedrock" in config.instructions
-    assert "exact, readable text" in config.instructions
+    assert "template ID and caption order" in descriptions["search_meme_templates"]
+    assert "does not generate or broadly edit it" in descriptions["compose_meme"]
+    assert "OpenRouter image model" in descriptions["generate_image"]
+    assert "IMAGE_REFERENCES manifest" in descriptions["create_youtube_thumbnail"]
+    assert "Amazon Bedrock" not in config.instructions
+    assert "generate_image" not in config.instructions
+    assert "compose_meme" not in config.instructions
+    assert "create_youtube_thumbnail" not in config.instructions
+
+
+def test_file_export_policy_lives_with_the_file_tool(monkeypatch) -> None:
+    monkeypatch.setattr(artifacts, "FILES_BUCKET_NAME", "test-inline-exports")
+    tool = artifacts.artifact_tool(
+        "users/"
+        f"{'a' * 64}/artifacts/12345678-1234-1234-1234-123456789012",
+        client=object(),
+    )
+
+    assert "explicit download, export, or native-document request" in (
+        tool.tool_spec["description"]
+    )
+    assert "ordinary report, plan, table, or Markdown response" in (
+        tool.tool_spec["description"]
+    )
 
 
 def test_creator_schedule_examples_request_complete_inline_briefs() -> None:
@@ -134,7 +157,9 @@ def test_creator_schedule_examples_request_complete_inline_briefs() -> None:
         "Heytim.dev",
         "strandsagents.com",
     }
+    assert pack["templateIds"] == ["trend-scout", "youtube-studio"]
     for group in pack["groups"]:
+        assert group["botTemplateIds"] == ["chief", "trend-scout"]
         schedule = group["schedule"]
         assert "Display the full brief inline in this group" in schedule["prompt"]
         assert "Files are only for an explicit export request" in schedule["prompt"]

@@ -92,6 +92,58 @@ class BotCatalogTests(unittest.TestCase):
 
 
 class BotInstallTests(test_api_safety.ApiTestCase):
+    def test_catalog_template_install_unions_skill_required_tools(self) -> None:
+        template = {
+            **TEST_BOT,
+            "id": "youtube-studio",
+            "skillIds": ["youtube-strategy", "youtube-thumbnail-director"],
+        }
+        required_tools = {
+            "youtube-strategy": ["youtube_search", "web_search"],
+            "youtube-thumbnail-director": ["image_generator", "web_search"],
+        }
+        with (
+            patch.object(self.bots.catalog, "get_bot_template", return_value=template),
+            patch.object(self.bots, "_list_bots", return_value=[]),
+            patch.object(
+                self.bots.catalog,
+                "validate_and_pin",
+                return_value={
+                    "youtube-strategy": 1,
+                    "youtube-thumbnail-director": 3,
+                },
+            ),
+            patch.object(
+                self.bots.catalog,
+                "get_version",
+                side_effect=lambda skill_id, _version: {
+                    "requiredToolIds": required_tools[skill_id]
+                },
+            ),
+            patch.object(
+                self.bots.catalog,
+                "validate_tools",
+                side_effect=lambda _user, tool_ids: list(dict.fromkeys(tool_ids)),
+            ),
+            patch.object(
+                self.bots.catalog,
+                "approval_tool_ids",
+                return_value=["image_generator"],
+            ),
+        ):
+            installed = self.bots._install_bot_template("user-1", template["id"])
+
+        self.assertEqual(
+            installed["toolIds"],
+            ["youtube_search", "web_search", "image_generator"],
+        )
+        self.assertEqual(installed["extraToolIds"], [])
+        self.assertEqual(installed["alwaysAllowedToolIds"], [])
+        self.assertEqual(
+            installed["skillVersions"],
+            {"youtube-strategy": 1, "youtube-thumbnail-director": 3},
+        )
+
     def test_catalog_template_install_tracks_provenance(self) -> None:
         template = {
             **TEST_BOT,

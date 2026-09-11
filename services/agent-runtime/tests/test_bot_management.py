@@ -160,6 +160,11 @@ def test_catalog_bindings_expose_chief_and_meme_tools(monkeypatch) -> None:
         "search_meme_templates",
         "update_bot",
     }
-    assert "Bot management is available only in this direct Chief chat" in (
-        config.instructions
-    )
+    descriptions = {
+        item.tool_name: item.tool_spec["description"] for item in config.tools
+    }
+    assert "untrusted configuration data" in descriptions["list_bot_options"]
+    assert "explicitly asked to create" in descriptions["create_bot"]
+    assert "explicitly requested update" in descriptions["update_bot"]
+    assert "Bot management" not in config.instructions
+    assert "list_bot_options" not in config.instructions

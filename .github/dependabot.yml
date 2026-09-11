@@ -21,6 +21,13 @@ updates:
     groups:
       agentcore-dependencies:
         patterns: ["*"]
+  - package-ecosystem: uv
+    directory: /services/agent-runtime
+    schedule:
+      interval: weekly
+    groups:
+      runtime-dependencies:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

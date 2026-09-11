@@ -11,6 +11,22 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  dependencies:
+    name: Audit production dependencies
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.23.2
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v10.0.1
+      - run: ./scripts/audit-dependencies.sh
+
   application:
     name: Verify application
     runs-on: ubuntu-latest
@@ -107,6 +123,7 @@ jobs:
     name: Publish FroggyBot app
     if: github.event_name == 'push'
     needs:
+      - dependencies
       - application
       - runtime
       - agentcore

@@ -281,7 +281,11 @@ def meme_tools(prefix: str, image_attachments: list[bytes], *, client=None):
 
     @tool
     def search_meme_templates(query: str = "", limit: int = 10) -> str:
-        """Find stored meme templates by name, aliases, or intended visual format."""
+        """Find private meme templates by name, aliases, or intended visual format.
+
+        Use this before composing a stored-format meme. The result supplies the exact
+        template ID and caption order that compose_meme expects.
+        """
         if not isinstance(query, str) or len(query.strip()) > MAX_MEME_SEARCH_CHARS:
             raise ValueError(
                 f"query must be text up to {MAX_MEME_SEARCH_CHARS} characters"
@@ -317,7 +321,11 @@ def meme_tools(prefix: str, image_attachments: list[bytes], *, client=None):
         attachment_number: int = 1,
         texts: list[str] | None = None,
     ) -> str:
-        """Caption a stored template with ordered texts, or use top/bottom text on an attached image."""
+        """Overlay captions on a stored template or a recent user-supplied image.
+
+        For a stored template, search first and preserve its returned caption order.
+        This tool captions existing imagery; it does not generate or broadly edit it.
+        """
         safe_name = _safe_png_name(filename)
         top = _clean_caption(top_text, "top_text")
         bottom = _clean_caption(bottom_text, "bottom_text")

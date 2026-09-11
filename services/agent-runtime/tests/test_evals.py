@@ -4,9 +4,9 @@ import json
 
 import pytest
 
+from evals import catalog_snapshot
 from evals.run_matrix import (
     MODEL_VARIANTS,
-    load_catalog_snapshot,
     load_scenarios,
     select_scenarios,
     summarize,
@@ -17,7 +17,7 @@ from evals.run_matrix import (
 def test_catalog_snapshot_uses_schema_three_bot_catalog(monkeypatch) -> None:
     catalog = {
         "schemaVersion": 3,
-        "repository": "tmoreton/frogbot-skills",
+        "repository": "tmoreton/froggybot-skills",
         "release": "skills-v42",
         "skills": [
             {
@@ -31,13 +31,14 @@ def test_catalog_snapshot_uses_schema_three_bot_catalog(monkeypatch) -> None:
         ],
         "bots": [{"id": "chief", "name": "Chief", "skillIds": ["analysis"]}],
     }
-    monkeypatch.setattr("evals.run_matrix._json_from_url", lambda _url: catalog)
+    monkeypatch.setattr(catalog_snapshot, "_json_from_url", lambda _url: catalog)
     monkeypatch.setattr(
-        "evals.run_matrix._text_from_url",
+        catalog_snapshot,
+        "_text_from_url",
         lambda _url: "---\nname: Analysis\n---\nAnalyze the supplied evidence.",
     )
 
-    release, skills, bots = load_catalog_snapshot()
+    release, skills, bots = catalog_snapshot.load_catalog_snapshot()
 
     assert release == "skills-v42"
     assert skills["analysis"]["instructions"] == "Analyze the supplied evidence."
@@ -46,27 +47,79 @@ def test_catalog_snapshot_uses_schema_three_bot_catalog(monkeypatch) -> None:
 
 def test_catalog_snapshot_rejects_retired_schema(monkeypatch) -> None:
     monkeypatch.setattr(
-        "evals.run_matrix._json_from_url",
+        catalog_snapshot,
+        "_json_from_url",
         lambda _url: {
             "schemaVersion": 2,
-            "repository": "tmoreton/frogbot-skills",
+            "repository": "tmoreton/froggybot-skills",
         },
     )
 
     with pytest.raises(ValueError, match="schema"):
-        load_catalog_snapshot()
+        catalog_snapshot.load_catalog_snapshot()
+
+
+def test_catalog_snapshot_can_load_a_proposed_local_release(tmp_path) -> None:
+    skill_path = tmp_path / "skills" / "analysis" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text(
+        "---\nname: analysis\n---\nAnalyze the supplied evidence.",
+        encoding="utf-8",
+    )
+    catalog_path = tmp_path / "catalog.json"
+    catalog_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 3,
+                "repository": "tmoreton/froggybot-skills",
+                "release": "skills-v99",
+                "skills": [
+                    {
+                        "id": "analysis",
+                        "path": "skills/analysis/SKILL.md",
+                        "name": "Analysis",
+                        "description": "Analyze evidence.",
+                        "version": 1,
+                        "requiredToolIds": [],
+                    }
+                ],
+                "bots": [
+                    {"id": "analyst", "name": "Analyst", "skillIds": ["analysis"]}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    release, skills, bots = catalog_snapshot.load_catalog_snapshot(catalog_path)
+
+    assert release == "skills-v99"
+    assert skills["analysis"]["instructions"] == "Analyze the supplied evidence."
+    assert set(bots) == {"analyst"}
 
 
 def test_scenario_corpus_covers_every_public_bot() -> None:
     scenarios = load_scenarios()
     bot_ids = {scenario["botId"] for scenario in scenarios}
     bots = {bot_id: {"id": bot_id} for bot_id in bot_ids}
+    expected_bot_ids = {
+        "budget-planner",
+        "chief",
+        "data-analyst",
+        "decision-coach",
+        "event-planner",
+        "meme-maker",
+        "project-organizer",
+        "research-reports",
+        "trend-scout",
+        "trip-planner",
+        "youtube-studio",
+    }
 
     validate_scenarios(scenarios, bots)
 
-    assert len(bot_ids) == 8
-    assert "chief" in bot_ids
-    assert len(scenarios) >= 24
+    assert bot_ids == expected_bot_ids
+    assert len(scenarios) >= 35
     assert all(len(scenario["assertions"]) >= 4 for scenario in scenarios)
 
 
