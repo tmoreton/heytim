@@ -16,7 +16,7 @@ from .bots import (
     _delete_bot,
     _get_bot,
     _install_bot_template,
-    _list_turns,
+    _list_turn_page,
     _messages_from_turns,
     _update_bot,
 )
@@ -29,7 +29,7 @@ from .direct_chat import (
     _send_message,
 )
 from .google_oauth import _begin_gmail_authorization
-from .group_messages import _list_group_messages, _send_group_message
+from .group_messages import _list_group_message_page, _send_group_message
 from .group_schedules import group_schedule_route
 from .groups import (
     _create_group,
@@ -129,9 +129,13 @@ def _group_message_route(
     event: dict,
 ) -> dict | None:
     if method == "GET" and path.startswith("/groups/") and path.endswith("/messages"):
+        query = event.get("queryStringParameters") or {}
+        messages, next_token = _list_group_message_page(
+            user_id, params.get("groupId", ""), query.get("cursor")
+        )
         return _response(
             200,
-            {"messages": _list_group_messages(user_id, params.get("groupId", ""))},
+            {"messages": messages, **({"nextToken": next_token} if next_token else {})},
         )
     if method == "POST" and path.startswith("/groups/") and path.endswith("/messages"):
         return _response(
@@ -310,8 +314,14 @@ def _direct_chat_route(
         return _response(200, {"documents": _list_bot_documents(user_id, bot_id)})
     if method == "GET" and path.startswith("/bots/") and path.endswith("/messages"):
         _get_bot(user_id, bot_id)
+        query = event.get("queryStringParameters") or {}
+        turns, next_token = _list_turn_page(user_id, bot_id, query.get("cursor"))
         return _response(
-            200, {"messages": _messages_from_turns(_list_turns(user_id, bot_id))}
+            200,
+            {
+                "messages": _messages_from_turns(turns),
+                **({"nextToken": next_token} if next_token else {}),
+            },
         )
     if method == "POST" and path.startswith("/bots/") and path.endswith("/messages"):
         return _response(202, _send_message(user_id, bot_id, _body(event)))

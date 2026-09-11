@@ -7,6 +7,8 @@ import {
   isActiveResponse,
   isPendingMessage,
   isRefreshingMessage,
+  mergeEarlierMessages,
+  mergeLatestMessages,
   reconcileBootstrap,
   reconcileMessages,
 } from './chat-state.ts';
@@ -20,6 +22,18 @@ test('classifies message lifecycle states consistently', () => {
   assert.equal(isRefreshingMessage(message('waiting')), true);
   assert.equal(isPendingMessage(message('awaiting_approval')), true);
   assert.equal(isPendingMessage(message('complete')), false);
+});
+
+test('merges paginated history without duplicating refreshed messages', () => {
+  const old = { ...message('complete'), id: 'old', text: 'Old' };
+  const first = { ...message('complete'), id: 'first', text: 'First' };
+  const second = { ...message('running'), id: 'second', text: 'Working' };
+  const withHistory = mergeEarlierMessages([first, second], [old, first]);
+  assert.deepEqual(withHistory.map((item) => item.id), ['old', 'first', 'second']);
+
+  const refreshed = mergeLatestMessages(withHistory, [first, { ...second, text: 'Done', status: 'complete' }]);
+  assert.deepEqual(refreshed.map((item) => item.id), ['old', 'first', 'second']);
+  assert.equal(refreshed[2].text, 'Done');
 });
 
 test('shows only one composer action while a response is running', () => {

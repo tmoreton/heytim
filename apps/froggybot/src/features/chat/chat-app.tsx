@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import {
   Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,21 +17,12 @@ import { endSession } from '@/lib/auth';
 import { createApi } from '@/lib/api';
 import type { Bot, BotDraft, CapabilitySelection, ConversationSelection, Group, GroupDraft, GroupMember, Invitation, Message } from '@/lib/types';
 
-import { AccountSettings } from './account-settings';
 import { ConversationActionSheets, type BotAction } from './bot-action-sheets';
-import { BotDocuments } from './bot-documents';
-import { BotEditor } from './bot-editor';
-import { BotLibrary } from './bot-library';
 import { styles } from './chat-app.styles';
 import type { ChatOverlay } from './chat-overlay';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationDrawer } from './conversation-drawer';
-import { GroupEditor } from './group-editor';
-import { ImagePreviewModal } from './image-preview-modal';
-import { MemorySettings } from './memory-settings';
 import { ALL_BOTS_REPLY_TARGET } from './message-composer';
-import { ScheduledTasks } from './scheduled-tasks';
-import { SkillLibrary } from './skill-library';
 import { useAttachments } from './use-attachments';
 import { useChatData } from './use-chat-data';
 import { useConversationLinks } from './use-conversation-links';
@@ -47,6 +39,16 @@ type Props = {
 
 const directTurnId = (message: Message) => message.id.replace(/-assistant$/, '');
 
+const AccountSettings = lazy(() => import('./account-settings').then((module) => ({ default: module.AccountSettings })));
+const BotDocuments = lazy(() => import('./bot-documents').then((module) => ({ default: module.BotDocuments })));
+const BotEditor = lazy(() => import('./bot-editor').then((module) => ({ default: module.BotEditor })));
+const BotLibrary = lazy(() => import('./bot-library').then((module) => ({ default: module.BotLibrary })));
+const GroupEditor = lazy(() => import('./group-editor').then((module) => ({ default: module.GroupEditor })));
+const ImagePreviewModal = lazy(() => import('./image-preview-modal').then((module) => ({ default: module.ImagePreviewModal })));
+const MemorySettings = lazy(() => import('./memory-settings').then((module) => ({ default: module.MemorySettings })));
+const ScheduledTasks = lazy(() => import('./scheduled-tasks').then((module) => ({ default: module.ScheduledTasks })));
+const SkillLibrary = lazy(() => import('./skill-library').then((module) => ({ default: module.SkillLibrary })));
+
 export function ChatApp({ demo, invitation, initialCapability, initialBotTemplateId, onSignedOut }: Props) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -58,11 +60,14 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
     selection,
     messages,
     loadingMessages,
+    loadingEarlierMessages,
+    hasEarlierMessages,
     error,
     setError,
     pending,
     loadBootstrap,
     loadMessages,
+    loadEarlierMessages,
     openConversation: setActiveConversation,
     upsertBot,
     upsertGroup,
@@ -365,6 +370,8 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
             group={selectedGroup}
             messages={messages}
             loading={loadingMessages}
+            loadingEarlier={loadingEarlierMessages}
+            hasEarlier={hasEarlierMessages}
             error={error}
             attachments={attachments}
             pending={pending}
@@ -395,6 +402,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
               const decision = await api.saveGroupDecision(selectedGroup.id, message.id);
               upsertGroup({ ...selectedGroup, decisions: [decision, ...selectedGroup.decisions.filter((item) => item.id !== decision.id)] });
             }}
+            onLoadEarlier={loadEarlierMessages}
           />
 
         </View>
@@ -421,6 +429,11 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
         </View>
       </Modal>
 
+      <Suspense fallback={(
+        <View accessibilityLabel="Loading" accessibilityRole="progressbar" style={styles.overlayLoading}>
+          <ActivityIndicator color="#007A3D" size="large" />
+        </View>
+      )}>
       {overlay.kind === 'botEditor' && data ? (
         <BotEditor
           key={`${overlay.mode}-${editingBot?.id ?? 'new'}-${suggestedCapability?.kind ?? ''}-${suggestedCapability?.id ?? ''}`}
@@ -553,6 +566,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
           onResolveFile={filePreview.resolveFile}
         />
       ) : null}
+      </Suspense>
       <ConversationActionSheets
         bot={selectedBot}
         group={selectedGroup}

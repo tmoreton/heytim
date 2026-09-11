@@ -20,6 +20,12 @@ verify_agentcore() {
     fi
   )
 
+  section "AgentCore evaluators"
+  (
+    cd "$repository_root/evaluators/frogbot_run_integrity"
+    uv run --project "$repository_root/services/agent-runtime" --frozen pytest -q
+  )
+
   section "Generated AgentCore CDK wrapper"
   (
     cd "$repository_root/agentcore/cdk"

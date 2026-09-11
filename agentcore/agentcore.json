@@ -126,6 +126,7 @@
     {
       "name": "FrogBotMemory",
       "eventExpiryDuration": 30,
+      "encryptionKeyArn": "arn:aws:kms:us-east-1:188757775631:key/e9929d3a-9dec-4f34-8c83-dd0586cb0ef8",
       "strategies": [
         {
           "type": "SEMANTIC",
@@ -158,8 +159,35 @@
       "name": "FrogBot_OpenRouter"
     }
   ],
-  "evaluators": [],
-  "onlineEvalConfigs": [],
+  "evaluators": [
+    {
+      "name": "FrogBotRunIntegrity",
+      "level": "SESSION",
+      "description": "Deterministically detects terminal failures without capturing conversation content",
+      "kmsKeyArn": "arn:aws:kms:us-east-1:188757775631:key/e9929d3a-9dec-4f34-8c83-dd0586cb0ef8",
+      "config": {
+        "codeBased": {
+          "managed": {
+            "codeLocation": "evaluators/frogbot_run_integrity",
+            "entrypoint": "lambda_function.handler",
+            "timeoutSeconds": 30
+          }
+        }
+      }
+    }
+  ],
+  "onlineEvalConfigs": [
+    {
+      "name": "FrogBotContinuousQuality",
+      "agent": "FrogBot",
+      "evaluators": [
+        "FrogBotRunIntegrity"
+      ],
+      "samplingRate": 5,
+      "description": "Samples deployed sessions for structural completion failures",
+      "enableOnCreate": true
+    }
+  ],
   "agentCoreGateways": [
     {
       "name": "FrogBotTools",
@@ -181,6 +209,18 @@
   "configBundles": [],
   "abTests": [],
   "harnesses": [],
-  "datasets": [],
+  "datasets": [
+    {
+      "name": "FrogBotRegression",
+      "schemaType": "AGENTCORE_EVALUATION_PREDEFINED_V1",
+      "description": "Critical behavior checks for research, browser, image, bot management, and failover",
+      "kmsKeyArn": "arn:aws:kms:us-east-1:188757775631:key/e9929d3a-9dec-4f34-8c83-dd0586cb0ef8",
+      "config": {
+        "managed": {
+          "location": "agentcore/datasets/FrogBotRegression.jsonl"
+        }
+      }
+    }
+  ],
   "payments": []
 }

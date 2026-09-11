@@ -35,11 +35,16 @@ type UploadAsset = {
   file?: File;
 };
 
+export type MessagePage = {
+  messages: Message[];
+  nextToken?: string;
+};
+
 export interface FrogBotApi {
   invitePreview(invitation: Invitation): Promise<InvitePreview>;
   bootstrap(): Promise<Bootstrap>;
   installBotTemplate(templateId: string): Promise<Bot>;
-  messages(botId: string): Promise<Message[]>;
+  messages(botId: string, cursor?: string): Promise<MessagePage>;
   botDocuments(botId: string): Promise<BotDocument[]>;
   browserStatus(context: BotBrowserContext): Promise<BotBrowserState>;
   openBrowser(context: BotBrowserContext, options?: BotBrowserOpenOptions): Promise<BotBrowserState>;
@@ -64,7 +69,7 @@ export interface FrogBotApi {
   deleteGroupSchedule(groupId: string, scheduleId: string): Promise<void>;
   runGroupSchedule(groupId: string, scheduleId: string): Promise<void>;
   groupScheduleRuns(groupId: string): Promise<ScheduleRun[]>;
-  groupMessages(groupId: string): Promise<Message[]>;
+  groupMessages(groupId: string, cursor?: string): Promise<MessagePage>;
   saveGroup(draft: GroupDraft, groupId?: string): Promise<Group>;
   deleteGroup(groupId: string): Promise<void>;
   sendGroupMessage(groupId: string, text: string, replyBotId?: string, attachmentIds?: string[]): Promise<void>;

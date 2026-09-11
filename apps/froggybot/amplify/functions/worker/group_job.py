@@ -21,6 +21,7 @@ from .artifacts import (
     _group_generated_artifact_prefix,
 )
 from .background_work import _queue_background_poll
+from .health_events import record_terminal_error
 from .job_lifecycle import (
     FailureDisposition,
     begin_attempt,
@@ -213,6 +214,7 @@ def _process_group_agent_reply(
                 _queue_background_poll(reply_key, request)
             return None
         if result.terminal_error:
+            record_terminal_error(result.terminal_error)
             cleanup_artifacts()
             failed_at = _finish_work(
                 reply_key,
@@ -231,6 +233,7 @@ def _process_group_agent_reply(
         answer = result.text
         artifacts = _collect_group_generated_artifacts(group_id, reply["id"])
     except Exception as error:
+        record_terminal_error(error)
         logger.exception("Agent request failed for group reply %s", reply.get("id"))
         answer = agent_failure_message(error)
         failure = finish_failed_attempt(

@@ -8,6 +8,7 @@ from .agent import _invoke, _progress_updater, agent_failure_message
 from .artifacts import _collect_generated_artifacts, _delete_generated_artifacts
 from .background_work import _queue_background_poll
 from .bot_mutations import apply_bot_mutations
+from .health_events import record_terminal_error
 from .job_lifecycle import (
     FailureDisposition,
     begin_attempt,
@@ -123,6 +124,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
                 _queue_background_poll(turn_key, request)
             return
         if result.terminal_error:
+            record_terminal_error(result.terminal_error)
             cleanup_artifacts()
             completed_at = _finish_work(
                 turn_key,
@@ -143,6 +145,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             apply_bot_mutations(user_id, bot, turn, result.bot_mutations)
         artifacts = _collect_generated_artifacts(user_id, bot_id, turn["id"])
     except Exception as error:
+        record_terminal_error(error)
         logger.exception("Agent request failed for turn %s", turn.get("id"))
         failure_answer = agent_failure_message(error)
         failure = finish_failed_attempt(

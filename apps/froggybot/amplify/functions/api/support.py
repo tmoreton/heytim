@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
 import logging
@@ -127,6 +129,34 @@ class ApiError(Exception):
         super().__init__(message)
         self.status_code = status_code
         self.message = message
+
+
+def _encode_page_cursor(last_key: dict | None) -> str | None:
+    if not last_key:
+        return None
+    sort_key = last_key.get("sk")
+    if not isinstance(sort_key, str):
+        return None
+    raw = json.dumps({"sk": sort_key}, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _decode_page_cursor(cursor: object, partition_key: str, prefix: str) -> dict | None:
+    if cursor in (None, ""):
+        return None
+    if not isinstance(cursor, str) or len(cursor) > 512:
+        raise ApiError(400, "The message cursor is invalid")
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        value = json.loads(
+            base64.b64decode(padded.encode("ascii"), altchars=b"-_", validate=True)
+        )
+    except (ValueError, UnicodeError, json.JSONDecodeError, binascii.Error) as exc:
+        raise ApiError(400, "The message cursor is invalid") from exc
+    sort_key = value.get("sk") if isinstance(value, dict) else None
+    if not isinstance(sort_key, str) or not sort_key.startswith(prefix):
+        raise ApiError(400, "The message cursor is invalid")
+    return {"pk": partition_key, "sk": sort_key}
 
 
 def _json_default(value: Any) -> Any:

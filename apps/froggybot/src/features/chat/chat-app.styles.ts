@@ -3,6 +3,14 @@ import { Platform, StyleSheet } from 'react-native';
 export const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FBFBF9' },
   shell: { flex: 1, flexDirection: 'row', overflow: 'hidden' },
+  overlayLoading: {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FBFBF9',
+  },
   wideDrawer: { width: 290 },
   mobileDrawerLayer: { position: 'absolute', inset: 0, zIndex: 20, flexDirection: 'row' },
   backdrop: { position: 'absolute', inset: 0, backgroundColor: 'rgba(18,18,15,0.28)' },

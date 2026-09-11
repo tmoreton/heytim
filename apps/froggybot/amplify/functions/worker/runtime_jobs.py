@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from shared.time import utc_now_iso
 
+from .health_events import record_terminal_error
 from .support import (
     AGENT_RUNTIME_ARN,
     AGENT_RUNTIME_QUALIFIER,
@@ -119,6 +120,7 @@ def poll_runtime_work(
                 if age >= RUNTIME_MAX_SECONDS
                 else "This run stopped reporting its health and was interrupted."
             )
+            record_terminal_error(message)
             state = {
                 **(state or {}),
                 "status": "ERROR",

@@ -1,0 +1,104 @@
+name: Deploy FroggyBot production infrastructure
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: frogbot-production-infrastructure
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Check required production configuration
+        env:
+          AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          AMPLIFY_APP_ID: ${{ vars.AMPLIFY_APP_ID }}
+          OPENROUTER_CREDENTIAL: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
+          GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_GOOGLE_OAUTH_SECRET_ARN }}
+        run: |
+          if [ -z "$AWS_DEPLOY_ROLE_ARN" ] || [ -z "$AMPLIFY_APP_ID" ]; then
+            echo "Set AWS_DEPLOY_ROLE_ARN and AMPLIFY_APP_ID in the production environment." >&2
+            exit 1
+          fi
+          if [ -z "$OPENROUTER_CREDENTIAL" ] || [ -z "$GOOGLE_OAUTH_SECRET_ARN" ]; then
+            echo "Set the OpenRouter and Google OAuth production secrets." >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Verify immutable non-root release source
+        run: ./scripts/assert-release-ready.sh --aws
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.23.2
+          cache: npm
+          cache-dependency-path: |
+            apps/froggybot/package-lock.json
+            apps/froggybot/amplify/package-lock.json
+            agentcore/cdk/package-lock.json
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/agent-runtime/uv.lock
+
+      - name: Install production dependencies
+        run: |
+          npm ci --prefix apps/froggybot
+          npm ci --prefix apps/froggybot/amplify
+          npm ci --prefix agentcore/cdk
+          npm install --global @aws/agentcore@0.28.1
+
+      - name: Verify release
+        run: ./scripts/verify.sh all
+
+      - name: Deploy AgentCore production target
+        env:
+          AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
+        run: agentcore deploy --target production --yes
+
+      - name: Resolve deployed runtime
+        run: |
+          agentcore status --target production --json > /tmp/frogbot-production-status.json
+          runtime_arn="$(jq -r '.resources[] | select(.resourceType == "agent" and .name == "FrogBot") | .identifier' /tmp/frogbot-production-status.json)"
+          memory_arn="$(jq -r '.resources[] | select(.resourceType == "memory" and .name == "FrogBotMemory") | .identifier' /tmp/frogbot-production-status.json)"
+          if [[ "$runtime_arn" != arn:aws:bedrock-agentcore:* ]] || [[ "$memory_arn" != arn:aws:bedrock-agentcore:* ]]; then
+            echo "AgentCore production resources are not ready." >&2
+            exit 1
+          fi
+          echo "FROGBOT_AGENT_RUNTIME_ARN=$runtime_arn" >> "$GITHUB_ENV"
+          echo "FROGBOT_MEMORY_ID=${memory_arn##*/}" >> "$GITHUB_ENV"
+
+      - name: Deploy Amplify production backend
+        working-directory: apps/froggybot
+        env:
+          FROGBOT_ENVIRONMENT: production
+          FROGBOT_GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_GOOGLE_OAUTH_SECRET_ARN }}
+        run: ./amplify/node_modules/.bin/ampx pipeline-deploy --branch main --app-id "${{ vars.AMPLIFY_APP_ID }}"
+
+      - name: Harden AgentCore runtime logs
+        run: |
+          logs_key_arn="$(jq -r '.custom.logsKeyArn' apps/froggybot/amplify_outputs.json)"
+          if [[ "$logs_key_arn" != arn:aws:kms:* ]]; then
+            echo "The production logs key output is missing." >&2
+            exit 1
+          fi
+          FROGBOT_LOGS_KMS_KEY_ARN="$logs_key_arn" ./scripts/harden-agentcore-logs.sh

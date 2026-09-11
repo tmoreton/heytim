@@ -103,6 +103,30 @@ export function addObservability({
     datapointsToAlarm: 1,
     treatMissingData: TreatMissingData.NOT_BREACHING,
   });
+  const terminalSignals = [
+    { id: 'Provider', category: 'provider', threshold: 2 },
+    { id: 'Image', category: 'image', threshold: 0 },
+    { id: 'Browser', category: 'browser', threshold: 0 },
+    { id: 'StalledRun', category: 'stalled', threshold: 0 },
+  ] as const;
+  const terminalErrorMetrics = terminalSignals.map(({ id, category }) =>
+    new MetricFilter(stack, `${id}TerminalErrorMetric`, {
+      logGroup: workerLogGroup,
+      filterPattern: FilterPattern.literal(`"FROGBOT_TERMINAL_ERROR category=${category}"`),
+      metricNamespace: `${stack.stackName}/AgentHealth`,
+      metricName: `${id}TerminalErrors`,
+      metricValue: '1',
+      defaultValue: 0,
+    }).metric({ statistic: 'Sum', period: Duration.minutes(5) }));
+  const terminalErrorAlarms = terminalSignals.map(({ id, threshold }, index) =>
+    new Alarm(stack, `${id}TerminalErrorAlarm`, {
+      metric: terminalErrorMetrics[index],
+      threshold,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      evaluationPeriods: 2,
+      datapointsToAlarm: 1,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    }));
   // The API adapter intentionally catches domain and unexpected errors to return
   // useful JSON. Those 5xx responses are successful Lambda invocations, so the
   // Lambda Errors metric alone cannot detect the failures users actually see.
@@ -247,6 +271,7 @@ export function addObservability({
     workerConcurrencyAlarm,
     queueAgeAlarm,
     deadLetterAlarm,
+    ...terminalErrorAlarms,
   ]) {
     alarm.addAlarmAction(new SnsAction(alarmTopic));
     alarm.addOkAction(new SnsAction(alarmTopic));
@@ -275,6 +300,7 @@ export function addObservability({
         workerConcurrencyAlarm,
         queueAgeAlarm,
         deadLetterAlarm,
+        ...terminalErrorAlarms,
       ],
     }),
     new GraphWidget({
@@ -298,6 +324,11 @@ export function addObservability({
       width: 12,
       title: 'Worker concurrency',
       left: [workerFunction.metric('ConcurrentExecutions')],
+    }),
+    new GraphWidget({
+      width: 12,
+      title: 'Agent terminal errors by category',
+      left: terminalErrorMetrics,
     }),
   );
 

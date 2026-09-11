@@ -4,5 +4,11 @@
     "description": "Live FrogBot development environment; not a production baseline",
     "account": "188757775631",
     "region": "us-east-1"
+  },
+  {
+    "name": "production",
+    "description": "Isolated FroggyBot production deployment target",
+    "account": "188757775631",
+    "region": "us-east-1"
   }
 ]

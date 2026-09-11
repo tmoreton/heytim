@@ -16,3 +16,10 @@ test('encodes every dynamic API path segment', () => {
     '/groups/group%2Fone/decisions/decision%3Ftwo',
   );
 });
+
+test('encodes opaque pagination cursors as query values', () => {
+  assert.equal(
+    apiRoutes.botMessages('bot/one', 'page+/='),
+    '/bots/bot%2Fone/messages?cursor=page%2B%2F%3D',
+  );
+});

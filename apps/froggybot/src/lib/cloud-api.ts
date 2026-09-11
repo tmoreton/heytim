@@ -1,6 +1,6 @@
 import { fetchAuthSession } from 'aws-amplify/auth';
 
-import type { FrogBotApi } from './api';
+import type { FrogBotApi, MessagePage } from './api';
 import { apiRoutes } from './api-routes';
 import { apiUrl } from './cloud';
 import { createBrowserApi } from './browser-api';
@@ -20,7 +20,6 @@ import type {
   InvitePreview,
   MemoryRecord,
   MemorySnapshot,
-  Message,
   ScheduleRun,
   ScheduledTask,
   SharedLink,
@@ -86,7 +85,7 @@ export const createCloudApi = (): FrogBotApi => ({
       .then((value) => ({ ...value, token })),
   bootstrap: () => request(apiRoutes.bootstrap),
   installBotTemplate: (templateId) => request<Bot>(apiRoutes.botTemplateInstall(templateId), { method: 'POST' }),
-  messages: (botId) => request<{ messages: Message[] }>(apiRoutes.botMessages(botId)).then((value) => value.messages),
+  messages: (botId, cursor) => request<MessagePage>(apiRoutes.botMessages(botId, cursor)),
   botDocuments: (botId) => request<{ documents: BotDocument[] }>(apiRoutes.botDocuments(botId)).then((value) => value.documents),
   saveBot: (draft, botId) => request<Bot>(botId ? apiRoutes.bot(botId) : apiRoutes.bots, {
     method: botId ? 'PUT' : 'POST',
@@ -169,7 +168,7 @@ export const createCloudApi = (): FrogBotApi => ({
   deleteGroupSchedule: async (id, scheduleId) => { await request(apiRoutes.groupSchedule(id, scheduleId), { method: 'DELETE' }); },
   runGroupSchedule: async (id, scheduleId) => { await request(apiRoutes.groupScheduleRun(id, scheduleId), { method: 'POST' }); },
   groupScheduleRuns: (id) => request<{ runs: ScheduleRun[] }>(apiRoutes.groupScheduleRuns(id)).then((value) => value.runs),
-  groupMessages: (groupId) => request<{ messages: Message[] }>(apiRoutes.groupMessages(groupId)).then((value) => value.messages),
+  groupMessages: (groupId, cursor) => request<MessagePage>(apiRoutes.groupMessages(groupId, cursor)),
   saveGroup: (draft, groupId) => request<Group>(groupId ? apiRoutes.group(groupId) : apiRoutes.groups, {
     method: groupId ? 'PUT' : 'POST',
     body: JSON.stringify(draft),

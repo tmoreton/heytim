@@ -4,11 +4,11 @@ import { CfnStage, CorsHttpMethod, HttpApi, HttpMethod } from 'aws-cdk-lib/aws-a
 import { HttpJwtAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import { Trail } from 'aws-cdk-lib/aws-cloudtrail';
-import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb';
+import { AttributeType, BillingMode, Table, TableEncryption } from 'aws-cdk-lib/aws-dynamodb';
 import { Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
 import { SqsQueue } from 'aws-cdk-lib/aws-events-targets';
 import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
-import { Key } from 'aws-cdk-lib/aws-kms';
+import { Alias, Key } from 'aws-cdk-lib/aws-kms';
 import { Code, Function as LambdaFunction, RecursiveLoop, Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
@@ -21,6 +21,7 @@ import { preSignUp } from './auth/pre-sign-up/resource';
 import { auth, emailCodeMessage } from './auth/resource';
 import { AUTHENTICATED_ROUTES } from './infrastructure/api-routes';
 import { addBrowserAccess } from './infrastructure/browser-access';
+import { addGithubDeploymentRole } from './infrastructure/deployment-role';
 import { addObservability } from './infrastructure/observability';
 
 const backend = defineBackend({ auth, preSignUp });
@@ -43,6 +44,10 @@ const FUNCTION_ASSET_EXCLUDES = [
   '.ruff_cache/**',
 ];
 const WORKER_CONCURRENCY = 10;
+const deploymentEnvironment = process.env.FROGBOT_ENVIRONMENT ?? 'development';
+if (!/^[a-z][a-z0-9-]{0,20}$/.test(deploymentEnvironment)) {
+  throw new Error('FROGBOT_ENVIRONMENT must be a short lowercase environment name.');
+}
 
 const runtimeArn = process.env.FROGBOT_AGENT_RUNTIME_ARN;
 if (!runtimeArn) {
@@ -100,6 +105,12 @@ const inviteAccess = new Table(backend.auth.stack, 'InviteAccess', {
   pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
   timeToLiveAttribute: 'expiresAt',
   removalPolicy: RemovalPolicy.RETAIN,
+  encryption: TableEncryption.CUSTOMER_MANAGED,
+  encryptionKey: new Key(backend.auth.stack, 'InviteDataKey', {
+    description: 'Encrypts FroggyBot invitation records.',
+    enableKeyRotation: true,
+    removalPolicy: RemovalPolicy.RETAIN,
+  }),
 });
 backend.preSignUp.addEnvironment('INVITE_TABLE_NAME', inviteAccess.tableName);
 inviteAccess.grantReadData(backend.preSignUp.resources.lambda);
@@ -119,6 +130,15 @@ backend.preSignUp.resources.lambda.addToRolePolicy(
   }),
 );
 
+const dataKey = new Key(stack, 'DataKey', {
+  description: 'Encrypts FroggyBot customer messages, settings, and files.',
+  enableKeyRotation: true,
+  removalPolicy: RemovalPolicy.RETAIN,
+});
+if (deploymentEnvironment === 'development') {
+  dataKey.addAlias('alias/frogbot-user-files');
+}
+
 const table = new Table(stack, 'Data', {
   partitionKey: { name: 'pk', type: AttributeType.STRING },
   sortKey: { name: 'sk', type: AttributeType.STRING },
@@ -126,37 +146,51 @@ const table = new Table(stack, 'Data', {
   pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
   timeToLiveAttribute: 'expiresAt',
   removalPolicy: RemovalPolicy.RETAIN,
+  encryption: TableEncryption.CUSTOMER_MANAGED,
+  encryptionKey: dataKey,
 });
 
-const filesBucket = new Bucket(stack, 'UserFiles', {
-  bucketName: `frogbot-user-files-${stack.account}-${stack.region}`,
-  blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
-  encryption: BucketEncryption.S3_MANAGED,
-  enforceSSL: true,
-  versioned: true,
-  cors: [
-    {
-      allowedHeaders: ['*'],
-      allowedMethods: [HttpMethods.GET, HttpMethods.HEAD, HttpMethods.POST],
-      allowedOrigins: ALLOWED_WEB_ORIGINS,
-      exposedHeaders: ['etag'],
-      maxAge: 3600,
-    },
-  ],
-  lifecycleRules: [
-    {
-      abortIncompleteMultipartUploadAfter: Duration.days(1),
-      noncurrentVersionExpiration: Duration.days(30),
-    },
-  ],
-  removalPolicy: RemovalPolicy.RETAIN,
-});
+const sharedFilesBucketName = `frogbot-user-files-${stack.account}-${stack.region}`;
+const sharedFilesKey = deploymentEnvironment === 'development'
+  ? dataKey
+  : Alias.fromAliasName(stack, 'SharedUserFilesKey', 'alias/frogbot-user-files');
+const filesBucket = deploymentEnvironment === 'development'
+  ? new Bucket(stack, 'UserFiles', {
+      bucketName: sharedFilesBucketName,
+      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+      encryption: BucketEncryption.KMS,
+      encryptionKey: dataKey,
+      bucketKeyEnabled: true,
+      enforceSSL: true,
+      versioned: true,
+      cors: [
+        {
+          allowedHeaders: ['*'],
+          allowedMethods: [HttpMethods.GET, HttpMethods.HEAD, HttpMethods.POST],
+          allowedOrigins: ALLOWED_WEB_ORIGINS,
+          exposedHeaders: ['etag'],
+          maxAge: 3600,
+        },
+      ],
+      lifecycleRules: [
+        {
+          abortIncompleteMultipartUploadAfter: Duration.days(1),
+          noncurrentVersionExpiration: Duration.days(30),
+        },
+      ],
+      removalPolicy: RemovalPolicy.RETAIN,
+    })
+  : Bucket.fromBucketAttributes(stack, 'SharedUserFiles', {
+      bucketName: sharedFilesBucketName,
+      encryptionKey: sharedFilesKey,
+    });
 
 const logsKey = new Key(stack, 'LogsKey', {
   description: 'Encrypts FroggyBot application and audit logs.',
   enableKeyRotation: true,
   removalPolicy: RemovalPolicy.RETAIN,
 });
+logsKey.addAlias(`alias/frogbot-${deploymentEnvironment}-logs`);
 logsKey.addToResourcePolicy(
   new PolicyStatement({
     effect: Effect.ALLOW,
@@ -181,6 +215,10 @@ logsKey.addToResourcePolicy(
     },
   }),
 );
+const githubDeployRole = addGithubDeploymentRole({
+  stack,
+  enabled: deploymentEnvironment === 'development',
+});
 logsKey.addToResourcePolicy(
   new PolicyStatement({
     effect: Effect.ALLOW,
@@ -555,6 +593,8 @@ backend.addOutput({
     dataTableName: table.tableName,
     filesBucketName: filesBucket.bucketName,
     alarmTopicArn: alarmTopic.topicArn,
+    logsKeyArn: logsKey.keyArn,
+    ...(githubDeployRole ? { githubDeployRoleArn: githubDeployRole.roleArn } : {}),
     monthlyBudgetName,
   },
 });

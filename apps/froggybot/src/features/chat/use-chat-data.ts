@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 import type { FrogBotApi } from '@/lib/api';
 import { chiefFirst } from '@/lib/bot-branding';
@@ -8,9 +9,12 @@ import {
   chooseAvailableSelection,
   isPendingMessage,
   isRefreshingMessage,
+  mergeEarlierMessages,
+  mergeLatestMessages,
   reconcileBootstrap,
   reconcileMessages,
 } from './chat-state';
+import { nextPollingDelay } from './polling';
 
 const MESSAGE_REFRESH_MS = 900;
 const CONVERSATION_REFRESH_MS = 1_200;
@@ -18,11 +22,18 @@ const CONVERSATION_REFRESH_MS = 1_200;
 export function useChatData(api: FrogBotApi) {
   const bootstrapRequestId = useRef(0);
   const messageRequestId = useRef(0);
+  const historyRequestId = useRef(0);
+  const firstMessagePageLoaded = useRef(false);
   const initialized = useRef(false);
   const [data, setData] = useState<Bootstrap>();
   const [selection, setSelection] = useState<ConversationSelection>();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [loadingEarlierMessages, setLoadingEarlierMessages] = useState(false);
+  const [nextMessageToken, setNextMessageToken] = useState<string>();
+  const [appActive, setAppActive] = useState(
+    AppState.currentState === null || AppState.currentState === 'active',
+  );
   const [error, setError] = useState('');
 
   const pending = messages.some(isPendingMessage);
@@ -30,56 +41,91 @@ export function useChatData(api: FrogBotApi) {
 
   const invalidateMessages = useCallback(() => {
     messageRequestId.current += 1;
+    historyRequestId.current += 1;
+    setLoadingEarlierMessages(false);
   }, []);
 
   const openConversation = useCallback((next: ConversationSelection) => {
     invalidateMessages();
     setMessages([]);
+    setNextMessageToken(undefined);
     setLoadingMessages(true);
     setSelection(next);
   }, [invalidateMessages]);
 
-  const readMessages = useCallback(async (target: ConversationSelection) => (
-    target.kind === 'group' ? api.groupMessages(target.id) : api.messages(target.id)
+  const readMessages = useCallback(async (target: ConversationSelection, cursor?: string) => (
+    target.kind === 'group' ? api.groupMessages(target.id, cursor) : api.messages(target.id, cursor)
   ), [api]);
 
-  const loadMessagesFor = useCallback(async (target: ConversationSelection) => {
+  const loadMessagesFor = useCallback(async (target: ConversationSelection): Promise<boolean> => {
     const currentRequest = ++messageRequestId.current;
+    const isFirstPage = !firstMessagePageLoaded.current;
     try {
       const next = await readMessages(target);
       if (currentRequest === messageRequestId.current) {
-        setMessages((current) => reconcileMessages(current, next));
+        setMessages((current) => next.nextToken
+          ? mergeLatestMessages(current, next.messages)
+          : reconcileMessages(current, next.messages));
+        setNextMessageToken((current) => (
+          isFirstPage || !next.nextToken ? next.nextToken : current
+        ));
+        firstMessagePageLoaded.current = true;
         setError('');
       }
+      return true;
     } catch (value) {
       if (currentRequest === messageRequestId.current) {
         setError(value instanceof Error ? value.message : 'Could not load this conversation.');
       }
+      return false;
     } finally {
       if (currentRequest === messageRequestId.current) setLoadingMessages(false);
     }
   }, [readMessages]);
 
   const loadMessages = useCallback(async () => {
-    if (selection) await loadMessagesFor(selection);
+    return selection ? loadMessagesFor(selection) : true;
   }, [loadMessagesFor, selection]);
 
-  const loadBootstrap = useCallback(async () => {
+  const loadEarlierMessages = useCallback(async () => {
+    if (!selection || !nextMessageToken || loadingEarlierMessages) return;
+    const target = selection;
+    const cursor = nextMessageToken;
+    const currentRequest = ++historyRequestId.current;
+    setLoadingEarlierMessages(true);
+    try {
+      const page = await readMessages(target, cursor);
+      if (currentRequest !== historyRequestId.current) return;
+      setMessages((current) => mergeEarlierMessages(current, page.messages));
+      setNextMessageToken(page.nextToken);
+      setError('');
+    } catch (value) {
+      if (currentRequest === historyRequestId.current) {
+        setError(value instanceof Error ? value.message : 'Could not load earlier messages.');
+      }
+    } finally {
+      if (currentRequest === historyRequestId.current) setLoadingEarlierMessages(false);
+    }
+  }, [loadingEarlierMessages, nextMessageToken, readMessages, selection]);
+
+  const loadBootstrap = useCallback(async (): Promise<boolean> => {
     const currentRequest = ++bootstrapRequestId.current;
     try {
       const next = await api.bootstrap();
-      if (currentRequest !== bootstrapRequestId.current) return;
+      if (currentRequest !== bootstrapRequestId.current) return true;
       const initialLoad = !initialized.current;
       initialized.current = true;
       setData((current) => reconcileBootstrap(current, next));
       setSelection((current) => chooseAvailableSelection(next, current));
       if (initialLoad) setLoadingMessages(Boolean(next.groups[0] ?? next.bots[0]));
       setError('');
+      return true;
     } catch (value) {
       if (currentRequest === bootstrapRequestId.current) {
         initialized.current = true;
         setError(value instanceof Error ? value.message : 'Could not load your bots.');
       }
+      return false;
     }
   }, [api]);
 
@@ -119,6 +165,7 @@ export function useChatData(api: FrogBotApi) {
     if (resetMessages) {
       invalidateMessages();
       setMessages([]);
+      setNextMessageToken(undefined);
       setLoadingMessages(Boolean(nextSelection));
     }
     setSelection(nextSelection);
@@ -133,6 +180,7 @@ export function useChatData(api: FrogBotApi) {
   const clearMessages = useCallback((loading = false) => {
     invalidateMessages();
     setMessages([]);
+    setNextMessageToken(undefined);
     setLoadingMessages(loading);
   }, [invalidateMessages]);
 
@@ -160,6 +208,13 @@ export function useChatData(api: FrogBotApi) {
   }, []);
 
   useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      setAppActive(state === 'active');
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
     const timer = setTimeout(() => void loadBootstrap(), 0);
     return () => {
       clearTimeout(timer);
@@ -169,6 +224,7 @@ export function useChatData(api: FrogBotApi) {
 
   useEffect(() => {
     if (!selection) return;
+    firstMessagePageLoaded.current = false;
     const timer = setTimeout(() => void loadMessagesFor(selection), 0);
     return () => {
       clearTimeout(timer);
@@ -177,48 +233,59 @@ export function useChatData(api: FrogBotApi) {
   }, [invalidateMessages, loadMessagesFor, selection]);
 
   useEffect(() => {
-    if (!refreshing) return;
+    if (!refreshing || !appActive) return;
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
+    let failures = 0;
     const poll = async () => {
-      await loadMessages();
-      if (active) timer = setTimeout(poll, MESSAGE_REFRESH_MS);
+      const succeeded = await loadMessages();
+      failures = succeeded ? 0 : failures + 1;
+      if (active) timer = setTimeout(poll, nextPollingDelay(MESSAGE_REFRESH_MS, failures));
     };
     timer = setTimeout(poll, MESSAGE_REFRESH_MS);
     return () => {
       active = false;
       clearTimeout(timer);
     };
-  }, [loadMessages, refreshing]);
+  }, [appActive, loadMessages, refreshing]);
 
   const conversationProcessing = Boolean(
     data?.bots.some((bot) => bot.processing) || data?.groups.some((group) => group.processing),
   );
   useEffect(() => {
-    if (!conversationProcessing) return;
+    if (!conversationProcessing || !appActive) return;
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
+    let failures = 0;
     const poll = async () => {
-      await loadBootstrap();
-      if (active) timer = setTimeout(poll, CONVERSATION_REFRESH_MS);
+      const succeeded = await loadBootstrap();
+      failures = succeeded ? 0 : failures + 1;
+      if (active) timer = setTimeout(poll, nextPollingDelay(CONVERSATION_REFRESH_MS, failures));
     };
     timer = setTimeout(poll, CONVERSATION_REFRESH_MS);
     return () => {
       active = false;
       clearTimeout(timer);
     };
-  }, [conversationProcessing, loadBootstrap]);
+  }, [appActive, conversationProcessing, loadBootstrap]);
+
+  const refreshBootstrap = useCallback(async () => {
+    await loadBootstrap();
+  }, [loadBootstrap]);
 
   return {
     data,
     selection,
     messages,
     loadingMessages,
+    loadingEarlierMessages,
+    hasEarlierMessages: Boolean(nextMessageToken),
     error,
     setError,
     pending,
-    loadBootstrap,
+    loadBootstrap: refreshBootstrap,
     loadMessages,
+    loadEarlierMessages,
     openConversation,
     upsertBot,
     upsertGroup,

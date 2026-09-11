@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: frogbot-app-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   application:
@@ -111,6 +111,7 @@ jobs:
       - runtime
       - agentcore
     runs-on: ubuntu-latest
+    environment: production
     permissions:
       contents: read
     defaults:
@@ -127,6 +128,10 @@ jobs:
 
       - name: Check out repository
         uses: actions/checkout@v5
+
+      - name: Verify immutable release source
+        working-directory: .
+        run: ./scripts/assert-release-ready.sh
 
       - name: Set up Node
         uses: actions/setup-node@v6
@@ -153,3 +158,18 @@ jobs:
       # Native WebView loads this release's browser viewer from the web host.
       - name: Publish production update
         run: eas update --channel production --environment production --message "main@${{ github.sha }}" --non-interactive
+
+      - name: Verify production security headers
+        working-directory: .
+        run: |
+          for attempt in 1 2 3 4 5; do
+            headers="$(curl --fail --silent --show-error --head https://app.froggybot.com)"
+            if grep -qi '^content-security-policy:' <<<"$headers" \
+              && grep -qi '^x-content-type-options: *nosniff' <<<"$headers" \
+              && grep -qi '^referrer-policy:' <<<"$headers"; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Production security headers are missing after deployment." >&2
+          exit 1

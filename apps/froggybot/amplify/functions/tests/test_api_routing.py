@@ -20,9 +20,9 @@ class ApiRoutingTests(unittest.TestCase):
 
     def test_bot_messages_do_not_match_group_routes(self) -> None:
         with (
-            patch.object(self.routes, "_list_group_messages") as group_messages,
+            patch.object(self.routes, "_list_group_message_page") as group_messages,
             patch.object(self.routes, "_get_bot"),
-            patch.object(self.routes, "_list_turns", return_value=[]),
+            patch.object(self.routes, "_list_turn_page", return_value=([], None)),
         ):
             response = self.routes.route_authenticated(
                 "user-1",
@@ -39,7 +39,7 @@ class ApiRoutingTests(unittest.TestCase):
 
     def test_group_messages_reach_the_group_domain(self) -> None:
         with patch.object(
-            self.routes, "_list_group_messages", return_value=[]
+            self.routes, "_list_group_message_page", return_value=([], None)
         ) as group_messages:
             response = self.routes.route_authenticated(
                 "user-1",
@@ -52,7 +52,35 @@ class ApiRoutingTests(unittest.TestCase):
             )
 
         self.assertEqual(response["statusCode"], 200)
-        group_messages.assert_called_once_with("user-1", "group-1")
+        group_messages.assert_called_once_with("user-1", "group-1", None)
+
+    def test_message_cursor_is_forwarded_to_the_scoped_query(self) -> None:
+        with patch.object(
+            self.routes, "_list_group_message_page", return_value=([], "next")
+        ) as group_messages:
+            response = self.routes.route_authenticated(
+                "user-1",
+                "Tim",
+                "GET",
+                "/groups/group-1/messages",
+                {"groupId": "group-1"},
+                {"queryStringParameters": {"cursor": "opaque"}},
+                route_key="GET /groups/{groupId}/messages",
+            )
+
+        self.assertIn('"nextToken":"next"', response["body"])
+        group_messages.assert_called_once_with("user-1", "group-1", "opaque")
+
+    def test_message_cursor_is_opaque_and_partition_scoped(self) -> None:
+        token = self.support._encode_page_cursor(
+            {"pk": "ignored", "sk": "TURN#2026-09-11#turn-1"}
+        )
+        self.assertEqual(
+            self.support._decode_page_cursor(token, "TURN#user#bot", "TURN#"),
+            {"pk": "TURN#user#bot", "sk": "TURN#2026-09-11#turn-1"},
+        )
+        with self.assertRaises(self.support.ApiError):
+            self.support._decode_page_cursor(token, "GROUP#one", "MESSAGE#")
 
     def test_group_memory_reaches_the_scoped_memory_domain(self) -> None:
         snapshot = {"records": [], "rawConversationRetentionDays": 30}

@@ -11,16 +11,14 @@ AWS until a later reviewed deployment updates both infrastructure and state.
 
 ## Environment posture
 
-The sole target is explicitly a development environment. Its `PUBLIC` runtime network mode is
-intentional because the runtime needs outbound access to OpenRouter and reviewed remote MCP endpoints;
-it is not a production network baseline. Before promoting this configuration to production, design a
-VPC egress path and required service endpoints, then add a separate stable target rather than renaming
-the existing one.
+Development and production are separate stable deployment targets. Their `PUBLIC` runtime network mode is
+intentional because the runtime needs outbound access to OpenRouter and reviewed remote MCP endpoints.
+Moving production into a VPC requires a reviewed NAT egress path and service endpoints; do not switch the
+network mode without that path or rename either existing target.
 
 The current AgentCore project schema does not own the runtime CloudWatch log group's KMS key or
-retention. Production promotion is blocked until separate reviewed infrastructure manages encryption
-and at least 30-day retention for `/aws/bedrock-agentcore/runtimes/<runtime-id>`. Keep that ownership
-outside generated CDK until the schema exposes supported fields.
+retention. `scripts/harden-agentcore-logs.sh` manages 30-day retention and customer-managed encryption
+after deployment. Keep that ownership outside generated CDK until the schema exposes supported fields.
 
 ## Package boundary
 

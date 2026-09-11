@@ -16,6 +16,8 @@ from .support import (
     QUEUE_URL,
     ApiError,
     _bot_color,
+    _decode_page_cursor,
+    _encode_page_cursor,
     _group_message_sk,
     _group_pk,
     _now,
@@ -26,20 +28,28 @@ from .support import (
 )
 
 
-def _list_group_messages(user_id: str, group_id: str, limit: int = 100) -> list[dict]:
+def _list_group_message_page(
+    user_id: str, group_id: str, cursor: object = None, limit: int = 50
+) -> tuple[list[dict], str | None]:
     _, group_items = _require_group_member(user_id, group_id)
     group_bots = {
         item["botId"]: item
         for item in group_items
         if item.get("entity") == "GROUP_BOT" and isinstance(item.get("botId"), str)
     }
-    items = table.query(
-        KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
-        ExpressionAttributeValues={":pk": _group_pk(group_id), ":prefix": "MESSAGE#"},
-        ScanIndexForward=False,
-        Limit=limit,
-        ConsistentRead=True,
-    ).get("Items", [])
+    partition_key = _group_pk(group_id)
+    request = {
+        "KeyConditionExpression": "pk = :pk AND begins_with(sk, :prefix)",
+        "ExpressionAttributeValues": {":pk": partition_key, ":prefix": "MESSAGE#"},
+        "ScanIndexForward": False,
+        "Limit": limit,
+        "ConsistentRead": True,
+    }
+    start_key = _decode_page_cursor(cursor, partition_key, "MESSAGE#")
+    if start_key:
+        request["ExclusiveStartKey"] = start_key
+    response = table.query(**request)
+    items = response.get("Items", [])
     messages = []
     for item in reversed(items):
         messages.append(
@@ -79,7 +89,11 @@ def _list_group_messages(user_id: str, group_id: str, limit: int = 100) -> list[
                 if value is not None
             }
         )
-    return messages
+    return messages, _encode_page_cursor(response.get("LastEvaluatedKey"))
+
+
+def _list_group_messages(user_id: str, group_id: str, limit: int = 100) -> list[dict]:
+    return _list_group_message_page(user_id, group_id, limit=limit)[0]
 
 
 def _send_group_message(

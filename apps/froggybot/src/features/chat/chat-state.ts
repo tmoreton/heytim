@@ -55,6 +55,22 @@ export function reconcileMessages(current: Message[], next: Message[]): Message[
   return changed ? reconciled : current;
 }
 
+export function mergeLatestMessages(current: Message[], latest: Message[]): Message[] {
+  if (current.length === 0) return latest;
+  const latestIds = new Set(latest.map((message) => message.id));
+  const older = current.filter((message) => !latestIds.has(message.id));
+  return reconcileMessages(current, [...older, ...latest]);
+}
+
+export function mergeEarlierMessages(current: Message[], earlier: Message[]): Message[] {
+  if (earlier.length === 0) return current;
+  const currentIds = new Set(current.map((message) => message.id));
+  return reconcileMessages(current, [
+    ...earlier.filter((message) => !currentIds.has(message.id)),
+    ...current,
+  ]);
+}
+
 export function reconcileBootstrap(current: Bootstrap | undefined, next: Bootstrap): Bootstrap {
   return current && sameJsonValue(current, next) ? current : next;
 }

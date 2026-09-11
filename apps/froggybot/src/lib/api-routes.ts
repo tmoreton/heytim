@@ -1,4 +1,6 @@
 const segment = (value: string): string => encodeURIComponent(value);
+const withCursor = (path: string, cursor?: string): string =>
+  cursor ? `${path}?cursor=${segment(cursor)}` : path;
 
 export const apiRoutes = {
   account: '/account',
@@ -6,7 +8,7 @@ export const apiRoutes = {
   bot: (botId: string) => `/bots/${segment(botId)}`,
   bots: '/bots',
   botDocuments: (botId: string) => `/bots/${segment(botId)}/documents`,
-  botMessages: (botId: string) => `/bots/${segment(botId)}/messages`,
+  botMessages: (botId: string, cursor?: string) => withCursor(`/bots/${segment(botId)}/messages`, cursor),
   botMessageAction: (botId: string, turnId: string, action: 'approve' | 'cancel') =>
     `/bots/${segment(botId)}/messages/${segment(turnId)}/${action}`,
   botSchedules: (botId: string) => `/bots/${segment(botId)}/schedules`,
@@ -32,7 +34,7 @@ export const apiRoutes = {
   groupInvites: (groupId: string) => `/groups/${segment(groupId)}/invites`,
   groupMember: (groupId: string, memberId: string) =>
     `/groups/${segment(groupId)}/members/${segment(memberId)}`,
-  groupMessages: (groupId: string) => `/groups/${segment(groupId)}/messages`,
+  groupMessages: (groupId: string, cursor?: string) => withCursor(`/groups/${segment(groupId)}/messages`, cursor),
   groupDecisions: (groupId: string) => `/groups/${segment(groupId)}/decisions`,
   groupDecision: (groupId: string, decisionId: string) =>
     `/groups/${segment(groupId)}/decisions/${segment(decisionId)}`,

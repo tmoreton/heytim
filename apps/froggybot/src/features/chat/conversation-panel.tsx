@@ -33,6 +33,8 @@ type Props = {
   group?: Group;
   messages: Message[];
   loading: boolean;
+  loadingEarlier: boolean;
+  hasEarlier: boolean;
   error: string;
   attachments: Attachment[];
   pending: boolean;
@@ -59,6 +61,7 @@ type Props = {
   onOpenFile: (file: Attachment) => Promise<void>;
   onResolveFile: (fileId: string) => Promise<string>;
   onSaveDecision: (message: Message) => Promise<void>;
+  onLoadEarlier: () => Promise<void>;
 };
 
 type ChatScroll = ReturnType<typeof useChatScroll>;
@@ -68,6 +71,8 @@ type MessageListProps = {
   group?: Group;
   messages: Message[];
   loading: boolean;
+  loadingEarlier: boolean;
+  hasEarlier: boolean;
   list: ChatScroll['list'];
   onScroll: ChatScroll['onScroll'];
   onLayout: ChatScroll['onLayout'];
@@ -79,6 +84,7 @@ type MessageListProps = {
   onOpenFile: (file: Attachment) => Promise<void>;
   onResolveFile: (fileId: string) => Promise<string>;
   onSaveDecision: (message: Message) => Promise<void>;
+  onLoadEarlier: () => void;
 };
 
 const StableMessageBubble = memo(MessageBubble);
@@ -99,6 +105,8 @@ const ConversationMessages = memo(function ConversationMessages({
   group,
   messages,
   loading,
+  loadingEarlier,
+  hasEarlier,
   list,
   onScroll,
   onLayout,
@@ -110,6 +118,7 @@ const ConversationMessages = memo(function ConversationMessages({
   onOpenFile,
   onResolveFile,
   onSaveDecision,
+  onLoadEarlier,
 }: MessageListProps) {
   if (loading) {
     return (
@@ -135,6 +144,22 @@ const ConversationMessages = memo(function ConversationMessages({
       onLayout={onLayout}
       onScroll={onScroll}
       scrollEventThrottle={16}
+      maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+      ListHeaderComponent={hasEarlier ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Load earlier messages"
+          accessibilityState={{ disabled: loadingEarlier, busy: loadingEarlier }}
+          disabled={loadingEarlier}
+          style={({ pressed }) => [styles.loadEarlier, pressed && styles.pressed]}
+          onPress={onLoadEarlier}>
+          {loadingEarlier ? (
+            <ActivityIndicator color="#007A3D" size="small" />
+          ) : (
+            <Text style={styles.loadEarlierText}>Load earlier messages</Text>
+          )}
+        </Pressable>
+      ) : null}
       ListEmptyComponent={
         group ? (
           <View style={styles.emptyState}>
@@ -189,6 +214,8 @@ export function ConversationPanel({
   group,
   messages,
   loading,
+  loadingEarlier,
+  hasEarlier,
   error,
   attachments,
   pending,
@@ -215,6 +242,7 @@ export function ConversationPanel({
   onOpenFile,
   onResolveFile,
   onSaveDecision,
+  onLoadEarlier,
 }: Props) {
   const { list, onScroll, onLayout, onContentSizeChange, preserveScrollPosition, jumpToLatest, showJumpToLatest } = useChatScroll();
   const [draft, setDraft] = useState('');
@@ -227,6 +255,11 @@ export function ConversationPanel({
   const stableOpenFile = useStableCallback(onOpenFile);
   const stableResolveFile = useStableCallback(onResolveFile);
   const stableSaveDecision = useStableCallback(onSaveDecision);
+  const stableLoadEarlier = useStableCallback(onLoadEarlier);
+  const loadEarlier = useCallback(() => {
+    preserveScrollPosition();
+    void stableLoadEarlier();
+  }, [preserveScrollPosition, stableLoadEarlier]);
   const { listening, abort: abortDictation, toggle: toggleDictation } = useMessageDictation(
     draft,
     setDraft,
@@ -296,6 +329,8 @@ export function ConversationPanel({
         group={group}
         messages={messages}
         loading={loading}
+        loadingEarlier={loadingEarlier}
+        hasEarlier={hasEarlier}
         list={list}
         onContentSizeChange={onContentSizeChange}
         onLayout={onLayout}
@@ -307,6 +342,7 @@ export function ConversationPanel({
         onOpenFile={stableOpenFile}
         onResolveFile={stableResolveFile}
         onSaveDecision={stableSaveDecision}
+        onLoadEarlier={loadEarlier}
       />
 
       {showJumpToLatest ? (
@@ -361,6 +397,8 @@ const styles = StyleSheet.create({
   memoryArrow: { color: '#5E806E', fontSize: 20, marginTop: -2 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   messageList: { flex: 1, minHeight: 0 },
+  loadEarlier: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingHorizontal: 18, marginBottom: 8 },
+  loadEarlierText: { color: '#007A3D', fontSize: 13, fontWeight: '700' },
   messages: { paddingHorizontal: 14, paddingTop: 24, paddingBottom: 42, maxWidth: 780, width: '100%', alignSelf: 'center' },
   mobileWidth: { maxWidth: '100%', paddingHorizontal: 12 },
   jumpContainer: { maxWidth: 780, width: '100%', alignSelf: 'center' },

@@ -20,6 +20,7 @@ from .bot_roles import (
     DEFAULT_BOT_COLOR,
 )
 from .bot_setup import ensure_chief, install_bot_template
+from .direct_messages import _list_turn_page
 from .support import (
     QUEUE_URL,
     ApiError,
@@ -236,17 +237,7 @@ def _install_bot_template(user_id: str, template_id: str) -> dict:
 
 
 def _list_turns(user_id: str, bot_id: str, limit: int = 100) -> list[dict]:
-    items = table.query(
-        KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
-        ExpressionAttributeValues={
-            ":pk": _turn_pk(user_id, bot_id),
-            ":prefix": "TURN#",
-        },
-        ScanIndexForward=False,
-        Limit=limit,
-        ConsistentRead=True,
-    ).get("Items", [])
-    return sorted(items, key=lambda item: item["createdAt"])
+    return _list_turn_page(user_id, bot_id, limit=limit)[0]
 
 
 def _messages_from_turns(turns: list[dict]) -> list[dict]:

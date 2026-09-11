@@ -172,7 +172,8 @@ export function MessageComposer({
           value={draft}
           onChangeText={onDraftChange}
           onContentSizeChange={({ nativeEvent }) => {
-            setInputHeight(Math.max(38, Math.min(112, nativeEvent.contentSize.height)));
+            const nextHeight = Math.max(38, Math.min(112, nativeEvent.contentSize.height));
+            setInputHeight((current) => current === nextHeight ? current : nextHeight);
           }}
           onKeyPress={handleKeyPress}
           placeholder={listening
