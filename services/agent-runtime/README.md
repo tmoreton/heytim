@@ -17,12 +17,14 @@ the store on each model turn, exposes semantic search, and gives delegated agent
 scope. Durable writes remain explicit AgentCore events after completed top-level turns.
 
 The latest user turn may contain reviewed image or document blocks stored in FroggyBot's private S3
-bucket. Both uploads and generated artifacts are bound to the invoking user's hashed identity. When
+bucket. Image tools also receive a bounded list of the five most recent images from that same private bot
+conversation, without adding old binary attachments to the model's message history. Both uploads and generated artifacts are bound to the invoking user's hashed identity. When
 requested, the runtime can save downloadable text, Markdown, CSV, JSON, HTML, PDF, Word, Excel, and
 PowerPoint artifacts. Meme Lord bots can search a private S3-backed catalog of popular Imgflip templates and
-overlay captions locally in each template's native text regions; they can also caption an image attached to the latest user
-message. That path does not invoke an image model. A separately selected Image generator tool creates original images from
-text prompts with Meta Muse Image through OpenRouter. Binary files are rendered inside the runtime, so the language model never has to emit base64 file data. Browser
+overlay captions locally in each template's native text regions; they can also caption a recent user image.
+That path does not invoke an image model. A separately selected Image generator tool creates original images with
+Stable Image Core on Amazon Bedrock. It can also generate a background and deterministically compose a 1280x720
+YouTube thumbnail with exact recent user images and crisp text. Binary files are rendered inside the runtime, so the language model never has to emit base64 file data. Browser
 and code-interpreter sessions use stable conversation names and reconnect after a runtime restart.
 
 ## Supported capabilities
@@ -38,7 +40,7 @@ Tools:
 - `code_interpreter` - persistent AgentCore sandbox
 - `browser` - persistent AgentCore browser; the application requires per-turn user approval
 - `meme_lord` - private stored-template search and deterministic local caption rendering
-- `image_generator` - original text-to-image generation with Meta Muse Image; external generation requires approval by default
+- `image_generator` - Bedrock text-to-image generation plus exact 1280x720 thumbnail composition from recent user images
 
 Skills and bot definitions are resolved from the current schema-version-3 public catalog. The runtime
 does not keep a second hard-coded bot catalog.
@@ -61,9 +63,10 @@ deploy-time configurable through these non-secret values in `agentcore/agentcore
 - `FROGBOT_OPENROUTER_MAX_ATTEMPTS` — total attempts before a pre-response OpenRouter failure is returned
 - `FROGBOT_CONTEXT_COMPRESSION_THRESHOLD` — ratio that triggers tool-pair-safe history summarization
 - `FROGBOT_MEME_TEMPLATE_PREFIX` — private S3 prefix containing `catalog.json` and normalized template PNGs
-- `FROGBOT_IMAGE_MODEL_ID` — original-image model; defaults to `meta/muse-image`
-- `FROGBOT_IMAGE_REQUEST_TIMEOUT_SECONDS` — maximum duration of one OpenRouter image request
-- `FROGBOT_IMAGE_MAX_ATTEMPTS` — bounded attempts for failed, non-completed image requests
+- `FROGBOT_IMAGE_MODEL_ID` — original-image model; defaults to `stability.stable-image-core-v1:1`
+- `FROGBOT_IMAGE_REGION` — Bedrock image inference region; defaults to `us-west-2`
+- `FROGBOT_IMAGE_REQUEST_TIMEOUT_SECONDS` — maximum duration of one Bedrock image request
+- `FROGBOT_IMAGE_MAX_ATTEMPTS` — total adaptive SDK attempts for retryable Bedrock image failures
 
 ## Meme template catalog
 
@@ -98,7 +101,8 @@ agentcore invoke --dev 'What can you do?'
 
 The production worker sends structured invocation payloads containing `messages`, `bot`, and, for
 direct and group turns, trusted `memory` and `artifacts` envelopes. The runtime validates every field, permits
-attachments only on the latest user message, binds file paths to that user's identity, and strips any
+model-visible attachments only on the latest user message, exposes at most five recent same-chat images only to
+image tools, binds every file path to that user's identity, and strips any
 trailing tool-use block before invoking Strands. Direct payloads contain at most 100 recent messages. Strands
 automatically compacts at 85% of the model context window by summarizing the oldest 30% and preserving at least the
 newest 10 messages. Direct AgentCore scopes retrieve preferences, facts, and per-bot topic summaries. Group scopes

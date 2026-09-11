@@ -64,7 +64,7 @@ order for the preview app, live request path, AgentCore runtime, infrastructure,
 - Private image and document uploads, plus downloadable text, Markdown, CSV, JSON, HTML, PDF, Word, Excel,
   PowerPoint, and generated PNG artifacts in direct or shared group conversations
 - Meme Lord rendering from private S3 templates with template-aware caption placement, plus a separately selectable
-  Meta Muse Image tool for original images from text prompts
+  Amazon Bedrock image tool for original images and exact-text YouTube thumbnails built from recent user images
 - Per-bot name, description, prompt, color, tools, and version-pinned skills
 - Shared groups with a pinned owner-editable notebook, reviewable learned group memory, one-link passwordless participation, single-bot replies, and ordered team collaboration rounds
 - Inline reports, drafts, and next steps in chat, with downloadable documents when explicitly requested
@@ -114,7 +114,7 @@ agentcore status --target development --type memory --json
 The development target is account `188757775631` in `us-east-1`. Confirm that both the runtime and
 memory are ready, then copy the deployed runtime ARN from the status output. Model selection is defined only in
 `agentcore/agentcore.json`: OpenRouter uses DeepSeek V4.1 Flash with GLM 5.3 as a bounded pre-response fallback, while
-the separately selected original-image tool uses Meta Muse Image.
+the separately selected image tool uses Stable Image Core on Amazon Bedrock.
 CDK synthesis refuses uncommitted source so production releases
 come from a reproducible Git snapshot. Required provider access must be available in the configured accounts and regions. The private file bucket has
 the deterministic name `frogbot-user-files-188757775631-us-east-1`; when adding another deployment

@@ -111,6 +111,7 @@ def test_inline_default_preserves_explicit_export_and_meme_tools(monkeypatch) ->
 
     assert {tool.tool_name for tool in config.tools} == {
         "compose_meme",
+        "create_youtube_thumbnail",
         "generate_image",
         "save_artifact",
         "search_meme_templates",
@@ -121,7 +122,8 @@ def test_inline_default_preserves_explicit_export_and_meme_tools(monkeypatch) ->
     )
     assert "private template catalog" in config.instructions
     assert "does not generate or broadly edit imagery" in config.instructions
-    assert "one original image from a text prompt" in config.instructions
+    assert "original images through Amazon Bedrock" in config.instructions
+    assert "exact, readable text" in config.instructions
 
 
 def test_creator_schedule_examples_request_complete_inline_briefs() -> None:

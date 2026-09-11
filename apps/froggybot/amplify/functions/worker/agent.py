@@ -5,6 +5,7 @@ import logging
 from dataclasses import dataclass, field
 from decimal import Decimal
 
+from boto3.dynamodb.conditions import Key
 from shared.agent_stream import AgentTerminalError, ProgressCallback, read_agent_stream
 from shared.catalog import CatalogError
 from shared.group_chat import (
@@ -36,6 +37,8 @@ from .work import _pause_work, _restore_paused_work
 logger = logging.getLogger(__name__)
 RECENT_DIRECT_TURNS = 50
 MAX_TEAM_BOTS = 24
+MAX_RECENT_IMAGE_REFERENCES = 5
+RECENT_IMAGE_REFERENCE_TURNS = 20
 
 
 def agent_failure_message(error: Exception) -> str:
@@ -106,6 +109,43 @@ def _get_history(
                 "Verify repository state and other external actions before repeating them.\n" + progress
             )}]})
     return messages
+
+
+def _recent_image_references(user_id: str, bot_id: str) -> list[dict]:
+    """Return recent images owned by this user and shared in this bot chat."""
+    turns = table.query(
+        KeyConditionExpression=Key("pk").eq(_turn_pk(user_id, bot_id))
+        & Key("sk").begins_with("TURN#"),
+        ScanIndexForward=False,
+        Limit=RECENT_IMAGE_REFERENCE_TURNS,
+        ConsistentRead=True,
+    ).get("Items", [])
+    references = []
+    seen = set()
+    for turn in turns:
+        attachments = turn.get("attachments", [])
+        if not isinstance(attachments, list):
+            continue
+        for attachment in attachments:
+            if (
+                not isinstance(attachment, dict)
+                or attachment.get("kind") != "image"
+                or attachment.get("id") in seen
+            ):
+                continue
+            blocks = _attachment_blocks({"attachments": [attachment]}, user_id)
+            if not blocks or "image" not in blocks[0]:
+                continue
+            references.append(
+                {
+                    "name": attachment.get("name", f"Image {len(references) + 1}"),
+                    "image": blocks[0]["image"],
+                }
+            )
+            seen.add(attachment.get("id"))
+            if len(references) >= MAX_RECENT_IMAGE_REFERENCES:
+                return references
+    return references
 
 
 def _get_group_history(
@@ -346,6 +386,14 @@ def _invoke(
         },
         "team": _team_roster(user_id, bot_id),
     }
+    if group_context is None and event_id and any(
+        tool.get("runtime", {}).get("kind") == "local"
+        and tool.get("runtime", {}).get("name") in {"image_generator", "meme_lord"}
+        for tool in resolved_tools
+    ):
+        image_references = _recent_image_references(user_id, bot_id)
+        if image_references:
+            payload["imageReferences"] = image_references
     if bot_management is not None:
         payload["botManagement"] = bot_management
     if memory is not None:

@@ -4,41 +4,44 @@ import asyncio
 import base64
 import binascii
 import io
+import json
 import os
 import re
-from collections.abc import Awaitable, Callable
+import secrets
 from pathlib import Path
 from typing import Any
 
 import boto3
-import httpx
-from PIL import Image, ImageOps, UnidentifiedImageError
+from botocore.config import Config
+from botocore.exceptions import ClientError
+from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from strands import tool
-
-from model.load import OPENROUTER_BASE_URL, _openrouter_api_key
 
 from . import artifacts
 
-IMAGE_MODEL_ID = os.environ.get("FROGBOT_IMAGE_MODEL_ID", "meta/muse-image")
+IMAGE_MODEL_ID = os.environ.get(
+    "FROGBOT_IMAGE_MODEL_ID", "stability.stable-image-core-v1:1"
+)
+IMAGE_REGION = os.environ.get("FROGBOT_IMAGE_REGION", "us-west-2")
 IMAGE_REQUEST_TIMEOUT_SECONDS = int(
     os.environ.get("FROGBOT_IMAGE_REQUEST_TIMEOUT_SECONDS", "300")
 )
-IMAGE_MAX_ATTEMPTS = int(os.environ.get("FROGBOT_IMAGE_MAX_ATTEMPTS", "2"))
+IMAGE_MAX_ATTEMPTS = int(os.environ.get("FROGBOT_IMAGE_MAX_ATTEMPTS", "4"))
 MAX_IMAGE_PROMPT_CHARS = 4_000
 MAX_ENCODED_IMAGE_BYTES = 12_000_000
 MAX_IMAGE_PIXELS = 20_000_000
 MAX_IMAGE_SIDE = 4_096
-RETRYABLE_STATUS_CODES = {408, 409, 429, 500, 502, 503, 504}
+MAX_REFERENCE_IMAGES = 5
+ASPECT_RATIOS = {"square": "1:1", "youtube": "16:9", "portrait": "9:16"}
 
-if not re.fullmatch(
-    r"[a-z0-9][a-z0-9._-]{0,63}/[a-z0-9][a-z0-9._-]{0,127}",
-    IMAGE_MODEL_ID,
-):
+if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{1,127}", IMAGE_MODEL_ID):
     raise ValueError("FROGBOT_IMAGE_MODEL_ID is invalid")
+if not re.fullmatch(r"[a-z]{2}-[a-z]+-\d", IMAGE_REGION):
+    raise ValueError("FROGBOT_IMAGE_REGION is invalid")
 if not 30 <= IMAGE_REQUEST_TIMEOUT_SECONDS <= 600:
     raise ValueError("FROGBOT_IMAGE_REQUEST_TIMEOUT_SECONDS must be between 30 and 600")
-if not 1 <= IMAGE_MAX_ATTEMPTS <= 3:
-    raise ValueError("FROGBOT_IMAGE_MAX_ATTEMPTS must be between 1 and 3")
+if not 1 <= IMAGE_MAX_ATTEMPTS <= 5:
+    raise ValueError("FROGBOT_IMAGE_MAX_ATTEMPTS must be between 1 and 5")
 
 
 def _safe_png_name(value: Any) -> str:
@@ -51,30 +54,29 @@ def _safe_png_name(value: Any) -> str:
     return f"{(stem or 'FroggyBot image')[:80]}.png"
 
 
-def _prompt(value: Any) -> str:
+def _clean_text(value: Any, field: str, maximum: int) -> str:
     if not isinstance(value, str):
-        raise TypeError("prompt must be text")
+        raise TypeError(f"{field} must be text")
     clean = " ".join(value.split()).strip()
-    if not clean or len(clean) > MAX_IMAGE_PROMPT_CHARS:
-        raise ValueError(
-            f"prompt must be between 1 and {MAX_IMAGE_PROMPT_CHARS} characters"
-        )
+    if not clean or len(clean) > maximum:
+        raise ValueError(f"{field} must be between 1 and {maximum} characters")
     return clean
 
 
-def _response_image(payload: Any) -> bytes:
-    data = payload.get("data") if isinstance(payload, dict) else None
-    item = data[0] if isinstance(data, list) and data else None
-    encoded = item.get("b64_json") if isinstance(item, dict) else None
+def _prompt(value: Any) -> str:
+    return _clean_text(value, "prompt", MAX_IMAGE_PROMPT_CHARS)
+
+
+def _decoded_image(encoded: Any) -> bytes:
     if not isinstance(encoded, str) or not encoded:
-        raise RuntimeError("OpenRouter image generation returned no image")
+        raise RuntimeError("Bedrock image generation returned no image")
     if len(encoded) > MAX_ENCODED_IMAGE_BYTES:
-        raise RuntimeError("OpenRouter image generation returned an oversized image")
+        raise RuntimeError("Bedrock image generation returned an oversized image")
     try:
         return base64.b64decode(encoded, validate=True)
     except (binascii.Error, ValueError) as exc:
         raise RuntimeError(
-            "OpenRouter image generation returned invalid image data"
+            "Bedrock image generation returned invalid image data"
         ) from exc
 
 
@@ -90,7 +92,7 @@ def _normalized_png(body: bytes) -> bytes:
             or width * height > MAX_IMAGE_PIXELS
         ):
             raise RuntimeError(
-                "OpenRouter image generation returned unsupported dimensions"
+                "Bedrock image generation returned unsupported dimensions"
             )
         source.seek(0)
         image = ImageOps.exif_transpose(source)
@@ -101,110 +103,300 @@ def _normalized_png(body: bytes) -> bytes:
         result = output.getvalue()
     except (UnidentifiedImageError, OSError) as exc:
         raise RuntimeError(
-            "OpenRouter image generation returned an unsupported image"
+            "Bedrock image generation returned an unsupported image"
         ) from exc
     if not result or len(result) > artifacts.MAX_ARTIFACT_BYTES:
-        raise RuntimeError("OpenRouter image generation returned an oversized PNG")
+        raise RuntimeError("Bedrock image generation returned an oversized PNG")
     return result
 
 
-def _retry_delay(response: httpx.Response, attempt: int) -> float | None:
-    if (
-        attempt >= IMAGE_MAX_ATTEMPTS
-        or response.status_code not in RETRYABLE_STATUS_CODES
-    ):
-        return None
-    retry_after = response.headers.get("retry-after")
+def _client():
+    return boto3.client(
+        "bedrock-runtime",
+        region_name=IMAGE_REGION,
+        config=Config(
+            retries={"total_max_attempts": IMAGE_MAX_ATTEMPTS, "mode": "adaptive"},
+            connect_timeout=5,
+            read_timeout=IMAGE_REQUEST_TIMEOUT_SECONDS,
+        ),
+    )
+
+
+def _invoke_image(target, prompt: str, aspect_ratio: str) -> bytes:
+    request = {
+        "prompt": prompt,
+        "negative_prompt": (
+            "unreadable text, misspelled words, random letters, watermark, signature, "
+            "duplicate subjects, blurry, low contrast"
+        ),
+        "aspect_ratio": aspect_ratio,
+        "output_format": "png",
+        "seed": secrets.randbelow(4_294_967_295),
+    }
     try:
-        delay = float(retry_after) if retry_after is not None else 2 ** (attempt - 1)
-    except ValueError:
-        delay = 2 ** (attempt - 1)
-    return min(30.0, max(0.0, delay))
+        response = target.invoke_model(
+            modelId=IMAGE_MODEL_ID,
+            body=json.dumps(request),
+            contentType="application/json",
+            accept="application/json",
+        )
+    except ClientError as exc:
+        code = exc.response.get("Error", {}).get("Code", "")
+        if code in {"AccessDeniedException", "UnauthorizedException"}:
+            message = "Bedrock image generation is not authorized"
+        elif code in {"ThrottlingException", "TooManyRequestsException"}:
+            message = "Bedrock image generation is temporarily rate limited"
+        elif code in {
+            "InternalServerException",
+            "ModelTimeoutException",
+            "ServiceUnavailableException",
+        }:
+            message = "Bedrock image generation is temporarily unavailable"
+        else:
+            message = "Bedrock image generation failed"
+        raise RuntimeError(message) from exc
+
+    body = response.get("body")
+    if body is None or not hasattr(body, "read"):
+        raise RuntimeError("Bedrock image generation returned an invalid response")
+    try:
+        raw = body.read()
+    finally:
+        close = getattr(body, "close", None)
+        if callable(close):
+            close()
+    try:
+        payload = json.loads(raw)
+    except (TypeError, UnicodeDecodeError, ValueError) as exc:
+        raise RuntimeError(
+            "Bedrock image generation returned an invalid response"
+        ) from exc
+    images = payload.get("images") if isinstance(payload, dict) else None
+    finish_reasons = (
+        payload.get("finish_reasons") if isinstance(payload, dict) else None
+    )
+    if not isinstance(images, list) or not images:
+        if isinstance(finish_reasons, list) and any(finish_reasons):
+            raise RuntimeError("Bedrock image generation was blocked by content safety")
+        raise RuntimeError("Bedrock image generation returned no image")
+    return _normalized_png(_decoded_image(images[0]))
 
 
-def _generation_error(response: httpx.Response) -> RuntimeError:
-    if response.status_code in {401, 403}:
-        message = "OpenRouter rejected the image-generation credential"
-    elif response.status_code == 402:
-        message = "OpenRouter image-generation credits are unavailable"
-    elif response.status_code == 429:
-        message = "OpenRouter image generation is temporarily rate limited"
-    else:
-        message = f"OpenRouter image generation failed (HTTP {response.status_code})"
-    return RuntimeError(message)
+def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    try:
+        return ImageFont.truetype("DejaVuSans-Bold.ttf", size=size)
+    except OSError:
+        return ImageFont.load_default(size=size)
 
 
-def image_generation_tool(
+def _cover(image: Image.Image, size: tuple[int, int]) -> Image.Image:
+    return ImageOps.fit(image, size, method=Image.Resampling.LANCZOS)
+
+
+def _open_reference(reference: dict) -> Image.Image:
+    try:
+        source = Image.open(io.BytesIO(reference["body"]))
+        if source.width < 64 or source.height < 64:
+            raise ValueError("The selected reference image is too small")
+        if source.width * source.height > MAX_IMAGE_PIXELS:
+            raise ValueError("The selected reference image has too many pixels")
+        source.seek(0)
+        return ImageOps.exif_transpose(source).convert("RGBA")
+    except (KeyError, UnidentifiedImageError, OSError) as exc:
+        raise ValueError("The selected reference image is not supported") from exc
+
+
+def _reference(references: list[dict], number: Any) -> dict:
+    if (
+        not isinstance(number, int)
+        or isinstance(number, bool)
+        or not 1 <= number <= len(references)
+    ):
+        raise ValueError("reference image number is unavailable")
+    return references[number - 1]
+
+
+def _fit_text(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    max_width: int,
+    max_height: int,
+    maximum_size: int,
+) -> tuple[ImageFont.FreeTypeFont | ImageFont.ImageFont, tuple[int, int, int, int]]:
+    for size in range(maximum_size, 23, -2):
+        font = _font(size)
+        bounds = draw.textbbox((0, 0), text, font=font, stroke_width=max(1, size // 28))
+        if bounds[2] - bounds[0] <= max_width and bounds[3] - bounds[1] <= max_height:
+            return font, bounds
+    raise ValueError("thumbnail text is too long to fit legibly")
+
+
+def _compose_thumbnail(
+    background: bytes,
+    references: list[dict],
+    headline: str,
+    subheadline: str,
+    portrait_number: int,
+    logo_numbers: list[int],
+) -> bytes:
+    canvas = _cover(
+        Image.open(io.BytesIO(background)).convert("RGB"), (1280, 720)
+    ).convert("RGBA")
+    canvas.alpha_composite(Image.new("RGBA", canvas.size, (0, 0, 0, 42)))
+    draw = ImageDraw.Draw(canvas)
+
+    if portrait_number:
+        portrait = _cover(
+            _open_reference(_reference(references, portrait_number)), (360, 360)
+        )
+        mask = Image.new("L", portrait.size, 0)
+        ImageDraw.Draw(mask).ellipse((4, 4, 356, 356), fill=255)
+        shadow = Image.new("RGBA", (388, 388), (0, 0, 0, 0))
+        ImageDraw.Draw(shadow).ellipse((10, 14, 378, 382), fill=(0, 0, 0, 145))
+        canvas.alpha_composite(shadow, (12, 320))
+        border = Image.new("RGBA", portrait.size, (255, 255, 255, 255))
+        canvas.paste(border, (28, 336), mask)
+        inner = portrait.resize((340, 340), Image.Resampling.LANCZOS)
+        inner_mask = mask.resize((340, 340), Image.Resampling.LANCZOS)
+        canvas.paste(inner, (38, 346), inner_mask)
+
+    selected_logos = [
+        _open_reference(_reference(references, item)) for item in logo_numbers
+    ]
+    if selected_logos:
+        card_width = 190
+        gap = 22
+        total_width = len(selected_logos) * card_width + (len(selected_logos) - 1) * gap
+        start_x = 1240 - total_width
+        for index, logo in enumerate(selected_logos):
+            x = start_x + index * (card_width + gap)
+            draw.rounded_rectangle(
+                (x, 438, x + card_width, 628),
+                radius=28,
+                fill=(255, 255, 255, 238),
+                outline=(255, 255, 255, 255),
+                width=4,
+            )
+            logo.thumbnail((150, 150), Image.Resampling.LANCZOS)
+            canvas.alpha_composite(
+                logo,
+                (x + (card_width - logo.width) // 2, 438 + (190 - logo.height) // 2),
+            )
+
+    title_draw = ImageDraw.Draw(canvas)
+    title_font, title_bounds = _fit_text(title_draw, headline, 1120, 170, 112)
+    title_width = title_bounds[2] - title_bounds[0]
+    title_draw.text(
+        ((1280 - title_width) / 2 - title_bounds[0], 58 - title_bounds[1]),
+        headline,
+        font=title_font,
+        fill="white",
+        stroke_width=max(3, title_font.size // 25),
+        stroke_fill="#08131F",
+    )
+    if subheadline:
+        sub_font, sub_bounds = _fit_text(title_draw, subheadline, 760, 90, 62)
+        sub_width = sub_bounds[2] - sub_bounds[0]
+        box_left = (1280 - sub_width) / 2 - 42
+        box_top = 594
+        box_right = (1280 + sub_width) / 2 + 42
+        box_bottom = 684
+        title_draw.rounded_rectangle(
+            (box_left, box_top, box_right, box_bottom),
+            radius=18,
+            fill=(7, 18, 31, 232),
+            outline="#FFFFFF",
+            width=3,
+        )
+        title_draw.text(
+            ((1280 - sub_width) / 2 - sub_bounds[0], 609 - sub_bounds[1]),
+            subheadline,
+            font=sub_font,
+            fill="white",
+        )
+
+    output = io.BytesIO()
+    canvas.convert("RGB").save(output, format="PNG", optimize=True)
+    return _normalized_png(output.getvalue())
+
+
+def image_generation_tools(
     prefix: str,
+    image_references: list[dict] | None = None,
     *,
     s3_client=None,
-    http_client: httpx.AsyncClient | None = None,
-    api_key_loader: Callable[[], Awaitable[str]] | None = None,
+    bedrock_client=None,
 ):
     if not artifacts.FILES_BUCKET_NAME or not artifacts._valid_prefix(prefix):
         raise ValueError("Artifact storage is not configured")
-    target = s3_client or boto3.client("s3")
-    load_api_key = api_key_loader or _openrouter_api_key
+    storage = s3_client or boto3.client("s3")
+    generator = bedrock_client or _client()
+    references = list(image_references or [])[:MAX_REFERENCE_IMAGES]
 
     @tool
-    async def generate_image(filename: str, prompt: str) -> str:
-        """Create one original image from a text prompt with Muse Image and save it as a PNG."""
+    async def generate_image(
+        filename: str, prompt: str, aspect_ratio: str = "square"
+    ) -> str:
+        """Create one original image with Bedrock. aspect_ratio is square, youtube, or portrait."""
         safe_name = _safe_png_name(filename)
         clean_prompt = _prompt(prompt)
-        try:
-            api_key = await load_api_key()
-        except Exception as exc:
-            raise RuntimeError("OpenRouter image-generation credential lookup failed") from exc
-        if not isinstance(api_key, str) or not api_key:
-            raise RuntimeError("OpenRouter image-generation credential is empty")
-
-        owns_client = http_client is None
-        client = http_client or httpx.AsyncClient(
-            timeout=httpx.Timeout(IMAGE_REQUEST_TIMEOUT_SECONDS, connect=5)
+        if aspect_ratio not in ASPECT_RATIOS:
+            raise ValueError("aspect_ratio must be square, youtube, or portrait")
+        image = await asyncio.to_thread(
+            _invoke_image, generator, clean_prompt, ASPECT_RATIOS[aspect_ratio]
         )
-        try:
-            response = None
-            for attempt in range(1, IMAGE_MAX_ATTEMPTS + 1):
-                try:
-                    response = await client.post(
-                        f"{OPENROUTER_BASE_URL.rstrip('/')}/images",
-                        headers={
-                            "Authorization": f"Bearer {api_key}",
-                            "HTTP-Referer": "https://froggybot.com",
-                            "X-OpenRouter-Title": "FroggyBot",
-                        },
-                        json={"model": IMAGE_MODEL_ID, "prompt": clean_prompt},
-                    )
-                except httpx.RequestError as exc:
-                    if attempt >= IMAGE_MAX_ATTEMPTS:
-                        raise RuntimeError(
-                            "OpenRouter image generation could not be reached"
-                        ) from exc
-                    await asyncio.sleep(2 ** (attempt - 1))
-                    continue
-                delay = _retry_delay(response, attempt)
-                if delay is None:
-                    break
-                await asyncio.sleep(delay)
-            if response is None or response.status_code >= 400:
-                if response is None:
-                    raise RuntimeError("OpenRouter image generation did not respond")
-                raise _generation_error(response)
-            try:
-                payload = response.json()
-            except ValueError as exc:
-                raise RuntimeError(
-                    "OpenRouter image generation returned an invalid response"
-                ) from exc
-            image = _normalized_png(_response_image(payload))
-        finally:
-            if owns_client:
-                await client.aclose()
+        artifacts._put_artifact(storage, prefix, safe_name, image, "image/png")
+        return f"Saved {safe_name} as an original image created with Amazon Bedrock."
 
-        artifacts._put_artifact(target, prefix, safe_name, image, "image/png")
-        return f"Saved {safe_name} as an original image created with Muse Image."
+    @tool
+    async def create_youtube_thumbnail(
+        filename: str,
+        background_prompt: str,
+        headline: str,
+        subheadline: str = "",
+        portrait_image_number: int = 0,
+        logo_image_numbers: list[int] | None = None,
+    ) -> str:
+        """Create a 1280x720 thumbnail with crisp text and exact recent user images selected by number."""
+        safe_name = _safe_png_name(filename)
+        clean_prompt = _prompt(background_prompt)
+        clean_headline = _clean_text(headline, "headline", 80)
+        clean_subheadline = (
+            _clean_text(subheadline, "subheadline", 100) if subheadline else ""
+        )
+        logo_numbers = list(logo_image_numbers or [])
+        if len(logo_numbers) > 3:
+            raise ValueError("logo_image_numbers can contain at most 3 images")
+        if portrait_image_number:
+            _reference(references, portrait_image_number)
+        for number in logo_numbers:
+            _reference(references, number)
+        background = await asyncio.to_thread(
+            _invoke_image,
+            generator,
+            (
+                f"{clean_prompt}. Abstract cinematic background only, clean empty surfaces, "
+                "strong contrast, no labels, no interface panels, no people."
+            ),
+            "16:9",
+        )
+        image = _compose_thumbnail(
+            background,
+            references,
+            clean_headline,
+            clean_subheadline,
+            portrait_image_number,
+            logo_numbers,
+        )
+        artifacts._put_artifact(storage, prefix, safe_name, image, "image/png")
+        used = (
+            " using the selected recent images"
+            if portrait_image_number or logo_numbers
+            else ""
+        )
+        return f"Saved {safe_name} as a 1280x720 YouTube thumbnail{used}."
 
-    return generate_image
+    return [generate_image, create_youtube_thumbnail]
 
 
-__all__ = ["image_generation_tool"]
+__all__ = ["image_generation_tools"]

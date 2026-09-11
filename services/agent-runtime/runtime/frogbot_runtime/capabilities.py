@@ -15,7 +15,7 @@ from .capability_contract import (
     validate_skill_selection,
 )
 from .gateway_tools import gateway_client, gateway_operations
-from .image_generation import image_generation_tool
+from .image_generation import image_generation_tools
 from .local_tools import CUSTOM_TOOLS
 from .mcp_connections import (
     GITHUB_MCP_ENDPOINT,
@@ -49,7 +49,7 @@ def resolve_capabilities(
     allow_background_work: bool = True,
     managed_browser: dict | None = None,
     bot_management: dict | None = None,
-    image_attachments: list[bytes] | None = None,
+    image_references: list[dict] | None = None,
 ) -> CapabilityConfiguration:
     bindings = tool_bindings(bot)
     skills = dynamic_skills(bot)
@@ -60,17 +60,22 @@ def resolve_capabilities(
         for item in bindings
         if item["kind"] == "local" and item["name"] in CUSTOM_TOOLS
     ]
-    local_names = {
-        item["name"] for item in bindings if item["kind"] == "local"
-    }
+    local_names = {item["name"] for item in bindings if item["kind"] == "local"}
     if "bot_manager" in local_names and bot_management is not None:
         tools.extend(bot_management_tools(bot_management, bot_mutations))
     if artifact_prefix:
         tools.append(artifact_tool(artifact_prefix))
         if "meme_lord" in local_names:
-            tools.extend(meme_tools(artifact_prefix, image_attachments or []))
+            tools.extend(
+                meme_tools(
+                    artifact_prefix,
+                    [item["body"] for item in image_references or []],
+                )
+            )
         if "image_generator" in local_names:
-            tools.append(image_generation_tool(artifact_prefix))
+            tools.extend(
+                image_generation_tools(artifact_prefix, image_references or [])
+            )
     managed_tools, interpreter, browser = agentcore_tools(
         bindings,
         session_id,

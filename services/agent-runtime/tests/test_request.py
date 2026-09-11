@@ -9,6 +9,7 @@ from frogbot_runtime.request import (
     MAX_HISTORY_MESSAGES,
     MAX_HISTORY_TEXT_CHARS,
     MAX_MESSAGE_CHARS,
+    image_references_from_payload,
     messages_from_payload,
 )
 
@@ -206,6 +207,51 @@ def test_attachment_from_another_user_is_rejected(monkeypatch) -> None:
         )
 
 
+def test_recent_image_references_are_user_bound_and_not_added_to_history(
+    monkeypatch,
+) -> None:
+    actor_id = "a" * 64
+    monkeypatch.setattr(
+        "frogbot_runtime.request.FILES_BUCKET_NAME",
+        "frogbot-user-files-123-us-east-1",
+    )
+
+    class FakeS3:
+        def get_object(self, **_request):
+            return {"ContentLength": 9, "Body": BytesIO(b"image-ref")}
+
+    monkeypatch.setattr("frogbot_runtime.request._s3", FakeS3())
+    payload = {
+        "messages": [{"role": "user", "content": [{"text": "Use my logo"}]}],
+        "imageReferences": [
+            {
+                "name": "folder/Logo.png",
+                "image": {
+                    "format": "png",
+                    "source": {
+                        "s3Location": {
+                            "uri": f"s3://frogbot-user-files-123-us-east-1/users/{actor_id}/uploads/logo.png"
+                        }
+                    },
+                },
+            }
+        ],
+    }
+
+    assert messages_from_payload(payload, actor_id) == [
+        {"role": "user", "content": [{"text": "Use my logo"}]}
+    ]
+    assert image_references_from_payload(payload, actor_id) == [
+        {"name": "Logo.png", "body": b"image-ref"}
+    ]
+
+    payload["imageReferences"][0]["image"]["source"]["s3Location"]["uri"] = (
+        f"s3://frogbot-user-files-123-us-east-1/users/{'b' * 64}/uploads/logo.png"
+    )
+    with pytest.raises(ValueError, match="outside"):
+        image_references_from_payload(payload, actor_id)
+
+
 def test_group_message_accepts_only_its_room_scoped_attachment(monkeypatch) -> None:
     group_id = "12345678-1234-1234-1234-123456789012"
     monkeypatch.setattr(
@@ -245,12 +291,8 @@ def test_group_message_accepts_only_its_room_scoped_attachment(monkeypatch) -> N
     }
 
     messages = messages_from_payload(payload)
-    assert messages[0]["content"][1]["document"]["source"] == {
-        "bytes": b"Room file"
-    }
+    assert messages[0]["content"][1]["document"]["source"] == {"bytes": b"Room file"}
 
-    payload["attachmentPrefix"] = (
-        "groups/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/uploads/"
-    )
+    payload["attachmentPrefix"] = "groups/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/uploads/"
     with pytest.raises(ValueError, match="outside"):
         messages_from_payload(payload)

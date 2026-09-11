@@ -12,14 +12,13 @@ MAX_MESSAGE_CHARS = 12_000
 MAX_CONTENT_BLOCKS_PER_MESSAGE = 24
 MAX_HISTORY_TEXT_CHARS = 240_000
 MAX_ATTACHMENTS = 5
+MAX_IMAGE_REFERENCES = 5
 MAX_ATTACHMENT_BYTES = 4_500_000
 DOCUMENT_FORMATS = {"pdf", "csv", "doc", "docx", "xls", "xlsx", "html", "txt", "md"}
 IMAGE_FORMATS = {"png", "jpeg", "gif", "webp"}
 FILES_BUCKET_NAME = os.environ.get("FROGBOT_FILES_BUCKET", "")
 _ACTOR_ID_PATTERN = re.compile(r"^[a-f0-9]{64}$")
-_GROUP_ATTACHMENT_PREFIX_PATTERN = re.compile(
-    r"^groups/[a-f0-9-]{36}/uploads/$"
-)
+_GROUP_ATTACHMENT_PREFIX_PATTERN = re.compile(r"^groups/[a-f0-9-]{36}/uploads/$")
 _s3 = None
 
 
@@ -94,12 +93,48 @@ def _attachment_block(
             "document": {
                 "format": document["format"],
                 "name": f"Attachment {index}",
-                "source": _s3_source(
-                    document.get("source"), actor_id, group_prefix
-                ),
+                "source": _s3_source(document.get("source"), actor_id, group_prefix),
             }
         }
     raise TypeError("only text and reviewed attachment content blocks are accepted")
+
+
+def image_references_from_payload(
+    payload: dict, actor_id: str | None = None
+) -> list[dict]:
+    """Load recent, user-owned image references without adding them to model history."""
+    raw_references = payload.get("imageReferences", [])
+    if (
+        not isinstance(raw_references, list)
+        or len(raw_references) > MAX_IMAGE_REFERENCES
+    ):
+        raise ValueError(
+            f"imageReferences must be a list of at most {MAX_IMAGE_REFERENCES} images"
+        )
+    group_prefix = payload.get("attachmentPrefix")
+    if group_prefix is not None and (
+        not isinstance(payload.get("group"), dict)
+        or not isinstance(group_prefix, str)
+        or not _GROUP_ATTACHMENT_PREFIX_PATTERN.fullmatch(group_prefix)
+    ):
+        raise ValueError("group attachment scope is invalid")
+
+    references = []
+    for index, raw in enumerate(raw_references, start=1):
+        if not isinstance(raw, dict):
+            raise TypeError("each image reference must be an object")
+        raw_name = raw.get("name", f"Image {index}")
+        if not isinstance(raw_name, str):
+            raise TypeError("image reference name must be text")
+        name = re.sub(
+            r"[\x00-\x1f\x7f]", " ", raw_name.replace("\\", "/").rsplit("/", 1)[-1]
+        )
+        name = " ".join(name.split()).strip()[:120] or f"Image {index}"
+        block = _attachment_block(
+            {"image": raw.get("image")}, index, actor_id, group_prefix
+        )
+        references.append({"name": name, "body": block["image"]["source"]["bytes"]})
+    return references
 
 
 def strip_trailing_tool_use(messages: Any) -> list[dict]:

@@ -83,7 +83,7 @@ Add a separate, reusable YouTube owner connector with per-user OAuth credentials
 
 Until that connector is implemented and authorized, accept owner-supplied YouTube Studio exports for private metrics and keep all titles/descriptions as drafts. Native Studio title/thumbnail tests can be configured manually where eligible; ordinary sequential metadata changes are not randomized A/B tests. See the [research notes](creator-research.md) for official API/testing references and initial creator recommendations.
 
-The runtime already has an original-image generator and artifact storage. Thumbnail Studio uses that provider when explicitly asked for image files, so a new subscription is not required for basic original thumbnail variants. Exact likenesses, logos, typography and reference-image editing need a suitable editing/compositing integration; the current text-to-image tool does not promise those capabilities.
+The runtime has an Amazon Bedrock image generator and private artifact storage. Thumbnail Studio can create original backgrounds and deterministically compose 1280x720 thumbnails with crisp text plus up to five recent, user-owned image references from the same direct chat. Web search can locate official brand guidance and source pages, while exact marks should come from uploaded official assets rather than a model redrawing them.
 
 Daily to-dos are included in the group brief and recent transcript. They are not yet a standalone persistent task board with assignment/completion tracking or analytics across reports.
 

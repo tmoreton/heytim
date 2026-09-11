@@ -19,7 +19,7 @@ dependencies = [
     # The toolkit resolves its first supported AgentCore target as manylinux2014.
     # Pin compiled transitive packages to versions that publish that ARM64 wheel.
     "greenlet == 3.2.5",
-    # Direct dependency: the original-image tool calls OpenRouter's Image API.
+    # Direct dependency: hardened remote MCP transports use HTTPX directly.
     "httpx == 0.28.1",
     # Direct dependency: the hardened remote transport uses MCP's streamable HTTP API.
     "mcp >= 1.29.1, < 2.0.0",
