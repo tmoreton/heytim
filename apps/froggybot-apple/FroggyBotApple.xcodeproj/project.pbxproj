@@ -7,176 +7,195 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0291E55E2AD41AEB09B0E570 /* AuthSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70799779FE5DF58313CE0EF0 /* AuthSession.swift */; };
-		1FF130167F9AB75CE5AA2819 /* DictationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5B5F6F4961C2D4A04E280F /* DictationModel.swift */; };
-		218D98149979023F372E1CC7 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20A8D6B5FF40BA58012CA30 /* Foundation.framework */; };
-		2EEFC101593C850AEA75C731 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20A8D6B5FF40BA58012CA30 /* Foundation.framework */; };
-		2F7EDBC82EB875F114865618 /* amplify_outputs.json in Resources */ = {isa = PBXBuildFile; fileRef = 60411DF11D1ECCAD93EC8F9B /* amplify_outputs.json */; };
-		40D0CF20F5B9E1FA4D21EF55 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20A8D6B5FF40BA58012CA30 /* Foundation.framework */; };
-		4B7C0910DD4BC1A1CAE7DB49 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96FCCFF3225F4463C44D9FA6 /* APIClient.swift */; };
-		5F5F26377351A30CC4F3B5E6 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BD492A536AB30A5C368D759E /* PrivacyInfo.xcprivacy */; };
-		62D06FA3BC55F1228C1AF214 /* FroggyBotNemotron in Frameworks */ = {isa = PBXBuildFile; productRef = 5BF8B18049C436BA3E83A34D /* FroggyBotNemotron */; };
-		9262C7F91AE72227EFD39C69 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEC65EC5652E104621A7D8A0 /* AuthView.swift */; };
-		944F5F2B26480C7E6BF290F1 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32BC80710D330434350C70A5 /* Models.swift */; };
-		9800CF4ED6FC041CD944E001 /* BrowserHandoffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BFC83CED5102E02E60BDB9B /* BrowserHandoffView.swift */; };
-		9F60AF3A33189538F2523973 /* FeatureSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E3299F8054EC428F5DB46CE /* FeatureSheets.swift */; };
-		A2CD8B265CD745843E68BC51 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01A585C0F9E5431D9697D6B /* AppModel.swift */; };
-		A32B892D597AE09F7AB56E5E /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F8989D41E6CFEED93709036 /* MainView.swift */; };
-		AC9B095243681B174A044EEA /* FroggyBotAppleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C79265F096757D4936903A76 /* FroggyBotAppleApp.swift */; };
-		B58BA781F54B6F717782EBC2 /* FroggyBotAppleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30125F6792510C38359D5421 /* FroggyBotAppleTests.swift */; };
-		C19B1CDE1D17710467568F0A /* FroggyBotAppleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35B60C289D1F48D5C36B459 /* FroggyBotAppleUITests.swift */; };
-		D332BE4F36A109E539579750 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BDCA68AAEEA96E757D684B0 /* Theme.swift */; };
-		D33B9E57BEDB4453C42B51E8 /* SupportingFeatureSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEE7721BF13CC09E5B6DE55E /* SupportingFeatureSheets.swift */; };
-		F19FB5EDC32E36217EE2EBCB /* APIRoutes.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8308306DC302790CC5C4C597 /* APIRoutes.generated.swift */; };
-		F5C61D6A8C77E14CEC4BC966 /* NativeNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39399831538F5CC8FD20EBD0 /* NativeNotifications.swift */; };
-		F9EBEC755EF349D3DB2E7C6C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2BBB3399402DAE7A87F9A095 /* Assets.xcassets */; };
+		092E20F1EE2D341342DE2F3A /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1F7CDEBB6DF7F342BE9FB44 /* Foundation.framework */; };
+		1D70D5FF66462181CA2E3010 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004D707C239D79AA78CA2FB7 /* Models.swift */; };
+		35597022003E18ED53C99D1A /* DictationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B774FBD749325E92725D280D /* DictationModel.swift */; };
+		428954563BC79031D4AE975A /* FroggyBotAppleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2E66EEE186BD7D21545E300 /* FroggyBotAppleUITests.swift */; };
+		49DEA8F35B4BB40D3343CB9D /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1F7CDEBB6DF7F342BE9FB44 /* Foundation.framework */; };
+		4AA74310ECE69C04ADDC9043 /* SupportingFeatureSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6C3976A45AD4577E2E9FDA7 /* SupportingFeatureSheets.swift */; };
+		4DB18F3A1F27A51466B3D71B /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1F7CDEBB6DF7F342BE9FB44 /* Foundation.framework */; };
+		4E4B5E2BF1A17911E773DDA9 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB552B6D870BEA76BC7C30DA /* Theme.swift */; };
+		560D9980FCD76D5F7938C822 /* FroggyBotAppleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15EFD70B2FB04AC7A3766CFD /* FroggyBotAppleApp.swift */; };
+		57D84F36EB9E7F1BBABB315E /* FeatureSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83E70A38472AE92E89DC1B5B /* FeatureSheets.swift */; };
+		5AF243B88FFEB74539C6ACDA /* AuthSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5660F714809CDEB1E8F8020 /* AuthSession.swift */; };
+		6C07A5A896D482F1D7221FF7 /* FroggyBotNemotron in Frameworks */ = {isa = PBXBuildFile; productRef = B3AB04050EFD4A372DC2C401 /* FroggyBotNemotron */; };
+		7B04C6023B7DF5ECD7A7277B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B384DE3BA6BA207B7EF1AF65 /* PrivacyInfo.xcprivacy */; };
+		8DD7D3ED1E4825FC9E75F663 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22EEC14661706101E39A0394 /* APIClient.swift */; };
+		98CBDAD997CF6DEEEF6AB32F /* BrowserHandoffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 925AEA136D2CE1FFCD07AB2F /* BrowserHandoffView.swift */; };
+		9E85BC93020FA577BDFAC151 /* amplify_outputs.json in Resources */ = {isa = PBXBuildFile; fileRef = 12D88BAF06A6BB52B699B306 /* amplify_outputs.json */; };
+		AB72545A8182A021060AF602 /* NativeNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B892271D40A6968E547B44F /* NativeNotifications.swift */; };
+		C81FBCD73AA781FAF06C8BC8 /* APIRoutes.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8735C0C46184CB5DB275D2F3 /* APIRoutes.generated.swift */; };
+		CFE5417164184F768A12EDA7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E2C6B5C273D17E4175FCD47 /* Assets.xcassets */; };
+		D6027952846E457A4376A233 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B9CC3931FA6EE35FAA6EE55 /* AppModel.swift */; };
+		DD3D1822474E3252D9F3F03A /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEBCA84BE99B4DA42774AFC9 /* MainView.swift */; };
+		E8023B8D86FC9D1EB85F8E97 /* FroggyBotAppleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AF508E0146999356C45412C /* FroggyBotAppleTests.swift */; };
+		FD5D73F6E56DADBEAE7672F9 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD1FDE6E32BDD5885066D64E /* AuthView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		1CEB3F2FC47A0A5C0BD9F288 /* PBXContainerItemProxy */ = {
+		16112BF811476531BA9F5317 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 7F9940D9C1B6C612F6507B29 /* Project object */;
+			containerPortal = E06FE15E332848AB1FB764E6 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 036BEAF94ADB729333AA9301;
+			remoteGlobalIDString = A925CAD174104FDEC5C8021E;
 			remoteInfo = FroggyBotApple;
 		};
-		DA217D6D5057E84566C11BB9 /* PBXContainerItemProxy */ = {
+		8E93D437E73381D7FF04E404 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 7F9940D9C1B6C612F6507B29 /* Project object */;
+			containerPortal = E06FE15E332848AB1FB764E6 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 036BEAF94ADB729333AA9301;
+			remoteGlobalIDString = A925CAD174104FDEC5C8021E;
 			remoteInfo = FroggyBotApple;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		14932E83EE472863AF0FE04C /* FroggyBot-iOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "FroggyBot-iOS.entitlements"; path = "Resources/FroggyBot-iOS.entitlements"; sourceTree = "<group>"; };
-		1E5B5F6F4961C2D4A04E280F /* DictationModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DictationModel.swift; path = Sources/FroggyBotPlatform/DictationModel.swift; sourceTree = "<group>"; };
-		2BBB3399402DAE7A87F9A095 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
-		2EED1CC6820F040458B5ED7A /* FroggyBotApple.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FroggyBotApple.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		2F8989D41E6CFEED93709036 /* MainView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MainView.swift; path = Sources/FroggyBotUI/MainView.swift; sourceTree = "<group>"; };
-		30125F6792510C38359D5421 /* FroggyBotAppleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FroggyBotAppleTests.swift; path = Tests/FroggyBotAppleTests.swift; sourceTree = "<group>"; };
-		306D86345E57023B4D650B81 /* FroggyBot-macOS-Release.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "FroggyBot-macOS-Release.entitlements"; path = "Resources/FroggyBot-macOS-Release.entitlements"; sourceTree = "<group>"; };
-		32BC80710D330434350C70A5 /* Models.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Models.swift; path = Sources/FroggyBotCore/Models.swift; sourceTree = "<group>"; };
-		38279763D576524F28C8C82A /* FroggyBotAppleUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FroggyBotAppleUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		39399831538F5CC8FD20EBD0 /* NativeNotifications.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeNotifications.swift; path = Sources/FroggyBotPlatform/NativeNotifications.swift; sourceTree = "<group>"; };
-		3BDCA68AAEEA96E757D684B0 /* Theme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Theme.swift; path = Sources/FroggyBotUI/Theme.swift; sourceTree = "<group>"; };
-		56D9D661B64F770DB5D4BBD0 /* FroggyBotAppleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FroggyBotAppleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		60411DF11D1ECCAD93EC8F9B /* amplify_outputs.json */ = {isa = PBXFileReference; includeInIndex = 1; name = amplify_outputs.json; path = Resources/amplify_outputs.json; sourceTree = "<group>"; };
-		70799779FE5DF58313CE0EF0 /* AuthSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthSession.swift; path = Sources/FroggyBotPlatform/AuthSession.swift; sourceTree = "<group>"; };
-		7BFC83CED5102E02E60BDB9B /* BrowserHandoffView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BrowserHandoffView.swift; path = Sources/FroggyBotUI/BrowserHandoffView.swift; sourceTree = "<group>"; };
-		8308306DC302790CC5C4C597 /* APIRoutes.generated.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = APIRoutes.generated.swift; path = Sources/FroggyBotCore/APIRoutes.generated.swift; sourceTree = "<group>"; };
-		96F4749279BBBE4F83849D44 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = Resources/Info.plist; sourceTree = "<group>"; };
-		96FCCFF3225F4463C44D9FA6 /* APIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = APIClient.swift; path = Sources/FroggyBotCore/APIClient.swift; sourceTree = "<group>"; };
-		9E3299F8054EC428F5DB46CE /* FeatureSheets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FeatureSheets.swift; path = Sources/FroggyBotUI/FeatureSheets.swift; sourceTree = "<group>"; };
-		A20A8D6B5FF40BA58012CA30 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
-		BD492A536AB30A5C368D759E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Resources/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		BEC65EC5652E104621A7D8A0 /* AuthView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthView.swift; path = Sources/FroggyBotUI/AuthView.swift; sourceTree = "<group>"; };
-		C566F3AA7C042AEDC560F5BC /* FroggyBot-iOS-Release.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "FroggyBot-iOS-Release.entitlements"; path = "Resources/FroggyBot-iOS-Release.entitlements"; sourceTree = "<group>"; };
-		C79265F096757D4936903A76 /* FroggyBotAppleApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FroggyBotAppleApp.swift; path = App/FroggyBotAppleApp.swift; sourceTree = "<group>"; };
-		CEE7721BF13CC09E5B6DE55E /* SupportingFeatureSheets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SupportingFeatureSheets.swift; path = Sources/FroggyBotUI/SupportingFeatureSheets.swift; sourceTree = "<group>"; };
-		D35B60C289D1F48D5C36B459 /* FroggyBotAppleUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FroggyBotAppleUITests.swift; path = UITests/FroggyBotAppleUITests.swift; sourceTree = "<group>"; };
-		E01A585C0F9E5431D9697D6B /* AppModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppModel.swift; path = Sources/FroggyBotCore/AppModel.swift; sourceTree = "<group>"; };
-		F5C50957796B83C80A266099 /* FroggyBot-macOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "FroggyBot-macOS.entitlements"; path = "Resources/FroggyBot-macOS.entitlements"; sourceTree = "<group>"; };
+		004D707C239D79AA78CA2FB7 /* Models.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Models.swift; path = Sources/FroggyBotCore/Models.swift; sourceTree = "<group>"; };
+		121DE3E900140D0801BA2D30 /* FroggyBot-iOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "FroggyBot-iOS.entitlements"; path = "Resources/FroggyBot-iOS.entitlements"; sourceTree = "<group>"; };
+		12D88BAF06A6BB52B699B306 /* amplify_outputs.json */ = {isa = PBXFileReference; includeInIndex = 1; name = amplify_outputs.json; path = Resources/amplify_outputs.json; sourceTree = "<group>"; };
+		15EFD70B2FB04AC7A3766CFD /* FroggyBotAppleApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FroggyBotAppleApp.swift; path = App/FroggyBotAppleApp.swift; sourceTree = "<group>"; };
+		1C235A947B90D61C9101A4AA /* FroggyBot-iOS-Release.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "FroggyBot-iOS-Release.entitlements"; path = "Resources/FroggyBot-iOS-Release.entitlements"; sourceTree = "<group>"; };
+		22EEC14661706101E39A0394 /* APIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = APIClient.swift; path = Sources/FroggyBotCore/APIClient.swift; sourceTree = "<group>"; };
+		3B892271D40A6968E547B44F /* NativeNotifications.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeNotifications.swift; path = Sources/FroggyBotPlatform/NativeNotifications.swift; sourceTree = "<group>"; };
+		3FA2FB73B2FC23304ED1EA0C /* FroggyBot-macOS-Release.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "FroggyBot-macOS-Release.entitlements"; path = "Resources/FroggyBot-macOS-Release.entitlements"; sourceTree = "<group>"; };
+		4AF508E0146999356C45412C /* FroggyBotAppleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FroggyBotAppleTests.swift; path = Tests/FroggyBotAppleTests.swift; sourceTree = "<group>"; };
+		4E2C6B5C273D17E4175FCD47 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
+		5B9CC3931FA6EE35FAA6EE55 /* AppModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppModel.swift; path = Sources/FroggyBotCore/AppModel.swift; sourceTree = "<group>"; };
+		630765D34D4F543A740153C5 /* FroggyBotAppleUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FroggyBotAppleUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		6AB50D8258E54945C2833A1D /* FroggyBot-macOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "FroggyBot-macOS.entitlements"; path = "Resources/FroggyBot-macOS.entitlements"; sourceTree = "<group>"; };
+		83E70A38472AE92E89DC1B5B /* FeatureSheets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FeatureSheets.swift; path = Sources/FroggyBotUI/FeatureSheets.swift; sourceTree = "<group>"; };
+		8735C0C46184CB5DB275D2F3 /* APIRoutes.generated.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = APIRoutes.generated.swift; path = Sources/FroggyBotCore/APIRoutes.generated.swift; sourceTree = "<group>"; };
+		925AEA136D2CE1FFCD07AB2F /* BrowserHandoffView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BrowserHandoffView.swift; path = Sources/FroggyBotUI/BrowserHandoffView.swift; sourceTree = "<group>"; };
+		A2E66EEE186BD7D21545E300 /* FroggyBotAppleUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FroggyBotAppleUITests.swift; path = UITests/FroggyBotAppleUITests.swift; sourceTree = "<group>"; };
+		AEBCA84BE99B4DA42774AFC9 /* MainView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MainView.swift; path = Sources/FroggyBotUI/MainView.swift; sourceTree = "<group>"; };
+		B1F7CDEBB6DF7F342BE9FB44 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		B384DE3BA6BA207B7EF1AF65 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Resources/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B774FBD749325E92725D280D /* DictationModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DictationModel.swift; path = Sources/FroggyBotPlatform/DictationModel.swift; sourceTree = "<group>"; };
+		BD1FDE6E32BDD5885066D64E /* AuthView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthView.swift; path = Sources/FroggyBotUI/AuthView.swift; sourceTree = "<group>"; };
+		C26BB05226B8C240F8AC2262 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = Resources/Info.plist; sourceTree = "<group>"; };
+		C5660F714809CDEB1E8F8020 /* AuthSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthSession.swift; path = Sources/FroggyBotPlatform/AuthSession.swift; sourceTree = "<group>"; };
+		CB552B6D870BEA76BC7C30DA /* Theme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Theme.swift; path = Sources/FroggyBotUI/Theme.swift; sourceTree = "<group>"; };
+		D0C3B5765FB3BDB2F6C0CC28 /* FroggyBotAppleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FroggyBotAppleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D6C3976A45AD4577E2E9FDA7 /* SupportingFeatureSheets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SupportingFeatureSheets.swift; path = Sources/FroggyBotUI/SupportingFeatureSheets.swift; sourceTree = "<group>"; };
+		F5A4B4A9F2BF0CCE83B546CB /* FroggyBotApple.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FroggyBotApple.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		0071FD71C0426178B4C456A0 /* Frameworks */ = {
+		06667A3A7A5F8FC79A2D8BDF /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2EEFC101593C850AEA75C731 /* Foundation.framework in Frameworks */,
+				092E20F1EE2D341342DE2F3A /* Foundation.framework in Frameworks */,
+				6C07A5A896D482F1D7221FF7 /* FroggyBotNemotron in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		7873EF4F5DAC17594F8E9F5D /* Frameworks */ = {
+		3F67C166908AB6201A2F60A9 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				40D0CF20F5B9E1FA4D21EF55 /* Foundation.framework in Frameworks */,
-				62D06FA3BC55F1228C1AF214 /* FroggyBotNemotron in Frameworks */,
+				49DEA8F35B4BB40D3343CB9D /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		978D9CE5724168D9616F8059 /* Frameworks */ = {
+		D76EA0CE901C15C5988D4907 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				218D98149979023F372E1CC7 /* Foundation.framework in Frameworks */,
+				4DB18F3A1F27A51466B3D71B /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		2A7B032FBFFA240B8AADA35F /* Frameworks */ = {
+		0B38FAB4661294FF7344C130 = {
 			isa = PBXGroup;
 			children = (
-				448C6F87F1D32E225DC591E3 /* iOS */,
+				D752C8AAD5C87B27D42C4877 /* Products */,
+				4C5FF24BDFAEDC420334320E /* Frameworks */,
+				15EFD70B2FB04AC7A3766CFD /* FroggyBotAppleApp.swift */,
+				22EEC14661706101E39A0394 /* APIClient.swift */,
+				8735C0C46184CB5DB275D2F3 /* APIRoutes.generated.swift */,
+				5B9CC3931FA6EE35FAA6EE55 /* AppModel.swift */,
+				004D707C239D79AA78CA2FB7 /* Models.swift */,
+				C5660F714809CDEB1E8F8020 /* AuthSession.swift */,
+				B774FBD749325E92725D280D /* DictationModel.swift */,
+				3B892271D40A6968E547B44F /* NativeNotifications.swift */,
+				BD1FDE6E32BDD5885066D64E /* AuthView.swift */,
+				925AEA136D2CE1FFCD07AB2F /* BrowserHandoffView.swift */,
+				83E70A38472AE92E89DC1B5B /* FeatureSheets.swift */,
+				AEBCA84BE99B4DA42774AFC9 /* MainView.swift */,
+				D6C3976A45AD4577E2E9FDA7 /* SupportingFeatureSheets.swift */,
+				CB552B6D870BEA76BC7C30DA /* Theme.swift */,
+				12D88BAF06A6BB52B699B306 /* amplify_outputs.json */,
+				B384DE3BA6BA207B7EF1AF65 /* PrivacyInfo.xcprivacy */,
+				4E2C6B5C273D17E4175FCD47 /* Assets.xcassets */,
+				C26BB05226B8C240F8AC2262 /* Info.plist */,
+				121DE3E900140D0801BA2D30 /* FroggyBot-iOS.entitlements */,
+				1C235A947B90D61C9101A4AA /* FroggyBot-iOS-Release.entitlements */,
+				6AB50D8258E54945C2833A1D /* FroggyBot-macOS.entitlements */,
+				3FA2FB73B2FC23304ED1EA0C /* FroggyBot-macOS-Release.entitlements */,
+				4AF508E0146999356C45412C /* FroggyBotAppleTests.swift */,
+				A2E66EEE186BD7D21545E300 /* FroggyBotAppleUITests.swift */,
+			);
+			sourceTree = "<group>";
+		};
+		4C5FF24BDFAEDC420334320E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8F0847051219C7A24682D1C1 /* iOS */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		448C6F87F1D32E225DC591E3 /* iOS */ = {
+		8F0847051219C7A24682D1C1 /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				A20A8D6B5FF40BA58012CA30 /* Foundation.framework */,
+				B1F7CDEBB6DF7F342BE9FB44 /* Foundation.framework */,
 			);
 			name = iOS;
 			sourceTree = "<group>";
 		};
-		8C932B083CF4516690412216 /* Products */ = {
+		D752C8AAD5C87B27D42C4877 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				2EED1CC6820F040458B5ED7A /* FroggyBotApple.app */,
-				56D9D661B64F770DB5D4BBD0 /* FroggyBotAppleTests.xctest */,
-				38279763D576524F28C8C82A /* FroggyBotAppleUITests.xctest */,
+				F5A4B4A9F2BF0CCE83B546CB /* FroggyBotApple.app */,
+				D0C3B5765FB3BDB2F6C0CC28 /* FroggyBotAppleTests.xctest */,
+				630765D34D4F543A740153C5 /* FroggyBotAppleUITests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		FEBDEE541539587B41D50594 = {
-			isa = PBXGroup;
-			children = (
-				8C932B083CF4516690412216 /* Products */,
-				2A7B032FBFFA240B8AADA35F /* Frameworks */,
-				C79265F096757D4936903A76 /* FroggyBotAppleApp.swift */,
-				96FCCFF3225F4463C44D9FA6 /* APIClient.swift */,
-				8308306DC302790CC5C4C597 /* APIRoutes.generated.swift */,
-				E01A585C0F9E5431D9697D6B /* AppModel.swift */,
-				32BC80710D330434350C70A5 /* Models.swift */,
-				70799779FE5DF58313CE0EF0 /* AuthSession.swift */,
-				1E5B5F6F4961C2D4A04E280F /* DictationModel.swift */,
-				39399831538F5CC8FD20EBD0 /* NativeNotifications.swift */,
-				BEC65EC5652E104621A7D8A0 /* AuthView.swift */,
-				7BFC83CED5102E02E60BDB9B /* BrowserHandoffView.swift */,
-				9E3299F8054EC428F5DB46CE /* FeatureSheets.swift */,
-				2F8989D41E6CFEED93709036 /* MainView.swift */,
-				CEE7721BF13CC09E5B6DE55E /* SupportingFeatureSheets.swift */,
-				3BDCA68AAEEA96E757D684B0 /* Theme.swift */,
-				60411DF11D1ECCAD93EC8F9B /* amplify_outputs.json */,
-				BD492A536AB30A5C368D759E /* PrivacyInfo.xcprivacy */,
-				2BBB3399402DAE7A87F9A095 /* Assets.xcassets */,
-				96F4749279BBBE4F83849D44 /* Info.plist */,
-				14932E83EE472863AF0FE04C /* FroggyBot-iOS.entitlements */,
-				C566F3AA7C042AEDC560F5BC /* FroggyBot-iOS-Release.entitlements */,
-				F5C50957796B83C80A266099 /* FroggyBot-macOS.entitlements */,
-				306D86345E57023B4D650B81 /* FroggyBot-macOS-Release.entitlements */,
-				30125F6792510C38359D5421 /* FroggyBotAppleTests.swift */,
-				D35B60C289D1F48D5C36B459 /* FroggyBotAppleUITests.swift */,
-			);
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		036BEAF94ADB729333AA9301 /* FroggyBotApple */ = {
+		72A511F62CE8D2B7189B61B3 /* FroggyBotAppleTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 12889AB9650D0D2B95160B06 /* Build configuration list for PBXNativeTarget "FroggyBotApple" */;
+			buildConfigurationList = 734CBA98BB7D5D8EB05DE963 /* Build configuration list for PBXNativeTarget "FroggyBotAppleTests" */;
 			buildPhases = (
-				21080E0EB288D5EE51451924 /* Sources */,
-				7873EF4F5DAC17594F8E9F5D /* Frameworks */,
-				559C985679645FEF6E98F3F8 /* Resources */,
+				46FEF7FF690641C894DF0178 /* Sources */,
+				3F67C166908AB6201A2F60A9 /* Frameworks */,
+				1BEB733B9B5049B4454D1993 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A377D372102CAF8716D36C6F /* PBXTargetDependency */,
+			);
+			name = FroggyBotAppleTests;
+			productName = FroggyBotAppleTests;
+			productReference = D0C3B5765FB3BDB2F6C0CC28 /* FroggyBotAppleTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		A925CAD174104FDEC5C8021E /* FroggyBotApple */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A36089FAF62959E824551FEF /* Build configuration list for PBXNativeTarget "FroggyBotApple" */;
+			buildPhases = (
+				9ED8BCBF0F65BC94853D6138 /* Sources */,
+				06667A3A7A5F8FC79A2D8BDF /* Frameworks */,
+				C7922990BFDA758E91712B37 /* Resources */,
+				CEA38B3FB1939C4E5636EF02 /* Remove embedded static speech wrappers */,
 			);
 			buildRules = (
 			);
@@ -184,58 +203,40 @@
 			);
 			name = FroggyBotApple;
 			packageProductDependencies = (
-				5BF8B18049C436BA3E83A34D /* FroggyBotNemotron */,
+				B3AB04050EFD4A372DC2C401 /* FroggyBotNemotron */,
 			);
 			productName = FroggyBotApple;
-			productReference = 2EED1CC6820F040458B5ED7A /* FroggyBotApple.app */;
+			productReference = F5A4B4A9F2BF0CCE83B546CB /* FroggyBotApple.app */;
 			productType = "com.apple.product-type.application";
 		};
-		323A263C8AE96A684F37FEA1 /* FroggyBotAppleTests */ = {
+		C1400F5456BE5A4DB1B3C56C /* FroggyBotAppleUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 2A61D70D44AAF9B41997B998 /* Build configuration list for PBXNativeTarget "FroggyBotAppleTests" */;
+			buildConfigurationList = 30B2F8B679681D9BA3F01159 /* Build configuration list for PBXNativeTarget "FroggyBotAppleUITests" */;
 			buildPhases = (
-				90184D9B2132228B02097A98 /* Sources */,
-				978D9CE5724168D9616F8059 /* Frameworks */,
-				0F2D4727935EAD4F2FA5AFB3 /* Resources */,
+				D2740246523C99E669793AB3 /* Sources */,
+				D76EA0CE901C15C5988D4907 /* Frameworks */,
+				726D6E0AE95095FFCC752488 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				704E9CF07C6E294E934F9927 /* PBXTargetDependency */,
-			);
-			name = FroggyBotAppleTests;
-			productName = FroggyBotAppleTests;
-			productReference = 56D9D661B64F770DB5D4BBD0 /* FroggyBotAppleTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		BE43076A66398C6E91513AF2 /* FroggyBotAppleUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 622EEF98BB4C782DA74575A2 /* Build configuration list for PBXNativeTarget "FroggyBotAppleUITests" */;
-			buildPhases = (
-				F932086082E2CB1088249FFC /* Sources */,
-				0071FD71C0426178B4C456A0 /* Frameworks */,
-				0687DFBC09E4E2166D9E42EE /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				21F7FFE917D31B6670D63C4A /* PBXTargetDependency */,
+				42976E26838186F570C264EC /* PBXTargetDependency */,
 			);
 			name = FroggyBotAppleUITests;
 			productName = FroggyBotAppleUITests;
-			productReference = 38279763D576524F28C8C82A /* FroggyBotAppleUITests.xctest */;
+			productReference = 630765D34D4F543A740153C5 /* FroggyBotAppleUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		7F9940D9C1B6C612F6507B29 /* Project object */ = {
+		E06FE15E332848AB1FB764E6 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 2660;
 			};
-			buildConfigurationList = 5ED1A1A3DF7EB71AFC390D8C /* Build configuration list for PBXProject "FroggyBotApple" */;
+			buildConfigurationList = 4645A5DD5F10C07F34D54ED2 /* Build configuration list for PBXProject "FroggyBotApple" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -243,107 +244,193 @@
 				en,
 				Base,
 			);
-			mainGroup = FEBDEE541539587B41D50594;
+			mainGroup = 0B38FAB4661294FF7344C130;
 			minimizedProjectReferenceProxies = 0;
 			packageReferences = (
-				BA3FFF8AFEE7DD25C04E7B04 /* XCLocalSwiftPackageReference "frogbot-transcription" */,
+				117FC105610C70D9CD56914C /* XCLocalSwiftPackageReference "frogbot-transcription" */,
 			);
 			preferredProjectObjectVersion = 100;
-			productRefGroup = 8C932B083CF4516690412216 /* Products */;
+			productRefGroup = D752C8AAD5C87B27D42C4877 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				036BEAF94ADB729333AA9301 /* FroggyBotApple */,
-				323A263C8AE96A684F37FEA1 /* FroggyBotAppleTests */,
-				BE43076A66398C6E91513AF2 /* FroggyBotAppleUITests */,
+				A925CAD174104FDEC5C8021E /* FroggyBotApple */,
+				72A511F62CE8D2B7189B61B3 /* FroggyBotAppleTests */,
+				C1400F5456BE5A4DB1B3C56C /* FroggyBotAppleUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		0687DFBC09E4E2166D9E42EE /* Resources */ = {
+		1BEB733B9B5049B4454D1993 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		0F2D4727935EAD4F2FA5AFB3 /* Resources */ = {
+		726D6E0AE95095FFCC752488 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		559C985679645FEF6E98F3F8 /* Resources */ = {
+		C7922990BFDA758E91712B37 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2F7EDBC82EB875F114865618 /* amplify_outputs.json in Resources */,
-				5F5F26377351A30CC4F3B5E6 /* PrivacyInfo.xcprivacy in Resources */,
-				F9EBEC755EF349D3DB2E7C6C /* Assets.xcassets in Resources */,
+				9E85BC93020FA577BDFAC151 /* amplify_outputs.json in Resources */,
+				7B04C6023B7DF5ECD7A7277B /* PrivacyInfo.xcprivacy in Resources */,
+				CFE5417164184F768A12EDA7 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		CEA38B3FB1939C4E5636EF02 /* Remove embedded static speech wrappers */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Remove embedded static speech wrappers";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"$PLATFORM_NAME\" = \"iphoneos\" ]; then\n  for framework_name in onnxruntime SherpaOnnxC; do\n    framework_path=\"$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH/$framework_name.framework\"\n    if [ -d \"$framework_path\" ]; then\n      /usr/bin/find \"$framework_path\" -depth -delete\n    fi\n  done\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
-		21080E0EB288D5EE51451924 /* Sources */ = {
+		46FEF7FF690641C894DF0178 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AC9B095243681B174A044EEA /* FroggyBotAppleApp.swift in Sources */,
-				4B7C0910DD4BC1A1CAE7DB49 /* APIClient.swift in Sources */,
-				F19FB5EDC32E36217EE2EBCB /* APIRoutes.generated.swift in Sources */,
-				A2CD8B265CD745843E68BC51 /* AppModel.swift in Sources */,
-				944F5F2B26480C7E6BF290F1 /* Models.swift in Sources */,
-				0291E55E2AD41AEB09B0E570 /* AuthSession.swift in Sources */,
-				1FF130167F9AB75CE5AA2819 /* DictationModel.swift in Sources */,
-				F5C61D6A8C77E14CEC4BC966 /* NativeNotifications.swift in Sources */,
-				9262C7F91AE72227EFD39C69 /* AuthView.swift in Sources */,
-				9800CF4ED6FC041CD944E001 /* BrowserHandoffView.swift in Sources */,
-				9F60AF3A33189538F2523973 /* FeatureSheets.swift in Sources */,
-				A32B892D597AE09F7AB56E5E /* MainView.swift in Sources */,
-				D33B9E57BEDB4453C42B51E8 /* SupportingFeatureSheets.swift in Sources */,
-				D332BE4F36A109E539579750 /* Theme.swift in Sources */,
+				E8023B8D86FC9D1EB85F8E97 /* FroggyBotAppleTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		90184D9B2132228B02097A98 /* Sources */ = {
+		9ED8BCBF0F65BC94853D6138 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B58BA781F54B6F717782EBC2 /* FroggyBotAppleTests.swift in Sources */,
+				560D9980FCD76D5F7938C822 /* FroggyBotAppleApp.swift in Sources */,
+				8DD7D3ED1E4825FC9E75F663 /* APIClient.swift in Sources */,
+				C81FBCD73AA781FAF06C8BC8 /* APIRoutes.generated.swift in Sources */,
+				D6027952846E457A4376A233 /* AppModel.swift in Sources */,
+				1D70D5FF66462181CA2E3010 /* Models.swift in Sources */,
+				5AF243B88FFEB74539C6ACDA /* AuthSession.swift in Sources */,
+				35597022003E18ED53C99D1A /* DictationModel.swift in Sources */,
+				AB72545A8182A021060AF602 /* NativeNotifications.swift in Sources */,
+				FD5D73F6E56DADBEAE7672F9 /* AuthView.swift in Sources */,
+				98CBDAD997CF6DEEEF6AB32F /* BrowserHandoffView.swift in Sources */,
+				57D84F36EB9E7F1BBABB315E /* FeatureSheets.swift in Sources */,
+				DD3D1822474E3252D9F3F03A /* MainView.swift in Sources */,
+				4AA74310ECE69C04ADDC9043 /* SupportingFeatureSheets.swift in Sources */,
+				4E4B5E2BF1A17911E773DDA9 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		F932086082E2CB1088249FFC /* Sources */ = {
+		D2740246523C99E669793AB3 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C19B1CDE1D17710467568F0A /* FroggyBotAppleUITests.swift in Sources */,
+				428954563BC79031D4AE975A /* FroggyBotAppleUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		21F7FFE917D31B6670D63C4A /* PBXTargetDependency */ = {
+		42976E26838186F570C264EC /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = FroggyBotApple;
-			target = 036BEAF94ADB729333AA9301 /* FroggyBotApple */;
-			targetProxy = 1CEB3F2FC47A0A5C0BD9F288 /* PBXContainerItemProxy */;
+			target = A925CAD174104FDEC5C8021E /* FroggyBotApple */;
+			targetProxy = 8E93D437E73381D7FF04E404 /* PBXContainerItemProxy */;
 		};
-		704E9CF07C6E294E934F9927 /* PBXTargetDependency */ = {
+		A377D372102CAF8716D36C6F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = FroggyBotApple;
-			target = 036BEAF94ADB729333AA9301 /* FroggyBotApple */;
-			targetProxy = DA217D6D5057E84566C11BB9 /* PBXContainerItemProxy */;
+			target = A925CAD174104FDEC5C8021E /* FroggyBotApple */;
+			targetProxy = 16112BF811476531BA9F5317 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		147A8E7A34BD1B61BCBA8168 /* Release */ = {
+		097758B283F219D3F87B9347 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.frogbot.app.uitests;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = FroggyBotApple;
+			};
+			name = Debug;
+		};
+		0B02CAD46281329821407504 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.frogbot.app.tests;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				"TEST_HOST[sdk=iphoneos*]" = "$(BUILT_PRODUCTS_DIR)/FroggyBot.app/FroggyBot";
+				"TEST_HOST[sdk=iphonesimulator*]" = "$(BUILT_PRODUCTS_DIR)/FroggyBot.app/FroggyBot";
+				"TEST_HOST[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/FroggyBot.app/Contents/MacOS/FroggyBot";
+			};
+			name = Debug;
+		};
+		1ADF0DBF55AC1F07F848C96D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.frogbot.app.tests;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				"TEST_HOST[sdk=iphoneos*]" = "$(BUILT_PRODUCTS_DIR)/FroggyBot.app/FroggyBot";
+				"TEST_HOST[sdk=iphonesimulator*]" = "$(BUILT_PRODUCTS_DIR)/FroggyBot.app/FroggyBot";
+				"TEST_HOST[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/FroggyBot.app/Contents/MacOS/FroggyBot";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		24100AE32D04C6F152A3B48D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
@@ -363,7 +450,7 @@
 			};
 			name = Release;
 		};
-		4D674A61A1E23E8350777FD7 /* Release */ = {
+		74039EE34C08CADB5051EECB /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -377,6 +464,7 @@
 				"ENABLE_APP_SANDBOX[sdk=macosx*]" = YES;
 				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				"ENABLE_USER_SCRIPT_SANDBOXING[sdk=iphoneos*]" = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
@@ -395,83 +483,7 @@
 			};
 			name = Release;
 		};
-		551D0AEEA0D628BA5EDB09CD /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "Resources/FroggyBot-iOS.entitlements";
-				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "Resources/FroggyBot-iOS.entitlements";
-				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "Resources/FroggyBot-macOS.entitlements";
-				CURRENT_PROJECT_VERSION = 1;
-				"ENABLE_APP_SANDBOX[sdk=macosx*]" = YES;
-				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				INFOPLIST_FILE = Resources/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.frogbot.app;
-				PRODUCT_MODULE_NAME = FroggyBotApple;
-				PRODUCT_NAME = FroggyBot;
-				REGISTER_APP_GROUPS = NO;
-				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Debug;
-		};
-		64514401D7B706566A3A74EB /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.frogbot.app.tests;
-				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = 1;
-				"TEST_HOST[sdk=iphoneos*]" = "$(BUILT_PRODUCTS_DIR)/FroggyBot.app/FroggyBot";
-				"TEST_HOST[sdk=iphonesimulator*]" = "$(BUILT_PRODUCTS_DIR)/FroggyBot.app/FroggyBot";
-				"TEST_HOST[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/FroggyBot.app/Contents/MacOS/FroggyBot";
-			};
-			name = Debug;
-		};
-		CC4C2F676FDF5352D9CFDDCF /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.frogbot.app.tests;
-				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = 1;
-				"TEST_HOST[sdk=iphoneos*]" = "$(BUILT_PRODUCTS_DIR)/FroggyBot.app/FroggyBot";
-				"TEST_HOST[sdk=iphonesimulator*]" = "$(BUILT_PRODUCTS_DIR)/FroggyBot.app/FroggyBot";
-				"TEST_HOST[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/FroggyBot.app/Contents/MacOS/FroggyBot";
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		D5AA64F92B74061E12238172 /* Debug */ = {
+		77E8F329E7EE3EBA7662788B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -532,26 +544,39 @@
 			};
 			name = Debug;
 		};
-		E5C5E225881F2EF8767878F8 /* Debug */ = {
+		CFF12F195653E70981A84289 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "Resources/FroggyBot-iOS.entitlements";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "Resources/FroggyBot-iOS.entitlements";
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "Resources/FroggyBot-macOS.entitlements";
+				CURRENT_PROJECT_VERSION = 1;
+				"ENABLE_APP_SANDBOX[sdk=macosx*]" = YES;
+				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				"ENABLE_USER_SCRIPT_SANDBOXING[sdk=iphoneos*]" = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.frogbot.app.uitests;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.frogbot.app;
+				PRODUCT_MODULE_NAME = FroggyBotApple;
+				PRODUCT_NAME = FroggyBot;
+				REGISTER_APP_GROUPS = NO;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
-				TEST_TARGET_NAME = FroggyBotApple;
 			};
 			name = Debug;
 		};
-		F0F5558E48FCB6329A7C267A /* Release */ = {
+		E73F183B995782C9BED0BE6F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -608,38 +633,38 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		12889AB9650D0D2B95160B06 /* Build configuration list for PBXNativeTarget "FroggyBotApple" */ = {
+		30B2F8B679681D9BA3F01159 /* Build configuration list for PBXNativeTarget "FroggyBotAppleUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				4D674A61A1E23E8350777FD7 /* Release */,
-				551D0AEEA0D628BA5EDB09CD /* Debug */,
+				24100AE32D04C6F152A3B48D /* Release */,
+				097758B283F219D3F87B9347 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		2A61D70D44AAF9B41997B998 /* Build configuration list for PBXNativeTarget "FroggyBotAppleTests" */ = {
+		4645A5DD5F10C07F34D54ED2 /* Build configuration list for PBXProject "FroggyBotApple" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				CC4C2F676FDF5352D9CFDDCF /* Release */,
-				64514401D7B706566A3A74EB /* Debug */,
+				77E8F329E7EE3EBA7662788B /* Debug */,
+				E73F183B995782C9BED0BE6F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		5ED1A1A3DF7EB71AFC390D8C /* Build configuration list for PBXProject "FroggyBotApple" */ = {
+		734CBA98BB7D5D8EB05DE963 /* Build configuration list for PBXNativeTarget "FroggyBotAppleTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				D5AA64F92B74061E12238172 /* Debug */,
-				F0F5558E48FCB6329A7C267A /* Release */,
+				1ADF0DBF55AC1F07F848C96D /* Release */,
+				0B02CAD46281329821407504 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		622EEF98BB4C782DA74575A2 /* Build configuration list for PBXNativeTarget "FroggyBotAppleUITests" */ = {
+		A36089FAF62959E824551FEF /* Build configuration list for PBXNativeTarget "FroggyBotApple" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				147A8E7A34BD1B61BCBA8168 /* Release */,
-				E5C5E225881F2EF8767878F8 /* Debug */,
+				74039EE34C08CADB5051EECB /* Release */,
+				CFF12F195653E70981A84289 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -647,19 +672,19 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		BA3FFF8AFEE7DD25C04E7B04 /* XCLocalSwiftPackageReference "frogbot-transcription" */ = {
+		117FC105610C70D9CD56914C /* XCLocalSwiftPackageReference "frogbot-transcription" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "../../packages/frogbot-transcription";
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		5BF8B18049C436BA3E83A34D /* FroggyBotNemotron */ = {
+		B3AB04050EFD4A372DC2C401 /* FroggyBotNemotron */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = BA3FFF8AFEE7DD25C04E7B04 /* XCLocalSwiftPackageReference "frogbot-transcription" */;
+			package = 117FC105610C70D9CD56914C /* XCLocalSwiftPackageReference "frogbot-transcription" */;
 			productName = FroggyBotNemotron;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = 7F9940D9C1B6C612F6507B29 /* Project object */;
+	rootObject = E06FE15E332848AB1FB764E6 /* Project object */;
 }

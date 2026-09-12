@@ -46,6 +46,7 @@ app.build_configurations.each do |config|
     'CODE_SIGN_ENTITLEMENTS[sdk=macosx*]' => release ? 'Resources/FroggyBot-macOS-Release.entitlements' : 'Resources/FroggyBot-macOS.entitlements',
     'ENABLE_APP_SANDBOX[sdk=macosx*]' => 'YES',
     'ENABLE_HARDENED_RUNTIME[sdk=macosx*]' => 'YES',
+    'ENABLE_USER_SCRIPT_SANDBOXING[sdk=iphoneos*]' => 'NO',
     'REGISTER_APP_GROUPS' => 'NO',
   )
 end
@@ -106,6 +107,22 @@ app.package_product_dependencies << nemotron
 build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
 build_file.product_ref = nemotron
 app.frameworks_build_phase.files << build_file
+
+# SwiftPM links these XCFramework slices into the app, but Xcode also copies
+# framework-shaped wrappers around the static libraries into iOS archives.
+# Those wrappers are neither load dependencies nor valid App Store bundles.
+strip_static_speech = app.new_shell_script_build_phase('Remove embedded static speech wrappers')
+strip_static_speech.shell_script = <<~'SCRIPT'
+  if [ "$PLATFORM_NAME" = "iphoneos" ]; then
+    for framework_name in onnxruntime SherpaOnnxC; do
+      framework_path="$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH/$framework_name.framework"
+      if [ -d "$framework_path" ]; then
+        /usr/bin/find "$framework_path" -depth -delete
+      fi
+    done
+  fi
+SCRIPT
+strip_static_speech.always_out_of_date = '1'
 
 project.save
 scheme = Xcodeproj::XCScheme.new
