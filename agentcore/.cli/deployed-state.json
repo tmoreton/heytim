@@ -32,6 +32,12 @@
         "credentials": {
           "FrogBot_OpenRouter": {
             "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/FrogBot_OpenRouter"
+          },
+          "FrogBotXApi": {
+            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/FrogBotXApi"
+          },
+          "FrogBotYouTubeApi": {
+            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/FrogBotYouTubeApi"
           }
         },
         "stackName": "AgentCore-FrogBot-development",
