@@ -139,12 +139,11 @@ also requires a documented opt-in flow, public privacy policy and terms, and acc
 ### 3. Deploy the app backend
 
 ```bash
-cd apps/froggybot
+cd services/froggybot-api
 nvm use
 npm install
 npm run contract:generate
 npm run contract:check
-npm run backend:install
 export FROGBOT_AGENT_RUNTIME_ARN='arn:aws:bedrock-agentcore:us-east-1:188757775631:runtime/REPLACE_ME'
 export FROGBOT_MEMORY_ID='FrogBot_FrogBotMemory-REPLACE_ME'
 export FROGBOT_GOOGLE_OAUTH_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:frogbot/oauth/google-REPLACE_ME'
@@ -153,7 +152,7 @@ npm run sandbox -- --once --identifier frogbot --profile YOUR_AWS_PROFILE
 ```
 
 Amplify writes the real Cognito and API values to `apps/froggybot/amplify_outputs.json`. Keep the sandbox
-running during active development by omitting `--once`, then start the app in another terminal with
+running during active development by omitting `--once`, then start the app from `apps/froggybot` in another terminal with
 `npm run ios`. Expo SDK 57 requires Node 22.13 or newer; the pinned Node 22 line also avoids the
 Amplify CLI incompatibility seen under Node 25.
 
@@ -240,12 +239,17 @@ query string and hand off to the Expo app subdomain.
 - `services/agent-runtime/runtime/frogbot_runtime/` - production-only runtime source packaged for AgentCore
 - `services/agent-runtime/runtime/frogbot_runtime/capability_contract.py` - reviewed execution allowlist and capability validation
 - `agentcore/agentcore.json` - AgentCore source-of-truth configuration
-- `apps/froggybot/src/features/` - authentication, invitations, chat UI, and editors
-- `apps/froggybot/src/lib/api/` - domain API contracts and cloud adapters
-- `apps/froggybot/src/lib/demo/` - domain preview adapters over explicit in-memory state
-- `apps/froggybot/amplify/backend.ts` - Cognito, API, DynamoDB, SQS, and Lambda infrastructure
-- `apps/froggybot/amplify/functions/api/api-contract.json` - single authored application HTTP route contract
-- `apps/froggybot/amplify/functions/shared/connection_providers.py` - public-safe connection provider manifest
-- `apps/froggybot/amplify/functions/api/bot_roles.py` - Chief's protected role and reserved branding, not its bot configuration
-- `apps/froggybot/amplify/functions/` - authenticated API, shared domain logic, and AgentCore worker
+- `apps/froggybot/src/` - Expo routes, screens, components, styles, and composition adapters only
+- `packages/froggybot-contract/` - shared types and generated HTTP route contract
+- `packages/froggybot-client/` - headless API client, response validation, state reconciliation, and presentation models
+- `packages/froggybot-expo-client/` - Expo platform adapters and controller hooks
+- `packages/froggybot-preview/` - development-only in-memory API implementation, excluded from production bundles
+- `packages/frogbot-transcription/` - reusable on-device transcription module and Swift core
+- `apps/froggybot-browser-viewer/` - independently built disposable AgentCore Live View shell
+- `services/froggybot-api/` - independently verified and deployed application backend package
+- `services/froggybot-api/amplify/backend.ts` - Cognito, API, DynamoDB, SQS, and Lambda infrastructure
+- `services/froggybot-api/amplify/functions/api/api-contract.json` - single authored application HTTP route contract
+- `services/froggybot-api/amplify/functions/shared/connection_providers.py` - public-safe connection provider manifest
+- `services/froggybot-api/amplify/functions/api/bot_roles.py` - Chief's protected role and reserved branding, not its bot configuration
+- `services/froggybot-api/amplify/functions/` - authenticated API, shared domain logic, and AgentCore worker
 - [FroggyBot Skills](https://github.com/tmoreton/frogbot-skills) - the only source for public bot templates, skill instructions, and external tool schemas

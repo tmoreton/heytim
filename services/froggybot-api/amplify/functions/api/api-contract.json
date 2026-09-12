@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "routes": [
+    { "id": "publicInvite", "method": "GET", "path": "/public/invites/{kind}/{token}", "access": "public", "handler": "public" },
+    { "id": "publicCatalog", "method": "GET", "path": "/public/catalog", "access": "public", "handler": "public" },
+    { "id": "googleOAuthCallback", "method": "GET", "path": "/public/oauth/google/callback", "access": "public", "handler": "public" },
+
+    { "id": "bootstrap", "method": "GET", "path": "/bootstrap", "access": "authenticated", "handler": "bot" },
+    { "id": "botTemplateInstall", "method": "POST", "path": "/bot-templates/{templateId}/install", "access": "authenticated", "handler": "bot" },
+    { "id": "botCreate", "method": "POST", "path": "/bots", "access": "authenticated", "handler": "bot" },
+    { "id": "botUpdate", "method": "PUT", "path": "/bots/{botId}", "access": "authenticated", "handler": "bot" },
+    { "id": "botDelete", "method": "DELETE", "path": "/bots/{botId}", "access": "authenticated", "handler": "bot" },
+
+    { "id": "botDocuments", "method": "GET", "path": "/bots/{botId}/documents", "access": "authenticated", "handler": "directChat" },
+    { "id": "botMessagesList", "method": "GET", "path": "/bots/{botId}/messages", "access": "authenticated", "handler": "directChat" },
+    { "id": "botMessageSend", "method": "POST", "path": "/bots/{botId}/messages", "access": "authenticated", "handler": "directChat" },
+    { "id": "botMessagesClear", "method": "DELETE", "path": "/bots/{botId}/messages", "access": "authenticated", "handler": "directChat" },
+    { "id": "botMessageApprove", "method": "POST", "path": "/bots/{botId}/messages/{turnId}/approve", "access": "authenticated", "handler": "directChat" },
+    { "id": "botMessageCancel", "method": "POST", "path": "/bots/{botId}/messages/{turnId}/cancel", "access": "authenticated", "handler": "directChat" },
+
+    { "id": "browserStatus", "method": "GET", "path": "/bots/{botId}/browser", "access": "authenticated", "handler": "browser" },
+    { "id": "browserOpen", "method": "POST", "path": "/bots/{botId}/browser/open", "access": "authenticated", "handler": "browser" },
+    { "id": "browserResume", "method": "POST", "path": "/bots/{botId}/browser/resume", "access": "authenticated", "handler": "browser" },
+    { "id": "browserClose", "method": "POST", "path": "/bots/{botId}/browser/close", "access": "authenticated", "handler": "browser" },
+    { "id": "browserProfileDelete", "method": "DELETE", "path": "/bots/{botId}/browser/profile", "access": "authenticated", "handler": "browser" },
+
+    { "id": "botSchedulesList", "method": "GET", "path": "/bots/{botId}/schedules", "access": "authenticated", "handler": "schedule" },
+    { "id": "botScheduleCreate", "method": "POST", "path": "/bots/{botId}/schedules", "access": "authenticated", "handler": "schedule" },
+    { "id": "botScheduleUpdate", "method": "PUT", "path": "/bots/{botId}/schedules/{scheduleId}", "access": "authenticated", "handler": "schedule" },
+    { "id": "botScheduleDelete", "method": "DELETE", "path": "/bots/{botId}/schedules/{scheduleId}", "access": "authenticated", "handler": "schedule" },
+    { "id": "botScheduleRun", "method": "POST", "path": "/bots/{botId}/schedules/{scheduleId}/run", "access": "authenticated", "handler": "schedule" },
+    { "id": "botScheduleRuns", "method": "GET", "path": "/bots/{botId}/runs", "access": "authenticated", "handler": "schedule" },
+
+    { "id": "groupCreate", "method": "POST", "path": "/groups", "access": "authenticated", "handler": "groupAdmin" },
+    { "id": "groupUpdate", "method": "PUT", "path": "/groups/{groupId}", "access": "authenticated", "handler": "groupAdmin" },
+    { "id": "groupDelete", "method": "DELETE", "path": "/groups/{groupId}", "access": "authenticated", "handler": "groupAdmin" },
+    { "id": "groupDecisionCreate", "method": "POST", "path": "/groups/{groupId}/decisions", "access": "authenticated", "handler": "groupAdmin" },
+    { "id": "groupDecisionDelete", "method": "DELETE", "path": "/groups/{groupId}/decisions/{decisionId}", "access": "authenticated", "handler": "groupAdmin" },
+    { "id": "groupMemoryList", "method": "GET", "path": "/groups/{groupId}/memory", "access": "authenticated", "handler": "groupAdmin" },
+    { "id": "groupMemoryCreate", "method": "POST", "path": "/groups/{groupId}/memory", "access": "authenticated", "handler": "groupAdmin" },
+    { "id": "groupMemoryUpdate", "method": "PUT", "path": "/groups/{groupId}/memory/{memoryRecordId}", "access": "authenticated", "handler": "groupAdmin" },
+    { "id": "groupMemoryDelete", "method": "DELETE", "path": "/groups/{groupId}/memory/{memoryRecordId}", "access": "authenticated", "handler": "groupAdmin" },
+    { "id": "groupInviteCreate", "method": "POST", "path": "/groups/{groupId}/invites", "access": "authenticated", "handler": "groupAdmin" },
+    { "id": "groupInviteJoin", "method": "POST", "path": "/group-invites/{token}/join", "access": "authenticated", "handler": "groupAdmin" },
+    { "id": "groupMemberDelete", "method": "DELETE", "path": "/groups/{groupId}/members/{memberId}", "access": "authenticated", "handler": "groupAdmin" },
+
+    { "id": "groupMessagesList", "method": "GET", "path": "/groups/{groupId}/messages", "access": "authenticated", "handler": "groupMessage" },
+    { "id": "groupMessageSend", "method": "POST", "path": "/groups/{groupId}/messages", "access": "authenticated", "handler": "groupMessage" },
+    { "id": "groupFileDownload", "method": "GET", "path": "/groups/{groupId}/files/{fileId}/download", "access": "authenticated", "handler": "groupMessage" },
+
+    { "id": "groupSchedulesList", "method": "GET", "path": "/groups/{groupId}/schedules", "access": "authenticated", "handler": "groupSchedule" },
+    { "id": "groupScheduleCreate", "method": "POST", "path": "/groups/{groupId}/schedules", "access": "authenticated", "handler": "groupSchedule" },
+    { "id": "groupScheduleUpdate", "method": "PUT", "path": "/groups/{groupId}/schedules/{scheduleId}", "access": "authenticated", "handler": "groupSchedule" },
+    { "id": "groupScheduleDelete", "method": "DELETE", "path": "/groups/{groupId}/schedules/{scheduleId}", "access": "authenticated", "handler": "groupSchedule" },
+    { "id": "groupScheduleRun", "method": "POST", "path": "/groups/{groupId}/schedules/{scheduleId}/run", "access": "authenticated", "handler": "groupSchedule" },
+    { "id": "groupScheduleRuns", "method": "GET", "path": "/groups/{groupId}/runs", "access": "authenticated", "handler": "groupSchedule" },
+
+    { "id": "pushTokenPut", "method": "PUT", "path": "/devices/push-token", "access": "authenticated", "handler": "fileAndDevice" },
+    { "id": "pushTokenDelete", "method": "DELETE", "path": "/devices/push-token", "access": "authenticated", "handler": "fileAndDevice" },
+    { "id": "uploadCreate", "method": "POST", "path": "/uploads", "access": "authenticated", "handler": "fileAndDevice" },
+    { "id": "uploadComplete", "method": "POST", "path": "/uploads/{fileId}/complete", "access": "authenticated", "handler": "fileAndDevice" },
+    { "id": "fileDownload", "method": "GET", "path": "/files/{fileId}/download", "access": "authenticated", "handler": "fileAndDevice" },
+
+    { "id": "memoryList", "method": "GET", "path": "/memory", "access": "authenticated", "handler": "library" },
+    { "id": "memoryCreate", "method": "POST", "path": "/memory", "access": "authenticated", "handler": "library" },
+    { "id": "memoryExport", "method": "POST", "path": "/memory/export", "access": "authenticated", "handler": "library" },
+    { "id": "memoryUpdate", "method": "PUT", "path": "/memory/{memoryRecordId}", "access": "authenticated", "handler": "library" },
+    { "id": "memoryDelete", "method": "DELETE", "path": "/memory/{memoryRecordId}", "access": "authenticated", "handler": "library" },
+
+    { "id": "sharesList", "method": "GET", "path": "/shares", "access": "authenticated", "handler": "sharing" },
+    { "id": "shareCreate", "method": "POST", "path": "/shares", "access": "authenticated", "handler": "sharing" },
+    { "id": "shareDelete", "method": "DELETE", "path": "/shares/{token}", "access": "authenticated", "handler": "sharing" },
+    { "id": "shareImport", "method": "POST", "path": "/shares/{token}/import", "access": "authenticated", "handler": "sharing" },
+
+    { "id": "skillCreate", "method": "POST", "path": "/skills", "access": "authenticated", "handler": "skill" },
+    { "id": "skillGet", "method": "GET", "path": "/skills/{skillId}", "access": "authenticated", "handler": "skill" },
+    { "id": "skillUpdate", "method": "PUT", "path": "/skills/{skillId}", "access": "authenticated", "handler": "skill" },
+    { "id": "skillShare", "method": "POST", "path": "/skills/{skillId}/share", "access": "authenticated", "handler": "skill" },
+    { "id": "skillShareImport", "method": "POST", "path": "/skill-shares/{token}/import", "access": "authenticated", "handler": "skill" },
+
+    { "id": "connectionsList", "method": "GET", "path": "/connections", "access": "authenticated", "handler": "library" },
+    { "id": "connectionAuthorize", "method": "POST", "path": "/connections/{providerId}/authorization", "access": "authenticated", "handler": "library" },
+    { "id": "connectionDelete", "method": "DELETE", "path": "/connections/{connectionId}", "access": "authenticated", "handler": "library" },
+
+    { "id": "accountDelete", "method": "DELETE", "path": "/account", "access": "authenticated", "handler": "account" }
+  ]
+}

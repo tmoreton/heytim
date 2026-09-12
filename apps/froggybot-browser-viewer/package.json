@@ -1,0 +1,37 @@
+{
+  "name": "@froggybot/browser-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node src/build.mjs",
+    "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test 'src/**/*.test.mjs'",
+    "typecheck": "tsc --noEmit",
+    "fixture": "node src/serve-fixture.mjs",
+    "fixture:check": "node src/check-ui.mjs"
+  },
+  "dependencies": {
+    "@babel/runtime": "7.29.7",
+    "@cloudscape-design/components": "3.0.1368",
+    "@cloudscape-design/design-tokens": "3.0.112",
+    "@cloudscape-design/global-styles": "1.0.68",
+    "@froggybot/client": "file:../../packages/froggybot-client",
+    "@froggybot/contracts": "file:../../packages/froggybot-contract",
+    "bedrock-agentcore": "0.4.3",
+    "prop-types": "15.8.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "@types/react-dom": "19.2.3",
+    "esbuild": "0.28.2",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-web": "~0.21.0",
+    "typescript": "~6.0.3"
+  },
+  "engines": {
+    "node": ">=22.13 <25"
+  }
+}

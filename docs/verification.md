@@ -9,7 +9,7 @@ they validate source, build local artifacts, and run tests, but do not deploy in
 - Python 3.14
 - `uv`
 - AgentCore CLI `0.28.1`
-- npm dependencies installed in `apps/froggybot`, `apps/froggybot/amplify`, and `agentcore/cdk`
+- npm dependencies installed in `apps/froggybot`, `apps/froggybot-browser-viewer`, `services/froggybot-api`, and `agentcore/cdk`
 
 ## Complete local verification
 
@@ -20,7 +20,7 @@ scripts/verify.sh
 ```
 
 The script validates the declarative AgentCore configuration, checks and tests the locked runtime environment,
-checks the runtime deployment-package manifest, verifies the Expo application and Amplify backend,
+checks the runtime deployment-package manifest, verifies the shared clients, isolated browser viewer, Expo view layer, and Amplify backend,
 exports the web application, audits backend Python, and builds/tests the generated AgentCore CDK wrapper.
 
 ## Focused checks
@@ -29,6 +29,7 @@ Use a focused command while iterating, then run the complete script before mergi
 
 ```bash
 scripts/verify.sh application
+scripts/verify.sh backend
 scripts/verify.sh runtime
 scripts/verify.sh agentcore
 ```
@@ -44,9 +45,8 @@ scripts/clean-generated.sh
 
 ## Continuous integration
 
-Pull requests run application, runtime, and AgentCore jobs independently. A push to `main` can publish only after all
-three jobs pass. The application job also exports web output and audits backend Python; the runtime job uses the lockfile
-and checks the deployable archive boundary.
+Pull requests run application, backend, runtime, and AgentCore jobs independently. A push to `main` can publish only after all
+four jobs pass. The application job exports web output; the backend job checks Amplify TypeScript and audits backend Python.
 
 ## Deployed verification
 

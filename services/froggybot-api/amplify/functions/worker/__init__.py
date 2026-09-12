@@ -1,0 +1,1 @@
+"""FroggyBot worker Lambda package."""

@@ -21,6 +21,9 @@ dependencies = [
     "greenlet == 3.2.5",
     # Direct dependency: hardened remote MCP transports use HTTPX directly.
     "httpx == 0.28.1",
+    # CodeZip resolves OpenAI transitives afresh; keep the packaged parser on
+    # the exact version exercised by the locked runtime environment.
+    "jiter == 0.16.0",
     # Direct dependency: the hardened remote transport uses MCP's streamable HTTP API.
     "mcp >= 1.29.1, < 2.0.0",
     "mcp-proxy-for-aws >= 1.6.0, < 2.0.0",

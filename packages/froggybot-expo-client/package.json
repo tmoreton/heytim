@@ -1,0 +1,36 @@
+{
+  "name": "@froggybot/expo-client",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./use-browser-handoff": "./src/use-browser-handoff.ts"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test 'src/**/*.test.mjs'"
+  },
+  "dependencies": {
+    "@froggybot/client": "file:../froggybot-client",
+    "@froggybot/contracts": "file:../froggybot-contract",
+    "@froggybot/transcription": "file:../frogbot-transcription"
+  },
+  "peerDependencies": {
+    "expo": ">=57",
+    "expo-constants": ">=57",
+    "expo-device": ">=57",
+    "expo-document-picker": ">=57",
+    "expo-file-system": ">=57",
+    "expo-image-manipulator": ">=57",
+    "expo-image-picker": ">=57",
+    "expo-linking": ">=57",
+    "expo-notifications": ">=57",
+    "react": ">=19",
+    "react-native": ">=0.86",
+    "react-native-get-random-values": ">=1",
+    "aws-amplify": ">=6"
+  },
+  "engines": {
+    "node": ">=22.13 <25"
+  }
+}

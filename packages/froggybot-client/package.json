@@ -1,0 +1,16 @@
+{
+  "name": "@froggybot/client",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test 'src/**/*.test.mjs'"
+  },
+  "dependencies": {
+    "@froggybot/contracts": "file:../froggybot-contract"
+  },
+  "engines": {
+    "node": ">=22.13 <25"
+  }
+}

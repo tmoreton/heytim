@@ -43,14 +43,33 @@ verify_runtime() {
   )
 }
 
+verify_backend() {
+  section "FroggyBot application backend"
+  (
+    cd "$repository_root/services/froggybot-api"
+    npm run verify
+    uvx ruff==0.16.6 check amplify/functions
+    uvx bandit==1.9.4 -q -r amplify/functions -x amplify/functions/tests
+  )
+}
+
 verify_application() {
-  section "Application and Amplify backend"
+  section "Shared application packages"
+  npm --prefix "$repository_root/packages/froggybot-contract" test
+  npm --prefix "$repository_root/packages/froggybot-client" test
+  npm --prefix "$repository_root/packages/froggybot-expo-client" test
+  npm --prefix "$repository_root/packages/froggybot-preview" test
+  npm --prefix "$repository_root/packages/frogbot-transcription" test
+
+  section "Isolated browser viewer"
+  npm --prefix "$repository_root/apps/froggybot-browser-viewer" test
+  npm --prefix "$repository_root/apps/froggybot-browser-viewer" run typecheck
+
+  section "Expo application"
   (
     cd "$repository_root/apps/froggybot"
     npm run verify
     npm run build:web
-    uvx ruff==0.16.6 check amplify/functions
-    uvx bandit==1.9.4 -q -r amplify/functions -x amplify/functions/tests
   )
 }
 
@@ -58,6 +77,7 @@ case "$component" in
   all)
     verify_agentcore
     verify_runtime
+    verify_backend
     verify_application
     ;;
   agentcore)
@@ -66,11 +86,14 @@ case "$component" in
   runtime)
     verify_runtime
     ;;
+  backend)
+    verify_backend
+    ;;
   application)
     verify_application
     ;;
   *)
-    printf 'Usage: %s [all|agentcore|runtime|application]\n' "$0" >&2
+    printf 'Usage: %s [all|agentcore|runtime|backend|application]\n' "$0" >&2
     exit 2
     ;;
 esac

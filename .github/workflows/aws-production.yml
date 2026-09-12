@@ -58,7 +58,7 @@ jobs:
           cache: npm
           cache-dependency-path: |
             apps/froggybot/package-lock.json
-            apps/froggybot/amplify/package-lock.json
+            services/froggybot-api/package-lock.json
             agentcore/cdk/package-lock.json
 
       - uses: actions/setup-python@v6
@@ -73,7 +73,7 @@ jobs:
       - name: Install production dependencies
         run: |
           npm ci --prefix apps/froggybot
-          npm ci --prefix apps/froggybot/amplify
+          npm ci --prefix services/froggybot-api
           npm ci --prefix agentcore/cdk
           npm install --global @aws/agentcore@0.28.1
 
@@ -103,12 +103,12 @@ jobs:
           echo "FROGBOT_MEMORY_ID=${memory_arn##*/}" >> "$GITHUB_ENV"
 
       - name: Deploy Amplify production backend
-        working-directory: apps/froggybot
+        working-directory: services/froggybot-api
         env:
           FROGBOT_ENVIRONMENT: production
           FROGBOT_GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_GOOGLE_OAUTH_SECRET_ARN }}
           FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT: ${{ vars.FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT || '100' }}
-        run: ./amplify/node_modules/.bin/ampx pipeline-deploy --branch main --app-id "${{ vars.AMPLIFY_APP_ID }}"
+        run: npx ampx pipeline-deploy --branch main --app-id "${{ vars.AMPLIFY_APP_ID }}" --outputs-out-dir ../../apps/froggybot
 
       - name: Harden AgentCore runtime logs
         run: |

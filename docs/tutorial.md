@@ -38,13 +38,13 @@ Read the preview path in this order:
 2. `src/features/app/app-entry.tsx` chooses authentication or the signed-in product.
 3. `src/features/chat/chat-app.tsx` coordinates the selected conversation and modal screens.
 4. `src/features/chat/conversation-panel.tsx` renders the active conversation.
-5. `src/lib/api.ts` composes the small domain APIs presented to the interface.
-6. `src/lib/demo/` implements those domains over one explicit in-memory preview state.
-7. `src/lib/demo-catalog.ts` loads the same public capability catalog used in production.
+5. `src/lib/api.ts` composes the packaged API clients presented to the interface.
+6. `packages/froggybot-client/` owns transport, validation, state reconciliation, and headless domain behavior.
+7. `packages/froggybot-expo-client/` owns Expo platform integrations and controller hooks.
+8. `packages/froggybot-preview/` implements the API over one explicit in-memory preview state.
 
-The chat folder keeps each workflow separate: attachments, invitation links, and dictation are hooks;
-editors and sheets are components; `use-chat-actions.ts` owns mutations; and `chat-app.tsx` joins the
-resulting view model together.
+The chat folder contains only views and view-specific layout behavior. Editors and sheets consume the
+view model from `@froggybot/expo-client`; `chat-app.tsx` joins those packaged controllers to the visual tree.
 
 ## 3. Follow a live message
 
@@ -113,10 +113,10 @@ or removes them.
 `agentcore/.llm-context/agentcore.ts` before changing it, then run `agentcore validate`. Never change
 generated behavior under `agentcore/cdk`.
 
-`apps/froggybot/amplify/backend.ts` composes the application stack. It creates Cognito, DynamoDB, S3,
-SQS, Lambda, Scheduler, and the HTTP API. `amplify/functions/api/api-contract.json` is the one authored
+`services/froggybot-api/amplify/backend.ts` composes the application stack. It creates Cognito, DynamoDB, S3,
+SQS, Lambda, Scheduler, and the HTTP API. `services/froggybot-api/amplify/functions/api/api-contract.json` is the one authored
 route list used by CDK, the Python dispatcher, and the generated client route map. Run
-`npm run contract:generate` after changing it; `npm test` rejects a stale generated map. `observability.ts`
+`npm run contract:generate` from `services/froggybot-api` after changing it; its tests reject a stale generated map. `observability.ts`
 adds alarms, the dashboard, and the monthly budget. Existing construct IDs and AgentCore resource names
 are stable; renaming them can replace live resources.
 
@@ -158,11 +158,11 @@ connections are legacy-only: users can review or remove them, but cannot create 
 
 Use the narrowest path that fits the feature:
 
-1. Add or update shared TypeScript types in `src/lib/types.ts`.
-2. Add the operation to the matching interface and cloud adapter under `src/lib/api/`.
-3. Add preview behavior to the matching module under `src/lib/demo/`.
-4. Put interface behavior in the relevant feature folder; keep route files and view shells small.
-5. Add an API route once in `amplify/functions/api/api-contract.json`, then run `npm run contract:generate`.
+1. Add or update shared TypeScript types in `packages/froggybot-contract/src/types.ts`.
+2. Add the operation to the matching interface in `packages/froggybot-contract/src/api/` and adapter in `packages/froggybot-client/src/api/`.
+3. Add preview behavior to `packages/froggybot-preview/src/`.
+4. Put platform/controller behavior in `packages/froggybot-expo-client`; keep Expo feature folders visual.
+5. Add an API route once in `services/froggybot-api/amplify/functions/api/api-contract.json`, then run `npm run contract:generate` from the service directory.
 6. Map its handler name in `authenticated_routes.py` and put persistence and authorization in the matching API domain module.
 7. Return a stable machine-readable error code when clients need to distinguish a failure mode.
 8. Add a worker job only when work can outlive an HTTP request.

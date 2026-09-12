@@ -13,7 +13,7 @@ while IFS= read -r file; do
     services/agent-runtime/vendor/*|*/node_modules/*|*/.amplify/*|*/dist/*|agentcore/cdk/*)
       continue
       ;;
-    services/agent-runtime/*|apps/froggybot/src/*|apps/froggybot/amplify/functions/*|apps/froggybot/amplify/infrastructure/*|apps/froggybot/amplify/backend.ts|apps/froggybot/scripts/*|scripts/*)
+    services/agent-runtime/*|services/froggybot-api/amplify/functions/*|services/froggybot-api/amplify/infrastructure/*|services/froggybot-api/amplify/backend.ts|services/froggybot-api/scripts/*|apps/froggybot/src/*|apps/froggybot/scripts/*|apps/froggybot-browser-viewer/src/*|packages/*/src/*|scripts/*)
       ;;
     *)
       continue

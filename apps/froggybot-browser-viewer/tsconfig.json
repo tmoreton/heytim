@@ -1,0 +1,15 @@
+{
+  "extends": "../froggybot/tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@/*": ["../froggybot/src/*"],
+      "@froggybot/client": ["../../packages/froggybot-client/src/index"],
+      "@froggybot/contracts": ["../../packages/froggybot-contract/src/index"],
+      "@froggybot/expo-client": ["../../packages/froggybot-expo-client/src/index"],
+      "@froggybot/transcription": ["../../packages/frogbot-transcription/index"],
+      "expo": ["../froggybot/node_modules/expo"]
+    }
+  },
+  "include": ["src/entry.tsx", "src/memory-storage.ts"]
+}

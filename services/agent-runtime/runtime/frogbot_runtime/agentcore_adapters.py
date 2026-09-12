@@ -184,6 +184,10 @@ class PersistentAgentCoreBrowser(AgentCoreBrowser):
 
     def __del__(self):
         # Cleanup must use the same worker as Playwright, never the server loop.
+        # Most callers close explicitly. Avoid touching a shut-down executor when
+        # cyclic garbage collection later finalizes an already-disposed browser.
+        if getattr(self, "_disposed", True):
+            return
         try:
             self._executor.submit(self._dispose)
             self._executor.shutdown(wait=False)

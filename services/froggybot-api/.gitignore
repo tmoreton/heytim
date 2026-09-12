@@ -1,0 +1,6 @@
+node_modules/
+.amplify/
+__pycache__/
+*.py[cod]
+*.tsbuildinfo
+.env*.local

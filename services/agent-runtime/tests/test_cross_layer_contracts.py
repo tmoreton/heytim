@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import ast
+import importlib
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
@@ -30,25 +32,22 @@ from group_context import (
 )
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-GROUP_PRODUCER = (
-    REPOSITORY_ROOT / "apps/froggybot/amplify/functions/shared/group_chat.py"
-)
+BACKEND_FUNCTIONS = REPOSITORY_ROOT / "services/froggybot-api/amplify/functions"
 ATTACHMENT_PRODUCER = (
-    REPOSITORY_ROOT / "apps/froggybot/amplify/functions/api/support.py"
+    REPOSITORY_ROOT / "services/froggybot-api/amplify/functions/api/support.py"
 )
+CLIENT_CONTRACT = BACKEND_FUNCTIONS / "shared/client_contract.py"
 GROUP_SCHEMA = (
     Path(__file__).resolve().parents[1] / "contracts/group-context.v1.schema.json"
 )
 
 
 def _load_group_producer():
-    spec = importlib.util.spec_from_file_location(
-        "group_contract_producer", GROUP_PRODUCER
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    sys.path.insert(0, str(BACKEND_FUNCTIONS))
+    try:
+        return importlib.import_module("shared.group_chat")
+    finally:
+        sys.path.remove(str(BACKEND_FUNCTIONS))
 
 
 def _literal_assignments(path: Path) -> dict:
@@ -115,7 +114,7 @@ def test_versioned_group_fixture_is_accepted_by_runtime() -> None:
 
 
 def test_worker_group_memory_identity_can_write_only_its_group_artifacts() -> None:
-    path = REPOSITORY_ROOT / "apps/froggybot/amplify/functions/shared/memory_identity.py"
+    path = REPOSITORY_ROOT / "services/froggybot-api/amplify/functions/shared/memory_identity.py"
     spec = importlib.util.spec_from_file_location("memory_identity_producer", path)
     assert spec and spec.loader
     producer = importlib.util.module_from_spec(spec)
@@ -139,7 +138,10 @@ def test_worker_group_memory_identity_can_write_only_its_group_artifacts() -> No
 
 
 def test_attachment_limits_and_formats_match_amplify_producer() -> None:
-    producer = _literal_assignments(ATTACHMENT_PRODUCER)
+    producer = {
+        **_literal_assignments(ATTACHMENT_PRODUCER),
+        **_literal_assignments(CLIENT_CONTRACT),
+    }
     format_specs = producer["ATTACHMENT_FORMATS"]
     document_formats = {
         spec[1] for spec in format_specs.values() if spec[0] == "document"

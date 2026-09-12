@@ -1,24 +1,32 @@
 # FroggyBot architecture
 
-This repository deliberately has three product boundaries:
+This repository deliberately separates deployment units from reusable client packages:
 
 ```text
-apps/froggybot/          User experience and its serverless application backend
-services/agent-runtime/  One AgentCore runtime shared by every FroggyBot personality
-agentcore/               Declarative AgentCore infrastructure and gateway schemas
+apps/froggybot/                 Expo view layer and composition root
+apps/froggybot-browser-viewer/  Disposable browser viewer application
+packages/                       Contracts, clients, preview, and native transcription
+services/froggybot-api/         Serverless application backend
+services/agent-runtime/         AgentCore runtime shared by every FroggyBot personality
+agentcore/                      Declarative AgentCore infrastructure and gateway schemas
 ```
 
 ## Mobile application
 
-`apps/froggybot/src/app` contains Expo Router route shells only. Product behavior belongs under
-`src/features`, reusable visual primitives under `src/components`, and AWS/API adapters under
-`src/lib`. The signed-in chat is composed from a drawer, header, message list, composer, and
-focused bot/group/skill editors. Web and iOS use the same feature code.
+`apps/froggybot/src/app` contains Expo Router route shells. `src/features` and `src/components` contain
+screens and visual primitives; `src/lib` is limited to composition, cloud configuration, theme values,
+and the production-disabled preview switch. A boundary check rejects new non-view TypeScript modules in
+the app. Web and iOS use the same view code.
 
-`src/lib/api.ts` is a facade composed from bot, conversation, group, schedule, account, and browser
-domain contracts. Cloud and preview implementations follow the same boundaries. Preview data lives in one
-explicit state object under `src/lib/demo/`, while its domain modules own the mutations. The signed-in chat
-keeps mutation orchestration in `use-chat-actions.ts`, leaving `chat-app.tsx` as the view-model and layout shell.
+`packages/froggybot-contract` owns shared types and generated routes. `packages/froggybot-client` owns the
+headless transport, response validation, reconciliation, policy-derived presentation models, and API domains.
+`packages/froggybot-expo-client` owns platform/controller hooks for auth, notifications, links, polling,
+attachments, dictation, and mutations. `packages/froggybot-preview` owns one explicit in-memory development
+state and API implementation. `packages/frogbot-transcription` owns the reusable Expo/Swift transcription module.
+The separately built browser viewer keeps the AgentCore SDK and Cloudscape dependency tree out of Expo.
+
+The backend returns `allowedActions` and input `constraints` in its public models. Views render those values
+and fail closed when actions are absent; they do not infer authorization from ownership, roles, or status.
 
 The public website uses `/` for positioning and `/library` for the searchable bot, skill, tool, and action directory.
 The directory reads sanitized catalog metadata from `/public/catalog` and falls back to the same reviewed GitHub
@@ -37,13 +45,13 @@ connection-provider manifest rather than branching on provider IDs. Browser-spec
 ## Application backend
 
 Amplify owns Cognito and the application-facing AWS resources. One HTTP API Lambda keeps deployment
-and permissions simple, while focused modules under `amplify/functions/api` own each application
-domain. The API handler only routes requests. Shared rules live under `amplify/functions/shared`.
+and permissions simple, while focused modules under `services/froggybot-api/amplify/functions/api` own each application
+domain. The API handler only routes requests. Shared rules live under `services/froggybot-api/amplify/functions/shared`.
 The SQS worker uses the same pattern: its handler routes jobs, and focused worker modules claim work,
 invoke AgentCore, persist results, and send final-response notifications.
 
-`amplify/functions/api/api-contract.json` is the single authored HTTP route contract. Amplify CDK and the
-Python dispatcher load it directly; a checked-in generated TypeScript map gives the app typed URL construction.
+`services/froggybot-api/amplify/functions/api/api-contract.json` is the single authored HTTP route contract. Amplify CDK and the
+Python dispatcher load it directly; a checked-in generated TypeScript map in `packages/froggybot-contract` gives clients typed URL construction.
 The contract check prevents those consumers from drifting. Expected API failures carry stable codes independently
 of their human-readable messages, so clients can choose safe UI behavior without matching English text.
 
@@ -134,7 +142,7 @@ template: first-time setup installs it and applies the protected coordinator rol
 ## Invariants
 
 - `agentcore/agentcore.json` is the source of truth for AgentCore resources; generated CDK is not.
-- `amplify/functions/api/api-contract.json` is the source of truth for application HTTP routes; its generated client map must be current.
+- `services/froggybot-api/amplify/functions/api/api-contract.json` is the source of truth for application HTTP routes; its generated client map must be current.
 - Existing CDK construct IDs and resource names are stable because renaming them can replace data.
 - Every authenticated read/write verifies ownership or group membership server-side.
 - Invitation tokens are random, time-limited, and stored as hashes for sign-up validation.
