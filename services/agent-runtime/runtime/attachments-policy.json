@@ -20,6 +20,16 @@
       "Resource": "arn:aws:s3:::frogbot-user-files-188757775631-us-east-1/meme-templates/*"
     },
     {
+      "Sid": "UseFrogBotUserFilesEncryptionKey",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:DescribeKey",
+        "kms:GenerateDataKey"
+      ],
+      "Resource": "arn:aws:kms:us-east-1:188757775631:key/c7a32163-5c7e-459d-a833-4fbd686bb57c"
+    },
+    {
       "Sid": "ReadFrogBotConnectionCredentials",
       "Effect": "Allow",
       "Action": "secretsmanager:GetSecretValue",
