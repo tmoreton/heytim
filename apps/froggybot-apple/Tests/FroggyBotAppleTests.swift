@@ -172,6 +172,23 @@ import XCTest
       "https://api.example.com/bots/bot%2Fone/messages?cursor=next%20page")
   }
 
+  func testBootstrapSupportsTheDeployedLegacyShape() async throws {
+    MockURLProtocol.handler = { request in
+      Self.response(
+        for: request,
+        body:
+          #"{"bots":[],"botTemplates":[],"needsBotOnboarding":false,"groups":[],"tools":[],"retiredToolIds":[],"skills":[]}"#)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+
+    let bootstrap = try await api.bootstrap()
+
+    XCTAssertTrue(bootstrap.connectionProviders.isEmpty)
+    XCTAssertEqual(bootstrap.constraints, .serviceDefaults)
+  }
+
   func testAPIServerErrorPreservesStatusCodeAndMessage() async throws {
     MockURLProtocol.handler = { request in
       Self.response(

@@ -385,6 +385,27 @@ public struct AppConstraints: Codable, Equatable, Sendable {
   public var imageMaxBytes: Int
   public var documentMaxBytes: Int
   public var maxPhotoDimension: Int
+
+  /// Matches the limits used by the deployed service before `/bootstrap` began returning them.
+  public static let serviceDefaults = AppConstraints(
+    botNameMaxLength: 48,
+    botTaglineMaxLength: 120,
+    botPromptMaxLength: 12_000,
+    groupNameMaxLength: 64,
+    groupMemoryMaxLength: 4_000,
+    messageMaxLength: 8_000,
+    scheduleNameMaxLength: 64,
+    schedulePromptMaxLength: 8_000,
+    scheduleDayOfMonthMin: 1,
+    scheduleDayOfMonthMax: 28,
+    skillNameMaxLength: 80,
+    skillDescriptionMaxLength: 240,
+    skillInstructionsMaxLength: 20_000,
+    memoryMaxLength: 16_000,
+    maxAttachmentsPerMessage: 5,
+    imageMaxBytes: 3_750_000,
+    documentMaxBytes: 4_500_000,
+    maxPhotoDimension: 1_920)
 }
 
 public struct Bootstrap: Codable, Sendable {
@@ -397,6 +418,48 @@ public struct Bootstrap: Codable, Sendable {
   public var retiredToolIds: [String]
   public var skills: [Skill]
   public var constraints: AppConstraints
+
+  public init(
+    bots: [Bot],
+    botTemplates: [BotTemplate],
+    connectionProviders: [ConnectionProvider],
+    needsBotOnboarding: Bool,
+    groups: [BotGroup],
+    tools: [Capability],
+    retiredToolIds: [String],
+    skills: [Skill],
+    constraints: AppConstraints
+  ) {
+    self.bots = bots
+    self.botTemplates = botTemplates
+    self.connectionProviders = connectionProviders
+    self.needsBotOnboarding = needsBotOnboarding
+    self.groups = groups
+    self.tools = tools
+    self.retiredToolIds = retiredToolIds
+    self.skills = skills
+    self.constraints = constraints
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case bots, botTemplates, connectionProviders, needsBotOnboarding, groups, tools
+    case retiredToolIds, skills, constraints
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    bots = try container.decode([Bot].self, forKey: .bots)
+    botTemplates = try container.decode([BotTemplate].self, forKey: .botTemplates)
+    connectionProviders =
+      try container.decodeIfPresent([ConnectionProvider].self, forKey: .connectionProviders) ?? []
+    needsBotOnboarding = try container.decode(Bool.self, forKey: .needsBotOnboarding)
+    groups = try container.decode([BotGroup].self, forKey: .groups)
+    tools = try container.decode([Capability].self, forKey: .tools)
+    retiredToolIds = try container.decode([String].self, forKey: .retiredToolIds)
+    skills = try container.decode([Skill].self, forKey: .skills)
+    constraints =
+      try container.decodeIfPresent(AppConstraints.self, forKey: .constraints) ?? .serviceDefaults
+  }
 }
 
 public struct BrowserState: Codable, Sendable {

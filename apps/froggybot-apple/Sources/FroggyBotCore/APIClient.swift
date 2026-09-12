@@ -144,6 +144,12 @@ public final class FrogBotAPI: @unchecked Sendable {
       return EmptyResponse() as! Response
     }
     do { return try decoder.decode(Response.self, from: data) } catch {
+      #if DEBUG
+        fputs("FroggyBot decode failure for \(id.rawValue): \(error)\n", stderr)
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+          fputs("FroggyBot response keys for \(id.rawValue): \(object.keys.sorted())\n", stderr)
+        }
+      #endif
       throw APIError.invalidResponse
     }
   }
