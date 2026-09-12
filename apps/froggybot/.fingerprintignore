@@ -1,0 +1,4 @@
+# These large native artifacts are generated deterministically from pinned,
+# checksum-verified inputs before every EAS build. Their source files and the
+# preparation script remain part of the runtime fingerprint.
+../../packages/frogbot-transcription/ios/Generated/**/*

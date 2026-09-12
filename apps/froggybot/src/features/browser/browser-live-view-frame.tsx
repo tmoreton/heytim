@@ -2,8 +2,8 @@ import { useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
-import { viewerLocation, VIEWER_CONNECT, VIEWER_READY } from './viewer-location';
-import type { BotBrowserState } from '@/lib/types';
+import { viewerLocation, VIEWER_CONNECT, VIEWER_READY } from '@froggybot/client';
+import type { BotBrowserState } from '@froggybot/contracts';
 
 export default function BrowserLiveViewFrame({ signedUrl, viewport }: { signedUrl: string; viewport?: BotBrowserState['viewport'] }) {
   const frame = useRef<WebView>(null);

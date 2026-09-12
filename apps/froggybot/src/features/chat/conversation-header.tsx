@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BotAvatar } from '@/components/bot-avatar';
 import { GroupAvatar } from '@/components/participant-avatar';
-import type { Bot, Group } from '@/lib/types';
+import type { Bot, Group } from '@froggybot/contracts';
 
 type Props = {
   bot?: Bot;

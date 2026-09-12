@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FlatList, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
-import type { Message } from '@/lib/types';
+import type { Message } from '@froggybot/contracts';
 
 import { shouldFollowLatest, type ScrollPosition } from './chat-scroll-policy';
 

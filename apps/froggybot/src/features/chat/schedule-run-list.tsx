@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import type { Bot, ScheduleRun } from '@/lib/types';
+import type { Bot, ScheduleRun } from '@froggybot/contracts';
 
 type Props = {
   bot: Pick<Bot, 'id' | 'name' | 'color'>;

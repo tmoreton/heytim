@@ -4,8 +4,8 @@ import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useModalFocus } from '@/components/use-modal-focus';
-import { readableFileSize } from '@/lib/file-preview';
-import type { Attachment } from '@/lib/types';
+import { readableFileSize } from '@froggybot/client';
+import type { Attachment } from '@froggybot/contracts';
 
 type Props = {
   file: Attachment;

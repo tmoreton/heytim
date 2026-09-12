@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
-import type { Message } from '@/lib/types';
-import { messageTimingLabel } from '@/lib/message-timing';
-
-import { isActiveResponse } from './chat-state';
+import type { Message } from '@froggybot/contracts';
+import { isActiveResponse, messageTimingLabel } from '@froggybot/client';
 
 type Props = {
   message: Message;

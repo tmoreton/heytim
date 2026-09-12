@@ -1,8 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { Capability, CapabilitySelection } from '@/lib/types';
+import type { Capability, CapabilitySelection } from '@froggybot/contracts';
 
-import { capabilityAccessLabel } from './connection-access';
+import { capabilityAccessLabel } from '@froggybot/client';
 
 export function HowCapabilitiesWork() {
   return (

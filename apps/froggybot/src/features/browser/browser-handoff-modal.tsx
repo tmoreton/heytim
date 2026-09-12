@@ -6,7 +6,7 @@ import { useModalFocus } from '@/components/use-modal-focus';
 
 import BrowserLiveViewFrame from './browser-live-view-frame';
 import { styles } from './browser-handoff.styles';
-import type { useBrowserHandoff } from './use-browser-handoff';
+import type { useBrowserHandoff } from '@froggybot/expo-client/use-browser-handoff';
 
 type Handoff = ReturnType<typeof useBrowserHandoff>;
 

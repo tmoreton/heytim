@@ -1,11 +1,11 @@
 import { useWindowDimensions } from 'react-native';
 
-import type { BrowserApi } from '@/lib/browser-api';
-import type { Bot } from '@/lib/types';
+import type { BrowserApi } from '@froggybot/client';
+import type { Bot } from '@froggybot/contracts';
 
 import { BrowserHandoffModal } from './browser-handoff-modal';
-import { hasBrowserCapability } from './browser-policy';
-import { useBrowserHandoff } from './use-browser-handoff';
+import { hasBrowserCapability } from '@froggybot/client';
+import { useBrowserHandoff } from '@froggybot/expo-client/use-browser-handoff';
 
 type Props = { api: BrowserApi; bot: Bot; active: boolean; visible: boolean;
   initialUrl?: string;

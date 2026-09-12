@@ -1,14 +1,17 @@
-import { createCloudApi } from './cloud-api';
-import { createDemoApi } from './demo-api';
-import type { AccountApi } from './api/account-api';
-import type { BotsApi } from './api/bots-api';
-import type { ConversationsApi, MessagePage, UploadAsset } from './api/conversations-api';
-import type { GroupsApi } from './api/groups-api';
-import type { SchedulesApi } from './api/schedules-api';
-import type { BrowserApi } from './browser-api';
+import { fetchAuthSession } from 'aws-amplify/auth';
 
-export type FrogBotApi = AccountApi & BotsApi & BrowserApi & ConversationsApi & GroupsApi & SchedulesApi;
+import { createFrogBotClient, type FrogBotApi } from '@froggybot/client';
+import type { MessagePage, UploadAsset } from '@froggybot/contracts';
+import { createPreviewApi } from '@froggybot/preview-api';
+import { apiUrl } from './cloud';
+
+export type { FrogBotApi };
 export type { MessagePage, UploadAsset };
 
+const createCloudApi = (): FrogBotApi => createFrogBotClient({
+  apiUrl,
+  getIdToken: async () => (await fetchAuthSession()).tokens?.idToken?.toString(),
+});
+
 export const createApi = (demo: boolean): FrogBotApi =>
-  demo ? createDemoApi() : createCloudApi();
+  demo ? createPreviewApi() : createCloudApi();

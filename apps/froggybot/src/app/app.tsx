@@ -1,8 +1,8 @@
 import { useLocalSearchParams } from 'expo-router';
 
 import { AppEntry } from '@/features/app/app-entry';
-import { firstRouteParam } from '@/features/invites/invitation-url';
-import type { CapabilitySelection } from '@/lib/types';
+import { firstRouteParam } from '@froggybot/client';
+import type { CapabilitySelection } from '@froggybot/contracts';
 
 export default function AppPage() {
   const { bot, preview, skill, tool } = useLocalSearchParams<{

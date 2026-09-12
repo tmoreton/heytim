@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { isPreviewableImage, readableFileSize } from '@/lib/file-preview';
-import type { Attachment } from '@/lib/types';
+import { isPreviewableImage, readableFileSize } from '@froggybot/client';
+import type { Attachment } from '@froggybot/contracts';
 
 type Props = {
   file: Attachment;

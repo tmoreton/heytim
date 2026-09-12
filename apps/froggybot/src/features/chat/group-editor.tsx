@@ -16,13 +16,14 @@ import { ActionSheet } from '@/components/action-sheet';
 import { BotAvatar } from '@/components/bot-avatar';
 import { PageSheet } from '@/components/page-sheet';
 import { GroupAvatar, PersonAvatar } from '@/components/participant-avatar';
-import { messagePreview } from '@/lib/message-preview';
-import type { Bot, Group, GroupDraft, GroupMember, MemoryRecord, MemorySnapshot } from '@/lib/types';
+import { messagePreview } from '@froggybot/client';
+import type { AppConstraints, Bot, Group, GroupDraft, GroupMember, MemoryRecord, MemorySnapshot } from '@froggybot/contracts';
 
 import { MemorySettings } from './memory-settings';
 
 type Props = {
   group?: Group;
+  constraints: AppConstraints;
   bots: Bot[];
   onClose: () => void;
   onSave: (draft: GroupDraft) => Promise<void>;
@@ -38,6 +39,7 @@ type Props = {
 
 export function GroupEditor({
   group,
+  constraints,
   bots,
   onClose,
   onSave,
@@ -50,7 +52,7 @@ export function GroupEditor({
   onUpdateMemory,
   onDeleteMemory,
 }: Props) {
-  const editable = !group || group.isOwner;
+  const editable = !group || group.allowedActions?.includes('edit') === true;
   const chief = bots.find((bot) => bot.systemRole === 'chief');
   const [name, setName] = useState(group?.name ?? '');
   const [memory, setMemory] = useState(group?.memory ?? '');
@@ -112,7 +114,7 @@ export function GroupEditor({
 
   const confirmRemoval = async () => {
     if (!pendingRemoval) return;
-    const leaving = !group?.isOwner;
+    const leaving = pendingRemoval.allowedActions?.includes('leave') === true;
     try {
       await onRemoveMember(pendingRemoval);
       if (leaving) onClose();
@@ -140,7 +142,8 @@ export function GroupEditor({
         title={`${group.name} memory`}
         introTitle="Memory shared by this group"
         introCopy="Every bot in this group can recall these items. Private memories from members and bot owners are never copied here."
-        editable={group.isOwner}
+        editable={group.allowedActions?.includes('manageMemory') === true}
+        maxContentLength={constraints.memoryMaxLength}
         visibleKinds={['fact', 'preference', 'summary']}
         creatableKinds={['fact']}
         onClose={() => setMemoryManagerOpen(false)}
@@ -181,7 +184,7 @@ export function GroupEditor({
                   onChangeText={setName}
                   placeholder="Group name"
                   placeholderTextColor="#6E6A62"
-                  maxLength={64}
+                  maxLength={constraints.groupNameMaxLength}
                 />
               ) : (
                 <Text style={styles.groupName}>{name}</Text>
@@ -192,7 +195,7 @@ export function GroupEditor({
             </View>
           </View>
 
-          {group ? (
+          {group?.allowedActions?.includes('share') ? (
             <View style={styles.inviteCard}>
               <View style={styles.inviteCardTop}>
                 <View style={styles.inviteIcon}>
@@ -224,7 +227,7 @@ export function GroupEditor({
               <TextInput
                 accessibilityLabel="Pinned room facts"
                 multiline
-                maxLength={4000}
+                maxLength={constraints.groupMemoryMaxLength}
                 placeholder="Example: We are planning a four-day trip in October. Keep the total under $1,200 per person and always include vegetarian options."
                 placeholderTextColor="#6E6A62"
                 style={styles.memoryInput}
@@ -237,19 +240,23 @@ export function GroupEditor({
                 {memory || 'The owner has not pinned any room facts yet.'}
               </Text>
             )}
-            {editable ? <Text style={styles.memoryCount}>{memory.length.toLocaleString()} / 4,000</Text> : null}
+            {editable ? (
+              <Text style={styles.memoryCount}>
+                {memory.length.toLocaleString()} / {constraints.groupMemoryMaxLength.toLocaleString()}
+              </Text>
+            ) : null}
             {group?.memoryUpdatedAt ? (
               <Text style={styles.memoryMeta}>
                 Updated by {group.memoryUpdatedByName ?? 'the group owner'} · {new Date(group.memoryUpdatedAt).toLocaleDateString()}
               </Text>
             ) : null}
-            {group ? (
+            {group?.allowedActions?.includes('viewMemory') || group?.allowedActions?.includes('manageMemory') ? (
               <Pressable
                 accessibilityRole="button"
                 style={({ pressed }) => [styles.memoryManageButton, pressed && styles.pressed]}
                 onPress={() => setMemoryManagerOpen(true)}>
                 <Text style={styles.memoryManageText}>
-                  {group.isOwner ? 'Manage what FroggyBot learned' : 'View what FroggyBot learned'}
+                  {group.allowedActions?.includes('manageMemory') ? 'Manage what FroggyBot learned' : 'View what FroggyBot learned'}
                 </Text>
               </Pressable>
             ) : null}
@@ -267,7 +274,7 @@ export function GroupEditor({
                       From {decision.sourceAuthorName} · saved by {decision.createdByName} · {new Date(decision.createdAt).toLocaleDateString()}
                     </Text>
                   </View>
-                  {group.isOwner || decision.createdById === group.currentUserId ? (
+                  {decision.allowedActions?.includes('remove') ? (
                     <Pressable
                       accessibilityLabel={`Remove decision saved by ${decision.createdByName}`}
                       accessibilityRole="button"
@@ -316,9 +323,7 @@ export function GroupEditor({
             <>
               <Text style={[styles.label, styles.peopleLabel]}>People</Text>
               {group.members.map((member) => {
-                const canRemove =
-                  (group.isOwner && member.role !== 'owner') ||
-                  (!group.isOwner && member.id === group.currentUserId);
+                const canRemove = member.allowedActions?.some((action) => action === 'remove' || action === 'leave');
                 return (
                   <View key={member.id} style={styles.row}>
                     <PersonAvatar name={member.name} size={38} />
@@ -328,7 +333,7 @@ export function GroupEditor({
                     </View>
                     {canRemove ? (
                       <Pressable accessibilityRole="button" hitSlop={10} onPress={() => removeMember(member)}>
-                        <Text style={styles.removeText}>{group.isOwner ? 'Remove' : 'Leave'}</Text>
+                        <Text style={styles.removeText}>{member.allowedActions?.includes('leave') ? 'Leave' : 'Remove'}</Text>
                       </Pressable>
                     ) : null}
                   </View>
@@ -336,7 +341,7 @@ export function GroupEditor({
               })}
             </>
           ) : null}
-          {group?.isOwner ? (
+          {group?.allowedActions?.includes('delete') ? (
             <View style={styles.dangerZone}>
               <Text style={styles.dangerTitle}>Delete group</Text>
               <Text style={styles.dangerCopy}>Permanently delete this group and its chat for everyone.</Text>
@@ -355,11 +360,11 @@ export function GroupEditor({
       </KeyboardAvoidingView>
       <ActionSheet
         visible={Boolean(pendingRemoval)}
-        title={group?.isOwner ? `Remove ${pendingRemoval?.name ?? 'member'}?` : 'Leave group?'}
-        message={group?.isOwner ? 'They can rejoin with a new invite.' : 'You will need a new invite to rejoin.'}
+        title={pendingRemoval?.allowedActions?.includes('remove') ? `Remove ${pendingRemoval.name}?` : 'Leave group?'}
+        message={pendingRemoval?.allowedActions?.includes('remove') ? 'They can rejoin with a new invite.' : 'You will need a new invite to rejoin.'}
         options={[
           {
-            label: group?.isOwner ? 'Remove' : 'Leave',
+            label: pendingRemoval?.allowedActions?.includes('remove') ? 'Remove' : 'Leave',
             destructive: true,
             onPress: confirmRemoval,
           },

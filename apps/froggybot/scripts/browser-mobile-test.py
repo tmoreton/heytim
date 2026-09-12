@@ -30,7 +30,7 @@ class Headers(BaseHTTPRequestHandler):
 
 
 async def main():
-    extension = Path(__file__).resolve().parents[1] / "amplify/browser-extension"
+    extension = Path(__file__).resolve().parents[3] / "services/froggybot-api/amplify/browser-extension"
     functions = extension.parent / "functions"
     sys.path.insert(0, str(functions))
     sys.path.insert(0, str(functions / "vendor/websocket_client-1.9.0-py3-none-any.whl"))

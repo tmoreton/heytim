@@ -12,7 +12,7 @@ session. The server is the authorization authority.
 - Uses the official `bedrock-agentcore/browser/live-view` React component, pinned
   to 0.4.3, in a disposable iframe on web and a real `react-native-webview` 13.16.1
   on native (the version specified by Expo 57 docs).
-- `npm run browser:build` compiles the isolated viewer and copies AWS's decoder
+- `apps/froggybot-browser-viewer` owns and tests the isolated viewer. `npm run browser:build` compiles it and copies AWS's decoder
   assets, including license notices, to ignored `public/` build output.
   `npm start`, `npm run web`, and `npm run build:web` run it automatically.
 - **Deploy the web export before testing native.** Native's viewer shell defaults

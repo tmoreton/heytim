@@ -11,21 +11,24 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionSheet } from '@/components/action-sheet';
 import { createApi } from '@/lib/api';
-import type { Bot, CapabilitySelection, ConversationSelection, Group, Invitation } from '@/lib/types';
+import {
+  endSession,
+  useAttachments,
+  useChatActions,
+  useChatData,
+  useConversationLinks,
+  useFilePreview,
+  type ChatOverlay,
+} from '@froggybot/expo-client';
+import type { Bot, CapabilitySelection, ConversationSelection, Group, Invitation } from '@froggybot/contracts';
+import { isActiveResponse } from '@froggybot/client';
 
 import { ConversationActionSheets } from './bot-action-sheets';
 import { styles } from './chat-app.styles';
-import type { ChatOverlay } from './chat-overlay';
 import { ChatOverlays } from './chat-overlays';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationDrawer } from './conversation-drawer';
 import { ALL_BOTS_REPLY_TARGET } from './message-composer';
-import { useAttachments } from './use-attachments';
-import { useChatActions } from './use-chat-actions';
-import { useChatData } from './use-chat-data';
-import { useConversationLinks } from './use-conversation-links';
-import { useFilePreview } from './use-file-preview';
-import { isActiveResponse } from './chat-state';
 
 type Props = {
   demo: boolean;
@@ -93,6 +96,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
     : selectedGroup?.bots.find((bot) => bot.id === activeReplyBotId)?.name;
   const attachmentDraft = useAttachments({
     api,
+    constraints: data?.constraints,
     disabled: !selected || (pending && !selectedBot) || sending,
     setError,
   });
@@ -132,6 +136,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
     chat,
     attachments: attachmentDraft,
     unregisterPushToken: links.unregisterPushToken,
+    endSession,
     onSignedOut,
   });
   const baseContentHidden =
@@ -224,6 +229,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
             activeReplyBotId={activeReplyBotId}
             topInset={insets.top}
             bottomInset={insets.bottom}
+            maxMessageLength={data?.constraints?.messageMaxLength ?? 0}
             onError={setError}
             onDismissError={() => setError('')}
             onToggleDrawer={() => setDrawerOpen((value) => !value)}
@@ -312,7 +318,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
           if (selectedBot) setOverlay({ kind: 'documents', bot: selectedBot });
         }}
         onSchedule={() => {
-          if (selectedGroup?.isOwner) setOverlay({ kind: 'groupSchedule', group: selectedGroup });
+          if (selectedGroup?.allowedActions?.includes('schedule')) setOverlay({ kind: 'groupSchedule', group: selectedGroup });
           else if (selectedBot) setOverlay({ kind: 'schedule', bot: selectedBot });
         }}
         onShareSetup={actions.shareBot}

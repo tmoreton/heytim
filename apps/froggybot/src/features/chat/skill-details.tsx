@@ -1,7 +1,7 @@
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 
-import { requiredToolLabels } from '@/lib/capability-labels';
-import type { Capability, SkillDetail, SkillDraft } from '@/lib/types';
+import { requiredToolLabels } from '@froggybot/client';
+import type { AppConstraints, Capability, SkillDetail, SkillDraft } from '@froggybot/contracts';
 
 import { styles } from './skill-library.styles';
 
@@ -74,9 +74,10 @@ export function SkillView({
   );
 }
 
-export function SkillForm({ draft, tools, onChange }: {
+export function SkillForm({ draft, tools, constraints, onChange }: {
   draft: SkillDraft;
   tools: Capability[];
+  constraints: AppConstraints;
   onChange: (value: SkillDraft) => void;
 }) {
   const toggleTool = (id: string) =>
@@ -103,7 +104,7 @@ export function SkillForm({ draft, tools, onChange }: {
         onChangeText={(name) => onChange({ ...draft, name })}
         placeholder="Customer interview analyst"
         placeholderTextColor="#6E6A62"
-        maxLength={80}
+        maxLength={constraints.skillNameMaxLength}
       />
       <Text style={styles.fieldLabel}>When should the bot use it?</Text>
       <TextInput
@@ -113,7 +114,7 @@ export function SkillForm({ draft, tools, onChange }: {
         onChangeText={(description) => onChange({ ...draft, description })}
         placeholder="Analyze interview notes and identify recurring themes"
         placeholderTextColor="#6E6A62"
-        maxLength={240}
+        maxLength={constraints.skillDescriptionMaxLength}
       />
       <Text style={styles.fieldLabel}>Full instructions</Text>
       <Text style={styles.fieldHelp}>Include the steps, expected output, checks, and boundaries. The complete text is sent to the bot when activated.</Text>
@@ -124,11 +125,13 @@ export function SkillForm({ draft, tools, onChange }: {
         onChangeText={(instructions) => onChange({ ...draft, instructions })}
         placeholder="1. Identify the decision…\n2. Group evidence into themes…\n3. Return findings with confidence and gaps…"
         placeholderTextColor="#6E6A62"
-        maxLength={20000}
+        maxLength={constraints.skillInstructionsMaxLength}
         multiline
         textAlignVertical="top"
       />
-      <Text style={styles.characterCount}>{draft.instructions.length.toLocaleString()} / 20,000</Text>
+      <Text style={styles.characterCount}>
+        {draft.instructions.length.toLocaleString()} / {constraints.skillInstructionsMaxLength.toLocaleString()}
+      </Text>
       <Text style={styles.fieldLabel}>Tools required by this skill</Text>
       <Text style={styles.fieldHelp}>Selected tools are added automatically to every bot using the skill.</Text>
       {tools.map((tool) => {

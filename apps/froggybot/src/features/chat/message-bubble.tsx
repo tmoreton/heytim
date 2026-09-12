@@ -6,9 +6,9 @@ import { AgentActivity } from '@/components/agent-activity';
 import { BotAvatar } from '@/components/bot-avatar';
 import { MessageMarkdown } from '@/components/message-markdown';
 import { PersonAvatar } from '@/components/participant-avatar';
-import type { Attachment, Message } from '@/lib/types';
+import type { Attachment, Message } from '@froggybot/contracts';
 
-import { isActiveResponse } from './chat-state';
+import { isActiveResponse } from '@froggybot/client';
 import { MessageAttachment } from './message-attachment';
 import { MessageTimingLabel } from './message-timing-label';
 
@@ -74,7 +74,9 @@ export function MessageBubble({
   const label = roleLabel(message);
   const queued = message.status === 'waiting';
   const working = isActiveResponse(message);
-  const awaitingApproval = message.status === 'awaiting_approval';
+  const awaitingApproval = message.allowedActions?.some((action) => (
+    action === 'reject' || action === 'approveOnce' || action === 'approveAlways'
+  )) === true;
   const actingOnApproval = Boolean(approvalAction);
   const compactContribution =
     groupMode &&
@@ -133,7 +135,7 @@ export function MessageBubble({
               Allow it once, or always allow these tools for this bot in direct chats.
             </Text>
             <View style={styles.approvalActions}>
-              <Pressable
+              {message.allowedActions?.includes('reject') ? <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ disabled: actingOnApproval }}
                 disabled={actingOnApproval}
@@ -146,8 +148,8 @@ export function MessageBubble({
                 <Text style={styles.rejectButtonText}>
                   {approvalAction === 'reject' ? 'Working…' : 'Don’t allow'}
                 </Text>
-              </Pressable>
-              <Pressable
+              </Pressable> : null}
+              {message.allowedActions?.includes('approveOnce') ? <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ disabled: actingOnApproval, busy: actingOnApproval }}
                 disabled={actingOnApproval}
@@ -160,8 +162,8 @@ export function MessageBubble({
                 <Text style={styles.approveButtonText}>
                   {approvalAction === 'once' ? 'Working…' : 'Allow once'}
                 </Text>
-              </Pressable>
-              <Pressable
+              </Pressable> : null}
+              {message.allowedActions?.includes('approveAlways') ? <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ disabled: actingOnApproval, busy: actingOnApproval }}
                 disabled={actingOnApproval}
@@ -174,7 +176,7 @@ export function MessageBubble({
                 <Text style={styles.alwaysButtonText}>
                   {approvalAction === 'always' ? 'Working…' : 'Always allow'}
                 </Text>
-              </Pressable>
+              </Pressable> : null}
             </View>
           </View>
         ) : !working && !queued ? (
@@ -232,7 +234,7 @@ export function MessageBubble({
                 </Text>
               </Pressable>
             ) : null}
-            {groupMode && message.roundRole === 'synthesizer' && message.status === 'complete' && onSaveDecision ? (
+            {message.allowedActions?.includes('saveDecision') && onSaveDecision ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ busy: decisionState === 'saving', disabled: decisionState === 'saving' || decisionState === 'saved' }}

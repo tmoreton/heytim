@@ -4,9 +4,8 @@ import { Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react
 import { ActionSheet } from '@/components/action-sheet';
 import { BotAvatar } from '@/components/bot-avatar';
 import { GroupAvatar } from '@/components/participant-avatar';
-import { chiefFirst, displayBotColor } from '@/lib/bot-branding';
-import { messagePreview } from '@/lib/message-preview';
-import type { Bot, ConversationSelection, Group } from '@/lib/types';
+import { chiefFirst, displayBotColor, messagePreview } from '@froggybot/client';
+import type { Bot, ConversationSelection, Group } from '@froggybot/contracts';
 type DrawerItem = { kind: 'group'; value: Group } | { kind: 'bot'; value: Bot };
 
 type Props = {

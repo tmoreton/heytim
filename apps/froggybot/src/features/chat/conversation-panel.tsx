@@ -10,16 +10,15 @@ import {
 
 import { BotAvatar } from '@/components/bot-avatar';
 import { GroupAvatar } from '@/components/participant-avatar';
-import type { Attachment, Bot, Group, Message } from '@/lib/types';
-import type { BrowserApi } from '@/lib/browser-api';
+import type { Attachment, Bot, Group, Message } from '@froggybot/contracts';
+import { shouldUseBotBrowserForChatLinks, type BrowserApi } from '@froggybot/client';
+import { useMessageDictation } from '@froggybot/expo-client';
 import { BrowserHandoff } from '../browser/browser-handoff';
-import { shouldUseBotBrowserForChatLinks } from '../browser/browser-policy';
 
 import { ConversationHeader } from './conversation-header';
 import { MessageBubble } from './message-bubble';
 import { MessageComposer } from './message-composer';
 import { useChatScroll } from './use-chat-scroll';
-import { useMessageDictation } from './use-message-dictation';
 
 type Props = {
   browserApi: BrowserApi;
@@ -46,6 +45,7 @@ type Props = {
   activeReplyBotId?: string;
   topInset: number;
   bottomInset: number;
+  maxMessageLength: number;
   onError: (message: string) => void;
   onDismissError: () => void;
   onToggleDrawer: () => void;
@@ -227,6 +227,7 @@ export function ConversationPanel({
   activeReplyBotId,
   topInset,
   bottomInset,
+  maxMessageLength,
   onError,
   onDismissError,
   onToggleDrawer,
@@ -260,7 +261,12 @@ export function ConversationPanel({
     preserveScrollPosition();
     void stableLoadEarlier();
   }, [preserveScrollPosition, stableLoadEarlier]);
-  const { listening, abort: abortDictation, toggle: toggleDictation } = useMessageDictation(
+  const {
+    listening,
+    available: dictationAvailable,
+    abort: abortDictation,
+    toggle: toggleDictation,
+  } = useMessageDictation(
     draft,
     setDraft,
     onError,
@@ -364,6 +370,7 @@ export function ConversationPanel({
         activeReplyBotId={activeReplyBotId}
         draft={draft}
         attachments={attachments}
+        dictationAvailable={dictationAvailable}
         listening={listening}
         pending={pending}
         sending={sending}
@@ -371,6 +378,7 @@ export function ConversationPanel({
         canAttach={Boolean(bot ?? group)}
         canStop={canStop}
         bottomInset={bottomInset}
+        maxMessageLength={maxMessageLength}
         onDraftChange={setDraft}
         onAddAttachment={onAddAttachment}
         onRemoveAttachment={onRemoveAttachment}

@@ -14,7 +14,7 @@ import {
 
 import { ActionSheet } from '@/components/action-sheet';
 import { PageSheet } from '@/components/page-sheet';
-import type { MemoryRecord, MemorySnapshot } from '@/lib/types';
+import type { MemoryRecord, MemorySnapshot } from '@froggybot/contracts';
 
 type Props = {
   onClose: () => void;
@@ -29,6 +29,7 @@ type Props = {
   editable?: boolean;
   visibleKinds?: MemoryRecord['kind'][];
   creatableKinds?: ('fact' | 'preference')[];
+  maxContentLength: number;
 };
 
 const sections: { kind: MemoryRecord['kind']; title: string; empty: string }[] = [
@@ -57,6 +58,7 @@ export function MemorySettings({
   editable = true,
   visibleKinds = DEFAULT_VISIBLE_KINDS,
   creatableKinds = DEFAULT_CREATABLE_KINDS,
+  maxContentLength,
 }: Props) {
   const [snapshot, setSnapshot] = useState<MemorySnapshot>();
   const [editing, setEditing] = useState<MemoryRecord>();
@@ -211,7 +213,7 @@ export function MemorySettings({
               ) : null}
               <TextInput
                 accessibilityLabel="New memory"
-                maxLength={16_000}
+                maxLength={maxContentLength}
                 multiline
                 placeholder="What should the bots remember?"
                 placeholderTextColor="#6E6A62"
@@ -243,7 +245,7 @@ export function MemorySettings({
                         <TextInput
                           accessibilityLabel="Memory text"
                           autoFocus
-                          maxLength={16_000}
+                          maxLength={maxContentLength}
                           multiline
                           style={styles.input}
                           value={draft}

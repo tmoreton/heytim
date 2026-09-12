@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 
-import { viewerLocation, VIEWER_CONNECT } from './viewer-location';
-import type { BotBrowserState } from '@/lib/types';
+import { viewerLocation, VIEWER_CONNECT } from '@froggybot/client';
+import type { BotBrowserState } from '@froggybot/contracts';
 
 export default function BrowserLiveViewFrame({ signedUrl, viewport }: { signedUrl: string; viewport?: BotBrowserState['viewport'] }) {
   const frame = useRef<HTMLIFrameElement>(null);

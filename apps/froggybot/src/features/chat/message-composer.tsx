@@ -14,9 +14,9 @@ import {
 
 import { BotAvatar } from '@/components/bot-avatar';
 import { GroupAvatar, PersonAvatar } from '@/components/participant-avatar';
-import type { Attachment, Group } from '@/lib/types';
+import type { Attachment, Group } from '@froggybot/contracts';
+import { composerPrimaryAction } from '@froggybot/client';
 
-import { composerPrimaryAction } from './chat-state';
 
 export const ALL_BOTS_REPLY_TARGET = 'all';
 
@@ -27,6 +27,7 @@ type Props = {
   activeReplyBotId?: string;
   draft: string;
   attachments: Attachment[];
+  dictationAvailable: boolean;
   listening: boolean;
   pending: boolean;
   sending: boolean;
@@ -34,6 +35,7 @@ type Props = {
   canAttach: boolean;
   canStop: boolean;
   bottomInset: number;
+  maxMessageLength: number;
   onDraftChange: (value: string) => void;
   onAddAttachment: () => void;
   onRemoveAttachment: (fileId: string) => void;
@@ -50,6 +52,7 @@ export function MessageComposer({
   activeReplyBotId,
   draft,
   attachments,
+  dictationAvailable,
   listening,
   pending,
   sending,
@@ -57,6 +60,7 @@ export function MessageComposer({
   canAttach,
   canStop,
   bottomInset,
+  maxMessageLength,
   onDraftChange,
   onAddAttachment,
   onRemoveAttachment,
@@ -184,10 +188,10 @@ export function MessageComposer({
           placeholderTextColor="#6E6A62"
           multiline
           numberOfLines={1}
-          maxLength={8000}
+          maxLength={maxMessageLength}
           editable={Boolean(selectedName) && (!pending || steering)}
         />
-        {Platform.OS === 'ios' ? (
+        {dictationAvailable ? (
           <Pressable
             accessibilityLabel={listening ? 'Stop dictation' : 'Dictate message'}
             accessibilityRole="button"

@@ -1,8 +1,7 @@
 # FroggyBot app
 
-This Expo SDK 57 project powers the iOS client and the matching desktop web app at `app.froggybot.com`. It includes a responsive local preview and an
-Amplify Gen 2 backend for native Cognito email OTP authentication, persisted direct and group chats, bot configuration, sharing,
-and push notifications when an agent reply is ready. On Apple devices, the composer also supports on-device dictation.
+This Expo SDK 57 project powers the iOS client and the matching desktop web app at `app.froggybot.com`. A responsive local preview is available through an explicit development build and is excluded from production bundles. The separate
+`services/froggybot-api` package owns the Amplify Gen 2 backend. On Apple devices, the composer also supports on-device dictation.
 
 Each FroggyBot can also own hourly, daily, weekday, weekly, or monthly tasks. EventBridge Scheduler starts the selected bot through the
 same durable agent queue, so the task uses the bot's current prompt, tools, skills, memory, chat history, and final-only
@@ -20,20 +19,20 @@ into the group. Group members can review learned memory, while only the owner ca
 
 ```bash
 npm install
-npm run ios
+npm run ios:preview
 ```
 
-Choose **Preview the app** when AWS has not been connected yet.
+Choose **Preview the app** when AWS has not been connected yet. Normal `start`, `ios`, `android`, `web`, and production build commands omit the local preview engine; use the corresponding `:preview` command only for interface development.
+
+For web development, install the separately built viewer once with `npm install --prefix ../froggybot-browser-viewer`. The Expo web build compiles that app and copies only its static output into `public/`.
 
 ## Connect AWS
 
-Deploy the AgentCore runtime first. FroggyBot currently uses Cognito email codes so TestFlight users can sign in while
-the registered AWS toll-free SMS sender is under carrier review.
-Then deploy:
+Deploy the AgentCore runtime first. The backend writes the Expo runtime configuration into this directory. From the repository root:
 
 ```bash
-nvm use
-npm run backend:install
+cd services/froggybot-api
+npm install
 export FROGBOT_AGENT_RUNTIME_ARN='arn:aws:bedrock-agentcore:us-east-1:ACCOUNT_ID:runtime/RUNTIME_ID'
 export FROGBOT_MEMORY_ID='FrogBot_FrogBotMemory-ID'
 export FROGBOT_GOOGLE_OAUTH_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:frogbot/oauth/google-ID'
@@ -41,13 +40,31 @@ npm run sandbox -- --once --identifier frogbot --profile YOUR_AWS_PROFILE
 ```
 
 The sandbox replaces the placeholder values in `amplify_outputs.json`. See the repository-level
-`README.md` for the complete deployment order and checks. Run all Expo, EAS, Amplify, and npm commands
-from this `apps/froggybot` directory.
+`README.md` for the complete deployment order and checks. Run Expo and EAS commands here; run backend commands from
+`services/froggybot-api`.
 
 Reply notifications use Expo Push Notifications. The app registers each signed-in physical device with the
-authenticated API, and the worker checks delivery receipts and removes stale tokens. The microphone uses Apple's
-on-device Speech framework with `requiresOnDeviceRecognition`; FroggyBot does not save the recording or fall back to
-cloud transcription.
+authenticated API, and the worker checks delivery receipts and removes stale tokens. On Apple devices, dictation uses
+the bundled NVIDIA Nemotron 3.5 ASR Streaming 0.6B model through sherpa-onnx. FroggyBot does not save the recording or
+fall back to cloud transcription.
+
+## Run the iOS app on an Apple silicon Mac
+
+The existing iOS app can run in macOS's **Designed for iPad** compatibility mode. This is the quickest desktop build:
+it reuses the iOS Expo bridge and the same bundled Nemotron model rather than introducing a separate macOS UI target.
+
+```bash
+npm run ios:mac
+```
+
+The command prepares the native model, creates or refreshes the generated iOS workspace, opens Xcode, and starts
+Metro. In Xcode, select **My Mac (Designed for iPad)** as the run destination and click **Run**. Xcode remembers the
+destination for later runs. Expo's `run:ios` device picker does not currently expose this Mac compatibility
+destination, so the final Run action must be performed in Xcode during development.
+
+This produces a mobile-compatible Mac window, not a native AppKit application. A distributed build is installed from
+the iOS App Store/TestFlight with Mac availability enabled. The app and Nemotron model run locally on Apple silicon;
+web and Android continue to report local dictation as unavailable.
 
 ## Publish over-the-air updates
 
@@ -74,13 +91,14 @@ unsigned installable test build, or production for an App Store archive:
 
 ```bash
 nvm use
-EAS_PROJECT_ROOT="$PWD" EAS_NO_VCS=1 npx eas-cli@latest build --platform ios --profile preview-simulator
-EAS_PROJECT_ROOT="$PWD" EAS_NO_VCS=1 npx eas-cli@latest build --platform ios --profile production
+EAS_PROJECT_ROOT="$(cd ../.. && pwd)" EAS_NO_VCS=1 npx eas-cli@latest build --platform ios --profile preview-simulator
+EAS_PROJECT_ROOT="$(cd ../.. && pwd)" EAS_NO_VCS=1 npx eas-cli@latest build --platform ios --profile production
 ```
 
-`EAS_PROJECT_ROOT` keeps the upload scoped to this app when FroggyBot lives inside a larger Git repository.
-Push notifications and dictation require a development or production build on a physical device and do not run in
-Expo Go or the web preview.
+`EAS_PROJECT_ROOT` includes the source-only workspace packages that the app consumes. The repository-level
+`.easignore` keeps infrastructure, backend code, caches, and generated native artifacts out of the upload.
+Push notifications and dictation require a development or production build on a physical Apple device, or the iOS
+app running in Designed for iPad mode on an Apple silicon Mac. They do not run in Expo Go or the web preview.
 
 ## Verify changes
 

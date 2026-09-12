@@ -8,9 +8,9 @@ import { BotAvatar } from '@/components/bot-avatar';
 import { AppEntry } from '@/features/app/app-entry';
 import { createApi } from '@/lib/api';
 import { colors } from '@/lib/theme';
-import type { Invitation, InvitePreview } from '@/lib/types';
+import type { Invitation, InvitePreview } from '@froggybot/contracts';
 
-import { invitationUrl } from './invitation-url';
+import { invitationUrl } from '@froggybot/client';
 
 const frog = require('../../../assets/images/frogbot-foreground.png');
 type Props = {

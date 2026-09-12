@@ -14,18 +14,19 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { beginEmailCode, finishEmailCode, type EmailCodeSession } from '@/lib/auth';
-import type { Invitation, InvitePreview } from '@/lib/types';
+import { beginEmailCode, finishEmailCode, type EmailCodeSession } from '@froggybot/expo-client';
+import type { Invitation, InvitePreview } from '@froggybot/contracts';
 
 type Props = {
   cloudReady: boolean;
+  previewAvailable: boolean;
   onSignedIn: () => void;
   onDemo: () => void;
   invitation?: Invitation;
   invitePreview?: InvitePreview;
 };
 
-export function AuthScreen({ cloudReady, onSignedIn, onDemo, invitation, invitePreview }: Props) {
+export function AuthScreen({ cloudReady, previewAvailable, onSignedIn, onDemo, invitation, invitePreview }: Props) {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [emailCodeSession, setEmailCodeSession] = useState<EmailCodeSession>();
@@ -206,7 +207,7 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo, invitation, inviteP
               </Pressable>
             ) : null}
 
-            {!cloudReady ? (
+            {!cloudReady && previewAvailable ? (
               <View style={styles.previewBlock}>
                 <Text style={styles.previewCopy}>
                   AWS is not connected yet. You can still explore the finished interface.
@@ -215,6 +216,11 @@ export function AuthScreen({ cloudReady, onSignedIn, onDemo, invitation, inviteP
                   <Text style={styles.previewLabel}>Preview the app</Text>
                 </Pressable>
               </View>
+            ) : null}
+            {!cloudReady && !previewAvailable ? (
+              <Text accessibilityRole="alert" style={styles.configurationError}>
+                This build is not connected to FroggyBot services.
+              </Text>
             ) : null}
 
             <View style={styles.assurance}>
@@ -303,6 +309,7 @@ const styles = StyleSheet.create({
   previewCopy: { color: '#77736B', fontSize: 13, lineHeight: 18, textAlign: 'center' },
   previewButton: { alignItems: 'center', paddingTop: 13, paddingBottom: 2 },
   previewLabel: { color: '#007A3D', fontSize: 15, fontWeight: '700' },
+  configurationError: { color: '#B83C32', fontSize: 13, lineHeight: 18, marginTop: 18, textAlign: 'center' },
   assurance: {
     flexDirection: 'row',
     alignItems: 'center',

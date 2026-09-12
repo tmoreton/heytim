@@ -15,13 +15,14 @@ import {
 import { ActionSheet } from '@/components/action-sheet';
 import { BotAvatar } from '@/components/bot-avatar';
 import { PageSheet } from '@/components/page-sheet';
-import { describeSchedule, deviceTimezone, formatTime, latestRunLabel, parseTimeInput, WEEKDAYS } from '@/lib/schedules';
-import type { Bot, ScheduleRun, ScheduledTask, ScheduledTaskDraft } from '@/lib/types';
+import { describeSchedule, deviceTimezone, formatTime, latestRunLabel, parseTimeInput, WEEKDAYS } from '@froggybot/client';
+import type { AppConstraints, Bot, ScheduleRun, ScheduledTask, ScheduledTaskDraft } from '@froggybot/contracts';
 
 import { ScheduleRunList } from './schedule-run-list';
 
 type Props = {
   bot: Pick<Bot, 'id' | 'name' | 'color'>;
+  constraints: AppConstraints;
   onClose: () => void;
   onList: (botId: string) => Promise<ScheduledTask[]>;
   onListRuns: (botId: string) => Promise<ScheduleRun[]>;
@@ -44,6 +45,7 @@ const newDraft = (): ScheduledTaskDraft => ({
 
 export function ScheduledTasks({
   bot,
+  constraints,
   onClose,
   onList,
   onListRuns,
@@ -116,6 +118,7 @@ export function ScheduledTasks({
         <TaskEditor
           key={editing === 'new' ? 'new' : editing.id}
           bot={bot}
+          constraints={constraints}
           task={editing === 'new' ? undefined : editing}
           onBack={() => setEditing(undefined)}
           onSave={save}
@@ -223,6 +226,7 @@ export function ScheduledTasks({
 
 function TaskEditor({
   bot,
+  constraints,
   task,
   onBack,
   onSave,
@@ -230,6 +234,7 @@ function TaskEditor({
   onRun,
 }: {
   bot: Pick<Bot, 'id' | 'name' | 'color'>;
+  constraints: AppConstraints;
   task?: ScheduledTask;
   onBack: () => void;
   onSave: (draft: ScheduledTaskDraft, scheduleId?: string) => Promise<void>;
@@ -266,9 +271,13 @@ function TaskEditor({
     }
     if (
       draft.frequency === 'monthly'
-      && (!Number.isInteger(draft.dayOfMonth) || (draft.dayOfMonth ?? 0) < 1 || (draft.dayOfMonth ?? 0) > 28)
+      && (
+        !Number.isInteger(draft.dayOfMonth)
+        || (draft.dayOfMonth ?? 0) < constraints.scheduleDayOfMonthMin
+        || (draft.dayOfMonth ?? 0) > constraints.scheduleDayOfMonthMax
+      )
     ) {
-      setError('Choose a day from 1 through 28.');
+      setError(`Choose a day from ${constraints.scheduleDayOfMonthMin} through ${constraints.scheduleDayOfMonthMax}.`);
       return undefined;
     }
     return {
@@ -330,7 +339,7 @@ function TaskEditor({
           accessibilityLabel="Task name"
           style={styles.input}
           value={draft.name}
-          maxLength={64}
+          maxLength={constraints.scheduleNameMaxLength}
           placeholder="Morning priorities"
           placeholderTextColor="#6E6A62"
           onChangeText={(name) => setDraft((value) => ({ ...value, name }))}
@@ -341,7 +350,7 @@ function TaskEditor({
           accessibilityLabel="Task instructions"
           style={[styles.input, styles.promptInput]}
           value={draft.prompt}
-          maxLength={8000}
+          maxLength={constraints.schedulePromptMaxLength}
           multiline
           textAlignVertical="top"
           placeholder="Review the latest conversation and send me the three priorities for today."
@@ -408,7 +417,9 @@ function TaskEditor({
                 setDraft((current) => ({ ...current, dayOfMonth }));
               }}
             />
-            <Text style={styles.help}>Choose day 1 through 28 so the task runs every month.</Text>
+            <Text style={styles.help}>
+              Choose day {constraints.scheduleDayOfMonthMin} through {constraints.scheduleDayOfMonthMax} so the task runs every month.
+            </Text>
           </>
         ) : null}
 

@@ -15,7 +15,8 @@
         "applinks:froggybot.com"
       ],
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "Allow FroggyBot to hear you while you dictate a message. Audio stays on this device."
       }
     },
     "android": {
@@ -65,10 +66,11 @@
         }
       ],
       [
-        "expo-speech-recognition",
+        "expo-build-properties",
         {
-          "microphonePermission": "Allow FroggyBot to hear you while you dictate a message.",
-          "speechRecognitionPermission": "Allow FroggyBot to turn your speech into text on this device."
+          "ios": {
+            "deploymentTarget": "17.0"
+          }
         }
       ]
     ],

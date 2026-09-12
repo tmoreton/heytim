@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 import type { FrogBotApi } from '@/lib/api';
+import type { ChatOverlay } from '@froggybot/expo-client';
 import type {
   Attachment,
   Bootstrap,
@@ -11,10 +12,9 @@ import type {
   Group,
   GroupDraft,
   GroupMember,
-} from '@/lib/types';
+} from '@froggybot/contracts';
 
 import { styles } from './chat-app.styles';
-import type { ChatOverlay } from './chat-overlay';
 
 const AccountSettings = lazy(() => import('./account-settings').then((module) => ({ default: module.AccountSettings })));
 const BotDocuments = lazy(() => import('./bot-documents').then((module) => ({ default: module.BotDocuments })));
@@ -104,6 +104,7 @@ export function ChatOverlays({
         <BotEditor
           key={`${overlay.mode}-${editingBot?.id ?? 'new'}-${suggestedCapability?.kind ?? ''}-${suggestedCapability?.id ?? ''}`}
           bot={overlay.mode === 'edit' ? editingBot : undefined}
+          constraints={data.constraints}
           tools={data.tools}
           retiredToolIds={data.retiredToolIds ?? []}
           skills={data.skills}
@@ -124,11 +125,12 @@ export function ChatOverlays({
           onInstall={onInstallBotTemplate}
         />
       ) : null}
-      {overlay.kind === 'groupEditor' ? (
+      {overlay.kind === 'groupEditor' && data ? (
         <GroupEditor
           key={`${overlay.mode}-${selectedGroup?.id ?? 'new'}`}
           group={overlay.mode === 'edit' ? selectedGroup : undefined}
-          bots={data?.bots ?? []}
+          constraints={data.constraints}
+          bots={data.bots}
           onClose={close}
           onSave={onSaveGroup}
           onShare={onShareGroup}
@@ -141,10 +143,11 @@ export function ChatOverlays({
           onDeleteMemory={api.deleteGroupMemory}
         />
       ) : null}
-      {overlay.kind === 'skillLibrary' ? (
+      {overlay.kind === 'skillLibrary' && data ? (
         <SkillLibrary
-          skills={data?.skills ?? []}
-          tools={data?.tools ?? []}
+          constraints={data.constraints}
+          skills={data.skills}
+          tools={data.tools}
           onClose={close}
           onLoad={api.skill}
           onSave={api.saveSkill}
@@ -167,9 +170,10 @@ export function ChatOverlays({
           }}
         />
       ) : null}
-      {overlay.kind === 'schedule' ? (
+      {overlay.kind === 'schedule' && data ? (
         <ScheduledTasks
           bot={overlay.bot}
+          constraints={data.constraints}
           onClose={close}
           onList={api.schedules}
           onListRuns={api.scheduleRuns}
@@ -181,9 +185,10 @@ export function ChatOverlays({
           onTriggered={onScheduleTriggered}
         />
       ) : null}
-      {overlay.kind === 'groupSchedule' ? (
+      {overlay.kind === 'groupSchedule' && data ? (
         <ScheduledTasks
           bot={{ id: overlay.group.id, name: overlay.group.name, color: '#58BEAA' }}
+          constraints={data.constraints}
           onClose={close}
           onList={api.groupSchedules}
           onListRuns={api.groupScheduleRuns}
@@ -214,8 +219,9 @@ export function ChatOverlays({
           onSignOut={onSignOut}
         />
       ) : null}
-      {overlay.kind === 'memory' ? (
+      {overlay.kind === 'memory' && data ? (
         <MemorySettings
+          maxContentLength={data.constraints.memoryMaxLength}
           onClose={close}
           onLoad={api.memories}
           onCreate={api.createMemory}

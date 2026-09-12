@@ -10,7 +10,7 @@ import {
 
 import { ActionSheet } from '@/components/action-sheet';
 import { PageSheet } from '@/components/page-sheet';
-import type { SharedLink } from '@/lib/types';
+import type { SharedLink } from '@froggybot/contracts';
 
 type Props = {
   demo: boolean;

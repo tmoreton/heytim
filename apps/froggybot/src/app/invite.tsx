@@ -2,7 +2,7 @@ import { useMemo, useSyncExternalStore } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 
 import { InviteScreen } from '@/features/invites/invite-screen';
-import { invitationFromParams } from '@/features/invites/invitation-url';
+import { invitationFromParams } from '@froggybot/client';
 
 const subscribeToHydration = () => () => {};
 const getClientSnapshot = () => true;

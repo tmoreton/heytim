@@ -13,14 +13,13 @@ import {
 
 import { BotAvatar } from '@/components/bot-avatar';
 import { PageSheet } from '@/components/page-sheet';
-import { BOT_COLORS, CHIEF_COLOR, displayBotColor } from '@/lib/bot-branding';
-import { requiredToolLabels } from '@/lib/capability-labels';
-import type { Bot, BotDraft, Capability, CapabilitySelection, Skill, SkillDetail } from '@/lib/types';
+import { BOT_COLORS, CHIEF_COLOR, createBotDraft, displayBotColor, requiredToolLabels } from '@froggybot/client';
+import type { AppConstraints, Bot, BotDraft, Capability, CapabilitySelection, Skill, SkillDetail } from '@froggybot/contracts';
 
-import { createBotDraft } from './bot-draft';
 
 type Props = {
   bot?: Bot;
+  constraints: AppConstraints;
   tools: Capability[];
   retiredToolIds: string[];
   skills: Skill[];
@@ -30,7 +29,7 @@ type Props = {
   onLoadSkill: (skillId: string) => Promise<SkillDetail>;
 };
 
-export function BotEditor({ bot, tools, retiredToolIds, skills, suggestedCapability, onClose, onSave, onLoadSkill }: Props) {
+export function BotEditor({ bot, constraints, tools, retiredToolIds, skills, suggestedCapability, onClose, onSave, onLoadSkill }: Props) {
   const [draft, setDraft] = useState<BotDraft>(() => createBotDraft(
     bot ? { ...bot, color: displayBotColor(bot) } : undefined,
     skills,
@@ -162,7 +161,7 @@ export function BotEditor({ bot, tools, retiredToolIds, skills, suggestedCapabil
                 onChangeText={(name) => setDraft((value) => ({ ...value, name }))}
                 placeholder="Bot name"
                 placeholderTextColor="#6E6A62"
-                maxLength={48}
+                maxLength={constraints.botNameMaxLength}
               />
               <TextInput
                 accessibilityLabel="One-line bot description"
@@ -171,7 +170,7 @@ export function BotEditor({ bot, tools, retiredToolIds, skills, suggestedCapabil
                 onChangeText={(tagline) => setDraft((value) => ({ ...value, tagline }))}
                 placeholder="What this bot is best at"
                 placeholderTextColor="#6E6A62"
-                maxLength={120}
+                maxLength={constraints.botTaglineMaxLength}
               />
             </View>
           </View>
@@ -207,9 +206,11 @@ export function BotEditor({ bot, tools, retiredToolIds, skills, suggestedCapabil
             placeholderTextColor="#6E6A62"
             multiline
             textAlignVertical="top"
-            maxLength={12000}
+            maxLength={constraints.botPromptMaxLength}
           />
-          <Text style={styles.characterCount}>{draft.prompt.length.toLocaleString()} / 12,000</Text>
+          <Text style={styles.characterCount}>
+            {draft.prompt.length.toLocaleString()} / {constraints.botPromptMaxLength.toLocaleString()}
+          </Text>
 
           <Pressable
             accessibilityRole="button"

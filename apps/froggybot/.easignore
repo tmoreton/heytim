@@ -9,9 +9,10 @@ amplify/
 .expo/
 dist/
 web-build/
-ios/
-android/
+/ios/
+/android/
 .kotlin/
+/packages/frogbot-transcription/ios/Generated/
 expo-env.d.ts
 *.tsbuildinfo
 
@@ -34,4 +35,3 @@ yarn-error.*
 # Repository-only assistant context.
 AGENTS.md
 CLAUDE.md
-

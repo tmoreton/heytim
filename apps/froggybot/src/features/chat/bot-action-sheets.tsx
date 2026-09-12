@@ -1,7 +1,8 @@
 import { ActionSheet } from '@/components/action-sheet';
-import type { Bot, Group } from '@/lib/types';
+import type { BotAction } from '@froggybot/expo-client';
+import type { Bot, Group } from '@froggybot/contracts';
 
-export type BotAction = 'clear' | 'clearAndForget' | 'delete';
+export type { BotAction } from '@froggybot/expo-client';
 
 type Props = {
   bot?: Bot;
@@ -36,30 +37,31 @@ export function ConversationActionSheets({
   onConfirmAction,
   onCloseConfirmation,
 }: Props) {
+  const botActions = new Set(bot?.allowedActions ?? []);
+  const groupActions = new Set(group?.allowedActions ?? []);
+  const canEditGroup = groupActions.has('edit');
   const menuTitle = group?.name ?? bot?.name ?? 'Conversation';
   const menuMessage = group
-    ? group.isOwner
+    ? canEditGroup
       ? 'Manage this room’s context, decisions, members, and recurring work.'
       : 'View this room’s shared context, decisions, members, and specialists.'
     : 'Manage this bot’s settings, files, recurring work, sharing, and conversation.';
   const menuOptions = group
     ? [
         {
-          label: group.isOwner ? 'Room settings' : 'Room context',
+          label: canEditGroup ? 'Room settings' : 'Room context',
           onPress: onEditGroup,
         },
-        ...(group.isOwner ? [{ label: 'Tasks & runs', onPress: onSchedule }] : []),
+        ...(groupActions.has('schedule') ? [{ label: 'Tasks & runs', onPress: onSchedule }] : []),
       ]
     : [
-        { label: 'Bot settings', onPress: onEditBot },
-        { label: 'Files', onPress: onDocuments },
-        { label: 'Browser connection', onPress: onBrowser },
-        { label: 'Tasks & runs', onPress: onSchedule },
-        { label: 'Share bot setup', onPress: onShareSetup },
-        { label: 'Clear conversation', destructive: true, onPress: () => onRequestAction('clear' as const) },
-        ...(bot?.systemRole === 'chief'
-          ? []
-          : [{ label: 'Delete bot', destructive: true, onPress: () => onRequestAction('delete' as const) }]),
+        ...(botActions.has('edit') ? [{ label: 'Bot settings', onPress: onEditBot }] : []),
+        ...(botActions.has('documents') ? [{ label: 'Files', onPress: onDocuments }] : []),
+        ...(botActions.has('browser') ? [{ label: 'Browser connection', onPress: onBrowser }] : []),
+        ...(botActions.has('schedule') ? [{ label: 'Tasks & runs', onPress: onSchedule }] : []),
+        ...(botActions.has('share') ? [{ label: 'Share bot setup', onPress: onShareSetup }] : []),
+        ...(botActions.has('clear') ? [{ label: 'Clear conversation', destructive: true, onPress: () => onRequestAction('clear' as const) }] : []),
+        ...(botActions.has('delete') ? [{ label: 'Delete bot', destructive: true, onPress: () => onRequestAction('delete' as const) }] : []),
       ];
 
   return (

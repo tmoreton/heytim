@@ -10,7 +10,7 @@ import {
 
 import { BotAvatar } from '@/components/bot-avatar';
 import { PageSheet } from '@/components/page-sheet';
-import type { Bot, BotTemplate, Skill } from '@/lib/types';
+import type { Bot, BotTemplate, Skill } from '@froggybot/contracts';
 
 type Props = {
   bots: Bot[];

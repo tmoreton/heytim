@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import type { Group } from '@/lib/types';
+import type { Group } from '@froggybot/contracts';
 
 import { BotAvatar } from './bot-avatar';
 

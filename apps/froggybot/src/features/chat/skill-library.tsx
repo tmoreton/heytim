@@ -10,10 +10,10 @@ import {
   View,
 } from 'react-native';
 
-import type { Capability, CapabilitySelection, Skill, SkillDetail, SkillDraft } from '@/lib/types';
+import type { AppConstraints, Capability, CapabilitySelection, Skill, SkillDetail, SkillDraft } from '@froggybot/contracts';
 import { PageSheet } from '@/components/page-sheet';
 
-import { catalogTools } from './connection-access';
+import { catalogTools } from '@froggybot/client';
 import { SkillForm, SkillView } from './skill-details';
 import { styles } from './skill-library.styles';
 import { HowCapabilitiesWork, ToolList } from './tool-list';
@@ -32,6 +32,7 @@ type LibraryMode = 'list' | 'view' | 'edit' | 'copy' | 'new';
 type Props = {
   skills: Skill[];
   tools: Capability[];
+  constraints: AppConstraints;
   onClose: () => void;
   onLoad: (skillId: string) => Promise<SkillDetail>;
   onSave: (draft: SkillDraft, skillId?: string) => Promise<SkillDetail>;
@@ -43,6 +44,7 @@ type Props = {
 export function SkillLibrary({
   skills,
   tools,
+  constraints,
   onClose,
   onLoad,
   onSave,
@@ -250,7 +252,7 @@ export function SkillLibrary({
               onUse={() => onUse({ kind: 'skill', id: selected?.id ?? '' })}
             />
           ) : (
-            <SkillForm draft={draft} tools={tools} onChange={setDraft} />
+            <SkillForm draft={draft} tools={tools} constraints={constraints} onChange={setDraft} />
           )}
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         </ScrollView>

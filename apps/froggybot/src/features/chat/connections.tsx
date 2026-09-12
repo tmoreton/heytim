@@ -11,9 +11,9 @@ import {
 } from 'react-native';
 
 import { PageSheet } from '@/components/page-sheet';
-import type { Capability, Connection, ConnectionProvider } from '@/lib/types';
+import type { Capability, Connection, ConnectionProvider } from '@froggybot/contracts';
 
-import { capabilityAccessLabel, userConnections } from './connection-access';
+import { capabilityAccessLabel, userConnections } from '@froggybot/client';
 
 type Props = {
   tools: Capability[];
