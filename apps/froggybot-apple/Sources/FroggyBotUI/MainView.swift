@@ -6,7 +6,7 @@ public struct MainView: View {
   let auth: AuthSession
   @State private var dictation = DictationModel()
   @State private var columns: NavigationSplitViewVisibility = .all
-  @State private var showingPhoneSidebar = false
+  @State private var presentedSheet: AppSheet?
 
   public init(model: AppModel, auth: AuthSession) {
     self.model = model
@@ -17,7 +17,12 @@ public struct MainView: View {
     layout
     .tint(FrogTheme.brand)
     .foregroundStyle(FrogTheme.text)
-    .sheet(item: $model.sheet) { sheet in FeatureSheet(sheet: sheet, model: model, auth: auth) }
+    .sheet(item: $presentedSheet, onDismiss: { model.sheet = nil }) { sheet in
+      FeatureSheet(sheet: sheet, model: model, auth: auth)
+    }
+    .onChange(of: model.sheet) { _, sheet in
+      if presentedSheet != sheet { presentedSheet = sheet }
+    }
     .alert(
       "FroggyBot",
       isPresented: Binding(
@@ -43,40 +48,23 @@ public struct MainView: View {
     .onChange(of: model.composerText) { _, value in
       if value.isEmpty && !dictation.isRecording { _ = dictation.consumeTranscript() }
     }
-    .onChange(of: model.selection) { _, newValue in
-      #if os(iOS)
-        if newValue != nil { showingPhoneSidebar = false }
-      #endif
-    }
     .onDisappear { dictation.shutDown() }
   }
 
-  @ViewBuilder private var layout: some View {
-    #if os(iOS)
-      ZStack(alignment: .leading) {
-        if showingPhoneSidebar || model.selection == nil {
-          ConversationSidebar(model: model, auth: auth) { selection in
-            model.select(selection)
-            withAnimation(.easeOut(duration: 0.2)) { showingPhoneSidebar = false }
-          }
-          .transition(.move(edge: .leading))
-        } else {
-          ConversationView(model: model, dictation: dictation) {
-            withAnimation(.easeOut(duration: 0.2)) { showingPhoneSidebar = true }
-          }
-          .transition(.move(edge: .trailing))
-        }
-      }
-    #else
-      NavigationSplitView(columnVisibility: $columns) {
+  private var layout: some View {
+    NavigationSplitView(columnVisibility: $columns) {
       ConversationSidebar(model: model, auth: auth) { selection in
         model.select(selection)
+      } present: { sheet in
+        model.sheet = sheet
+        presentedSheet = sheet
       }
       .navigationSplitViewColumnWidth(min: 250, ideal: 290, max: 330)
     } detail: {
       if model.selection != nil {
-        ConversationView(model: model, dictation: dictation) {
-          columns = .all
+        ConversationView(model: model, dictation: dictation) { sheet in
+          model.sheet = sheet
+          presentedSheet = sheet
         }
       } else {
         EmptyPanel(
@@ -85,7 +73,6 @@ public struct MainView: View {
       }
     }
     .navigationSplitViewStyle(.balanced)
-    #endif
   }
 }
 
@@ -93,6 +80,7 @@ private struct ConversationSidebar: View {
   @Bindable var model: AppModel
   let auth: AuthSession
   let select: (ConversationSelection) -> Void
+  let present: (AppSheet) -> Void
   @State private var search = ""
 
   private var groups: [BotGroup] {
@@ -103,150 +91,99 @@ private struct ConversationSidebar: View {
   }
 
   var body: some View {
-    VStack(spacing: 0) {
-      HStack(spacing: 10) {
-        VStack(alignment: .leading, spacing: 1) {
-          Text("FroggyBot")
-            .font(.system(size: 20, weight: .heavy))
-            .tracking(-0.5)
-            .foregroundStyle(FrogTheme.brand)
-          Text("Your AI team").font(.system(size: 12)).foregroundStyle(FrogTheme.muted)
-        }
-        Spacer()
-        Menu {
-          Button("Add a bot", systemImage: "plus.circle") { model.sheet = .botLibrary }
-          Button("Create a custom bot", systemImage: "slider.horizontal.3") {
-            model.sheet = .botEditor(nil)
-          }
-          Button("New group", systemImage: "person.3") { model.sheet = .groupEditor(nil) }
-        } label: {
-          Image(systemName: "plus")
-            .font(.system(size: 20, weight: .regular))
-            .foregroundStyle(FrogTheme.textSoft)
-            .frame(width: 44, height: 44)
-            .background(FrogTheme.surface, in: Circle())
-        }
-        .menuStyle(.borderlessButton)
-        .accessibilityLabel("Create bot or group")
-      }
-      .frame(minHeight: 70)
-      .padding(.horizontal, 17)
-
-      TextField("Search chats", text: $search)
-        .textFieldStyle(.plain)
-        .font(.system(size: 14))
-        .foregroundStyle(FrogTheme.textSoft)
-        .padding(.horizontal, 13)
-        .frame(height: 44)
-        .background(Color(hex: "#E6E4DF"), in: RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 12)
-        .accessibilityLabel("Search chats")
-
-      ScrollView {
-        LazyVStack(spacing: 0) {
-          if !groups.isEmpty {
-            sidebarSection("Groups")
-            ForEach(groups) { group in
+    List(
+      selection: Binding(
+        get: { model.selection },
+        set: { value in if let value { select(value) } })
+    ) {
+      if !groups.isEmpty {
+        Section("Groups") {
+          ForEach(groups) { group in
+            let selection = ConversationSelection(kind: .group, id: group.id)
+            NavigationLink(value: selection) {
               conversationRow(
-                selection: .init(kind: .group, id: group.id), name: group.name,
+                selection: selection, name: group.name,
                 preview: group.lastMessage, date: group.lastMessageAt,
                 processing: group.processing == true, processingName: group.processingBotName
               ) { GroupAvatar(group: group, size: 42) }
             }
           }
-          if !bots.isEmpty {
-            sidebarSection("Bots")
-            ForEach(bots) { bot in
+        }
+      }
+      if !bots.isEmpty {
+        Section("Bots") {
+          ForEach(bots) { bot in
+            let selection = ConversationSelection(kind: .bot, id: bot.id)
+            NavigationLink(value: selection) {
               conversationRow(
-                selection: .init(kind: .bot, id: bot.id), name: bot.name,
+                selection: selection, name: bot.name,
                 preview: bot.lastMessage, date: bot.lastMessageAt,
                 processing: bot.processing == true, processingName: bot.name
               ) { BotAvatar(name: bot.name, color: bot.color, size: 42) }
             }
           }
-          if groups.isEmpty && bots.isEmpty {
-            Text(search.isEmpty ? "Your chats will appear here." : "No chats match your search.")
-              .font(.system(size: 13))
-              .foregroundStyle(FrogTheme.muted)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(.horizontal, 14).padding(.top, 24)
-          }
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 11)
       }
-
-      Divider().overlay(Color(hex: "#D9D6CF"))
-      Button { model.sheet = .account } label: {
-        HStack(spacing: 10) {
-          Circle().fill(FrogTheme.brand).frame(width: 30, height: 30)
-          VStack(alignment: .leading, spacing: 1) {
-            Text("Account & settings").font(.system(size: 13, weight: .semibold))
-            Text("Memory, skills, connections")
-              .font(.system(size: 11)).foregroundStyle(FrogTheme.muted)
-          }
-          Spacer()
-          Image(systemName: "chevron.right")
-            .font(.system(size: 12, weight: .semibold)).foregroundStyle(FrogTheme.muted)
+      if groups.isEmpty && bots.isEmpty {
+        ContentUnavailableView(
+          search.isEmpty ? "No chats yet" : "No matches",
+          systemImage: search.isEmpty ? "bubble.left.and.bubble.right" : "magnifyingglass",
+          description: Text(
+            search.isEmpty ? "Your chats will appear here." : "Try a different search."))
+      }
+      Section {
+        Button { present(.account) } label: {
+          Label("Settings", systemImage: "gearshape")
         }
-        .padding(.horizontal, 16).frame(minHeight: 64)
-        .contentShape(Rectangle())
+        .accessibilityLabel("Open account settings")
       }
-      .buttonStyle(.plain)
-      .accessibilityLabel("Open account settings")
     }
+    .listStyle(.sidebar)
+    .scrollContentBackground(.hidden)
     .background(FrogTheme.drawer)
-    .overlay(alignment: .trailing) { Rectangle().fill(Color(hex: "#D9D6CF")).frame(width: 0.5) }
+    .navigationTitle("FroggyBot")
+    .searchable(text: $search, placement: .sidebar, prompt: "Search chats")
+    .toolbar {
+      ToolbarItem(placement: .primaryAction) {
+        Menu {
+          Button("Add a bot", systemImage: "plus.circle") { present(.botLibrary) }
+          Button("Create a custom bot", systemImage: "slider.horizontal.3") {
+            present(.botEditor(nil))
+          }
+          Button("New group", systemImage: "person.3") { present(.groupEditor(nil)) }
+        } label: {
+          Label("Create bot or group", systemImage: "plus")
+        }
+      }
+    }
     .overlay { if model.isLoading { ProgressView().tint(FrogTheme.brand) } }
-  }
-
-  private func sidebarSection(_ title: String) -> some View {
-    Text(title.uppercased())
-      .font(.system(size: 11, weight: .bold))
-      .tracking(0.6)
-      .foregroundStyle(FrogTheme.muted)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(.horizontal, 9).padding(.top, 9).padding(.bottom, 5)
   }
 
   private func conversationRow<Avatar: View>(
     selection: ConversationSelection, name: String, preview: String, date: String,
     processing: Bool, processingName: String?, @ViewBuilder avatar: () -> Avatar
   ) -> some View {
-    let selected = model.selection == selection
-    return Button { select(selection) } label: {
-      HStack(spacing: 11) {
-        avatar()
-        VStack(alignment: .leading, spacing: 3) {
-          HStack(spacing: 7) {
-            Text(name).font(.system(size: 15, weight: .semibold)).lineLimit(1)
-            Spacer(minLength: 4)
-            if processing {
-              HStack(spacing: 4) {
-                Circle().fill(FrogTheme.brand).frame(width: 6, height: 6)
-                Text("WORKING").font(.system(size: 9, weight: .heavy))
-              }
-              .foregroundStyle(FrogTheme.brandDark)
-              .padding(.horizontal, 6).padding(.vertical, 3)
-              .background(Color(hex: "#D9EDDF"), in: Capsule())
-            } else if let formatted = date.froggyDate?.formatted(.dateTime.month().day()) {
-              Text(formatted).font(.system(size: 11)).foregroundStyle(FrogTheme.muted)
-            }
+    HStack(spacing: 11) {
+      avatar()
+      VStack(alignment: .leading, spacing: 3) {
+        HStack(spacing: 7) {
+          Text(name).font(.system(size: 15, weight: .semibold)).lineLimit(1)
+          Spacer(minLength: 4)
+          if processing {
+            ProgressView().controlSize(.small).tint(FrogTheme.brand)
+          } else if let formatted = date.froggyDate?.formatted(.dateTime.month().day()) {
+            Text(formatted).font(.caption2).foregroundStyle(.secondary)
           }
-          Text(processing ? "\(processingName ?? name) is thinking…" : preview)
-            .font(.system(size: 12, weight: processing ? .semibold : .regular))
-            .foregroundStyle(processing ? Color(hex: "#187044") : FrogTheme.mutedWarm)
-            .lineLimit(1)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        Text(processing ? "\(processingName ?? name) is thinking…" : preview)
+          .font(.caption)
+          .foregroundStyle(processing ? FrogTheme.brand : .secondary)
+          .lineLimit(1)
       }
-      .padding(.horizontal, 9)
-      .frame(minHeight: 64)
-      .contentShape(RoundedRectangle(cornerRadius: 13))
-      .background(selected ? FrogTheme.selected : .clear, in: RoundedRectangle(cornerRadius: 13))
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .buttonStyle(.plain)
-    .accessibilityAddTraits(selected ? .isSelected : [])
+    .frame(minHeight: 48)
+    .accessibilityAddTraits(model.selection == selection ? .isSelected : [])
   }
 
   private func searchMatch(_ values: String...) -> Bool {
@@ -257,14 +194,13 @@ private struct ConversationSidebar: View {
 private struct ConversationView: View {
   @Bindable var model: AppModel
   @Bindable var dictation: DictationModel
-  let revealSidebar: () -> Void
+  let present: (AppSheet) -> Void
   @State private var importing = false
   @State private var showDelete = false
   @State private var showClear = false
 
   var body: some View {
     VStack(spacing: 0) {
-      conversationHeader
       ScrollViewReader { proxy in
         ScrollView {
           LazyVStack(spacing: 0) {
@@ -287,6 +223,11 @@ private struct ConversationView: View {
         .defaultScrollAnchor(.bottom)
       }
       Composer(model: model, dictation: dictation, importing: $importing)
+    }
+    .navigationTitle(model.title)
+    .toolbar {
+      ToolbarItem(placement: .principal) { conversationIdentity }
+      ToolbarItem(placement: .primaryAction) { actionsMenu }
     }
     .background(FrogTheme.appBackground)
     .fileImporter(
@@ -312,18 +253,8 @@ private struct ConversationView: View {
     }
   }
 
-  private var conversationHeader: some View {
+  private var conversationIdentity: some View {
     HStack(spacing: 9) {
-      Button(action: revealSidebar) {
-        VStack(alignment: .leading, spacing: 5) {
-          Capsule().fill(Color(hex: "#383731")).frame(width: 19, height: 2)
-          Capsule().fill(Color(hex: "#383731")).frame(width: 13, height: 2)
-        }
-        .frame(width: 32, height: 32)
-      }
-      .buttonStyle(.plain)
-      .accessibilityLabel("Toggle chat list")
-
       if let group = model.selectedGroup {
         GroupAvatar(group: group, size: 31)
       } else if let bot = model.selectedBot {
@@ -333,13 +264,7 @@ private struct ConversationView: View {
         Text(model.title).font(.system(size: 15, weight: .bold)).lineLimit(1)
         Text(model.subtitle).font(.system(size: 11)).foregroundStyle(FrogTheme.brand).lineLimit(1)
       }
-      Spacer()
-      actionsMenu
     }
-    .padding(.horizontal, 14)
-    .frame(minHeight: 58)
-    .background(FrogTheme.appBackground)
-    .overlay(alignment: .bottom) { Rectangle().fill(Color(hex: "#E0DED8")).frame(height: 0.5) }
   }
 
   private var actionsMenu: some View {
@@ -347,24 +272,26 @@ private struct ConversationView: View {
       if let bot = model.selectedBot {
         let actions = Set(bot.allowedActions ?? [])
         if actions.contains("schedule"), let selection = model.selection {
-          Button("Scheduled tasks", systemImage: "calendar") { model.sheet = .schedules(selection) }
+          Button("Scheduled tasks", systemImage: "calendar") { present(.schedules(selection)) }
           Button("Run history", systemImage: "clock.arrow.circlepath") {
-            model.sheet = .scheduleRuns(selection)
+            present(.scheduleRuns(selection))
           }
         }
         if actions.contains("share"), let selection = model.selection {
-          Button("Share", systemImage: "square.and.arrow.up") { model.sheet = .share(selection) }
+          Button("Share", systemImage: "square.and.arrow.up") { present(.share(selection)) }
         }
         if actions.contains("edit") {
-          Button("Edit bot", systemImage: "pencil") { model.sheet = .botEditor(bot.id) }
+          Button("Edit bot", systemImage: "pencil") { present(.botEditor(bot.id)) }
         }
         if actions.contains("documents") {
-          Button("Documents", systemImage: "doc") { model.sheet = .documents(bot.id) }
+          Button("Documents", systemImage: "doc") { present(.documents(bot.id)) }
         }
         if actions.contains("browser") {
-          Button("Browser", systemImage: "globe") { model.sheet = .browser(botId: bot.id, groupId: nil) }
+          Button("Browser", systemImage: "globe") {
+            present(.browser(botId: bot.id, groupId: nil))
+          }
         }
-        Button("Memory", systemImage: "brain") { model.sheet = .memories(nil) }
+        Button("Memory", systemImage: "brain") { present(.memories(nil)) }
         if actions.contains("clear") {
           Button("Clear chat", systemImage: "eraser", role: .destructive) { showClear = true }
         }
@@ -374,19 +301,19 @@ private struct ConversationView: View {
       } else if let group = model.selectedGroup {
         let actions = Set(group.allowedActions ?? [])
         if actions.contains("schedule"), let selection = model.selection {
-          Button("Scheduled tasks", systemImage: "calendar") { model.sheet = .schedules(selection) }
+          Button("Scheduled tasks", systemImage: "calendar") { present(.schedules(selection)) }
           Button("Run history", systemImage: "clock.arrow.circlepath") {
-            model.sheet = .scheduleRuns(selection)
+            present(.scheduleRuns(selection))
           }
         }
         if actions.contains("share"), let selection = model.selection {
-          Button("Share", systemImage: "square.and.arrow.up") { model.sheet = .share(selection) }
+          Button("Share", systemImage: "square.and.arrow.up") { present(.share(selection)) }
         }
         if actions.contains("edit") {
-          Button("Edit group", systemImage: "pencil") { model.sheet = .groupEditor(group.id) }
+          Button("Edit group", systemImage: "pencil") { present(.groupEditor(group.id)) }
         }
         if actions.contains("viewMemory") || actions.contains("manageMemory") {
-          Button("Group memory", systemImage: "brain") { model.sheet = .memories(group.id) }
+          Button("Group memory", systemImage: "brain") { present(.memories(group.id)) }
         }
         if actions.contains("delete") {
           Button("Delete", systemImage: "trash", role: .destructive) { showDelete = true }
@@ -484,22 +411,24 @@ private struct MessageBubble: View {
             HStack(spacing: 8) {
               if message.allowedActions?.contains("reject") == true {
                 Button("Don’t allow") { Task { await model.reject(message) } }
-                  .buttonStyle(FroggySecondaryButtonStyle())
+                  .froggyGlassButton(tint: FrogTheme.brand)
               }
               if message.allowedActions?.contains("approveOnce") == true {
                 Button("Allow once") { Task { await model.approve(message, always: false) } }
-                  .buttonStyle(FroggySecondaryButtonStyle())
+                  .froggyGlassButton(tint: FrogTheme.brand)
               }
               if message.allowedActions?.contains("approveAlways") == true {
                 Button("Always allow") { Task { await model.approve(message, always: true) } }
-                  .buttonStyle(FroggySecondaryButtonStyle())
+                  .froggyGlassButton(tint: FrogTheme.brand)
               }
             }
           }
           if message.allowedActions?.contains("saveDecision") == true {
             Button("Save decision", systemImage: "bookmark") { Task { await model.saveDecision(message) } }
-              .buttonStyle(.plain).font(.system(size: 12, weight: .heavy))
-              .foregroundStyle(FrogTheme.brandDark).frame(minHeight: 40)
+              .froggyGlassButton(tint: FrogTheme.brand)
+              .controlSize(.small)
+              .font(.system(size: 12, weight: .heavy))
+              .foregroundStyle(FrogTheme.brandDark)
           }
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
@@ -582,10 +511,12 @@ private struct Composer: View {
       HStack(alignment: .bottom, spacing: 2) {
         Button { importing = true } label: {
           Image(systemName: "paperclip")
-            .font(.system(size: 18)).foregroundStyle(Color(hex: "#4F4C45"))
-            .frame(width: 34, height: 38)
+            .font(.system(size: 17))
+            .frame(width: 32, height: 32)
         }
-        .buttonStyle(.plain).accessibilityLabel("Attach files")
+        .froggyGlassButton(tint: FrogTheme.brand)
+        .buttonBorderShape(.circle)
+        .accessibilityLabel("Attach files")
 
         TextField("Message \(model.title)", text: $model.composerText, axis: .vertical)
           .textFieldStyle(.plain).font(.system(size: 15)).lineLimit(1...6)
@@ -595,11 +526,11 @@ private struct Composer: View {
         Button { dictation.toggle() } label: {
           Image(systemName: dictation.isRecording ? "mic.fill" : "mic")
             .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(dictation.isRecording ? .white : Color(hex: "#4F4C45"))
-            .frame(width: 38, height: 38)
-            .background(dictation.isRecording ? FrogTheme.brand : .clear, in: Circle())
+            .frame(width: 32, height: 32)
         }
-        .buttonStyle(.plain).accessibilityLabel("Dictate on device")
+        .froggyGlassButton(prominent: dictation.isRecording, tint: FrogTheme.brand)
+        .buttonBorderShape(.circle)
+        .accessibilityLabel("Dictate on device")
 
         Button {
           Task {
@@ -607,18 +538,17 @@ private struct Composer: View {
           }
         } label: {
           Image(systemName: model.canStop && model.composerText.isEmpty ? "stop.fill" : "arrow.up")
-            .font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
-            .frame(width: 38, height: 38)
-            .background(canSend || model.canStop ? FrogTheme.brand : Color(hex: "#B8D5C6"), in: Circle())
+            .font(.system(size: 16, weight: .bold))
+            .frame(width: 32, height: 32)
         }
-        .buttonStyle(.plain)
+        .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
+        .buttonBorderShape(.circle)
         .disabled(model.isSending || (!canSend && !model.canStop))
         .accessibilityLabel(model.canStop && model.composerText.isEmpty ? "Stop reply" : "Send message")
       }
       .padding(.leading, 8).padding(.trailing, 6).padding(.vertical, 6)
       .frame(minHeight: 51)
-      .background(FrogTheme.surface, in: RoundedRectangle(cornerRadius: 20))
-      .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color(hex: "#DCD9D2")))
+      .froggyComposerSurface()
       .frame(maxWidth: 780)
 
       Text("Bots can make mistakes. Check important work. · Enter to send · Shift+Enter for a new line.")

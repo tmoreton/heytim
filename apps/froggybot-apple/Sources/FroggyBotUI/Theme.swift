@@ -161,34 +161,6 @@ public struct GroupAvatar: View {
   }
 }
 
-struct FroggyPrimaryButtonStyle: ButtonStyle {
-  @Environment(\.isEnabled) private var isEnabled
-
-  func makeBody(configuration: Configuration) -> some View {
-    configuration.label
-      .font(.system(size: 16, weight: .semibold))
-      .foregroundStyle(.white)
-      .frame(maxWidth: .infinity, minHeight: 56)
-      .background(FrogTheme.brand, in: RoundedRectangle(cornerRadius: 16))
-      .opacity(!isEnabled ? 0.45 : configuration.isPressed ? 0.78 : 1)
-  }
-}
-
-struct FroggySecondaryButtonStyle: ButtonStyle {
-  @Environment(\.isEnabled) private var isEnabled
-
-  func makeBody(configuration: Configuration) -> some View {
-    configuration.label
-      .font(.system(size: 13, weight: .bold))
-      .foregroundStyle(FrogTheme.brandDark)
-      .padding(.horizontal, 13)
-      .frame(minHeight: 40)
-      .background(FrogTheme.surface, in: RoundedRectangle(cornerRadius: 12))
-      .overlay(RoundedRectangle(cornerRadius: 12).stroke(FrogTheme.border))
-      .opacity(!isEnabled ? 0.45 : configuration.isPressed ? 0.7 : 1)
-  }
-}
-
 extension Color {
   public init(hex: String) {
     let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
@@ -206,6 +178,29 @@ extension Color {
 }
 
 extension View {
+  @ViewBuilder func froggyGlassButton(prominent: Bool = false, tint: Color? = nil) -> some View {
+    if #available(iOS 26.0, macOS 26.0, *) {
+      if prominent {
+        buttonStyle(.glass(.regular.tint(tint).interactive()))
+      } else {
+        buttonStyle(.glass)
+      }
+    } else if prominent {
+      buttonStyle(.borderedProminent).tint(tint)
+    } else {
+      buttonStyle(.bordered).tint(tint)
+    }
+  }
+
+  @ViewBuilder func froggyComposerSurface() -> some View {
+    if #available(iOS 26.0, macOS 26.0, *) {
+      glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 22))
+    } else {
+      background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(FrogTheme.border))
+    }
+  }
+
   @ViewBuilder func froggySheetSize() -> some View {
     #if os(macOS)
       self.frame(minWidth: 560, idealWidth: 680, minHeight: 520, idealHeight: 680)

@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OSLog
 
 public enum AppSheet: Identifiable, Hashable, Sendable {
   case botLibrary
@@ -36,6 +37,7 @@ public enum AppSheet: Identifiable, Hashable, Sendable {
 
 @MainActor @Observable
 public final class AppModel {
+  private static let pushLogger = Logger(subsystem: "com.frogbot.app", category: "push")
   public var bootstrap: Bootstrap?
   public var selection: ConversationSelection?
   public var messages: [ChatMessage] = []
@@ -228,7 +230,13 @@ public final class AppModel {
   public func registerPush(_ token: Data, platform: String) async {
     pushToken = token
     guard let api, !demoMode else { return }
-    do { try await api.registerAPNsToken(token, platform: platform) } catch { present(error) }
+    do {
+      try await api.registerAPNsToken(token, platform: platform)
+    } catch {
+      Self.pushLogger.error(
+        "Push registration failed without interrupting the chat: \(error.localizedDescription, privacy: .public)"
+      )
+    }
   }
 
   public func unregisterPush() async {
@@ -236,7 +244,10 @@ public final class AppModel {
     do {
       try await api.unregisterAPNsToken(token)
       pushToken = nil
-    } catch { present(error) }
+    } catch {
+      Self.pushLogger.error(
+        "Push unregistration failed: \(error.localizedDescription, privacy: .public)")
+    }
   }
 
   public func upload(urls: [URL]) async {

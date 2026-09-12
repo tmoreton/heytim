@@ -15,7 +15,9 @@ struct BrowserHandoffView: View {
         TextField("https://example.com", text: $address).textFieldStyle(.roundedBorder).onSubmit {
           open()
         }
-        Button("Open") { open() }.buttonStyle(.borderedProminent).disabled(loading)
+        Button("Open") { open() }
+          .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
+          .disabled(loading)
         if state?.status == "human_control" { Button("Return control") { resume() } }
       }.padding()
       Divider()

@@ -89,13 +89,18 @@ public struct AuthView: View {
           }
         }
       } label: {
-        if auth.isBusy {
-          ProgressView().tint(.white)
-        } else {
-          Text(primaryLabel)
+        Group {
+          if auth.isBusy {
+            ProgressView()
+          } else {
+            Text(primaryLabel)
+          }
         }
+        .font(.system(size: 16, weight: .semibold))
+        .frame(maxWidth: .infinity, minHeight: 44)
       }
-      .buttonStyle(FroggyPrimaryButtonStyle())
+      .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
+      .buttonBorderShape(.roundedRectangle(radius: 16))
       .disabled(auth.isBusy)
       .padding(.top, 16)
 

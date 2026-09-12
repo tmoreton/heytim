@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 #if os(iOS)
   import UIKit
@@ -171,7 +172,7 @@ struct ShareView: View {
       if let url {
         Text(url.absoluteString).textSelection(.enabled).font(.caption)
         ShareLink(item: url) { Label("Share invitation", systemImage: "square.and.arrow.up") }
-          .buttonStyle(.borderedProminent)
+          .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
       } else {
         ProgressView()
       }
@@ -188,47 +189,124 @@ struct AccountView: View {
   @Bindable var model: AppModel
   let auth: AuthSession
   @State private var links: [SharedLink] = []
+  @State private var loadingLinks = true
+  @State private var busyLinkToken: String?
+  @State private var notificationsEnabled = false
   @State private var confirmDelete = false
+  @Environment(\.dismiss) private var dismiss
+
   var body: some View {
-    List {
-      Section("Notifications") {
-        Button("Enable reply notifications") {
-          Task {
-            do { try await NativeNotifications.requestAuthorization() } catch {
-              model.present(error)
-            }
-          }
+    Form {
+      Section("Manage") {
+        NavigationLink {
+          MemoriesView(model: model, groupId: nil)
+        } label: {
+          Label("Memory", systemImage: "brain.head.profile")
+        }
+        NavigationLink {
+          SkillsView(model: model)
+        } label: {
+          Label("Skills & tools", systemImage: "sparkles")
+        }
+        NavigationLink {
+          ConnectionsView(model: model)
+        } label: {
+          Label("Connections", systemImage: "link")
         }
       }
-      Section("Shared links") {
-        ForEach(links) { link in
+
+      Section {
+        LabeledContent {
+          Text(notificationsEnabled ? "On" : "Off")
+            .foregroundStyle(notificationsEnabled ? FrogTheme.brand : .secondary)
+        } label: {
+          Label("Reply notifications", systemImage: "bell.badge")
+        }
+        if !notificationsEnabled {
+          Button("Enable Notifications") { enableNotifications() }
+        }
+      } header: {
+        Text("Notifications")
+      } footer: {
+        Text("Get an alert when a FroggyBot finishes a reply or scheduled task.")
+      }
+
+      Section("Active shared links") {
+        if loadingLinks {
           HStack {
-            VStack(alignment: .leading) {
-              Text(link.title)
-              Text(link.kind.capitalized).font(.caption).foregroundStyle(.secondary)
-            }
             Spacer()
-            if let url = URL(string: link.url) { ShareLink(item: url) }
+            ProgressView()
+            Spacer()
           }
-        }.onDelete(perform: revoke)
-      }
-      Section("Data") {
-        Button("Export memory") { exportMemory() }
-        Button("Sign out") {
-          Task {
-            await model.unregisterPush()
-            await auth.signOut()
+        } else if links.isEmpty {
+          Label("No active shared links", systemImage: "link.badge.plus")
+            .foregroundStyle(.secondary)
+        } else {
+          ForEach(links) { link in
+            HStack(spacing: 12) {
+              Label {
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(link.title).lineLimit(1)
+                  Text("\(shareKind(link.kind)) · expires \(shareExpiration(link.expiresAt))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+              } icon: {
+                Image(systemName: shareIcon(link.kind))
+              }
+              Spacer()
+              if let url = URL(string: link.url) {
+                ShareLink(item: url) {
+                  Label("Share", systemImage: "square.and.arrow.up").labelStyle(.iconOnly)
+                }
+              }
+              Button("Revoke", role: .destructive) { revoke(link) }
+                .disabled(busyLinkToken != nil)
+            }
           }
         }
-        Button("Delete account", role: .destructive) { confirmDelete = true }
       }
+
+      Section("Data & privacy") {
+        Button { exportMemory() } label: {
+          Label("Export Memory", systemImage: "square.and.arrow.down")
+        }
+      }
+
+      Section {
+        Button { signOut() } label: {
+          Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
+        }
+      }
+
+      Section {
+        Button("Delete Account", systemImage: "trash", role: .destructive) {
+          confirmDelete = true
+        }
+      } footer: {
+        Text(
+          "Permanently deletes your bots, chats, owned groups, schedules, skills, invitations, and shared links."
+        )
+      }
+
       Section("About") {
         LabeledContent("App", value: "FroggyBot for Apple")
         LabeledContent("Platforms", value: "iPhone + Mac")
       }
-    }.froggyListSurface().navigationTitle("Account").toolbar { CloseButton() }.task { await load() }
-      .confirmationDialog("Permanently delete your FroggyBot account?", isPresented: $confirmDelete)
-    {
+    }
+    .formStyle(.grouped)
+    .scrollContentBackground(.hidden)
+    .background(FrogTheme.pageBackground)
+    .foregroundStyle(FrogTheme.text)
+    .navigationTitle("Settings")
+    .toolbar {
+      ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+    }
+    .task { await load() }
+    .confirmationDialog(
+      "Permanently delete your FroggyBot account?", isPresented: $confirmDelete,
+      titleVisibility: .visible
+    ) {
       Button("Delete account", role: .destructive) {
         Task {
           do {
@@ -237,22 +315,62 @@ struct AccountView: View {
           } catch { model.present(error) }
         }
       }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text(
+        "This cannot be undone. Shared links will stop working and owned groups will be deleted for every member."
+      )
     }
   }
+
   private func load() async {
-    do { links = try await model.api?.shares() ?? [] } catch { model.present(error) }
+    async let notificationLoad: Void = refreshNotificationStatus()
+    do {
+      links = try await model.api?.shares() ?? []
+    } catch {
+      model.present(error)
+    }
+    loadingLinks = false
+    _ = await notificationLoad
   }
-  private func revoke(at offsets: IndexSet) {
-    for index in offsets {
-      let token = links[index].token
-      Task {
-        do {
-          try await model.api?.revokeShare(token)
-          await load()
-        } catch { model.present(error) }
+
+  private func enableNotifications() {
+    Task {
+      do {
+        try await NativeNotifications.requestAuthorization()
+        await refreshNotificationStatus()
+      } catch {
+        model.present(error)
       }
     }
   }
+
+  private func refreshNotificationStatus() async {
+    let settings = await UNUserNotificationCenter.current().notificationSettings()
+    notificationsEnabled =
+      settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+  }
+
+  private func revoke(_ link: SharedLink) {
+    busyLinkToken = link.token
+    Task {
+      do {
+        try await model.api?.revokeShare(link.token)
+        links.removeAll { $0.token == link.token }
+      } catch {
+        model.present(error)
+      }
+      busyLinkToken = nil
+    }
+  }
+
+  private func signOut() {
+    Task {
+      await model.unregisterPush()
+      await auth.signOut()
+    }
+  }
+
   private func exportMemory() {
     Task {
       do {
@@ -265,5 +383,28 @@ struct AccountView: View {
         }
       } catch { model.present(error) }
     }
+  }
+
+  private func shareIcon(_ kind: String) -> String {
+    switch kind {
+    case "bot": "bubble.left.and.sparkles"
+    case "group": "person.3"
+    case "skill": "sparkles"
+    default: "bubble.left.and.bubble.right"
+    }
+  }
+
+  private func shareKind(_ kind: String) -> String {
+    switch kind {
+    case "bot": "Bot setup"
+    case "group": "Group invite"
+    case "skill": "Skill"
+    default: "Conversation"
+    }
+  }
+
+  private func shareExpiration(_ timestamp: Int) -> String {
+    Date(timeIntervalSince1970: TimeInterval(timestamp)).formatted(
+      .dateTime.month(.abbreviated).day().year())
   }
 }

@@ -97,6 +97,12 @@ private struct AppRoot: View {
 
   private func connectIfNeeded() async {
     guard auth.phase == .signedIn, !connected else { return }
+    // UI automation uses deterministic local fixtures and must never call the
+    // live service with its synthetic account credentials.
+    if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+      connected = true
+      return
+    }
     do {
       let api = try FrogBotAPI(configuration: configuration) { try await auth.idToken() }
       model.connect(api)

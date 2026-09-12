@@ -130,4 +130,11 @@ scheme.configure_with_targets(app, tests, launch_target: true)
 scheme.add_build_target(ui_tests, false)
 scheme.add_test_target(ui_tests)
 scheme.save_as(project_path, 'FroggyBotApple', true)
+
+# Keep a focused UI-test scheme so simulator checks do not also assemble the
+# large speech-model unit-test bundle. The main scheme remains the complete
+# app + unit + UI suite used by CI and release verification.
+ui_scheme = Xcodeproj::XCScheme.new
+ui_scheme.configure_with_targets(app, ui_tests, launch_target: true)
+ui_scheme.save_as(project_path, 'FroggyBotAppleUI', true)
 puts project_path

@@ -252,20 +252,27 @@ private struct SchedulesView: View {
   var body: some View {
     List {
       ForEach(schedules) { item in
-        Button {
-          editing = item
-        } label: {
-          HStack {
-            Image(systemName: item.enabled ? "clock.badge.checkmark" : "clock")
-            VStack(alignment: .leading) {
-              Text(item.name)
-              Text("\(item.frequency.capitalized) · \(item.time) · \(item.timezone)").font(.caption)
-                .foregroundStyle(.secondary)
+        HStack {
+          Button {
+            editing = item
+          } label: {
+            HStack {
+              Image(systemName: item.enabled ? "clock.badge.checkmark" : "clock")
+              VStack(alignment: .leading) {
+                Text(item.name)
+                Text("\(item.frequency.capitalized) · \(item.time) · \(item.timezone)")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
             }
-            Spacer()
-            Button("Run") { run(item.id) }.buttonStyle(.bordered)
+            .contentShape(Rectangle())
           }
-        }.buttonStyle(.plain)
+          .buttonStyle(.plain)
+          Button("Run") { run(item.id) }
+            .froggyGlassButton(tint: FrogTheme.brand)
+            .controlSize(.small)
+        }
       }.onDelete(perform: remove)
       if schedules.isEmpty {
         ContentUnavailableView("No scheduled tasks", systemImage: "calendar.badge.plus")
@@ -391,7 +398,7 @@ private struct ScheduleRunsView: View {
   }
 }
 
-private struct MemoriesView: View {
+struct MemoriesView: View {
   @Bindable var model: AppModel
   let groupId: String?
   @State private var snapshot: MemorySnapshot?
@@ -494,7 +501,7 @@ private struct MemoriesView: View {
   }
 }
 
-private struct SkillsView: View {
+struct SkillsView: View {
   @Bindable var model: AppModel
   var body: some View {
     List {
@@ -536,7 +543,8 @@ private struct SkillDetailView: View {
         Text(detail?.description ?? "").font(.title3)
         Text(detail?.instructions ?? "")
         if detail?.editable == true {
-          Button("Edit") { model.sheet = .skillEditor(id) }.buttonStyle(.borderedProminent)
+          Button("Edit") { model.sheet = .skillEditor(id) }
+            .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
         }
         if let shareURL {
           ShareLink(item: shareURL) { Label("Share link", systemImage: "square.and.arrow.up") }
