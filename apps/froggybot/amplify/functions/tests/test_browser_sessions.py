@@ -6,13 +6,13 @@ import importlib
 import json
 import sys
 import threading
-import unittest
 from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from api_test_case import ApiTestCase, ConditionalCheckFailedException
 from browser_display_cases import BrowserDisplayCases
 from browser_recovery_cases import BrowserRecoveryCases
+from browser_route_cases import BrowserRouteCases
 
 
 class Condition:
@@ -87,13 +87,24 @@ class ModuleGlobals:
         del self.values[name]
 
 
-class BrowserSessionTests(BrowserDisplayCases, BrowserRecoveryCases, ApiTestCase):
+class BrowserSessionTests(BrowserRouteCases, BrowserDisplayCases, BrowserRecoveryCases, ApiTestCase):
     def setUp(self):
         super().setUp()
         self.module = importlib.import_module("shared.browser_sessions")
         self.store_module = importlib.import_module("shared.browser_session_store")
         route = self.handler.authenticated_routes.browser_session_route
         self.routes = ModuleGlobals(route.__globals__)
+        self.enterContext(
+            patch.object(
+                self.routes,
+                "admit_run",
+                return_value=SimpleNamespace(
+                    allowed=True,
+                    reason="admitted",
+                    user_message="",
+                ),
+            )
+        )
         conditions = ModuleType("boto3.dynamodb.conditions")
         conditions.Attr = conditions.Key = Condition
         self.enterContext(patch.dict(sys.modules, {"boto3.dynamodb.conditions": conditions}))
@@ -162,6 +173,57 @@ class BrowserSessionTests(BrowserDisplayCases, BrowserRecoveryCases, ApiTestCase
         self.assertEqual(self.signer.call_count, 2)
         self.assertEqual(self.record()["sessionExpiresAt"], expiry)
         self.assertNotIn("liveViewUrl", self.service.get())
+
+    def test_browser_start_admission_is_once_per_remote_session(self):
+        authorize = MagicMock()
+        service = self.module.BrowserSessionService(
+            self.table,
+            self.dp,
+            "user-1",
+            "bot-1",
+            control=self.cp,
+            catalog=self.catalog,
+            signer=self.signer,
+            clock=lambda: self.now,
+            authorize_start=authorize,
+        )
+
+        service.open()
+        first_id = authorize.call_args.args[0]
+        service.open()
+
+        authorize.assert_called_once_with(first_id)
+        self.assertEqual(self.dp.start_browser_session.call_count, 1)
+
+    def test_denied_browser_start_retry_reuses_admission_identity(self):
+        authorize = MagicMock(
+            side_effect=[
+                self.module.BrowserSessionError(429, "Usage limit reached"),
+                None,
+            ]
+        )
+        service = self.module.BrowserSessionService(
+            self.table,
+            self.dp,
+            "user-1",
+            "bot-1",
+            control=self.cp,
+            catalog=self.catalog,
+            signer=self.signer,
+            clock=lambda: self.now,
+            authorize_start=authorize,
+        )
+
+        self.assert_error(429, service.open)
+        first_id = authorize.call_args.args[0]
+        self.assertEqual(service.get()["status"], "closed")
+        service.open()
+
+        self.assertEqual(
+            [call.args[0] for call in authorize.call_args_list],
+            [first_id, first_id],
+        )
+        self.dp.start_browser_session.assert_called_once()
 
     def test_unknown_or_shared_bot_does_not_inherit_credentials(self):
         del self.table.items[("USER#user-1", "BOT#bot-1")]
@@ -419,167 +481,3 @@ class BrowserSessionTests(BrowserDisplayCases, BrowserRecoveryCases, ApiTestCase
             params or {"botId": "bot-1"},
             {"body": json.dumps(body or {}), "queryStringParameters": query},
         )
-
-    def test_route_rejects_untrusted_fields_ids_and_boolean_coercion(self):
-        for body in ({"rememberLogin": "true"}, {"rememberLogin": 1}, {},
-                     {"rememberLogin": True, "sessionId": "forged"}):
-            with self.assertRaises(self.support.ApiError) as error:
-                self.route("POST", "/resume", body)
-            self.assertEqual(error.exception.status_code, 400)
-        for params in ({"botId": "../../other"}, {"botId": "bot-1", "sessionId": "x"}):
-            with self.assertRaises(self.support.ApiError):
-                self.route("GET", "", params=params)
-        with self.assertRaises(self.support.ApiError):
-            self.route("GET", "", query={"profileId": "forged"})
-
-    def test_group_routes_reject_before_any_client_creation(self):
-        with patch.object(self.routes, "browser_clients") as clients:
-            for method, suffix in (("GET", ""), ("POST", "/open"), ("POST", "/resume"),
-                                   ("POST", "/close"), ("DELETE", "/profile")):
-                with self.assertRaises(self.support.ApiError) as error:
-                    self.route(method, suffix, {"groupId": "work", "rememberLogin": True}
-                               if suffix == "/resume" else {"groupId": "work"} if method == "POST" else None,
-                               {"groupId": "work"} if method != "POST" else None)
-                self.assertEqual(error.exception.status_code, 409)
-            clients.assert_not_called()
-
-    def test_route_holds_send_lease_during_open_and_sets_no_store(self):
-        order = []
-        service = MagicMock()
-        service.open.side_effect = lambda **_kwargs: order.append("open") or {"status": "human_control"}
-        with (patch.object(self.routes, "browser_clients", return_value=(self.dp, self.cp)),
-              patch.object(self.routes, "BrowserSessionService", return_value=service),
-              patch.object(self.routes, "_claim_send_lease", side_effect=lambda *_a: order.append("claim") or "lease"),
-              patch.object(self.routes, "_release_send_lease", side_effect=lambda *_a: order.append("release"))):
-            response = self.route("POST", "/open")
-        self.assertEqual(order, ["claim", "open", "release"])
-        self.assertEqual(response["headers"]["cache-control"], "no-store")
-
-    def test_route_releases_lease_if_open_fails(self):
-        service = MagicMock()
-        service.open.side_effect = self.routes.BrowserSessionError(409, "Busy")
-        with (patch.object(self.routes, "browser_clients", return_value=(self.dp, self.cp)),
-              patch.object(self.routes, "BrowserSessionService", return_value=service),
-              patch.object(self.routes, "_claim_send_lease", return_value="lease"),
-              patch.object(self.routes, "_release_send_lease") as release,
-              self.assertRaises(self.support.ApiError)):
-            self.route("POST", "/open")
-        release.assert_called_once_with("user-1", "bot-1", "lease")
-
-    def test_new_routes_are_authenticated_and_not_the_bot_delete_route(self):
-        handlers = self.handler.authenticated_routes.ROUTE_HANDLERS
-        for key in ("GET /bots/{botId}/browser", "POST /bots/{botId}/browser/open",
-                    "POST /bots/{botId}/browser/resume", "POST /bots/{botId}/browser/close",
-                    "DELETE /bots/{botId}/browser/profile"):
-            self.assertIs(handlers[key], self.routes.browser_session_route)
-
-    def test_resume_route_uses_existing_send_message_without_approval_override(self):
-        service = MagicMock()
-        service.resume.side_effect = lambda remember, enqueue: enqueue("safe continuation")
-        with (patch.object(self.routes, "browser_clients", return_value=(self.dp, self.cp)),
-              patch.object(self.routes, "BrowserSessionService", return_value=service),
-              patch.object(self.routes, "_send_message", return_value={"turnId": "approval-needed"}) as send):
-            self.route("POST", "/resume", {"rememberLogin": False})
-        send.assert_called_once_with("user-1", "bot-1", {"text": "safe continuation"})
-
-    def _send_integration(self, status, resume_state=None, approval_tools=None):
-        bot = {"id": "bot-1", "toolIds": ["browser"], "alwaysAllowedToolIds": []}
-        record = {**self.record(), "status": status, "resumeState": resume_state, "revision": 1}
-        self.data_table.put_item(Item=record)
-        self.data_table.put.clear()
-        direct = self.direct_chat
-        self.enterContext(patch.object(direct, "table", self.data_table))
-        self.enterContext(patch.object(direct, "_get_bot", return_value=bot))
-        self.enterContext(patch.object(direct, "_resolve_attachments", return_value=[]))
-        self.enterContext(patch.object(direct, "_partition_items", return_value=[]))
-        self.enterContext(patch.object(direct.catalog, "unapproved_tools", return_value=approval_tools or []))
-        claimed = self.enterContext(patch.object(direct, "_claim_send_lease", wraps=direct._claim_send_lease))
-        released = self.enterContext(patch.object(direct, "_release_send_lease", wraps=direct._release_send_lease))
-        original_guard = self.module.ensure_browser_send_allowed
-
-        def guarded(*args):
-            claimed.assert_called_once_with("user-1", "bot-1")
-            released.assert_not_called()
-            self.assertIn("SET sendLeaseOwner", self.data_table.updated[-1]["UpdateExpression"])
-            return original_guard(*args)
-
-        checked = self.enterContext(patch.object(self.module, "ensure_browser_send_allowed", side_effect=guarded))
-        return direct, checked, released
-
-    def test_send_message_human_control_guard_holds_lease_and_never_queues(self):
-        direct, checked, released = self._send_integration("HUMAN_CONTROL")
-        with (patch.object(direct, "_steer_active_turns") as steer,
-              patch.object(direct, "_start_bot_turn", wraps=direct._start_bot_turn) as start,
-              self.assertRaises(self.support.ApiError) as error):
-            direct._send_message("user-1", "bot-1", {"text": "Continue"})
-        self.assertEqual(error.exception.status_code, 409)
-        checked.assert_called_once_with(self.data_table, "user-1", "bot-1")
-        released.assert_called_once()
-        steer.assert_not_called()
-        start.assert_not_called()
-        self.sqs.send_message.assert_not_called()
-        self.assertFalse(any(item.get("entity") == "TURN" for item in self.data_table.put))
-
-    def test_send_message_resume_enqueueing_is_allowed_and_queues_once(self):
-        direct, checked, released = self._send_integration("READY", "ENQUEUEING")
-        result = direct._send_message("user-1", "bot-1", {"text": self.module.RESUME_PROMPT})
-        self.assertEqual(result["status"], "pending")
-        checked.assert_called_once()
-        released.assert_called_once()
-        self.sqs.send_message.assert_called_once()
-        queued = json.loads(self.sqs.send_message.call_args.kwargs["MessageBody"])
-        self.assertEqual(queued["type"], "AGENT_REPLY")
-        self.assertEqual(queued["botId"], "bot-1")
-        direct.catalog.unapproved_tools.assert_called_once_with("user-1", ["browser"], [])
-
-    def test_send_message_resume_enqueueing_does_not_bypass_required_approval(self):
-        direct, checked, released = self._send_integration(
-            "READY", "ENQUEUEING", [{"id": "browser", "name": "Browser"}],
-        )
-        result = direct._send_message("user-1", "bot-1", {"text": self.module.RESUME_PROMPT})
-        self.assertEqual(result["status"], "awaiting_approval")
-        checked.assert_called_once()
-        released.assert_called_once()
-        self.sqs.send_message.assert_not_called()
-        turn = next(item for item in self.data_table.put if item.get("entity") == "TURN")
-        self.assertEqual(turn["approvalToolIds"], ["browser"])
-
-
-class BrowserSdkTests(unittest.TestCase):
-    def test_aws_shapes_signing_and_bounds_with_real_sdk(self):
-        try:
-            import boto3
-            from botocore.credentials import Credentials
-            from botocore.validate import validate_parameters
-        except ImportError:
-            self.skipTest("Run with services/agent-runtime/.venv/bin/python for real SDK contract checks")
-        from urllib.parse import parse_qs, urlsplit
-
-        from shared.browser_session_aws import live_view_url
-        from shared.browser_sessions import managed_session_name
-        client = boto3.client("bedrock-agentcore", region_name="us-east-1",
-                              aws_access_key_id="TEST", aws_secret_access_key="TEST")
-        request = {"browserIdentifier": "aws.browser.v1", "sessionTimeoutSeconds": 3600,
-                   "name": managed_session_name("user-1", "bot-1"), "clientToken": "a" * 36,
-                   "profileConfiguration": {"profileIdentifier": "frogbot_test-0123456789"}}
-        validate_parameters(request, client.meta.service_model.operation_model("StartBrowserSession").input_shape)
-        validate_parameters({"browserIdentifier": "aws.browser.v1", "sessionId": "session1",
-                             "streamUpdate": {"automationStreamUpdate": {"streamStatus": "DISABLED"}}},
-                            client.meta.service_model.operation_model("UpdateBrowserStream").input_shape)
-        validate_parameters({"browserIdentifier": "aws.browser.v1", "sessionId": "session1",
-                             "profileIdentifier": "frogbot_test-0123456789", "clientToken": "a" * 36},
-                            client.meta.service_model.operation_model("SaveBrowserSessionProfile").input_shape)
-        control = boto3.client("bedrock-agentcore-control", region_name="us-east-1",
-                               aws_access_key_id="TEST", aws_secret_access_key="TEST")
-        validate_parameters({"name": "frogbot_test", "tags": {"frogbot:managed-by": "FrogBot"},
-                             "clientToken": "a" * 36},
-                            control.meta.service_model.operation_model("CreateBrowserProfile").input_shape)
-        with patch.object(boto3, "Session") as session:
-            session.return_value.get_credentials.return_value = Credentials("TEST", "TEST", "TESTTOKEN")
-            url = live_view_url(client, "session1")
-        query = parse_qs(urlsplit(url).query)
-        self.assertEqual(query["X-Amz-Expires"], ["300"])
-        self.assertEqual(query["X-Amz-SignedHeaders"], ["host"])
-        self.assertEqual(query["X-Amz-Security-Token"], ["TESTTOKEN"])
-        self.assertEqual(urlsplit(url).path, "/browser-streams/aws.browser.v1/sessions/session1/live-view")
-        self.assertIn("/us-east-1/bedrock-agentcore/aws4_request", query["X-Amz-Credential"][0])

@@ -1,8 +1,6 @@
 import { useState } from 'react';
-import * as Linking from 'expo-linking';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,10 +10,10 @@ import {
   View,
 } from 'react-native';
 
-import type { Capability, CapabilitySelection, Connection, ConnectionDraft, Skill, SkillDetail, SkillDraft } from '@/lib/types';
+import type { Capability, CapabilitySelection, Skill, SkillDetail, SkillDraft } from '@/lib/types';
 import { PageSheet } from '@/components/page-sheet';
 
-import { ConnectionEditor, draftForConnection, emptyConnectionDraft } from './connection-editor';
+import { catalogTools } from './connection-access';
 import { SkillForm, SkillView } from './skill-details';
 import { styles } from './skill-library.styles';
 import { HowCapabilitiesWork, ToolList } from './tool-list';
@@ -29,7 +27,7 @@ const emptyDraft: SkillDraft = {
 };
 
 type LibraryTab = 'skills' | 'tools';
-type LibraryMode = 'list' | 'view' | 'edit' | 'copy' | 'new' | 'newConnection' | 'editConnection';
+type LibraryMode = 'list' | 'view' | 'edit' | 'copy' | 'new';
 
 type Props = {
   skills: Skill[];
@@ -38,9 +36,6 @@ type Props = {
   onLoad: (skillId: string) => Promise<SkillDetail>;
   onSave: (draft: SkillDraft, skillId?: string) => Promise<SkillDetail>;
   onShare: (skillId: string) => Promise<string>;
-  onSaveConnection: (draft: ConnectionDraft, connectionId?: string) => Promise<Connection>;
-  onDeleteConnection: (connectionId: string) => Promise<void>;
-  onBeginGmailConnection: (returnUrl: string) => Promise<string>;
   onChanged: () => Promise<void>;
   onUse: (capability: CapabilitySelection) => void;
 };
@@ -52,20 +47,16 @@ export function SkillLibrary({
   onLoad,
   onSave,
   onShare,
-  onSaveConnection,
-  onDeleteConnection,
-  onBeginGmailConnection,
   onChanged,
   onUse,
 }: Props) {
   const [selected, setSelected] = useState<SkillDetail>();
   const [draft, setDraft] = useState<SkillDraft>(emptyDraft);
-  const [connection, setConnection] = useState<Connection>();
-  const [connectionDraft, setConnectionDraft] = useState<ConnectionDraft>(emptyConnectionDraft);
   const [mode, setMode] = useState<LibraryMode>('list');
   const [tab, setTab] = useState<LibraryTab>('skills');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const includedTools = catalogTools(tools);
 
   const open = async (skill: Skill) => {
     setSelected({ ...skill, instructions: '' });
@@ -110,13 +101,6 @@ export function SkillLibrary({
     setDraft(emptyDraft);
     setError('');
     setMode('new');
-  };
-
-  const openConnection = (value?: Connection) => {
-    setConnection(value);
-    setConnectionDraft(value ? draftForConnection(value) : emptyConnectionDraft);
-    setError('');
-    setMode(value ? 'editConnection' : 'newConnection');
   };
 
   const save = async () => {
@@ -164,85 +148,9 @@ export function SkillLibrary({
     }
   };
 
-  const saveConnection = async () => {
-    if (!connectionDraft.name.trim() || !connectionDraft.description.trim() || !connectionDraft.endpoint.trim()) {
-      setError('Add a name, description, and MCP server URL.');
-      return;
-    }
-    setBusy(true);
-    setError('');
-    try {
-      await onSaveConnection(
-        {
-          ...connectionDraft,
-          name: connectionDraft.name.trim(),
-          description: connectionDraft.description.trim(),
-          endpoint: connectionDraft.endpoint.trim(),
-          headerName: connectionDraft.headerName.trim(),
-        },
-        mode === 'editConnection' ? connection?.id : undefined,
-      );
-      await onChanged();
-      setConnection(undefined);
-      setMode('list');
-      setTab('tools');
-    } catch (value) {
-      setError(value instanceof Error ? value.message : 'Could not save this connection.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const connectGmail = async () => {
-    setBusy(true);
-    setError('');
-    try {
-      const returnUrl = Linking.createURL('app', { queryParams: { oauth: 'gmail' } });
-      const authorizationUrl = await onBeginGmailConnection(returnUrl);
-      await Linking.openURL(authorizationUrl);
-    } catch (value) {
-      setError(value instanceof Error ? value.message : 'Could not start the Gmail connection.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const removeConnection = () => {
-    if (!connection) return;
-    Alert.alert(
-      'Remove connection?',
-      'Its credential will enter a seven-day recovery window. Skills and shared links never contain the credential.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => {
-            setBusy(true);
-            onDeleteConnection(connection.id)
-              .then(onChanged)
-              .then(() => {
-                setConnection(undefined);
-                setMode('list');
-                setTab('tools');
-              })
-              .catch((value: unknown) => {
-                setError(value instanceof Error ? value.message : 'Could not remove this connection.');
-              })
-              .finally(() => setBusy(false));
-          },
-        },
-      ],
-    );
-  };
-
   const back = () => {
     setError('');
-    setMode(
-      mode === 'edit' || mode === 'copy' || mode === 'new'
-        ? selected ? 'view' : 'list'
-        : 'list',
-    );
+    setMode(selected ? 'view' : 'list');
   };
 
   const title =
@@ -252,11 +160,7 @@ export function SkillLibrary({
         ? 'New skill'
       : mode === 'copy'
         ? 'Make editable copy'
-        : mode === 'newConnection'
-          ? 'Add connection'
-          : mode === 'editConnection'
-            ? connection?.name
-          : selected?.name;
+        : selected?.name;
 
   return (
     <PageSheet accessibilityLabel="Skills and tools" onClose={onClose}>
@@ -266,21 +170,17 @@ export function SkillLibrary({
             <Text style={styles.headerAction}>{mode === 'list' ? 'Close' : 'Back'}</Text>
           </Pressable>
           <Text numberOfLines={1} style={styles.title}>{title}</Text>
-          {mode === 'list' ? (
-            <Pressable accessibilityRole="button" hitSlop={12} onPress={() => tab === 'skills' ? startNew() : openConnection()}>
-              <Text style={[styles.headerAction, styles.primary]}>{tab === 'skills' ? 'New skill' : 'Add tool'}</Text>
+          {mode === 'list' && tab === 'skills' ? (
+            <Pressable accessibilityRole="button" hitSlop={12} onPress={startNew}>
+              <Text style={[styles.headerAction, styles.primary]}>New skill</Text>
             </Pressable>
-          ) : mode === 'editConnection' && connection?.authType === 'oauth' ? (
-            <Pressable accessibilityRole="button" hitSlop={12} onPress={back}>
-              <Text style={[styles.headerAction, styles.primary]}>Done</Text>
-            </Pressable>
-          ) : mode === 'edit' || mode === 'copy' || mode === 'new' || mode === 'newConnection' || mode === 'editConnection' ? (
+          ) : mode === 'edit' || mode === 'copy' || mode === 'new' ? (
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ busy, disabled: busy }}
               hitSlop={12}
               disabled={busy}
-              onPress={mode === 'newConnection' || mode === 'editConnection' ? saveConnection : save}>
+              onPress={save}>
               {busy ? <ActivityIndicator color="#007A3D" /> : <Text style={[styles.headerAction, styles.primary]}>Save</Text>}
             </Pressable>
           ) : (
@@ -302,7 +202,7 @@ export function SkillLibrary({
                     style={[styles.tab, tab === value && styles.tabActive]}
                     onPress={() => setTab(value)}>
                     <Text style={[styles.tabText, tab === value && styles.tabTextActive]}>
-                      {value === 'skills' ? `Skills · ${skills.length}` : `Tools · ${tools.length}`}
+                      {value === 'skills' ? `Skills · ${skills.length}` : `Tools · ${includedTools.length}`}
                     </Text>
                   </Pressable>
                 ))}
@@ -336,7 +236,7 @@ export function SkillLibrary({
                   ))}
                 </>
               ) : (
-                <ToolList tools={tools} onUse={onUse} onManage={openConnection} onConnectGmail={connectGmail} />
+                <ToolList tools={includedTools} onUse={onUse} />
               )}
             </>
           ) : mode === 'view' ? (
@@ -348,14 +248,6 @@ export function SkillLibrary({
               onCustomize={startCustomize}
               onShare={share}
               onUse={() => onUse({ kind: 'skill', id: selected?.id ?? '' })}
-            />
-          ) : mode === 'newConnection' || mode === 'editConnection' ? (
-            <ConnectionEditor
-              connection={connection}
-              draft={connectionDraft}
-              onChange={setConnectionDraft}
-              onDelete={removeConnection}
-              onReconnect={connectGmail}
             />
           ) : (
             <SkillForm draft={draft} tools={tools} onChange={setDraft} />

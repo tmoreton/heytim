@@ -4,7 +4,7 @@ import logging
 
 from shared.work_state import is_claimable
 
-from .agent import _invoke, _progress_updater, agent_failure_message
+from .agent import _invoke, agent_failure_message
 from .artifacts import _collect_generated_artifacts, _delete_generated_artifacts
 from .background_work import _queue_background_poll
 from .bot_mutations import apply_bot_mutations
@@ -15,8 +15,14 @@ from .job_lifecycle import (
     finish_failed_attempt,
 )
 from .notifications import _queue_reply_notification, _update_schedule_result
+from .progress import progress_updater
 from .support import _account_is_active, _bot_key, _turn_pk, catalog, table
 from .usage import record_invocation_usage
+from .usage_controls import (
+    AdmissionDecision,
+    UsageControlUnavailable,
+    admit_run,
+)
 from .work import _claim_work, _finish_work, _pause_work
 
 logger = logging.getLogger(__name__)
@@ -95,15 +101,46 @@ def _process_agent_reply(record: dict, request: dict) -> None:
     def cleanup_artifacts() -> None:
         _delete_generated_artifacts(user_id, bot_id, turn["id"])
 
+    try:
+        billing_user_id = turn.get("userId")
+        if billing_user_id != user_id:
+            raise UsageControlUnavailable("Turn billing identity is invalid")
+        admission = admit_run(
+            billing_user_id,
+            f"direct:{turn['id']}",
+        )
+    except (UsageControlUnavailable, ValueError):
+        logger.exception(
+            "Usage controls could not authorize direct turn %s", turn.get("id")
+        )
+        admission = AdmissionDecision(False, "storage_unavailable")
+    if not admission.allowed:
+        cleanup_artifacts()
+        completed_at = _finish_work(
+            turn_key,
+            lease_owner,
+            "ERROR",
+            "assistantText",
+            admission.user_message,
+        )
+        if not completed_at:
+            return
+        _update_schedule_result(turn, "error", completed_at)
+        _queue_reply_notification(
+            user_id, bot_id, turn_key, turn, bot, admission.user_message
+        )
+        return
+
     attempt = begin_attempt(record, lambda: None)
     try:
         result = _invoke(
             user_id,
             bot_id,
             bot,
+            billing_user_id=billing_user_id,
             event_id=turn["id"],
             continuation=turn.get("backgroundResults"),
-            on_progress=_progress_updater(turn_key, lease_owner),
+            on_progress=progress_updater(turn_key, lease_owner),
             runtime_result=turn.get("runtimeResult"),
             work_key=turn_key, lease_owner=lease_owner, resume_request=request,
             allow_bot_management=turn.get("source") != "schedule",

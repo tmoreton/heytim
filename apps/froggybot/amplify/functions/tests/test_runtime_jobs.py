@@ -158,6 +158,7 @@ class RuntimeJobTests(WorkerTestCase):
                 "user",
                 "bot",
                 bot,
+                billing_user_id="billing-user",
                 event_id="turn",
                 history=[{"role": "user", "content": [{"text": "work"}]}],
                 work_key=self.key,
@@ -167,6 +168,118 @@ class RuntimeJobTests(WorkerTestCase):
         self.agentcore.invoke_agent_runtime.side_effect = None
         self.assertEqual(order, ["persist", "poll", "dispatch"])
         self.assertEqual(result.pending_work[0]["provider"], "agentcore_runtime")
+        self.assertEqual(
+            self.agentcore.invoke_agent_runtime.call_args.kwargs["runtimeUserId"],
+            self.agent.memory_actor_id("billing-user"),
+        )
+
+    def test_youtube_runtime_reserves_and_receives_shared_quota_lease(self):
+        bot = {
+            "name": "Creator Studio",
+            "prompt": "Research",
+            "skillVersions": {},
+            "toolIds": ["youtube_search"],
+        }
+        youtube_tool = {
+            "id": "youtube_search",
+            "runtime": {
+                "kind": "gateway",
+                "operations": ["youtube_search", "youtube_video_details"],
+            },
+        }
+        allowed = self.usage_controls.AdmissionDecision(
+            True, "reserved", quota_day="2026-09-11"
+        )
+        self.agentcore.invoke_agent_runtime.side_effect = None
+        with (
+            patch.object(self.agent, "_pause_work", return_value=True),
+            patch.object(self.agent, "queue_runtime_poll"),
+            patch.object(self.agent.catalog, "resolve_for_runtime", return_value=[]),
+            patch.object(
+                self.agent.catalog,
+                "resolve_tools_for_runtime",
+                return_value=[youtube_tool],
+            ),
+            patch.object(
+                self.agent,
+                "reserve_youtube_search_calls",
+                return_value=allowed,
+            ) as reserve,
+        ):
+            self.agentcore.invoke_agent_runtime.return_value = {
+                "response": io.BytesIO(b"accepted")
+            }
+            result = self.agent._invoke(
+                "user",
+                "bot",
+                bot,
+                billing_user_id="billing-user",
+                event_id="turn",
+                history=[{"role": "user", "content": [{"text": "research"}]}],
+                work_key=self.key,
+                lease_owner="lease",
+                resume_request=self.resume,
+            )
+
+        work = result.pending_work[0]
+        reserve.assert_called_once_with(
+            "billing-user", f"runtime:{work['sessionId']}"
+        )
+        payload = json.loads(
+            self.agentcore.invoke_agent_runtime.call_args.kwargs["payload"]
+        )
+        self.assertEqual(
+            payload["providerQuota"]["youtubeSearch"],
+            {"day": "2026-09-11", "maxCalls": 3},
+        )
+
+    def test_youtube_capacity_denial_never_starts_runtime(self):
+        bot = {
+            "name": "Creator Studio",
+            "prompt": "Research",
+            "skillVersions": {},
+            "toolIds": ["youtube_search"],
+        }
+        youtube_tool = {
+            "id": "youtube_search",
+            "runtime": {
+                "kind": "gateway",
+                "operations": ["youtube_search"],
+            },
+        }
+        denied = self.usage_controls.AdmissionDecision(
+            False, "provider_daily_limit", quota_day="2026-09-11"
+        )
+        with (
+            patch.object(self.agent, "_pause_work") as pause,
+            patch.object(self.agent, "queue_runtime_poll"),
+            patch.object(self.agent.catalog, "resolve_for_runtime", return_value=[]),
+            patch.object(
+                self.agent.catalog,
+                "resolve_tools_for_runtime",
+                return_value=[youtube_tool],
+            ),
+            patch.object(
+                self.agent,
+                "reserve_youtube_search_calls",
+                return_value=denied,
+            ),
+        ):
+            result = self.agent._invoke(
+                "user",
+                "bot",
+                bot,
+                billing_user_id="billing-user",
+                event_id="turn",
+                history=[{"role": "user", "content": [{"text": "research"}]}],
+                work_key=self.key,
+                lease_owner="lease",
+                resume_request=self.resume,
+            )
+
+        self.assertIn("shared daily capacity", result.terminal_error)
+        pause.assert_not_called()
+        self.agentcore.invoke_agent_runtime.assert_not_called()
 
     def test_failed_runtime_cold_start_is_restored_for_queue_retry(self):
         bot = {"name": "Engineer", "prompt": "Work", "skillVersions": {}, "toolIds": []}
@@ -210,12 +323,39 @@ class RuntimeJobTests(WorkerTestCase):
         self.assertIn("No agent work began", message)
 
     def test_account_cleanup_only_stops_owned_background_sessions(self):
-        def entry(session, owner=None):
-            return {"botOwnerId": owner, "pendingWork": [{"provider": "agentcore_runtime", "sessionId": session}]}
+        def entry(session, owner=None, billing_user=None):
+            return {
+                "botOwnerId": owner,
+                "billingUserId": billing_user,
+                "pendingWork": [
+                    {"provider": "agentcore_runtime", "sessionId": session}
+                ],
+            }
 
         sessions = self.account_cleanup.AccountCleanupService.owned_agent_session_ids(
             "user", [entry("direct")],
-            {"shared": [entry("mine", "user"), entry("theirs", "another")],
+            {"shared": [
+                entry("mine", "user"),
+                entry("billed-by-me", "another", "user"),
+                entry("theirs", "another", "another"),
+                {
+                    "entity": "GROUP_MESSAGE",
+                    "authorType": "bot",
+                    "authorId": "shared-bot",
+                    "billingUserId": "user",
+                },
+            ],
              "owned": [{"entity": "GROUP", "ownerId": "user"}, entry("owned-group", "another")]},
         )
-        self.assertEqual(sessions, {"direct", "mine", "owned-group"})
+        self.assertEqual(
+            sessions,
+            {
+                "direct",
+                "mine",
+                "billed-by-me",
+                "owned-group",
+                self.account_cleanup.scoped_session_id(
+                    "group:shared:bot:shared-bot"
+                ),
+            },
+        )

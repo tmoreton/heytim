@@ -190,6 +190,30 @@ class ApiRoutingTests(unittest.TestCase):
 
         self.assertEqual(error.exception.status_code, 404)
 
+    def test_custom_connection_write_routes_are_not_exposed(self) -> None:
+        for method, path, route_key, params in (
+            ("POST", "/connections", "POST /connections", {}),
+            (
+                "PUT",
+                "/connections/legacy-1",
+                "PUT /connections/{connectionId}",
+                {"connectionId": "legacy-1"},
+            ),
+        ):
+            with self.subTest(route_key=route_key):
+                with self.assertRaises(self.support.ApiError) as error:
+                    self.routes.route_authenticated(
+                        "user-1",
+                        "Tim",
+                        method,
+                        path,
+                        params,
+                        {"body": '{}'},
+                        route_key=route_key,
+                    )
+
+                self.assertEqual(error.exception.status_code, 404)
+
     def test_public_catalog_keeps_its_short_cache_policy(self) -> None:
         with patch.object(
             self.handler.catalog, "public_catalog", return_value={"skills": []}

@@ -112,7 +112,7 @@ export function BotLibrary({
                     {template.skillIds.length
                       ? countLabel(template.skillIds.length, 'skill')
                       : 'Prompt only'}
-                    {effectiveToolIds.size ? ` · ${countLabel(effectiveToolIds.size, 'required tool')}` : ''}
+                    {effectiveToolIds.size ? ` · ${countLabel(effectiveToolIds.size, 'included tool')}` : ''}
                   </Text>
                   <Pressable
                     accessibilityRole="button"
@@ -152,11 +152,11 @@ export function BotLibrary({
           {orderedTemplates.length === 0 ? (
             <Text style={styles.empty}>The bot library is unavailable right now. Chief is still ready to help.</Text>
           ) : null}
-          <View style={styles.credentialNote}>
-            <Text style={styles.credentialTitle}>When a private tool needs an API token</Text>
-            <Text style={styles.credentialText}>
-              Open Skills & tools, choose Tools → Add tool, select Bearer token or API key, and paste the token there.
-              Tokens are encrypted and never included in bot configs or shared links.
+          <View style={styles.setupNote}>
+            <Text style={styles.setupTitle}>No developer keys needed</Text>
+            <Text style={styles.setupText}>
+              Public research and creation tools are included with your plan. When a bot needs private account data,
+              FroggyBot asks you to connect that account. Some actions still ask for approval before they run.
             </Text>
           </View>
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
@@ -190,9 +190,9 @@ const styles = StyleSheet.create({
   addedButton: { backgroundColor: '#E4F1EA' },
   addText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
   addedText: { color: '#007A3D' },
-  credentialNote: { padding: 16, borderRadius: 16, backgroundColor: '#EFEEE9', marginTop: 12 },
-  credentialTitle: { color: '#37352F', fontSize: 13, fontWeight: '800' },
-  credentialText: { color: '#77736B', fontSize: 12, lineHeight: 18, marginTop: 4 },
+  setupNote: { padding: 16, borderRadius: 16, backgroundColor: '#EFEEE9', marginTop: 12 },
+  setupTitle: { color: '#37352F', fontSize: 13, fontWeight: '800' },
+  setupText: { color: '#77736B', fontSize: 12, lineHeight: 18, marginTop: 4 },
   empty: { color: '#77736B', fontSize: 13, lineHeight: 19, paddingVertical: 28, textAlign: 'center' },
   error: { color: '#A43C31', fontSize: 13, lineHeight: 18, marginTop: 16 },
   pressed: { opacity: 0.7 },

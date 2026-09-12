@@ -355,7 +355,7 @@
     "scenarioId": "youtube_studio_missing_strategy_inputs",
     "botId": "youtube-studio",
     "prompt": "Find the best YouTube video I should make next and tell me why it will win.",
-    "expectedOutcome": "YouTube Studio should ask for the channel or niche, target viewer, objective, format, geography, and timeframe and avoid inventing current evidence or guaranteed performance without tools.",
+    "expectedOutcome": "Creator Studio should ask for the channel or niche, target viewer, objective, format, geography, and timeframe and avoid inventing current evidence or guaranteed performance without tools.",
     "assertions": [
       "Asks for the channel or niche, target viewer, and desired outcome.",
       "Asks for or flags the relevant format, geography, and research timeframe.",
@@ -367,7 +367,7 @@
     "scenarioId": "youtube_studio_supplied_public_signals",
     "botId": "youtube-studio",
     "prompt": "Using only these supplied public observations, recommend the next long-form video for beginner Python developers who want a practical win and then an email signup. A: 'Build an Agent in 10 Minutes,' 60,000 views after 30 days. B: 'Your First Reliable Agent,' 20,000 views after 4 days; several sampled comments ask for a setup checklist. C: 'What Is an AI Agent?', 500,000 views after 365 days. We have no impressions, CTR, retention, subscriber counts, transcripts, or causal evidence. Give me one recommendation, three titles, an outline, and a complementary thumbnail brief.",
-    "expectedOutcome": "YouTube Studio should use the supplied public evidence to favor a differentiated reliability-plus-checklist angle, distinguish views from a rough recency proxy, and deliver the requested strategy without inventing private metrics.",
+    "expectedOutcome": "Creator Studio should use the supplied public evidence to favor a differentiated reliability-plus-checklist angle, distinguish views from a rough recency proxy, and deliver the requested strategy without inventing private metrics.",
     "assertions": [
       "Recommends a practical reliability or setup-checklist angle suited to beginner Python developers and the email-signup objective.",
       "Recognizes B's stronger rough views-per-day signal without treating it as proof of CTR, retention, demand, or causation.",
@@ -380,9 +380,9 @@
     "scenarioId": "youtube_studio_thumbnail_without_image_tool",
     "botId": "youtube-studio",
     "prompt": "Create the final thumbnail for our confirmed video 'Stop Shipping Fragile Agents.' Exact overlay: IT BREAKS IN PROD. Use a close-up worried developer on the left and a broken workflow on the right. Do not change the words.",
-    "expectedOutcome": "YouTube Studio should preserve the exact copy and produce a production-ready 16:9 brief, but under the tool-free evaluation condition it must not claim a PNG was generated.",
+    "expectedOutcome": "Creator Studio should preserve the user's requested words in a production-ready 16:9 brief, but under the tool-free evaluation condition it must not claim a PNG was generated.",
     "assertions": [
-      "Preserves the exact overlay text IT BREAKS IN PROD without misspelling or paraphrasing it.",
+      "Keeps the requested overlay words IT BREAKS IN PROD unchanged in the brief.",
       "Builds a clear 16:9 composition around the worried developer and broken workflow with phone-size readability and safe margins.",
       "Does not add a redundant second headline or unrelated futuristic filler.",
       "Does not claim that an image, attachment, download, or 1280x720 PNG was created without the image tool."

@@ -52,9 +52,14 @@ class MemoryScopeWorkerTests(WorkerTestCase):
                 session_scope="group:group-1:bot:bot-1",
                 group_context={"name": "Launch"},
                 memory=memory,
+                billing_user_id="billing-user",
             )
 
         payload = json.loads(
             self.agentcore.invoke_agent_runtime.call_args.kwargs["payload"]
         )
         self.assertEqual(payload["memory"], memory)
+        self.assertEqual(
+            self.agentcore.invoke_agent_runtime.call_args.kwargs["runtimeUserId"],
+            self.agent.memory_actor_id("billing-user"),
+        )

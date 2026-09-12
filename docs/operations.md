@@ -1,9 +1,10 @@
 # FroggyBot operations
 
-This runbook defines service objectives and response steps for the current serverless architecture. The only
-declarative AgentCore target is named `development` and is explicitly not a production baseline. Treat these objectives
-as launch gates for a future production target; review them after 30 days of representative traffic and tighten them
-from observed percentiles rather than relaxing them to hide incidents.
+This runbook defines service objectives and response steps for the current serverless architecture. Declarative
+`development` and `production` AgentCore targets exist, but they still share one AWS account and Region, including
+named credential providers. Treat these objectives as production launch gates until the production deployment,
+authenticated end-to-end checks, and provider isolation are complete. Review them after 30 days of representative
+traffic and tighten them from observed percentiles rather than relaxing them to hide incidents.
 
 ## Service objectives
 
@@ -19,6 +20,72 @@ from observed percentiles rather than relaxing them to hide incidents.
 Model-provider refusals, safety filtering, and user cancellations are tracked separately from application
 availability. A request counts as successful when FroggyBot durably accepts it and either completes it or
 returns an explicit, actionable failure.
+
+## Provider-usage admission controls
+
+The API and worker reserve product-funded provider capacity before starting paid work. One direct turn costs one
+run unit; a coordinated group round atomically reserves one unit for every planned bot reply; and creation of a
+new remote browser session costs one unit. Refreshing an existing live browser session costs no additional unit.
+A durable admission marker makes API/SQS retries, scheduled retries, direct background continuations, and
+uncertain browser starts idempotent. This is the quota and circuit-breaker foundation only—it is not payment
+checkout, subscription accounting, or an invoice ledger.
+
+The Amplify backend validates these deployment environment settings and passes them to both API and worker
+functions:
+
+| Setting | Default | Allowed range | Meaning |
+| --- | ---: | ---: | --- |
+| `FROGBOT_MONTHLY_RUN_UNIT_LIMIT` | 1,000 | 1–1,000,000 | Maximum run units admitted for one billing user in a UTC calendar month |
+| `FROGBOT_USER_WINDOW_RUN_UNIT_LIMIT` | 30 | 1–10,000 | Maximum run units admitted for one billing user in a short fixed window |
+| `FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT` | 300 | 1–100,000 | Maximum run units admitted across the service in that fixed window |
+| `FROGBOT_USAGE_WINDOW_SECONDS` | 60 | 10–3,600 | Fixed-window duration in seconds |
+| `FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT` | 100 | 3–1,000,000 | Maximum company-key YouTube Search Queries capacity FroggyBot may reserve per Pacific-time quota day |
+
+YouTube search has a separate provider budget. Before every YouTube-capable runtime session, the worker
+atomically reserves three search calls from the shared Pacific-time daily counter. The lease is
+idempotent for retries, is fenced against account deletion, and is passed to the runtime; the runtime blocks
+a fourth search or any search after that Pacific date changes. Reservations are intentionally conservative:
+unused calls are not returned, so the default 100-call provider allocation admits at most 33 such runtime
+sessions. Before publishing Creator Studio or Trend Scout, verify the production Google project's current
+[Search Queries quota](https://developers.google.com/youtube/v3/docs/search/list), raise it for launch traffic,
+and set `FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT` no higher than the verified provider limit. Video-details and
+comment reads use YouTube's separate general endpoint quota, so verify that bucket as well before raising the
+search allocation; this counter intentionally governs only `search.list` calls.
+
+To stop new paid-work admissions and later continuation invocations manually, write this item to the main
+DynamoDB data table identified by the Amplify `dataTableName` output. No secret value is involved:
+
+```json
+{
+  "pk": "SYSTEM#USAGE_CONTROL",
+  "sk": "CIRCUIT#PROVIDER",
+  "entity": "USAGE_CIRCUIT",
+  "open": true
+}
+```
+
+The worker reads this exact key with `ConsistentRead=true`, checks it inside the atomic admission transaction,
+and checks it again before reusing an admission for a later group reply or background continuation. Set `open`
+to `false` or delete the item to reopen admission. A denied run is saved as a readable terminal error and is not
+retried; a group denial finalizes the rest of the round without another provider invocation. The circuit does not
+interrupt a provider request or AgentCore runtime invocation that is already in flight. A retry may reconcile the
+same idempotent browser-session start so a remotely created session is not orphaned, but it cannot create a second
+session or consume another run unit.
+
+The AgentCore runtime also enforces in-process dispatch caps before paid provider calls:
+
+| Setting | Default | Allowed range | Meaning |
+| --- | ---: | ---: | --- |
+| `FROGBOT_MAX_MODEL_CALLS_PER_RUNTIME_RUN` | 24 | 1–100 | OpenRouter model attempts, including retry and fallback dispatches |
+| `FROGBOT_MAX_PROVIDER_TOOL_CALLS_PER_RUNTIME_RUN` | 24 | 1–100 | Combined metered AgentCore Gateway and OpenRouter image tool dispatches |
+| `FROGBOT_MAX_IMAGE_CALLS_PER_RUNTIME_RUN` | 2 | 1–10 | OpenRouter image-generation dispatches within the combined tool cap |
+
+Each valid YouTube quota lease has a fixed three-search ceiling in addition to the combined tool cap.
+
+These runtime caps terminate the current AgentCore invocation with a user-readable error rather than dispatching
+the over-limit call. A later backend continuation is a separate runtime invocation and therefore gets a fresh
+in-process budget. Cross-invocation dollar ceilings require a durable provider ledger and are intentionally not
+claimed by this phase.
 
 ## Alarm response
 

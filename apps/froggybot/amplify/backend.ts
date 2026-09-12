@@ -20,51 +20,21 @@ import path from 'node:path';
 import { preSignUp } from './auth/pre-sign-up/resource';
 import { auth, emailCodeMessage } from './auth/resource';
 import { AUTHENTICATED_ROUTES } from './infrastructure/api-routes';
+import {
+  ALLOWED_WEB_ORIGINS, CAPABILITY_CATALOG_URL,
+  FUNCTION_ASSET_EXCLUDES, PUBLIC_WEB_BASE_URL,
+  WORKER_CONCURRENCY, deploymentEnvironment,
+  globalWindowRunUnitLimit, googleOAuthSecretArn,
+  memoryId, monthlyBudgetUsd, monthlyRunUnitLimit,
+  runtimeArn, usageWindowSeconds, userWindowRunUnitLimit,
+  youtubeSearchDailyLimit,
+} from './infrastructure/app-settings';
 import { addBrowserAccess } from './infrastructure/browser-access';
 import { addGithubDeploymentRole } from './infrastructure/deployment-role';
 import { addObservability } from './infrastructure/observability';
 
 const backend = defineBackend({ auth, preSignUp });
 const stack = backend.createStack('FrogBotApp');
-const PUBLIC_WEB_BASE_URL = 'https://froggybot.com';
-const CAPABILITY_CATALOG_URL = `${PUBLIC_WEB_BASE_URL}/catalog.json`;
-const ALLOWED_WEB_ORIGINS = [
-  PUBLIC_WEB_BASE_URL,
-  'https://app.froggybot.com',
-  'https://www.froggybot.com',
-  'https://frogbot.expo.app',
-  'http://localhost:8081',
-  'http://localhost:19006',
-];
-const FUNCTION_ASSET_EXCLUDES = [
-  'tests/**',
-  '**/__pycache__/**',
-  '**/*.pyc',
-  '.pytest_cache/**',
-  '.ruff_cache/**',
-];
-const WORKER_CONCURRENCY = 10;
-const deploymentEnvironment = process.env.FROGBOT_ENVIRONMENT ?? 'development';
-if (!/^[a-z][a-z0-9-]{0,20}$/.test(deploymentEnvironment)) {
-  throw new Error('FROGBOT_ENVIRONMENT must be a short lowercase environment name.');
-}
-
-const runtimeArn = process.env.FROGBOT_AGENT_RUNTIME_ARN;
-if (!runtimeArn) {
-  throw new Error('Set FROGBOT_AGENT_RUNTIME_ARN before running an Amplify sandbox or deploy.');
-}
-const memoryId = process.env.FROGBOT_MEMORY_ID;
-if (!memoryId) {
-  throw new Error('Set FROGBOT_MEMORY_ID before running an Amplify sandbox or deploy.');
-}
-const googleOAuthSecretArn = process.env.FROGBOT_GOOGLE_OAUTH_SECRET_ARN;
-if (!googleOAuthSecretArn) {
-  throw new Error('Set FROGBOT_GOOGLE_OAUTH_SECRET_ARN before running an Amplify sandbox or deploy.');
-}
-const monthlyBudgetUsd = Number(process.env.FROGBOT_MONTHLY_BUDGET_USD ?? '100');
-if (!Number.isFinite(monthlyBudgetUsd) || monthlyBudgetUsd <= 0) {
-  throw new Error('FROGBOT_MONTHLY_BUDGET_USD must be a positive number.');
-}
 
 const { cfnIdentityPool, cfnUserPool, cfnUserPoolClient } = backend.auth.resources.cfnResources;
 // The app's public routes use API Gateway directly and never need AWS guest
@@ -341,6 +311,11 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
     PUBLIC_WEB_BASE_URL,
     CAPABILITY_CATALOG_URL,
     GOOGLE_OAUTH_SECRET_ARN: googleOAuthSecretArn,
+    FROGBOT_MONTHLY_RUN_UNIT_LIMIT: String(monthlyRunUnitLimit),
+    FROGBOT_USER_WINDOW_RUN_UNIT_LIMIT: String(userWindowRunUnitLimit),
+    FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT: String(globalWindowRunUnitLimit),
+    FROGBOT_USAGE_WINDOW_SECONDS: String(usageWindowSeconds),
+    FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT: String(youtubeSearchDailyLimit),
   },
 });
 
@@ -372,6 +347,11 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
     FILES_BUCKET_NAME: filesBucket.bucketName,
     PUBLIC_WEB_BASE_URL,
     CAPABILITY_CATALOG_URL,
+    FROGBOT_MONTHLY_RUN_UNIT_LIMIT: String(monthlyRunUnitLimit),
+    FROGBOT_USER_WINDOW_RUN_UNIT_LIMIT: String(userWindowRunUnitLimit),
+    FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT: String(globalWindowRunUnitLimit),
+    FROGBOT_USAGE_WINDOW_SECONDS: String(usageWindowSeconds),
+    FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT: String(youtubeSearchDailyLimit),
   },
 });
 
@@ -380,6 +360,18 @@ addBrowserAccess(stack, apiFunction, workerFunction);
 inviteAccess.grantReadWriteData(apiFunction);
 inviteAccess.grantReadWriteData(workerFunction);
 table.grantReadWriteData(workerFunction);
+apiFunction.addToRolePolicy(
+  new PolicyStatement({
+    actions: ['dynamodb:TransactWriteItems'],
+    resources: [table.tableArn],
+  }),
+);
+workerFunction.addToRolePolicy(
+  new PolicyStatement({
+    actions: ['dynamodb:TransactWriteItems'],
+    resources: [table.tableArn],
+  }),
+);
 filesBucket.grantReadWrite(apiFunction);
 filesBucket.grantReadWrite(workerFunction);
 const connectionSecretsArn = stack.formatArn({
@@ -392,6 +384,7 @@ apiFunction.addToRolePolicy(
   new PolicyStatement({
     actions: [
       'secretsmanager:CreateSecret',
+      'secretsmanager:GetSecretValue',
       'secretsmanager:PutSecretValue',
       'secretsmanager:DeleteSecret',
       'secretsmanager:TagResource',
@@ -407,7 +400,7 @@ apiFunction.addToRolePolicy(
 );
 workerFunction.addToRolePolicy(
   new PolicyStatement({
-    actions: ['secretsmanager:DeleteSecret'],
+    actions: ['secretsmanager:GetSecretValue', 'secretsmanager:DeleteSecret'],
     resources: [connectionSecretsArn],
   }),
 );
@@ -456,7 +449,11 @@ workerFunction.addEventSource(
 workerFunction.addToRolePolicy(
   new PolicyStatement({
     effect: Effect.ALLOW,
-    actions: ['bedrock-agentcore:InvokeAgentRuntime', 'bedrock-agentcore:StopRuntimeSession'],
+    actions: [
+      'bedrock-agentcore:InvokeAgentRuntime',
+      'bedrock-agentcore:InvokeAgentRuntimeForUser',
+      'bedrock-agentcore:StopRuntimeSession',
+    ],
     resources: [runtimeArn, `${runtimeArn}/runtime-endpoint/*`],
   }),
 );

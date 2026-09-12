@@ -10,7 +10,7 @@ from boto3.dynamodb.conditions import Attr
 from .support import table
 
 logger = logging.getLogger(__name__)
-PRICING_VERSION = "2026-09-06"
+PRICING_VERSION = "2026-09-11"
 USAGE_RETENTION_DAYS = 400
 MAX_TOKEN_COUNT = 1_000_000_000_000
 MAX_PROVIDER_COST_USD = Decimal(10000)
@@ -27,6 +27,11 @@ TOKEN_FIELDS = (
 # Fallback estimates only. OpenRouter normally supplies the exact provider cost.
 # Values are USD per one million tokens and are deliberately versioned.
 MODEL_PRICING_PER_MILLION_USD = {
+    "deepseek/deepseek-v4.1-flash": {
+        "inputTokens": Decimal("0.15"),
+        "outputTokens": Decimal("0.60"),
+        "cacheReadInputTokens": Decimal("0.003"),
+    },
     "z-ai/glm-5.3-flash": {
         "inputTokens": Decimal("0.15"),
         "outputTokens": Decimal("0.50"),
@@ -101,12 +106,14 @@ def _usage_item(
     safe_work_type = _identifier(work_type, 32)
     safe_bot_id = _identifier(bot_id, 128)
     raw_models = usage.get("models")
+    raw_tools = usage.get("tools", [])
     if (
         safe_user_id is None
         or safe_event_id is None
         or safe_work_type is None
         or safe_bot_id is None
         or not isinstance(raw_models, list)
+        or not isinstance(raw_tools, list)
     ):
         return None
 
@@ -118,6 +125,8 @@ def _usage_item(
     exact_models = 0
     estimated_models = 0
     unpriced_models = 0
+    tools: list[dict[str, Any]] = []
+    tool_call_count = 0
 
     for raw_model in raw_models[:8]:
         if not isinstance(raw_model, dict):
@@ -156,13 +165,32 @@ def _usage_item(
                 estimated_models += 1
         models.append(model)
 
-    if not models:
+    for raw_tool in raw_tools[:32]:
+        if not isinstance(raw_tool, dict):
+            continue
+        provider = _identifier(raw_tool.get("provider"), 32)
+        operation = _identifier(raw_tool.get("operation"), 128)
+        call_count = _count(raw_tool.get("callCount"))
+        if provider is None or operation is None or not call_count:
+            continue
+        tools.append(
+            {
+                "provider": provider,
+                "operation": operation,
+                "callCount": call_count,
+            }
+        )
+        tool_call_count += call_count
+
+    if not models and not tools:
         return None
 
     recorded_at = (now or datetime.now(UTC)).astimezone(UTC)
     timestamp = recorded_at.isoformat(timespec="milliseconds").replace("+00:00", "Z")
     month = recorded_at.strftime("%Y-%m")
-    if unpriced_models:
+    if not models:
+        cost_basis = "not_applicable"
+    elif unpriced_models:
         cost_basis = "partial"
     elif exact_models and estimated_models:
         cost_basis = "mixed"
@@ -180,6 +208,8 @@ def _usage_item(
         "workType": safe_work_type,
         "botId": safe_bot_id,
         "models": models,
+        "tools": tools,
+        "toolCallCount": tool_call_count,
         **totals,
         "costUsd": normalized_cost.quantize(USD_QUANTUM),
         "providerReportedCostUsd": provider_cost.quantize(USD_QUANTUM),

@@ -7,7 +7,7 @@
   },
   {
     "name": "production",
-    "description": "Isolated FroggyBot production deployment target",
+    "description": "Stable FroggyBot production stack; provider isolation pending a separate account or Region",
     "account": "188757775631",
     "region": "us-east-1"
   }

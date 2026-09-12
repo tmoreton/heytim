@@ -20,6 +20,34 @@ The current AgentCore project schema does not own the runtime CloudWatch log gro
 retention. `scripts/harden-agentcore-logs.sh` manages 30-day retention and customer-managed encryption
 after deployment. Keep that ownership outside generated CDK until the schema exposes supported fields.
 
+## Platform-owned provider keys
+
+OpenRouter, X, and YouTube use company-owned API keys. End users never enter, receive, or manage these
+keys. Their immutable AgentCore provider names live in `agentcore.json`; secret values belong only in
+operator-controlled secret storage and are passed to the deployment process as environment variables.
+
+Create these environment secrets once under the GitHub `production` environment:
+
+- `AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER`
+- `AGENTCORE_CREDENTIAL_FROGBOTXAPI`
+- `AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI`
+
+To rotate a provider key, replace that GitHub environment secret and rerun **Deploy FroggyBot production
+infrastructure**. The AgentCore CLI updates the existing credential provider by name, so never rename a
+provider to perform a rotation. The workflow never writes or prints the secret values.
+
+Development and production currently use the same AWS account and Region. AgentCore credential providers
+are scoped to that account and Region rather than to a target stack, so the two targets currently resolve
+the same named providers. Do not configure different development and production values while this is true:
+the most recent deployment would rotate the shared provider for both targets. Move production to a separate
+AWS account or Region before assigning independent keys.
+
+The recurring GitHub deployment role can read the existing default token vault and create or rotate only
+these three named providers. It deliberately cannot create the vault encryption key or call
+`SetTokenVaultCMK`. In a new account or Region, perform that one-time bootstrap with a separate reviewed
+principal whose KMS create/tag permissions require the `agentcore:project=FrogBot` request tag, then
+remove that bootstrap access before enabling routine deployments.
+
 ## Package boundary
 
 The CodeZip source is `services/agent-runtime/runtime/`. The toolkit locates the parent

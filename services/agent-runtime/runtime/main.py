@@ -24,7 +24,7 @@ from frogbot_runtime.streaming import (
 )
 from frogbot_runtime.telemetry import install_private_tracer
 from model.load import load_model
-from model.usage import UsageAccumulator
+from model.usage import ProviderCallLimitExceeded, UsageAccumulator
 
 install_private_tracer()
 app = BedrockAgentCoreApp()
@@ -44,6 +44,10 @@ INCOMPLETE_TURN_MESSAGE = (
     "still promising unfinished work. Send “continue” to resume from the last "
     "verified step."
 )
+PROVIDER_CALL_LIMIT_MESSAGE = (
+    "I stopped this run before it could exceed FroggyBot's provider-call safety "
+    "limit. Start a new, narrower request to continue."
+)
 
 
 async def run_agent(payload, context):
@@ -52,14 +56,19 @@ async def run_agent(payload, context):
     messages = messages_from_payload(payload, actor_id)
     memories = memory_stores(memory_context)
     session_id = getattr(context, "session_id", "unknown")
-    config = bot_configuration(payload, session_id, actor_id, messages)
+    provider_quota = payload.get("providerQuota")
+    if provider_quota is not None and not isinstance(provider_quota, dict):
+        raise ValueError("providerQuota must be an object")
+    usage = UsageAccumulator(
+        youtube_search_quota=(provider_quota or {}).get("youtubeSearch")
+    )
+    config = bot_configuration(payload, session_id, actor_id, messages, usage)
     log.info(
         "Invoking FroggyBot session %s with %d history messages",
         session_id,
         len(messages),
     )
 
-    usage = UsageAccumulator()
     agent = None
     completed = False
     terminal_error = None
@@ -112,9 +121,18 @@ async def run_agent(payload, context):
                 "code": "INCOMPLETE_TURN",
                 "message": INCOMPLETE_TURN_MESSAGE,
             }
+        except ProviderCallLimitExceeded:
+            terminal_error = {
+                "code": "PROVIDER_CALL_LIMIT",
+                "message": PROVIDER_CALL_LIMIT_MESSAGE,
+            }
         control = {}
         usage_report = usage.snapshot()
-        if usage_report["models"]:
+        if (
+            usage_report["models"]
+            or usage_report["tools"]
+            or usage_report["totals"]["modelDispatchCount"]
+        ):
             control["usage"] = usage_report
         if config.background_work.pending:
             control["pendingWork"] = config.background_work.pending

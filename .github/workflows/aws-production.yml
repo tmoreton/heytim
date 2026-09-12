@@ -20,15 +20,25 @@ jobs:
         env:
           AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           AMPLIFY_APP_ID: ${{ vars.AMPLIFY_APP_ID }}
-          OPENROUTER_CREDENTIAL: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
+          AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
+          AGENTCORE_CREDENTIAL_FROGBOTXAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTXAPI }}
+          AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI }}
           GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_GOOGLE_OAUTH_SECRET_ARN }}
         run: |
           if [ -z "$AWS_DEPLOY_ROLE_ARN" ] || [ -z "$AMPLIFY_APP_ID" ]; then
             echo "Set AWS_DEPLOY_ROLE_ARN and AMPLIFY_APP_ID in the production environment." >&2
             exit 1
           fi
-          if [ -z "$OPENROUTER_CREDENTIAL" ] || [ -z "$GOOGLE_OAUTH_SECRET_ARN" ]; then
-            echo "Set the OpenRouter and Google OAuth production secrets." >&2
+          missing_provider_secrets=()
+          [ -n "$AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER" ] || missing_provider_secrets+=(AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER)
+          [ -n "$AGENTCORE_CREDENTIAL_FROGBOTXAPI" ] || missing_provider_secrets+=(AGENTCORE_CREDENTIAL_FROGBOTXAPI)
+          [ -n "$AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI" ] || missing_provider_secrets+=(AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI)
+          if [ "${#missing_provider_secrets[@]}" -gt 0 ]; then
+            printf 'Set these production environment secrets: %s\n' "${missing_provider_secrets[*]}" >&2
+            exit 1
+          fi
+          if [ -z "$GOOGLE_OAUTH_SECRET_ARN" ]; then
+            echo "Set FROGBOT_GOOGLE_OAUTH_SECRET_ARN in the production environment." >&2
             exit 1
           fi
 
@@ -76,6 +86,8 @@ jobs:
       - name: Deploy AgentCore production target
         env:
           AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
+          AGENTCORE_CREDENTIAL_FROGBOTXAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTXAPI }}
+          AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI }}
         run: agentcore deploy --target production --yes
 
       - name: Resolve deployed runtime
@@ -95,6 +107,7 @@ jobs:
         env:
           FROGBOT_ENVIRONMENT: production
           FROGBOT_GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_GOOGLE_OAUTH_SECRET_ARN }}
+          FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT: ${{ vars.FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT || '100' }}
         run: ./amplify/node_modules/.bin/ampx pipeline-deploy --branch main --app-id "${{ vars.AMPLIFY_APP_ID }}"
 
       - name: Harden AgentCore runtime logs

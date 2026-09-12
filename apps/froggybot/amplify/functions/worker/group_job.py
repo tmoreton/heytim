@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
+from decimal import Decimal
 
+from botocore.exceptions import BotoCoreError, ClientError
 from shared.group_chat import group_round_step
 from shared.memory_identity import group_memory_actor_id, group_memory_session_id
 from shared.time import utc_now_iso
@@ -12,7 +14,6 @@ from .agent import (
     _get_group_context,
     _get_group_history,
     _invoke,
-    _progress_updater,
     agent_failure_message,
 )
 from .artifacts import (
@@ -28,6 +29,7 @@ from .job_lifecycle import (
     finish_failed_attempt,
 )
 from .notifications import _update_schedule_result
+from .progress import progress_updater
 from .support import (
     QUEUE_URL,
     _account_is_active,
@@ -38,9 +40,77 @@ from .support import (
     table,
 )
 from .usage import record_invocation_usage
+from .usage_controls import (
+    AdmissionDecision,
+    UsageControlUnavailable,
+    admit_run,
+)
 from .work import _claim_work, _finish_work, _pause_work
 
 logger = logging.getLogger(__name__)
+
+
+class _AdmissionDeniedText(str):
+    """Internal signal that the complete coordinated round must stop."""
+
+
+def _finish_group_admission_denial(
+    reply_key: dict, lease_owner: str, answer: str
+) -> str | None:
+    completed_at = utc_now_iso()
+    try:
+        table.update_item(
+            Key=reply_key,
+            UpdateExpression=(
+                "SET #status = :error, #text = :answer, completedAt = :now, "
+                "usageAdmissionDenied = :denied REMOVE leaseOwner, leaseExpiresAt, "
+                "pendingWork, backgroundResults, runtimeResult"
+            ),
+            ConditionExpression="#status = :running AND leaseOwner = :owner",
+            ExpressionAttributeNames={"#status": "status", "#text": "text"},
+            ExpressionAttributeValues={
+                ":error": "ERROR",
+                ":running": "RUNNING",
+                ":owner": lease_owner,
+                ":answer": answer,
+                ":now": completed_at,
+                ":denied": True,
+            },
+        )
+        return completed_at
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return None
+
+
+def _finalize_remaining_group_denials(
+    group_id: str, replies: list[dict], start_index: int, answer: str
+) -> None:
+    completed_at = utc_now_iso()
+    for entry in replies[start_index:]:
+        key = {"pk": _group_pk(group_id), "sk": entry["replyKey"]}
+        try:
+            table.update_item(
+                Key=key,
+                UpdateExpression=(
+                    "SET #status = :error, #text = :answer, completedAt = :now, "
+                    "usageAdmissionDenied = :denied REMOVE leaseOwner, "
+                    "leaseExpiresAt, pendingWork, backgroundResults, runtimeResult"
+                ),
+                ConditionExpression="#status = :waiting OR #status = :pending",
+                ExpressionAttributeNames={"#status": "status", "#text": "text"},
+                ExpressionAttributeValues={
+                    ":error": "ERROR",
+                    ":waiting": "WAITING",
+                    ":pending": "PENDING",
+                    ":answer": answer,
+                    ":now": completed_at,
+                    ":denied": True,
+                },
+            )
+        except table.meta.client.exceptions.ConditionalCheckFailedException:
+            item = table.get_item(Key=key, ConsistentRead=True).get("Item")
+            if not item or item.get("status") not in {"COMPLETE", "ERROR"}:
+                raise
 
 
 def _queue_group_reply_notifications(
@@ -99,7 +169,9 @@ def _process_group_agent_reply(
     reply = table.get_item(Key=reply_key, ConsistentRead=True).get("Item")
     if not reply:
         return
-    bot_owner_id = reply.get("botOwnerId") or request["botOwnerId"]
+    bot_owner_id = reply.get("botOwnerId")
+    if not isinstance(bot_owner_id, str) or not bot_owner_id.strip():
+        raise ValueError("Group reply has no persisted bot owner")
     if not _account_is_active(bot_owner_id):
         return
     bot = table.get_item(Key=_bot_key(bot_owner_id, bot_id), ConsistentRead=True).get(
@@ -107,6 +179,36 @@ def _process_group_agent_reply(
     )
     if not bot:
         raise ValueError("Source bot no longer exists")
+    billing_user_id = reply.get("billingUserId")
+    billing_denial: AdmissionDecision | None = None
+    if not isinstance(billing_user_id, str) or not billing_user_id.strip():
+        billing_denial = AdmissionDecision(False, "storage_unavailable")
+    else:
+        try:
+            if not _account_is_active(billing_user_id):
+                billing_denial = AdmissionDecision(False, "account_inactive")
+        except (BotoCoreError, ClientError):
+            logger.exception(
+                "Billing account state could not be verified for group reply %s",
+                reply.get("id"),
+            )
+            billing_denial = AdmissionDecision(False, "storage_unavailable")
+    if billing_denial is not None:
+        if not is_claimable(reply.get("status")):
+            return None
+        lease_owner = _claim_work(reply_key, record)
+        if not lease_owner:
+            return None
+        _delete_group_generated_artifacts(group_id, reply["id"])
+        failed_at = _finish_group_admission_denial(
+            reply_key, lease_owner, billing_denial.user_message
+        )
+        if not failed_at:
+            return None
+        _queue_group_reply_notifications(
+            group_id, reply_key, reply, bot, billing_denial.user_message
+        )
+        return _AdmissionDeniedText(billing_denial.user_message)
     if reply.get("pendingWork"):
         _queue_background_poll(reply_key, request, delay_seconds=0)
         return None
@@ -114,11 +216,16 @@ def _process_group_agent_reply(
         reply.get("status") in {"COMPLETE", "ERROR"}
         and reply.get("text")
     ):
-        if notify and not reply.get("notificationQueued"):
+        admission_denied = reply.get("usageAdmissionDenied") is True
+        if (notify or admission_denied) and not reply.get("notificationQueued"):
             _queue_group_reply_notifications(
                 group_id, reply_key, reply, bot, reply["text"]
             )
-        return reply["text"]
+        return (
+            _AdmissionDeniedText(reply["text"])
+            if admission_denied
+            else reply["text"]
+        )
     if catalog.approval_tool_names(bot_owner_id, bot.get("toolIds", [])):
         if not is_claimable(reply.get("status")):
             return None
@@ -149,6 +256,44 @@ def _process_group_agent_reply(
     def cleanup_artifacts() -> None:
         _delete_group_generated_artifacts(group_id, reply["id"])
 
+    try:
+        round_id = reply.get("roundId", reply.get("id"))
+        round_size = reply.get("roundSize", 1)
+        if (
+            isinstance(round_size, Decimal)
+            and round_size == round_size.to_integral_value()
+        ):
+            round_size = int(round_size)
+        if not isinstance(round_id, str) or not round_id.strip():
+            raise UsageControlUnavailable("Group reply round identity is invalid")
+        if (
+            isinstance(round_size, bool)
+            or not isinstance(round_size, int)
+            or round_size < 1
+        ):
+            raise UsageControlUnavailable("Group reply round size is invalid")
+        admission = admit_run(
+            billing_user_id,
+            f"group:{group_id}:{round_id}",
+            run_units=round_size,
+        )
+    except (UsageControlUnavailable, ValueError):
+        logger.exception(
+            "Usage controls could not authorize group reply %s", reply.get("id")
+        )
+        admission = AdmissionDecision(False, "storage_unavailable")
+    if not admission.allowed:
+        cleanup_artifacts()
+        failed_at = _finish_group_admission_denial(
+            reply_key, lease_owner, admission.user_message
+        )
+        if not failed_at:
+            return None
+        _queue_group_reply_notifications(
+            group_id, reply_key, reply, bot, admission.user_message
+        )
+        return _AdmissionDeniedText(admission.user_message)
+
     attempt = begin_attempt(record, lambda: None)
     try:
         round_position = int(
@@ -163,6 +308,7 @@ def _process_group_agent_reply(
             bot_owner_id,
             bot_id,
             bot,
+            billing_user_id=billing_user_id,
             history=_get_group_history(
                 group_id, bot_id, request.get("messageId")
             ),
@@ -191,15 +337,9 @@ def _process_group_agent_reply(
                 else None
             ),
             continuation=reply.get("backgroundResults"),
-            on_progress=_progress_updater(reply_key, lease_owner),
+            on_progress=progress_updater(reply_key, lease_owner),
             runtime_result=reply.get("runtimeResult"),
             work_key=reply_key, lease_owner=lease_owner, resume_request=request,
-        )
-        requested_by = request.get("requestedBy")
-        billing_user_id = (
-            requested_by
-            if isinstance(requested_by, str) and requested_by.strip()
-            else bot_owner_id
         )
         record_invocation_usage(
             billing_user_id,
@@ -312,6 +452,21 @@ def _process_group_agent_round(record: dict, request: dict) -> None:
         },
         notify=final_reply,
     )
+    if isinstance(answer, _AdmissionDeniedText):
+        _finalize_remaining_group_denials(
+            request["groupId"], replies, index + 1, str(answer)
+        )
+        if request.get("scheduleId"):
+            _update_schedule_result(
+                {
+                    "source": "schedule",
+                    "scheduleId": request["scheduleId"],
+                    "userId": request["requestedBy"],
+                },
+                "error",
+                utc_now_iso(),
+            )
+        return
     if answer is not None and not final_reply:
         sqs.send_message(
             QueueUrl=QUEUE_URL,

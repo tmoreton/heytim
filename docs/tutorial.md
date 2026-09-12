@@ -123,7 +123,7 @@ The application backend keeps only the catalog trust and persistence layer:
 catalog_rules.py       IDs, limits, and runtime-binding validation
 catalog_sync.py        Trusted remote download and shared refresh lease
 catalog.py             User libraries, version pinning, importing, and sharing
-connections.py         Private MCP metadata and encrypted credential lifecycle
+connections.py         OAuth and legacy connection metadata and encrypted credential lifecycle
 ```
 
 The external `frogbot-skills` repository owns the public website, bot templates, capability catalog, and contribution
@@ -135,14 +135,20 @@ carries a selected bot, skill, or tool to `app.froggybot.com/app`. Bot links ope
 skill and tool links open the bot editor and still require an explicit save. The public site deploys from its own
 repository, independently of app releases.
 
+The signed-in bootstrap returns the same sanitized official tools together with that user's private connections. The
+client separates them by provenance: official entries populate Skills & tools, while OAuth and legacy entries populate
+Connections. Even preview-mode sample bots derive their names, prompts, versions, skills, and tool requirements from
+the current catalog, so publishing an approved metadata or composition update does not require an app build.
+
 The runtime still contains reviewed implementations for local and managed tools plus a strict execution allowlist.
 Those pieces run with server permissions, so they cannot be downloaded from a community repository. Public names,
 descriptions, bindings, skill instructions, and external API schemas live only in `frogbot-skills`.
 
-A private MCP connection is the deliberately small extension path. The app stores only its public metadata in the
-user's library and sends its credential directly to the authenticated backend. The backend encrypts that credential
-in Secrets Manager; the runtime fetches it only for the selected connection. Private connections never appear in
-public catalog responses or shared bot and skill snapshots.
+Connections are provider-specific. Shared services use FroggyBot-owned credentials, so users never paste developer
+keys into the app. Private account data uses OAuth; the backend encrypts each user's token in Secrets Manager and the
+runtime fetches it only for the selected connection. Connected accounts never appear in public catalog responses or
+shared bot and skill snapshots. Existing custom MCP connections are legacy-only: users can review or remove them,
+but cannot create or edit them.
 
 ## 6. Add a feature vertically
 

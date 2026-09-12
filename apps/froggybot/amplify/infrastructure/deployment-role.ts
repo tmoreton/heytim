@@ -9,6 +9,32 @@ type DeploymentRoleResources = {
 export function addGithubDeploymentRole({ stack, enabled }: DeploymentRoleResources) {
   if (!enabled) return undefined;
 
+  const agentCoreArn = (resource: string, resourceName: string) => stack.formatArn({
+    service: 'bedrock-agentcore',
+    resource,
+    resourceName,
+    arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+  });
+  const tokenVaultArn = agentCoreArn('token-vault', 'default');
+  const credentialProviderArns = [
+    'FrogBot_OpenRouter',
+    'FrogBotXApi',
+    'FrogBotYouTubeApi',
+  ].map(name => agentCoreArn('token-vault', `default/apikeycredentialprovider/${name}`));
+  const productionOnlineEvaluationRoleArn = stack.formatArn({
+    service: 'iam',
+    region: '',
+    resource: 'role',
+    // CloudFormation appends a generated suffix and may truncate the logical ID.
+    resourceName: 'AgentCore-FrogBot-product-ApplicationOnlineEval*',
+    arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+  });
+  const projectResourceCondition = {
+    StringEquals: {
+      'aws:ResourceTag/agentcore:project-name': 'FrogBot',
+    },
+  };
+
   const role = new Role(stack, 'GitHubProductionDeployRole', {
     description: 'Least-privilege GitHub OIDC entrypoint for reviewed FroggyBot production deployments.',
     assumedBy: new FederatedPrincipal(
@@ -41,8 +67,49 @@ export function addGithubDeploymentRole({ stack, enabled }: DeploymentRoleResour
     })],
   }));
   role.addToPolicy(new PolicyStatement({
-    actions: ['bedrock-agentcore:*'],
-    resources: ['*'],
+    actions: ['bedrock-agentcore:GetTokenVault'],
+    resources: [tokenVaultArn],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: [
+      'bedrock-agentcore:CreateApiKeyCredentialProvider',
+      'bedrock-agentcore:GetApiKeyCredentialProvider',
+      'bedrock-agentcore:UpdateApiKeyCredentialProvider',
+    ],
+    resources: [tokenVaultArn, ...credentialProviderArns],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['bedrock-agentcore:TagResource'],
+    resources: credentialProviderArns,
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['bedrock-agentcore:ListGatewayTargets'],
+    resources: [agentCoreArn('gateway', '*')],
+    conditions: projectResourceCondition,
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['bedrock-agentcore:UpdateOnlineEvaluationConfig'],
+    resources: [agentCoreArn('online-evaluation-config', '*')],
+    conditions: projectResourceCondition,
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['iam:PassRole'],
+    resources: [productionOnlineEvaluationRoleArn],
+    conditions: {
+      StringEquals: {
+        'iam:PassedToService': 'bedrock-agentcore.amazonaws.com',
+      },
+    },
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: [
+      'bedrock-agentcore:GetDataset',
+      'bedrock-agentcore:AddDatasetExamples',
+      'bedrock-agentcore:UpdateDatasetExamples',
+      'bedrock-agentcore:DeleteDatasetExamples',
+    ],
+    resources: [agentCoreArn('dataset', '*')],
+    conditions: projectResourceCondition,
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['kms:DescribeKey'],

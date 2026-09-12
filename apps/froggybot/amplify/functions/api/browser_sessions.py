@@ -1,13 +1,39 @@
 """Authenticated direct-chat browser endpoints. No token extraction or storage."""
 from __future__ import annotations
 
+from functools import partial
+
 from shared.browser_display import open_options
 from shared.browser_session_aws import browser_clients
 from shared.browser_session_store import BrowserSessionError, direct_only, validate_id
 from shared.browser_sessions import BrowserSessionService
+from worker.usage_controls import UsageControlUnavailable, admit_run
 
 from .direct_chat import _claim_send_lease, _release_send_lease, _send_message
 from .support import ApiError, _body, _response, catalog, table
+
+
+def _authorize_browser_start(user_id: str, bot_id: str, admission_id: str) -> None:
+    try:
+        decision = admit_run(
+            user_id,
+            f"browser:{bot_id}:{admission_id}",
+            # A retry can only reconcile the same idempotent AgentCore start.
+            # Let it recover or expose the already-created session even when the
+            # operator circuit has since closed new paid work.
+            allow_duplicate_during_circuit=True,
+        )
+    except (UsageControlUnavailable, ValueError) as exc:
+        raise BrowserSessionError(
+            503,
+            "The browser could not be safely authorized. Please try again later.",
+        ) from exc
+    if decision.allowed:
+        return
+    status = 429 if decision.reason in {"monthly_limit", "user_rate_limit"} else 503
+    if decision.reason == "account_inactive":
+        status = 403
+    raise BrowserSessionError(status, decision.user_message)
 
 
 def browser_session_route(user_id: str, _display_name: str, method: str,
@@ -33,7 +59,12 @@ def browser_session_route(user_id: str, _display_name: str, method: str,
             raise BrowserSessionError(400, "rememberLogin must be a boolean")
         agentcore, control = browser_clients()
         service = BrowserSessionService(table, agentcore, user_id, bot_id,
-                                        control=control, catalog=catalog)
+                                        control=control, catalog=catalog,
+                                        authorize_start=partial(
+                                            _authorize_browser_start,
+                                            user_id,
+                                            bot_id,
+                                        ))
         if method == "GET" and action == "browser":
             value = service.get()
         elif method == "POST" and action == "open":

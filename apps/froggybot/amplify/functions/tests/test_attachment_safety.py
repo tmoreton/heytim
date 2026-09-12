@@ -22,6 +22,23 @@ class AttachmentSafetyTests(ApiTestCase):
         self.assertNotIn("user-1", request["Key"])
         self.assertIn(["content-length-range", 1, 4_500_000], request["Conditions"])
 
+    def test_photo_upload_ticket_preserves_model_supported_image_metadata(self) -> None:
+        self.s3.generate_presigned_post.return_value = {
+            "url": "https://uploads.example",
+            "fields": {"key": "value"},
+        }
+
+        result = self.attachments._create_upload(
+            "user-1", {"filename": "camera photo.jpg", "size": 1_250_000}
+        )
+
+        self.assertEqual(result["file"]["kind"], "image")
+        self.assertEqual(result["file"]["format"], "jpeg")
+        self.assertEqual(result["file"]["contentType"], "image/jpeg")
+        request = self.s3.generate_presigned_post.call_args.kwargs
+        self.assertEqual(request["Fields"]["Content-Type"], "image/jpeg")
+        self.assertIn(["content-length-range", 1, 3_750_000], request["Conditions"])
+
     def test_group_memory_is_owner_editable_and_bounded(self) -> None:
         meta = {
             "pk": "GROUP#group-1",

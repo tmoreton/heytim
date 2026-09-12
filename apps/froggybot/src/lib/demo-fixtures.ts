@@ -1,55 +1,55 @@
-import type { Bot, Group, ScheduledTask } from './types';
+import type { Bot, BotTemplate, Group, ScheduledTask, Skill } from './types';
 
-export const createInitialDemoBots = (timestamp: string): Bot[] => [
+const INITIAL_DEMO_BOTS = [
   {
-    id: 'trip-planner',
-    name: 'Trip Planner',
-    tagline: 'Turns everyone\'s preferences into a trip you can use.',
-    color: '#3984F6',
-    prompt: 'Plan practical group trips and finish with an itinerary, shared budget, packing list, and owner checklist.',
-    toolIds: ['web', 'web_search', 'calculator', 'task_list', 'code_interpreter'],
-    extraToolIds: [],
-    skillIds: ['group-intake', 'trip-planner', 'shared-budget'],
     templateId: 'trip-planner',
-    templateVersion: 1,
-    createdAt: timestamp,
-    updatedAt: timestamp,
     lastMessage: 'Tell me who is traveling and what matters most to each person.',
-    lastMessageAt: timestamp,
   },
   {
-    id: 'event-planner',
-    name: 'Event Planner',
-    tagline: 'Coordinates the decisions, costs, and checklist for an event.',
-    color: '#F46A27',
-    prompt: 'Coordinate group events with clear decisions, costs, owners, due dates, and a final run of show.',
-    toolIds: ['web_search', 'calculator', 'task_list', 'code_interpreter'],
-    extraToolIds: [],
-    skillIds: ['group-intake', 'event-planner', 'group-decision', 'shared-budget'],
     templateId: 'event-planner',
-    templateVersion: 1,
-    createdAt: timestamp,
-    updatedAt: timestamp,
     lastMessage: 'What are we organizing, and who needs to be involved?',
-    lastMessageAt: timestamp,
   },
   {
-    id: 'research-reports',
-    name: 'Research & Reports',
-    tagline: 'Finds reliable answers and turns them into useful files.',
-    color: '#6C5CE7',
-    prompt: 'Research broad questions with current sources, verify data with executable analysis, and create a useful report or editable file.',
-    toolIds: ['web', 'web_search', 'task_list', 'delegate', 'calculator', 'code_interpreter'],
-    extraToolIds: [],
-    skillIds: ['deep-research', 'data-analyst'],
     templateId: 'research-reports',
-    templateVersion: 1,
-    createdAt: timestamp,
-    updatedAt: timestamp,
     lastMessage: 'Give me the question or data, and I will return the useful conclusion.',
-    lastMessageAt: timestamp,
   },
-];
+] as const;
+
+export const toolIdsForTemplate = (template: BotTemplate, skills: Skill[]): string[] => {
+  const requiredToolIds = skills
+    .filter((skill) => template.skillIds.includes(skill.id))
+    .flatMap((skill) => skill.requiredToolIds);
+  return [...new Set([...template.toolIds, ...requiredToolIds])];
+};
+
+export const createInitialDemoBots = (
+  templates: BotTemplate[],
+  skills: Skill[],
+  timestamp: string,
+): Bot[] => {
+  const templatesById = new Map(templates.map((template) => [template.id, template]));
+  return INITIAL_DEMO_BOTS.flatMap(({ templateId, lastMessage }): Bot[] => {
+    const template = templatesById.get(templateId);
+    if (!template) return [];
+    return [{
+      id: template.id,
+      name: template.name,
+      tagline: template.tagline,
+      color: template.color,
+      prompt: template.prompt,
+      toolIds: toolIdsForTemplate(template, skills),
+      extraToolIds: [...template.toolIds],
+      alwaysAllowedToolIds: [],
+      skillIds: [...template.skillIds],
+      templateId: template.id,
+      templateVersion: template.version,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      lastMessage,
+      lastMessageAt: timestamp,
+    }];
+  });
+};
 
 export const createInitialDemoGroups = (timestamp: string): Group[] => [{
   id: 'launch-room',

@@ -15,8 +15,7 @@
         "applinks:froggybot.com"
       ],
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "Allow FroggyBot to select photos you choose to share in a conversation."
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -56,6 +55,13 @@
         {
           "color": "#007A3D",
           "defaultChannel": "agent-replies"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow FroggyBot to select photos you choose to share in a conversation.",
+          "cameraPermission": false
         }
       ],
       [

@@ -17,6 +17,7 @@ type Props = {
   onClose: () => void;
   onOpenMemory: () => void;
   onOpenSkills: () => void;
+  onOpenConnections: () => void;
   onListShares: () => Promise<SharedLink[]>;
   onRevokeShare: (token: string) => Promise<void>;
   onDeleteAccount: () => Promise<void>;
@@ -35,6 +36,7 @@ export function AccountSettings({
   onClose,
   onOpenMemory,
   onOpenSkills,
+  onOpenConnections,
   onListShares,
   onRevokeShare,
   onDeleteAccount,
@@ -133,6 +135,22 @@ export function AccountSettings({
               </View>
               <Text style={styles.chevron}>›</Text>
             </Pressable>
+            {!demo ? (
+              <Pressable
+                accessibilityLabel="Open connections"
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.settingsRow, pressed && styles.pressed]}
+                onPress={onOpenConnections}>
+                <View style={styles.connectionMark}>
+                  <Text style={styles.connectionMarkText}>C</Text>
+                </View>
+                <View style={styles.settingsText}>
+                  <Text style={styles.settingsTitle}>Connections</Text>
+                  <Text style={styles.settingsCopy}>Connect private accounts without setting up developer keys</Text>
+                </View>
+                <Text style={styles.chevron}>›</Text>
+              </Pressable>
+            ) : null}
           </View>
 
           {!demo ? (
@@ -216,6 +234,8 @@ const styles = StyleSheet.create({
   settingsRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 8 },
   skillMark: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#E0EDE6', alignItems: 'center', justifyContent: 'center' },
   skillMarkText: { color: '#007A3D', fontSize: 14, fontWeight: '900' },
+  connectionMark: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#E7F0FA', alignItems: 'center', justifyContent: 'center' },
+  connectionMarkText: { color: '#3984F6', fontSize: 14, fontWeight: '900' },
   memoryMark: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#EEE9FA', alignItems: 'center', justifyContent: 'center' },
   memoryMarkText: { color: '#6C5CE7', fontSize: 14, fontWeight: '900' },
   settingsText: { flex: 1, minWidth: 0 },

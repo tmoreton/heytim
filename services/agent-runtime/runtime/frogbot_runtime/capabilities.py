@@ -50,6 +50,7 @@ def resolve_capabilities(
     managed_browser: dict | None = None,
     bot_management: dict | None = None,
     image_references: list[dict] | None = None,
+    usage: Any = None,
 ) -> CapabilityConfiguration:
     bindings = tool_bindings(bot)
     skills = dynamic_skills(bot)
@@ -74,7 +75,9 @@ def resolve_capabilities(
             )
         if "image_generator" in local_names:
             tools.extend(
-                image_generation_tools(artifact_prefix, image_references or [])
+                image_generation_tools(
+                    artifact_prefix, image_references or [], usage=usage
+                )
             )
     managed_tools, interpreter, browser = agentcore_tools(
         bindings,
@@ -104,7 +107,7 @@ def resolve_capabilities(
                 lambda: connection_credential(github_binding),
             )
         )
-    managed_gateway = gateway_client(gateway_operations(bindings))
+    managed_gateway = gateway_client(gateway_operations(bindings), usage)
     if managed_gateway:
         tools.append(managed_gateway)
     tools.extend(connection_client(item) for item in bindings if item["kind"] == "mcp")

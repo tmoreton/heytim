@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
 from dataclasses import dataclass, field
 from decimal import Decimal
 
@@ -14,7 +13,6 @@ from shared.group_chat import (
     group_runtime_context,
 )
 from shared.memory_identity import direct_session_id, memory_actor_id, scoped_session_id
-from shared.time import utc_now_iso
 
 from .artifacts import (
     _attachment_blocks,
@@ -32,13 +30,49 @@ from .support import (
     catalog,
     table,
 )
+from .usage_controls import UsageControlUnavailable
 from .work import _pause_work, _restore_paused_work
+from .youtube_quota import (
+    YOUTUBE_SEARCH_RESERVATION_CALLS,
+    reserve_youtube_search_calls,
+)
 
-logger = logging.getLogger(__name__)
 RECENT_DIRECT_TURNS = 50
 MAX_TEAM_BOTS = 24
 MAX_RECENT_IMAGE_REFERENCES = 5
 RECENT_IMAGE_REFERENCE_TURNS = 20
+
+
+def _uses_youtube_search(resolved_tools: list[dict]) -> bool:
+    return any(
+        isinstance(tool.get("runtime"), dict)
+        and tool["runtime"].get("kind") == "gateway"
+        and "youtube_search" in tool["runtime"].get("operations", [])
+        for tool in resolved_tools
+        if isinstance(tool, dict)
+    )
+
+
+def _reserve_youtube_capacity(
+    payload: dict,
+    billing_user_id: str,
+    reservation_id: str,
+) -> AgentInvocationResult | None:
+    decision = reserve_youtube_search_calls(billing_user_id, reservation_id)
+    if not decision.allowed:
+        return AgentInvocationResult(
+            text=decision.user_message,
+            terminal_error=decision.user_message,
+        )
+    if not decision.quota_day:
+        raise UsageControlUnavailable("YouTube quota reservation date is missing")
+    payload["providerQuota"] = {
+        "youtubeSearch": {
+            "day": decision.quota_day,
+            "maxCalls": YOUTUBE_SEARCH_RESERVATION_CALLS,
+        }
+    }
+    return None
 
 
 def agent_failure_message(error: Exception) -> str:
@@ -314,6 +348,7 @@ def _invoke(
     bot_id: str,
     bot: dict,
     *,
+    billing_user_id: str | None = None,
     history: list[dict] | None = None,
     session_scope: str | None = None,
     event_id: str | None = None,
@@ -338,6 +373,14 @@ def _invoke(
             usage=runtime_result.get("usage"), terminal_error=error,
             usage_event_id=runtime_result.get("usageEventId"),
         )
+    runtime_billing_user_id = billing_user_id if billing_user_id is not None else user_id
+    if (
+        not isinstance(runtime_billing_user_id, str)
+        or not runtime_billing_user_id.strip()
+        or runtime_billing_user_id != runtime_billing_user_id.strip()
+    ):
+        raise ValueError("A valid billing user is required for runtime invocation")
+    runtime_user_id = memory_actor_id(runtime_billing_user_id)
     session_id = (
         scoped_session_id(session_scope)
         if session_scope is not None
@@ -378,6 +421,7 @@ def _invoke(
             tool_ids.append("bot_manager")
             bot_management = _bot_management_context(user_id)
     resolved_tools = catalog.resolve_tools_for_runtime(user_id, tool_ids)
+    uses_youtube_search = _uses_youtube_search(resolved_tools)
     payload = {
         "messages": (
             history
@@ -447,6 +491,14 @@ def _invoke(
         payload["continuation"] = normalized_continuation
     if work_key is not None and lease_owner and resume_request is not None:
         work = runtime_work(payload, normalized_continuation)
+        if uses_youtube_search:
+            quota_denial = _reserve_youtube_capacity(
+                payload,
+                runtime_billing_user_id,
+                f"runtime:{work['sessionId']}",
+            )
+            if quota_denial is not None:
+                return quota_denial
         if not _pause_work(work_key, lease_owner, [work]):
             return AgentInvocationResult(text="", pending_work=[work])
         # Queue recovery before dispatch, including lost acknowledgements. The
@@ -457,6 +509,7 @@ def _invoke(
                 agentRuntimeArn=AGENT_RUNTIME_ARN,
                 qualifier=AGENT_RUNTIME_QUALIFIER,
                 runtimeSessionId=work["sessionId"],
+                runtimeUserId=runtime_user_id,
                 contentType="application/json",
                 accept="text/event-stream",
                 payload=json.dumps(payload).encode("utf-8"),
@@ -474,10 +527,23 @@ def _invoke(
         finally:
             response["response"].close()
         return AgentInvocationResult(text="", pending_work=[work])
+    if uses_youtube_search:
+        if not event_id:
+            raise UsageControlUnavailable(
+                "YouTube quota reservation requires an event identity"
+            )
+        quota_denial = _reserve_youtube_capacity(
+            payload,
+            runtime_billing_user_id,
+            f"event:{event_id}",
+        )
+        if quota_denial is not None:
+            return quota_denial
     response = agentcore.invoke_agent_runtime(
         agentRuntimeArn=AGENT_RUNTIME_ARN,
         qualifier=AGENT_RUNTIME_QUALIFIER,
         runtimeSessionId=session_id,
+        runtimeUserId=runtime_user_id,
         contentType="application/json",
         accept="text/event-stream",
         payload=json.dumps(payload).encode("utf-8"),
@@ -521,28 +587,3 @@ def _invoke(
         bot_mutations=bot_mutations,
         usage=usage,
     )
-
-
-def _progress_updater(item_key: dict, lease_owner: str) -> ProgressCallback:
-    def update(progress: list[str]) -> None:
-        try:
-            table.update_item(
-                Key=item_key,
-                UpdateExpression=(
-                    "SET activity = :activity, activityUpdatedAt = :updated"
-                ),
-                ConditionExpression="#status = :running AND leaseOwner = :owner",
-                ExpressionAttributeNames={"#status": "status"},
-                ExpressionAttributeValues={
-                    ":activity": progress,
-                    ":updated": utc_now_iso(),
-                    ":running": "RUNNING",
-                    ":owner": lease_owner,
-                },
-            )
-        except Exception:
-            logger.exception(
-                "Could not publish agent activity for %s", item_key.get("sk", "unknown")
-            )
-
-    return update

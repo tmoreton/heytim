@@ -66,7 +66,5 @@ export const AUTHENTICATED_ROUTES = [
   [HttpMethod.POST, '/skill-shares/{token}/import'],
   [HttpMethod.GET, '/connections'],
   [HttpMethod.POST, '/connections/gmail/authorization'],
-  [HttpMethod.POST, '/connections'],
-  [HttpMethod.PUT, '/connections/{connectionId}'],
   [HttpMethod.DELETE, '/connections/{connectionId}'],
 ] as const;

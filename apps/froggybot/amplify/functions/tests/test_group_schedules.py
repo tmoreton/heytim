@@ -90,6 +90,13 @@ class ScheduledGroupWorkerTests(WorkerTestCase):
         first = self.process.call_args.args[1]
         replies = first["replies"]
         self.assertEqual([entry["roundRole"] for entry in replies], ["lead", "contributor", "synthesizer"])
+        self.assertTrue(
+            all(
+                self.table.items[("GROUP#work", entry["replyKey"])]["billingUserId"]
+                == "owner"
+                for entry in replies
+            )
+        )
         key = ("GROUP#work", replies[0]["replyKey"])
         self.table.items[key].update(status="COMPLETE", text="Already researched")
         count = len(self.table.items)
@@ -129,7 +136,7 @@ class ScheduledGroupWorkerTests(WorkerTestCase):
         self.table.put_item(Item={
             "pk": "GROUP#work", "sk": "MESSAGE#reply", "id": "reply",
             "status": "COMPLETE", "text": "Final brief", "botOwnerId": "owner",
-            "notificationQueued": True,
+            "billingUserId": "owner", "notificationQueued": True,
         })
         with (
             patch.object(self.group_job, "table", self.table),

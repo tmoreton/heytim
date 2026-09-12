@@ -8,6 +8,7 @@ export type ChatOverlay =
   | { kind: 'botLibrary' }
   | { kind: 'groupEditor'; mode: 'new' | 'edit' }
   | { kind: 'skillLibrary' }
+  | { kind: 'connections' }
   | { kind: 'account' }
   | { kind: 'memory' }
   | { kind: 'browser'; url?: string }

@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from strands.models import Model
 
 from model import load as model_loader
+from model.usage import ProviderCallLimitExceeded, ProviderCallLimits
 
 
 class FakeModel(Model):
@@ -110,6 +111,7 @@ def test_openrouter_model_accepts_supported_reasoning_efforts(effort: str) -> No
     assert config["params"]["max_tokens"] == 2048
     assert config["params"]["temperature"] == 0.1
     assert config["params"]["extra_body"] == {"reasoning": {"effort": effort}}
+    assert model.client_args["max_retries"] == 0
 
 
 def test_openrouter_model_rejects_unsupported_reasoning_effort() -> None:
@@ -344,6 +346,71 @@ def test_usage_tracker_aggregates_each_model_call() -> None:
     ]
     assert report["totals"]["callCount"] == 2
     assert report["totals"]["totalTokens"] == 250
+
+
+def test_usage_tracker_observes_structured_output_metadata() -> None:
+    accumulator = model_loader.UsageAccumulator()
+    delegate = FakeModel("primary", [])
+
+    async def structured_output(*_args, **_kwargs):
+        yield {
+            "metadata": {
+                "usage": {
+                    "inputTokens": 40,
+                    "outputTokens": 10,
+                    "totalTokens": 50,
+                },
+                "frogbotProviderCostUsd": "0.00005",
+            }
+        }
+
+    delegate.structured_output = structured_output  # type: ignore[method-assign]
+    model = model_loader.UsageTrackingModel(
+        delegate,
+        accumulator,
+        provider="openrouter",
+        model_id="deepseek/deepseek-v4.1-flash",
+    )
+
+    async def collect():
+        return [
+            event
+            async for event in model.structured_output(
+                BaseModel, [{"role": "user", "content": [{"text": "test"}]}]
+            )
+        ]
+
+    events = asyncio.run(collect())
+
+    assert len(events) == 1
+    assert accumulator.snapshot()["models"][0]["totalTokens"] == 50
+
+
+def test_model_dispatch_limit_is_enforced_before_provider_call() -> None:
+    accumulator = model_loader.UsageAccumulator(
+        ProviderCallLimits(
+            model_calls=1,
+            provider_tool_calls=10,
+            image_calls=2,
+        )
+    )
+    delegate = FakeModel("primary", [])
+    model = model_loader.UsageTrackingModel(
+        delegate,
+        accumulator,
+        provider="openrouter",
+        model_id="deepseek/deepseek-v4.1-flash",
+    )
+
+    asyncio.run(_events(model))
+    with pytest.raises(
+        ProviderCallLimitExceeded,
+        match="model-call safety limit",
+    ):
+        asyncio.run(_events(model))
+
+    assert delegate.calls == 1
+    assert accumulator.snapshot()["totals"]["modelDispatchCount"] == 1
 
 
 def test_openrouter_model_preserves_provider_cost_and_reasoning_tokens() -> None:

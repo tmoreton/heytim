@@ -9,6 +9,11 @@ from PIL import Image, ImageDraw
 
 from frogbot_runtime import artifacts, image_generation
 from frogbot_runtime.image_generation import image_generation_tools
+from model.usage import (
+    ProviderCallLimitExceeded,
+    ProviderCallLimits,
+    UsageAccumulator,
+)
 
 
 class FakeS3:
@@ -54,7 +59,10 @@ def _logo_bytes() -> bytes:
 
 
 def _factory(
-    monkeypatch, responses: list[FakeResponse], references: list[dict] | None = None
+    monkeypatch,
+    responses: list[FakeResponse],
+    references: list[dict] | None = None,
+    usage: UsageAccumulator | None = None,
 ):
     prefix = f"users/{'a' * 64}/artifacts/12345678-1234-1234-1234-123456789012"
     storage = FakeS3()
@@ -72,6 +80,7 @@ def _factory(
             s3_client=storage,
             http_client=http,
             api_key_loader=api_key,
+            usage=usage,
         )
     }
     return tools, storage, http
@@ -176,7 +185,10 @@ def test_thumbnail_keeps_single_subject_briefs_out_of_comparison_mode(
 
 
 def test_image_generator_retries_a_transient_openrouter_failure(monkeypatch) -> None:
-    tools, storage, http = _factory(monkeypatch, [FakeResponse(502, {}), _success()])
+    usage = UsageAccumulator()
+    tools, storage, http = _factory(
+        monkeypatch, [FakeResponse(502, {}), _success()], usage=usage
+    )
 
     async def no_sleep(_delay: float) -> None:
         return None
@@ -186,6 +198,53 @@ def test_image_generator_retries_a_transient_openrouter_failure(monkeypatch) -> 
 
     assert len(http.requests) == 2
     assert len(storage.requests) == 1
+    assert usage.snapshot()["tools"] == [
+        {
+            "provider": "openrouter",
+            "operation": "generate_image",
+            "callCount": 2,
+        }
+    ]
+
+
+def test_image_retry_reserves_each_http_attempt_before_dispatch(monkeypatch) -> None:
+    usage = UsageAccumulator(
+        ProviderCallLimits(
+            model_calls=10,
+            provider_tool_calls=10,
+            image_calls=1,
+        )
+    )
+    tools, storage, http = _factory(
+        monkeypatch, [FakeResponse(502, {}), _success()], usage=usage
+    )
+
+    async def no_sleep(_delay: float) -> None:
+        return None
+
+    monkeypatch.setattr(image_generation.asyncio, "sleep", no_sleep)
+    with pytest.raises(ProviderCallLimitExceeded, match="image-generation"):
+        asyncio.run(tools["generate_image"]("retry.png", "A frog trying again"))
+
+    assert len(http.requests) == 1
+    assert storage.requests == []
+
+
+def test_image_generation_limit_blocks_before_openrouter_call(monkeypatch) -> None:
+    usage = UsageAccumulator(
+        ProviderCallLimits(
+            model_calls=10,
+            provider_tool_calls=10,
+            image_calls=1,
+        )
+    )
+    tools, _, http = _factory(monkeypatch, [_success()], usage=usage)
+
+    asyncio.run(tools["generate_image"]("first.png", "A frog"))
+    with pytest.raises(ProviderCallLimitExceeded, match="image-generation"):
+        asyncio.run(tools["generate_image"]("second.png", "Another frog"))
+
+    assert len(http.requests) == 1
 
 
 def test_image_generator_does_not_retry_an_auth_failure(monkeypatch) -> None:

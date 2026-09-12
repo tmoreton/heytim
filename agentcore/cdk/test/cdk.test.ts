@@ -94,7 +94,11 @@ test('authoritative AgentCore config preserves the runtime wiring contract', asy
     name: 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
     value: 'NO_CONTENT',
   });
-  expect(actual.credentials.map(item => item.name)).toEqual(['FrogBot_OpenRouter']);
+  expect(actual.credentials.map(item => item.name)).toEqual([
+    'FrogBot_OpenRouter',
+    'FrogBotXApi',
+    'FrogBotYouTubeApi',
+  ]);
   expect(actual.memories).toContainEqual(
     expect.objectContaining({
       name: 'FrogBotMemory',

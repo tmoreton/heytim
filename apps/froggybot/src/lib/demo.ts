@@ -6,7 +6,6 @@ import type {
   BotDocument,
   BotDraft,
   Connection,
-  ConnectionDraft,
   Group,
   GroupDraft,
   Message,
@@ -25,11 +24,13 @@ import {
   createInitialDemoBots,
   createInitialDemoGroups,
   createInitialDemoSchedules,
+  toolIdsForTemplate,
 } from './demo-fixtures';
 
 const timestamp = new Date().toISOString();
 
-let bots = createInitialDemoBots(timestamp);
+let bots: Bot[] = [];
+let initialCatalogLoaded = false;
 
 let groups = createInitialDemoGroups(timestamp);
 let schedules = createInitialDemoSchedules(timestamp);
@@ -145,6 +146,10 @@ export const demoBootstrap = async (): Promise<Bootstrap> => {
   const catalog = await loadDemoCatalog();
   const chiefTemplate = catalog.botTemplates.find((template) => template.id === CHIEF_TEMPLATE_ID);
   if (!chiefTemplate) throw new Error('The required Chief bot is unavailable.');
+  if (!initialCatalogLoaded) {
+    bots = createInitialDemoBots(catalog.botTemplates, catalog.skills, timestamp);
+    initialCatalogLoaded = true;
+  }
   ensureDemoChief(createDemoChief(chiefTemplate, catalog.skills, timestamp));
   return {
     bots: chiefFirst(bots.map((bot) => ({
@@ -175,15 +180,16 @@ export const demoBootstrap = async (): Promise<Bootstrap> => {
 
 export const demoInstallBotTemplate = async (templateId: string): Promise<Bot> => {
   const catalog = await loadDemoCatalog();
+  if (!initialCatalogLoaded) {
+    bots = createInitialDemoBots(catalog.botTemplates, catalog.skills, timestamp);
+    initialCatalogLoaded = true;
+  }
   const template = catalog.botTemplates.find((item) => item.id === templateId);
   if (!template) throw new Error('Bot not found in the library.');
   if (bots.some((bot) => bot.templateId === template.id)) {
     throw new Error('This bot is already in your team.');
   }
-  const requiredToolIds = catalog.skills
-    .filter((skill) => template.skillIds.includes(skill.id))
-    .flatMap((skill) => skill.requiredToolIds);
-  return demoSaveBotTemplate(template, [...new Set([...template.toolIds, ...requiredToolIds])]);
+  return demoSaveBotTemplate(template, toolIdsForTemplate(template, catalog.skills));
 };
 
 const demoSaveBotTemplate = (template: BotTemplate, toolIds: string[]): Bot => {
@@ -551,31 +557,6 @@ export const demoSaveSkill = async (draft: SkillDraft, skillId?: string): Promis
   personalSkills = existing
     ? personalSkills.map((item) => (item.id === saved.id ? saved : item))
     : [...personalSkills, saved];
-  return saved;
-};
-
-export const demoSaveConnection = async (
-  draft: ConnectionDraft,
-  connectionId?: string,
-): Promise<Connection> => {
-  const existing = personalConnections.find((item) => item.id === connectionId);
-  const saved: Connection = {
-    id: existing?.id ?? `connection_${Date.now()}`,
-    name: draft.name,
-    description: draft.description,
-    endpoint: draft.endpoint,
-    authType: draft.authType,
-    headerName: draft.authType === 'bearer' ? 'Authorization' : draft.headerName,
-    hasCredential: draft.authType === 'none' ? undefined : Boolean(draft.credential || existing?.hasCredential),
-    connectionStatus: 'connected',
-    provider: 'mcp',
-    risk: draft.risk,
-    source: 'user',
-    editable: true,
-  };
-  personalConnections = existing
-    ? personalConnections.map((item) => (item.id === saved.id ? saved : item))
-    : [...personalConnections, saved];
   return saved;
 };
 

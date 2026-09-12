@@ -135,7 +135,12 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
     openConversation,
   });
   const baseContentHidden =
-    (!wide && drawerOpen) || overlay.kind !== 'none' || botLibraryOnboarding || Boolean(links.pendingSkill) || Boolean(filePreview.previewFile);
+    (!wide && drawerOpen)
+    || overlay.kind !== 'none'
+    || botLibraryOnboarding
+    || attachmentDraft.pickerOpen
+    || Boolean(links.pendingSkill)
+    || Boolean(filePreview.previewFile);
 
   const selectBot = (bot: Bot) => {
     openConversation({ kind: 'bot', id: bot.id }, !wide);
@@ -392,7 +397,7 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
             onToggleDrawer={() => setDrawerOpen((value) => !value)}
             onEditGroup={() => setOverlay({ kind: 'groupEditor', mode: 'edit' })}
             onOpenMenu={() => setOverlay({ kind: selectedGroup ? 'groupMenu' : 'botMenu' })}
-            onAddAttachment={() => void attachmentDraft.pick()}
+            onAddAttachment={attachmentDraft.openPicker}
             onRemoveAttachment={attachmentDraft.remove}
             onReplyTargetChange={setReplyBotId}
             onSend={send}
@@ -486,6 +491,16 @@ export function ChatApp({ demo, invitation, initialCapability, initialBotTemplat
         onRequestAction={(action) => setOverlay({ kind: 'botConfirmation', action })}
         onConfirmAction={(action) => void runBotDeletion(action)}
         onCloseConfirmation={() => setOverlay({ kind: 'none' })}
+      />
+      <ActionSheet
+        visible={attachmentDraft.pickerOpen}
+        title="Add attachment"
+        message="Choose photos from your library or attach a document from Files."
+        options={[
+          { label: 'Photo library', onPress: () => void attachmentDraft.pickPhotos() },
+          { label: 'Files', onPress: () => void attachmentDraft.pickFiles() },
+        ]}
+        onClose={attachmentDraft.closePicker}
       />
       <ActionSheet
         visible={Boolean(links.pendingSkill)}

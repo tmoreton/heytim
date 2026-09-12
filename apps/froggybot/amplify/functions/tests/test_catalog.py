@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import time
 import unittest
-from contextlib import contextmanager
 from decimal import Decimal
 
 import shared.catalog_sync as sync_module
+from catalog_test_fakes import FakeSecrets, FakeTable
 from shared.catalog import CatalogError, CatalogService
 
 
@@ -87,126 +87,6 @@ TEST_SKILLS = [
         "featured": True,
     }
 ]
-
-class FakeConditionalCheckFailed(Exception):
-    def __init__(self) -> None:
-        super().__init__("conditional check failed")
-        self.response = {"Error": {"Code": "ConditionalCheckFailedException"}}
-
-
-class FakeBatch:
-    def __init__(self, table: FakeTable):
-        self.table = table
-
-    def put_item(self, Item: dict) -> None:
-        self.table.put_item(Item=Item)
-
-    def delete_item(self, Key: dict) -> None:
-        self.table.items.pop((Key["pk"], Key["sk"]), None)
-
-
-class FakeTable:
-    def __init__(self):
-        self.items: dict[tuple[str, str], dict] = {}
-
-    def put_item(self, *, Item: dict) -> None:
-        self.items[(Item["pk"], Item["sk"])] = dict(Item)
-
-    def get_item(self, *, Key: dict, **_kwargs) -> dict:
-        item = self.items.get((Key["pk"], Key["sk"]))
-        return {"Item": dict(item)} if item else {}
-
-    def update_item(
-        self,
-        *,
-        Key: dict,
-        UpdateExpression: str,
-        ConditionExpression: str,
-        ExpressionAttributeNames: dict,
-        ExpressionAttributeValues: dict,
-    ) -> None:
-        item = self.items.setdefault((Key["pk"], Key["sk"]), dict(Key))
-        lease_name = ExpressionAttributeNames["#lease_id"]
-        if "attribute_not_exists" in ConditionExpression:
-            lease_until_name = ExpressionAttributeNames["#lease_until"]
-            if item.get(lease_until_name, 0) > ExpressionAttributeValues[":now"]:
-                raise FakeConditionalCheckFailed
-            item.update(
-                {
-                    ExpressionAttributeNames["#entity"]: ExpressionAttributeValues[
-                        ":entity"
-                    ],
-                    lease_until_name: ExpressionAttributeValues[":lease_until"],
-                    lease_name: ExpressionAttributeValues[":lease_id"],
-                    ExpressionAttributeNames["#status"]: ExpressionAttributeValues[
-                        ":syncing"
-                    ],
-                }
-            )
-            return
-        if item.get(lease_name) != ExpressionAttributeValues[":lease_id"]:
-            raise FakeConditionalCheckFailed
-        item.update(
-            {
-                ExpressionAttributeNames["#next_sync"]: ExpressionAttributeValues[
-                    ":next_sync"
-                ],
-                ExpressionAttributeNames["#last_sync"]: ExpressionAttributeValues[
-                    ":last_sync"
-                ],
-                ExpressionAttributeNames["#status"]: ExpressionAttributeValues[
-                    ":status"
-                ],
-            }
-        )
-        item.pop(ExpressionAttributeNames["#lease_until"], None)
-        item.pop(lease_name, None)
-
-    def query(
-        self, *, ExpressionAttributeValues: dict, Limit: int | None = None, **_kwargs
-    ) -> dict:
-        pk = ExpressionAttributeValues[":pk"]
-        prefix = ExpressionAttributeValues.get(":prefix", "")
-        items = [
-            dict(item)
-            for (item_pk, sk), item in self.items.items()
-            if item_pk == pk and sk.startswith(prefix)
-        ]
-        return {"Items": items[:Limit] if Limit else items}
-
-    @contextmanager
-    def batch_writer(self):
-        yield FakeBatch(self)
-
-
-class FakeSecrets:
-    class ResourceNotFoundException(Exception):
-        pass
-
-    def __init__(self):
-        self.values: dict[str, str] = {}
-        self.deleted: list[str] = []
-        self.exceptions = type(
-            "Exceptions",
-            (),
-            {"ResourceNotFoundException": self.ResourceNotFoundException},
-        )()
-
-    def create_secret(self, *, Name: str, SecretString: str, **_kwargs) -> dict:
-        arn = f"arn:aws:secretsmanager:us-east-1:123456789012:secret:{Name}-ABC123"
-        self.values[arn] = SecretString
-        return {"ARN": arn}
-
-    def put_secret_value(self, *, SecretId: str, SecretString: str) -> None:
-        self.values[SecretId] = SecretString
-
-    def delete_secret(self, *, SecretId: str, RecoveryWindowInDays: int) -> None:
-        if SecretId not in self.values:
-            raise self.ResourceNotFoundException
-        assert RecoveryWindowInDays == 7
-        self.deleted.append(SecretId)
-        self.values.pop(SecretId)
-
 
 class CatalogServiceTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -353,6 +233,7 @@ class CatalogServiceTests(unittest.TestCase):
     def test_catalog_tools_are_visible_and_use_reviewed_runtime_bindings(self) -> None:
         tools = self.catalog.list_tools()
         self.assertEqual(len(tools), len(TEST_TOOLS))
+        self.assertEqual({tool.get("source") for tool in tools}, {"official"})
         self.assertEqual(
             {tool["id"]: (tool["provider"], tool["risk"]) for tool in tools},
             {

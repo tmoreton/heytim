@@ -1,8 +1,8 @@
 # FroggyBot capability-parity roadmap
 
 This board separates code that is complete in the repository from functionality verified in the live development
-environment. Nothing is production-complete until a dedicated production target exists and its deployment and
-authenticated end-to-end checks pass.
+environment. A stable production target is declared, but it is not production-complete until its deployment,
+authenticated end-to-end checks, and company credential isolation pass.
 
 ## Competitive position — September 2026
 
@@ -79,16 +79,16 @@ clear, trustworthy room.
 - Cleanup of partial generated files on retries, failures, and cancelled completions
 - Daily, weekday, weekly, and monthly routines with pause and run-now controls
 
-## Priority 3A: private integration foundation — implemented
+## Priority 3A: private integration foundation — legacy implementation
 
-- Add a private HTTPS MCP server directly in the app without a catalog pull request
-- Keep each connection and credential scoped to its owner
-- Store credentials in Secrets Manager and resolve them only inside the runtime
-- Support unauthenticated servers, bearer tokens, and custom API-key headers
+- Existing private HTTPS MCP connections remain usable and removable, but new registration and editing are retired
+- Keep every private account connection and credential scoped to its owner
+- Store OAuth credentials in Secrets Manager and resolve them only inside the runtime
+- Use FroggyBot-owned server-side credentials for shared tools instead of asking users for developer keys
 - Require per-turn approval for connections that may change external data
 - Strip private connections and dependent skills from bot and skill shares
 
-## Priority 3B: provider shortcuts — requires product inputs
+## Priority 3B: provider connections — requires product inputs
 
 - Select the first credentialed providers and define whether each integration is read-only or can change
   external state
@@ -104,7 +104,7 @@ demand justifies their additional maintenance.
 ## Priority 4A: richer creation — implemented and deployed
 
 - Native PDF, DOCX, XLSX, and PowerPoint output without encoding binary data through the model
-- Original PNG image generation with an active Stable Image Core model
+- Original PNG image generation through the configured OpenRouter image model
 - Deterministic caption compositing on user-supplied image templates through the Meme Maker bot
 - Chief-only creation, template installation, and editing of non-Chief bots in direct chats
 - Private per-user storage, typed download metadata, generated-file limits, retry cleanup, and formula-safe

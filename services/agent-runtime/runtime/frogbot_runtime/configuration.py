@@ -42,6 +42,7 @@ def bot_configuration(
     session_id: str = "unknown",
     actor_id: str | None = None,
     messages: list[dict] | None = None,
+    usage: Any = None,
 ) -> BotConfiguration:
     bot = payload.get("bot", {})
     if not isinstance(bot, dict):
@@ -79,6 +80,7 @@ def bot_configuration(
         ),
         bot_management=bot_management_from_payload(payload),
         image_references=image_references,
+        usage=usage,
     )
     instructions = base_instructions(name.strip(), prompt.strip())
     for context in (

@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import time
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 from .browser_display import (
@@ -55,13 +56,15 @@ def _iso(epoch: int) -> str:
 
 class BrowserSessionService:
     def __init__(self, table, agentcore, user_id, bot_id, group_id=None, *,
-                 control=None, catalog=None, signer=live_view_url, clock=time.time):
+                 control=None, catalog=None, signer=live_view_url, clock=time.time,
+                 authorize_start: Callable[[str], None] | None = None):
         direct_only(group_id)
         self.store = BrowserSessionStore(table, user_id, bot_id, catalog)
         self.agentcore = agentcore
         self.control = control
         self.signer = signer
         self.clock = clock
+        self.authorize_start = authorize_start
         self.name = managed_session_name(user_id, bot_id)
 
     def _now(self):
@@ -119,6 +122,21 @@ class BrowserSessionService:
         # Persist the token BEFORE Start so cleanup can recover an uncertain result.
         if not record.get("startToken"):
             record = self.store.write(record, startToken=str(uuid.uuid4()))
+        if self.authorize_start and not record.get("usageAdmissionId"):
+            record = self.store.write(record, usageAdmissionId=str(uuid.uuid4()))
+        if self.authorize_start:
+            try:
+                self.authorize_start(record["usageAdmissionId"])
+            except BrowserSessionError:
+                # Preserve the usage id across a retry, but never leave a denied
+                # request looking like an uncertain remote browser start.
+                self.store.write(
+                    record,
+                    status="CLOSED",
+                    operationUntil=0,
+                    startToken=None,
+                )
+                raise
         request = {"browserIdentifier": BROWSER_IDENTIFIER, "name": self.name,
                    "sessionTimeoutSeconds": SESSION_SECONDS,
                    "clientToken": record["startToken"],
@@ -138,7 +156,8 @@ class BrowserSessionService:
         return self.store.write(record, sessionId=result["sessionId"], sessionName=self.name,
                                 mobileExtension=bool(extensions),
                                 viewport=request["viewPort"],
-                                sessionExpiresAt=min(started, self._now()) + SESSION_SECONDS)
+                                sessionExpiresAt=min(started, self._now()) + SESSION_SECONDS,
+                                usageAdmissionId=None)
 
     def get(self) -> dict:
         bot = self.store.authorize()
@@ -303,6 +322,7 @@ class BrowserSessionService:
                                           profileCreateToken=None, profileSaveToken=None)
             record = self.store.write(record, status="CLOSED", operationUntil=0,
                                       sessionId=None, sessionExpiresAt=None, startToken=None,
+                                      usageAdmissionId=None,
                                       resumeState=None, resumedTurnId=None, profileSaveToken=None)
         except Exception as exc:
             latest = self.store.read()

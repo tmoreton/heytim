@@ -19,6 +19,7 @@ class TerminalFailureTests(WorkerTestCase):
             "pk": "CHAT#user-1#bot-1",
             "sk": "TURN#now#turn-1",
             "id": "turn-1",
+            "userId": "user-1",
             "status": "PENDING",
             "createdAt": "now",
         }
@@ -65,6 +66,9 @@ class TerminalFailureTests(WorkerTestCase):
             "status": "PENDING",
             "createdAt": "now",
             "botOwnerId": "owner-1",
+            "billingUserId": "user-1",
+            "roundId": "message-1",
+            "roundSize": 1,
         }
         self.table.items[(reply["pk"], reply["sk"])] = reply
         self.table.items[("USER#owner-1", "BOT#bot-1")] = {

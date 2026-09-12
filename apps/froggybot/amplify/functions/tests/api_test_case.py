@@ -13,8 +13,32 @@ class ConditionalCheckFailedException(Exception):
     pass
 
 
+class TransactionCanceledException(Exception):
+    def __init__(self, failed_index: int = 0) -> None:
+        super().__init__("transaction cancelled")
+        reasons = [{"Code": "None"}, {"Code": "None"}]
+        reasons[failed_index] = {"Code": "ConditionalCheckFailed"}
+        self.response = {
+            "Error": {"Code": "TransactionCanceledException"},
+            "CancellationReasons": reasons,
+        }
+
+
 class UserNotFoundException(Exception):
     pass
+
+
+class BotoCoreError(Exception):
+    pass
+
+
+class ClientError(Exception):
+    pass
+
+
+class FakeTypeSerializer:
+    def serialize(self, value):
+        return value
 
 
 class FakeCondition:
@@ -65,16 +89,15 @@ class FakeBatch:
 class FakeTable:
     def __init__(self):
         self.items: dict[tuple[str, str], dict] = {}
+        self.name = "data"
         self.deleted: list[dict] = []
         self.put: list[dict] = []
         self.updated: list[dict] = []
-        self.meta = SimpleNamespace(
-            client=SimpleNamespace(
-                exceptions=SimpleNamespace(
-                    ConditionalCheckFailedException=ConditionalCheckFailedException
-                )
-            )
+        self.exceptions = SimpleNamespace(
+            ConditionalCheckFailedException=ConditionalCheckFailedException,
+            TransactionCanceledException=TransactionCanceledException,
         )
+        self.meta = SimpleNamespace(client=self)
 
     @staticmethod
     def _storage_key(value: dict) -> tuple[str, str]:
@@ -102,6 +125,24 @@ class FakeTable:
     def get_item(self, *, Key: dict, **_kwargs) -> dict:
         item = self.items.get(self._storage_key(Key))
         return {"Item": dict(item)} if item else {}
+
+    def transact_write_items(self, *, TransactItems: list[dict], **_kwargs) -> None:
+        condition = TransactItems[0]["ConditionCheck"]
+        state = self.items.get(self._storage_key(condition["Key"]))
+        if state and "accountStatus" in state and (
+            not isinstance(state.get("accountStatus"), str)
+            or state.get("accountStatus") in {"DELETING", "DELETED"}
+        ):
+            raise TransactionCanceledException(0)
+        put = TransactItems[1]["Put"]
+        put_item = put["Item"]
+        current = self.items.get(self._storage_key(put_item))
+        if put.get("ConditionExpression") == "attribute_not_exists(pk)" and current:
+            raise TransactionCanceledException(1)
+        for operation in TransactItems:
+            put = operation.get("Put")
+            if put:
+                self.put_item(Item=put["Item"])
 
     def scan(self, **_kwargs) -> dict:
         return {"Items": []}
@@ -169,9 +210,15 @@ class ApiTestCase(unittest.TestCase):
         dynamodb = ModuleType("boto3.dynamodb")
         conditions = ModuleType("boto3.dynamodb.conditions")
         conditions.Attr = FakeAttr
+        conditions.Key = FakeAttr
+        dynamodb_types = ModuleType("boto3.dynamodb.types")
+        dynamodb_types.TypeSerializer = FakeTypeSerializer
         botocore = ModuleType("botocore")
         botocore_config = ModuleType("botocore.config")
+        botocore_exceptions = ModuleType("botocore.exceptions")
         botocore_config.Config = FakeConfig
+        botocore_exceptions.BotoCoreError = BotoCoreError
+        botocore_exceptions.ClientError = ClientError
 
         sys.modules.pop("api.handler", None)
         with (
@@ -182,8 +229,10 @@ class ApiTestCase(unittest.TestCase):
                     "boto3": boto3,
                     "boto3.dynamodb": dynamodb,
                     "boto3.dynamodb.conditions": conditions,
+                    "boto3.dynamodb.types": dynamodb_types,
                     "botocore": botocore,
                     "botocore.config": botocore_config,
+                    "botocore.exceptions": botocore_exceptions,
                 },
             ),
         ):

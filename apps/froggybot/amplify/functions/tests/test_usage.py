@@ -168,6 +168,53 @@ class UsageTests(unittest.TestCase):
         self.assertFalse(second)
         self.assertEqual(len(self.table.items), 1)
 
+    def test_records_provider_tool_call_counts(self) -> None:
+        item = self.usage._usage_item(
+            "user-1",
+            "queue-message-1",
+            {
+                "models": [],
+                "tools": [
+                    {
+                        "provider": "agentcore-gateway",
+                        "operation": "youtube_search",
+                        "callCount": 2,
+                    }
+                ],
+            },
+            work_type="direct",
+            bot_id="bot-1",
+            now=datetime(2026, 9, 11, 12, 0, tzinfo=UTC),
+        )
+
+        self.assertEqual(item["toolCallCount"], 2)
+        self.assertEqual(item["tools"][0]["operation"], "youtube_search")
+        self.assertEqual(item["costBasis"], "not_applicable")
+
+    def test_default_deepseek_model_has_a_fallback_price(self) -> None:
+        item = self.usage._usage_item(
+            "user-1",
+            "queue-message-1",
+            {
+                "models": [
+                    {
+                        "provider": "openrouter",
+                        "modelId": "deepseek/deepseek-v4.1-flash",
+                        "callCount": 1,
+                        "inputTokens": 1_000_000,
+                        "outputTokens": 1_000_000,
+                        "totalTokens": 2_000_000,
+                    }
+                ]
+            },
+            work_type="direct",
+            bot_id="bot-1",
+            now=datetime(2026, 9, 11, 12, 0, tzinfo=UTC),
+        )
+
+        self.assertEqual(item["costUsd"], Decimal("0.750000000000"))
+        self.assertFalse(item["costIncomplete"])
+
     def test_idempotency_key_does_not_change_across_month_boundary(self) -> None:
         report = {
             "models": [

@@ -144,6 +144,7 @@ class WorkerBotManagementTests(WorkerTestCase):
             "pk": "CHAT#user-1#chief",
             "sk": "TURN#now#turn-1",
             "id": "turn-1",
+            "userId": "user-1",
             "status": "PENDING",
             "createdAt": "now",
         }

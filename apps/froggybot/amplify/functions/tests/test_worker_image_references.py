@@ -6,6 +6,44 @@ from worker_test_case import WorkerTestCase
 
 
 class WorkerImageReferenceTests(WorkerTestCase):
+    def test_current_photo_and_document_reach_the_model_as_content_blocks(self) -> None:
+        self.table.items[("CHAT#user-1#bot-1", "TURN#current")] = {
+            "pk": "CHAT#user-1#bot-1",
+            "sk": "TURN#current",
+            "id": "current",
+            "userText": "Compare the photo with the brief.",
+            "attachments": [
+                {
+                    "id": "photo-1",
+                    "name": "photo.jpg",
+                    "kind": "image",
+                    "format": "jpeg",
+                    "objectKey": "users/actor-1/uploads/photo.jpg",
+                },
+                {
+                    "id": "brief-1",
+                    "name": "brief.pdf",
+                    "kind": "document",
+                    "format": "pdf",
+                    "objectKey": "users/actor-1/uploads/brief.pdf",
+                },
+            ],
+        }
+
+        with patch.object(self.artifacts, "memory_actor_id", return_value="actor-1"):
+            history = self.agent._get_history(
+                "user-1", "bot-1", current_event_id="current"
+            )
+
+        content = history[0]["content"]
+        self.assertEqual(content[0], {"text": "Compare the photo with the brief."})
+        self.assertEqual(content[1]["image"]["format"], "jpeg")
+        self.assertEqual(
+            content[1]["image"]["source"]["s3Location"]["uri"],
+            "s3://frogbot-user-files-123-us-east-1/users/actor-1/uploads/photo.jpg",
+        )
+        self.assertEqual(content[2]["document"]["format"], "pdf")
+
     def test_recent_image_references_reuse_same_chat_uploads_safely(self) -> None:
         self.table.items[("CHAT#user-1#bot-1", "TURN#2026-09-11#new")] = {
             "pk": "CHAT#user-1#bot-1",

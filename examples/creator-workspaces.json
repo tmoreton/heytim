@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "templateIds": ["trend-scout", "youtube-studio"],
-  "directContext": "Personal brand: Heytim.dev. X and YouTube reference handle: @HeyTimDev, from the owner's existing account configuration. Audience: software engineers building AI applications, solo builders, and people applying AI to marketing. In a group, the group's notebook takes precedence over these direct-chat defaults. YouTube Studio is for direct strategy and thumbnail work; scheduled group research belongs to Trend Scout.",
+  "directContext": "Personal brand: Heytim.dev. X and YouTube reference handle: @HeyTimDev, from the owner's existing account configuration. Audience: software engineers building AI applications, solo builders, and people applying AI to marketing. In a group, the group's notebook takes precedence over these direct-chat defaults. Creator Studio is for direct strategy and thumbnail work; scheduled group research belongs to Trend Scout.",
   "groups": [
     {
       "name": "Heytim.dev",

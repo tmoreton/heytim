@@ -64,6 +64,7 @@ def _process_scheduled_group_round(record: dict, request: dict) -> None:
         message = _put_once({
             **message_key, "entity": "GROUP_MESSAGE", "id": message_id,
             "authorType": "user", "authorId": user_id, "authorName": membership.get("name", "Group owner"),
+            "billingUserId": user_id,
             "text": task["prompt"], "createdAt": created_at, "status": "COMPLETE",
             "source": "schedule", "scheduleId": schedule_id, "scheduleName": task["name"],
             "scheduledTeam": team,
@@ -76,7 +77,7 @@ def _process_scheduled_group_round(record: dict, request: dict) -> None:
             "pk": group_key, "sk": group_message_sk(created_at, reply_id, position),
             "entity": "GROUP_MESSAGE", "id": reply_id, "authorType": "bot",
             "authorId": member["botId"], "authorName": member["name"], "authorColor": member.get("color"),
-            "botOwnerId": member["botOwnerId"], "roundId": message_id,
+            "botOwnerId": member["botOwnerId"], "billingUserId": user_id, "roundId": message_id,
             "roundPosition": position, "roundSize": len(team), "roundRole": member["roundRole"],
             "coordinatorBotId": team[0]["botId"], "createdAt": created_at,
             "status": "PENDING" if position == 1 else "WAITING", "text": "",

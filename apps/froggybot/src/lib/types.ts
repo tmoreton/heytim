@@ -257,12 +257,6 @@ export type Connection = Capability & {
   connectionStatus: 'connected';
 };
 
-export type ConnectionDraft = Pick<Connection, 'name' | 'description' | 'endpoint' | 'authType'> & {
-  risk: 'read' | 'interactive';
-  headerName: string;
-  credential: string;
-};
-
 export type Skill = Capability & {
   version: number;
   requiredToolIds: string[];

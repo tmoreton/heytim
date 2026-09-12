@@ -157,7 +157,7 @@ export function MessageComposer({
       <View style={[styles.composer, fullWidth && styles.mobileWidth]}>
         {canAttach ? (
           <Pressable
-            accessibilityLabel="Attach files"
+            accessibilityLabel="Add attachment"
             accessibilityRole="button"
             accessibilityState={{ disabled: unavailable }}
             disabled={unavailable}

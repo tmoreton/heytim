@@ -62,6 +62,7 @@ const fetchCatalog = async (): Promise<DemoCatalog> => {
         ? item.risk
         : undefined,
       actions: stringList(item.actions),
+      source: 'official',
       ...publicMetadata(item),
     }];
   });

@@ -20,6 +20,7 @@ const AccountSettings = lazy(() => import('./account-settings').then((module) =>
 const BotDocuments = lazy(() => import('./bot-documents').then((module) => ({ default: module.BotDocuments })));
 const BotEditor = lazy(() => import('./bot-editor').then((module) => ({ default: module.BotEditor })));
 const BotLibrary = lazy(() => import('./bot-library').then((module) => ({ default: module.BotLibrary })));
+const Connections = lazy(() => import('./connections').then((module) => ({ default: module.Connections })));
 const GroupEditor = lazy(() => import('./group-editor').then((module) => ({ default: module.GroupEditor })));
 const ImagePreviewModal = lazy(() => import('./image-preview-modal').then((module) => ({ default: module.ImagePreviewModal })));
 const MemorySettings = lazy(() => import('./memory-settings').then((module) => ({ default: module.MemorySettings })));
@@ -148,13 +149,21 @@ export function ChatOverlays({
           onLoad={api.skill}
           onSave={api.saveSkill}
           onShare={api.shareSkill}
-          onSaveConnection={api.saveConnection}
-          onDeleteConnection={api.deleteConnection}
-          onBeginGmailConnection={api.beginGmailConnection}
           onChanged={async () => {
             await onBootstrapChanged();
           }}
           onUse={onOpenCapabilityEditor}
+        />
+      ) : null}
+      {overlay.kind === 'connections' ? (
+        <Connections
+          tools={data?.tools ?? []}
+          onClose={close}
+          onBeginGmailConnection={api.beginGmailConnection}
+          onDeleteConnection={api.deleteConnection}
+          onChanged={async () => {
+            await onBootstrapChanged();
+          }}
         />
       ) : null}
       {overlay.kind === 'schedule' ? (
@@ -197,6 +206,7 @@ export function ChatOverlays({
           onClose={close}
           onOpenMemory={() => onOverlayChange({ kind: 'memory' })}
           onOpenSkills={() => onOverlayChange({ kind: 'skillLibrary' })}
+          onOpenConnections={() => onOverlayChange({ kind: 'connections' })}
           onListShares={api.sharedLinks}
           onRevokeShare={api.revokeShare}
           onDeleteAccount={onDeleteAccount}

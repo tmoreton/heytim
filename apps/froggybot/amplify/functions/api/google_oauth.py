@@ -10,6 +10,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from typing import Any
 
 import boto3
@@ -17,7 +18,7 @@ from botocore.config import Config
 from shared.catalog import CatalogError
 
 from .bots import _create_bot, _list_bots
-from .support import ApiError, catalog, table
+from .support import ApiError, _ensure_account_active, catalog, table
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_OAUTH_ENDPOINT = "https://oauth2.googleapis.com/token"
@@ -236,6 +237,14 @@ def _ensure_gmail_bot(user_id: str, connection_id: str) -> None:
             "toolIds": [connection_id],
             "skillIds": [],
         },
+        bot_id=str(
+            uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                f"froggybot:gmail:{user_id}:{connection_id}",
+            )
+        ),
+        require_active_account=True,
+        create_only=True,
     )
 
 
@@ -263,9 +272,12 @@ def _redirect(location: str) -> dict:
 def _gmail_callback(query: dict) -> dict:
     return_url = DEFAULT_RETURN_URL
     deadline = time.monotonic() + OAUTH_CALLBACK_BUDGET_SECONDS
+    refresh_token = None
+    persistence_attempted = False
     try:
         state = _consume_state(query.get("state"))
         return_url = _return_url(state.get("returnUrl"))
+        _ensure_account_active(state["userId"])
         if query.get("error"):
             raise ApiError(400, "Google access was not approved")
         code = query.get("code")
@@ -273,22 +285,26 @@ def _gmail_callback(query: dict) -> dict:
         if not isinstance(code, str) or not isinstance(verifier, str):
             raise ApiError(400, "Google did not return an authorization code")
         token = _exchange_code(code, verifier, deadline)
+        access_token = token.get("access_token")
+        refresh_token = token.get("refresh_token")
         granted = set(str(token.get("scope", "")).split())
         if not set(GMAIL_SCOPES).issubset(granted):
             raise ApiError(400, "Gmail read and draft access are both required")
-        access_token = token.get("access_token")
-        refresh_token = token.get("refresh_token")
         if not isinstance(access_token, str) or not isinstance(refresh_token, str):
             raise ApiError(400, "Google did not return reusable Gmail access")
         account = _gmail_profile(access_token, deadline)
+        client_secret_arn = state["clientSecretArn"]
+        persistence_attempted = True
         connection = catalog.save_gmail_connection(
             state["userId"],
             account,
             refresh_token,
-            state["clientSecretArn"],
+            client_secret_arn,
         )
         _ensure_gmail_bot(state["userId"], connection["id"])
         return _redirect(_result_url(return_url, "connected"))
     except (ApiError, CatalogError, KeyError, TypeError, ValueError):
+        if not persistence_attempted and isinstance(refresh_token, str):
+            catalog.revoke_unused_gmail_token(refresh_token)
         logger.exception("Gmail OAuth callback failed")
         return _redirect(_result_url(return_url, "error"))

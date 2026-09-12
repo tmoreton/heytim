@@ -15,7 +15,6 @@ import type {
   Attachment,
   Bot,
   BotDocument,
-  Connection,
   Group,
   InvitePreview,
   MemoryRecord,
@@ -236,10 +235,6 @@ export const createCloudApi = (): FrogBotApi => ({
   }),
   shareSkill: (skillId) => request<{ url: string }>(apiRoutes.skillShare(skillId), { method: 'POST' }).then((value) => value.url),
   importSkill: (token) => request<SkillDetail>(apiRoutes.skillShareImport(token), { method: 'POST' }),
-  saveConnection: (draft, connectionId) => request<Connection>(
-    connectionId ? apiRoutes.connection(connectionId) : apiRoutes.connections,
-    { method: connectionId ? 'PUT' : 'POST', body: JSON.stringify(draft) },
-  ),
   beginGmailConnection: (returnUrl) => request<{ authorizationUrl: string }>(apiRoutes.gmailAuthorization, {
     method: 'POST',
     body: JSON.stringify({ returnUrl }),

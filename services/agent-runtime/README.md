@@ -23,7 +23,7 @@ requested, the runtime can save downloadable text, Markdown, CSV, JSON, HTML, PD
 PowerPoint artifacts. Meme Lord bots can search a private S3-backed catalog of popular Imgflip templates and
 overlay captions locally in each template's native text regions; they can also caption a recent user image.
 That path does not invoke an image model. A separately selected Image generator tool creates original images with
-the configured OpenRouter image model. It can also send the complete composition, exact copy, and selected recent
+the configured OpenRouter image model. It can also send the complete composition, requested copy, and selected recent
 images in one request, then normalize the resulting YouTube thumbnail to 1280x720. Binary files are rendered inside the runtime, so the language model never has to emit base64 file data. Browser
 and code-interpreter sessions use stable conversation names and reconnect after a runtime restart.
 
@@ -61,12 +61,19 @@ deploy-time configurable through these non-secret values in `agentcore/agentcore
 - `FROGBOT_OPENROUTER_BASE_URL` — the OpenRouter OpenAI-compatible endpoint
 - `FROGBOT_OPENROUTER_CREDENTIAL_PROVIDER` — the AgentCore Identity credential name
 - `FROGBOT_OPENROUTER_MAX_ATTEMPTS` — total attempts before a pre-response OpenRouter failure is returned
+- `FROGBOT_MAX_MODEL_CALLS_PER_RUNTIME_RUN` — hard pre-dispatch model-attempt cap; defaults to `24`
+- `FROGBOT_MAX_PROVIDER_TOOL_CALLS_PER_RUNTIME_RUN` — combined gateway/image dispatch cap; defaults to `24`
+- `FROGBOT_MAX_IMAGE_CALLS_PER_RUNTIME_RUN` — image-generation sub-cap; defaults to `2`
 - `FROGBOT_CONTEXT_COMPRESSION_THRESHOLD` — ratio that triggers tool-pair-safe history summarization
 - `FROGBOT_MEME_TEMPLATE_PREFIX` — private S3 prefix containing `catalog.json` and normalized template PNGs
 - `FROGBOT_IMAGE_MODEL_ID` — OpenRouter image model; defaults to `openai/gpt-image-2.5-sunburst`
 - `FROGBOT_IMAGE_QUALITY` — requested image quality; defaults to `high`
 - `FROGBOT_IMAGE_REQUEST_TIMEOUT_SECONDS` — maximum duration of one OpenRouter image request
 - `FROGBOT_IMAGE_MAX_ATTEMPTS` — total attempts for retryable OpenRouter image failures
+
+The three per-runtime-run caps are enforced before network dispatch. Reaching one returns a terminal result instead
+of retrying the over-limit call. They bound one AgentCore invocation; a durable cross-invocation dollar ledger is a
+separate billing-control phase.
 
 ## Meme template catalog
 

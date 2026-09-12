@@ -157,6 +157,14 @@
     {
       "authorizerType": "ApiKeyCredentialProvider",
       "name": "FrogBot_OpenRouter"
+    },
+    {
+      "authorizerType": "ApiKeyCredentialProvider",
+      "name": "FrogBotXApi"
+    },
+    {
+      "authorizerType": "ApiKeyCredentialProvider",
+      "name": "FrogBotYouTubeApi"
     }
   ],
   "evaluators": [
@@ -164,7 +172,6 @@
       "name": "FrogBotRunIntegrity",
       "level": "SESSION",
       "description": "Deterministically detects terminal failures without capturing conversation content",
-      "kmsKeyArn": "arn:aws:kms:us-east-1:188757775631:key/e9929d3a-9dec-4f34-8c83-dd0586cb0ef8",
       "config": {
         "codeBased": {
           "managed": {
@@ -214,7 +221,6 @@
       "name": "FrogBotRegression",
       "schemaType": "AGENTCORE_EVALUATION_PREDEFINED_V1",
       "description": "Critical behavior checks for research, browser, image, bot management, and failover",
-      "kmsKeyArn": "arn:aws:kms:us-east-1:188757775631:key/e9929d3a-9dec-4f34-8c83-dd0586cb0ef8",
       "config": {
         "managed": {
           "location": "agentcore/datasets/FrogBotRegression.jsonl"

@@ -23,6 +23,11 @@ experience. `/app` hosts the authenticated product. Catalog links use `/app?bot=
 `/app?preview=1` to exercise the complete UI without calling AWS; production builds ignore that
 flag.
 
+The app contains no official tool-name or tool-description registry. Its Tools screen renders the sanitized tools in
+the current backend catalog snapshot; preview mode parses the same public catalog. User OAuth and legacy connections
+are separated by provenance and appear only on the Connections screen. Browser-specific controls may still test the
+stable `browser` capability ID because they implement that capability rather than describe the catalog.
+
 ## Application backend
 
 Amplify owns Cognito and the application-facing AWS resources. One HTTP API Lambda keeps deployment
@@ -103,10 +108,11 @@ until the user changes them, forgets them, or deletes the account. Group memory 
 than being mixed into a participant's private memory.
 
 Public skills contain versioned instructions plus approved tool references, never executable code. Managed
-FroggyBot integrations stay in narrow AgentCore Gateway targets. A user may independently add a private HTTPS MCP
-server; its credential is encrypted in Secrets Manager, resolved only during invocation, and omitted from prompts,
-telemetry, catalog responses, and shares. Endpoint validation blocks local-network targets and the runtime repeats
-DNS checks before connecting.
+FroggyBot integrations stay in narrow AgentCore Gateway targets and use company-owned service credentials. Users
+never enter those developer keys. Private account data uses provider-specific OAuth; each user's token is encrypted
+in Secrets Manager, resolved only during invocation, and omitted from prompts, telemetry, catalog responses, and
+shares. Existing custom MCP connections remain runtime-compatible and removable, but no new or edited custom
+developer-key connections are exposed by the API.
 The separate `frogbot-skills` repository is the public website and capability publishing boundary. Pull requests are validated there;
 the backend then validates and caches releases before exposing only public metadata to signed-out visitors. Chief is a required public
 template: first-time setup installs it and applies the protected coordinator role without duplicating its prompt or capabilities in app code.
@@ -117,7 +123,7 @@ template: first-time setup installs it and applies the protected coordinator rol
 - Existing CDK construct IDs and resource names are stable because renaming them can replace data.
 - Every authenticated read/write verifies ownership or group membership server-side.
 - Invitation tokens are random, time-limited, and stored as hashes for sign-up validation.
-- A bot can receive only enabled built-ins, that user's private connections, and version-pinned skills in its saved configuration.
+- A bot can receive only enabled built-ins, that user's connected accounts or existing legacy connections, and version-pinned skills in its saved configuration.
 - Agent jobs are retried through SQS and failed permanently only after the configured retry limit.
 - One worker owns a turn at a time through a renewable lease; completion is conditional on that ownership.
 - Scheduled executions are idempotent by schedule execution ID, use IANA timezones, and never embed bot prompts in EventBridge.

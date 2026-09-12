@@ -21,7 +21,6 @@ import {
   demoRunSchedule,
   demoScheduleRuns,
   demoSaveBot,
-  demoSaveConnection,
   demoSaveGroup,
   demoSaveSchedule,
   demoSaveSkill,
@@ -105,7 +104,6 @@ export const createDemoApi = (): FrogBotApi => ({
   saveSkill: demoSaveSkill,
   shareSkill: async (skillId) => `https://froggybot.com/invite?kind=skill&token=demo-${skillId}`,
   importSkill: demoImportSkill,
-  saveConnection: demoSaveConnection,
   beginGmailConnection: async () => { throw new Error('Sign in to connect Gmail.'); },
   deleteConnection: async (connectionId) => demoDeleteConnection(connectionId),
 });

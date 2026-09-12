@@ -4,6 +4,11 @@ import json
 import uuid
 
 from boto3.dynamodb.conditions import Attr
+from shared.account_state import (
+    AccountInactiveError,
+    UserItemConflictError,
+    put_user_item_while_account_active,
+)
 from shared.browser_session_store import BrowserSessionError, context_key
 from shared.browser_sessions import delete_browser_context
 from shared.catalog import CatalogError
@@ -11,7 +16,6 @@ from shared.cleanup import has_pending_work
 from shared.memory_identity import direct_session_id, memory_actor_id
 from shared.work_state import processing_summary
 
-from .attachments import _public_file
 from .bot_documents import _delete_bot_documents, _preserve_bot_documents
 from .bot_roles import (
     ALLOWED_COLORS,
@@ -21,6 +25,7 @@ from .bot_roles import (
 )
 from .bot_setup import ensure_chief, install_bot_template
 from .direct_messages import _list_turn_page
+from .message_views import messages_from_turns
 from .support import (
     QUEUE_URL,
     ApiError,
@@ -39,6 +44,11 @@ from .support import (
     sqs,
     table,
 )
+
+
+def _messages_from_turns(turns: list[dict]) -> list[dict]:
+    return messages_from_turns(turns)
+
 
 LEGACY_BOT_TEMPLATE_IDS = {
     "starter-trip-planner": "trip-planner",
@@ -166,6 +176,8 @@ def _put_bot(
     values: dict,
     bot_id: str | None = None,
     system_role: str | None = None,
+    require_active_account: bool = False,
+    create_only: bool = False,
 ) -> dict:
     bot_id = bot_id or str(uuid.uuid4())
     current = _now()
@@ -199,7 +211,28 @@ def _put_bot(
     for key in ("templateId", "templateVersion"):
         if key in values:
             item[key] = values[key]
-    table.put_item(Item=item)
+    if require_active_account:
+        try:
+            put_user_item_while_account_active(
+                table,
+                user_id,
+                item,
+                require_absent=create_only,
+            )
+        except AccountInactiveError as exc:
+            raise ApiError(
+                409, "Account deletion is still in progress. Please try again."
+            ) from exc
+        except UserItemConflictError:
+            existing = table.get_item(
+                Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot_id)},
+                ConsistentRead=True,
+            ).get("Item")
+            if existing:
+                return _public_bot(existing)
+            raise
+    else:
+        table.put_item(Item=item)
     return _public_bot(item)
 
 
@@ -238,100 +271,6 @@ def _install_bot_template(user_id: str, template_id: str) -> dict:
 
 def _list_turns(user_id: str, bot_id: str, limit: int = 100) -> list[dict]:
     return _list_turn_page(user_id, bot_id, limit=limit)[0]
-
-
-def _messages_from_turns(turns: list[dict]) -> list[dict]:
-    messages = []
-    for turn in turns:
-        messages.append(
-            {
-                "id": f"{turn['id']}-user",
-                "role": "user",
-                "text": turn["userText"],
-                "createdAt": turn["createdAt"],
-                "status": "complete",
-                **(
-                    {
-                        "source": "schedule",
-                        "scheduleName": turn.get("scheduleName", "Scheduled task"),
-                    }
-                    if turn.get("source") == "schedule"
-                    else {}
-                ),
-                **(
-                    {
-                        "attachments": [
-                            _public_file(item)
-                            for item in turn["attachments"]
-                            if isinstance(item, dict)
-                        ]
-                    }
-                    if isinstance(turn.get("attachments"), list)
-                    else {}
-                ),
-            }
-        )
-        if turn.get("assistantText"):
-            messages.append(
-                {
-                    "id": f"{turn['id']}-assistant",
-                    "role": "assistant",
-                    "text": turn["assistantText"],
-                    "createdAt": turn.get("completedAt", turn["createdAt"]),
-                    "startedAt": turn.get("startedAt", turn["createdAt"]),
-                    "status": turn.get("status", "complete").lower(),
-                    "activity": turn.get("activity", []),
-                    **(
-                        {"activityUpdatedAt": turn["activityUpdatedAt"]}
-                        if isinstance(turn.get("activityUpdatedAt"), str)
-                        else {}
-                    ),
-                    **(
-                        {"completedAt": turn["completedAt"]}
-                        if isinstance(turn.get("completedAt"), str)
-                        else {}
-                    ),
-                    **(
-                        {
-                            "attachments": [
-                                _public_file(item)
-                                for item in turn["artifacts"]
-                                if isinstance(item, dict)
-                            ]
-                        }
-                        if isinstance(turn.get("artifacts"), list)
-                        else {}
-                    ),
-                }
-            )
-        elif turn.get("status") in {
-            "PENDING",
-            "RUNNING",
-            "NEEDS_INPUT",
-            "AWAITING_APPROVAL",
-        }:
-            messages.append(
-                {
-                    "id": f"{turn['id']}-assistant",
-                    "role": "assistant",
-                    "text": "",
-                    "createdAt": turn["createdAt"],
-                    "startedAt": turn.get("startedAt", turn["createdAt"]),
-                    "status": str(turn.get("status", "PENDING")).lower(),
-                    "activity": turn.get("activity", []),
-                    **(
-                        {"activityUpdatedAt": turn["activityUpdatedAt"]}
-                        if isinstance(turn.get("activityUpdatedAt"), str)
-                        else {}
-                    ),
-                    **(
-                        {"approvalTools": turn["approvalTools"]}
-                        if isinstance(turn.get("approvalTools"), list)
-                        else {}
-                    ),
-                }
-            )
-    return messages
 
 
 def _bootstrap(user_id: str) -> dict:
@@ -421,8 +360,21 @@ def _bootstrap(user_id: str) -> dict:
     }
 
 
-def _create_bot(user_id: str, value: dict) -> dict:
-    return _put_bot(user_id, _bot_values(user_id, value))
+def _create_bot(
+    user_id: str,
+    value: dict,
+    *,
+    bot_id: str | None = None,
+    require_active_account: bool = False,
+    create_only: bool = False,
+) -> dict:
+    return _put_bot(
+        user_id,
+        _bot_values(user_id, value),
+        bot_id=bot_id,
+        require_active_account=require_active_account,
+        create_only=create_only,
+    )
 
 
 def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:

@@ -9,8 +9,6 @@ import type {
   BotBrowserState,
   BotDocument,
   BotDraft,
-  Connection,
-  ConnectionDraft,
   Group,
   GroupDecision,
   GroupDraft,
@@ -27,7 +25,7 @@ import type {
   SkillDraft,
 } from './types';
 
-type UploadAsset = {
+export type UploadAsset = {
   uri: string;
   name: string;
   size: number;
@@ -98,7 +96,6 @@ export interface FrogBotApi {
   saveSkill(draft: SkillDraft, skillId?: string): Promise<SkillDetail>;
   shareSkill(skillId: string): Promise<string>;
   importSkill(token: string): Promise<SkillDetail>;
-  saveConnection(draft: ConnectionDraft, connectionId?: string): Promise<Connection>;
   beginGmailConnection(returnUrl: string): Promise<string>;
   deleteConnection(connectionId: string): Promise<void>;
 }

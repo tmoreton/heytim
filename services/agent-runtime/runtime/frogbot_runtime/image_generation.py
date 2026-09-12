@@ -258,6 +258,7 @@ async def _invoke_image(
     aspect_ratio: str,
     *,
     input_references: list[str] | None = None,
+    before_dispatch: Callable[[], None] | None = None,
 ) -> bytes:
     request: dict[str, Any] = {
         "model": IMAGE_MODEL_ID,
@@ -273,6 +274,8 @@ async def _invoke_image(
         ]
     response = None
     for attempt in range(1, IMAGE_MAX_ATTEMPTS + 1):
+        if before_dispatch is not None:
+            before_dispatch()
         try:
             response = await client.post(
                 f"{OPENROUTER_BASE_URL.rstrip('/')}/images",
@@ -314,6 +317,7 @@ def image_generation_tools(
     s3_client=None,
     http_client: httpx.AsyncClient | None = None,
     api_key_loader: Callable[[], Awaitable[str]] | None = None,
+    usage: Any = None,
 ):
     if not artifacts.FILES_BUCKET_NAME or not artifacts._valid_prefix(prefix):
         raise ValueError("Artifact storage is not configured")
@@ -322,7 +326,10 @@ def image_generation_tools(
     references = list(image_references or [])[:MAX_REFERENCE_IMAGES]
 
     async def generate(
-        prompt: str, aspect_ratio: str, input_references: list[str] | None = None
+        prompt: str,
+        aspect_ratio: str,
+        operation: str,
+        input_references: list[str] | None = None,
     ) -> bytes:
         try:
             api_key = await load_api_key()
@@ -343,6 +350,11 @@ def image_generation_tools(
                 prompt,
                 aspect_ratio,
                 input_references=input_references,
+                before_dispatch=(
+                    (lambda: usage.observe_tool("openrouter", operation))
+                    if usage is not None
+                    else None
+                ),
             )
         finally:
             if owns_client:
@@ -355,7 +367,7 @@ def image_generation_tools(
         """Create one original image with the configured OpenRouter image model.
 
         Set aspect_ratio to youtube for 16:9, portrait for 9:16, or square for 1:1.
-        For a YouTube thumbnail needing exact text or supplied portraits/logos, use
+        For a YouTube thumbnail with requested text or supplied portraits/logos, use
         create_youtube_thumbnail instead.
         """
         safe_name = _safe_png_name(filename)
@@ -363,7 +375,11 @@ def image_generation_tools(
         if aspect_ratio not in ASPECT_RATIOS:
             raise ValueError("aspect_ratio must be square, youtube, or portrait")
         image = _normalized_png(
-            await generate(clean_prompt, ASPECT_RATIOS[aspect_ratio])
+            await generate(
+                clean_prompt,
+                ASPECT_RATIOS[aspect_ratio],
+                "generate_image",
+            )
         )
         artifacts._put_artifact(storage, prefix, safe_name, image, "image/png")
         return f"Saved {safe_name} as an original image created with OpenRouter."
@@ -379,9 +395,11 @@ def image_generation_tools(
     ) -> str:
         """Create a complete 1280x720 YouTube thumbnail through OpenRouter.
 
-        Preserves exact headline copy and can include recent user-supplied portraits
-        and logos. Select those files by their numbers in the IMAGE_REFERENCES manifest.
-        Check that manifest before claiming a recent image is unavailable.
+        Requests the supplied headline copy and can include recent user-supplied
+        portraits and logos. Generative text can contain mistakes, so inspect the
+        saved image before calling it final and report any mismatch honestly.
+        Select files by their numbers in the IMAGE_REFERENCES manifest. Check that
+        manifest before claiming a recent image is unavailable.
         """
         safe_name = _safe_png_name(filename)
         clean_prompt = _clean_text(background_prompt, "background_prompt", 2_000)
@@ -409,7 +427,12 @@ def image_generation_tools(
             logo_count=len(logo_numbers),
         )
         image = _normalized_png(
-            await generate(complete_prompt, "16:9", reference_urls),
+            await generate(
+                complete_prompt,
+                "16:9",
+                "create_youtube_thumbnail",
+                reference_urls,
+            ),
             size=(1280, 720),
         )
         artifacts._put_artifact(storage, prefix, safe_name, image, "image/png")

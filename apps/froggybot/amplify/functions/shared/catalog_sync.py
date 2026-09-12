@@ -397,6 +397,7 @@ class CatalogSyncMixin:
                         "sk": f"TOOL#{tool['id']}",
                         "entity": "TOOL",
                         **tool,
+                        "source": "official",
                     }
                 )
             for skill in skills:

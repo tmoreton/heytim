@@ -21,7 +21,7 @@ from .bots import (
     _update_bot,
 )
 from .browser_sessions import browser_session_route
-from .connections import _connections, _delete_connection, _save_connection
+from .connections import _connections, _delete_connection
 from .direct_chat import (
     _approve_bot_turn,
     _cancel_bot_turn,
@@ -88,13 +88,6 @@ def _library_route(
         return _response(200, _connections(user_id))
     if method == "POST" and path == "/connections/gmail/authorization":
         return _response(200, _begin_gmail_authorization(user_id, _body(event)))
-    if method == "POST" and path == "/connections":
-        return _response(201, _save_connection(user_id, _body(event)))
-    if method == "PUT" and path.startswith("/connections/"):
-        return _response(
-            200,
-            _save_connection(user_id, _body(event), params.get("connectionId", "")),
-        )
     if method == "DELETE" and path.startswith("/connections/"):
         return _response(
             200, _delete_connection(user_id, params.get("connectionId", ""))
@@ -444,8 +437,6 @@ ROUTE_HANDLERS: dict[str, Route] = {
         _library_route,
         "GET /connections",
         "POST /connections/gmail/authorization",
-        "POST /connections",
-        "PUT /connections/{connectionId}",
         "DELETE /connections/{connectionId}",
         "GET /memory",
         "POST /memory",

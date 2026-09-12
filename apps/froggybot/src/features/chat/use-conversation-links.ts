@@ -82,7 +82,7 @@ export function useConversationLinks({
         await loadBootstrap();
         Alert.alert('Gmail connected', 'Your Gmail Assistant is ready.');
       } else {
-        Alert.alert('Gmail was not connected', 'Try again from Skills & tools.');
+        Alert.alert('Gmail was not connected', 'Try again from Account → Connections.');
       }
       return;
     }

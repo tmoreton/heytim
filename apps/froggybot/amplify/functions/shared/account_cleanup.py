@@ -14,6 +14,7 @@ from shared.memory_cleanup import delete_group_memory, delete_user_memory
 from shared.memory_identity import direct_session_id, memory_actor_id, scoped_session_id
 from shared.schedules import delete_remote_schedule
 from shared.storage import delete_object_versions
+from shared.work_state import IN_FLIGHT_STATUSES
 
 
 @dataclass(frozen=True)
@@ -74,9 +75,13 @@ class AccountCleanupService:
                 return items
             request["ExclusiveStartKey"] = last_key
 
-    def scan_items(self, filter_expression: Any) -> list[dict]:
+    def scan_items(
+        self, filter_expression: Any, *, consistent_read: bool = False
+    ) -> list[dict]:
         items = []
         request: dict[str, Any] = {"FilterExpression": filter_expression}
+        if consistent_read:
+            request["ConsistentRead"] = True
         while True:
             response = self.table.scan(**request)
             items.extend(response.get("Items", []))
@@ -148,7 +153,13 @@ class AccountCleanupService:
                 item.get("entity") == "GROUP" and item.get("ownerId") == user_id
                 for item in entries
             )
-            items.extend(item for item in entries if owns_group or item.get("botOwnerId") == user_id)
+            items.extend(
+                item
+                for item in entries
+                if owns_group
+                or item.get("botOwnerId") == user_id
+                or item.get("billingUserId") == user_id
+            )
         return [
             work for item in items for work in item.get("pendingWork", [])
             if isinstance(work, dict) and work.get("provider") == "agentcore_runtime"
@@ -180,7 +191,96 @@ class AccountCleanupService:
                     session_ids.add(
                         scoped_session_id(f"group:{group_id}:bot:{bot_id}")
                     )
+                billed_bot_id = item.get("authorId")
+                if (
+                    item.get("entity") == "GROUP_MESSAGE"
+                    and item.get("authorType") == "bot"
+                    and item.get("billingUserId") == user_id
+                    and isinstance(billed_bot_id, str)
+                ):
+                    session_ids.add(
+                        scoped_session_id(
+                            f"group:{group_id}:bot:{billed_bot_id}"
+                        )
+                    )
         return session_ids
+
+    def cancel_billed_group_replies(
+        self, user_id: str, group_items: dict[str, list[dict]]
+    ) -> None:
+        """Fence paid group work before discovering and stopping its sessions."""
+        for items in group_items.values():
+            for item in items:
+                if (
+                    item.get("entity") != "GROUP_MESSAGE"
+                    or item.get("authorType") != "bot"
+                    or item.get("billingUserId") != user_id
+                    or item.get("status") not in {"PENDING", "WAITING", "RUNNING"}
+                ):
+                    continue
+                try:
+                    self.table.update_item(
+                        Key={"pk": item["pk"], "sk": item["sk"]},
+                        UpdateExpression=(
+                            "SET #status = :cancelled, cancelledAt = :now"
+                        ),
+                        ConditionExpression=(
+                            "billingUserId = :user AND "
+                            "#status IN (:pending, :waiting, :running)"
+                        ),
+                        ExpressionAttributeNames={"#status": "status"},
+                        ExpressionAttributeValues={
+                            ":user": user_id,
+                            ":pending": "PENDING",
+                            ":waiting": "WAITING",
+                            ":running": "RUNNING",
+                            ":cancelled": "CANCELLED",
+                            ":now": self.now(),
+                        },
+                    )
+                except self.table.meta.client.exceptions.ConditionalCheckFailedException:
+                    continue
+
+    def cancel_billed_direct_turns(
+        self, user_id: str, chat_items: list[dict]
+    ) -> None:
+        """Fence direct work before discovering its runtime and tool sessions."""
+        statuses = tuple(sorted(IN_FLIGHT_STATUSES))
+        placeholders = tuple(f":status{index}" for index in range(len(statuses)))
+        for item in chat_items:
+            if (
+                item.get("entity") != "TURN"
+                or item.get("userId") != user_id
+                or item.get("status") not in IN_FLIGHT_STATUSES
+            ):
+                continue
+            values = {
+                ":user": user_id,
+                ":cancelled": "CANCELLED",
+                ":now": self.now(),
+                **dict(zip(placeholders, statuses, strict=True)),
+            }
+            try:
+                self.table.update_item(
+                    Key={"pk": item["pk"], "sk": item["sk"]},
+                    UpdateExpression="SET #status = :cancelled, cancelledAt = :now",
+                    ConditionExpression=(
+                        "userId = :user AND #status IN "
+                        f"({', '.join(placeholders)})"
+                    ),
+                    ExpressionAttributeNames={"#status": "status"},
+                    ExpressionAttributeValues=values,
+                )
+            except self.table.meta.client.exceptions.ConditionalCheckFailedException:
+                continue
+
+    def fence_billed_direct_turns(self, user_id: str) -> list[dict]:
+        chat_filter = Attr("pk").begins_with(f"CHAT#{user_id}#")
+        chat_items = self.scan_items(chat_filter, consistent_read=True)
+        self.cancel_billed_direct_turns(user_id, chat_items)
+        # A worker may have persisted a runtime identity just before its
+        # conditional pause lost the race with cancellation.
+        return self.scan_items(chat_filter, consistent_read=True)
 
     def stop_runtime_sessions(self, session_ids: set[str]) -> None:
         if not self.config.agent_runtime_arn:
@@ -289,7 +389,8 @@ class AccountCleanupService:
                         and group_item.get("authorId") == user_id
                     )
                     owned_bot_data = group_item.get("botOwnerId") == user_id
-                    if authored_message or owned_bot_data:
+                    billed_group_data = group_item.get("billingUserId") == user_id
+                    if authored_message or owned_bot_data or billed_group_data:
                         batch.delete_item(
                             Key={"pk": group_item["pk"], "sk": group_item["sk"]}
                         )
@@ -320,11 +421,34 @@ class AccountCleanupService:
             if item.get("entity") == "USER_GROUP"
             and isinstance(item.get("groupId"), str)
         }
+        # A previous cleanup attempt may already have removed the membership
+        # pointer. Rediscover group messages charged to this account so their
+        # running sessions and durable work cannot survive a restarted deletion.
+        billed_group_items = self.scan_items(
+            Attr("entity").eq("GROUP_MESSAGE")
+            & Attr("billingUserId").eq(user_id),
+            consistent_read=True,
+        )
+        group_ids.update(
+            pk.removeprefix("GROUP#")
+            for item in billed_group_items
+            if isinstance((pk := item.get("pk")), str)
+            and pk.startswith("GROUP#")
+            and len(pk) > len("GROUP#")
+        )
         group_items_by_id = {
             group_id: self.partition_items(group_pk(group_id))
             for group_id in group_ids
         }
-        chat_items = self.scan_items(Attr("pk").begins_with(f"CHAT#{user_id}#"))
+        self.cancel_billed_group_replies(user_id, group_items_by_id)
+        # Refresh after the cancellation fence. A worker that had already paused
+        # now exposes its pending runtime identity, while a RUNNING worker can no
+        # longer persist or dispatch new background work from this reply.
+        group_items_by_id = {
+            group_id: self.partition_items(group_pk(group_id))
+            for group_id in group_ids
+        }
+        chat_items = self.fence_billed_direct_turns(user_id)
         session_items = user_items + chat_items
         session_ids = self.owned_agent_session_ids(user_id, session_items, group_items_by_id)
 

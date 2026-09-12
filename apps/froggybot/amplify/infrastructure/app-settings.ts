@@ -1,0 +1,73 @@
+export const PUBLIC_WEB_BASE_URL = 'https://froggybot.com';
+export const CAPABILITY_CATALOG_URL = `${PUBLIC_WEB_BASE_URL}/catalog.json`;
+export const ALLOWED_WEB_ORIGINS = [
+  PUBLIC_WEB_BASE_URL,
+  'https://app.froggybot.com',
+  'https://www.froggybot.com',
+  'https://frogbot.expo.app',
+  'http://localhost:8081',
+  'http://localhost:19006',
+];
+export const FUNCTION_ASSET_EXCLUDES = [
+  'tests/**',
+  '**/__pycache__/**',
+  '**/*.pyc',
+  '.pytest_cache/**',
+  '.ruff_cache/**',
+];
+export const WORKER_CONCURRENCY = 10;
+
+function boundedIntegerSetting(
+  name: string,
+  defaultValue: number,
+  minimum: number,
+  maximum: number,
+): number {
+  const raw = process.env[name];
+  if (raw === undefined) return defaultValue;
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(`${name} must be a whole number.`);
+  }
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${name} must be between ${minimum} and ${maximum}.`);
+  }
+  return value;
+}
+
+function requiredSetting(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Set ${name} before running an Amplify sandbox or deploy.`);
+  }
+  return value;
+}
+
+export const monthlyRunUnitLimit = boundedIntegerSetting(
+  'FROGBOT_MONTHLY_RUN_UNIT_LIMIT', 1_000, 1, 1_000_000,
+);
+export const userWindowRunUnitLimit = boundedIntegerSetting(
+  'FROGBOT_USER_WINDOW_RUN_UNIT_LIMIT', 30, 1, 10_000,
+);
+export const globalWindowRunUnitLimit = boundedIntegerSetting(
+  'FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT', 300, 1, 100_000,
+);
+export const usageWindowSeconds = boundedIntegerSetting(
+  'FROGBOT_USAGE_WINDOW_SECONDS', 60, 10, 3_600,
+);
+export const youtubeSearchDailyLimit = boundedIntegerSetting(
+  'FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT', 100, 3, 1_000_000,
+);
+
+export const deploymentEnvironment = process.env.FROGBOT_ENVIRONMENT ?? 'development';
+if (!/^[a-z][a-z0-9-]{0,20}$/.test(deploymentEnvironment)) {
+  throw new Error('FROGBOT_ENVIRONMENT must be a short lowercase environment name.');
+}
+
+export const runtimeArn = requiredSetting('FROGBOT_AGENT_RUNTIME_ARN');
+export const memoryId = requiredSetting('FROGBOT_MEMORY_ID');
+export const googleOAuthSecretArn = requiredSetting('FROGBOT_GOOGLE_OAUTH_SECRET_ARN');
+export const monthlyBudgetUsd = Number(process.env.FROGBOT_MONTHLY_BUDGET_USD ?? '100');
+if (!Number.isFinite(monthlyBudgetUsd) || monthlyBudgetUsd <= 0) {
+  throw new Error('FROGBOT_MONTHLY_BUDGET_USD must be a positive number.');
+}

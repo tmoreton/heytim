@@ -1,21 +1,19 @@
 import type { Bot, BotTemplate, Skill } from './types';
 import { CHIEF_COLOR, CHIEF_TEMPLATE_ID } from './bot-branding';
+import { toolIdsForTemplate } from './demo-fixtures';
 
 export const createDemoChief = (
   template: BotTemplate,
   skills: Skill[],
   timestamp: string,
 ): Bot => {
-  const skillToolIds = skills
-    .filter((skill) => template.skillIds.includes(skill.id))
-    .flatMap((skill) => skill.requiredToolIds);
   return {
     id: CHIEF_TEMPLATE_ID,
     name: template.name,
     tagline: template.tagline,
     color: CHIEF_COLOR,
     prompt: template.prompt,
-    toolIds: [...new Set([...template.toolIds, ...skillToolIds])],
+    toolIds: toolIdsForTemplate(template, skills),
     extraToolIds: template.toolIds,
     alwaysAllowedToolIds: [],
     skillIds: template.skillIds,

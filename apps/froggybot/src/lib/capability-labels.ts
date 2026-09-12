@@ -1,12 +1,5 @@
 import type { Capability } from './types';
 
-export const providerLabel = (provider?: string): string => {
-  if (provider === 'gmail') return 'Google';
-  if (provider === 'mcp') return 'Private connection';
-  if (provider === 'agentcore-gateway') return 'Connected service';
-  return 'Built-in';
-};
-
 export const requiredToolLabels = (ids: string[], tools: Capability[]): string[] => {
   const names = new Map(tools.map((tool) => [tool.id, tool.name]));
   const visible: string[] = [];

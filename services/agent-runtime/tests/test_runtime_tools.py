@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
 
-from frogbot_runtime import agentcore_adapters, capabilities
+from frogbot_runtime import agentcore_adapters, capabilities, gateway_tools
 from frogbot_runtime.background_work import (
     BackgroundWorkTracker,
     start_background_command,
@@ -13,6 +14,17 @@ from frogbot_runtime.background_work import (
 from frogbot_runtime.capability_contract import tool_bindings
 from frogbot_runtime.configuration import bot_configuration
 from frogbot_runtime.local_tools import calculate
+from model.usage import (
+    YOUTUBE_QUOTA_TIME_ZONE,
+    ProviderCallLimitExceeded,
+    ProviderCallLimits,
+    UsageAccumulator,
+)
+
+
+def _youtube_quota() -> dict:
+    day = datetime.now(UTC).astimezone(YOUTUBE_QUOTA_TIME_ZONE).date().isoformat()
+    return {"day": day, "maxCalls": 3}
 
 
 def test_catalog_bindings_select_stan_features_and_local_tools(monkeypatch) -> None:
@@ -260,6 +272,106 @@ def test_calculator_accepts_arithmetic_and_rejects_code() -> None:
         assert "unsupported" in str(error)
     else:
         raise AssertionError("calculator accepted executable code")
+
+
+def test_gateway_dispatches_are_counted_without_arguments(monkeypatch) -> None:
+    accumulator = UsageAccumulator(youtube_search_quota=_youtube_quota())
+    client = object.__new__(gateway_tools.MeteredMCPClient)
+    client._frogbot_usage = accumulator
+
+    monkeypatch.setattr(
+        gateway_tools.MCPClient,
+        "call_tool_sync",
+        lambda *_args, **_kwargs: "sync-result",
+    )
+
+    async def call_async(*_args, **_kwargs):
+        return "async-result"
+
+    monkeypatch.setattr(gateway_tools.MCPClient, "call_tool_async", call_async)
+
+    assert client.call_tool_sync("use-1", "target___youtube_search", {"q": "x"}) == "sync-result"
+    assert (
+        asyncio.run(
+            client.call_tool_async(
+                "use-2", "target___youtube_search", {"q": "private"}
+            )
+        )
+        == "async-result"
+    )
+
+    assert accumulator.snapshot()["tools"] == [
+        {
+            "provider": "agentcore-gateway",
+            "operation": "youtube_search",
+            "callCount": 2,
+        }
+    ]
+
+
+def test_gateway_dispatch_limit_blocks_before_provider_call(monkeypatch) -> None:
+    accumulator = UsageAccumulator(
+        ProviderCallLimits(
+            model_calls=10,
+            provider_tool_calls=1,
+            image_calls=1,
+        ),
+        youtube_search_quota=_youtube_quota(),
+    )
+    client = object.__new__(gateway_tools.MeteredMCPClient)
+    client._frogbot_usage = accumulator
+    provider_calls = []
+    monkeypatch.setattr(
+        gateway_tools.MCPClient,
+        "call_tool_sync",
+        lambda *_args, **_kwargs: provider_calls.append(True) or "result",
+    )
+
+    assert client.call_tool_sync("use-1", "target___youtube_search", {}) == "result"
+    with pytest.raises(ProviderCallLimitExceeded, match="provider-tool"):
+        client.call_tool_sync("use-2", "target___youtube_search", {})
+
+    assert provider_calls == [True]
+
+
+def test_youtube_search_lease_blocks_fourth_dispatch(monkeypatch) -> None:
+    accumulator = UsageAccumulator(youtube_search_quota=_youtube_quota())
+    client = object.__new__(gateway_tools.MeteredMCPClient)
+    client._frogbot_usage = accumulator
+    provider_calls = []
+    monkeypatch.setattr(
+        gateway_tools.MCPClient,
+        "call_tool_sync",
+        lambda *_args, **_kwargs: provider_calls.append(True) or "result",
+    )
+
+    for index in range(3):
+        assert client.call_tool_sync(
+            f"use-{index}", "target___youtube_search", {}
+        ) == "result"
+    with pytest.raises(ProviderCallLimitExceeded, match="YouTube search"):
+        client.call_tool_sync("use-4", "target___youtube_search", {})
+
+    assert provider_calls == [True, True, True]
+
+
+def test_youtube_search_requires_current_reserved_day(monkeypatch) -> None:
+    quota = _youtube_quota()
+    accumulator = UsageAccumulator(youtube_search_quota=quota)
+    accumulator._youtube_quota_day = lambda: "2099-01-01"
+    client = object.__new__(gateway_tools.MeteredMCPClient)
+    client._frogbot_usage = accumulator
+    provider_calls = []
+    monkeypatch.setattr(
+        gateway_tools.MCPClient,
+        "call_tool_sync",
+        lambda *_args, **_kwargs: provider_calls.append(True) or "result",
+    )
+
+    with pytest.raises(ProviderCallLimitExceeded, match="expired"):
+        client.call_tool_sync("use-1", "target___youtube_search", {})
+
+    assert provider_calls == []
 
 
 def test_code_interpreter_reconnects_ready_session_after_cold_start(
