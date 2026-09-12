@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from boto3.dynamodb.conditions import Attr
+from botocore.exceptions import BotoCoreError, ClientError
 from shared.push_delivery import receipt_key, receipt_status, ticket_status
 
 from .support import (
@@ -17,6 +18,7 @@ from .support import (
     _push_owner_key,
     _push_token_key,
     _schedule_key,
+    sns,
     sqs,
     table,
 )
@@ -46,14 +48,22 @@ def _post_json(url: str, payload: Any) -> dict:
 
 
 def _remove_push_token(user_id: str, token_id: str) -> None:
+    token_key = _push_token_key(user_id, token_id)
+    token = table.get_item(Key=token_key, ConsistentRead=True).get("Item", {})
     owner_key = _push_owner_key(token_id)
     owner = (
         table.get_item(Key=owner_key, ConsistentRead=True).get("Item", {}).get("userId")
     )
     with table.batch_writer() as batch:
-        batch.delete_item(Key=_push_token_key(user_id, token_id))
+        batch.delete_item(Key=token_key)
         if owner == user_id:
             batch.delete_item(Key=owner_key)
+    endpoint_arn = token.get("endpointArn")
+    if isinstance(endpoint_arn, str) and endpoint_arn:
+        try:
+            sns.delete_endpoint(EndpointArn=endpoint_arn)
+        except (BotoCoreError, ClientError):
+            logger.warning("Could not delete an invalid native push endpoint")
 
 
 def _push_tokens(user_id: str) -> list[dict]:
@@ -76,10 +86,14 @@ def _push_tokens(user_id: str) -> list[dict]:
     tokens = []
     for item in items:
         token_id = item.get("tokenId")
-        token = item.get("expoPushToken")
+        provider = item.get("provider")
+        if provider is None and isinstance(item.get("expoPushToken"), str):
+            provider = "expo"
+        token = item.get("pushToken") or item.get("expoPushToken")
         if (
             not isinstance(token_id, str)
             or not isinstance(token, str)
+            or provider not in {"expo", "apns"}
             or int(item.get("expiresAt", 0)) <= now
         ):
             continue
@@ -89,7 +103,17 @@ def _push_tokens(user_id: str) -> list[dict]:
             .get("userId")
         )
         if owner == user_id:
-            tokens.append({"tokenId": token_id, "token": token})
+            registration = {"tokenId": token_id, "token": token, "provider": provider}
+            if provider == "apns":
+                endpoint_arn = item.get("endpointArn")
+                environment = item.get("environment")
+                if not isinstance(endpoint_arn, str) or environment not in {
+                    "sandbox",
+                    "production",
+                }:
+                    continue
+                registration.update(endpointArn=endpoint_arn, environment=environment)
+            tokens.append(registration)
     return tokens
 
 
@@ -107,6 +131,48 @@ def _notification_key(request: dict) -> dict[str, str]:
         )
     digest = hashlib.sha256(notification_id.encode("utf-8")).hexdigest()
     return {"pk": f"NOTIFICATION#{digest}", "sk": "DELIVERY"}
+
+
+def _native_message(title: str, body: str, data: dict) -> dict:
+    return {
+        "aps": {"alert": {"title": title, "body": body}, "sound": "default"},
+        **data,
+    }
+
+
+def _send_native_push(token: dict, title: str, body: str, data: dict) -> str:
+    endpoint_arn = token["endpointArn"]
+    platform_key = "APNS_SANDBOX" if token["environment"] == "sandbox" else "APNS"
+    payload = _native_message(title, body, data)
+    response = sns.publish(
+        TargetArn=endpoint_arn,
+        MessageStructure="json",
+        MessageAttributes={
+            "AWS.SNS.MOBILE.APNS.PUSH_TYPE": {
+                "DataType": "String",
+                "StringValue": "alert",
+            },
+            "AWS.SNS.MOBILE.APNS.PRIORITY": {
+                "DataType": "String",
+                "StringValue": "10",
+            },
+        },
+        Message=json.dumps(
+            {"default": body, platform_key: json.dumps(payload, separators=(",", ":"))},
+            separators=(",", ":"),
+        ),
+    )
+    message_id = response.get("MessageId")
+    if not isinstance(message_id, str) or not message_id:
+        raise TypeError("SNS did not return a native push message ID")
+    return message_id
+
+
+def _sns_error_code(value: Exception) -> str | None:
+    response = getattr(value, "response", None)
+    error = response.get("Error") if isinstance(response, dict) else None
+    code = error.get("Code") if isinstance(error, dict) else None
+    return code if isinstance(code, str) else None
 
 
 def _claim_notification(request: dict) -> dict | None:
@@ -165,6 +231,8 @@ def _send_push_notification(request: dict) -> None:
         if isinstance(task_name, str) and task_name
         else f"{request['botName']} replied"
     )
+    expo_tokens = [item for item in tokens if item.get("provider", "expo") == "expo"]
+    native_tokens = [item for item in tokens if item.get("provider") == "apns"]
     messages = [
         {
             "to": item["token"],
@@ -174,25 +242,27 @@ def _send_push_notification(request: dict) -> None:
             "data": notification_data,
             "channelId": "agent-replies",
         }
-        for item in tokens
+        for item in expo_tokens
     ]
-    try:
-        response = _post_json(EXPO_PUSH_URL, messages)
-    except Exception:
-        # The remote service may have accepted the request even when the client
-        # did not receive a response. Keep the claim to prevent duplicate pushes.
-        _finish_notification(delivery_key, "UNKNOWN")
-        raise
-    tickets = response.get("data", [])
-    if isinstance(tickets, dict):
-        tickets = [tickets]
-    if not isinstance(tickets, list):
-        _finish_notification(delivery_key, "UNKNOWN")
-        raise TypeError("Expo push service returned invalid tickets")
+    tickets = []
+    if messages:
+        try:
+            response = _post_json(EXPO_PUSH_URL, messages)
+        except Exception:
+            # The remote service may have accepted the request even when the client
+            # did not receive a response. Keep the claim to prevent duplicate pushes.
+            _finish_notification(delivery_key, "UNKNOWN")
+            raise
+        tickets = response.get("data", [])
+        if isinstance(tickets, dict):
+            tickets = [tickets]
+        if not isinstance(tickets, list):
+            _finish_notification(delivery_key, "UNKNOWN")
+            raise TypeError("Expo push service returned invalid tickets")
 
     receipts = []
     rejected = 0
-    for item, ticket in zip(tokens, tickets, strict=False):
+    for item, ticket in zip(expo_tokens, tickets, strict=False):
         if not isinstance(ticket, dict):
             continue
         if ticket.get("status") == "ok" and isinstance(ticket.get("id"), str):
@@ -211,9 +281,34 @@ def _send_push_notification(request: dict) -> None:
                 error or ticket.get("message", "unknown error"),
             )
 
-    unknown = max(0, len(tokens) - len(receipts) - rejected)
-    if len(tickets) != len(tokens):
+    unknown = max(0, len(expo_tokens) - len(receipts) - rejected)
+    if len(tickets) != len(expo_tokens):
         unknown = max(1, unknown)
+    receipt_states = {
+        receipt_key(item["id"]): {**item, "status": "PENDING"} for item in receipts
+    }
+    accepted = len(receipts)
+    for item in native_tokens:
+        try:
+            message_id = _send_native_push(
+                item,
+                title,
+                _notification_copy(request["answer"]),
+                notification_data,
+            )
+            accepted += 1
+            receipt_states[f"native-{receipt_key(message_id)}"] = {
+                "id": message_id,
+                "tokenId": item["tokenId"],
+                "status": "PROVIDER_ACCEPTED",
+            }
+        except Exception as exc:
+            if _sns_error_code(exc) in {"EndpointDisabled", "NotFound"}:
+                rejected += 1
+                _remove_push_token(user_id, item["tokenId"])
+            else:
+                unknown += 1
+                logger.warning("Native push outcome is unknown", exc_info=True)
     # Keep enough state to distinguish provider acceptance from device receipt.
     table.update_item(
         Key=delivery_key,
@@ -222,20 +317,18 @@ def _send_push_notification(request: dict) -> None:
             "unknownTickets = :unknown, receiptStatus = :status"
         ),
         ExpressionAttributeValues={
-            ":states": {
-                receipt_key(item["id"]): {**item, "status": "PENDING"}
-                for item in receipts
-            },
+            ":states": receipt_states,
             ":rejected": rejected,
             ":unknown": unknown,
             ":status": "PENDING_RECEIPTS"
             if receipts
-            else ("UNKNOWN" if unknown else "FAILED"),
+            else receipt_status(receipt_states, rejected, unknown),
         },
     )
-    status = ticket_status(len(tokens), len(receipts), rejected)
+    status = ticket_status(len(tokens), accepted, rejected)
     _finish_notification(
-        delivery_key, status if len(tickets) == len(tokens) else "UNKNOWN"
+        delivery_key,
+        status if accepted + rejected == len(tokens) and unknown == 0 else "UNKNOWN",
     )
     _queue_receipt_check(delivery_key, user_id)
 

@@ -86,6 +86,21 @@ class FakeTable:
     def delete_item(self, *, Key: dict) -> None:
         self.items.pop((Key["pk"], Key["sk"]), None)
 
+    def batch_writer(self):
+        table = self
+
+        class BatchWriter:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            def delete_item(self, *, Key: dict) -> None:
+                table.delete_item(Key=Key)
+
+        return BatchWriter()
+
     def get_item(self, *, Key: dict, **_kwargs) -> dict:
         item = self.items.get((Key["pk"], Key["sk"]))
         return {"Item": dict(item)} if item else {}
@@ -191,6 +206,7 @@ class WorkerTestCase(unittest.TestCase):
         cls.s3 = MagicMock()
         cls.cognito = MagicMock()
         cls.scheduler = MagicMock()
+        cls.sns = MagicMock()
         cls.cognito.exceptions.UserNotFoundException = type(
             "UserNotFoundException", (Exception,), {}
         )
@@ -208,6 +224,7 @@ class WorkerTestCase(unittest.TestCase):
                 "s3": cls.s3,
                 "cognito-idp": cls.cognito,
                 "scheduler": cls.scheduler,
+                "sns": cls.sns,
             }[service]
 
         environment = {

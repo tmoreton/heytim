@@ -165,6 +165,7 @@ class ApiTestCase(unittest.TestCase):
             "ResourceNotFoundException", (Exception,), {}
         )
         cls.s3 = MagicMock()
+        cls.sns = MagicMock()
 
         def resource(_service: str):
             return SimpleNamespace(
@@ -180,6 +181,7 @@ class ApiTestCase(unittest.TestCase):
                 "cognito-idp": cls.cognito,
                 "bedrock-agentcore": cls.agentcore,
                 "s3": cls.s3,
+                "sns": cls.sns,
             }[service]
 
         environment = {
@@ -261,4 +263,5 @@ class ApiTestCase(unittest.TestCase):
         self.agentcore.reset_mock()
         self.sqs.reset_mock()
         self.s3.reset_mock()
+        self.sns.reset_mock()
         self.s3.list_object_versions.return_value = {}

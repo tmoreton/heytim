@@ -108,6 +108,8 @@ jobs:
           FROGBOT_ENVIRONMENT: production
           FROGBOT_GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_GOOGLE_OAUTH_SECRET_ARN }}
           FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT: ${{ vars.FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT || '100' }}
+          FROGBOT_APNS_APPLICATION_ARN: ${{ vars.FROGBOT_APNS_APPLICATION_ARN }}
+          FROGBOT_APNS_SANDBOX_APPLICATION_ARN: ${{ vars.FROGBOT_APNS_SANDBOX_APPLICATION_ARN }}
         run: npx ampx pipeline-deploy --branch main --app-id "${{ vars.AMPLIFY_APP_ID }}" --outputs-out-dir ../../apps/froggybot
 
       - name: Harden AgentCore runtime logs

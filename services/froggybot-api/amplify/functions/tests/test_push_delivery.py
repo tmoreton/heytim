@@ -100,6 +100,39 @@ class PushDeliveryTests(WorkerTestCase):
         self.send({"data": []})
         self.assertEqual(self.saved()["status"], "UNKNOWN")
 
+    def test_native_push_is_published_through_sns_without_an_expo_receipt_job(self):
+        native = {
+            "tokenId": "native-1",
+            "token": "ab" * 32,
+            "provider": "apns",
+            "endpointArn": "arn:aws:sns:us-east-1:123:endpoint/APNS/FroggyBot/one",
+            "environment": "production",
+        }
+        self.sns.publish.return_value = {"MessageId": "message-native-1"}
+        with patch.object(self.notifications, "_push_tokens", return_value=[native]):
+            self.send({})
+        self.assertEqual(self.saved()["status"], "ACCEPTED")
+        self.assertEqual(self.saved()["receiptStatus"], "PROVIDER_ACCEPTED")
+        self.sqs.send_message.assert_not_called()
+        published = self.sns.publish.call_args.kwargs
+        self.assertEqual(published["TargetArn"], native["endpointArn"])
+        self.assertEqual(
+            published["MessageAttributes"]["AWS.SNS.MOBILE.APNS.PUSH_TYPE"][
+                "StringValue"
+            ],
+            "alert",
+        )
+        self.assertEqual(
+            published["MessageAttributes"]["AWS.SNS.MOBILE.APNS.PRIORITY"][
+                "StringValue"
+            ],
+            "10",
+        )
+        wrapper = json.loads(published["Message"])
+        payload = json.loads(wrapper["APNS"])
+        self.assertEqual(payload["aps"]["alert"]["title"], "Chief replied")
+        self.assertEqual(payload["botId"], "bot-1")
+
     def test_extra_tickets_do_not_claim_complete_acceptance(self):
         self.send(
             {

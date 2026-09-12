@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import secrets
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from botocore.exceptions import BotoCoreError, ClientError
 from shared.catalog import CatalogError
 from shared.invites import invite_url
 
@@ -30,11 +33,56 @@ from .support import (
     _share_token,
     _turn_pk,
     _user_pk,
-    _validate_push_token,
+    _validate_push_registration,
     _validate_string,
     catalog,
+    sns,
     table,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def _native_push_application(environment: str) -> str:
+    variable = (
+        "APNS_SANDBOX_PLATFORM_APPLICATION_ARN"
+        if environment == "sandbox"
+        else "APNS_PLATFORM_APPLICATION_ARN"
+    )
+    arn = os.environ.get(variable, "")
+    if not arn:
+        raise ApiError(
+            503,
+            "Native reply notifications are not configured",
+            code="native_push_unavailable",
+        )
+    return arn
+
+
+def _create_native_push_endpoint(registration: dict[str, str], token_id: str) -> str:
+    try:
+        response = sns.create_platform_endpoint(
+            PlatformApplicationArn=_native_push_application(registration["environment"]),
+            Token=registration["token"],
+            CustomUserData=token_id,
+        )
+        endpoint = response.get("EndpointArn")
+        if not isinstance(endpoint, str) or not endpoint:
+            raise TypeError("SNS did not return an endpoint ARN")
+        sns.set_endpoint_attributes(
+            EndpointArn=endpoint,
+            Attributes={"Enabled": "true", "Token": registration["token"]},
+        )
+        return endpoint
+    except ApiError:
+        raise
+    except (BotoCoreError, ClientError, TypeError) as exc:
+        logger.warning("Could not register APNs endpoint", exc_info=True)
+        raise ApiError(
+            503,
+            "Native reply notifications could not be registered",
+            code="native_push_unavailable",
+        ) from exc
 
 
 def _public_invite_preview(kind: str, token: str) -> dict:
@@ -140,8 +188,15 @@ def _public_invite_preview(kind: str, token: str) -> dict:
 
 
 def _register_push_token(user_id: str, value: dict) -> dict:
-    token = _validate_push_token(value.get("token"))
-    token_id = _push_token_id(token)
+    registration = _validate_push_registration(value)
+    provider = registration["provider"]
+    token = registration["token"]
+    token_id = _push_token_id(token, provider)
+    endpoint_arn = (
+        _create_native_push_endpoint(registration, token_id)
+        if provider == "apns"
+        else None
+    )
     owner_key = _push_owner_key(token_id)
     previous_owner = (
         table.get_item(Key=owner_key, ConsistentRead=True).get("Item", {}).get("userId")
@@ -156,16 +211,24 @@ def _register_push_token(user_id: str, value: dict) -> dict:
             and previous_owner != user_id
         ):
             batch.delete_item(Key=_push_token_key(previous_owner, token_id))
-        batch.put_item(
-            Item={
-                **_push_token_key(user_id, token_id),
-                "entity": "PUSH_TOKEN",
-                "tokenId": token_id,
-                "expoPushToken": token,
-                "updatedAt": current,
-                "expiresAt": expires_at,
-            }
-        )
+        item = {
+            **_push_token_key(user_id, token_id),
+            "entity": "PUSH_TOKEN",
+            "tokenId": token_id,
+            "provider": provider,
+            "pushToken": token,
+            "updatedAt": current,
+            "expiresAt": expires_at,
+        }
+        if provider == "expo":
+            item["expoPushToken"] = token
+        else:
+            item.update(
+                platform=registration["platform"],
+                environment=registration["environment"],
+                endpointArn=endpoint_arn,
+            )
+        batch.put_item(Item=item)
         batch.put_item(
             Item={
                 **owner_key,
@@ -179,9 +242,12 @@ def _register_push_token(user_id: str, value: dict) -> dict:
 
 
 def _unregister_push_token(user_id: str, value: dict) -> dict:
-    token = _validate_push_token(value.get("token"))
-    token_id = _push_token_id(token)
+    registration = _validate_push_registration(value, require_native_details=False)
+    token_id = _push_token_id(registration["token"], registration["provider"])
     owner_key = _push_owner_key(token_id)
+    stored = table.get_item(
+        Key=_push_token_key(user_id, token_id), ConsistentRead=True
+    ).get("Item", {})
     owner = (
         table.get_item(Key=owner_key, ConsistentRead=True).get("Item", {}).get("userId")
     )
@@ -189,6 +255,12 @@ def _unregister_push_token(user_id: str, value: dict) -> dict:
         batch.delete_item(Key=_push_token_key(user_id, token_id))
         if owner == user_id:
             batch.delete_item(Key=owner_key)
+    endpoint_arn = stored.get("endpointArn")
+    if isinstance(endpoint_arn, str) and endpoint_arn:
+        try:
+            sns.delete_endpoint(EndpointArn=endpoint_arn)
+        except (BotoCoreError, ClientError):
+            logger.warning("Could not delete APNs endpoint", exc_info=True)
     return {"registered": False}
 
 

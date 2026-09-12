@@ -90,6 +90,14 @@ scheduler = boto3.client(
         read_timeout=10,
     ),
 )
+sns = boto3.client(
+    "sns",
+    config=Config(
+        retries={"total_max_attempts": 4, "mode": "adaptive"},
+        connect_timeout=3,
+        read_timeout=10,
+    ),
+)
 GENERATED_ARTIFACT_FORMATS = {
     ".txt": ("document", "txt", "text/plain"),
     ".md": ("document", "md", "text/markdown"),

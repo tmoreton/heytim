@@ -71,6 +71,15 @@ verify_application() {
     npm run verify
     npm run build:web
   )
+
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    verify_apple
+  fi
+}
+
+verify_apple() {
+  section "SwiftUI application (iPhone and Mac)"
+  "$repository_root/apps/froggybot-apple/scripts/verify.sh"
 }
 
 case "$component" in
@@ -92,8 +101,11 @@ case "$component" in
   application)
     verify_application
     ;;
+  apple)
+    verify_apple
+    ;;
   *)
-    printf 'Usage: %s [all|agentcore|runtime|backend|application]\n' "$0" >&2
+    printf 'Usage: %s [all|agentcore|runtime|backend|application|apple]\n' "$0" >&2
     exit 2
     ;;
 esac

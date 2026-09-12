@@ -94,6 +94,14 @@ scheduler = boto3.client(
         read_timeout=10,
     ),
 )
+sns = boto3.client(
+    "sns",
+    config=Config(
+        retries={"total_max_attempts": 4, "mode": "adaptive"},
+        connect_timeout=3,
+        read_timeout=10,
+    ),
+)
 catalog = CatalogService(table, refresh_on_read=False)
 SCHEDULE_LIMIT = 25
 MAX_REQUEST_BODY_BYTES = 256_000
@@ -242,8 +250,9 @@ def _display_name(event: dict) -> str:
     return "FroggyBot user"
 
 
-def _push_token_id(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+def _push_token_id(token: str, provider: str = "expo") -> str:
+    identity = token if provider == "expo" else f"{provider}:{token}"
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()
 
 
 def _file_key(user_id: str, file_id: str) -> dict:
@@ -474,3 +483,34 @@ def _validate_push_token(value: Any) -> str:
     ):
         raise ApiError(400, "token must be a valid Expo push token")
     return token
+
+
+def _validate_push_registration(
+    value: Any, *, require_native_details: bool = True
+) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise ApiError(400, "Push registration must be an object")
+    provider = value.get("provider", "expo")
+    if provider == "expo":
+        return {"provider": "expo", "token": _validate_push_token(value.get("token"))}
+    if provider != "apns":
+        raise ApiError(400, "provider must be expo or apns")
+    token = _validate_string(value.get("token"), "token", 200).lower()
+    if not 64 <= len(token) <= 200 or any(
+        character not in "0123456789abcdef" for character in token
+    ):
+        raise ApiError(400, "token must be a valid APNs device token")
+    if not require_native_details:
+        return {"provider": "apns", "token": token}
+    platform = value.get("platform")
+    if platform not in {"ios", "macos"}:
+        raise ApiError(400, "platform must be ios or macos")
+    environment = value.get("environment")
+    if environment not in {"sandbox", "production"}:
+        raise ApiError(400, "environment must be sandbox or production")
+    return {
+        "provider": "apns",
+        "token": token,
+        "platform": platform,
+        "environment": environment,
+    }

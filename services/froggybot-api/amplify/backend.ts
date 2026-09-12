@@ -24,6 +24,7 @@ import {
   ALLOWED_WEB_ORIGINS, CAPABILITY_CATALOG_URL,
   FUNCTION_ASSET_EXCLUDES, PUBLIC_WEB_BASE_URL,
   WORKER_CONCURRENCY, deploymentEnvironment,
+  apnsApplicationArn, apnsSandboxApplicationArn,
   globalWindowRunUnitLimit, googleOAuthSecretArn,
   memoryId, monthlyBudgetUsd, monthlyRunUnitLimit,
   runtimeArn, usageWindowSeconds, userWindowRunUnitLimit,
@@ -31,8 +32,8 @@ import {
 } from './infrastructure/app-settings';
 import { addBrowserAccess } from './infrastructure/browser-access';
 import { addGithubDeploymentRole } from './infrastructure/deployment-role';
+import { addNativePushAccess, nativePushEnvironment } from './infrastructure/native-push';
 import { addObservability } from './infrastructure/observability';
-
 const backend = defineBackend({ auth, preSignUp });
 const stack = backend.createStack('FrogBotApp');
 
@@ -316,6 +317,7 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
     FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT: String(globalWindowRunUnitLimit),
     FROGBOT_USAGE_WINDOW_SECONDS: String(usageWindowSeconds),
     FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT: String(youtubeSearchDailyLimit),
+    ...nativePushEnvironment(apnsApplicationArn, apnsSandboxApplicationArn),
   },
 });
 
@@ -352,6 +354,7 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
     FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT: String(globalWindowRunUnitLimit),
     FROGBOT_USAGE_WINDOW_SECONDS: String(usageWindowSeconds),
     FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT: String(youtubeSearchDailyLimit),
+    ...nativePushEnvironment(apnsApplicationArn, apnsSandboxApplicationArn),
   },
 });
 
@@ -360,6 +363,7 @@ addBrowserAccess(stack, apiFunction, workerFunction);
 inviteAccess.grantReadWriteData(apiFunction);
 inviteAccess.grantReadWriteData(workerFunction);
 table.grantReadWriteData(workerFunction);
+addNativePushAccess(apiFunction, workerFunction, [apnsApplicationArn, apnsSandboxApplicationArn]);
 apiFunction.addToRolePolicy(
   new PolicyStatement({
     actions: ['dynamodb:TransactWriteItems'],

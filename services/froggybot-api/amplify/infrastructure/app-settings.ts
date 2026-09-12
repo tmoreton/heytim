@@ -43,6 +43,14 @@ function requiredSetting(name: string): string {
   return value;
 }
 
+function optionalPlatformApplicationArn(name: string): string {
+  const value = process.env[name]?.trim() ?? '';
+  if (value && !/^arn:aws[a-zA-Z-]*:sns:[a-z0-9-]+:\d{12}:app\/APNS(?:_SANDBOX)?\/[A-Za-z0-9_.-]+$/.test(value)) {
+    throw new Error(`${name} must be an SNS APNs platform application ARN.`);
+  }
+  return value;
+}
+
 export const monthlyRunUnitLimit = boundedIntegerSetting(
   'FROGBOT_MONTHLY_RUN_UNIT_LIMIT', 1_000, 1, 1_000_000,
 );
@@ -67,6 +75,8 @@ if (!/^[a-z][a-z0-9-]{0,20}$/.test(deploymentEnvironment)) {
 export const runtimeArn = requiredSetting('FROGBOT_AGENT_RUNTIME_ARN');
 export const memoryId = requiredSetting('FROGBOT_MEMORY_ID');
 export const googleOAuthSecretArn = requiredSetting('FROGBOT_GOOGLE_OAUTH_SECRET_ARN');
+export const apnsApplicationArn = optionalPlatformApplicationArn('FROGBOT_APNS_APPLICATION_ARN');
+export const apnsSandboxApplicationArn = optionalPlatformApplicationArn('FROGBOT_APNS_SANDBOX_APPLICATION_ARN');
 export const monthlyBudgetUsd = Number(process.env.FROGBOT_MONTHLY_BUDGET_USD ?? '100');
 if (!Number.isFinite(monthlyBudgetUsd) || monthlyBudgetUsd <= 0) {
   throw new Error('FROGBOT_MONTHLY_BUDGET_USD must be a positive number.');

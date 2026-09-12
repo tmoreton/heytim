@@ -6,9 +6,11 @@
   "scripts": {
     "contract:generate": "node scripts/generate-api-contract.mjs",
     "contract:check": "node scripts/generate-api-contract.mjs --check",
+    "outputs:apple": "node scripts/sync-apple-outputs.mjs",
+    "outputs:apple:check": "node scripts/sync-apple-outputs.mjs --check",
     "typecheck": "tsc --noEmit",
     "test": "PYTHONPATH=amplify/functions uv run --project ../agent-runtime --frozen python -m unittest discover -s amplify/functions/tests -p 'test_*.py'",
-    "verify": "npm run contract:check && npm --prefix ../../packages/froggybot-contract test && npm run typecheck && npm test",
+    "verify": "npm run contract:check && npm run outputs:apple:check && npm --prefix ../../packages/froggybot-contract test && npm run typecheck && npm test",
     "load:test": "node scripts/authenticated-load-test.mjs",
     "workflow:test": "node scripts/authenticated-workflow-test.mjs",
     "sandbox": "ampx sandbox --outputs-out-dir ../../apps/froggybot"
