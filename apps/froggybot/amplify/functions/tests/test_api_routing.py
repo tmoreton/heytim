@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import re
+import json
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -36,6 +36,49 @@ class ApiRoutingTests(unittest.TestCase):
 
         self.assertEqual(response["statusCode"], 200)
         group_messages.assert_not_called()
+
+    def test_connection_authorization_dispatches_from_the_provider_route(self) -> None:
+        authorization = {"authorizationUrl": "https://accounts.example/authorize"}
+        with patch.object(
+            self.routes,
+            "_begin_connection_authorization",
+            return_value=authorization,
+        ) as begin:
+            response = self.routes.route_authenticated(
+                "user-1",
+                "Tim",
+                "POST",
+                "/connections/gmail/authorization",
+                {"providerId": "gmail"},
+                {"body": '{"returnUrl":"frogbot://app"}'},
+                route_key="POST /connections/{providerId}/authorization",
+            )
+
+        self.assertEqual(json.loads(response["body"]), authorization)
+        begin.assert_called_once_with(
+            "user-1", "gmail", {"returnUrl": "frogbot://app"}
+        )
+
+    def test_api_errors_expose_stable_codes(self) -> None:
+        self.assertEqual(self.support.ApiError(409, "Changed").code, "conflict")
+        custom = self.support.ApiError(
+            409, "Changed", code="browser_state_changed"
+        )
+        self.assertEqual(custom.code, "browser_state_changed")
+
+        response = self.handler.handler(
+            {
+                "rawPath": "/bootstrap",
+                "requestContext": {
+                    "routeKey": "GET /bootstrap",
+                    "http": {"method": "GET"},
+                },
+            },
+            None,
+        )
+        self.assertEqual(
+            json.loads(response["body"])["code"], "authentication_required"
+        )
 
     def test_group_messages_reach_the_group_domain(self) -> None:
         with patch.object(
@@ -227,14 +270,13 @@ class ApiRoutingTests(unittest.TestCase):
         )
 
     def test_python_dispatch_matches_the_infrastructure_route_manifest(self) -> None:
-        source = (
-            Path(__file__).parents[2] / "infrastructure" / "api-routes.ts"
-        ).read_text(encoding="utf-8")
+        contract = json.loads(
+            (Path(__file__).parents[1] / "api" / "api-contract.json").read_text()
+        )
         infrastructure_keys = {
-            f"{method} {path}"
-            for method, path in re.findall(
-                r"\[HttpMethod\.([A-Z]+), '([^']+)'\]", source
-            )
+            f"{route['method']} {route['path']}"
+            for route in contract["routes"]
+            if route["access"] == "authenticated"
         }
 
         self.assertEqual(

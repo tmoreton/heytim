@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from .api_contract import authenticated_route_keys, authenticated_routes
 from .attachments import (
     _complete_upload,
     _create_upload,
@@ -21,14 +22,17 @@ from .bots import (
     _update_bot,
 )
 from .browser_sessions import browser_session_route
-from .connections import _connections, _delete_connection
+from .connections import (
+    _begin_connection_authorization,
+    _connections,
+    _delete_connection,
+)
 from .direct_chat import (
     _approve_bot_turn,
     _cancel_bot_turn,
     _run_schedule_now,
     _send_message,
 )
-from .google_oauth import _begin_gmail_authorization
 from .group_messages import _list_group_message_page, _send_group_message
 from .group_schedules import group_schedule_route
 from .groups import (
@@ -86,8 +90,13 @@ def _library_route(
 ) -> dict | None:
     if method == "GET" and path == "/connections":
         return _response(200, _connections(user_id))
-    if method == "POST" and path == "/connections/gmail/authorization":
-        return _response(200, _begin_gmail_authorization(user_id, _body(event)))
+    if method == "POST" and path.endswith("/authorization"):
+        return _response(
+            200,
+            _begin_connection_authorization(
+                user_id, params.get("providerId", ""), _body(event)
+            ),
+        )
     if method == "DELETE" and path.startswith("/connections/"):
         return _response(
             200, _delete_connection(user_id, params.get("connectionId", ""))
@@ -411,111 +420,25 @@ def _skill_route(
     return None
 
 
-def _route_map(handler: Route, *route_keys: str) -> dict[str, Route]:
-    return dict.fromkeys(route_keys, handler)
-
-
-ROUTE_HANDLERS: dict[str, Route] = {
-    **_route_map(
-        browser_session_route,
-        "GET /bots/{botId}/browser",
-        "POST /bots/{botId}/browser/open",
-        "POST /bots/{botId}/browser/resume",
-        "POST /bots/{botId}/browser/close",
-        "DELETE /bots/{botId}/browser/profile",
-    ),
-    **_route_map(
-        group_schedule_route,
-        "GET /groups/{groupId}/schedules",
-        "GET /groups/{groupId}/runs",
-        "POST /groups/{groupId}/schedules",
-        "PUT /groups/{groupId}/schedules/{scheduleId}",
-        "DELETE /groups/{groupId}/schedules/{scheduleId}",
-        "POST /groups/{groupId}/schedules/{scheduleId}/run",
-    ),
-    **_route_map(
-        _library_route,
-        "GET /connections",
-        "POST /connections/gmail/authorization",
-        "DELETE /connections/{connectionId}",
-        "GET /memory",
-        "POST /memory",
-        "POST /memory/export",
-        "PUT /memory/{memoryRecordId}",
-        "DELETE /memory/{memoryRecordId}",
-    ),
-    **_route_map(
-        _group_message_route,
-        "GET /groups/{groupId}/messages",
-        "POST /groups/{groupId}/messages",
-        "GET /groups/{groupId}/files/{fileId}/download",
-    ),
-    **_route_map(
-        _group_admin_route,
-        "POST /groups",
-        "POST /groups/{groupId}/decisions",
-        "DELETE /groups/{groupId}/decisions/{decisionId}",
-        "GET /groups/{groupId}/memory",
-        "POST /groups/{groupId}/memory",
-        "PUT /groups/{groupId}/memory/{memoryRecordId}",
-        "DELETE /groups/{groupId}/memory/{memoryRecordId}",
-        "PUT /groups/{groupId}",
-        "POST /groups/{groupId}/invites",
-        "POST /group-invites/{token}/join",
-        "DELETE /groups/{groupId}/members/{memberId}",
-        "DELETE /groups/{groupId}",
-    ),
-    **_route_map(
-        _schedule_route,
-        "GET /bots/{botId}/schedules",
-        "GET /bots/{botId}/runs",
-        "POST /bots/{botId}/schedules",
-        "POST /bots/{botId}/schedules/{scheduleId}/run",
-        "PUT /bots/{botId}/schedules/{scheduleId}",
-        "DELETE /bots/{botId}/schedules/{scheduleId}",
-    ),
-    **_route_map(
-        _bot_route,
-        "GET /bootstrap",
-        "POST /bot-templates/{templateId}/install",
-        "POST /bots",
-        "PUT /bots/{botId}",
-        "DELETE /bots/{botId}",
-    ),
-    **_route_map(
-        _direct_chat_route,
-        "GET /bots/{botId}/documents",
-        "GET /bots/{botId}/messages",
-        "POST /bots/{botId}/messages",
-        "POST /bots/{botId}/messages/{turnId}/approve",
-        "POST /bots/{botId}/messages/{turnId}/cancel",
-        "DELETE /bots/{botId}/messages",
-    ),
-    **_route_map(
-        _file_and_device_route,
-        "PUT /devices/push-token",
-        "DELETE /devices/push-token",
-        "POST /uploads",
-        "POST /uploads/{fileId}/complete",
-        "GET /files/{fileId}/download",
-    ),
-    **_route_map(
-        _sharing_route,
-        "POST /shares",
-        "GET /shares",
-        "DELETE /shares/{token}",
-        "POST /shares/{token}/import",
-    ),
-    **_route_map(
-        _skill_route,
-        "POST /skills",
-        "GET /skills/{skillId}",
-        "PUT /skills/{skillId}",
-        "POST /skills/{skillId}/share",
-        "POST /skill-shares/{token}/import",
-    ),
+_HANDLERS: dict[str, Route] = {
+    "bot": _bot_route,
+    "browser": browser_session_route,
+    "directChat": _direct_chat_route,
+    "fileAndDevice": _file_and_device_route,
+    "groupAdmin": _group_admin_route,
+    "groupMessage": _group_message_route,
+    "groupSchedule": group_schedule_route,
+    "library": _library_route,
+    "schedule": _schedule_route,
+    "sharing": _sharing_route,
+    "skill": _skill_route,
 }
-AUTHENTICATED_ROUTE_KEYS = frozenset({*ROUTE_HANDLERS, "DELETE /account"})
+ROUTE_HANDLERS: dict[str, Route] = {
+    f"{route['method']} {route['path']}": _HANDLERS[route["handler"]]
+    for route in authenticated_routes()
+    if route["handler"] != "account"
+}
+AUTHENTICATED_ROUTE_KEYS = authenticated_route_keys()
 
 
 def route_authenticated(

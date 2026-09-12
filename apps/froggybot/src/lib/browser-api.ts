@@ -1,14 +1,29 @@
-import type { FrogBotApi } from './api';
+import { apiRoutes } from './api-routes.ts';
 import type { BotBrowserContext, BotBrowserOpenOptions, BotBrowserState } from './types';
 
-export type BrowserApi = Pick<FrogBotApi,
-  'browserStatus' | 'openBrowser' | 'resumeBrowser' | 'closeBrowser' | 'forgetBrowserLogin'>;
+export interface BrowserApi {
+  browserStatus(context: BotBrowserContext): Promise<BotBrowserState>;
+  openBrowser(context: BotBrowserContext, options?: BotBrowserOpenOptions): Promise<BotBrowserState>;
+  resumeBrowser(context: BotBrowserContext, rememberLogin: boolean): Promise<BotBrowserState>;
+  closeBrowser(context: BotBrowserContext): Promise<BotBrowserState>;
+  forgetBrowserLogin(context: BotBrowserContext): Promise<BotBrowserState>;
+}
 
 type Request = <T>(path: string, init?: RequestInit, timeoutMs?: number) => Promise<T>;
 export const BROWSER_MUTATION_TIMEOUT_MS = 40_000;
 
-export const browserPath = ({ botId, groupId }: BotBrowserContext, action = '', query = false) =>
-  `/bots/${encodeURIComponent(botId)}/browser${action ? `/${action}` : ''}${query && groupId ? `?groupId=${encodeURIComponent(groupId)}` : ''}`;
+const browserActionPath = (botId: string, action: string): string => {
+  if (action === 'open') return apiRoutes.browserOpen(botId);
+  if (action === 'resume') return apiRoutes.browserResume(botId);
+  if (action === 'close') return apiRoutes.browserClose(botId);
+  if (action === 'profile') return apiRoutes.browserProfile(botId);
+  return apiRoutes.browserStatus(botId);
+};
+
+export const browserPath = ({ botId, groupId }: BotBrowserContext, action = '', query = false) => {
+  const path = browserActionPath(botId, action);
+  return `${path}${query && groupId ? `?groupId=${encodeURIComponent(groupId)}` : ''}`;
+};
 
 export function createBrowserApi(request: Request): BrowserApi {
   const post = (context: BotBrowserContext, action: string, rememberLogin?: boolean, options?: BotBrowserOpenOptions) =>

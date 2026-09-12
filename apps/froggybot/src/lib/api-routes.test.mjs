@@ -12,6 +12,10 @@ test('encodes every dynamic API path segment', () => {
   );
   assert.equal(apiRoutes.botScheduleRun('bot/one', 'schedule?two'), '/bots/bot%2Fone/schedules/schedule%3Ftwo/run');
   assert.equal(
+    apiRoutes.connectionAuthorization('provider/one'),
+    '/connections/provider%2Fone/authorization',
+  );
+  assert.equal(
     apiRoutes.groupDecision('group/one', 'decision?two'),
     '/groups/group%2Fone/decisions/decision%3Ftwo',
   );

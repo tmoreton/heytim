@@ -247,6 +247,19 @@ export type Capability = {
 
 export type ConnectionAuthType = 'none' | 'bearer' | 'api_key' | 'oauth';
 
+export type ConnectionProvider = {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  authType: 'oauth';
+  uiKind: 'oauth';
+  iconText: string;
+  permissionsSummary: string;
+  privacyTitle: string;
+  privacyDescription: string;
+};
+
 export type Connection = Capability & {
   source: 'user';
   editable: true;
@@ -276,6 +289,7 @@ export type SkillDraft = Pick<SkillDetail, 'name' | 'description' | 'instruction
 export type Bootstrap = {
   bots: Bot[];
   botTemplates: BotTemplate[];
+  connectionProviders: ConnectionProvider[];
   needsBotOnboarding: boolean;
   groups: Group[];
   tools: Capability[];

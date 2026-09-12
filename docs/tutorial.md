@@ -38,12 +38,13 @@ Read the preview path in this order:
 2. `src/features/app/app-entry.tsx` chooses authentication or the signed-in product.
 3. `src/features/chat/chat-app.tsx` coordinates the selected conversation and modal screens.
 4. `src/features/chat/conversation-panel.tsx` renders the active conversation.
-5. `src/lib/api.ts` presents one API to the interface.
-6. `src/lib/demo.ts` implements that API with in-memory preview data.
+5. `src/lib/api.ts` composes the small domain APIs presented to the interface.
+6. `src/lib/demo/` implements those domains over one explicit in-memory preview state.
 7. `src/lib/demo-catalog.ts` loads the same public capability catalog used in production.
 
 The chat folder keeps each workflow separate: attachments, invitation links, and dictation are hooks;
-editors and sheets are components; `chat-app.tsx` only joins them together.
+editors and sheets are components; `use-chat-actions.ts` owns mutations; and `chat-app.tsx` joins the
+resulting view model together.
 
 ## 3. Follow a live message
 
@@ -113,9 +114,11 @@ or removes them.
 generated behavior under `agentcore/cdk`.
 
 `apps/froggybot/amplify/backend.ts` composes the application stack. It creates Cognito, DynamoDB, S3,
-SQS, Lambda, Scheduler, and the HTTP API. `amplify/infrastructure/api-routes.ts` lists the authenticated
-API surface, while `observability.ts` adds alarms, the dashboard, and the monthly budget. Existing construct IDs and AgentCore resource names are stable;
-renaming them can replace live resources.
+SQS, Lambda, Scheduler, and the HTTP API. `amplify/functions/api/api-contract.json` is the one authored
+route list used by CDK, the Python dispatcher, and the generated client route map. Run
+`npm run contract:generate` after changing it; `npm test` rejects a stale generated map. `observability.ts`
+adds alarms, the dashboard, and the monthly budget. Existing construct IDs and AgentCore resource names
+are stable; renaming them can replace live resources.
 
 The application backend keeps only the catalog trust and persistence layer:
 
@@ -144,25 +147,27 @@ The runtime still contains reviewed implementations for local and managed tools 
 Those pieces run with server permissions, so they cannot be downloaded from a community repository. Public names,
 descriptions, bindings, skill instructions, and external API schemas live only in `frogbot-skills`.
 
-Connections are provider-specific. Shared services use FroggyBot-owned credentials, so users never paste developer
-keys into the app. Private account data uses OAuth; the backend encrypts each user's token in Secrets Manager and the
-runtime fetches it only for the selected connection. Connected accounts never appear in public catalog responses or
-shared bot and skill snapshots. Existing custom MCP connections are legacy-only: users can review or remove them,
-but cannot create or edit them.
+Connections are declared in the backend's public-safe provider manifest, which drives the Connections screen and
+generic authorization route. Secret-bearing OAuth adapters remain provider-specific and server-side. Shared services
+use FroggyBot-owned credentials, so users never paste developer keys into the app. Private account data uses OAuth;
+the backend encrypts each user's token in Secrets Manager and the runtime fetches it only for the selected connection.
+Connected accounts never appear in public catalog responses or shared bot and skill snapshots. Existing custom MCP
+connections are legacy-only: users can review or remove them, but cannot create or edit them.
 
 ## 6. Add a feature vertically
 
 Use the narrowest path that fits the feature:
 
 1. Add or update shared TypeScript types in `src/lib/types.ts`.
-2. Add the client operation in `src/lib/api.ts` and its preview behavior in `src/lib/demo.ts`.
-3. Put interface behavior in the relevant feature folder; keep route files as shells.
-4. Add the authenticated route to `amplify/backend.ts`.
-5. Route it in `amplify/functions/api/handler.py`.
-6. Put persistence and authorization in the matching API domain module.
-7. Add a worker job only when work can outlive an HTTP request.
-8. Change the AgentCore runtime only when agent behavior, tools, memory, or artifacts must change.
-9. Test the smallest module first, then run the full verification command.
+2. Add the operation to the matching interface and cloud adapter under `src/lib/api/`.
+3. Add preview behavior to the matching module under `src/lib/demo/`.
+4. Put interface behavior in the relevant feature folder; keep route files and view shells small.
+5. Add an API route once in `amplify/functions/api/api-contract.json`, then run `npm run contract:generate`.
+6. Map its handler name in `authenticated_routes.py` and put persistence and authorization in the matching API domain module.
+7. Return a stable machine-readable error code when clients need to distinguish a failure mode.
+8. Add a worker job only when work can outlive an HTTP request.
+9. Change the AgentCore runtime only when agent behavior, tools, memory, or artifacts must change.
+10. Test the smallest module first, then run the full verification command.
 
 Prefer names that describe product concepts. Comments should explain a non-obvious constraint or
 reason, not restate the code. If a file approaches 600 lines, split it by responsibility before adding

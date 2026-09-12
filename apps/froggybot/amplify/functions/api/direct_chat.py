@@ -319,7 +319,7 @@ def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
         try:
             ensure_browser_send_allowed(table, user_id, bot_id)
         except BrowserSessionError as exc:
-            raise ApiError(exc.status_code, exc.message) from None
+            raise ApiError(exc.status_code, exc.message, code=exc.code) from None
         steered_turn_ids = _steer_active_turns(
             user_id, bot_id, _partition_items(_turn_pk(user_id, bot_id))
         )

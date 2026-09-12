@@ -9,6 +9,21 @@ export class RequestTimeoutError extends Error {
   }
 }
 
+export class ApiClientError extends Error {
+  readonly code: string;
+  readonly status: number;
+
+  constructor(status: number, code: string, message: string) {
+    super(message);
+    this.name = 'ApiClientError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export const apiErrorCode = (value: unknown): string | undefined =>
+  value instanceof ApiClientError ? value.code : undefined;
+
 export async function fetchWithTimeout(
   input: RequestInfo | URL,
   init: RequestInit = {},

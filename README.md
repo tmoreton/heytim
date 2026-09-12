@@ -51,6 +51,11 @@ one at a time so every later bot sees the people, the full bot roster, and earli
 The first bot coordinates the round, specialists add distinct perspectives, and the coordinator returns
 one final synthesized team answer.
 
+The app API is composed from small domain contracts with matching cloud and in-memory preview adapters.
+The backend, Python dispatcher, and client URL builder share one authored route contract, and expected failures
+use stable error codes. Connection display metadata is likewise declared once in a public-safe backend manifest;
+OAuth secrets and provider implementations remain reviewed server-side code.
+
 New contributors should follow the [start-to-finish tutorial](docs/tutorial.md). It gives the reading
 order for the preview app, live request path, AgentCore runtime, infrastructure, tests, and deployment.
 
@@ -137,6 +142,8 @@ also requires a documented opt-in flow, public privacy policy and terms, and acc
 cd apps/froggybot
 nvm use
 npm install
+npm run contract:generate
+npm run contract:check
 npm run backend:install
 export FROGBOT_AGENT_RUNTIME_ARN='arn:aws:bedrock-agentcore:us-east-1:188757775631:runtime/REPLACE_ME'
 export FROGBOT_MEMORY_ID='FrogBot_FrogBotMemory-REPLACE_ME'
@@ -182,6 +189,9 @@ therefore does not silently change an existing bot or a previously shared bot. C
 listings without deleting old versions that existing bots still need.
 The app's Tools screen and preview-mode bot compositions are derived from that catalog response; there is no second
 client-side list of official tool names, descriptions, or bot tool assignments to keep synchronized.
+The Connections screen follows the same data-driven pattern using the backend provider manifest. A new provider can
+reuse the generic UI and authorization route after its server adapter and permissions have been reviewed; no provider
+API key is accepted from an end user or shipped in the client.
 
 Users can create instruction-only skills inside the app, attach only the tools that skill needs, and share a
 30-day installation link. Shared skills are read-only for the recipient and require an explicit trust confirmation.
@@ -231,7 +241,11 @@ query string and hand off to the Expo app subdomain.
 - `services/agent-runtime/runtime/frogbot_runtime/capability_contract.py` - reviewed execution allowlist and capability validation
 - `agentcore/agentcore.json` - AgentCore source-of-truth configuration
 - `apps/froggybot/src/features/` - authentication, invitations, chat UI, and editors
+- `apps/froggybot/src/lib/api/` - domain API contracts and cloud adapters
+- `apps/froggybot/src/lib/demo/` - domain preview adapters over explicit in-memory state
 - `apps/froggybot/amplify/backend.ts` - Cognito, API, DynamoDB, SQS, and Lambda infrastructure
+- `apps/froggybot/amplify/functions/api/api-contract.json` - single authored application HTTP route contract
+- `apps/froggybot/amplify/functions/shared/connection_providers.py` - public-safe connection provider manifest
 - `apps/froggybot/amplify/functions/api/bot_roles.py` - Chief's protected role and reserved branding, not its bot configuration
 - `apps/froggybot/amplify/functions/` - authenticated API, shared domain logic, and AgentCore worker
 - [FroggyBot Skills](https://github.com/tmoreton/frogbot-skills) - the only source for public bot templates, skill instructions, and external tool schemas

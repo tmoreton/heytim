@@ -107,7 +107,11 @@ class BrowserSessionService:
         if record.get("revoked") and operation not in {"close", "forget"}:
             raise BrowserSessionError(409, "This browser connection is being deleted")
         if int(record.get("operationUntil", 0)) > self._now():
-            raise BrowserSessionError(409, "A browser operation is still in progress")
+            raise BrowserSessionError(
+                409,
+                "A browser operation is still in progress",
+                code="browser_operation_in_progress",
+            )
         return self.store.write(record, status=status, operation=operation,
                                 operationId=str(uuid.uuid4()),
                                 operationUntil=self._now() + OPERATION_SECONDS,
@@ -150,7 +154,11 @@ class BrowserSessionService:
             result = self.agentcore.start_browser_session(**request)
         except Exception as exc:
             self._failed(record, "SESSION_START_UNCERTAIN")
-            raise BrowserSessionError(503, "Browser start could not be confirmed. Close the browser before retrying") from exc
+            raise BrowserSessionError(
+                503,
+                "Browser start could not be confirmed. Close the browser before retrying",
+                code="browser_start_unconfirmed",
+            ) from exc
         created = result.get("createdAt")
         started = int(created.timestamp()) if isinstance(created, datetime) else self._now()
         return self.store.write(record, sessionId=result["sessionId"], sessionName=self.name,
@@ -190,7 +198,11 @@ class BrowserSessionService:
         if self._ended_handoff(record):
             record = {**record, "status": "EXPIRED"}
         if record["status"] in {"OPENING", "RESUMING"} or record.get("resumeState") in {"ENQUEUEING", "UNCERTAIN"}:
-            raise BrowserSessionError(409, "Finish or close the previous browser handoff first")
+            raise BrowserSessionError(
+                409,
+                "Finish or close the previous browser handoff first",
+                code="browser_handoff_incomplete",
+            )
         record = self._claim(record, "OPENING", "open", display=display or record.get("display", "desktop"),
                              resumeState=None, resumedTurnId=None)
         try:
@@ -217,7 +229,11 @@ class BrowserSessionService:
             raise
         except Exception as exc:
             self._failed(record, "OPEN_FAILED")
-            raise BrowserSessionError(503, "Could not open the browser. Close it before retrying") from exc
+            raise BrowserSessionError(
+                503,
+                "Could not open the browser. Close it before retrying",
+                code="browser_start_unconfirmed",
+            ) from exc
         return {**self._view(record, bot), "liveViewUrl": url,
                 "liveViewExpiresAt": _iso(min(self._now() + VIEW_SECONDS, int(record["sessionExpiresAt"])))}
 
@@ -265,7 +281,11 @@ class BrowserSessionService:
             raise BrowserSessionError(409, "A profile save is already in progress")
         self.store.ensure_idle()
         if not self._valid(record):
-            raise BrowserSessionError(409, "The browser session expired. Open it again before resuming")
+            raise BrowserSessionError(
+                409,
+                "The browser session expired. Open it again before resuming",
+                code="browser_session_expired",
+            )
         record = self._claim(record, "RESUMING", "resume", rememberLogin=remember_login)
         try:
             if remember_login:

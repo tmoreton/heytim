@@ -13,12 +13,15 @@ import { invitationFromUrl, invitationUrl } from '../invites/invitation-url';
 
 type PendingSkill = { token: string; importKey: string };
 
-const gmailStatusFromUrl = (url: string): 'connected' | 'error' | undefined => {
+const connectionStatusFromUrl = (
+  url: string,
+): { providerId: string; status: 'connected' | 'error' } | undefined => {
   try {
     const parsed = new URL(url);
-    if (parsed.searchParams.get('oauth') !== 'gmail') return undefined;
+    const providerId = parsed.searchParams.get('connection') ?? parsed.searchParams.get('oauth');
+    if (!providerId) return undefined;
     const status = parsed.searchParams.get('status');
-    return status === 'connected' || status === 'error' ? status : undefined;
+    return status === 'connected' || status === 'error' ? { providerId, status } : undefined;
   } catch {
     return undefined;
   }
@@ -73,16 +76,16 @@ export function useConversationLinks({
 
   const importUrl = useCallback(async (url: string | null) => {
     if (!url) return;
-    const gmailStatus = gmailStatusFromUrl(url);
-    if (gmailStatus) {
-      const resultKey = `oauth:${url}`;
+    const connection = connectionStatusFromUrl(url);
+    if (connection) {
+      const resultKey = `connection:${url}`;
       if (importedTokens.current.has(resultKey)) return;
       importedTokens.current.add(resultKey);
-      if (gmailStatus === 'connected') {
+      if (connection.status === 'connected') {
         await loadBootstrap();
-        Alert.alert('Gmail connected', 'Your Gmail Assistant is ready.');
+        Alert.alert('Account connected', 'The account is ready for your FroggyBots.');
       } else {
-        Alert.alert('Gmail was not connected', 'Try again from Account → Connections.');
+        Alert.alert('Account was not connected', 'Try again from Account → Connections.');
       }
       return;
     }

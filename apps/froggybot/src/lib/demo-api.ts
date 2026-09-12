@@ -4,30 +4,37 @@ import type { FrogBotApi } from './api';
 import { createDemoBrowserApi } from './browser-api';
 import { deleteDemoGroupDecision, saveDemoGroupDecision } from './demo-decisions';
 import {
-  demoBootstrap,
   demoBotDocuments,
+  demoUploadAttachment,
+} from './demo/demo-assets';
+import {
   demoClearBotChat,
   demoDeleteBot,
-  demoDeleteConnection,
-  demoDeleteGroup,
-  demoDeleteSchedule,
-  demoGetSkill,
-  demoGroupMessages,
-  demoImportSkill,
-  demoInstallBotTemplate,
-  demoJoinGroup,
-  demoListSchedules,
   demoMessages,
+  demoSaveBot,
+  demoSend,
+} from './demo/demo-bots';
+import { demoBootstrap, demoInstallBotTemplate } from './demo/demo-bootstrap';
+import {
+  demoDeleteGroup,
+  demoGroupMessages,
+  demoJoinGroup,
+  demoSaveGroup,
+  demoSendGroup,
+} from './demo/demo-groups';
+import {
+  demoDeleteSchedule,
+  demoListSchedules,
   demoRunSchedule,
   demoScheduleRuns,
-  demoSaveBot,
-  demoSaveGroup,
   demoSaveSchedule,
+} from './demo/demo-schedules';
+import {
+  demoDeleteConnection,
+  demoGetSkill,
+  demoImportSkill,
   demoSaveSkill,
-  demoSend,
-  demoSendGroup,
-  demoUploadAttachment,
-} from './demo';
+} from './demo/demo-skills';
 
 const demoImageUrl = Asset.fromModule(
   require('../../assets/images/frogbot-foreground.png'),
@@ -104,6 +111,6 @@ export const createDemoApi = (): FrogBotApi => ({
   saveSkill: demoSaveSkill,
   shareSkill: async (skillId) => `https://froggybot.com/invite?kind=skill&token=demo-${skillId}`,
   importSkill: demoImportSkill,
-  beginGmailConnection: async () => { throw new Error('Sign in to connect Gmail.'); },
+  beginConnection: async () => { throw new Error('Sign in to connect an account.'); },
   deleteConnection: async (connectionId) => demoDeleteConnection(connectionId),
 });

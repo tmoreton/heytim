@@ -78,4 +78,6 @@ test('customer connection screens do not expose developer-key entry controls', a
   ]);
   const customerSurface = sources.join('\n');
   assert.doesNotMatch(customerSurface, /Add tool|Bearer token|API key header|Paste credential/);
+  assert.doesNotMatch(sources[0], /provider\s*===\s*['"]gmail|Gmail/);
+  assert.match(sources[0], /providers\.map/);
 });

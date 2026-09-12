@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { browserError, hasBrowserCapability, isLiveViewUrl, liveViewDeadline, shouldUseBotBrowserForChatLinks, withoutLiveView } from './browser-policy.ts';
+import { ApiClientError } from '../../lib/http.ts';
 import { viewerLocation } from './viewer-location.ts';
 
 const url = 'https://bedrock-agentcore.us-east-1.amazonaws.com/browser-streams/aws.browser.v1/sessions/test/live-view?X-Amz-Signature=test';
@@ -49,12 +50,12 @@ test('user-facing errors never expose provider details or signed credentials', (
   assert.match(browserError(providerError, 'resume'), /already have resumed/);
 });
 
-test('conflicts distinguish active work from failed handoffs without leaking unknown details', () => {
-  const conflict = (message) => browserError(Object.assign(new Error(message), { status: 409 }), 'open');
-  assert.match(conflict('Wait for the bot to finish or stop it before opening its browser'), /bot is working/);
-  assert.match(conflict('Finish or close the previous browser handoff first'), /Disconnect/);
-  assert.doesNotMatch(conflict('Finish or close the previous browser handoff first'), /stop.*chat/);
-  assert.match(conflict('A browser operation is still in progress'), /Check status/);
-  assert.match(conflict('The browser session expired. Open it again before resuming'), /session ended/);
-  assert.doesNotMatch(conflict(url), /Signature/);
+test('stable error codes distinguish conflicts without coupling UI to server prose', () => {
+  const conflict = (code) => browserError(new ApiClientError(409, code, url), 'open');
+  assert.match(conflict('browser_bot_busy'), /bot is working/);
+  assert.match(conflict('browser_handoff_incomplete'), /Disconnect/);
+  assert.doesNotMatch(conflict('browser_handoff_incomplete'), /stop.*chat/);
+  assert.match(conflict('browser_operation_in_progress'), /Check status/);
+  assert.match(conflict('browser_session_expired'), /session ended/);
+  assert.doesNotMatch(conflict('unknown'), /Signature/);
 });

@@ -251,7 +251,7 @@ def _ensure_gmail_bot(user_id: str, connection_id: str) -> None:
 def _result_url(return_url: str, status: str) -> str:
     parsed = urllib.parse.urlsplit(return_url)
     query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
-    query.update({"oauth": "gmail", "status": status})
+    query.update({"connection": "gmail", "status": status})
     return urllib.parse.urlunsplit(
         (parsed.scheme, parsed.netloc, parsed.path, urllib.parse.urlencode(query), "")
     )

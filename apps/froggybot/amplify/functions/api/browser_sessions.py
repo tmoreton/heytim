@@ -89,9 +89,13 @@ def browser_session_route(user_id: str, _display_name: str, method: str,
         response["headers"].update({"cache-control": "no-store", "referrer-policy": "no-referrer"})
         return response
     except BrowserSessionError as exc:
-        raise ApiError(exc.status_code, exc.message) from None
+        raise ApiError(exc.status_code, exc.message, code=exc.code) from None
     except ApiError:
         raise
     except Exception:  # noqa: BLE001 - sanitize all secret-bearing SDK failures
         # Do not send SDK exception text (or signed endpoints) to API logs/clients.
-        raise ApiError(503, "Browser service is temporarily unavailable") from None
+        raise ApiError(
+            503,
+            "Browser service is temporarily unavailable",
+            code="browser_service_unavailable",
+        ) from None

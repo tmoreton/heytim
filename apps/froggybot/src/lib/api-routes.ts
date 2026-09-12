@@ -1,59 +1,87 @@
+import { apiContractPaths } from './api-contract.generated.ts';
+
 const segment = (value: string): string => encodeURIComponent(value);
 const withCursor = (path: string, cursor?: string): string =>
   cursor ? `${path}?cursor=${segment(cursor)}` : path;
 
+const contractPath = (
+  id: keyof typeof apiContractPaths,
+  params: Record<string, string> = {},
+): string => {
+  const template = apiContractPaths[id];
+  if (!template) throw new Error(`Unknown API route: ${id}`);
+  const path = template.replace(/\{([^}]+)\}/g, (_match, name: string) => {
+    const value = params[name];
+    if (value === undefined) throw new Error(`Missing ${name} for API route ${id}`);
+    return segment(value);
+  });
+  if (path.includes('{')) throw new Error(`Incomplete API route: ${id}`);
+  return path;
+};
+
 export const apiRoutes = {
-  account: '/account',
-  bootstrap: '/bootstrap',
-  bot: (botId: string) => `/bots/${segment(botId)}`,
-  bots: '/bots',
-  botDocuments: (botId: string) => `/bots/${segment(botId)}/documents`,
-  botMessages: (botId: string, cursor?: string) => withCursor(`/bots/${segment(botId)}/messages`, cursor),
-  botMessageAction: (botId: string, turnId: string, action: 'approve' | 'cancel') =>
-    `/bots/${segment(botId)}/messages/${segment(turnId)}/${action}`,
-  botSchedules: (botId: string) => `/bots/${segment(botId)}/schedules`,
+  account: contractPath('accountDelete'),
+  bootstrap: contractPath('bootstrap'),
+  bot: (botId: string) => contractPath('botUpdate', { botId }),
+  bots: contractPath('botCreate'),
+  botDocuments: (botId: string) => contractPath('botDocuments', { botId }),
+  botMessages: (botId: string, cursor?: string) =>
+    withCursor(contractPath('botMessagesList', { botId }), cursor),
+  botMessageAction: (botId: string, turnId: string, action: 'approve' | 'cancel') => contractPath(
+    action === 'approve' ? 'botMessageApprove' : 'botMessageCancel',
+    { botId, turnId },
+  ),
+  botSchedules: (botId: string) => contractPath('botSchedulesList', { botId }),
   botSchedule: (botId: string, scheduleId: string) =>
-    `/bots/${segment(botId)}/schedules/${segment(scheduleId)}`,
+    contractPath('botScheduleUpdate', { botId, scheduleId }),
   botScheduleRun: (botId: string, scheduleId: string) =>
-    `/bots/${segment(botId)}/schedules/${segment(scheduleId)}/run`,
-  botScheduleRuns: (botId: string) => `/bots/${segment(botId)}/runs`,
-  botTemplateInstall: (templateId: string) => `/bot-templates/${segment(templateId)}/install`,
-  connection: (connectionId: string) => `/connections/${segment(connectionId)}`,
-  connections: '/connections',
-  gmailAuthorization: '/connections/gmail/authorization',
-  devicePushToken: '/devices/push-token',
-  fileDownload: (fileId: string) => `/files/${segment(fileId)}/download`,
-  group: (groupId: string) => `/groups/${segment(groupId)}`,
-  groups: '/groups',
-  groupSchedules: (groupId: string) => `/groups/${segment(groupId)}/schedules`,
-  groupSchedule: (groupId: string, scheduleId: string) => `/groups/${segment(groupId)}/schedules/${segment(scheduleId)}`,
-  groupScheduleRun: (groupId: string, scheduleId: string) => `/groups/${segment(groupId)}/schedules/${segment(scheduleId)}/run`,
-  groupScheduleRuns: (groupId: string) => `/groups/${segment(groupId)}/runs`,
+    contractPath('botScheduleRun', { botId, scheduleId }),
+  botScheduleRuns: (botId: string) => contractPath('botScheduleRuns', { botId }),
+  botTemplateInstall: (templateId: string) => contractPath('botTemplateInstall', { templateId }),
+  browserStatus: (botId: string) => contractPath('browserStatus', { botId }),
+  browserOpen: (botId: string) => contractPath('browserOpen', { botId }),
+  browserResume: (botId: string) => contractPath('browserResume', { botId }),
+  browserClose: (botId: string) => contractPath('browserClose', { botId }),
+  browserProfile: (botId: string) => contractPath('browserProfileDelete', { botId }),
+  connection: (connectionId: string) => contractPath('connectionDelete', { connectionId }),
+  connectionAuthorization: (providerId: string) => contractPath('connectionAuthorize', { providerId }),
+  connections: contractPath('connectionsList'),
+  devicePushToken: contractPath('pushTokenPut'),
+  fileDownload: (fileId: string) => contractPath('fileDownload', { fileId }),
+  group: (groupId: string) => contractPath('groupUpdate', { groupId }),
+  groups: contractPath('groupCreate'),
+  groupSchedules: (groupId: string) => contractPath('groupSchedulesList', { groupId }),
+  groupSchedule: (groupId: string, scheduleId: string) =>
+    contractPath('groupScheduleUpdate', { groupId, scheduleId }),
+  groupScheduleRun: (groupId: string, scheduleId: string) =>
+    contractPath('groupScheduleRun', { groupId, scheduleId }),
+  groupScheduleRuns: (groupId: string) => contractPath('groupScheduleRuns', { groupId }),
   groupFileDownload: (groupId: string, fileId: string) =>
-    `/groups/${segment(groupId)}/files/${segment(fileId)}/download`,
-  groupInvites: (groupId: string) => `/groups/${segment(groupId)}/invites`,
+    contractPath('groupFileDownload', { groupId, fileId }),
+  groupInvites: (groupId: string) => contractPath('groupInviteCreate', { groupId }),
   groupMember: (groupId: string, memberId: string) =>
-    `/groups/${segment(groupId)}/members/${segment(memberId)}`,
-  groupMessages: (groupId: string, cursor?: string) => withCursor(`/groups/${segment(groupId)}/messages`, cursor),
-  groupDecisions: (groupId: string) => `/groups/${segment(groupId)}/decisions`,
+    contractPath('groupMemberDelete', { groupId, memberId }),
+  groupMessages: (groupId: string, cursor?: string) =>
+    withCursor(contractPath('groupMessagesList', { groupId }), cursor),
+  groupDecisions: (groupId: string) => contractPath('groupDecisionCreate', { groupId }),
   groupDecision: (groupId: string, decisionId: string) =>
-    `/groups/${segment(groupId)}/decisions/${segment(decisionId)}`,
-  groupMemory: (groupId: string) => `/groups/${segment(groupId)}/memory`,
+    contractPath('groupDecisionDelete', { groupId, decisionId }),
+  groupMemory: (groupId: string) => contractPath('groupMemoryList', { groupId }),
   groupMemoryRecord: (groupId: string, recordId: string) =>
-    `/groups/${segment(groupId)}/memory/${segment(recordId)}`,
-  joinGroup: (token: string) => `/group-invites/${segment(token)}/join`,
-  memory: '/memory',
-  memoryExport: '/memory/export',
-  memoryRecord: (recordId: string) => `/memory/${segment(recordId)}`,
+    contractPath('groupMemoryUpdate', { groupId, memoryRecordId: recordId }),
+  joinGroup: (token: string) => contractPath('groupInviteJoin', { token }),
+  memory: contractPath('memoryList'),
+  memoryExport: contractPath('memoryExport'),
+  memoryRecord: (recordId: string) => contractPath('memoryUpdate', { memoryRecordId: recordId }),
   publicInvite: (kind: string, token: string) =>
-    `/public/invites/${segment(kind)}/${segment(token)}`,
-  share: (token: string) => `/shares/${segment(token)}`,
-  shareImport: (token: string) => `/shares/${segment(token)}/import`,
-  shares: '/shares',
-  skill: (skillId: string) => `/skills/${segment(skillId)}`,
-  skillShare: (skillId: string) => `/skills/${segment(skillId)}/share`,
-  skillShareImport: (token: string) => `/skill-shares/${segment(token)}/import`,
-  skills: '/skills',
-  upload: (fileId: string) => `/uploads/${segment(fileId)}/complete`,
-  uploads: '/uploads',
+    contractPath('publicInvite', { kind, token }),
+  share: (token: string) => contractPath('shareDelete', { token }),
+  shareImport: (token: string) => contractPath('shareImport', { token }),
+  shares: contractPath('sharesList'),
+  skill: (skillId: string) => contractPath('skillGet', { skillId }),
+  skillShare: (skillId: string) => contractPath('skillShare', { skillId }),
+  skillShareImport: (token: string) => contractPath('skillShareImport', { token }),
+  skills: contractPath('skillCreate'),
+  upload: (fileId: string) => contractPath('uploadComplete', { fileId }),
+  uploads: contractPath('uploadCreate'),
 } as const;

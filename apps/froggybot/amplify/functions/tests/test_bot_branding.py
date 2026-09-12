@@ -155,6 +155,8 @@ class BotBrandingTests(unittest.TestCase):
 
         self.assertEqual(result["bots"], [chief])
         self.assertEqual(result["botTemplates"], templates)
+        self.assertEqual(result["connectionProviders"][0]["id"], "gmail")
+        self.assertNotIn("clientSecret", result["connectionProviders"][0])
         self.assertTrue(result["needsBotOnboarding"])
 
 

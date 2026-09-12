@@ -124,11 +124,27 @@ ATTACHMENT_FORMATS = {
     ".gif": ("image", "gif", "image/gif"),
     ".webp": ("image", "webp", "image/webp"),
 }
+_DEFAULT_ERROR_CODES = {
+    400: "bad_request",
+    401: "authentication_required",
+    403: "forbidden",
+    404: "not_found",
+    409: "conflict",
+    410: "gone",
+    413: "payload_too_large",
+    429: "rate_limited",
+    501: "not_implemented",
+    502: "upstream_error",
+    503: "service_unavailable",
+}
+
+
 class ApiError(Exception):
-    def __init__(self, status_code: int, message: str):
+    def __init__(self, status_code: int, message: str, *, code: str | None = None):
         super().__init__(message)
         self.status_code = status_code
         self.message = message
+        self.code = code or _DEFAULT_ERROR_CODES.get(status_code, "request_failed")
 
 
 def _encode_page_cursor(last_key: dict | None) -> str | None:

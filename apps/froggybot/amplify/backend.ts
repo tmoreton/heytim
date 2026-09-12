@@ -19,7 +19,7 @@ import path from 'node:path';
 
 import { preSignUp } from './auth/pre-sign-up/resource';
 import { auth, emailCodeMessage } from './auth/resource';
-import { AUTHENTICATED_ROUTES } from './infrastructure/api-routes';
+import apiContract from './functions/api/api-contract.json';
 import {
   ALLOWED_WEB_ORIGINS, CAPABILITY_CATALOG_URL,
   FUNCTION_ASSET_EXCLUDES, PUBLIC_WEB_BASE_URL,
@@ -550,24 +550,23 @@ defaultStage.defaultRouteSettings = {
   throttlingRateLimit: 50,
 };
 
-httpApi.addRoutes({
-  path: '/public/invites/{kind}/{token}',
-  methods: [HttpMethod.GET],
-  integration,
-});
-httpApi.addRoutes({
-  path: '/public/catalog',
-  methods: [HttpMethod.GET],
-  integration,
-});
-httpApi.addRoutes({
-  path: '/public/oauth/google/callback',
-  methods: [HttpMethod.GET],
-  integration,
-});
-
-for (const [method, routePath] of AUTHENTICATED_ROUTES) {
-  httpApi.addRoutes({ path: routePath, methods: [method], integration, authorizer });
+const contractMethods: Record<string, HttpMethod> = {
+  GET: HttpMethod.GET,
+  POST: HttpMethod.POST,
+  PUT: HttpMethod.PUT,
+  DELETE: HttpMethod.DELETE,
+  PATCH: HttpMethod.PATCH,
+};
+for (const route of apiContract.routes) {
+  if (route.access !== 'public' && route.access !== 'authenticated') throw new Error(`Unsupported API contract access: ${route.access}`);
+  const method = contractMethods[route.method];
+  if (!method) throw new Error(`Unsupported API contract method: ${route.method}`);
+  httpApi.addRoutes({
+    path: route.path,
+    methods: [method],
+    integration,
+    ...(route.access === 'authenticated' ? { authorizer } : {}),
+  });
 }
 
 const { alarmTopic, monthlyBudgetName } = addObservability({

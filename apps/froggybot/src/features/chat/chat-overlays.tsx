@@ -158,8 +158,9 @@ export function ChatOverlays({
       {overlay.kind === 'connections' ? (
         <Connections
           tools={data?.tools ?? []}
+          providers={data?.connectionProviders ?? []}
           onClose={close}
-          onBeginGmailConnection={api.beginGmailConnection}
+          onBeginConnection={api.beginConnection}
           onDeleteConnection={api.deleteConnection}
           onChanged={async () => {
             await onBootstrapChanged();

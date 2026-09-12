@@ -64,7 +64,11 @@ def handler(event: dict, _context: Any) -> dict:
             route_key=route_key,
         )
     except ApiError as exc:
-        return _response(exc.status_code, {"message": exc.message})
+        return _response(
+            exc.status_code, {"code": exc.code, "message": exc.message}
+        )
     except Exception:
         logger.exception("Unhandled API error")
-        return _response(500, {"message": "Something went wrong"})
+        return _response(
+            500, {"code": "internal_error", "message": "Something went wrong"}
+        )

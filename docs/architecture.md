@@ -15,6 +15,11 @@ agentcore/               Declarative AgentCore infrastructure and gateway schema
 `src/lib`. The signed-in chat is composed from a drawer, header, message list, composer, and
 focused bot/group/skill editors. Web and iOS use the same feature code.
 
+`src/lib/api.ts` is a facade composed from bot, conversation, group, schedule, account, and browser
+domain contracts. Cloud and preview implementations follow the same boundaries. Preview data lives in one
+explicit state object under `src/lib/demo/`, while its domain modules own the mutations. The signed-in chat
+keeps mutation orchestration in `use-chat-actions.ts`, leaving `chat-app.tsx` as the view-model and layout shell.
+
 The public website uses `/` for positioning and `/library` for the searchable bot, skill, tool, and action directory.
 The directory reads sanitized catalog metadata from `/public/catalog` and falls back to the same reviewed GitHub
 source if the API is temporarily unavailable. `/invite` previews a share link before opening the app or sign-up
@@ -25,8 +30,9 @@ flag.
 
 The app contains no official tool-name or tool-description registry. Its Tools screen renders the sanitized tools in
 the current backend catalog snapshot; preview mode parses the same public catalog. User OAuth and legacy connections
-are separated by provenance and appear only on the Connections screen. Browser-specific controls may still test the
-stable `browser` capability ID because they implement that capability rather than describe the catalog.
+are separated by provenance and appear only on the Connections screen. That screen renders the backend's public-safe
+connection-provider manifest rather than branching on provider IDs. Browser-specific controls may still test the stable
+`browser` capability ID because they implement that capability rather than describe the catalog.
 
 ## Application backend
 
@@ -35,6 +41,11 @@ and permissions simple, while focused modules under `amplify/functions/api` own 
 domain. The API handler only routes requests. Shared rules live under `amplify/functions/shared`.
 The SQS worker uses the same pattern: its handler routes jobs, and focused worker modules claim work,
 invoke AgentCore, persist results, and send final-response notifications.
+
+`amplify/functions/api/api-contract.json` is the single authored HTTP route contract. Amplify CDK and the
+Python dispatcher load it directly; a checked-in generated TypeScript map gives the app typed URL construction.
+The contract check prevents those consumers from drifting. Expected API failures carry stable codes independently
+of their human-readable messages, so clients can choose safe UI behavior without matching English text.
 
 Daily, weekday, weekly, and monthly bot tasks are stored with the user's other application data. Each
 task has one EventBridge Scheduler schedule that sends only stable identifiers to the existing SQS
@@ -113,6 +124,9 @@ never enter those developer keys. Private account data uses provider-specific OA
 in Secrets Manager, resolved only during invocation, and omitted from prompts, telemetry, catalog responses, and
 shares. Existing custom MCP connections remain runtime-compatible and removable, but no new or edited custom
 developer-key connections are exposed by the API.
+Provider display metadata is registered once in the backend's public-safe connection manifest. Adding that metadata
+makes the generic UI and authorization endpoint aware of the provider; adding the secret-bearing OAuth adapter and
+runtime permissions remains an explicit reviewed server change.
 The separate `frogbot-skills` repository is the public website and capability publishing boundary. Pull requests are validated there;
 the backend then validates and caches releases before exposing only public metadata to signed-out visitors. Chief is a required public
 template: first-time setup installs it and applies the protected coordinator role without duplicating its prompt or capabilities in app code.
@@ -120,6 +134,7 @@ template: first-time setup installs it and applies the protected coordinator rol
 ## Invariants
 
 - `agentcore/agentcore.json` is the source of truth for AgentCore resources; generated CDK is not.
+- `amplify/functions/api/api-contract.json` is the source of truth for application HTTP routes; its generated client map must be current.
 - Existing CDK construct IDs and resource names are stable because renaming them can replace data.
 - Every authenticated read/write verifies ownership or group membership server-side.
 - Invitation tokens are random, time-limited, and stored as hashes for sign-up validation.

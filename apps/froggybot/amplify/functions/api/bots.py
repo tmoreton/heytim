@@ -13,6 +13,7 @@ from shared.browser_session_store import BrowserSessionError, context_key
 from shared.browser_sessions import delete_browser_context
 from shared.catalog import CatalogError
 from shared.cleanup import has_pending_work
+from shared.connection_providers import connection_providers
 from shared.memory_identity import direct_session_id, memory_actor_id
 from shared.work_state import processing_summary
 
@@ -354,6 +355,7 @@ def _bootstrap(user_id: str) -> dict:
         "botTemplates": catalog.list_bot_templates(user_id),
         "needsBotOnboarding": needs_bot_onboarding,
         "groups": _list_groups(user_id),
+        "connectionProviders": connection_providers(),
         "tools": catalog.list_tools(user_id),
         "retiredToolIds": catalog.retired_tool_ids(),
         "skills": catalog.list_skills(user_id),
@@ -499,7 +501,7 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
     try:
         delete_browser_context(table, user_id, bot_id)
     except BrowserSessionError as exc:
-        raise ApiError(exc.status_code, exc.message) from None
+        raise ApiError(exc.status_code, exc.message, code=exc.code) from None
     forgotten_memory = _forget_bot_conversation(user_id, bot_id)
 
     for schedule_item in schedules:

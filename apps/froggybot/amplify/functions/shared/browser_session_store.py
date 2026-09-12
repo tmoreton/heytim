@@ -12,10 +12,13 @@ from .work_state import IN_FLIGHT_STATUSES
 
 
 class BrowserSessionError(Exception):
-    def __init__(self, status_code: int, message: str):
+    def __init__(
+        self, status_code: int, message: str, *, code: str = "browser_error"
+    ):
         super().__init__(message)
         self.status_code = status_code
         self.message = message
+        self.code = code
 
 
 def validate_id(value: object, field: str) -> str:
@@ -66,7 +69,11 @@ class BrowserSessionStore:
         except CatalogError as exc:
             raise BrowserSessionError(409, "This bot's tools are unavailable") from exc
         if not any(t.get("runtime") == {"kind": "agentcore", "name": "browser"} for t in tools):
-            raise BrowserSessionError(409, "Add the browser tool to this bot first")
+            raise BrowserSessionError(
+                409,
+                "Add the browser tool to this bot first",
+                code="browser_capability_required",
+            )
         return bot
 
     def ensure_idle(self) -> None:
@@ -81,7 +88,11 @@ class BrowserSessionStore:
             ConsistentRead=True,
         )
         if any(page.get("Items") for page in pages):
-            raise BrowserSessionError(409, "Wait for the bot to finish or stop it before opening its browser")
+            raise BrowserSessionError(
+                409,
+                "Wait for the bot to finish or stop it before opening its browser",
+                code="browser_bot_busy",
+            )
 
     def read(self) -> dict:
         item = self.table.get_item(Key=self.key, ConsistentRead=True).get("Item")
@@ -99,5 +110,9 @@ class BrowserSessionStore:
         try:
             self.table.put_item(Item=item, ConditionExpression=condition)
         except self.table.meta.client.exceptions.ConditionalCheckFailedException as exc:
-            raise BrowserSessionError(409, "Browser state changed; refresh before trying again") from exc
+            raise BrowserSessionError(
+                409,
+                "Browser state changed; refresh before trying again",
+                code="browser_state_changed",
+            ) from exc
         return item

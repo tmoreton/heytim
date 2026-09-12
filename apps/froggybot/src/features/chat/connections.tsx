@@ -11,25 +11,28 @@ import {
 } from 'react-native';
 
 import { PageSheet } from '@/components/page-sheet';
-import type { Capability, Connection } from '@/lib/types';
+import type { Capability, Connection, ConnectionProvider } from '@/lib/types';
 
 import { capabilityAccessLabel, userConnections } from './connection-access';
 
 type Props = {
   tools: Capability[];
+  providers: ConnectionProvider[];
   onClose: () => void;
-  onBeginGmailConnection: (returnUrl: string) => Promise<string>;
+  onBeginConnection: (providerId: string, returnUrl: string) => Promise<string>;
   onDeleteConnection: (connectionId: string) => Promise<void>;
   onChanged: () => Promise<void>;
 };
 
 function ConnectionDetails({
   connection,
+  provider,
   busy,
   onReconnect,
   onRemove,
 }: {
   connection: Connection;
+  provider?: ConnectionProvider;
   busy: boolean;
   onReconnect?: () => void;
   onRemove: () => void;
@@ -50,10 +53,9 @@ function ConnectionDetails({
 
       {oauth ? (
         <View style={styles.notice}>
-          <Text style={styles.noticeTitle}>Your account stays private</Text>
+          <Text style={styles.noticeTitle}>{provider?.privacyTitle ?? 'Your account stays private'}</Text>
           <Text style={styles.noticeText}>
-            FroggyBot uses this connection only when a bot needs the account. Gmail can search and read email and create
-            drafts for review, but it cannot send, delete, relabel, archive, or mark messages.
+            {provider?.privacyDescription ?? 'FroggyBot uses this connection only when a bot needs the account.'}
           </Text>
         </View>
       ) : (
@@ -129,8 +131,9 @@ function ConnectionRow({
 
 export function Connections({
   tools,
+  providers,
   onClose,
-  onBeginGmailConnection,
+  onBeginConnection,
   onDeleteConnection,
   onChanged,
 }: Props) {
@@ -139,21 +142,25 @@ export function Connections({
   const [error, setError] = useState('');
   const connections = userConnections(tools);
   const selected = connections.find((connection) => connection.id === selectedId);
-  const gmail = connections.find((connection) => connection.provider === 'gmail');
-  const otherOAuth = connections.filter(
-    (connection) => connection.authType === 'oauth' && connection.provider !== 'gmail',
+  const providersById = new Map(providers.map((provider) => [provider.id, provider]));
+  const connectionsByProvider = new Map(
+    connections.flatMap((connection) => connection.provider ? [[connection.provider, connection] as const] : []),
+  );
+  const selectedProvider = selected?.provider ? providersById.get(selected.provider) : undefined;
+  const unmanagedOAuth = connections.filter(
+    (connection) => connection.authType === 'oauth' && !providersById.has(connection.provider ?? ''),
   );
   const legacy = connections.filter((connection) => connection.authType !== 'oauth');
 
-  const connectGmail = async () => {
+  const connect = async (provider: ConnectionProvider) => {
     setBusy(true);
     setError('');
     try {
-      const returnUrl = Linking.createURL('app', { queryParams: { oauth: 'gmail' } });
-      const authorizationUrl = await onBeginGmailConnection(returnUrl);
+      const returnUrl = Linking.createURL('app', { queryParams: { connection: provider.id } });
+      const authorizationUrl = await onBeginConnection(provider.id, returnUrl);
       await Linking.openURL(authorizationUrl);
     } catch (value) {
-      setError(value instanceof Error ? value.message : 'Could not start the Gmail connection.');
+      setError(value instanceof Error ? value.message : `Could not connect ${provider.name}.`);
     } finally {
       setBusy(false);
     }
@@ -210,8 +217,9 @@ export function Connections({
           {selected ? (
             <ConnectionDetails
               connection={selected}
+              provider={selectedProvider}
               busy={busy}
-              onReconnect={selected.provider === 'gmail' ? () => void connectGmail() : undefined}
+              onReconnect={selectedProvider ? () => void connect(selectedProvider) : undefined}
               onRemove={() => confirmRemove(selected)}
             />
           ) : (
@@ -225,28 +233,41 @@ export function Connections({
               </View>
 
               <Text style={styles.sectionLabel}>Available accounts</Text>
-              {gmail ? (
-                <ConnectionRow connection={gmail} onPress={() => setSelectedId(gmail.id)} />
-              ) : (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ busy, disabled: busy }}
-                  disabled={busy}
-                  style={({ pressed }) => [styles.card, styles.connectCard, pressed && styles.pressed]}
-                  onPress={() => void connectGmail()}>
-                  <View style={styles.gmailMark}><Text style={styles.gmailMarkText}>G</Text></View>
-                  <View style={styles.cardText}>
-                    <View style={styles.nameRow}>
-                      <Text style={styles.cardName}>Gmail</Text>
-                      <Text style={[styles.badge, styles.connectBadge]}>Connect account</Text>
+              {providers.map((provider) => {
+                const connection = connectionsByProvider.get(provider.id);
+                if (connection) {
+                  return (
+                    <ConnectionRow
+                      key={provider.id}
+                      connection={connection}
+                      onPress={() => setSelectedId(connection.id)}
+                    />
+                  );
+                }
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ busy, disabled: busy }}
+                    disabled={busy}
+                    key={provider.id}
+                    style={({ pressed }) => [styles.card, styles.connectCard, pressed && styles.pressed]}
+                    onPress={() => void connect(provider)}>
+                    <View style={styles.providerMark}>
+                      <Text style={styles.providerMarkText}>{provider.iconText}</Text>
                     </View>
-                    <Text style={styles.description}>Search and summarize email, then create drafts for review.</Text>
-                    <Text style={styles.meta}>No sending, deleting, or relabeling</Text>
-                  </View>
-                  {busy ? <ActivityIndicator color="#007A3D" /> : <Text style={styles.chevron}>›</Text>}
-                </Pressable>
-              )}
-              {otherOAuth.map((connection) => (
+                    <View style={styles.cardText}>
+                      <View style={styles.nameRow}>
+                        <Text style={styles.cardName}>{provider.name}</Text>
+                        <Text style={[styles.badge, styles.connectBadge]}>Connect account</Text>
+                      </View>
+                      <Text style={styles.description}>{provider.description}</Text>
+                      <Text style={styles.meta}>{provider.permissionsSummary}</Text>
+                    </View>
+                    {busy ? <ActivityIndicator color="#007A3D" /> : <Text style={styles.chevron}>›</Text>}
+                  </Pressable>
+                );
+              })}
+              {unmanagedOAuth.map((connection) => (
                 <ConnectionRow
                   key={connection.id}
                   connection={connection}
@@ -293,8 +314,8 @@ const styles = StyleSheet.create({
   sectionHelp: { color: '#6E6A62', fontSize: 13, lineHeight: 19, marginTop: -4, marginBottom: 12 },
   card: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 10, borderRadius: 17, borderWidth: 1, borderColor: '#E2DFD7', backgroundColor: '#FFFFFF' },
   connectCard: { borderColor: '#CBE2D5', backgroundColor: '#F3FAF6' },
-  gmailMark: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#DCEFE4' },
-  gmailMarkText: { color: '#007A3D', fontSize: 18, fontWeight: '900' },
+  providerMark: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#DCEFE4' },
+  providerMarkText: { color: '#007A3D', fontSize: 18, fontWeight: '900' },
   connectionMark: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFEEE9' },
   connectionMarkText: { color: '#57534C', fontSize: 17, fontWeight: '900' },
   cardText: { flex: 1, minWidth: 0 },

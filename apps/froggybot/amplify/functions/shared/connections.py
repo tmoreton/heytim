@@ -33,7 +33,8 @@ AUTH_TYPES = {"none", "bearer", "api_key"}
 HEADER_PATTERN = re.compile(r"^(Authorization|X-[A-Za-z0-9-]{1,60})$")
 MAX_CONNECTIONS = 12
 MAX_CREDENTIAL_LENGTH = 4_096
-GOOGLE_TOKEN_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
+# Public OAuth endpoint, not a password or token value.
+GOOGLE_TOKEN_REVOKE_URL = "https://oauth2.googleapis.com/revoke"  # nosec B105
 GOOGLE_TOKEN_REVOKE_TIMEOUT_SECONDS = 4
 GMAIL_SAVE_ATTEMPTS = 4
 
