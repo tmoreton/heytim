@@ -24,6 +24,7 @@ struct FroggyBotAppleApp: App {
     WindowGroup {
       AppRoot(configuration: configuration, auth: auth, model: model)
         .frame(minWidth: 360, minHeight: 520)
+        .preferredColorScheme(.light)
     }
     #if os(macOS)
       .defaultSize(width: 1120, height: 760)

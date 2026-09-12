@@ -42,6 +42,7 @@ struct SkillEditor: View {
         Text("Anyone with link").tag("link")
       }
     }
+    .froggyListSurface()
     .navigationTitle(id == nil ? "New skill" : "Edit skill").toolbar {
       CloseButton()
       ToolbarItem(placement: .confirmationAction) {
@@ -93,7 +94,7 @@ struct ConnectionsView: View {
           }
         }
       }
-    }.navigationTitle("Connections").toolbar { CloseButton() }.task { await load() }
+    }.froggyListSurface().navigationTitle("Connections").toolbar { CloseButton() }.task { await load() }
   }
   private func load() async {
     do { connections = try await model.api?.connections() ?? [] } catch { model.present(error) }
@@ -139,6 +140,7 @@ struct DocumentsView: View {
         }
       }
     }
+    .froggyListSurface()
     .navigationTitle("Documents").toolbar { CloseButton() }.task {
       do { documents = try await model.api?.botDocuments(botId) ?? [] } catch {
         model.present(error)
@@ -173,7 +175,9 @@ struct ShareView: View {
       } else {
         ProgressView()
       }
-    }.padding(32).navigationTitle("Share").toolbar { CloseButton() }.task {
+    }.padding(32).frame(maxWidth: .infinity, maxHeight: .infinity)
+      .background(FrogTheme.pageBackground)
+      .navigationTitle("Share").toolbar { CloseButton() }.task {
       await model.shareCurrent()
       url = model.lastSharedURL
     }
@@ -222,7 +226,7 @@ struct AccountView: View {
         LabeledContent("App", value: "FroggyBot for Apple")
         LabeledContent("Platforms", value: "iPhone + Mac")
       }
-    }.navigationTitle("Account").toolbar { CloseButton() }.task { await load() }
+    }.froggyListSurface().navigationTitle("Account").toolbar { CloseButton() }.task { await load() }
       .confirmationDialog("Permanently delete your FroggyBot account?", isPresented: $confirmDelete)
     {
       Button("Delete account", role: .destructive) {

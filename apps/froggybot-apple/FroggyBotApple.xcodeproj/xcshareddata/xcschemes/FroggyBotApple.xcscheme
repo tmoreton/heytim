@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "ACA482DF1B6F70FF33CB2AB0"
+               BlueprintIdentifier = "036BEAF94ADB729333AA9301"
                BuildableName = "FroggyBotApple.app"
                BlueprintName = "FroggyBotApple"
                ReferencedContainer = "container:FroggyBotApple.xcodeproj">
@@ -28,7 +28,7 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "725433BDB8EB86E0A57C7FF2"
+               BlueprintIdentifier = "323A263C8AE96A684F37FEA1"
                BuildableName = "FroggyBotAppleTests.xctest"
                BlueprintName = "FroggyBotAppleTests"
                ReferencedContainer = "container:FroggyBotApple.xcodeproj">
@@ -42,7 +42,7 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "1BE41288E9D5DAB478C67924"
+               BlueprintIdentifier = "BE43076A66398C6E91513AF2"
                BuildableName = "FroggyBotAppleUITests.xctest"
                BlueprintName = "FroggyBotAppleUITests"
                ReferencedContainer = "container:FroggyBotApple.xcodeproj">
@@ -58,7 +58,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "ACA482DF1B6F70FF33CB2AB0"
+            BlueprintIdentifier = "036BEAF94ADB729333AA9301"
             BuildableName = "FroggyBotApple.app"
             BlueprintName = "FroggyBotApple"
             ReferencedContainer = "container:FroggyBotApple.xcodeproj">
@@ -69,7 +69,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "725433BDB8EB86E0A57C7FF2"
+               BlueprintIdentifier = "323A263C8AE96A684F37FEA1"
                BuildableName = "FroggyBotAppleTests.xctest"
                BlueprintName = "FroggyBotAppleTests"
                ReferencedContainer = "container:FroggyBotApple.xcodeproj">
@@ -79,7 +79,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "1BE41288E9D5DAB478C67924"
+               BlueprintIdentifier = "BE43076A66398C6E91513AF2"
                BuildableName = "FroggyBotAppleUITests.xctest"
                BlueprintName = "FroggyBotAppleUITests"
                ReferencedContainer = "container:FroggyBotApple.xcodeproj">
@@ -101,7 +101,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "ACA482DF1B6F70FF33CB2AB0"
+            BlueprintIdentifier = "036BEAF94ADB729333AA9301"
             BuildableName = "FroggyBotApple.app"
             BlueprintName = "FroggyBotApple"
             ReferencedContainer = "container:FroggyBotApple.xcodeproj">
@@ -118,7 +118,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "ACA482DF1B6F70FF33CB2AB0"
+            BlueprintIdentifier = "036BEAF94ADB729333AA9301"
             BuildableName = "FroggyBotApple.app"
             BlueprintName = "FroggyBotApple"
             ReferencedContainer = "container:FroggyBotApple.xcodeproj">

@@ -90,6 +90,10 @@ public final class AuthSession {
   }
 
   public func restore() async {
+    if ProcessInfo.processInfo.arguments.contains("--ui-testing-auth") {
+      phase = .signedOut
+      return
+    }
     if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
       phase = .signedIn
       return
@@ -314,7 +318,7 @@ public final class AuthSession {
 }
 
 private final class TokenKeychain: @unchecked Sendable {
-  private let service = "com.froggybot.app.auth"
+  private let service = "com.frogbot.app.auth"
   private let account = "cognito-session"
 
   func save(_ value: TokenSet) throws {

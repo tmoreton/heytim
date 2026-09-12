@@ -34,7 +34,7 @@ app.build_configurations.each do |config|
   release = config.name == 'Release'
   config.build_settings.merge!(common)
   config.build_settings.merge!(
-    'PRODUCT_BUNDLE_IDENTIFIER' => 'com.froggybot.app',
+    'PRODUCT_BUNDLE_IDENTIFIER' => 'com.frogbot.app',
     'PRODUCT_NAME' => 'FroggyBot',
     'PRODUCT_MODULE_NAME' => 'FroggyBotApple',
     'ASSETCATALOG_COMPILER_APPICON_NAME' => 'AppIcon',
@@ -50,7 +50,7 @@ app.build_configurations.each do |config|
   )
 end
 
-[[tests, 'com.froggybot.app.tests']].each do |target, identifier|
+[[tests, 'com.frogbot.app.tests']].each do |target, identifier|
   target.build_configurations.each do |config|
     config.build_settings.merge!(common)
     config.build_settings.merge!(
@@ -66,7 +66,7 @@ end
 ui_tests.build_configurations.each do |config|
   config.build_settings.merge!(common)
   config.build_settings.merge!(
-    'PRODUCT_BUNDLE_IDENTIFIER' => 'com.froggybot.app.uitests',
+    'PRODUCT_BUNDLE_IDENTIFIER' => 'com.frogbot.app.uitests',
     'GENERATE_INFOPLIST_FILE' => 'YES',
     'TEST_TARGET_NAME' => 'FroggyBotApple',
   )

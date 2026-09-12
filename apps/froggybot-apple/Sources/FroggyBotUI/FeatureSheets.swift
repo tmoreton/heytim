@@ -22,7 +22,12 @@ public struct FeatureSheet: View {
         BrowserHandoffView(model: model, botId: botId, groupId: groupId)
       case .share(let selection): ShareView(model: model, selection: selection)
       }
-    }.froggySheetSize()
+    }
+    .froggySheetSize()
+    .background(FrogTheme.pageBackground)
+    .foregroundStyle(FrogTheme.text)
+    .tint(FrogTheme.brand)
+    .preferredColorScheme(.light)
   }
 }
 
@@ -58,7 +63,7 @@ private struct BotLibrary: View {
           ContentUnavailableView("No templates", systemImage: "square.grid.2x2")
         }
       }
-    }.navigationTitle("Add a bot").toolbar { CloseButton() }
+    }.froggyListSurface().navigationTitle("Add a bot").toolbar { CloseButton() }
   }
 }
 
@@ -94,6 +99,7 @@ private struct BotEditor: View {
           values: $draft.alwaysAllowedToolIds)
       }
     }
+    .froggyListSurface()
     .navigationTitle(id == nil ? "New bot" : "Edit bot")
     .toolbar {
       CloseButton()
@@ -199,7 +205,7 @@ private struct GroupEditor: View {
           }
         }
       }
-    }.navigationTitle(id == nil ? "New group" : "Edit group")
+    }.froggyListSurface().navigationTitle(id == nil ? "New group" : "Edit group")
       .toolbar {
         CloseButton()
         if editable {
@@ -264,7 +270,7 @@ private struct SchedulesView: View {
       if schedules.isEmpty {
         ContentUnavailableView("No scheduled tasks", systemImage: "calendar.badge.plus")
       }
-    }.navigationTitle("Scheduled tasks")
+    }.froggyListSurface().navigationTitle("Scheduled tasks")
       .toolbar {
         CloseButton()
         ToolbarItem(placement: .primaryAction) {
@@ -338,7 +344,7 @@ private struct ScheduleEditor: View {
       TextField("Time (HH:mm)", text: $draft.time)
       TextField("Timezone", text: $draft.timezone)
       Toggle("Enabled", isOn: $draft.enabled)
-    }.navigationTitle(existing == nil ? "New task" : "Edit task")
+    }.froggyListSurface().navigationTitle(existing == nil ? "New task" : "Edit task")
       .toolbar {
         CloseButton()
         ToolbarItem(placement: .confirmationAction) {
@@ -376,6 +382,7 @@ private struct ScheduleRunsView: View {
         }
       }
     }
+    .froggyListSurface()
     .navigationTitle("Run history").toolbar { CloseButton() }.task {
       do { runs = try await model.api?.scheduleRuns(for: selection) ?? [] } catch {
         model.present(error)
@@ -450,7 +457,7 @@ private struct MemoriesView: View {
           "Raw conversation history is retained for \(snapshot?.rawConversationRetentionDays ?? 0) days. Learned memory can be reviewed and deleted here."
         ).font(.footnote)
       }
-    }.navigationTitle(groupId == nil ? "Memory" : "Group memory").toolbar { CloseButton() }.task {
+    }.froggyListSurface().navigationTitle(groupId == nil ? "Memory" : "Group memory").toolbar { CloseButton() }.task {
       await load()
     }
   }
@@ -509,7 +516,7 @@ private struct SkillsView: View {
       if model.bootstrap?.skills.isEmpty != false {
         ContentUnavailableView("No skills", systemImage: "sparkles")
       }
-    }.navigationTitle("Skills").toolbar {
+    }.froggyListSurface().navigationTitle("Skills").toolbar {
       CloseButton()
       ToolbarItem(placement: .primaryAction) {
         Button("Create", systemImage: "plus") { model.sheet = .skillEditor(nil) }
@@ -538,6 +545,7 @@ private struct SkillDetailView: View {
         }
       }.padding()
     }
+    .background(FrogTheme.pageBackground)
     .navigationTitle(detail?.name ?? "Skill").task {
       do { detail = try await model.api?.skill(id) } catch { model.present(error) }
     }

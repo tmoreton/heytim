@@ -2,7 +2,7 @@
 
 This is the native SwiftUI client for iPhone and macOS. It lives alongside the Expo app and uses the same Cognito account, HTTP API, data, bots, groups, schedules, skills, connections, files, and browser sessions.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the code-sharing boundary, backend-first decisions, feature surface, and verification model.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the code-sharing boundary, backend-first decisions, feature surface, and verification model. The Expo-derived colors, geometry, icons, and screen-by-screen parity rules are recorded in [DESIGN_PARITY.md](DESIGN_PARITY.md).
 
 The app is one multiplatform Xcode target. Shared models, state, networking, and SwiftUI views compile for both Apple platforms; small adapters handle application lifecycle, notifications, secure storage, file picking, windows, and web views. The existing Expo app remains the web client because SwiftUI does not provide a supported browser target.
 
@@ -31,7 +31,7 @@ Run `npm run outputs:apple` in `services/froggybot-api` whenever Amplify produce
 Before installing on physical devices or distributing the app:
 
 1. Select the Apple Developer team for the app target.
-2. Register `com.froggybot.app` for iOS and macOS with Push Notifications enabled.
+2. Register `com.frogbot.app` for iOS and macOS with Push Notifications enabled.
 3. Use the included development APNs entitlements for Debug and production entitlements for Release.
 4. Configure the matching SNS platform application ARNs in the backend environment.
 5. Capture App Store screenshots before archive submission; the shared FrogBot icon is already configured for both platforms.
