@@ -22,12 +22,23 @@ trap cleanup EXIT
   swift test
 )
 
-xcodebuild build -quiet \
+xcodebuild test -quiet \
   -project "$project" \
   -scheme FroggyBotApple \
   -destination 'platform=macOS' \
   -derivedDataPath "$derived_data" \
+  -parallel-testing-enabled NO \
+  -maximum-parallel-testing-workers 1 \
+  -only-testing:FroggyBotAppleTests \
   CODE_SIGNING_ALLOWED=NO
+
+# The speech model is intentionally embedded in the application, but Xcode also
+# copies it into test bundles. Release the completed Mac test products before
+# building the iPhone UI runner so verification stays bounded on disk without
+# skipping either platform or test suite.
+if [[ -d "$derived_data/Build" ]]; then
+  find "$derived_data/Build" -depth -delete
+fi
 
 simulator_id="${FROGGYBOT_SIMULATOR_ID:-}"
 if [[ -z "$simulator_id" ]]; then
@@ -48,7 +59,7 @@ xcrun simctl boot "$simulator_id" 2>/dev/null || true
 xcrun simctl bootstatus "$simulator_id" -b
 xcodebuild test -quiet \
   -project "$project" \
-  -scheme FroggyBotApple \
+  -scheme FroggyBotAppleUI \
   -destination "id=$simulator_id" \
   -derivedDataPath "$derived_data" \
   -parallel-testing-enabled NO \
