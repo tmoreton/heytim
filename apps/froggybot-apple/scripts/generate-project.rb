@@ -39,7 +39,7 @@ app.build_configurations.each do |config|
     'PRODUCT_MODULE_NAME' => 'FroggyBotApple',
     'ASSETCATALOG_COMPILER_APPICON_NAME' => 'AppIcon',
     'INFOPLIST_FILE' => 'Resources/Info.plist',
-    'MARKETING_VERSION' => '1.0.0',
+    'MARKETING_VERSION' => '6.0.0',
     'CURRENT_PROJECT_VERSION' => '202609130148',
     'CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]' => release ? 'Resources/FroggyBot-iOS-Release.entitlements' : 'Resources/FroggyBot-iOS.entitlements',
     'CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]' => 'Resources/FroggyBot-iOS.entitlements',
