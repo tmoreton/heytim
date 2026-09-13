@@ -232,6 +232,7 @@ private struct ConversationView: View {
   @State private var pendingInspectorAction: InspectorAction?
   @State private var scrollTarget: String?
   @State private var hasNewerMessages = false
+  @FocusState private var composerFocused: Bool
 
   private let bottomID = "froggy-conversation-bottom"
   private struct MessageRevision: Equatable {
@@ -259,7 +260,10 @@ private struct ConversationView: View {
           .frame(minHeight: 44)
           .padding(.bottom, 8)
         }
-        if model.messages.isEmpty { emptyConversation }
+        if model.messages.isEmpty {
+          emptyConversation
+            .containerRelativeFrame(.vertical, alignment: .center)
+        }
         ForEach(model.messages) { message in
           MessageBubble(message: message, model: model, preview: preview)
             .id(message.id)
@@ -267,17 +271,26 @@ private struct ConversationView: View {
         Color.clear.frame(height: 1).id(bottomID)
       }
       .scrollTargetLayout()
-      .padding(.horizontal, 14).padding(.top, 24).padding(.bottom, 16)
+      .padding(.horizontal, 14)
+      .padding(.top, model.messages.isEmpty ? 0 : 24)
+      .padding(.bottom, model.messages.isEmpty ? 0 : 16)
       .frame(maxWidth: 780)
       .frame(maxWidth: .infinity)
     }
+    .accessibilityIdentifier("chat.transcript")
     .scrollPosition(id: $scrollTarget, anchor: .bottom)
     .defaultScrollAnchor(.bottom)
     .scrollDismissesKeyboard(.interactively)
+    .contentShape(Rectangle())
+    .simultaneousGesture(
+      TapGesture().onEnded {
+        composerFocused = false
+      })
     .onAppear { scrollTarget = bottomID }
     .onChange(of: model.selection) { _, _ in
       cancelPreview()
       hasNewerMessages = false
+      composerFocused = false
       scrollTarget = bottomID
     }
     .onChange(of: messageRevisions) { previous, current in
@@ -304,7 +317,9 @@ private struct ConversationView: View {
       }
     }
     .safeAreaInset(edge: .bottom, spacing: 0) {
-      Composer(model: model, dictation: dictation, importing: $importing)
+      Composer(
+        model: model, dictation: dictation, importing: $importing,
+        composerFocused: $composerFocused)
     }
     .navigationTitle(model.title)
     .toolbar {
@@ -454,7 +469,7 @@ private struct ConversationView: View {
         .font(.system(size: 14)).foregroundStyle(FrogTheme.muted)
         .multilineTextAlignment(.center).padding(.top, 7)
     }
-    .frame(maxWidth: .infinity, minHeight: 360)
+    .frame(maxWidth: .infinity)
   }
 }
 
@@ -778,7 +793,7 @@ private struct Composer: View {
   @Bindable var model: AppModel
   @Bindable var dictation: DictationModel
   @Binding var importing: Bool
-  @FocusState private var composerFocused: Bool
+  var composerFocused: FocusState<Bool>.Binding
   @State private var showingPhotoPicker = false
   @State private var selectedPhotos: [PhotosPickerItem] = []
   @State private var dictationPrefix = ""
@@ -812,7 +827,7 @@ private struct Composer: View {
             .textFieldStyle(.plain)
             .font(.body)
             .lineLimit(1...6)
-            .focused($composerFocused)
+            .focused(composerFocused)
             .accessibilityIdentifier("chat.composer")
             .submitLabel(.send)
             .padding(.leading, 13)

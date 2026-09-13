@@ -34,10 +34,34 @@ import XCTest
 
     composer.tap()
     composer.typeText("Native smoke test")
+    #if os(iOS)
+      XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 2))
+      app.scrollViews["chat.transcript"].tap()
+      XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 1))
+      composer.tap()
+    #endif
     app.buttons["chat.send"].tap()
     XCTAssertTrue(
       app.staticTexts["This is the native app’s offline test reply."].waitForExistence(timeout: 5))
     XCTAssertFalse(app.buttons["Jump to Latest"].exists)
+  }
+
+  func testEmptyConversationIsCenteredInTheAvailableSpace() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing", "--ui-testing-empty-conversation"]
+    app.launch()
+
+    let emptyTitle = app.staticTexts["Start a conversation"]
+    let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
+    let details = app.buttons["chat.details"]
+    XCTAssertTrue(emptyTitle.waitForExistence(timeout: 10))
+    XCTAssertTrue(composer.waitForExistence(timeout: 5))
+    XCTAssertTrue(details.waitForExistence(timeout: 5))
+
+    #if os(iOS)
+      let availableMidY = (details.frame.maxY + composer.frame.minY) / 2
+      XCTAssertLessThan(abs(emptyTitle.frame.midY - availableMidY), 90)
+    #endif
   }
 
   func testComposerUsesNativeAttachmentMenu() {

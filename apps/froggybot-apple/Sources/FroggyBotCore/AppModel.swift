@@ -77,7 +77,9 @@ public final class AppModel {
     if demoMode {
       bootstrap = DemoData.bootstrap
       selection = .init(kind: .bot, id: DemoData.bootstrap.bots[0].id)
-      messages = DemoData.messages
+      messages =
+        ProcessInfo.processInfo.arguments.contains("--ui-testing-empty-conversation")
+        ? [] : DemoData.messages
     }
   }
 
