@@ -47,6 +47,7 @@ app.build_configurations.each do |config|
     'ENABLE_APP_SANDBOX[sdk=macosx*]' => 'YES',
     'ENABLE_HARDENED_RUNTIME[sdk=macosx*]' => 'YES',
     'ENABLE_USER_SCRIPT_SANDBOXING[sdk=iphoneos*]' => 'NO',
+    'ENABLE_USER_SCRIPT_SANDBOXING[sdk=macosx*]' => 'NO',
     'REGISTER_APP_GROUPS' => 'NO',
   )
 end

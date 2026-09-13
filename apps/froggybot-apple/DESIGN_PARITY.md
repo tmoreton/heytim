@@ -2,7 +2,8 @@
 
 The Expo app is FroggyBot's feature and behavior reference, not a component or pixel-level blueprint. The Apple client
 keeps the same account, conversations, capabilities, terminology, and brand identity while choosing the most natural
-SwiftUI interaction for iPhone and Mac. The Expo source remains unchanged.
+SwiftUI interaction for iPhone and Mac. The Expo source is preserved as the browser client and migration reference;
+its native release paths are deprecated.
 
 ## Native-first principles
 

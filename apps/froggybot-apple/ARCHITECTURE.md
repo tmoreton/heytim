@@ -4,7 +4,7 @@
 
 FroggyBot for Apple is one SwiftUI application target with iPhone and macOS destinations. Models, authentication, API access, state, navigation, feature screens, on-device transcription, and tests are shared. The only platform-specific code is the small adapter layer for application lifecycle, notification registration, files, external URLs, and `WKWebView`.
 
-The Expo application remains unchanged and continues to own the browser build. SwiftUI has no supported web deployment target, so attempting to make the SwiftUI view tree the web client would replace a supported product with a compatibility experiment. Both clients instead share the server API and generated route contract.
+The Expo source is preserved and continues to own the browser build, but its native build, submit, and update paths are deprecated and blocked. SwiftUI has no supported web deployment target, so attempting to make the SwiftUI view tree the web client would replace a supported product with a compatibility experiment. Both clients instead share the server API and generated route contract.
 
 ## Backend boundary
 

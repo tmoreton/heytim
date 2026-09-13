@@ -1,67 +1,65 @@
 # FroggyBot tutorial
 
 This guide explains the repository in the order a new contributor should learn it. Start with the
-local preview, follow one message through the system, and only then move into AWS infrastructure.
+local Apple app, follow one message through the system, and only then move into AWS infrastructure.
 
-## 1. Learn the three boundaries
+## 1. Learn the deployment boundaries
 
 ```text
-apps/froggybot/          The Expo product and its Amplify application backend
+apps/froggybot-apple/    The primary SwiftUI client for iPhone and Mac
+apps/froggybot/          The preserved Expo browser client and legacy reference
+services/froggybot-api/  The Amplify application backend
 services/agent-runtime/  The AI runtime that turns a bot configuration into an agent
 agentcore/               The declarative AWS AgentCore configuration
 ```
 
-The mobile app owns what people see and the application data they create. The Amplify backend owns
-authentication, storage, queues, schedules, and HTTP routes. The AgentCore runtime owns prompting,
+The SwiftUI app owns the supported Apple experience, while the preserved Expo client owns the browser experience.
+The Amplify backend owns authentication, storage, queues, schedules, and HTTP routes. The AgentCore runtime owns prompting,
 tools, skills, memory, and generated artifacts.
 
 Keeping these boundaries separate prevents the interface from knowing how an agent works and keeps
 the runtime independent of any particular screen.
 
-## 2. Run the local preview
+## 2. Run the Apple app locally
 
-The preview is the fastest way to understand the product because it exercises the real interface
-without calling AWS.
+The supported local entry point builds the same shared SwiftUI target used for TestFlight:
 
 ```bash
-cd apps/froggybot
-nvm use
-npm install
-npm run ios
+./scripts/apple-app.sh run ios
+./scripts/apple-app.sh run macos
 ```
 
-Choose **Preview the app** on the welcome screen. For a browser preview, run `npm run web`.
+For the no-AWS browser preview, run `npm run web:preview` from `apps/froggybot`. The preserved Expo native commands
+begin with `legacy:` and are not supported build or release paths.
 
-Read the preview path in this order:
+Read the primary Apple path in this order:
 
-1. `src/app/app.tsx` is the Expo route.
-2. `src/features/app/app-entry.tsx` chooses authentication or the signed-in product.
-3. `src/features/chat/chat-app.tsx` coordinates the selected conversation and modal screens.
-4. `src/features/chat/conversation-panel.tsx` renders the active conversation.
-5. `src/lib/api.ts` composes the packaged API clients presented to the interface.
-6. `packages/froggybot-client/` owns transport, validation, state reconciliation, and headless domain behavior.
-7. `packages/froggybot-expo-client/` owns Expo platform integrations and controller hooks.
-8. `packages/froggybot-preview/` implements the API over one explicit in-memory preview state.
+1. `apps/froggybot-apple/App/FroggyBotAppleApp.swift` is the application entry.
+2. `Sources/FroggyBotUI/MainView.swift` chooses authentication or the signed-in product and owns adaptive navigation.
+3. `Sources/FroggyBotCore/AppModel.swift` coordinates application state and actions.
+4. `Sources/FroggyBotCore/APIClient.swift` sends authenticated requests through generated routes.
+5. `Sources/FroggyBotUI/MarkdownMessageView.swift` and the feature sheets render the product surface.
+6. `Sources/FroggyBotPlatform/` isolates Keychain, APNs, dictation, and platform lifecycle behavior.
 
-The chat folder contains only views and view-specific layout behavior. Editors and sheets consume the
-view model from `@froggybot/expo-client`; `chat-app.tsx` joins those packaged controllers to the visual tree.
+The Expo source remains useful for browser behavior and migration comparisons, but it is no longer the Apple
+composition root.
 
 ## 3. Follow a live message
 
-When preview mode is off, the same `src/lib/api.ts` adapter sends an authenticated HTTP request.
+When signed in, `APIClient.swift` sends an authenticated HTTP request.
 Follow a direct message through these files:
 
 ```text
-src/lib/api.ts
-  -> amplify/functions/api/handler.py
-  -> amplify/functions/api/direct_chat.py
+apps/froggybot-apple/Sources/FroggyBotCore/APIClient.swift
+  -> services/froggybot-api/amplify/functions/api/handler.py
+  -> services/froggybot-api/amplify/functions/api/direct_chat.py
   -> SQS
-  -> amplify/functions/worker/handler.py
-  -> amplify/functions/worker/direct_job.py
-  -> amplify/functions/worker/agent.py
+  -> services/froggybot-api/amplify/functions/worker/handler.py
+  -> services/froggybot-api/amplify/functions/worker/direct_job.py
+  -> services/froggybot-api/amplify/functions/worker/agent.py
   -> AgentCore Runtime
   -> DynamoDB reply
-  -> Expo notification
+  -> SNS/APNs notification
 ```
 
 The API handler routes requests. Domain modules validate ownership and update application state. The
@@ -70,11 +68,12 @@ queue the final notification.
 
 Chief and the specialists are minimal templates from the public catalog. Setup requires Chief and marks its
 installed copy with the protected coordinator role; onboarding lets each person choose any additional bots they want.
-`amplify/functions/api/bot_roles.py` contains only that application role and reserved branding, not Chief's prompt
+`services/froggybot-api/amplify/functions/api/bot_roles.py` contains only that application role and reserved branding, not Chief's prompt
 or capabilities.
 
 The same pattern covers groups, schedules, uploads, sharing, and account deletion. Each domain has a
-matching file under `amplify/functions/api` or `amplify/functions/worker`.
+matching file under `services/froggybot-api/amplify/functions/api` or
+`services/froggybot-api/amplify/functions/worker`.
 
 ## 4. Understand the agent runtime
 

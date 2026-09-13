@@ -4,36 +4,28 @@
     "appVersionSource": "remote"
   },
   "build": {
-    "development": {
+    "archived-development": {
       "node": "22.23.2",
       "developmentClient": true,
       "distribution": "internal",
-      "channel": "development"
+      "channel": "legacy-frozen"
     },
-    "preview": {
+    "archived-preview": {
       "node": "22.23.2",
       "distribution": "internal",
-      "channel": "preview"
+      "channel": "legacy-frozen"
     },
-    "preview-simulator": {
-      "extends": "preview",
+    "archived-preview-simulator": {
+      "extends": "archived-preview",
       "ios": {
         "simulator": true
       },
-      "channel": "preview-simulator"
+      "channel": "legacy-frozen"
     },
-    "production": {
+    "archived-production": {
       "node": "22.23.2",
       "autoIncrement": true,
-      "channel": "production"
-    }
-  },
-  "submit": {
-    "production": {
-      "ios": {
-        "ascAppId": "6808396807",
-        "appName": "FroggyBot"
-      }
+      "channel": "legacy-frozen"
     }
   }
 }

@@ -1,4 +1,4 @@
-name: Publish FroggyBot app
+name: Verify and publish FroggyBot web app
 
 on:
   push:
@@ -144,7 +144,7 @@ jobs:
         run: ../scripts/verify.sh agentcore
 
   publish:
-    name: Publish FroggyBot app
+    name: Publish FroggyBot web app
     if: github.event_name == 'push'
     needs:
       - dependencies
@@ -200,10 +200,6 @@ jobs:
 
       - name: Publish desktop web app
         run: eas deploy --prod --environment production --non-interactive
-
-      # Native WebView loads this release's browser viewer from the web host.
-      - name: Publish production update
-        run: eas update --channel production --environment production --message "main@${{ github.sha }}" --non-interactive
 
       - name: Verify production security headers
         working-directory: .

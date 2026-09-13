@@ -1,7 +1,11 @@
-# FroggyBot app
+# FroggyBot browser client and legacy Expo source
 
-This Expo SDK 57 project powers the iOS client and the matching desktop web app at `app.froggybot.com`. A responsive local preview is available through an explicit development build and is excluded from production bundles. The separate
-`services/froggybot-api` package owns the Amplify Gen 2 backend. On Apple devices, the composer also supports on-device dictation.
+This Expo SDK 57 project is deprecated for native application development. Its source is intentionally preserved as
+FroggyBot's browser client at `app.froggybot.com` and as a migration reference. All supported iPhone and Mac builds,
+archives, and TestFlight uploads now come from `apps/froggybot-apple`. Native EAS builds are deliberately blocked and
+the production workflow no longer publishes Expo over-the-air updates.
+
+The separate `services/froggybot-api` package owns the Amplify Gen 2 backend shared by the browser and SwiftUI clients.
 
 Each FroggyBot can also own hourly, daily, weekday, weekly, or monthly tasks. EventBridge Scheduler starts the selected bot through the
 same durable agent queue, so the task uses the bot's current prompt, tools, skills, memory, chat history, and final-only
@@ -15,14 +19,15 @@ Each group also has an owner-editable pinned notebook and its own isolated Agent
 group preferences, facts, and summaries inside that room, but private user preferences and direct-chat summaries are never copied
 into the group. Group members can review learned memory, while only the owner can add, correct, or forget it.
 
-## Run the interface locally
+## Run the browser interface locally
 
 ```bash
 npm install
-npm run ios:preview
+npm run web:preview
 ```
 
-Choose **Preview the app** when AWS has not been connected yet. Normal `start`, `ios`, `android`, `web`, and production build commands omit the local preview engine; use the corresponding `:preview` command only for interface development.
+Choose **Preview the app** when AWS has not been connected yet. Normal `start`, `web`, and production web builds omit
+the local preview engine. `npm run ios` and `npm run ios:mac` intentionally hand off to the primary SwiftUI app.
 
 For web development, install the separately built viewer once with `npm install --prefix ../froggybot-browser-viewer`. The Expo web build compiles that app and copies only its static output into `public/`.
 
@@ -39,66 +44,38 @@ export FROGBOT_GOOGLE_OAUTH_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT
 npm run sandbox -- --once --identifier frogbot --profile YOUR_AWS_PROFILE
 ```
 
-The sandbox replaces the placeholder values in `amplify_outputs.json`. See the repository-level
-`README.md` for the complete deployment order and checks. Run Expo and EAS commands here; run backend commands from
-`services/froggybot-api`.
+The sandbox replaces the placeholder values in `amplify_outputs.json`. See the repository-level `README.md` for the
+complete deployment order and checks. Run browser npm/EAS Deploy commands here; run backend commands from
+`services/froggybot-api` and all Apple build commands from the repository root.
 
-Reply notifications use Expo Push Notifications. The app registers each signed-in physical device with the
-authenticated API, and the worker checks delivery receipts and removes stale tokens. On Apple devices, dictation uses
-the bundled NVIDIA Nemotron 3.5 ASR Streaming 0.6B model through sherpa-onnx. FroggyBot does not save the recording or
-fall back to cloud transcription.
+The preserved native implementation used Expo Push Notifications and bundled on-device dictation. The primary SwiftUI
+app registers directly for APNs through Amazon SNS and owns current Apple notification and transcription behavior.
 
-## Run the iOS app on an Apple silicon Mac
+## Deprecated native source
 
-The existing iOS app can run in macOS's **Designed for iPad** compatibility mode. This is the quickest desktop build:
-it reuses the iOS Expo bridge and the same bundled Nemotron model rather than introducing a separate macOS UI target.
+The old iOS, Designed-for-iPad Mac, and Android implementation remains in this directory so history can be inspected
+and behavior can be compared during migration. Its commands are explicit: `legacy:ios`, `legacy:ios:preview`,
+`legacy:ios:native`, `legacy:ios:mac`, and `legacy:android`. They are unsupported reference paths, not release paths.
+
+EAS native build profiles are archived by name, the native build hook rejects them, the submit profile was removed,
+and the main-branch workflow no longer publishes EAS Update. This keeps an accidental Expo binary or JavaScript update
+from becoming a new Apple release while preserving every source file.
+
+For supported Apple work, run these from the repository root:
 
 ```bash
-npm run ios:mac
+./scripts/apple-app.sh run ios
+./scripts/apple-app.sh run macos
+APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh testflight ios
+APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh testflight macos
 ```
 
-The command prepares the native model, creates or refreshes the generated iOS workspace, opens Xcode, and starts
-Metro. In Xcode, select **My Mac (Designed for iPad)** as the run destination and click **Run**. Xcode remembers the
-destination for later runs. Expo's `run:ios` device picker does not currently expose this Mac compatibility
-destination, so the final Run action must be performed in Xcode during development.
+## Publish the browser client
 
-This produces a mobile-compatible Mac window, not a native AppKit application. A distributed build is installed from
-the iOS App Store/TestFlight with Mac availability enabled. The app and Nemotron model run locally on Apple silicon;
-web and Android continue to report local dictation as unavailable.
-
-## Publish over-the-air updates
-
-Production builds listen to the EAS Update `production` channel and use Expo's fingerprint runtime policy so an
-update is never sent to a binary with incompatible native code. Every push to `main` runs
-`.github/workflows/eas-update.yml`, including pull-request merges, and publishes the JavaScript and asset changes.
-The repository keeps the required Expo access token in the `EXPO_TOKEN` GitHub Actions secret. The marketing
-homepage, public skill library, legal pages, and contribution guide live in the separate
+Every push to `main` verifies this preserved code and uses EAS Deploy for the static browser app only. It does not
+build, submit, or update a native Expo app. For an intentional manual browser deployment, use `npm run deploy:web`.
+The marketing homepage, public skill library, legal pages, and contribution guide live in the separate
 [`frogbot-skills`](https://github.com/tmoreton/frogbot-skills) repository and publish independently with GitHub Pages.
-
-For an intentional manual update:
-
-```bash
-eas update --channel production --environment production --message "Describe the change" --non-interactive
-```
-
-Native dependency, permission, or configuration changes still require a new App Store build. Ordinary interface,
-copy, and application-logic changes can ship over the air.
-
-## Build iOS
-
-The app is linked to the `@reactnativenerd/frogbot` EAS project. Use the simulator profile for an
-unsigned installable test build, or production for an App Store archive:
-
-```bash
-nvm use
-EAS_PROJECT_ROOT="$(cd ../.. && pwd)" EAS_NO_VCS=1 npx eas-cli@latest build --platform ios --profile preview-simulator
-EAS_PROJECT_ROOT="$(cd ../.. && pwd)" EAS_NO_VCS=1 npx eas-cli@latest build --platform ios --profile production
-```
-
-`EAS_PROJECT_ROOT` includes the source-only workspace packages that the app consumes. The repository-level
-`.easignore` keeps infrastructure, backend code, caches, and generated native artifacts out of the upload.
-Push notifications and dictation require a development or production build on a physical Apple device, or the iOS
-app running in Designed for iPad mode on an Apple silicon Mac. They do not run in Expo Go or the web preview.
 
 ## Verify changes
 
@@ -107,4 +84,5 @@ npm run verify
 npm run build:web
 ```
 
-The first command checks the app, Amplify infrastructure, backend unit tests, and Expo project health.
+These commands check the preserved view boundary, tests, types, lint, Expo project health, browser viewer, and static
+web export. Run `./scripts/apple-app.sh verify` from the repository root for the primary iPhone and Mac client.

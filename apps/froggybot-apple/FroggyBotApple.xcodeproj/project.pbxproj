@@ -469,6 +469,7 @@
 				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				"ENABLE_USER_SCRIPT_SANDBOXING[sdk=iphoneos*]" = NO;
+				"ENABLE_USER_SCRIPT_SANDBOXING[sdk=macosx*]" = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
@@ -563,6 +564,7 @@
 				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				"ENABLE_USER_SCRIPT_SANDBOXING[sdk=iphoneos*]" = NO;
+				"ENABLE_USER_SCRIPT_SANDBOXING[sdk=macosx*]" = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";

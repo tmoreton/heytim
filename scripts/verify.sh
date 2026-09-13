@@ -54,6 +54,9 @@ verify_backend() {
 }
 
 verify_application() {
+  section "Client build and release boundary"
+  node "$repository_root/scripts/check-client-entrypoints.mjs"
+
   section "Shared application packages"
   npm --prefix "$repository_root/packages/froggybot-contract" test
   npm --prefix "$repository_root/packages/froggybot-client" test
@@ -65,7 +68,7 @@ verify_application() {
   npm --prefix "$repository_root/apps/froggybot-browser-viewer" test
   npm --prefix "$repository_root/apps/froggybot-browser-viewer" run typecheck
 
-  section "Expo application"
+  section "Preserved Expo browser client"
   (
     cd "$repository_root/apps/froggybot"
     npm run verify

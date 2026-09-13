@@ -3,7 +3,8 @@
 This repository deliberately separates deployment units from reusable client packages:
 
 ```text
-apps/froggybot/                 Expo view layer and composition root
+apps/froggybot-apple/           Primary SwiftUI composition root for iPhone and Mac
+apps/froggybot/                 Preserved Expo browser view layer and legacy native reference
 apps/froggybot-browser-viewer/  Disposable browser viewer application
 packages/                       Contracts, clients, preview, and native transcription
 services/froggybot-api/         Serverless application backend
@@ -11,18 +12,22 @@ services/agent-runtime/         AgentCore runtime shared by every FroggyBot pers
 agentcore/                      Declarative AgentCore infrastructure and gateway schemas
 ```
 
-## Mobile application
+## Client applications
 
-`apps/froggybot/src/app` contains Expo Router route shells. `src/features` and `src/components` contain
-screens and visual primitives; `src/lib` is limited to composition, cloud configuration, theme values,
-and the production-disabled preview switch. A boundary check rejects new non-view TypeScript modules in
-the app. Web and iOS use the same view code.
+`apps/froggybot-apple` is the supported iPhone and Mac application. One multiplatform SwiftUI target shares its
+models, API client, state, screens, and tests, with a small platform adapter for Keychain, APNs, dictation, files,
+windows, and web views. It is the only source for local Apple builds, archives, and TestFlight releases.
+
+`apps/froggybot/src/app` contains the preserved Expo Router browser shells. `src/features` and `src/components`
+contain screens and visual primitives; `src/lib` is limited to composition, cloud configuration, theme values,
+and the production-disabled preview switch. A boundary check rejects new non-view TypeScript modules in the app.
+Native Expo builds and updates are disabled, but the source stays available for the web client and migration history.
 
 `packages/froggybot-contract` owns shared types and generated routes. `packages/froggybot-client` owns the
 headless transport, response validation, reconciliation, policy-derived presentation models, and API domains.
-`packages/froggybot-expo-client` owns platform/controller hooks for auth, notifications, links, polling,
-attachments, dictation, and mutations. `packages/froggybot-preview` owns one explicit in-memory development
-state and API implementation. `packages/frogbot-transcription` owns the reusable Expo/Swift transcription module.
+`packages/froggybot-expo-client` owns the preserved browser/Expo controller hooks for auth, notifications, links,
+polling, attachments, dictation, and mutations. `packages/froggybot-preview` owns one explicit in-memory development
+state and API implementation. `packages/frogbot-transcription` owns the reusable transcription core.
 The separately built browser viewer keeps the AgentCore SDK and Cloudscape dependency tree out of Expo.
 
 The backend returns `allowedActions` and input `constraints` in its public models. Views render those values

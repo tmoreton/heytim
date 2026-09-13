@@ -1,21 +1,26 @@
 # FroggyBot
 
-FroggyBot is a small iOS-first AI team app. One Amazon Bedrock AgentCore runtime serves every bot;
-each bot supplies its own prompt, enabled tools, enabled skills, and stable session ID. The Expo app
-provides a Grokbot-style chat interface, while Amplify provisions passwordless email-code sign-in and the
-serverless chat API.
+FroggyBot is a small Apple-first AI team app. One Amazon Bedrock AgentCore runtime serves every bot;
+each bot supplies its own prompt, enabled tools, enabled skills, and stable session ID. The primary client is one
+native SwiftUI target shared by iPhone and Mac. The preserved Expo project now serves only the browser experience
+and as a migration reference; it is not an Apple build or release source. Amplify provisions passwordless
+email-code sign-in and the serverless chat API used by both clients.
 
 ## Repository layout
 
 ```text
-apps/froggybot/          Expo iOS/web product and its Amplify backend
+apps/froggybot-apple/    Primary SwiftUI app for iPhone and Mac
+apps/froggybot/          Preserved Expo browser client and legacy native reference
+services/froggybot-api/  Amplify application backend
 services/agent-runtime/  AgentCore runtime and runtime-only modules
 agentcore/               Declarative AgentCore resources and gateway schemas
 docs/                    Tutorial, architecture, and operations guides
 ```
 
-`apps/froggybot` is an independent Expo project, so run Expo, EAS, Amplify, and npm commands from
-that directory. `services/agent-runtime` is referenced by `agentcore.json`, which remains the source of truth
+Use `scripts/apple-app.sh` from the repository root for local Apple builds, verification, archives, and TestFlight.
+Expo and EAS commands under `apps/froggybot` are browser-only unless their name explicitly begins with `legacy:`;
+native EAS builds are intentionally blocked. `services/agent-runtime` is referenced by `agentcore.json`, which remains
+the source of truth
 for deployed agent resources. The older internal name `FrogBot` remains in AWS resource identities because
 renaming it would replace deployed infrastructure;
 user-facing product copy uses `FroggyBot`. The maintained boundary and request-flow
@@ -25,10 +30,10 @@ in [`docs/grokbot-parity-roadmap.md`](docs/grokbot-parity-roadmap.md).
 ## Architecture
 
 ```text
-Expo app
-  |-- Cognito email code sign-in
-  |-- Apple on-device speech-to-text
-  |-- authenticated HTTP API
+SwiftUI app (iPhone + Mac) --+
+  |-- on-device speech       |
+  |-- native APNs            +-- Cognito email-code sign-in
+Expo browser client ---------+-- authenticated HTTP API
         |-- DynamoDB: bot configs, chats, files, groups, tasks, tokens, and invites
         |-- Secrets Manager: per-user OAuth and legacy connection credentials
         |-- S3: private user uploads and generated artifacts
@@ -39,7 +44,7 @@ Expo app
                     |     |-- AgentCore Memory -> preferences, facts, summaries
                     |     |-- persistent browser and code-interpreter sessions
                     |-- AgentCore Gateway -> reviewed external tools
-                    |-- Expo Push Service -> APNs
+                    |-- Amazon SNS -> APNs
 ```
 
 The request path is asynchronous so a long agent turn is not limited by an HTTP request timeout.
@@ -85,20 +90,21 @@ order for the preview app, live request path, AgentCore runtime, infrastructure,
 - CloudTrail audit logs, API access logs, X-Ray tracing, service alarms, and a CloudWatch dashboard
 - Permanent in-app account deletion, including active share revocation and versioned user-file deletion
 - Published service objectives, alarm response, and recovery procedures in [`docs/operations.md`](docs/operations.md)
-- Expo over-the-air updates on the production channel, automatically published after changes land on `main`
-- A local preview mode that works before AWS is connected
+- One native SwiftUI application shared across iPhone and Mac, with separate TestFlight builds from the same target
+- A separately deployed browser client retained from the Expo implementation
+- A browser preview mode that works before AWS is connected
 
-## Local preview
+## Local Apple builds
 
-The preview uses sample data and does not call AWS.
+From the repository root, build and launch the primary SwiftUI app on an iPhone simulator or this Mac:
 
 ```bash
-cd apps/froggybot
-npm install
-npm run ios
+./scripts/apple-app.sh run ios
+./scripts/apple-app.sh run macos
 ```
 
-Choose **Preview the app** on the welcome screen. `npm run web` is useful for quick layout checks.
+Open the shared Xcode project with `./scripts/apple-app.sh open`. For the preserved browser preview, use
+`npm run web:preview` from `apps/froggybot`; it is not the source for an iPhone or Mac binary.
 
 ## Deploy to AWS
 
@@ -151,10 +157,11 @@ export FROGBOT_ENVIRONMENT='production'
 npm run sandbox -- --once --identifier frogbot --profile YOUR_AWS_PROFILE
 ```
 
-Amplify writes the real Cognito and API values to `apps/froggybot/amplify_outputs.json`. Keep the sandbox
-running during active development by omitting `--once`, then start the app from `apps/froggybot` in another terminal with
-`npm run ios`. Expo SDK 57 requires Node 22.13 or newer; the pinned Node 22 line also avoids the
-Amplify CLI incompatibility seen under Node 25.
+Amplify writes the real Cognito and API values to `apps/froggybot/amplify_outputs.json`. Run
+`npm run outputs:apple` from `services/froggybot-api` after those values change, then launch the app with
+`./scripts/apple-app.sh run ios` or `./scripts/apple-app.sh run macos` from the repository root. Expo SDK 57 and the
+Amplify tooling require Node 22.13 or newer; the pinned Node 22 line also avoids the Amplify CLI incompatibility
+seen under Node 25.
 
 Set `FROGBOT_AGENT_RUNTIME_QUALIFIER` only if the runtime should use a qualifier other than
 `DEFAULT`. Deploy with an IAM Identity Center or least-privilege role; the deployment runbook must
@@ -222,16 +229,29 @@ See [the verification guide](docs/verification.md) for prerequisites, focused co
 
 ## App releases and websites
 
-The production EAS build profile listens to the `production` update channel. The GitHub Actions workflow at
-`.github/workflows/eas-update.yml` publishes both an EAS Update and the Expo desktop web app after every push to
-`main`; the Expo credential is stored as the repository secret `EXPO_TOKEN`. Expo's fingerprint runtime policy
-prevents an update from reaching an incompatible native build. The web app at `https://app.froggybot.com` mirrors
-the passwordless iOS experience and owns application and invite routes.
+All new iPhone and Mac binaries come from `apps/froggybot-apple`. Create an archive for Organizer, or archive and
+upload directly to App Store Connect for TestFlight, with:
+
+```bash
+APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh archive ios
+APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh archive macos
+APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh testflight ios
+APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh testflight macos
+```
+
+The TestFlight command refuses a dirty source tree, checks the bundled backend configuration, runs the Apple test
+suite, and preserves the selected build number. It uses the Apple Developer account signed into Xcode, or an App
+Store Connect API key supplied through the documented environment variables. No signing material belongs in this
+repository.
+
+The GitHub Actions workflow at `.github/workflows/eas-update.yml` now builds and deploys only the browser client after
+every push to `main`; it no longer publishes native Expo updates. The Expo credential remains the repository secret
+`EXPO_TOKEN` for that web deployment. The browser app at `https://app.froggybot.com` owns application and invite routes.
 
 The separate [FroggyBot Skills](https://github.com/tmoreton/frogbot-skills) repository owns the public homepage,
 library, contribution guide, and legal pages at `https://froggybot.com`. Its GitHub Pages workflow publishes on
 every catalog or website change, independently of the app release cycle. Public `/invite` links preserve their
-query string and hand off to the Expo app subdomain.
+query string and hand off to the browser app subdomain.
 
 ## Key locations
 
@@ -239,7 +259,8 @@ query string and hand off to the Expo app subdomain.
 - `services/agent-runtime/runtime/frogbot_runtime/` - production-only runtime source packaged for AgentCore
 - `services/agent-runtime/runtime/frogbot_runtime/capability_contract.py` - reviewed execution allowlist and capability validation
 - `agentcore/agentcore.json` - AgentCore source-of-truth configuration
-- `apps/froggybot/src/` - Expo routes, screens, components, styles, and composition adapters only
+- `apps/froggybot-apple/` - primary shared SwiftUI app, Apple tests, and release scripts
+- `apps/froggybot/src/` - preserved Expo browser routes, screens, and legacy reference implementation
 - `packages/froggybot-contract/` - shared types and generated HTTP route contract
 - `packages/froggybot-client/` - headless API client, response validation, state reconciliation, and presentation models
 - `packages/froggybot-expo-client/` - Expo platform adapters and controller hooks
