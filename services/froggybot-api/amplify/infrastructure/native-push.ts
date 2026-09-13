@@ -23,12 +23,18 @@ export function addNativePushAccess(
     actions: ['sns:CreatePlatformEndpoint'],
     resources: applications,
   }));
+  // SNS endpoint-management actions do not support resource-level permissions.
+  // AWS therefore requires "*" here even though the calls receive an EndpointArn.
   apiFunction.addToRolePolicy(new PolicyStatement({
-    actions: ['sns:DeleteEndpoint', 'sns:GetEndpointAttributes', 'sns:SetEndpointAttributes'],
-    resources: endpoints,
+    actions: ['sns:DeleteEndpoint', 'sns:SetEndpointAttributes'],
+    resources: ['*'],
   }));
   workerFunction.addToRolePolicy(new PolicyStatement({
-    actions: ['sns:DeleteEndpoint', 'sns:Publish'],
+    actions: ['sns:DeleteEndpoint'],
+    resources: ['*'],
+  }));
+  workerFunction.addToRolePolicy(new PolicyStatement({
+    actions: ['sns:Publish'],
     resources: endpoints,
   }));
 }
