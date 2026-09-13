@@ -77,7 +77,6 @@ fi
 
 FROGGYBOT_BUILD_NUMBER="$build_number" "$apple_root/scripts/archive.sh" "$platform"
 
-authentication_args=()
 key_path="${APP_STORE_CONNECT_KEY_PATH:-}"
 key_id="${APP_STORE_CONNECT_KEY_ID:-}"
 issuer_id="${APP_STORE_CONNECT_ISSUER_ID:-}"
@@ -90,11 +89,6 @@ if [[ -n "$key_path" || -n "$key_id" || -n "$issuer_id" ]]; then
     echo "App Store Connect API key not found: $key_path" >&2
     exit 2
   fi
-  authentication_args=(
-    -authenticationKeyPath "$key_path"
-    -authenticationKeyID "$key_id"
-    -authenticationKeyIssuerID "$issuer_id"
-  )
 fi
 
 if [[ -e "$export_path" ]]; then
@@ -102,12 +96,21 @@ if [[ -e "$export_path" ]]; then
   exit 1
 fi
 
-xcodebuild -exportArchive \
-  -archivePath "$archive_path" \
-  -exportPath "$export_path" \
-  -exportOptionsPlist "$export_options" \
-  -allowProvisioningUpdates \
-  "${authentication_args[@]}"
+export_args=(
+  -exportArchive
+  -archivePath "$archive_path"
+  -exportPath "$export_path"
+  -exportOptionsPlist "$export_options"
+  -allowProvisioningUpdates
+)
+if [[ -n "$key_path" ]]; then
+  export_args+=(
+    -authenticationKeyPath "$key_path"
+    -authenticationKeyID "$key_id"
+    -authenticationKeyIssuerID "$issuer_id"
+  )
+fi
+xcodebuild "${export_args[@]}"
 
 echo "$platform_label build $build_number was uploaded to App Store Connect."
 echo "Apple will show it in TestFlight after processing completes."

@@ -41,7 +41,6 @@ if [[ ! "$build_number" =~ ^[0-9]+$ ]]; then
   exit 2
 fi
 
-authentication_args=()
 key_path="${APP_STORE_CONNECT_KEY_PATH:-}"
 key_id="${APP_STORE_CONNECT_KEY_ID:-}"
 issuer_id="${APP_STORE_CONNECT_ISSUER_ID:-}"
@@ -54,11 +53,6 @@ if [[ -n "$key_path" || -n "$key_id" || -n "$issuer_id" ]]; then
     echo "App Store Connect API key not found: $key_path" >&2
     exit 2
   fi
-  authentication_args=(
-    -authenticationKeyPath "$key_path"
-    -authenticationKeyID "$key_id"
-    -authenticationKeyIssuerID "$issuer_id"
-  )
 fi
 
 case "$platform" in
@@ -98,17 +92,26 @@ fi
 "$apple_root/scripts/prepare-transcription.sh"
 mkdir -p "$archives_root"
 
-xcodebuild archive \
-  -project "$apple_root/FroggyBotApple.xcodeproj" \
-  -scheme FroggyBotApple \
-  -configuration Release \
-  -destination "$destination" \
-  -archivePath "$archive_path" \
-  DEVELOPMENT_TEAM="$team_id" \
-  CODE_SIGN_STYLE=Automatic \
-  CURRENT_PROJECT_VERSION="$build_number" \
-  -allowProvisioningUpdates \
-  "${authentication_args[@]}"
+archive_args=(
+  archive
+  -project "$apple_root/FroggyBotApple.xcodeproj"
+  -scheme FroggyBotApple
+  -configuration Release
+  -destination "$destination"
+  -archivePath "$archive_path"
+  DEVELOPMENT_TEAM="$team_id"
+  CODE_SIGN_STYLE=Automatic
+  CURRENT_PROJECT_VERSION="$build_number"
+  -allowProvisioningUpdates
+)
+if [[ -n "$key_path" ]]; then
+  archive_args+=(
+    -authenticationKeyPath "$key_path"
+    -authenticationKeyID "$key_id"
+    -authenticationKeyIssuerID "$issuer_id"
+  )
+fi
+xcodebuild "${archive_args[@]}"
 
 echo "Archive created at $archive_path"
 echo "This script does not upload it. Review and distribute the archive with Xcode Organizer."
