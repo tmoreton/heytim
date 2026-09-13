@@ -689,9 +689,9 @@ private struct MessageBubble: View {
               }
               .buttonStyle(.borderedProminent)
             } else if !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-              markdownText(message.text)
-                .font(.body).lineSpacing(3).textSelection(.enabled)
-                .foregroundStyle(mine ? .white : FrogTheme.textSoft)
+              MarkdownMessageView(
+                message.text,
+                baseColor: mine ? .white : FrogTheme.textSoft)
             }
 
             ForEach(message.attachments ?? []) { attachment in
@@ -799,11 +799,6 @@ private struct MessageBubble: View {
     if awaitingApproval { return FrogTheme.approvalBorder }
     if message.roundRole == "synthesizer" { return FrogTheme.teamBorder }
     return .clear
-  }
-  private func markdownText(_ markdown: String) -> Text {
-    (try? AttributedString(
-      markdown: markdown, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
-      .map(Text.init) ?? Text(markdown)
   }
   private func open(_ attachment: Attachment) {
     preview(attachment)

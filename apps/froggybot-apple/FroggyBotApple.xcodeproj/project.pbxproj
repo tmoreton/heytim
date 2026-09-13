@@ -28,6 +28,7 @@
 		CFE5417164184F768A12EDA7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E2C6B5C273D17E4175FCD47 /* Assets.xcassets */; };
 		D6027952846E457A4376A233 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B9CC3931FA6EE35FAA6EE55 /* AppModel.swift */; };
 		DD3D1822474E3252D9F3F03A /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEBCA84BE99B4DA42774AFC9 /* MainView.swift */; };
+		E13A6B7C8D9E0F1122334455 /* MarkdownMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24B7C8D9E0F112233445566 /* MarkdownMessageView.swift */; };
 		E8023B8D86FC9D1EB85F8E97 /* FroggyBotAppleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AF508E0146999356C45412C /* FroggyBotAppleTests.swift */; };
 		FD5D73F6E56DADBEAE7672F9 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD1FDE6E32BDD5885066D64E /* AuthView.swift */; };
 /* End PBXBuildFile section */
@@ -68,6 +69,7 @@
 		925AEA136D2CE1FFCD07AB2F /* BrowserHandoffView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BrowserHandoffView.swift; path = Sources/FroggyBotUI/BrowserHandoffView.swift; sourceTree = "<group>"; };
 		A2E66EEE186BD7D21545E300 /* FroggyBotAppleUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FroggyBotAppleUITests.swift; path = UITests/FroggyBotAppleUITests.swift; sourceTree = "<group>"; };
 		AEBCA84BE99B4DA42774AFC9 /* MainView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MainView.swift; path = Sources/FroggyBotUI/MainView.swift; sourceTree = "<group>"; };
+		F24B7C8D9E0F112233445566 /* MarkdownMessageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarkdownMessageView.swift; path = Sources/FroggyBotUI/MarkdownMessageView.swift; sourceTree = "<group>"; };
 		B1F7CDEBB6DF7F342BE9FB44 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		B384DE3BA6BA207B7EF1AF65 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Resources/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B774FBD749325E92725D280D /* DictationModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DictationModel.swift; path = Sources/FroggyBotPlatform/DictationModel.swift; sourceTree = "<group>"; };
@@ -126,6 +128,7 @@
 				925AEA136D2CE1FFCD07AB2F /* BrowserHandoffView.swift */,
 				83E70A38472AE92E89DC1B5B /* FeatureSheets.swift */,
 				AEBCA84BE99B4DA42774AFC9 /* MainView.swift */,
+				F24B7C8D9E0F112233445566 /* MarkdownMessageView.swift */,
 				D6C3976A45AD4577E2E9FDA7 /* SupportingFeatureSheets.swift */,
 				CB552B6D870BEA76BC7C30DA /* Theme.swift */,
 				12D88BAF06A6BB52B699B306 /* amplify_outputs.json */,
@@ -335,6 +338,7 @@
 				98CBDAD997CF6DEEEF6AB32F /* BrowserHandoffView.swift in Sources */,
 				57D84F36EB9E7F1BBABB315E /* FeatureSheets.swift in Sources */,
 				DD3D1822474E3252D9F3F03A /* MainView.swift in Sources */,
+				E13A6B7C8D9E0F1122334455 /* MarkdownMessageView.swift in Sources */,
 				4AA74310ECE69C04ADDC9043 /* SupportingFeatureSheets.swift in Sources */,
 				4E4B5E2BF1A17911E773DDA9 /* Theme.swift in Sources */,
 			);

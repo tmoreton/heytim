@@ -82,6 +82,8 @@ public final class AppModel {
         messages = []
       } else if arguments.contains("--ui-testing-activity") {
         messages = DemoData.activityMessages
+      } else if arguments.contains("--ui-testing-markdown") {
+        messages = DemoData.markdownMessages
       } else {
         messages = DemoData.messages
       }
@@ -750,6 +752,24 @@ public enum DemoData {
       ],
       createdAt: "2026-09-12T12:02:01.000Z", activityUpdatedAt: "2026-09-12T12:02:10.000Z",
       status: "running"),
+  ]
+  public static let markdownMessages = [
+    ChatMessage(
+      id: "markdown-assistant", role: "assistant", authorType: "bot", authorId: "chief",
+      authorName: "Chief", authorColor: "#59B86B",
+      text: """
+        ## Release check
+
+        The **important details** now render cleanly.
+
+        1. Open the pull request.
+        2. Verify `main` before release.
+
+        | Item | Status |
+        | :--- | ---: |
+        | Credentials | Protected |
+        """,
+      createdAt: "2026-09-12T12:03:00.000Z", status: "complete")
   ]
 }
 

@@ -39,6 +39,65 @@ import UniformTypeIdentifiers
     XCTAssertEqual(String(formatted.characters), "Checking README.md before release.")
   }
 
+  func testMessageMarkdownParsesHeadingListAndTableAsBlocks() throws {
+    let blocks = MarkdownBlockParser.parse(
+      """
+      ## I can't flip visibility
+
+      Two separate things:
+
+      1. **Visibility** is managed in settings.
+         This remains part of the first item.
+      2. Protect `main` before release.
+
+      | Key | Value |
+      | :--- | ---: |
+      | SITE_EDITOR_AGENT_ARN | Protected |
+      """)
+
+    XCTAssertEqual(blocks.count, 4)
+    XCTAssertEqual(blocks[0], .heading(level: 2, text: "I can't flip visibility"))
+    XCTAssertEqual(blocks[1], .paragraph("Two separate things:"))
+
+    guard case .list(let ordered, let items) = blocks[2] else {
+      return XCTFail("Expected an ordered list")
+    }
+    XCTAssertTrue(ordered)
+    XCTAssertEqual(items.map(\.number), [1, 2])
+    XCTAssertEqual(
+      items[0].text,
+      "**Visibility** is managed in settings. This remains part of the first item.")
+
+    guard case .table(let table) = blocks[3] else {
+      return XCTFail("Expected a table")
+    }
+    XCTAssertEqual(table.headers, ["Key", "Value"])
+    XCTAssertEqual(table.rows, [["SITE_EDITOR_AGENT_ARN", "Protected"]])
+    XCTAssertEqual(table.alignments, [.leading, .trailing])
+  }
+
+  func testMessageMarkdownParsesQuoteCodeAndTaskList() {
+    let blocks = MarkdownBlockParser.parse(
+      """
+      > Check this before release.
+
+      - [x] Tests pass
+      - [ ] Upload build
+
+      ```swift
+      let ready = true
+      ```
+      """)
+
+    XCTAssertEqual(blocks[0], .quote("Check this before release."))
+    guard case .list(let ordered, let items) = blocks[1] else {
+      return XCTFail("Expected a task list")
+    }
+    XCTAssertFalse(ordered)
+    XCTAssertEqual(items.map(\.checkbox), [true, false])
+    XCTAssertEqual(blocks[2], .code(language: "swift", text: "let ready = true"))
+  }
+
   func testResetSessionClearsAccountScopedStateAndDisconnects() throws {
     let api = FrogBotAPI(baseURL: try XCTUnwrap(URL(string: "https://api.example.com"))) {
       "id-token"

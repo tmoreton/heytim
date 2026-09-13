@@ -78,6 +78,22 @@ import XCTest
     XCTAssertFalse(app.staticTexts["Checking `README.md` for the intended release workflow."].exists)
   }
 
+  func testMessageMarkdownUsesNativeBlockFormatting() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing", "--ui-testing-markdown"]
+    app.launch()
+
+    XCTAssertTrue(app.staticTexts["Release check"].waitForExistence(timeout: 10))
+    XCTAssertTrue(app.staticTexts["1."].exists)
+    XCTAssertTrue(app.staticTexts["2."].exists)
+    XCTAssertTrue(app.staticTexts["Item"].exists)
+    XCTAssertTrue(app.staticTexts["Status"].exists)
+    XCTAssertTrue(app.staticTexts["Credentials"].exists)
+    XCTAssertTrue(app.staticTexts["Protected"].exists)
+    XCTAssertFalse(app.staticTexts["## Release check"].exists)
+    XCTAssertFalse(app.staticTexts["| Item | Status |"].exists)
+  }
+
   func testComposerUsesNativeAttachmentMenu() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]
