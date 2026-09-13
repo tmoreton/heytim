@@ -71,6 +71,8 @@ private struct BotEditor: View {
   @State private var saving = false
   @Environment(\.dismiss) private var dismiss
   var body: some View {
+    let alwaysAllowedTools = revocableAlwaysAllowedTools(
+      tools: model.bootstrap?.tools ?? [], skills: model.bootstrap?.skills ?? [], draft: draft)
     Form {
       Section("Identity") {
         TextField("Name", text: $draft.name)
@@ -90,10 +92,16 @@ private struct BotEditor: View {
       Section("Tools") {
         capabilitySelection(items: model.bootstrap?.tools ?? [], values: $draft.toolIds)
       }
-      Section("Always allowed") {
-        capabilitySelection(
-          items: (model.bootstrap?.tools ?? []).filter { $0.risk != "interactive" },
-          values: $draft.alwaysAllowedToolIds)
+      if !alwaysAllowedTools.isEmpty {
+        Section {
+          capabilitySelection(items: alwaysAllowedTools, values: $draft.alwaysAllowedToolIds)
+        } header: {
+          Text("Always allowed in direct chats")
+        } footer: {
+          Text(
+            "Turn one off to require approval again. Groups and schedules still require supervision."
+          )
+        }
       }
     }
     .froggyListSurface()
@@ -139,6 +147,20 @@ private struct BotEditor: View {
       if await model.saveBot(draft, id: id) { dismiss() }
       saving = false
     }
+  }
+}
+
+func revocableAlwaysAllowedTools(tools: [Capability], skills: [Skill], draft: BotDraft)
+  -> [Capability]
+{
+  let selectedSkillIDs = Set(draft.skillIds)
+  let requiredToolIDs = skills.lazy
+    .filter { selectedSkillIDs.contains($0.id) }
+    .flatMap(\.requiredToolIds)
+  let activeToolIDs = Set(draft.toolIds).union(requiredToolIDs)
+  let allowedToolIDs = Set(draft.alwaysAllowedToolIds)
+  return tools.filter {
+    $0.risk == "interactive" && activeToolIDs.contains($0.id) && allowedToolIDs.contains($0.id)
   }
 }
 

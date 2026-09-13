@@ -38,7 +38,16 @@ struct FroggyBotAppleApp: App {
 
       Settings {
         NavigationStack {
-          AccountView(model: model, auth: auth, showsDismissButton: false)
+          switch auth.phase {
+          case .signedIn:
+            AccountView(model: model, auth: auth, showsDismissButton: false)
+          case .checking:
+            ProgressView("Opening FroggyBot…")
+              .frame(maxWidth: .infinity, maxHeight: .infinity)
+          case .signedOut, .codeSent:
+            ContentUnavailableView(
+              "Sign in to manage settings", systemImage: "person.crop.circle.badge.exclamationmark")
+          }
         }
         .frame(minWidth: 560, minHeight: 560)
         .tint(FrogTheme.brand)
@@ -79,6 +88,7 @@ private struct AppRoot: View {
         Task { await connectIfNeeded() }
       } else if phase == .signedOut {
         connected = false
+        model.resetSession()
       }
     }
     .onOpenURL { url in
@@ -118,10 +128,17 @@ private struct AppRoot: View {
       return
     }
     do {
-      let api = try FrogBotAPI(configuration: configuration) { try await auth.idToken() }
+      let authSession = auth.sessionIdentifier
+      let api = try FrogBotAPI(
+        configuration: configuration,
+        onSessionExpired: { token in
+          await auth.expire(ifUsing: token, session: authSession)
+        }
+      ) { try await auth.idToken(forSession: authSession) }
       model.connect(api)
       connected = true
       await model.load()
+      guard auth.phase == .signedIn, auth.sessionIdentifier == authSession else { return }
       await NativeNotifications.registerIfAuthorized()
       if let invitation {
         model.deepLinkInvite = (invitation.kind, invitation.token)

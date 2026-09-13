@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 @MainActor final class FroggyBotAppleTests: XCTestCase {
   override func tearDown() {
     MockURLProtocol.handler = nil
+    ConcurrentMockURLProtocol.handler = nil
     super.tearDown()
   }
 
@@ -28,6 +29,61 @@ import UniformTypeIdentifiers
     XCTAssertEqual(AppModel.nextPollingDelay(base: 1_500, failures: 0), 1_500)
     XCTAssertEqual(AppModel.nextPollingDelay(base: 1_500, failures: 1, random: 0), 2_400)
     XCTAssertEqual(AppModel.nextPollingDelay(base: 1_500, failures: 20, random: 1), 30_000)
+    XCTAssertEqual(AppModel.nextPollingDelay(base: 1_500, failures: .max, random: 0), 24_000)
+    XCTAssertEqual(AppModel.nextPollingDelay(base: 1_500, failures: .max, random: 1), 30_000)
+  }
+
+  func testResetSessionClearsAccountScopedStateAndDisconnects() throws {
+    let api = FrogBotAPI(baseURL: try XCTUnwrap(URL(string: "https://api.example.com"))) {
+      "id-token"
+    }
+    let model = AppModel(api: api)
+    model.bootstrap = DemoData.bootstrap
+    model.selection = .init(kind: .bot, id: "chief")
+    model.messages = DemoData.messages
+    model.nextToken = "next"
+    model.composerText = "Private draft"
+    model.pendingAttachments = [Self.attachment("private-file")]
+    model.sheet = .account
+    model.errorMessage = "Private error"
+    model.deepLinkInvite = ("group", "private-token")
+    _ = model.reserveAttachmentSlots(1, for: try XCTUnwrap(model.selection))
+
+    model.resetSession()
+
+    XCTAssertNil(model.bootstrap)
+    XCTAssertNil(model.selection)
+    XCTAssertTrue(model.messages.isEmpty)
+    XCTAssertNil(model.nextToken)
+    XCTAssertTrue(model.composerText.isEmpty)
+    XCTAssertTrue(model.pendingAttachments.isEmpty)
+    XCTAssertNil(model.sheet)
+    XCTAssertNil(model.errorMessage)
+    XCTAssertNil(model.deepLinkInvite)
+    XCTAssertFalse(model.isLoading)
+    XCTAssertFalse(model.isSending)
+    XCTAssertFalse(model.isUploading)
+    XCTAssertThrowsError(try model.requireAPI())
+  }
+
+  func testBotEditorOnlyOffersExistingInteractiveApprovalsForRevocation() throws {
+    let tools = try JSONDecoder().decode(
+      [Capability].self,
+      from: Data(
+        #"""
+        [
+          {"id":"browser","name":"Browser","description":"","risk":"interactive"},
+          {"id":"home","name":"Home","description":"","risk":"interactive"},
+          {"id":"web","name":"Web","description":"","risk":"read"}
+        ]
+        """#.utf8))
+    var draft = BotDraft()
+    draft.toolIds = tools.map(\.id)
+    draft.alwaysAllowedToolIds = ["browser", "web"]
+
+    XCTAssertEqual(
+      revocableAlwaysAllowedTools(tools: tools, skills: [], draft: draft).map(\.id),
+      ["browser"])
   }
 
   func testDirectMessageIDsMapBackToBackendTurnIDs() {
@@ -150,6 +206,70 @@ import UniformTypeIdentifiers
     XCTAssertEqual(AppModel.mergeLatest(current: current, latest: latest).map(\.id), ["m1", "m2"])
     XCTAssertEqual(
       AppModel.mergeEarlier(current: current, earlier: current).map(\.id), ["m1", "m2"])
+  }
+
+  func testBootstrapRefreshLoadsMessagesForAReplacementSelection() async throws {
+    var writer = try XCTUnwrap(DemoData.bootstrap.bots.first)
+    writer.id = "writer"
+    writer.name = "Writer"
+    var refreshedBootstrap = DemoData.bootstrap
+    refreshedBootstrap.bots = [writer]
+    let bootstrapData = try JSONEncoder().encode(refreshedBootstrap)
+
+    MockURLProtocol.handler = { request in
+      if request.url?.path == "/bootstrap" {
+        return (
+          HTTPURLResponse(
+            url: try XCTUnwrap(request.url), statusCode: 200, httpVersion: nil,
+            headerFields: nil)!,
+          bootstrapData
+        )
+      }
+      return Self.response(
+        for: request,
+        body:
+          #"{"messages":[{"id":"writer-message","role":"assistant","text":"Writer reply","createdAt":"2026-09-12T12:01:00Z","status":"complete"}],"nextToken":null}"#)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let model = AppModel(api: api)
+    model.bootstrap = DemoData.bootstrap
+    model.selection = .init(kind: .bot, id: "chief")
+    model.messages = DemoData.messages
+
+    await model.refreshBootstrap()
+
+    XCTAssertEqual(model.selection, .init(kind: .bot, id: "writer"))
+    XCTAssertEqual(model.messages.map(\.id), ["writer-message"])
+  }
+
+  func testSharingUsesTheRequestedSelectionAndDoesNotReuseAFailedLink() async throws {
+    var paths: [String] = []
+    MockURLProtocol.handler = { request in
+      paths.append(request.url?.path ?? "")
+      if paths.count == 1 {
+        return Self.response(
+          for: request, body: #"{"url":"https://example.com/group-link"}"#)
+      }
+      return Self.response(
+        for: request, status: 503,
+        body: #"{"code":"temporarily_unavailable","message":"Try again later"}"#)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let model = AppModel(api: api)
+    model.bootstrap = DemoData.bootstrap
+    model.selection = .init(kind: .bot, id: "chief")
+
+    let shared = await model.share(.init(kind: .group, id: "team"))
+    let failed = await model.share(.init(kind: .bot, id: "chief"))
+
+    XCTAssertEqual(shared?.absoluteString, "https://example.com/group-link")
+    XCTAssertNil(failed)
+    XCTAssertEqual(paths, ["/groups/team/invites", "/shares"])
+    XCTAssertEqual(model.errorMessage, "Try again later")
   }
 
   func testEarlierSelectionGenerationCannotOverwriteCurrentMessages() async throws {
@@ -362,6 +482,135 @@ import UniformTypeIdentifiers
     XCTAssertEqual(authParameters, ["USERNAME": "new@example.com"])
   }
 
+  func testStaleAuthenticationSessionCannotExpireAReplacementLogin() async throws {
+    var issuedSessions = 0
+    MockURLProtocol.handler = { request in
+      let operation = request.value(forHTTPHeaderField: "X-Amz-Target") ?? ""
+      guard operation.hasSuffix("InitiateAuth") else {
+        return Self.response(for: request, body: #"{}"#)
+      }
+      issuedSessions += 1
+      let suffix = issuedSessions == 1 ? "old" : "new"
+      return Self.response(
+        for: request,
+        body:
+          """
+          {"AuthenticationResult":{"AccessToken":"access-\(suffix)","ExpiresIn":3600,"IdToken":"id-\(suffix)","RefreshToken":"refresh-\(suffix)"}}
+          """)
+    }
+    let auth = AuthSession(configuration: configuration, network: mockSession)
+
+    await auth.begin(email: "old@example.com", invitation: nil)
+    let oldSession = auth.sessionIdentifier
+    let loadedOldToken = try await auth.idToken(forSession: oldSession)
+    let oldToken = try XCTUnwrap(loadedOldToken)
+    auth.expire(ifUsing: oldToken, session: oldSession)
+    XCTAssertEqual(auth.phase, .signedOut)
+
+    await auth.begin(email: "new@example.com", invitation: nil)
+    let newSession = auth.sessionIdentifier
+    let loadedNewToken = try await auth.idToken(forSession: newSession)
+    let newToken = try XCTUnwrap(loadedNewToken)
+    XCTAssertEqual(newToken, "id-new")
+
+    auth.expire(ifUsing: oldToken, session: oldSession)
+    XCTAssertEqual(auth.phase, .signedIn)
+    let retainedToken = try await auth.idToken(forSession: newSession)
+    XCTAssertEqual(retainedToken, "id-new")
+    do {
+      _ = try await auth.idToken(forSession: oldSession)
+      XCTFail("An old API client must not borrow the replacement account's token")
+    } catch let error as APIError {
+      XCTAssertEqual(error, .sessionExpired)
+    }
+
+    await auth.signOut()
+  }
+
+  func testDelayedSignOutCannotClearAReplacementLogin() async throws {
+    let revokeStarted = expectation(description: "Old session revocation started")
+    let releaseRevoke = DispatchSemaphore(value: 0)
+    defer {
+      releaseRevoke.signal()
+      ConcurrentMockURLProtocol.handler = nil
+    }
+    ConcurrentMockURLProtocol.handler = { request in
+      let operation = request.value(forHTTPHeaderField: "X-Amz-Target") ?? ""
+      let body = try Self.jsonBody(request)
+      if operation.hasSuffix("RevokeToken") {
+        revokeStarted.fulfill()
+        releaseRevoke.wait()
+        return Self.response(for: request, body: #"{}"#)
+      }
+      let parameters = body["AuthParameters"] as? [String: String]
+      let suffix = parameters?["USERNAME"] == "new@example.com" ? "new" : "old"
+      return Self.response(
+        for: request,
+        body:
+          """
+          {"AuthenticationResult":{"AccessToken":"access-\(suffix)","ExpiresIn":3600,"IdToken":"id-\(suffix)","RefreshToken":"refresh-\(suffix)"}}
+          """)
+    }
+    let networkConfiguration = URLSessionConfiguration.ephemeral
+    networkConfiguration.protocolClasses = [ConcurrentMockURLProtocol.self]
+    let auth = AuthSession(
+      configuration: configuration, network: URLSession(configuration: networkConfiguration))
+    await auth.begin(email: "old@example.com", invitation: nil)
+    let oldSession = auth.sessionIdentifier
+
+    let delayedSignOut = Task { await auth.signOut() }
+    await fulfillment(of: [revokeStarted], timeout: 2)
+    XCTAssertEqual(auth.phase, .signedOut)
+
+    await auth.begin(email: "new@example.com", invitation: nil)
+    let newSession = auth.sessionIdentifier
+    let loadedNewToken = try await auth.idToken(forSession: newSession)
+    let newToken = try XCTUnwrap(loadedNewToken)
+    XCTAssertEqual(newToken, "id-new")
+
+    releaseRevoke.signal()
+    await delayedSignOut.value
+
+    XCTAssertEqual(auth.phase, .signedIn)
+    let retainedNewToken = try await auth.idToken(forSession: newSession)
+    XCTAssertEqual(retainedNewToken, "id-new")
+    do {
+      _ = try await auth.idToken(forSession: oldSession)
+      XCTFail("The signed-out API client must remain invalid")
+    } catch let error as APIError {
+      XCTAssertEqual(error, .sessionExpired)
+    }
+    auth.expire(ifUsing: newToken, session: newSession)
+  }
+
+  func testTerminalRefreshFailureClearsTheNativeSession() async throws {
+    MockURLProtocol.handler = { request in
+      let body = try Self.jsonBody(request)
+      if body["AuthFlow"] as? String == "REFRESH_TOKEN_AUTH" {
+        return Self.response(
+          for: request, status: 400,
+          body: #"{"__type":"NotAuthorizedException","message":"Refresh Token has expired"}"#)
+      }
+      return Self.response(
+        for: request,
+        body:
+          #"{"AuthenticationResult":{"AccessToken":"access","ExpiresIn":0,"IdToken":"id","RefreshToken":"refresh"}}"#)
+    }
+    let auth = AuthSession(configuration: configuration, network: mockSession)
+    await auth.begin(email: "expired@example.com", invitation: nil)
+    let session = auth.sessionIdentifier
+
+    do {
+      _ = try await auth.idToken(forSession: session)
+      XCTFail("Expected the expired refresh token to end the session")
+    } catch let error as APIError {
+      XCTAssertEqual(error, .sessionExpired)
+    }
+
+    XCTAssertEqual(auth.phase, .signedOut)
+    XCTAssertEqual(auth.errorMessage, APIError.sessionExpired.localizedDescription)
+  }
+
   func testAPIRequestUsesBearerTokenAndDecodesMessages() async throws {
     var captured: URLRequest?
     MockURLProtocol.handler = { request in
@@ -423,6 +672,54 @@ import UniformTypeIdentifiers
     }
   }
 
+  func testUnauthorizedAPIResponseExpiresTheNativeSession() async throws {
+    let expired = expectation(description: "Session expired callback")
+    MockURLProtocol.handler = { request in
+      Self.response(
+        for: request, status: 401,
+        body: #"{"code":"unauthorized","message":"Token expired"}"#)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession,
+      onSessionExpired: { rejectedToken in
+        XCTAssertEqual(rejectedToken, "id-token")
+        expired.fulfill()
+      }
+    ) { "id-token" }
+
+    do {
+      _ = try await api.bootstrap()
+      XCTFail("Expected the native session to expire")
+    } catch let error as APIError {
+      XCTAssertEqual(error, .sessionExpired)
+    }
+    await fulfillment(of: [expired], timeout: 1)
+  }
+
+  func testUnauthorizedPublicResponseDoesNotExpireTheSignedInSession() async throws {
+    let expired = expectation(description: "Session expiry callback remains unused")
+    expired.isInverted = true
+    MockURLProtocol.handler = { request in
+      Self.response(
+        for: request, status: 401,
+        body: #"{"code":"invalid_invite","message":"Invitation expired"}"#)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession,
+      onSessionExpired: { _ in expired.fulfill() }
+    ) { "id-token" }
+
+    do {
+      _ = try await api.invitePreview(kind: "group", token: "expired")
+      XCTFail("Expected a typed public API error")
+    } catch let error as APIError {
+      XCTAssertEqual(
+        error,
+        .requestFailed(status: 401, code: "invalid_invite", message: "Invitation expired"))
+    }
+    await fulfillment(of: [expired], timeout: 0.1)
+  }
+
   func testSuccessfulSendIsNotRestoredWhenOnlyRefreshFails() async throws {
     var methods: [String] = []
     MockURLProtocol.handler = { request in
@@ -448,6 +745,42 @@ import UniformTypeIdentifiers
     XCTAssertEqual(model.composerText, "")
     XCTAssertTrue(model.pendingAttachments.isEmpty)
     XCTAssertEqual(model.errorMessage, "Refresh failed")
+  }
+
+  func testSendFromAResetSessionCannotRestoreIntoTheNextAccount() async throws {
+    let sendStarted = expectation(description: "Old account send started")
+    let releaseSend = DispatchSemaphore(value: 0)
+    MockURLProtocol.handler = { request in
+      sendStarted.fulfill()
+      releaseSend.wait()
+      return Self.response(
+        for: request, status: 503,
+        body: #"{"code":"temporarily_unavailable","message":"Old account failure"}"#)
+    }
+    let oldAPI = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "old-token" }
+    let model = AppModel(api: oldAPI)
+    model.bootstrap = DemoData.bootstrap
+    model.selection = .init(kind: .bot, id: "chief")
+    model.composerText = "Old account draft"
+
+    let oldSend = Task { await model.send() }
+    await fulfillment(of: [sendStarted], timeout: 2)
+    model.resetSession()
+    let newAPI = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "new-token" }
+    model.connect(newAPI)
+    model.bootstrap = DemoData.bootstrap
+    model.selection = .init(kind: .bot, id: "chief")
+    model.composerText = "New account draft"
+    releaseSend.signal()
+    await oldSend.value
+
+    XCTAssertEqual(model.composerText, "New account draft")
+    XCTAssertNil(model.errorMessage)
+    XCTAssertFalse(model.isSending)
   }
 
   func testDownloadedDocumentIsPreparedForQuickLook() async throws {
@@ -586,6 +919,30 @@ private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
       client?.urlProtocolDidFinishLoading(self)
     } catch {
       client?.urlProtocol(self, didFailWithError: error)
+    }
+  }
+  override func stopLoading() {}
+}
+
+private final class ConcurrentMockURLProtocol: URLProtocol, @unchecked Sendable {
+  nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+  override class func canInit(with request: URLRequest) -> Bool { true }
+  override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+  override func startLoading() {
+    DispatchQueue.global(qos: .userInitiated).async { [self] in
+      do {
+        let (response, data) =
+          try Self.handler?(request)
+          ?? {
+            throw APIError.invalidResponse
+          }()
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+      } catch {
+        client?.urlProtocol(self, didFailWithError: error)
+      }
     }
   }
   override func stopLoading() {}

@@ -61,7 +61,6 @@ public final class AppModel {
   public var composerText = ""
   public var groupReplyBotId: String? = "all"
   public private(set) var uploadsInProgress = 0
-  public var lastSharedURL: URL?
   public var deepLinkInvite: (kind: String, token: String)?
 
   @ObservationIgnored var api: FrogBotAPI?
@@ -70,6 +69,7 @@ public final class AppModel {
   @ObservationIgnored private var pushToken: Data?
   @ObservationIgnored private var composerDrafts: [ConversationSelection: ComposerDraft] = [:]
   @ObservationIgnored private var selectionGeneration: UInt = 0
+  @ObservationIgnored private var sessionGeneration: UInt = 0
 
   public init(api: FrogBotAPI? = nil, demoMode: Bool = false) {
     self.api = api
@@ -83,7 +83,41 @@ public final class AppModel {
 
   deinit { pollTask?.cancel() }
 
-  public func connect(_ api: FrogBotAPI) { self.api = api }
+  public func connect(_ api: FrogBotAPI) {
+    sessionGeneration &+= 1
+    pollTask?.cancel()
+    pollTask = nil
+    self.api = api
+  }
+
+  public func resetSession() {
+    sessionGeneration &+= 1
+    pollTask?.cancel()
+    pollTask = nil
+    api = nil
+    bootstrap = nil
+    selection = nil
+    messages = []
+    nextToken = nil
+    isLoading = false
+    isSending = false
+    errorMessage = nil
+    sheet = nil
+    pendingAttachments = []
+    composerText = ""
+    groupReplyBotId = "all"
+    uploadsInProgress = 0
+    deepLinkInvite = nil
+    pushToken = nil
+    composerDrafts = [:]
+  }
+
+  func requireAPI() throws -> FrogBotAPI {
+    guard !demoMode, let api else {
+      throw APIError.configuration("The service is not connected.")
+    }
+    return api
+  }
 
   public var selectedBot: Bot? {
     guard selection?.kind == .bot else { return nil }
@@ -105,6 +139,7 @@ public final class AppModel {
   }
   public var constraints: AppConstraints { bootstrap?.constraints ?? .serviceDefaults }
   public var isUploading: Bool { uploadsInProgress > 0 }
+  var sessionIdentifier: UInt { sessionGeneration }
   public var remainingAttachmentSlots: Int {
     guard let selection else { return 0 }
     return availableAttachmentSlots(for: selection)
@@ -119,45 +154,55 @@ public final class AppModel {
 
   public func load() async {
     guard !demoMode, let api else { return }
+    let requestedSession = sessionGeneration
     isLoading = true
-    defer { isLoading = false }
+    defer {
+      if sessionIsCurrent(requestedSession, api: api) { isLoading = false }
+    }
     do {
       let value = try await api.bootstrap()
+      guard sessionIsCurrent(requestedSession, api: api) else { return }
       bootstrap = value
       chooseAvailableSelection()
       try await loadMessages()
+      guard sessionIsCurrent(requestedSession, api: api) else { return }
       if value.needsBotOnboarding { sheet = .botLibrary }
-    } catch { present(error) }
+    } catch {
+      if sessionIsCurrent(requestedSession, api: api) { present(error) }
+    }
   }
 
   public func refreshBootstrap() async {
     guard !demoMode, let api else { return }
+    let requestedSession = sessionGeneration
     do {
-      bootstrap = try await api.bootstrap()
-      chooseAvailableSelection()
-    } catch { present(error) }
+      let value = try await api.bootstrap()
+      guard sessionIsCurrent(requestedSession, api: api) else { return }
+      bootstrap = value
+      if chooseAvailableSelection() { try await loadMessages() }
+    } catch {
+      if sessionIsCurrent(requestedSession, api: api) { present(error) }
+    }
   }
 
   public func select(_ value: ConversationSelection) {
-    guard value != selection else { return }
-    saveVisibleDraft()
-    setSelection(value)
-    messages = []
-    nextToken = nil
-    pollTask?.cancel()
+    guard transitionSelection(to: value) else { return }
     Task { try? await loadMessages() }
   }
 
   public func loadMessages() async throws {
     guard let requestedSelection = selection else { return }
     let requestedGeneration = selectionGeneration
+    let requestedSession = sessionGeneration
     if demoMode { return }
     guard let api else { throw APIError.configuration("The service is not connected.") }
     let page =
       requestedSelection.kind == .bot
       ? try await api.messages(bot: requestedSelection.id)
       : try await api.messages(group: requestedSelection.id)
-    guard selection == requestedSelection, selectionGeneration == requestedGeneration else {
+    guard selection == requestedSelection, selectionGeneration == requestedGeneration,
+      sessionIsCurrent(requestedSession, api: api)
+    else {
       return
     }
     messages = Self.mergeLatest(current: messages, latest: page.messages)
@@ -170,20 +215,26 @@ public final class AppModel {
       return
     }
     let requestedGeneration = selectionGeneration
+    let requestedSession = sessionGeneration
     do {
       let page =
         requestedSelection.kind == .bot
         ? try await api.messages(bot: requestedSelection.id, cursor: cursor)
         : try await api.messages(group: requestedSelection.id, cursor: cursor)
-      guard selection == requestedSelection, selectionGeneration == requestedGeneration else {
+      guard selection == requestedSelection, selectionGeneration == requestedGeneration,
+        sessionIsCurrent(requestedSession, api: api)
+      else {
         return
       }
       messages = Self.mergeEarlier(current: messages, earlier: page.messages)
       nextToken = page.nextToken
-    } catch { present(error) }
+    } catch {
+      if sessionIsCurrent(requestedSession, api: api) { present(error) }
+    }
   }
 
   public func send() async {
+    let requestedSession = sessionGeneration
     let submitted = ComposerDraft(text: composerText, attachments: pendingAttachments)
     let text = submitted.text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard let selection, !text.isEmpty || !submitted.attachments.isEmpty, !isSending,
@@ -195,7 +246,9 @@ public final class AppModel {
     pendingAttachments = []
     composerDrafts[selection] = nil
     isSending = true
-    defer { isSending = false }
+    defer {
+      if sessionGeneration == requestedSession { isSending = false }
+    }
     if demoMode {
       let now = ISO8601DateFormatter().string(from: Date())
       messages.append(
@@ -208,7 +261,9 @@ public final class AppModel {
       return
     }
     guard let api else {
-      restoreSubmittedDraft(submitted, for: selection)
+      if sessionGeneration == requestedSession {
+        restoreSubmittedDraft(submitted, for: selection)
+      }
       return
     }
     do {
@@ -220,18 +275,19 @@ public final class AppModel {
           attachments: attachmentIds)
       }
     } catch {
+      guard sessionIsCurrent(requestedSession, api: api) else { return }
       restoreSubmittedDraft(submitted, for: selection)
       present(error)
       return
     }
 
-    guard self.selection == selection else { return }
+    guard self.selection == selection, sessionIsCurrent(requestedSession, api: api) else { return }
     do {
       try await loadMessages()
     } catch {
       // The message was accepted. Keep the composer cleared even if the
       // follow-up refresh fails so the same message is not sent twice.
-      present(error)
+      if sessionIsCurrent(requestedSession, api: api) { present(error) }
     }
   }
 
@@ -301,11 +357,15 @@ public final class AppModel {
     guard let api, !demoMode, !isSending,
       let targetSelection = requestedSelection ?? selection
     else { return }
+    let requestedSession = sessionGeneration
     let acceptedCount = reserveAttachmentSlots(urls.count, for: targetSelection)
     guard acceptedCount > 0 else { return }
-    defer { releaseAttachmentSlots(acceptedCount) }
+    defer {
+      if sessionGeneration == requestedSession { releaseAttachmentSlots(acceptedCount) }
+    }
     await uploadReserved(
-      urls: Array(urls.prefix(acceptedCount)), for: targetSelection, using: api)
+      urls: Array(urls.prefix(acceptedCount)), for: targetSelection, using: api,
+      session: requestedSession)
   }
 
   @discardableResult public func reserveAttachmentSlots(
@@ -318,42 +378,53 @@ public final class AppModel {
     return acceptedCount
   }
 
-  public func releaseAttachmentSlots(_ count: Int) {
+  public func releaseAttachmentSlots(_ count: Int, session: UInt? = nil) {
+    if let session, session != sessionGeneration { return }
     uploadsInProgress = max(0, uploadsInProgress - max(0, count))
   }
 
   @discardableResult public func enqueueUpload(
     urls: [URL], for requestedSelection: ConversationSelection? = nil
   ) -> Bool {
-    guard api != nil, !demoMode, !isSending,
+    guard let api, !demoMode, !isSending,
       let targetSelection = requestedSelection ?? selection
     else { return false }
+    let requestedSession = sessionGeneration
     let acceptedCount = reserveAttachmentSlots(urls.count, for: targetSelection)
     guard acceptedCount > 0 else { return false }
     let acceptedURLs = Array(urls.prefix(acceptedCount))
     Task { @MainActor in
-      defer { releaseAttachmentSlots(acceptedCount) }
-      await uploadReserved(urls: acceptedURLs, for: targetSelection)
+      defer {
+        if sessionGeneration == requestedSession { releaseAttachmentSlots(acceptedCount) }
+      }
+      await uploadReserved(
+        urls: acceptedURLs, for: targetSelection, using: api, session: requestedSession)
     }
     return true
   }
 
-  public func uploadReserved(urls: [URL], for targetSelection: ConversationSelection) async {
-    guard let api, !demoMode else { return }
-    await uploadReserved(urls: urls, for: targetSelection, using: api)
+  public func uploadReserved(
+    urls: [URL], for targetSelection: ConversationSelection, session requestedSession: UInt? = nil
+  ) async {
+    let requestedSession = requestedSession ?? sessionGeneration
+    guard requestedSession == sessionGeneration, let api, !demoMode else { return }
+    await uploadReserved(
+      urls: urls, for: targetSelection, using: api, session: requestedSession)
   }
 
   private func uploadReserved(
-    urls: [URL], for targetSelection: ConversationSelection, using api: FrogBotAPI
+    urls: [URL], for targetSelection: ConversationSelection, using api: FrogBotAPI,
+    session requestedSession: UInt
   ) async {
     for url in urls {
       let scoped = url.startAccessingSecurityScopedResource()
       defer { if scoped { url.stopAccessingSecurityScopedResource() } }
       do {
         let attachment = try await api.upload(try UploadAsset(url: url))
+        guard sessionIsCurrent(requestedSession, api: api) else { return }
         append(attachment, to: targetSelection)
       } catch {
-        present(error)
+        if sessionIsCurrent(requestedSession, api: api) { present(error) }
         return
       }
     }
@@ -422,14 +493,20 @@ public final class AppModel {
     } catch { present(error) }
   }
 
-  public func shareCurrent() async {
-    guard let selection, let api, !demoMode else { return }
+  public func share(_ selection: ConversationSelection) async -> URL? {
+    guard let api, !demoMode else { return nil }
+    let requestedSession = sessionGeneration
     do {
-      lastSharedURL =
+      let url =
         selection.kind == .bot
         ? try await api.share(botId: selection.id, scope: "chat")
         : try await api.shareGroup(selection.id)
-    } catch { present(error) }
+      guard sessionIsCurrent(requestedSession, api: api) else { return nil }
+      return url
+    } catch {
+      if sessionIsCurrent(requestedSession, api: api) { present(error) }
+      return nil
+    }
   }
 
   public func handle(url: URL) {
@@ -459,6 +536,10 @@ public final class AppModel {
 
   public func present(_ error: Error) { errorMessage = error.localizedDescription }
 
+  private func sessionIsCurrent(_ generation: UInt, api: FrogBotAPI) -> Bool {
+    sessionGeneration == generation && self.api === api
+  }
+
   private func saveVisibleDraft() {
     guard let selection else { return }
     let draft = ComposerDraft(text: composerText, attachments: pendingAttachments)
@@ -476,6 +557,19 @@ public final class AppModel {
     let draft = composerDrafts.removeValue(forKey: value) ?? ComposerDraft()
     composerText = draft.text
     pendingAttachments = draft.attachments
+  }
+
+  @discardableResult private func transitionSelection(
+    to value: ConversationSelection?
+  ) -> Bool {
+    guard value != selection else { return false }
+    saveVisibleDraft()
+    setSelection(value)
+    messages = []
+    nextToken = nil
+    pollTask?.cancel()
+    pollTask = nil
+    return true
   }
 
   private func append(_ attachment: Attachment, to target: ConversationSelection) {
@@ -533,21 +627,22 @@ public final class AppModel {
     return ComposerDraft(text: text, attachments: Array(attachments))
   }
 
-  private func chooseAvailableSelection() {
+  @discardableResult private func chooseAvailableSelection() -> Bool {
     guard let bootstrap else {
-      setSelection(nil)
-      return
+      return transitionSelection(to: nil)
     }
     if let value = selection {
-      if value.kind == .bot, bootstrap.bots.contains(where: { $0.id == value.id }) { return }
-      if value.kind == .group, bootstrap.groups.contains(where: { $0.id == value.id }) { return }
+      if value.kind == .bot, bootstrap.bots.contains(where: { $0.id == value.id }) { return false }
+      if value.kind == .group, bootstrap.groups.contains(where: { $0.id == value.id }) {
+        return false
+      }
     }
     if let group = bootstrap.groups.first {
-      setSelection(.init(kind: .group, id: group.id))
+      return transitionSelection(to: .init(kind: .group, id: group.id))
     } else if let bot = bootstrap.bots.first {
-      setSelection(.init(kind: .bot, id: bot.id))
+      return transitionSelection(to: .init(kind: .bot, id: bot.id))
     } else {
-      setSelection(nil)
+      return transitionSelection(to: nil)
     }
   }
 
@@ -569,11 +664,14 @@ public final class AppModel {
     }
   }
 
-  public static func nextPollingDelay(base: Int, failures: Int, random: Double = 0.5) -> Int {
+  public static func nextPollingDelay(
+    base: Int, failures: Int, random: Double = Double.random(in: 0...1)
+  ) -> Int {
     guard failures > 0 else { return base }
-    let bounded = min(30_000, base * Int(pow(2.0, Double(failures))))
+    let bounded = min(
+      30_000.0, Double(base) * pow(2.0, Double(min(failures, 30))))
     let jitter = 0.8 + min(1, max(0, random)) * 0.4
-    return min(30_000, Int((Double(bounded) * jitter).rounded()))
+    return min(30_000, Int((bounded * jitter).rounded()))
   }
 
   public static func directTurnID(_ messageID: String) -> String {

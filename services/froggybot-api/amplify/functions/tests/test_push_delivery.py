@@ -133,6 +133,40 @@ class PushDeliveryTests(WorkerTestCase):
         self.assertEqual(payload["aps"]["alert"]["title"], "Chief replied")
         self.assertEqual(payload["botId"], "bot-1")
 
+    def test_expo_failure_does_not_block_native_push_for_a_mixed_account(self):
+        expo = {"tokenId": "expo-1", "token": "ExpoPushToken[test]"}
+        native = {
+            "tokenId": "native-1",
+            "token": "ab" * 32,
+            "provider": "apns",
+            "endpointArn": "arn:aws:sns:us-east-1:123:endpoint/APNS/FroggyBot/one",
+            "environment": "production",
+        }
+        self.sns.reset_mock()
+        self.sns.publish.return_value = {"MessageId": "message-native-1"}
+        with (
+            patch.object(
+                self.notifications, "_push_tokens", return_value=[expo, native]
+            ),
+            patch.object(
+                self.notifications, "_post_json", side_effect=TimeoutError
+            ) as post,
+        ):
+            with self.assertRaises(TimeoutError):
+                self.notifications._send_push_notification(self.request)
+            # A queue retry only recovers the claimed delivery and cannot send
+            # either provider a duplicate notification.
+            self.notifications._send_push_notification(self.request)
+
+        post.assert_called_once()
+        self.sns.publish.assert_called_once()
+        self.assertEqual(self.saved()["status"], "UNKNOWN")
+        self.assertEqual(self.saved()["unknownTickets"], 1)
+        self.assertIn(
+            "PROVIDER_ACCEPTED",
+            {item["status"] for item in self.saved()["receiptStates"].values()},
+        )
+
     def test_extra_tickets_do_not_claim_complete_acceptance(self):
         self.send(
             {

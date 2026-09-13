@@ -884,9 +884,11 @@ private struct Composer: View {
         selectedPhotos = []
         return
       }
+      let session = model.sessionIdentifier
       photoImportTask = Task {
         await importPhotos(
-          Array(items.prefix(acceptedCount)), for: target, reservedCount: acceptedCount)
+          Array(items.prefix(acceptedCount)), for: target, reservedCount: acceptedCount,
+          session: session)
         photoImportTask = nil
       }
     }
@@ -1025,16 +1027,18 @@ private struct Composer: View {
   }
 
   @MainActor private func importPhotos(
-    _ items: [PhotosPickerItem], for target: ConversationSelection, reservedCount: Int
+    _ items: [PhotosPickerItem], for target: ConversationSelection, reservedCount: Int,
+    session: UInt
   ) async {
     defer {
-      model.releaseAttachmentSlots(reservedCount)
+      model.releaseAttachmentSlots(reservedCount, session: session)
       selectedPhotos = []
     }
     let constraints = model.constraints
     for (index, item) in items.enumerated() {
       do {
         try Task.checkCancellation()
+        guard model.sessionIdentifier == session else { return }
         guard let source = try await item.loadTransferable(type: ImportedPhoto.self) else {
           continue
         }
@@ -1068,9 +1072,9 @@ private struct Composer: View {
         }
         defer { try? FileManager.default.removeItem(at: prepared.deletingLastPathComponent()) }
         try Task.checkCancellation()
-        await model.uploadReserved(urls: [prepared], for: target)
+        await model.uploadReserved(urls: [prepared], for: target, session: session)
       } catch {
-        if !Task.isCancelled { model.present(error) }
+        if !Task.isCancelled, model.sessionIdentifier == session { model.present(error) }
         return
       }
     }

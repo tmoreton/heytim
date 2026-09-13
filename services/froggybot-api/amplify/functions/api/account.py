@@ -23,6 +23,7 @@ from .support import (
     invite_access_table,
     s3,
     scheduler,
+    sns,
     sqs,
     table,
 )
@@ -92,6 +93,7 @@ def _cleanup_service() -> AccountCleanupService:
         cognito=cognito,
         scheduler=scheduler,
         s3=s3,
+        sns=sns,
         config=AccountCleanupConfig(
             user_pool_id=USER_POOL_ID,
             schedule_group_name=SCHEDULE_GROUP_NAME,

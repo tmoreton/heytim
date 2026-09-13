@@ -245,20 +245,24 @@ def _send_push_notification(request: dict) -> None:
         for item in expo_tokens
     ]
     tickets = []
+    expo_error: Exception | None = None
     if messages:
         try:
             response = _post_json(EXPO_PUSH_URL, messages)
-        except Exception:
+        except Exception as error:
             # The remote service may have accepted the request even when the client
-            # did not receive a response. Keep the claim to prevent duplicate pushes.
-            _finish_notification(delivery_key, "UNKNOWN")
-            raise
-        tickets = response.get("data", [])
-        if isinstance(tickets, dict):
-            tickets = [tickets]
-        if not isinstance(tickets, list):
-            _finish_notification(delivery_key, "UNKNOWN")
-            raise TypeError("Expo push service returned invalid tickets")
+            # did not receive a response. Keep the claim to prevent duplicate pushes,
+            # but still give independent native providers their delivery attempt.
+            expo_error = error
+            logger.warning("Expo push outcome is unknown", exc_info=True)
+        else:
+            tickets = response.get("data", [])
+            if isinstance(tickets, dict):
+                tickets = [tickets]
+            if not isinstance(tickets, list):
+                expo_error = TypeError("Expo push service returned invalid tickets")
+                tickets = []
+                logger.warning("Expo push service returned invalid tickets")
 
     receipts = []
     rejected = 0
@@ -331,6 +335,11 @@ def _send_push_notification(request: dict) -> None:
         status if accepted + rejected == len(tokens) and unknown == 0 else "UNKNOWN",
     )
     _queue_receipt_check(delivery_key, user_id)
+    if expo_error is not None:
+        # Preserve the worker's established retry/failure signal. The durable claim
+        # makes that retry recovery-only, so successfully submitted pushes are not
+        # duplicated.
+        raise expo_error
 
 
 def _queue_receipt_check(key: dict, user_id: str) -> None:

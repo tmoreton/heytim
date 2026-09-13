@@ -84,30 +84,38 @@ private struct UploadTicket: Codable {
   var upload: Upload
 }
 
-public final class FrogBotAPI: @unchecked Sendable {
+public final class FrogBotAPI: Sendable {
   public typealias TokenProvider = @Sendable () async throws -> String?
+  public typealias SessionExpiredHandler = @Sendable (_ rejectedToken: String) async -> Void
   private let baseURL: URL
   private let tokenProvider: TokenProvider
+  private let sessionExpiredHandler: SessionExpiredHandler?
   private let session: URLSession
-  private let decoder = JSONDecoder()
-  private let encoder = JSONEncoder()
 
-  public init(baseURL: URL, session: URLSession = .shared, tokenProvider: @escaping TokenProvider) {
+  public init(
+    baseURL: URL, session: URLSession = .shared,
+    onSessionExpired: SessionExpiredHandler? = nil,
+    tokenProvider: @escaping TokenProvider
+  ) {
     self.baseURL = baseURL
     self.session = session
     self.tokenProvider = tokenProvider
+    sessionExpiredHandler = onSessionExpired
   }
 
-  public convenience init(configuration: AppConfiguration, tokenProvider: @escaping TokenProvider)
-    throws
+  public convenience init(
+    configuration: AppConfiguration, onSessionExpired: SessionExpiredHandler? = nil,
+    tokenProvider: @escaping TokenProvider
+  ) throws
   {
     guard let url = URL(string: configuration.custom.apiUrl) else {
       throw APIError.configuration("The API URL is invalid.")
     }
-    self.init(baseURL: url, tokenProvider: tokenProvider)
+    self.init(
+      baseURL: url, onSessionExpired: onSessionExpired, tokenProvider: tokenProvider)
   }
 
-  public func request<Response: Decodable & Sendable, Body: Encodable>(
+  public func request<Response: Decodable & Sendable, Body: Encodable & Sendable>(
     _ id: APIRouteID,
     parameters: [String: String] = [:],
     queryItems: [URLQueryItem] = [],
@@ -122,20 +130,26 @@ public final class FrogBotAPI: @unchecked Sendable {
     var value = URLRequest(url: url, timeoutInterval: 30)
     value.httpMethod = route.method.rawValue
     value.setValue("application/json", forHTTPHeaderField: "Accept")
+    var bearerToken: String?
     if route.access == .authenticated {
       guard let token = try await tokenProvider(), !token.isEmpty else {
         throw APIError.sessionExpired
       }
+      bearerToken = token
       value.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
     if let body {
-      value.httpBody = try encoder.encode(body)
+      value.httpBody = try JSONEncoder().encode(body)
       value.setValue("application/json", forHTTPHeaderField: "Content-Type")
     }
     let (data, rawResponse) = try await session.data(for: value)
     guard let http = rawResponse as? HTTPURLResponse else { throw APIError.invalidResponse }
+    if http.statusCode == 401, let bearerToken {
+      await sessionExpiredHandler?(bearerToken)
+      throw APIError.sessionExpired
+    }
     guard (200..<300).contains(http.statusCode) else {
-      let error = try? decoder.decode(APIErrorBody.self, from: data)
+      let error = try? JSONDecoder().decode(APIErrorBody.self, from: data)
       throw APIError.requestFailed(
         status: http.statusCode,
         code: error?.code ?? "request_failed",
@@ -145,7 +159,7 @@ public final class FrogBotAPI: @unchecked Sendable {
     if Response.self == EmptyResponse.self, data.isEmpty || data == Data("{}".utf8) {
       return EmptyResponse() as! Response
     }
-    do { return try decoder.decode(Response.self, from: data) } catch {
+    do { return try JSONDecoder().decode(Response.self, from: data) } catch {
       #if DEBUG
         fputs("FroggyBot decode failure for \(id.rawValue): \(error)\n", stderr)
         if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {

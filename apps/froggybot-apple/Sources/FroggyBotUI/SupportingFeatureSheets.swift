@@ -210,7 +210,7 @@ struct ShareView: View {
     VStack(spacing: 22) {
       Image(systemName: "person.2.badge.plus").font(.system(size: 48)).foregroundStyle(
         FrogTheme.green)
-      Text("Share \(model.title)").font(.title2.bold())
+      Text("Share \(title)").font(.title2.bold())
       Text("Anyone with this link can accept the invitation before it expires.").foregroundStyle(
         .secondary
       ).multilineTextAlignment(.center)
@@ -224,8 +224,16 @@ struct ShareView: View {
     }.padding(32).frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(FrogTheme.pageBackground)
       .navigationTitle("Share").toolbar { CloseButton() }.task {
-      await model.shareCurrent()
-      url = model.lastSharedURL
+      url = await model.share(selection)
+    }
+  }
+
+  private var title: String {
+    switch selection.kind {
+    case .bot:
+      model.bootstrap?.bots.first(where: { $0.id == selection.id })?.name ?? "FroggyBot"
+    case .group:
+      model.bootstrap?.groups.first(where: { $0.id == selection.id })?.name ?? "Group"
     }
   }
 }
@@ -358,7 +366,7 @@ struct AccountView: View {
       Button("Delete account", role: .destructive) {
         Task {
           do {
-            try await model.api?.deleteAccount()
+            try await model.requireAPI().deleteAccount()
             await auth.signOut()
           } catch { model.present(error) }
         }

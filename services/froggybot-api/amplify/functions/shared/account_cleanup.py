@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from boto3.dynamodb.conditions import Attr
+from botocore.exceptions import ClientError
 
 from shared.browser_sessions import delete_browser_context
 from shared.cleanup import delete_share_record, purge_group
@@ -40,6 +41,7 @@ class AccountCleanupService:
         cognito: Any,
         scheduler: Any,
         s3: Any,
+        sns: Any,
         config: AccountCleanupConfig,
         now: Callable[[], str],
     ) -> None:
@@ -50,6 +52,7 @@ class AccountCleanupService:
         self.cognito = cognito
         self.scheduler = scheduler
         self.s3 = s3
+        self.sns = sns
         self.config = config
         self.now = now
 
@@ -341,6 +344,22 @@ class AccountCleanupService:
             resource_label="user file",
         )
 
+    def delete_push_endpoints(self, push_items: list[dict]) -> None:
+        """Delete native provider resources before their durable registrations."""
+        for item in push_items:
+            endpoint_arn = item.get("endpointArn")
+            if not isinstance(endpoint_arn, str) or not endpoint_arn:
+                continue
+            try:
+                self.sns.delete_endpoint(EndpointArn=endpoint_arn)
+            except ClientError as error:
+                code = error.response.get("Error", {}).get("Code")
+                # Cleanup is restart-safe: a previous attempt may already have
+                # removed the endpoint before a later phase failed.
+                if code in {"NotFound", "NotFoundException"}:
+                    continue
+                raise
+
     def owned_share_records(self, user_id: str) -> list[dict]:
         return self.scan_items(
             Attr("entity").is_in(["SHARE", "SKILL_SHARE", "GROUP_INVITE"])
@@ -491,6 +510,9 @@ class AccountCleanupService:
         push_items = [
             item for item in user_items if item.get("entity") == "PUSH_TOKEN"
         ]
+        # Keep registrations until every provider resource is gone. A transient
+        # SNS failure must leave enough durable state for the SQS retry to finish.
+        self.delete_push_endpoints(push_items)
         with self.table.batch_writer() as batch:
             for push_item in push_items:
                 token_id = push_item.get("tokenId")

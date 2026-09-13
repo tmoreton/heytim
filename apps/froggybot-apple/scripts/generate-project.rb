@@ -40,7 +40,7 @@ app.build_configurations.each do |config|
     'ASSETCATALOG_COMPILER_APPICON_NAME' => 'AppIcon',
     'INFOPLIST_FILE' => 'Resources/Info.plist',
     'MARKETING_VERSION' => '1.0.0',
-    'CURRENT_PROJECT_VERSION' => '1',
+    'CURRENT_PROJECT_VERSION' => '202609130148',
     'CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]' => release ? 'Resources/FroggyBot-iOS-Release.entitlements' : 'Resources/FroggyBot-iOS.entitlements',
     'CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]' => 'Resources/FroggyBot-iOS.entitlements',
     'CODE_SIGN_ENTITLEMENTS[sdk=macosx*]' => release ? 'Resources/FroggyBot-macOS-Release.entitlements' : 'Resources/FroggyBot-macOS.entitlements',
@@ -108,19 +108,24 @@ build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
 build_file.product_ref = nemotron
 app.frameworks_build_phase.files << build_file
 
-# SwiftPM links these XCFramework slices into the app, but Xcode also copies
-# framework-shaped wrappers around the static libraries into iOS archives.
-# Those wrappers are neither load dependencies nor valid App Store bundles.
-strip_static_speech = app.new_shell_script_build_phase('Remove embedded static speech wrappers')
+# SwiftPM links these XCFramework slices statically into the app, but Xcode also
+# copies framework-shaped wrappers into iOS device and macOS products. They are
+# not load dependencies and only add redundant bundles and symbol-upload noise.
+strip_static_speech = app.new_shell_script_build_phase(
+  'Remove unused static speech framework wrappers'
+)
 strip_static_speech.shell_script = <<~'SCRIPT'
-  if [ "$PLATFORM_NAME" = "iphoneos" ]; then
-    for framework_name in onnxruntime SherpaOnnxC; do
-      framework_path="$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH/$framework_name.framework"
-      if [ -d "$framework_path" ]; then
-        /usr/bin/find "$framework_path" -depth -delete
-      fi
-    done
-  fi
+  # The libraries are already linked into the app binary; remove only copied wrappers.
+  case "$PLATFORM_NAME" in
+    iphoneos|macosx)
+      for framework_name in onnxruntime SherpaOnnxC; do
+        framework_path="$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH/$framework_name.framework"
+        if [ -d "$framework_path" ]; then
+          /usr/bin/find "$framework_path" -depth -delete
+        fi
+      done
+      ;;
+  esac
 SCRIPT
 strip_static_speech.always_out_of_date = '1'
 

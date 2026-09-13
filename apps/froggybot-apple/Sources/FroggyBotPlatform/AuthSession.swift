@@ -83,11 +83,14 @@ public final class AuthSession {
   @ObservationIgnored private var tokens: TokenSet?
   @ObservationIgnored private var pending: PendingCode?
   @ObservationIgnored private let keychain = TokenKeychain()
+  @ObservationIgnored private var sessionGeneration: UInt = 0
 
   public init(configuration: AppConfiguration, network: URLSession = .shared) {
     self.configuration = configuration
     self.network = network
   }
+
+  public var sessionIdentifier: UInt { sessionGeneration }
 
   public func restore() async {
     if ProcessInfo.processInfo.arguments.contains("--ui-testing-auth") {
@@ -100,13 +103,18 @@ public final class AuthSession {
     }
     tokens = keychain.load()
     if tokens != nil {
+      sessionGeneration &+= 1
       do {
         _ = try await idToken()
         phase = .signedIn
         return
       } catch {
-        keychain.delete()
-        tokens = nil
+        if tokens != nil {
+          // Preserve a refreshable session through transient network failures.
+          phase = .signedIn
+          errorMessage = error.localizedDescription
+          return
+        }
       }
     }
     phase = .signedOut
@@ -226,7 +234,13 @@ public final class AuthSession {
   }
 
   public func signOut() async {
-    if let refreshToken = tokens?.refreshToken {
+    let refreshToken = tokens?.refreshToken
+    // End the local session before suspending for best-effort revocation. A
+    // delayed sign-out must never resume later and clear a replacement login.
+    clearStoredSession()
+    errorMessage = nil
+    phase = .signedOut
+    if let refreshToken {
       _ = try? await invoke(
         "RevokeToken",
         payload: [
@@ -234,25 +248,54 @@ public final class AuthSession {
           "Token": refreshToken,
         ])
     }
-    tokens = nil
-    pending = nil
-    keychain.delete()
-    phase = .signedOut
   }
 
-  public func idToken() async throws -> String? {
+  public func expire(ifUsing rejectedToken: String, session: UInt) {
+    guard sessionGeneration == session, tokens?.idToken == rejectedToken else { return }
+    expireCurrentSession()
+  }
+
+  public func idToken(forSession expectedSession: UInt? = nil) async throws -> String? {
+    if let expectedSession, expectedSession != sessionGeneration {
+      throw APIError.sessionExpired
+    }
     if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return "ui-test-token" }
     guard var current = tokens else { return nil }
     if current.expiresAt.timeIntervalSinceNow > 60 { return current.idToken }
-    let response = try await invoke(
-      "InitiateAuth",
-      payload: [
-        "AuthFlow": "REFRESH_TOKEN_AUTH", "ClientId": configuration.auth.userPoolClientId,
-        "AuthParameters": ["REFRESH_TOKEN": current.refreshToken],
-      ])
-    try store(response.authenticationResult, preservingRefreshToken: current.refreshToken)
+    let requestedSession = sessionGeneration
+    let response: CognitoResponse
+    do {
+      response = try await invoke(
+        "InitiateAuth",
+        payload: [
+          "AuthFlow": "REFRESH_TOKEN_AUTH", "ClientId": configuration.auth.userPoolClientId,
+          "AuthParameters": ["REFRESH_TOKEN": current.refreshToken],
+        ])
+    } catch let error as CognitoError where Self.isTerminalSessionError(error) {
+      if sessionMatches(requestedSession, refreshToken: current.refreshToken) {
+        expireCurrentSession()
+      }
+      throw APIError.sessionExpired
+    }
+    guard sessionMatches(requestedSession, refreshToken: current.refreshToken) else {
+      throw APIError.sessionExpired
+    }
+    do {
+      try store(response.authenticationResult, preservingRefreshToken: current.refreshToken)
+    } catch let error as CognitoError where error.name == "InvalidTokenResponse" {
+      if sessionMatches(requestedSession, refreshToken: current.refreshToken) {
+        expireCurrentSession()
+      }
+      throw APIError.sessionExpired
+    }
     current = tokens!
     return current.idToken
+  }
+
+  private func expireCurrentSession() {
+    clearStoredSession()
+    errorMessage = APIError.sessionExpired.localizedDescription
+    phase = .signedOut
   }
 
   private func beginSignIn(_ email: String) async throws {
@@ -288,8 +331,27 @@ public final class AuthSession {
     let value = TokenSet(
       idToken: id, accessToken: access, refreshToken: refresh,
       expiresAt: Date().addingTimeInterval(TimeInterval(result.expiresIn ?? 3600)))
-    tokens = value
     try keychain.save(value)
+    tokens = value
+    if preservingRefreshToken == nil { sessionGeneration &+= 1 }
+  }
+
+  private func clearStoredSession() {
+    sessionGeneration &+= 1
+    tokens = nil
+    pending = nil
+    keychain.delete()
+  }
+
+  private func sessionMatches(_ generation: UInt, refreshToken: String) -> Bool {
+    sessionGeneration == generation && tokens?.refreshToken == refreshToken
+  }
+
+  private static func isTerminalSessionError(_ error: CognitoError) -> Bool {
+    [
+      "NotAuthorizedException", "PasswordResetRequiredException", "UserNotConfirmedException",
+      "UserNotFoundException",
+    ].contains(error.name)
   }
 
   private func invoke(_ operation: String, payload: [String: Any]) async throws -> CognitoResponse {

@@ -26,7 +26,7 @@ The generator uses the `xcodeproj` Ruby gem bundled with Homebrew CocoaPods. Ord
 
 ## Configuration and release setup
 
-Run `npm run outputs:apple` in `services/froggybot-api` whenever Amplify produces a new `apps/froggybot/amplify_outputs.json`. The Apple copy contains public client configuration only.
+Run `npm run outputs:apple` in `services/froggybot-api` whenever Amplify produces a new `apps/froggybot/amplify_outputs.json`. The Apple copy contains public client configuration only. Before external TestFlight or App Store distribution, confirm that the source file came from the production Amplify deployment, run the sync command, and run `npm run outputs:apple:check`. An internal TestFlight build may intentionally use the sandbox, but record that choice and never archive with stale or unknown outputs.
 
 Before installing on physical devices or distributing the app:
 
@@ -37,6 +37,19 @@ Before installing on physical devices or distributing the app:
 5. Capture App Store screenshots before archive submission; the shared FrogBot icon is already configured for both platforms.
 
 No Apple signing key belongs in source control.
+
+Create a signed archive with an explicit Apple Developer team:
+
+```bash
+APPLE_TEAM_ID=YOURTEAMID ./scripts/archive.sh ios
+APPLE_TEAM_ID=YOURTEAMID ./scripts/archive.sh macos
+```
+
+The script gives each archive a UTC timestamp build number, prepares the transcription dependencies, and writes the result under the ignored `Archives/` directory. It deliberately does not upload. To supply a known build number instead:
+
+```bash
+APPLE_TEAM_ID=YOURTEAMID FROGGYBOT_BUILD_NUMBER=202609130200 ./scripts/archive.sh ios
+```
 
 ## Verification
 

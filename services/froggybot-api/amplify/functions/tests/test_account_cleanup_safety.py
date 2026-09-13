@@ -81,6 +81,9 @@ class AccountCleanupSafetyTests(ApiTestCase):
                 "sk": "PUSH#push-1",
                 "entity": "PUSH_TOKEN",
                 "tokenId": "push-1",
+                "endpointArn": (
+                    "arn:aws:sns:us-east-1:123:endpoint/APNS/FroggyBot/push-1"
+                ),
             },
             {
                 "pk": "USER#user-1",
@@ -100,6 +103,14 @@ class AccountCleanupSafetyTests(ApiTestCase):
 
         service = self.account._cleanup_service()
         delete_schedule = MagicMock()
+
+        def delete_endpoint(**_kwargs):
+            self.assertNotIn(
+                {"pk": "PUSH_TOKEN#push-1", "sk": "OWNER"},
+                self.data_table.deleted,
+            )
+
+        self.sns.delete_endpoint.side_effect = delete_endpoint
         with (
             patch.object(service, "partition_items", side_effect=partitions),
             patch.object(
@@ -124,6 +135,11 @@ class AccountCleanupSafetyTests(ApiTestCase):
             result = service.delete_account("user-1", "username-1")
 
         delete_schedule.assert_called_once()
+        self.sns.delete_endpoint.assert_called_once_with(
+            EndpointArn=(
+                "arn:aws:sns:us-east-1:123:endpoint/APNS/FroggyBot/push-1"
+            )
+        )
         self.cognito.admin_user_global_sign_out.assert_called_once_with(
             UserPoolId="us-east-1_pool", Username="username-1"
         )
@@ -146,6 +162,34 @@ class AccountCleanupSafetyTests(ApiTestCase):
         )
         self.assertEqual(self.data_table.put[-1]["accountStatus"], "DELETED")
         self.assertTrue(result["deleted"])
+
+    def test_account_cleanup_accepts_an_already_deleted_push_endpoint(self) -> None:
+        service = self.account._cleanup_service()
+        error_type = service.delete_push_endpoints.__func__.__globals__["ClientError"]
+        not_found = error_type()
+        not_found.response = {"Error": {"Code": "NotFound"}}
+        self.sns.delete_endpoint.side_effect = not_found
+
+        service.delete_push_endpoints(
+            [{"endpointArn": "arn:aws:sns:us-east-1:123:endpoint/APNS/app/gone"}]
+        )
+
+        self.sns.delete_endpoint.assert_called_once()
+
+    def test_account_cleanup_retries_a_transient_push_endpoint_failure(self) -> None:
+        service = self.account._cleanup_service()
+        self.sns.delete_endpoint.side_effect = RuntimeError("SNS unavailable")
+
+        with self.assertRaisesRegex(RuntimeError, "SNS unavailable"):
+            service.delete_push_endpoints(
+                [
+                    {
+                        "endpointArn": (
+                            "arn:aws:sns:us-east-1:123:endpoint/APNS/app/retry"
+                        )
+                    }
+                ]
+            )
 
     def test_account_cleanup_deletes_group_replies_billed_to_member(self) -> None:
         service = self.account._cleanup_service()
