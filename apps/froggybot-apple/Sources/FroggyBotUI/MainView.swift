@@ -134,25 +134,42 @@ private struct ConversationSidebar: View {
           description: Text(
             search.isEmpty ? "Your chats will appear here." : "Try a different search."))
       }
-      Section {
-        #if os(macOS)
-          SettingsLink {
-            Label("Settings", systemImage: "gearshape")
-          }
-          .accessibilityLabel("Open account settings")
-        #else
-          Button { present(.account) } label: {
-            Label("Settings", systemImage: "gearshape")
-          }
-          .accessibilityLabel("Open account settings")
-        #endif
-      }
     }
     .listStyle(.sidebar)
     .navigationTitle("FroggyBot")
+    .toolbarTitleDisplayMode(.inline)
     .searchable(text: $search, placement: .sidebar, prompt: "Search chats")
     .toolbar {
-      ToolbarItem(placement: .primaryAction) {
+      #if os(iOS)
+        ToolbarItem(placement: .principal) {
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+              FrogMark(size: 26)
+              Text("FroggyBot").font(.headline).lineLimit(1)
+            }
+            FrogMark(size: 26)
+          }
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel("FroggyBot")
+        }
+      #endif
+      ToolbarItemGroup(placement: .primaryAction) {
+        #if os(macOS)
+          SettingsLink {
+            Label("Settings", systemImage: "gearshape")
+              .labelStyle(.iconOnly)
+          }
+          .accessibilityIdentifier("sidebar.settings")
+          .accessibilityHint("Opens account settings")
+          .help("Settings")
+        #else
+          Button("Settings", systemImage: "gearshape") {
+            present(.account)
+          }
+          .labelStyle(.iconOnly)
+          .accessibilityIdentifier("sidebar.settings")
+          .accessibilityHint("Opens account settings")
+        #endif
         Menu {
           Button("Add a bot", systemImage: "plus.circle") { present(.botLibrary) }
           Button("Create a custom bot", systemImage: "slider.horizontal.3") {
@@ -162,6 +179,8 @@ private struct ConversationSidebar: View {
         } label: {
           Label("Create bot or group", systemImage: "plus")
         }
+        .labelStyle(.iconOnly)
+        .accessibilityIdentifier("sidebar.create")
       }
     }
     .overlay { if model.isLoading { ProgressView().tint(FrogTheme.brand) } }

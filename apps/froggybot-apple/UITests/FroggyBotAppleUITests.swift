@@ -84,7 +84,10 @@ import XCTest
     #if os(iOS)
       app.buttons["FroggyBot"].tap()
     #endif
-    let settings = app.buttons["Open account settings"]
+    let create = app.buttons["sidebar.create"]
+    XCTAssertTrue(create.waitForExistence(timeout: 10))
+    XCTAssertTrue(create.isHittable)
+    let settings = app.buttons["sidebar.settings"]
     XCTAssertTrue(settings.waitForExistence(timeout: 10))
     XCTAssertTrue(settings.isHittable)
     settings.tap()
