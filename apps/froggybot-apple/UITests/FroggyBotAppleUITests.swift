@@ -217,8 +217,9 @@ import XCTest
     for _ in 0..<4 where !aboutValue.exists { app.swipeUp() }
     XCTAssertTrue(aboutValue.waitForExistence(timeout: 5))
     XCTAssertTrue(app.staticTexts["Platforms, iPhone + Mac"].exists)
-    XCTAssertTrue(
-      app.descendants(matching: .any)["settings.version"].waitForExistence(timeout: 5))
+    let version = app.descendants(matching: .any)["settings.version"]
+    for _ in 0..<4 where !version.exists { app.swipeUp() }
+    XCTAssertTrue(version.waitForExistence(timeout: 5))
   }
 
   func testAddBotGalleryExplainsTheConfiguredSkillsToolsAndPrompt() {
