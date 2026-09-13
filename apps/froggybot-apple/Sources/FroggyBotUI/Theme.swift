@@ -1,26 +1,43 @@
 import SwiftUI
 
+#if os(iOS)
+  import UIKit
+#elseif os(macOS)
+  import AppKit
+#endif
+
 public enum FrogTheme {
   public static let brand = Color(hex: "#007A3D")
   public static let brandDark = Color(hex: "#006633")
-  public static let canvas = Color(hex: "#F4F2EC")
-  public static let appBackground = Color(hex: "#FBFBF9")
-  public static let pageBackground = Color(hex: "#F8F7F3")
-  public static let drawer = Color(hex: "#F2F1ED")
-  public static let surface = Color.white
-  public static let text = Color(hex: "#171714")
-  public static let textSoft = Color(hex: "#24231F")
-  public static let muted = Color(hex: "#6E6A62")
-  public static let mutedWarm = Color(hex: "#77736B")
-  public static let border = Color(hex: "#DEDAD0")
-  public static let subtleBorder = Color(hex: "#E7E3DA")
-  public static let selected = Color(hex: "#E4F1EA")
-  public static let assistantBubble = Color(hex: "#EFEFEC")
-  public static let teamBubble = Color(hex: "#E9F4EE")
-  public static let teamBorder = Color(hex: "#A8CFB9")
-  public static let approval = Color(hex: "#FFF7DF")
-  public static let approvalBorder = Color(hex: "#E7C86A")
-  public static let danger = Color(hex: "#A53A32")
+  #if os(iOS)
+    public static let canvas = Color(uiColor: .systemGroupedBackground)
+    public static let appBackground = Color(uiColor: .systemBackground)
+    public static let pageBackground = Color(uiColor: .secondarySystemGroupedBackground)
+    public static let drawer = Color(uiColor: .systemGroupedBackground)
+    public static let surface = Color(uiColor: .secondarySystemBackground)
+    public static let border = Color(uiColor: .separator)
+    public static let subtleBorder = Color(uiColor: .quaternaryLabel)
+    public static let assistantBubble = Color(uiColor: .secondarySystemBackground)
+  #else
+    public static let canvas = Color(nsColor: .underPageBackgroundColor)
+    public static let appBackground = Color(nsColor: .windowBackgroundColor)
+    public static let pageBackground = Color(nsColor: .underPageBackgroundColor)
+    public static let drawer = Color(nsColor: .controlBackgroundColor)
+    public static let surface = Color(nsColor: .controlBackgroundColor)
+    public static let border = Color(nsColor: .separatorColor)
+    public static let subtleBorder = Color(nsColor: .quaternaryLabelColor)
+    public static let assistantBubble = Color(nsColor: .controlBackgroundColor)
+  #endif
+  public static let text = Color.primary
+  public static let textSoft = Color.primary
+  public static let muted = Color.secondary
+  public static let mutedWarm = Color.secondary
+  public static let selected = brand.opacity(0.12)
+  public static let teamBubble = brand.opacity(0.10)
+  public static let teamBorder = brand.opacity(0.35)
+  public static let approval = Color.yellow.opacity(0.16)
+  public static let approvalBorder = Color.orange.opacity(0.55)
+  public static let danger = Color.red
 
   // Compatibility names used by the first native implementation.
   public static let green = brand
@@ -193,26 +210,24 @@ extension View {
   }
 
   @ViewBuilder func froggyComposerSurface() -> some View {
-    if #available(iOS 26.0, macOS 26.0, *) {
-      glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 22))
-    } else {
-      background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(FrogTheme.border))
-    }
+    background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+      .overlay(RoundedRectangle(cornerRadius: 20).stroke(FrogTheme.border))
   }
 
   @ViewBuilder func froggySheetSize() -> some View {
-    #if os(macOS)
-      self.frame(minWidth: 560, idealWidth: 680, minHeight: 520, idealHeight: 680)
-    #else
-      self
-    #endif
+    if #available(iOS 18.0, macOS 15.0, *) {
+      self.presentationSizing(.form)
+    } else {
+      #if os(macOS)
+        self.frame(minWidth: 560, idealWidth: 680, minHeight: 520, idealHeight: 680)
+      #else
+        self
+      #endif
+    }
   }
 
   func froggyListSurface() -> some View {
-    scrollContentBackground(.hidden)
-      .background(FrogTheme.pageBackground)
-      .foregroundStyle(FrogTheme.text)
+    tint(FrogTheme.brand)
   }
 }
 

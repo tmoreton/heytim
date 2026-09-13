@@ -2,7 +2,7 @@
 
 This is the native SwiftUI client for iPhone and macOS. It lives alongside the Expo app and uses the same Cognito account, HTTP API, data, bots, groups, schedules, skills, connections, files, and browser sessions.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the code-sharing boundary, backend-first decisions, feature surface, and verification model. The Expo-derived colors, geometry, icons, and screen-by-screen parity rules are recorded in [DESIGN_PARITY.md](DESIGN_PARITY.md).
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the code-sharing boundary, backend-first decisions, feature surface, and verification model. The native-first Apple design direction and the small set of FroggyBot brand elements shared with Expo are recorded in [DESIGN_PARITY.md](DESIGN_PARITY.md).
 
 The app is one multiplatform Xcode target. Shared models, state, networking, and SwiftUI views compile for both Apple platforms; small adapters handle application lifecycle, notifications, secure storage, file picking, windows, and web views. The existing Expo app remains the web client because SwiftUI does not provide a supported browser target.
 

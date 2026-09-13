@@ -32,6 +32,7 @@ public enum APIError: LocalizedError, Equatable, Sendable {
   case requestFailed(status: Int, code: String, message: String)
   case sessionExpired
   case uploadFailed(Int)
+  case downloadFailed(Int)
 
   public var errorDescription: String? {
     switch self {
@@ -40,6 +41,7 @@ public enum APIError: LocalizedError, Equatable, Sendable {
     case .requestFailed(_, _, let message): message
     case .sessionExpired: "Your session expired. Please sign in again."
     case .uploadFailed(let status): "The file upload failed (\(status))."
+    case .downloadFailed(let status): "The file download failed (\(status))."
     }
   }
 }
@@ -448,6 +450,44 @@ public final class FrogBotAPI: @unchecked Sendable {
       route, parameters: ["groupId": groupId ?? "", "fileId": fileId])
     guard let url = URL(string: value.url) else { throw APIError.invalidResponse }
     return url
+  }
+
+  public func downloadFile(fileId: String, name: String, groupId: String? = nil) async throws
+    -> URL
+  {
+    let source = try await downloadURL(fileId: fileId, groupId: groupId)
+    let (temporaryURL, response) = try await session.download(from: source)
+    guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+    guard (200..<300).contains(http.statusCode) else {
+      throw APIError.downloadFailed(http.statusCode)
+    }
+
+    let folder = FileManager.default.temporaryDirectory
+      .appendingPathComponent("FroggyBotPreviews", isDirectory: true)
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(
+      at: folder, withIntermediateDirectories: true, attributes: nil)
+    let candidate = URL(fileURLWithPath: name).lastPathComponent
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let filename = candidate.isEmpty ? "Preview" : candidate
+    let destination = folder.appendingPathComponent(filename, isDirectory: false)
+    do {
+      try FileManager.default.moveItem(at: temporaryURL, to: destination)
+    } catch {
+      try? FileManager.default.removeItem(at: folder)
+      throw error
+    }
+    return destination
+  }
+
+  public static func removeDownloadedPreview(at url: URL?) {
+    guard let url else { return }
+    let previewsRoot = FileManager.default.temporaryDirectory
+      .appendingPathComponent("FroggyBotPreviews", isDirectory: true)
+      .standardizedFileURL
+    let folder = url.deletingLastPathComponent().standardizedFileURL
+    guard folder.deletingLastPathComponent() == previewsRoot else { return }
+    try? FileManager.default.removeItem(at: folder)
   }
 
   private func scheduleParameters(_ selection: ConversationSelection, scheduleId: String?)

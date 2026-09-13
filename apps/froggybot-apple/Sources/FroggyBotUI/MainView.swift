@@ -1,5 +1,14 @@
 import SwiftUI
+import CoreTransferable
+import PhotosUI
+import QuickLook
 import UniformTypeIdentifiers
+
+#if os(iOS)
+  import UIKit
+#elseif os(macOS)
+  import AppKit
+#endif
 
 public struct MainView: View {
   @Bindable var model: AppModel
@@ -16,7 +25,6 @@ public struct MainView: View {
   public var body: some View {
     layout
     .tint(FrogTheme.brand)
-    .foregroundStyle(FrogTheme.text)
     .sheet(item: $presentedSheet, onDismiss: { model.sheet = nil }) { sheet in
       FeatureSheet(sheet: sheet, model: model, auth: auth)
     }
@@ -42,18 +50,13 @@ public struct MainView: View {
     } message: {
       Text("Add this shared \(model.deepLinkInvite?.kind ?? "item") to your account?")
     }
-    .onChange(of: dictation.transcript) { _, value in
-      if !value.isEmpty { model.composerText = value }
-    }
-    .onChange(of: model.composerText) { _, value in
-      if value.isEmpty && !dictation.isRecording { _ = dictation.consumeTranscript() }
-    }
     .onDisappear { dictation.shutDown() }
   }
 
   private var layout: some View {
     NavigationSplitView(columnVisibility: $columns) {
       ConversationSidebar(model: model, auth: auth) { selection in
+        dictation.cancel()
         model.select(selection)
       } present: { sheet in
         model.sheet = sheet
@@ -132,15 +135,20 @@ private struct ConversationSidebar: View {
             search.isEmpty ? "Your chats will appear here." : "Try a different search."))
       }
       Section {
-        Button { present(.account) } label: {
-          Label("Settings", systemImage: "gearshape")
-        }
-        .accessibilityLabel("Open account settings")
+        #if os(macOS)
+          SettingsLink {
+            Label("Settings", systemImage: "gearshape")
+          }
+          .accessibilityLabel("Open account settings")
+        #else
+          Button { present(.account) } label: {
+            Label("Settings", systemImage: "gearshape")
+          }
+          .accessibilityLabel("Open account settings")
+        #endif
       }
     }
     .listStyle(.sidebar)
-    .scrollContentBackground(.hidden)
-    .background(FrogTheme.drawer)
     .navigationTitle("FroggyBot")
     .searchable(text: $search, placement: .sidebar, prompt: "Search chats")
     .toolbar {
@@ -198,44 +206,127 @@ private struct ConversationView: View {
   @State private var importing = false
   @State private var showDelete = false
   @State private var showClear = false
+  @State private var showInspector = false
+  @State private var previewURL: URL?
+  @State private var previewTask: Task<Void, Never>?
+  @State private var previewRequestID = UUID()
+  @State private var pendingInspectorAction: InspectorAction?
+  @State private var scrollTarget: String?
+  @State private var hasNewerMessages = false
+
+  private let bottomID = "froggy-conversation-bottom"
+  private struct MessageRevision: Equatable {
+    let id: String
+    let fingerprint: Int
+  }
+  private enum InspectorAction {
+    case open(AppSheet)
+    case clear
+    case delete
+  }
+
+  private var messageRevisions: [MessageRevision] {
+    model.messages.map { MessageRevision(id: $0.id, fingerprint: $0.hashValue) }
+  }
 
   var body: some View {
-    VStack(spacing: 0) {
-      ScrollViewReader { proxy in
-        ScrollView {
-          LazyVStack(spacing: 0) {
-            if model.nextToken != nil {
-              Button("Load earlier messages") { Task { await model.loadEarlier() } }
-                .font(.system(size: 13, weight: .bold)).foregroundStyle(FrogTheme.brand)
-                .frame(minHeight: 44).padding(.bottom, 8)
-            }
-            if model.messages.isEmpty { emptyConversation }
-            ForEach(model.messages) { MessageBubble(message: $0, model: model) }
-            Color.clear.frame(height: 1).id("bottom")
+    ScrollView {
+      LazyVStack(spacing: 0) {
+        if model.nextToken != nil {
+          Button("Load Earlier Messages", systemImage: "arrow.up") {
+            Task { await model.loadEarlier() }
           }
-          .padding(.horizontal, 14).padding(.top, 24).padding(.bottom, 42)
-          .frame(maxWidth: 780)
-          .frame(maxWidth: .infinity)
+          .controlSize(.small)
+          .frame(minHeight: 44)
+          .padding(.bottom, 8)
         }
-        .onChange(of: model.messages.count) { _, _ in
-          withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
+        if model.messages.isEmpty { emptyConversation }
+        ForEach(model.messages) { message in
+          MessageBubble(message: message, model: model, preview: preview)
+            .id(message.id)
         }
-        .defaultScrollAnchor(.bottom)
+        Color.clear.frame(height: 1).id(bottomID)
       }
+      .scrollTargetLayout()
+      .padding(.horizontal, 14).padding(.top, 24).padding(.bottom, 16)
+      .frame(maxWidth: 780)
+      .frame(maxWidth: .infinity)
+    }
+    .scrollPosition(id: $scrollTarget, anchor: .bottom)
+    .defaultScrollAnchor(.bottom)
+    .scrollDismissesKeyboard(.interactively)
+    .onAppear { scrollTarget = bottomID }
+    .onChange(of: model.selection) { _, _ in
+      cancelPreview()
+      hasNewerMessages = false
+      scrollTarget = bottomID
+    }
+    .onChange(of: messageRevisions) { previous, current in
+      let following = previous.isEmpty || scrollTarget == bottomID || scrollTarget == previous.last?.id
+      if following {
+        withAnimation(.snappy) { scrollTarget = bottomID }
+      } else if current.last != previous.last {
+        hasNewerMessages = true
+      }
+    }
+    .onChange(of: scrollTarget) { _, value in
+      if value == bottomID || value == model.messages.last?.id { hasNewerMessages = false }
+    }
+    .overlay(alignment: .bottomTrailing) {
+      if hasNewerMessages {
+        Button("Jump to Latest", systemImage: "arrow.down") {
+          withAnimation(.snappy) { scrollTarget = bottomID }
+          hasNewerMessages = false
+        }
+        .labelStyle(.iconOnly)
+        .froggyGlassButton(tint: FrogTheme.brand)
+        .buttonBorderShape(.circle)
+        .padding(16)
+      }
+    }
+    .safeAreaInset(edge: .bottom, spacing: 0) {
       Composer(model: model, dictation: dictation, importing: $importing)
     }
     .navigationTitle(model.title)
     .toolbar {
-      ToolbarItem(placement: .principal) { conversationIdentity }
-      ToolbarItem(placement: .primaryAction) { actionsMenu }
+      ToolbarItem(placement: .principal) {
+        conversationIdentity
+      }
+      ToolbarItem(placement: .primaryAction) {
+        Button("Conversation Details", systemImage: "info.circle") {
+          showInspector.toggle()
+        }
+        .labelStyle(.iconOnly)
+        .accessibilityIdentifier("chat.details")
+      }
     }
     .background(FrogTheme.appBackground)
+    .froggyInspector(isPresented: $showInspector, onDismiss: finishInspectorAction) {
+      ConversationInspector(
+        model: model,
+        open: openFromInspector,
+        close: { showInspector = false },
+        clear: {
+          confirmClearFromInspector()
+        },
+        delete: {
+          confirmDeleteFromInspector()
+        })
+        .inspectorColumnWidth(min: 280, ideal: 320, max: 400)
+    }
+    .quickLookPreview($previewURL)
+    .onChange(of: previewURL) { previous, current in
+      if previous != current { FrogBotAPI.removeDownloadedPreview(at: previous) }
+    }
+    .onDisappear {
+      cancelPreview()
+    }
     .fileImporter(
       isPresented: $importing, allowedContentTypes: [.image, .pdf, .plainText, .data],
       allowsMultipleSelection: true
     ) { result in
       if case .success(let urls) = result {
-        Task { await model.upload(urls: urls) }
+        _ = model.enqueueUpload(urls: urls, for: model.selection)
       } else if case .failure(let error) = result {
         model.present(error)
       }
@@ -267,66 +358,73 @@ private struct ConversationView: View {
     }
   }
 
-  private var actionsMenu: some View {
-    Menu {
-      if let bot = model.selectedBot {
-        let actions = Set(bot.allowedActions ?? [])
-        if actions.contains("schedule"), let selection = model.selection {
-          Button("Scheduled tasks", systemImage: "calendar") { present(.schedules(selection)) }
-          Button("Run history", systemImage: "clock.arrow.circlepath") {
-            present(.scheduleRuns(selection))
-          }
-        }
-        if actions.contains("share"), let selection = model.selection {
-          Button("Share", systemImage: "square.and.arrow.up") { present(.share(selection)) }
-        }
-        if actions.contains("edit") {
-          Button("Edit bot", systemImage: "pencil") { present(.botEditor(bot.id)) }
-        }
-        if actions.contains("documents") {
-          Button("Documents", systemImage: "doc") { present(.documents(bot.id)) }
-        }
-        if actions.contains("browser") {
-          Button("Browser", systemImage: "globe") {
-            present(.browser(botId: bot.id, groupId: nil))
-          }
-        }
-        Button("Memory", systemImage: "brain") { present(.memories(nil)) }
-        if actions.contains("clear") {
-          Button("Clear chat", systemImage: "eraser", role: .destructive) { showClear = true }
-        }
-        if actions.contains("delete") {
-          Button("Delete", systemImage: "trash", role: .destructive) { showDelete = true }
-        }
-      } else if let group = model.selectedGroup {
-        let actions = Set(group.allowedActions ?? [])
-        if actions.contains("schedule"), let selection = model.selection {
-          Button("Scheduled tasks", systemImage: "calendar") { present(.schedules(selection)) }
-          Button("Run history", systemImage: "clock.arrow.circlepath") {
-            present(.scheduleRuns(selection))
-          }
-        }
-        if actions.contains("share"), let selection = model.selection {
-          Button("Share", systemImage: "square.and.arrow.up") { present(.share(selection)) }
-        }
-        if actions.contains("edit") {
-          Button("Edit group", systemImage: "pencil") { present(.groupEditor(group.id)) }
-        }
-        if actions.contains("viewMemory") || actions.contains("manageMemory") {
-          Button("Group memory", systemImage: "brain") { present(.memories(group.id)) }
-        }
-        if actions.contains("delete") {
-          Button("Delete", systemImage: "trash", role: .destructive) { showDelete = true }
-        }
-      }
-    } label: {
-      Image(systemName: "ellipsis")
-        .font(.system(size: 17, weight: .bold))
-        .foregroundStyle(Color(hex: "#4B4942"))
-        .frame(width: 32, height: 32)
+  private func openFromInspector(_ sheet: AppSheet) {
+    #if os(iOS)
+      pendingInspectorAction = .open(sheet)
+      showInspector = false
+    #else
+      present(sheet)
+    #endif
+  }
+
+  private func confirmClearFromInspector() {
+    #if os(iOS)
+      pendingInspectorAction = .clear
+      showInspector = false
+    #else
+      showClear = true
+    #endif
+  }
+
+  private func confirmDeleteFromInspector() {
+    #if os(iOS)
+      pendingInspectorAction = .delete
+      showInspector = false
+    #else
+      showDelete = true
+    #endif
+  }
+
+  private func finishInspectorAction() {
+    guard let action = pendingInspectorAction else { return }
+    pendingInspectorAction = nil
+    switch action {
+    case .open(let sheet): present(sheet)
+    case .clear: showClear = true
+    case .delete: showDelete = true
     }
-    .menuStyle(.borderlessButton)
-    .accessibilityLabel("\(model.title) actions")
+  }
+
+  private func preview(_ attachment: Attachment) {
+    cancelPreview()
+    let requestID = UUID()
+    previewRequestID = requestID
+    let selection = model.selection
+    let api = model.api
+    let groupId = model.selectedGroup?.id
+    previewTask = Task {
+      do {
+        guard let downloaded = try await api?.downloadFile(
+          fileId: attachment.id, name: attachment.name, groupId: groupId)
+        else { return }
+        guard !Task.isCancelled, previewRequestID == requestID, model.selection == selection else {
+          FrogBotAPI.removeDownloadedPreview(at: downloaded)
+          return
+        }
+        previewURL = downloaded
+      } catch {
+        if !Task.isCancelled { model.present(error) }
+      }
+    }
+  }
+
+  private func cancelPreview() {
+    previewRequestID = UUID()
+    previewTask?.cancel()
+    previewTask = nil
+    let currentPreview = previewURL
+    previewURL = nil
+    FrogBotAPI.removeDownloadedPreview(at: currentPreview)
   }
 
   private var emptyConversation: some View {
@@ -342,10 +440,117 @@ private struct ConversationView: View {
   }
 }
 
+private struct ConversationInspector: View {
+  @Bindable var model: AppModel
+  let open: (AppSheet) -> Void
+  let close: () -> Void
+  let clear: () -> Void
+  let delete: () -> Void
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Section {
+          HStack(spacing: 12) {
+            if let group = model.selectedGroup {
+              GroupAvatar(group: group, size: 52)
+            } else if let bot = model.selectedBot {
+              BotAvatar(name: bot.name, color: bot.color, size: 52)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+              Text(model.title).font(.headline)
+              Text(model.subtitle).font(.subheadline).foregroundStyle(.secondary)
+            }
+          }
+        }
+
+        if let group = model.selectedGroup {
+          Section("People") {
+            ForEach(group.members) { member in
+              LabeledContent(member.name, value: member.role.capitalized)
+            }
+          }
+          Section("Bots") {
+            ForEach(group.bots) { bot in
+              Label(bot.name, systemImage: "bubble.left.and.sparkles")
+            }
+          }
+        }
+
+        Section("Conversation") { conversationActions }
+
+        if canClear || canDelete {
+          Section {
+            if canClear {
+              Button("Clear Conversation", systemImage: "eraser", role: .destructive) {
+                clear()
+              }
+            }
+            if canDelete {
+              Button("Delete \(model.selectedGroup == nil ? "Bot" : "Group")", systemImage: "trash", role: .destructive) {
+                delete()
+              }
+            }
+          }
+        }
+      }
+      .formStyle(.grouped)
+      .navigationTitle("Details")
+      .toolbar {
+        #if os(iOS)
+          ToolbarItem(placement: .confirmationAction) { Button("Done", action: close) }
+        #endif
+      }
+    }
+  }
+
+  @ViewBuilder private var conversationActions: some View {
+    if let selection = model.selection, actions.contains("schedule") {
+      Button("Scheduled Tasks", systemImage: "calendar") { open(.schedules(selection)) }
+      Button("Run History", systemImage: "clock.arrow.circlepath") {
+        open(.scheduleRuns(selection))
+      }
+    }
+    if let selection = model.selection, actions.contains("share") {
+      Button("Share", systemImage: "square.and.arrow.up") { open(.share(selection)) }
+    }
+    if let bot = model.selectedBot {
+      if actions.contains("documents") {
+        Button("Documents", systemImage: "doc") { open(.documents(bot.id)) }
+      }
+      if actions.contains("browser") {
+        Button("Browser", systemImage: "globe") {
+          open(.browser(botId: bot.id, groupId: nil))
+        }
+      }
+      Button("Memory", systemImage: "brain.head.profile") { open(.memories(nil)) }
+      if actions.contains("edit") {
+        Button("Edit Bot", systemImage: "pencil") { open(.botEditor(bot.id)) }
+      }
+    } else if let group = model.selectedGroup {
+      if actions.contains("viewMemory") || actions.contains("manageMemory") {
+        Button("Group Memory", systemImage: "brain.head.profile") {
+          open(.memories(group.id))
+        }
+      }
+      if actions.contains("edit") {
+        Button("Edit Group", systemImage: "pencil") { open(.groupEditor(group.id)) }
+      }
+    }
+  }
+
+  private var actions: Set<String> {
+    Set(model.selectedBot?.allowedActions ?? model.selectedGroup?.allowedActions ?? [])
+  }
+  private var canClear: Bool { actions.contains("clear") }
+  private var canDelete: Bool { actions.contains("delete") }
+}
+
 private struct MessageBubble: View {
   let message: ChatMessage
   @Bindable var model: AppModel
-  @Environment(\.openURL) private var openURL
+  let preview: (Attachment) -> Void
+  @State private var reviewingApproval = false
 
   private var mine: Bool {
     model.selectedGroup == nil ? message.isUser : message.authorType == "user" && message.isMine == true
@@ -375,28 +580,36 @@ private struct MessageBubble: View {
             .padding(.horizontal, 6)
         }
 
-        if !mine, let activity = message.activity, message.isActive {
+        if !mine, message.isActive {
           VStack(alignment: .leading, spacing: 5) {
-            ForEach(activity, id: \.self) { step in
-              Label(step, systemImage: "sparkles")
+            ProgressView("Working…").controlSize(.small).tint(FrogTheme.brand)
+            if let activity = message.activity, !activity.isEmpty {
+              DisclosureGroup("Activity") {
+                ForEach(activity, id: \.self) { step in
+                  Label(step, systemImage: "sparkles")
+                }
+              }
             }
-            ProgressView().controlSize(.small).tint(FrogTheme.brand)
           }
-          .font(.system(size: 11)).foregroundStyle(FrogTheme.muted)
+          .font(.caption).foregroundStyle(.secondary)
           .padding(.horizontal, 6).padding(.bottom, 4)
         }
 
         VStack(alignment: .leading, spacing: 8) {
           if awaitingApproval {
-            Text("Approval needed").font(.system(size: 14, weight: .heavy))
-              .foregroundStyle(Color(hex: "#4B3C0D"))
+            Label("Approval Needed", systemImage: "checkmark.shield")
+              .font(.headline)
             Text(
               "This reply may use \(message.approvalTools?.joined(separator: ", ") ?? "an interactive tool") to take action."
             )
-            .font(.system(size: 13)).foregroundStyle(Color(hex: "#5E501F"))
+            .font(.callout).foregroundStyle(.secondary)
+            Button("Review Action", systemImage: "checkmark.shield") {
+              reviewingApproval = true
+            }
+            .buttonStyle(.borderedProminent)
           } else {
             markdownText(message.text)
-              .font(.system(size: 15)).lineSpacing(3).textSelection(.enabled)
+              .font(.body).lineSpacing(3).textSelection(.enabled)
               .foregroundStyle(mine ? .white : FrogTheme.textSoft)
           }
 
@@ -404,31 +617,12 @@ private struct MessageBubble: View {
             Button { open(attachment) } label: {
               Label(attachment.name, systemImage: attachment.kind == "image" ? "photo" : "doc")
             }
-            .buttonStyle(.plain).font(.system(size: 12, weight: .semibold))
-          }
-
-          if awaitingApproval {
-            HStack(spacing: 8) {
-              if message.allowedActions?.contains("reject") == true {
-                Button("Don’t allow") { Task { await model.reject(message) } }
-                  .froggyGlassButton(tint: FrogTheme.brand)
-              }
-              if message.allowedActions?.contains("approveOnce") == true {
-                Button("Allow once") { Task { await model.approve(message, always: false) } }
-                  .froggyGlassButton(tint: FrogTheme.brand)
-              }
-              if message.allowedActions?.contains("approveAlways") == true {
-                Button("Always allow") { Task { await model.approve(message, always: true) } }
-                  .froggyGlassButton(tint: FrogTheme.brand)
-              }
-            }
+            .buttonStyle(.plain).font(.callout.weight(.semibold)).foregroundStyle(FrogTheme.brand)
           }
           if message.allowedActions?.contains("saveDecision") == true {
             Button("Save decision", systemImage: "bookmark") { Task { await model.saveDecision(message) } }
-              .froggyGlassButton(tint: FrogTheme.brand)
+              .buttonStyle(.bordered)
               .controlSize(.small)
-              .font(.system(size: 12, weight: .heavy))
-              .foregroundStyle(FrogTheme.brandDark)
           }
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
@@ -436,10 +630,14 @@ private struct MessageBubble: View {
         .overlay { if bubbleBorder != .clear { bubbleShape.stroke(bubbleBorder) } }
 
         HStack(spacing: 5) {
-          Text(message.status.replacingOccurrences(of: "_", with: " ").capitalized)
+          if message.status != "complete" {
+            Label(
+              message.status.replacingOccurrences(of: "_", with: " ").capitalized,
+              systemImage: message.status == "error" ? "exclamationmark.circle" : "clock")
+          }
           Text(message.createdAt.froggyDate?.formatted(date: .omitted, time: .shortened) ?? "")
         }
-        .font(.system(size: 9)).foregroundStyle(FrogTheme.muted)
+        .font(.caption2).foregroundStyle(.secondary)
         .padding(.horizontal, 6).padding(.top, 1)
       }
       .frame(maxWidth: mine ? 650 : 720, alignment: mine ? .trailing : .leading)
@@ -447,6 +645,40 @@ private struct MessageBubble: View {
     }
     .frame(maxWidth: .infinity)
     .padding(.bottom, 8)
+    .contextMenu {
+      if !message.text.isEmpty {
+        Button("Copy", systemImage: "doc.on.doc") { copyText(message.text) }
+        ShareLink(item: message.text) {
+          Label("Share", systemImage: "square.and.arrow.up")
+        }
+      }
+      ForEach(message.attachments ?? []) { attachment in
+        Button("Preview \(attachment.name)", systemImage: "eye") { preview(attachment) }
+      }
+      if message.allowedActions?.contains("saveDecision") == true {
+        Button("Save Decision", systemImage: "bookmark") {
+          Task { await model.saveDecision(message) }
+        }
+      }
+    }
+    .confirmationDialog(
+      "Allow this action?", isPresented: $reviewingApproval, titleVisibility: .visible
+    ) {
+      if message.allowedActions?.contains("approveOnce") == true {
+        Button("Allow Once") { Task { await model.approve(message, always: false) } }
+      }
+      if message.allowedActions?.contains("approveAlways") == true {
+        Button("Always Allow") { Task { await model.approve(message, always: true) } }
+      }
+      if message.allowedActions?.contains("reject") == true {
+        Button("Don’t Allow", role: .destructive) { Task { await model.reject(message) } }
+      }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text(
+        "Allowing once applies only to this reply. Always Allow saves this permission for future replies from this bot."
+      )
+    }
   }
 
   @ViewBuilder private var avatar: some View {
@@ -474,7 +706,7 @@ private struct MessageBubble: View {
   }
   private var bubbleColor: Color {
     if awaitingApproval { return FrogTheme.approval }
-    if message.status == "error" { return Color(hex: "#F8E6E1") }
+    if message.status == "error" { return Color.red.opacity(0.12) }
     if message.roundRole == "synthesizer" { return FrogTheme.teamBubble }
     return mine ? FrogTheme.brand : FrogTheme.assistantBubble
   }
@@ -489,12 +721,34 @@ private struct MessageBubble: View {
       .map(Text.init) ?? Text(markdown)
   }
   private func open(_ attachment: Attachment) {
-    Task {
+    preview(attachment)
+  }
+  private func copyText(_ text: String) {
+    #if os(iOS)
+      UIPasteboard.general.string = text
+    #else
+      NSPasteboard.general.clearContents()
+      NSPasteboard.general.setString(text, forType: .string)
+    #endif
+  }
+}
+
+private struct ImportedPhoto: Transferable, Sendable {
+  let url: URL
+
+  static var transferRepresentation: some TransferRepresentation {
+    FileRepresentation(importedContentType: .image) { received in
+      let sourceExtension = received.file.pathExtension
+      var destination = FileManager.default.temporaryDirectory
+        .appendingPathComponent("FroggyBot-Photo-Source-\(UUID().uuidString)")
+      if !sourceExtension.isEmpty { destination.appendPathExtension(sourceExtension) }
       do {
-        if let url = try await model.api?.downloadURL(
-          fileId: attachment.id, groupId: model.selectedGroup?.id)
-        { openURL(url) }
-      } catch { model.present(error) }
+        try FileManager.default.copyItem(at: received.file, to: destination)
+        return ImportedPhoto(url: destination)
+      } catch {
+        try? FileManager.default.removeItem(at: destination)
+        throw error
+      }
     }
   }
 }
@@ -503,64 +757,143 @@ private struct Composer: View {
   @Bindable var model: AppModel
   @Bindable var dictation: DictationModel
   @Binding var importing: Bool
+  @FocusState private var composerFocused: Bool
+  @State private var showingPhotoPicker = false
+  @State private var selectedPhotos: [PhotosPickerItem] = []
+  @State private var dictationPrefix = ""
+  @State private var dictationSelection: ConversationSelection?
+  @State private var photoImportTask: Task<Void, Never>?
 
   var body: some View {
     VStack(spacing: 0) {
       if model.selectedGroup != nil { replyPicker }
       if !model.pendingAttachments.isEmpty { attachmentPicker }
-      HStack(alignment: .bottom, spacing: 2) {
-        Button { importing = true } label: {
-          Image(systemName: "paperclip")
-            .font(.system(size: 17))
-            .frame(width: 32, height: 32)
-        }
-        .froggyGlassButton(tint: FrogTheme.brand)
-        .buttonBorderShape(.circle)
-        .accessibilityLabel("Attach files")
-
-        TextField("Message \(model.title)", text: $model.composerText, axis: .vertical)
-          .textFieldStyle(.plain).font(.system(size: 15)).lineLimit(1...6)
-          .foregroundStyle(FrogTheme.textSoft).padding(.vertical, 9)
-          .onSubmit { if canSend { Task { await model.send() } } }
-
-        Button { dictation.toggle() } label: {
-          Image(systemName: dictation.isRecording ? "mic.fill" : "mic")
-            .font(.system(size: 16, weight: .semibold))
-            .frame(width: 32, height: 32)
-        }
-        .froggyGlassButton(prominent: dictation.isRecording, tint: FrogTheme.brand)
-        .buttonBorderShape(.circle)
-        .accessibilityLabel("Dictate on device")
-
-        Button {
-          Task {
-            if model.canStop && model.composerText.isEmpty { await model.stop() } else { await model.send() }
+      HStack(alignment: .bottom, spacing: 8) {
+        Menu {
+          Button("Photo Library", systemImage: "photo.on.rectangle") {
+            showingPhotoPicker = true
+          }
+          .disabled(model.remainingAttachmentSlots == 0 || model.isSending || model.isUploading)
+          Button("Choose Files", systemImage: "folder") { importing = true }
+            .disabled(model.remainingAttachmentSlots == 0 || model.isSending || model.isUploading)
+          Divider()
+          Button(dictationActionTitle, systemImage: dictation.isRecording ? "stop.circle" : "waveform") {
+            toggleDictation()
+          }
+          .disabled(
+            !dictation.isRecording && !dictation.isStarting
+              && (model.isSending || model.isUploading))
+          if dictation.isStarting {
+            Label("Starting on-device transcription…", systemImage: "hourglass")
           }
         } label: {
-          Image(systemName: model.canStop && model.composerText.isEmpty ? "stop.fill" : "arrow.up")
-            .font(.system(size: 16, weight: .bold))
-            .frame(width: 32, height: 32)
+          Label("Add attachment or dictate", systemImage: "plus")
         }
+        .accessibilityIdentifier("chat.attachments")
+        .labelStyle(.iconOnly)
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.circle)
+        .controlSize(.large)
+
+        TextField("Message \(model.title)", text: $model.composerText, axis: .vertical)
+          .textFieldStyle(.plain)
+          .font(.body)
+          .lineLimit(1...6)
+          .focused($composerFocused)
+          .accessibilityIdentifier("chat.composer")
+          .submitLabel(.send)
+          .padding(.vertical, 9)
+          .onSubmit { if canSend { submitMessage() } }
+
+        if model.isSending || model.isUploading {
+          ProgressView()
+            .controlSize(.small)
+            .accessibilityLabel(model.isUploading ? "Uploading attachments" : "Sending")
+        }
+
+        if model.canStop {
+          Button("Stop reply", systemImage: "stop.circle.fill") {
+            Task { await model.stop() }
+          }
+          .labelStyle(.iconOnly)
+          .buttonStyle(.bordered)
+          .buttonBorderShape(.circle)
+          .controlSize(.large)
+        }
+
+        Button("Send message", systemImage: "arrow.up") {
+          submitMessage()
+        }
+        .labelStyle(.iconOnly)
         .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
         .buttonBorderShape(.circle)
-        .disabled(model.isSending || (!canSend && !model.canStop))
-        .accessibilityLabel(model.canStop && model.composerText.isEmpty ? "Stop reply" : "Send message")
+        .controlSize(.large)
+        .accessibilityIdentifier("chat.send")
+        .disabled(model.isSending || model.isUploading || !canSend)
       }
-      .padding(.leading, 8).padding(.trailing, 6).padding(.vertical, 6)
+      .padding(.horizontal, 8).padding(.vertical, 6)
       .frame(minHeight: 51)
       .froggyComposerSurface()
       .frame(maxWidth: 780)
 
       Text("Bots can make mistakes. Check important work. · Enter to send · Shift+Enter for a new line.")
-        .font(.system(size: 10)).foregroundStyle(FrogTheme.muted)
+        .font(.caption2).foregroundStyle(.secondary)
         .multilineTextAlignment(.center).padding(.top, 5)
       if let error = dictation.errorMessage {
-        Text(error).font(.system(size: 11)).foregroundStyle(FrogTheme.danger).padding(.top, 3)
+        Label(error, systemImage: "exclamationmark.triangle")
+          .font(.caption).foregroundStyle(.red).padding(.top, 3)
       }
     }
     .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 9)
     .frame(maxWidth: .infinity)
-    .background(FrogTheme.appBackground)
+    .background(.bar)
+    .photosPicker(
+      isPresented: $showingPhotoPicker,
+      selection: $selectedPhotos,
+      maxSelectionCount: max(1, model.remainingAttachmentSlots),
+      matching: .images,
+      preferredItemEncoding: .compatible)
+    .onChange(of: selectedPhotos) { _, items in
+      guard !items.isEmpty else { return }
+      guard let target = model.selection else {
+        selectedPhotos = []
+        return
+      }
+      let acceptedCount = model.reserveAttachmentSlots(items.count, for: target)
+      guard acceptedCount > 0 else {
+        selectedPhotos = []
+        return
+      }
+      photoImportTask = Task {
+        await importPhotos(
+          Array(items.prefix(acceptedCount)), for: target, reservedCount: acceptedCount)
+        photoImportTask = nil
+      }
+    }
+    .onChange(of: dictation.transcript) { _, value in
+      guard !value.isEmpty, dictationSelection == model.selection, !model.isSending else { return }
+      model.composerText = dictationPrefix + value
+    }
+    .onChange(of: dictation.isRecording) { wasRecording, isRecording in
+      guard wasRecording && !isRecording else { return }
+      _ = dictation.consumeTranscript()
+      dictationSelection = nil
+      dictationPrefix = model.composerText
+    }
+    .onChange(of: model.selection) { _, selection in
+      guard dictationSelection != nil, dictationSelection != selection else { return }
+      cancelDictation()
+    }
+    .dropDestination(for: URL.self) { urls, _ in
+      guard !urls.isEmpty, !model.isSending, !model.isUploading,
+        model.remainingAttachmentSlots > 0
+      else { return false }
+      return model.enqueueUpload(urls: urls, for: model.selection)
+    }
+    .onDisappear {
+      photoImportTask?.cancel()
+      photoImportTask = nil
+    }
   }
 
   private var canSend: Bool {
@@ -573,55 +906,140 @@ private struct Composer: View {
         ForEach(model.pendingAttachments) { item in
           HStack(spacing: 7) {
             Image(systemName: "paperclip")
-            Text(item.name).font(.system(size: 12, weight: .bold)).lineLimit(1)
+            Text(item.name).font(.caption.weight(.semibold)).lineLimit(1)
             Button { model.removeAttachment(item.id) } label: {
               Image(systemName: "xmark.circle.fill")
+                .frame(minWidth: 44, minHeight: 44)
             }
             .buttonStyle(.plain).accessibilityLabel("Remove \(item.name)")
           }
-          .foregroundStyle(Color(hex: "#34322D"))
-          .padding(.horizontal, 11).frame(minHeight: 38)
-          .background(Color(hex: "#F3F2EE"), in: RoundedRectangle(cornerRadius: 12))
-          .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "#D8D4CB")))
+          .padding(.leading, 11).padding(.trailing, 2).frame(minHeight: 44)
+          .background(.quaternary, in: Capsule())
         }
       }
     }
     .frame(maxWidth: 780).padding(.bottom, 7)
   }
   private var replyPicker: some View {
-    ScrollView(.horizontal) {
-      HStack(spacing: 7) {
-        replyButton(id: nil, title: "Just the group") { PersonAvatar(name: "People", size: 24) }
+    HStack {
+      Label("Replies from", systemImage: "person.2")
+        .font(.callout).foregroundStyle(.secondary)
+      Spacer()
+      Picker("Replies from", selection: replySelection) {
+        Text("Just the Group").tag(String?.none)
         if let group = model.selectedGroup {
           if group.bots.count > 1 {
-            replyButton(id: "all", title: "Bring in the team") {
-              Image(systemName: "person.3.fill").foregroundStyle(FrogTheme.brand).frame(width: 24)
-            }
+            Text("All Bots").tag(String?.some("all"))
           }
           ForEach(group.bots) { bot in
-            replyButton(id: bot.id, title: "\(bot.name) replies") {
-              BotAvatar(name: bot.name, color: bot.color, size: 24)
-            }
+            Text(bot.name).tag(String?.some(bot.id))
           }
         }
       }
+      .labelsHidden()
+      .pickerStyle(.menu)
+      .accessibilityLabel("Who should reply")
     }
-    .frame(maxWidth: 780).padding(.bottom, 7).accessibilityLabel("Who should reply")
+    .frame(maxWidth: 780)
+    .padding(.horizontal, 10).padding(.vertical, 5)
+    .padding(.bottom, 7)
   }
-  private func replyButton<Icon: View>(
-    id: String?, title: String, @ViewBuilder icon: () -> Icon
-  ) -> some View {
-    let selected = model.activeGroupReplyBotId == id
-    return Button { model.groupReplyBotId = id } label: {
-      HStack(spacing: 7) {
-        icon()
-        Text(title).font(.system(size: 12, weight: .semibold))
-      }
-      .foregroundStyle(selected ? FrogTheme.brandDark : Color(hex: "#67635C"))
-      .padding(.leading, 6).padding(.trailing, 12).frame(minHeight: 44)
-      .background(selected ? Color(hex: "#E6F2EB") : FrogTheme.surface, in: Capsule())
-      .overlay(Capsule().stroke(selected ? Color(hex: "#7CAB90") : Color(hex: "#DEDAD2")))
+
+  private var replySelection: Binding<String?> {
+    Binding(
+      get: { model.activeGroupReplyBotId },
+      set: { model.groupReplyBotId = $0 })
+  }
+
+  private var dictationActionTitle: String {
+    if dictation.isStarting { return "Cancel On-Device Transcription" }
+    return dictation.isRecording ? "Stop On-Device Transcription" : "Start On-Device Transcription"
+  }
+
+  private func toggleDictation() {
+    if !dictation.isRecording && !dictation.isStarting {
+      let draft = model.composerText
+      dictationPrefix = draft.isEmpty || draft.last?.isWhitespace == true ? draft : draft + " "
+      dictationSelection = model.selection
+    } else if dictation.isStarting {
+      dictationSelection = nil
     }
-    .buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
+    dictation.toggle()
+  }
+
+  private func submitMessage() {
+    cancelDictation()
+    Task { await model.send() }
+  }
+
+  private func cancelDictation() {
+    dictationSelection = nil
+    dictation.cancel()
+    dictationPrefix = ""
+  }
+
+  @MainActor private func importPhotos(
+    _ items: [PhotosPickerItem], for target: ConversationSelection, reservedCount: Int
+  ) async {
+    defer {
+      model.releaseAttachmentSlots(reservedCount)
+      selectedPhotos = []
+    }
+    let constraints = model.constraints
+    for (index, item) in items.enumerated() {
+      do {
+        try Task.checkCancellation()
+        guard let source = try await item.loadTransferable(type: ImportedPhoto.self) else {
+          continue
+        }
+        defer { try? FileManager.default.removeItem(at: source.url) }
+        try Task.checkCancellation()
+        let displayName = items.count == 1 ? "Photo.jpg" : "Photo \(index + 1).jpg"
+        let preparationTask = Task.detached(priority: .userInitiated) {
+          try Task.checkCancellation()
+          let data = try PhotoUploadPreparer.jpegData(
+            from: source.url, maxDimension: constraints.maxPhotoDimension,
+            maxBytes: constraints.imageMaxBytes)
+          try Task.checkCancellation()
+          let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FroggyBot-Photo-Prepared-\(UUID().uuidString)")
+          do {
+            try FileManager.default.createDirectory(
+              at: folder, withIntermediateDirectories: true)
+            let url = folder.appendingPathComponent(displayName)
+            try data.write(to: url, options: .atomic)
+            try Task.checkCancellation()
+            return url
+          } catch {
+            try? FileManager.default.removeItem(at: folder)
+            throw error
+          }
+        }
+        let prepared = try await withTaskCancellationHandler {
+          try await preparationTask.value
+        } onCancel: {
+          preparationTask.cancel()
+        }
+        defer { try? FileManager.default.removeItem(at: prepared.deletingLastPathComponent()) }
+        try Task.checkCancellation()
+        await model.uploadReserved(urls: [prepared], for: target)
+      } catch {
+        if !Task.isCancelled { model.present(error) }
+        return
+      }
+    }
+  }
+}
+
+private extension View {
+  @ViewBuilder func froggyInspector<Content: View>(
+    isPresented: Binding<Bool>, onDismiss: @escaping () -> Void,
+    @ViewBuilder content: @escaping () -> Content
+  ) -> some View {
+    #if os(iOS)
+      sheet(isPresented: isPresented, onDismiss: onDismiss, content: content)
+    #else
+      inspector(isPresented: isPresented, content: content)
+    #endif
   }
 }

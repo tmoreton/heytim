@@ -20,10 +20,12 @@ import XCTest
 
     // A vertically growing SwiftUI TextField is exposed as a TextField on some
     // iOS releases and as a TextView on others, so match its accessible label.
-    let composer = app.descendants(matching: .any)["Message Chief"].firstMatch
+    let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
     XCTAssertTrue(composer.waitForExistence(timeout: 10))
 
-    app.buttons["FroggyBot"].tap()
+    #if os(iOS)
+      app.buttons["FroggyBot"].tap()
+    #endif
     XCTAssertTrue(app.searchFields["Search chats"].waitForExistence(timeout: 5))
     let chief = app.staticTexts["Chief"].firstMatch
     XCTAssertTrue(chief.waitForExistence(timeout: 5))
@@ -32,9 +34,43 @@ import XCTest
 
     composer.tap()
     composer.typeText("Native smoke test")
-    app.buttons["Send message"].tap()
+    app.buttons["chat.send"].tap()
     XCTAssertTrue(
       app.staticTexts["This is the native app’s offline test reply."].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["Jump to Latest"].exists)
+  }
+
+  func testComposerUsesNativeAttachmentMenu() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing"]
+    app.launch()
+
+    let attachmentMenu = app.buttons["chat.attachments"]
+    XCTAssertTrue(attachmentMenu.waitForExistence(timeout: 10))
+    attachmentMenu.tap()
+
+    XCTAssertTrue(app.buttons["Photo Library"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["Choose Files"].exists)
+    XCTAssertTrue(app.buttons["Start On-Device Transcription"].exists)
+  }
+
+  func testConversationDetailsUsesTheNativeInspector() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing"]
+    app.launch()
+
+    let details = app.buttons["chat.details"]
+    XCTAssertTrue(details.waitForExistence(timeout: 10))
+    details.tap()
+
+    #if os(iOS)
+      XCTAssertTrue(app.navigationBars["Details"].waitForExistence(timeout: 5))
+      XCTAssertTrue(app.buttons["Done"].exists)
+    #else
+      XCTAssertTrue(app.staticTexts["Details"].waitForExistence(timeout: 5))
+      XCTAssertFalse(app.buttons["Done"].exists)
+    #endif
+    XCTAssertTrue(app.buttons["Memory"].exists)
   }
 
   func testAccountSettingsUsesTheFroggyBotLayout() {
@@ -42,7 +78,9 @@ import XCTest
     app.launchArguments = ["--ui-testing"]
     app.launch()
 
-    app.buttons["FroggyBot"].tap()
+    #if os(iOS)
+      app.buttons["FroggyBot"].tap()
+    #endif
     let settings = app.buttons["Open account settings"]
     XCTAssertTrue(settings.waitForExistence(timeout: 10))
     XCTAssertTrue(settings.isHittable)
@@ -52,7 +90,11 @@ import XCTest
     XCTAssertTrue(app.staticTexts["Memory"].exists)
     XCTAssertTrue(app.staticTexts["Skills & tools"].exists)
     XCTAssertTrue(app.staticTexts["Connections"].exists)
-    XCTAssertTrue(app.buttons["Done"].exists)
+    #if os(iOS)
+      XCTAssertTrue(app.buttons["Done"].exists)
+    #else
+      XCTAssertFalse(app.buttons["Done"].exists)
+    #endif
 
     let exportMemory = app.buttons["Export Memory"]
     for _ in 0..<4 where !exportMemory.exists { app.swipeUp() }

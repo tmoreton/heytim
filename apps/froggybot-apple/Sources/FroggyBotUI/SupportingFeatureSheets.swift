@@ -1,4 +1,5 @@
 import SwiftUI
+import QuickLook
 import UserNotifications
 
 #if os(iOS)
@@ -124,35 +125,79 @@ struct ConnectionsView: View {
 struct DocumentsView: View {
   @Bindable var model: AppModel
   let botId: String
-  @Environment(\.openURL) private var openURL
   @State private var documents: [BotDocument] = []
+  @State private var previewURL: URL?
+  @State private var previewTask: Task<Void, Never>?
+  @State private var isLoading = false
   var body: some View {
-    List(documents) { document in
-      Button {
-        open(document)
-      } label: {
-        HStack {
-          Image(systemName: document.kind == "image" ? "photo" : "doc")
-          VStack(alignment: .leading) {
-            Text(document.name)
-            Text(ByteCountFormatter.string(fromByteCount: Int64(document.size), countStyle: .file))
-              .font(.caption).foregroundStyle(.secondary)
+    List {
+      if documents.isEmpty && !isLoading {
+        ContentUnavailableView(
+          "No Documents", systemImage: "doc",
+          description: Text("Documents created or shared in this chat will appear here."))
+      } else {
+        ForEach(documents) { document in
+          Button {
+            open(document)
+          } label: {
+            Label {
+              VStack(alignment: .leading) {
+                Text(document.name)
+                Text(
+                  ByteCountFormatter.string(
+                    fromByteCount: Int64(document.size), countStyle: .file)
+                )
+                .font(.caption).foregroundStyle(.secondary)
+              }
+            } icon: {
+              Image(systemName: document.kind == "image" ? "photo" : "doc")
+            }
+          }
+          .buttonStyle(.plain)
+          .contextMenu {
+            Button("Quick Look", systemImage: "eye") { open(document) }
           }
         }
       }
     }
     .froggyListSurface()
-    .navigationTitle("Documents").toolbar { CloseButton() }.task {
-      do { documents = try await model.api?.botDocuments(botId) ?? [] } catch {
-        model.present(error)
+    .navigationTitle("Documents")
+    .toolbar { CloseButton() }
+    .overlay { if isLoading { ProgressView() } }
+    .quickLookPreview($previewURL)
+    .onChange(of: previewURL) { previous, current in
+      if previous != current { FrogBotAPI.removeDownloadedPreview(at: previous) }
+    }
+    .onDisappear {
+      previewTask?.cancel()
+      FrogBotAPI.removeDownloadedPreview(at: previewURL)
+      previewURL = nil
+    }
+    .refreshable { await load() }
+    .task { await load() }
+  }
+  private func open(_ item: BotDocument) {
+    previewTask?.cancel()
+    let api = model.api
+    previewTask = Task {
+      do {
+        guard let downloaded = try await api?.downloadFile(fileId: item.id, name: item.name)
+        else { return }
+        guard !Task.isCancelled else {
+          FrogBotAPI.removeDownloadedPreview(at: downloaded)
+          return
+        }
+        previewURL = downloaded
+      } catch {
+        if !Task.isCancelled { model.present(error) }
       }
     }
   }
-  private func open(_ item: BotDocument) {
-    Task {
-      do { if let url = try await model.api?.downloadURL(fileId: item.id) { openURL(url) } } catch {
-        model.present(error)
-      }
+  private func load() async {
+    isLoading = true
+    defer { isLoading = false }
+    do { documents = try await model.api?.botDocuments(botId) ?? [] } catch {
+      model.present(error)
     }
   }
 }
@@ -188,6 +233,7 @@ struct ShareView: View {
 struct AccountView: View {
   @Bindable var model: AppModel
   let auth: AuthSession
+  var showsDismissButton = true
   @State private var links: [SharedLink] = []
   @State private var loadingLinks = true
   @State private var busyLinkToken: String?
@@ -295,12 +341,11 @@ struct AccountView: View {
       }
     }
     .formStyle(.grouped)
-    .scrollContentBackground(.hidden)
-    .background(FrogTheme.pageBackground)
-    .foregroundStyle(FrogTheme.text)
     .navigationTitle("Settings")
     .toolbar {
-      ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+      if showsDismissButton {
+        ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+      }
     }
     .task { await load() }
     .confirmationDialog(

@@ -1,99 +1,69 @@
-# Expo to SwiftUI design parity
+# Native Apple design direction
 
-This document records the native visual contract derived from the Expo implementation. The Expo source remains the
-design authority and is not modified by the Apple client.
+The Expo app is FroggyBot's feature and behavior reference, not a component or pixel-level blueprint. The Apple client
+keeps the same account, conversations, capabilities, terminology, and brand identity while choosing the most natural
+SwiftUI interaction for iPhone and Mac. The Expo source remains unchanged.
 
-## Visual principles
+## Native-first principles
 
-- Warm, calm, light-only product surfaces; the interface must not inherit a system dark palette.
-- FroggyBot green is reserved for identity, selection, progress, links, and primary actions.
-- Cards and controls are soft rectangles with restrained borders instead of platform-default chrome.
-- Bot identity always uses the frog silhouette. People use initial circles; groups stack two participant tiles.
-- Content stays compact and readable: 290-point desktop drawer, 780-point conversation width, and 680–720-point editors.
-- macOS keeps native windows and menus, while iPhone keeps native navigation, sheets, file picking, and dictation.
+- Prefer Apple containers and controls: `NavigationSplitView`, `List`, `Form`, `NavigationStack`, `Inspector`,
+  `Menu`, `Picker`, `TextField`, `ProgressView`, toolbars, sheets, alerts, and confirmation dialogs.
+- Use semantic system colors and materials so light mode, dark mode, increased contrast, window vibrancy, and Liquid
+  Glass adapt automatically.
+- Use semantic text styles and system control sizing so Dynamic Type, keyboard navigation, VoiceOver, pointer input,
+  and Mac menu commands work without parallel custom implementations.
+- Preserve FroggyBot identity through the frog mark, bot and group avatars, green tint, friendly language, and custom
+  message bubbles. Product identity belongs in content; platform chrome belongs to Apple.
+- Keep custom Liquid Glass restrained to an important floating action such as Send. Standard navigation and toolbar
+  controls receive the system appearance automatically on current OS releases.
+- Share one SwiftUI feature implementation between iPhone and Mac, with platform-specific presentation only where the
+  system interaction genuinely differs.
 
-## Color tokens
+## Conversation design
 
-| Role | Value | Use |
-| --- | --- | --- |
-| Brand | `#007A3D` | Logo, primary buttons, links, progress |
-| Brand dark | `#006633` | Active labels and high-contrast green text |
-| Sign-in canvas | `#F4F2EC` | Authentication background |
-| App canvas | `#FBFBF9` | Conversation and composer background |
-| Editor canvas | `#F8F7F3` | Libraries, settings, and editors |
-| Drawer | `#F2F1ED` | Desktop/sidebar navigation |
-| Surface | `#FFFFFF` | Cards, fields, composer, circular actions |
-| Primary text | `#171714` | Headings and body copy |
-| Muted text | `#6E6A62` | Secondary information and metadata |
-| Warm muted text | `#77736B` | Explanatory copy and previews |
-| Border | `#DEDAD0` | Controls and cards |
-| Selection | `#E4F1EA` | Selected conversation and installed states |
-| Assistant message | `#EFEFEC` | Normal assistant responses |
-| Team answer | `#E9F4EE` | Synthesized group response |
-| Approval | `#FFF7DF` | Human approval checkpoint |
-| Destructive | `#A53A32` | Errors and destructive actions |
+The transcript remains a `ScrollView` and `LazyVStack` because SwiftUI has no public chat-bubble component and `List`
+would weaken bottom anchoring and message layout. The surrounding interactions are native:
 
-## Type and geometry
-
-| Surface | Contract |
+| Need | Native Apple solution |
 | --- | --- |
-| Brand name | 34 pt heavy, -1.3 tracking |
-| Sign-in card | 420 pt max width, 26 pt radius, 24 pt inset |
-| Sign-in input/button | 56 pt height, 16 pt radius |
-| Drawer | 290 pt ideal width; 70 pt header; 44 pt search; 64 pt rows |
-| Conversation header | 58 pt minimum height |
-| Messages | 780 pt max content width; 15/21 typography; 18 pt bubble radius |
-| Composer | 780 pt max width; 51 pt minimum height; 20 pt radius |
-| Reply target | 44 pt minimum height; capsule geometry |
-| Editor content | 680–720 pt max width; 14–20 pt card radii |
+| Conversation navigation | `NavigationSplitView`, sidebar `List`, search, toolbars |
+| Conversation details | Adaptive `Inspector`—trailing pane on Mac, sheet on iPhone |
+| Writing | Vertically growing `TextField`, focus state, native submit behavior |
+| Reply routing | Menu-style `Picker` with normalized group/bot selection |
+| Attachments | `PhotosPicker`, `fileImporter`, Finder drag and drop |
+| Documents | Local authenticated download followed by Quick Look |
+| Message actions | Text selection, context menus, `ShareLink`, save/export actions |
+| Tool approval | `GroupBox` plus a system `confirmationDialog` |
+| Bot activity | `ProgressView` and `DisclosureGroup` |
+| Long conversations | Native scroll-position tracking and “Jump to Latest” |
+| Cancellation | Independent Stop and Send controls |
 
-## Component mapping
+Photos are transferred as temporary files, stripped of original metadata, downsampled, and converted to JPEG using
+ImageIO before upload. Attachment count, byte, and image-dimension limits come from the backend bootstrap contract.
+Drafts and pending attachments stay with the conversation where they were created.
 
-| Expo element | SwiftUI implementation | Apple adaptation |
-| --- | --- | --- |
-| `frogbot-foreground.png` | `FrogMark` and `BotAvatar` | Shared asset catalog image; bot colors use template tint plus face details |
-| `PersonAvatar` | `PersonAvatar` | Deterministic five-color initial circle |
-| `GroupAvatar` | `GroupAvatar` | Two overlapping bot/person tiles |
-| Conversation drawer | `ConversationSidebar` | Custom scroll surface inside `NavigationSplitView` |
-| Hamburger / more actions | Custom line mark + `Menu` | SF Symbols inside native menus where semantics matter |
-| Message bubbles | `MessageBubble` | `UnevenRoundedRectangle` preserves Expo's speech-corner shapes |
-| Reply chips | Composer reply picker | Same active/inactive fills, borders, avatars, and 44 pt targets |
-| Attachment / dictation / send | Composer action row | `paperclip`, `mic`, `arrow.up`, and `stop.fill` SF Symbols |
-| Page sheets | `FeatureSheet` | Native sheets/navigation with Expo canvas, tint, and light palette |
+## Platform adaptation
 
-## Screen audit
+- iPhone uses compact navigation, adaptive sheets, PhotosPicker, share sheets, touch-sized controls, and interactive
+  keyboard dismissal.
+- Mac uses the system sidebar, resizable split panes and inspector, native menus and keyboard commands, Finder drops,
+  contextual actions, and normal window materials.
+- The same models, API client, state, message rendering, and feature views compile for both platforms.
+- SwiftUI does not have a supported web target. The Expo web app remains the browser client and shares the backend API
+  rather than the SwiftUI view tree.
 
-### Authentication
+## Brand guidance
 
-- Match the cream background, centered frog mark, brand title/tagline, white card, green eyebrow, labeled field, full-width
-  primary action, assurance divider, invitation link, and responsible-use footnote.
-- Verification-code and invitation states use the same card rather than a separate system form.
-
-### Conversation shell
-
-- Match the logo lockup, create action, search field, uppercase group/bot sections, selected-row treatment, status badge,
-  and account footer.
-- The detail header uses the selected bot/group avatar, green status line, drawer toggle, and action menu.
-- Empty, loading, memory, error, and processing states use the same token set.
-
-### Messages and composer
-
-- User messages are solid brand green with white type and a tight trailing speech corner.
-- Assistant messages are neutral; team synthesis is pale green; approval is pale yellow; failures are pale red.
-- Group replies show bot/person identity and round role. Activity and timing remain secondary to the answer.
-- Composer, attachments, reply routing, dictation, stop, and send controls preserve 44 pt touch targets on iPhone.
-
-### Libraries, editors, and settings
-
-- Bot/skill libraries, bot/group editors, schedules, memory, connections, documents, share, and account screens use the
-  editor canvas rather than default grouped-form gray or dark surfaces.
-- Native toggles, pickers, navigation, share sheets, confirmation dialogs, secure browser views, and file importers remain
-  native because they improve accessibility and platform behavior without changing FroggyBot's visual identity.
+- FroggyBot green is the app tint and identifies primary actions, selection, progress, and bot identity.
+- User messages may remain green; assistant, team, approval, and error messages use semantic adaptive surfaces.
+- Frog, bot, person, and group avatars are product assets rather than substitutes for system navigation controls.
+- Avoid fixed light-only canvases, custom imitations of sidebars or sheets, and hard-coded text colors.
 
 ## Verification gates
 
-- Build the single target for macOS and iPhone simulator.
-- Run Swift unit tests and the iPhone launch/send UI test in offline demo mode.
-- Inspect authentication and a populated conversation at desktop size.
-- Inspect the collapsed conversation experience on an iPhone simulator.
+- Build the single target for the iOS 17 and macOS 14 minimums and current Apple OS releases.
+- Run Swift unit tests and iPhone UI journeys in offline demo mode.
+- Exercise sign-in, conversation send/reply, group routing, tool approval, files/photos, Quick Look documents, settings,
+  light/dark appearance, and the adaptive inspector.
+- Inspect a live Mac window for native layout and keyboard/pointer behavior.
 - Confirm the Expo tree has no working-copy changes.

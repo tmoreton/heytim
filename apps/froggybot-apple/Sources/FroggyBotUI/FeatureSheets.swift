@@ -24,10 +24,7 @@ public struct FeatureSheet: View {
       }
     }
     .froggySheetSize()
-    .background(FrogTheme.pageBackground)
-    .foregroundStyle(FrogTheme.text)
     .tint(FrogTheme.brand)
-    .preferredColorScheme(.light)
   }
 }
 

@@ -1,4 +1,7 @@
 import Foundation
+import CoreGraphics
+import ImageIO
+import UniformTypeIdentifiers
 
 public enum ConversationKind: String, Codable, Sendable { case bot, group }
 
@@ -492,6 +495,68 @@ public struct UploadAsset: Sendable {
     self.name = name ?? url.lastPathComponent
     let values = try url.resourceValues(forKeys: [.fileSizeKey])
     self.size = size ?? values.fileSize ?? 0
+  }
+}
+
+public enum PhotoUploadError: LocalizedError, Equatable, Sendable {
+  case invalidImage
+  case encodingFailed
+  case exceedsLimit(Int)
+
+  public var errorDescription: String? {
+    switch self {
+    case .invalidImage: "That photo could not be read."
+    case .encodingFailed: "That photo could not be prepared for upload."
+    case .exceedsLimit(let bytes):
+      "That photo is still larger than the \(ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)) upload limit."
+    }
+  }
+}
+
+public enum PhotoUploadPreparer {
+  public static func jpegData(from data: Data, maxDimension: Int, maxBytes: Int) throws -> Data {
+    guard maxDimension > 0, maxBytes > 0,
+      let source = CGImageSourceCreateWithData(data as CFData, nil)
+    else { throw PhotoUploadError.invalidImage }
+    return try jpegData(from: source, maxDimension: maxDimension, maxBytes: maxBytes)
+  }
+
+  public static func jpegData(from url: URL, maxDimension: Int, maxBytes: Int) throws -> Data {
+    guard maxDimension > 0, maxBytes > 0,
+      let source = CGImageSourceCreateWithURL(url as CFURL, nil)
+    else { throw PhotoUploadError.invalidImage }
+    return try jpegData(from: source, maxDimension: maxDimension, maxBytes: maxBytes)
+  }
+
+  private static func jpegData(
+    from source: CGImageSource, maxDimension: Int, maxBytes: Int
+  ) throws -> Data {
+    let thumbnailOptions: [CFString: Any] = [
+      kCGImageSourceCreateThumbnailFromImageAlways: true,
+      kCGImageSourceCreateThumbnailWithTransform: true,
+      kCGImageSourceThumbnailMaxPixelSize: maxDimension,
+      kCGImageSourceShouldCacheImmediately: true,
+    ]
+    guard let image = CGImageSourceCreateThumbnailAtIndex(
+      source, 0, thumbnailOptions as CFDictionary)
+    else { throw PhotoUploadError.invalidImage }
+
+    for quality in stride(from: 0.9, through: 0.3, by: -0.1) {
+      let output = NSMutableData()
+      guard
+        let destination = CGImageDestinationCreateWithData(
+          output, UTType.jpeg.identifier as CFString, 1, nil)
+      else { throw PhotoUploadError.encodingFailed }
+      CGImageDestinationAddImage(
+        destination, image,
+        [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
+      guard CGImageDestinationFinalize(destination) else {
+        throw PhotoUploadError.encodingFailed
+      }
+      let encoded = output as Data
+      if encoded.count <= maxBytes { return encoded }
+    }
+    throw PhotoUploadError.exceedsLimit(maxBytes)
   }
 }
 

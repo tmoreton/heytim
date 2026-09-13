@@ -21,12 +21,11 @@ struct FroggyBotAppleApp: App {
   }
 
   var body: some Scene {
-    WindowGroup {
-      AppRoot(configuration: configuration, auth: auth, model: model)
-        .frame(minWidth: 360, minHeight: 520)
-        .preferredColorScheme(.light)
-    }
     #if os(macOS)
+      WindowGroup {
+        AppRoot(configuration: configuration, auth: auth, model: model)
+          .frame(minWidth: 360, minHeight: 520)
+      }
       .defaultSize(width: 1120, height: 760)
       .commands {
         CommandGroup(after: .newItem) {
@@ -34,6 +33,20 @@ struct FroggyBotAppleApp: App {
             "n", modifiers: [.command, .shift])
           Button("New Group") { model.sheet = .groupEditor(nil) }
         }
+        InspectorCommands()
+      }
+
+      Settings {
+        NavigationStack {
+          AccountView(model: model, auth: auth, showsDismissButton: false)
+        }
+        .frame(minWidth: 560, minHeight: 560)
+        .tint(FrogTheme.brand)
+      }
+    #else
+      WindowGroup {
+        AppRoot(configuration: configuration, auth: auth, model: model)
+          .frame(minWidth: 360, minHeight: 520)
       }
     #endif
   }
@@ -57,6 +70,7 @@ private struct AppRoot: View {
       }
     }
     .task {
+      guard !Self.isUnitTestHost else { return }
       await auth.restore()
       await connectIfNeeded()
     }
@@ -119,5 +133,10 @@ private struct AppRoot: View {
 
   static func invitation(from url: URL) -> PendingInvitation? {
     InvitationParser.parse(url)
+  }
+
+  private static var isUnitTestHost: Bool {
+    ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+      && !ProcessInfo.processInfo.arguments.contains("--ui-testing")
   }
 }

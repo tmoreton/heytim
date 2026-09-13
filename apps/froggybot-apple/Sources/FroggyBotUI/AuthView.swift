@@ -6,6 +6,7 @@ public struct AuthView: View {
   @State private var email = ""
   @State private var code = ""
   @FocusState private var focusedField: Field?
+  @Environment(\.colorScheme) private var colorScheme
 
   private enum Field { case email, code }
 
@@ -42,7 +43,7 @@ public struct AuthView: View {
       Text("FroggyBot")
         .font(.system(size: 34, weight: .heavy, design: .rounded))
         .tracking(-1.3)
-        .foregroundStyle(Color(hex: "#11110F"))
+        .foregroundStyle(.primary)
       Text("The AI that helps your group decide and follow through.")
         .font(.system(size: 16))
         .foregroundStyle(FrogTheme.mutedWarm)
@@ -57,7 +58,7 @@ public struct AuthView: View {
       Text(eyebrow)
         .font(.system(size: 11, weight: .heavy))
         .tracking(1.25)
-        .foregroundStyle(FrogTheme.brand)
+        .foregroundStyle(brandText)
         .padding(.bottom, 9)
       Text(title)
         .font(.system(size: 25, weight: .bold))
@@ -112,7 +113,7 @@ public struct AuthView: View {
         }
         .buttonStyle(.plain)
         .font(.system(size: 14, weight: .semibold))
-        .foregroundStyle(FrogTheme.brand)
+        .foregroundStyle(brandText)
         .frame(maxWidth: .infinity, minHeight: 44)
         .padding(.top, 5)
       }
@@ -126,7 +127,7 @@ public struct AuthView: View {
             string: "mailto:tmoreton89@gmail.com?subject=FroggyBot%20beta%20access")!
         )
         .font(.system(size: 13, weight: .bold))
-        .foregroundStyle(FrogTheme.brandDark)
+        .foregroundStyle(brandText)
         .underline()
         .frame(maxWidth: .infinity, minHeight: 44)
         .padding(.top, 4)
@@ -166,7 +167,7 @@ public struct AuthView: View {
     } else {
       Text("Email address")
         .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(Color(hex: "#37352F"))
+        .foregroundStyle(FrogTheme.textSoft)
         .padding(.bottom, 9)
       TextField("you@example.com", text: $email)
         .textFieldStyle(.plain)
@@ -188,12 +189,12 @@ public struct AuthView: View {
       VStack(alignment: .leading, spacing: 2) {
         Text("FroggyBot invitation").font(.system(size: 14, weight: .bold))
         Text("Your invitation will be verified after email confirmation.")
-          .font(.system(size: 12)).foregroundStyle(Color(hex: "#56806A"))
+          .font(.system(size: 12)).foregroundStyle(.secondary)
       }
     }
     .padding(12)
-    .background(Color(hex: "#EAF5EF"), in: RoundedRectangle(cornerRadius: 16))
-    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(hex: "#C9E2D4")))
+    .background(FrogTheme.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: 16))
+    .overlay(RoundedRectangle(cornerRadius: 16).stroke(FrogTheme.brand.opacity(0.25)))
   }
 
   private var assurance: some View {
@@ -209,13 +210,16 @@ public struct AuthView: View {
     }
     .frame(maxWidth: .infinity)
     .padding(.top, 18)
-    .overlay(alignment: .top) { Rectangle().fill(Color(hex: "#EEEAE2")).frame(height: 1) }
+    .overlay(alignment: .top) { Rectangle().fill(FrogTheme.border).frame(height: 1) }
     .padding(.top, 22)
   }
 
   private var isCodeSent: Bool {
     if case .codeSent = auth.phase { return true }
     return false
+  }
+  private var brandText: Color {
+    colorScheme == .dark ? Color(hex: "#57E08C") : FrogTheme.brandDark
   }
   private var primaryLabel: String { isCodeSent ? "Sign in" : "Continue" }
   private var eyebrow: String {
@@ -240,10 +244,10 @@ private extension View {
       .frame(minHeight: 56)
       .foregroundStyle(FrogTheme.text)
       .background(
-        focused ? FrogTheme.surface : Color(hex: "#FAF9F6"),
+        focused ? FrogTheme.surface : FrogTheme.pageBackground,
         in: RoundedRectangle(cornerRadius: 16))
       .overlay(
         RoundedRectangle(cornerRadius: 16)
-          .stroke(focused ? FrogTheme.brand : Color(hex: "#DEDAD1")))
+          .stroke(focused ? FrogTheme.brand : FrogTheme.subtleBorder))
   }
 }

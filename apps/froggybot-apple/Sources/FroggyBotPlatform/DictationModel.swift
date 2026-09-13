@@ -9,26 +9,34 @@ public final class DictationModel {
   public var transcript = ""
   public var errorMessage: String?
   @ObservationIgnored private var transcriber: NemotronTranscriber?
+  @ObservationIgnored private var sessionID: UUID?
 
   public init() {}
 
   public func toggle() {
-    if isRecording || isStarting {
+    if isStarting {
+      cancel()
+      return
+    }
+    if isRecording {
       transcriber?.stop()
       return
     }
+    let requestedSessionID = UUID()
+    sessionID = requestedSessionID
     isStarting = true
     errorMessage = nil
     AVCaptureDevice.requestAccess(for: .audio) { [weak self] allowed in
       Task { @MainActor in
-        guard let self else { return }
+        guard let self, self.sessionID == requestedSessionID else { return }
         guard allowed else {
           self.isStarting = false
+          self.sessionID = nil
           self.errorMessage = "Microphone access is required for on-device dictation."
           return
         }
         let transcriber = NemotronTranscriber { [weak self] event in
-          Task { @MainActor in self?.receive(event) }
+          Task { @MainActor in self?.receive(event, sessionID: requestedSessionID) }
         }
         self.transcriber = transcriber
         transcriber.start()
@@ -41,12 +49,19 @@ public final class DictationModel {
     return transcript
   }
 
-  public func shutDown() {
+  public func cancel() {
+    sessionID = nil
     transcriber?.shutDown()
     transcriber = nil
+    isStarting = false
+    isRecording = false
+    transcript = ""
   }
 
-  private func receive(_ event: NemotronTranscriptionEvent) {
+  public func shutDown() { cancel() }
+
+  private func receive(_ event: NemotronTranscriptionEvent, sessionID: UUID) {
+    guard self.sessionID == sessionID else { return }
     switch event {
     case .started:
       isStarting = false
@@ -56,6 +71,8 @@ public final class DictationModel {
     case .ended:
       isStarting = false
       isRecording = false
+      self.sessionID = nil
+      transcriber = nil
     }
   }
 }
