@@ -33,6 +33,12 @@ import UniformTypeIdentifiers
     XCTAssertEqual(AppModel.nextPollingDelay(base: 1_500, failures: .max, random: 1), 30_000)
   }
 
+  func testActivityStepsRenderInlineMarkdownInsteadOfLiteralMarkers() {
+    let formatted = formattedActivityStep("Checking `README.md` before **release**.")
+
+    XCTAssertEqual(String(formatted.characters), "Checking README.md before release.")
+  }
+
   func testResetSessionClearsAccountScopedStateAndDisconnects() throws {
     let api = FrogBotAPI(baseURL: try XCTUnwrap(URL(string: "https://api.example.com"))) {
       "id-token"

@@ -64,6 +64,20 @@ import XCTest
     #endif
   }
 
+  func testActivityIsFormattedAndInitiallyFollowsTheLatestUpdate() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing", "--ui-testing-activity"]
+    app.launch()
+
+    let latestStep = app.descendants(matching: .any)["chat.activity.step.9"].firstMatch
+    let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
+    XCTAssertTrue(latestStep.waitForExistence(timeout: 10))
+    XCTAssertTrue(composer.waitForExistence(timeout: 5))
+    XCTAssertTrue(latestStep.isHittable)
+    XCTAssertTrue(composer.isHittable)
+    XCTAssertFalse(app.staticTexts["Checking `README.md` for the intended release workflow."].exists)
+  }
+
   func testComposerUsesNativeAttachmentMenu() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]

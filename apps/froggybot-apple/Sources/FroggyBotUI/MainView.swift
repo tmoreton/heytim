@@ -232,9 +232,12 @@ private struct ConversationView: View {
   @State private var pendingInspectorAction: InspectorAction?
   @State private var scrollTarget: String?
   @State private var hasNewerMessages = false
+  @State private var isFollowingLatest = true
+  @State private var transcriptHeight: CGFloat = 0
   @FocusState private var composerFocused: Bool
 
   private let bottomID = "froggy-conversation-bottom"
+  private let scrollSpace = "froggy-conversation-scroll"
   private struct MessageRevision: Equatable {
     let id: String
     let fingerprint: Int
@@ -250,70 +253,100 @@ private struct ConversationView: View {
   }
 
   var body: some View {
-    ScrollView {
-      LazyVStack(spacing: 0) {
-        if model.nextToken != nil {
-          Button("Load Earlier Messages", systemImage: "arrow.up") {
-            Task { await model.loadEarlier() }
+    ScrollViewReader { proxy in
+      ScrollView {
+        LazyVStack(spacing: 0) {
+          if model.nextToken != nil {
+            Button("Load Earlier Messages", systemImage: "arrow.up") {
+              Task { await model.loadEarlier() }
+            }
+            .controlSize(.small)
+            .frame(minHeight: 44)
+            .padding(.bottom, 8)
           }
-          .controlSize(.small)
-          .frame(minHeight: 44)
-          .padding(.bottom, 8)
+          if model.messages.isEmpty {
+            emptyConversation
+              .containerRelativeFrame(.vertical, alignment: .center)
+          }
+          ForEach(model.messages) { message in
+            MessageBubble(message: message, model: model, preview: preview)
+              .id(message.id)
+          }
+          Color.clear
+            .frame(height: 1)
+            .id(bottomID)
+            .onGeometryChange(for: CGFloat.self) { geometry in
+              geometry.frame(in: .named(scrollSpace)).minY
+            } action: { bottomY in
+              if bottomY >= 0, bottomY <= transcriptHeight + 80 {
+                isFollowingLatest = true
+                hasNewerMessages = false
+              }
+            }
         }
-        if model.messages.isEmpty {
-          emptyConversation
-            .containerRelativeFrame(.vertical, alignment: .center)
+        .scrollTargetLayout()
+        .padding(.horizontal, 14)
+        .padding(.top, model.messages.isEmpty ? 0 : 24)
+        .padding(.bottom, model.messages.isEmpty ? 0 : 16)
+        .frame(maxWidth: 780)
+        .frame(maxWidth: .infinity)
+        .onGeometryChange(for: CGFloat.self) { geometry in
+          geometry.size.height
+        } action: { _ in
+          if isFollowingLatest { scrollToBottom(using: proxy, animated: false) }
         }
-        ForEach(model.messages) { message in
-          MessageBubble(message: message, model: model, preview: preview)
-            .id(message.id)
-        }
-        Color.clear.frame(height: 1).id(bottomID)
       }
-      .scrollTargetLayout()
-      .padding(.horizontal, 14)
-      .padding(.top, model.messages.isEmpty ? 0 : 24)
-      .padding(.bottom, model.messages.isEmpty ? 0 : 16)
-      .frame(maxWidth: 780)
-      .frame(maxWidth: .infinity)
-    }
-    .accessibilityIdentifier("chat.transcript")
-    .scrollPosition(id: $scrollTarget, anchor: .bottom)
-    .defaultScrollAnchor(.bottom)
-    .scrollDismissesKeyboard(.interactively)
-    .contentShape(Rectangle())
-    .simultaneousGesture(
-      TapGesture().onEnded {
+      .coordinateSpace(name: scrollSpace)
+      .onGeometryChange(for: CGFloat.self) { geometry in
+        geometry.size.height
+      } action: { transcriptHeight = $0 }
+      .accessibilityIdentifier("chat.transcript")
+      .scrollPosition(id: $scrollTarget, anchor: .bottom)
+      .defaultScrollAnchor(.bottom)
+      .scrollDismissesKeyboard(.interactively)
+      .contentShape(Rectangle())
+      .simultaneousGesture(
+        TapGesture().onEnded {
+          composerFocused = false
+        })
+      .simultaneousGesture(
+        DragGesture(minimumDistance: 8).onChanged { _ in
+          isFollowingLatest = false
+        })
+      .onAppear { scrollToBottom(using: proxy, animated: false) }
+      .onChange(of: model.selection) { _, _ in
+        cancelPreview()
+        hasNewerMessages = false
+        isFollowingLatest = true
         composerFocused = false
-      })
-    .onAppear { scrollTarget = bottomID }
-    .onChange(of: model.selection) { _, _ in
-      cancelPreview()
-      hasNewerMessages = false
-      composerFocused = false
-      scrollTarget = bottomID
-    }
-    .onChange(of: messageRevisions) { previous, current in
-      let following = previous.isEmpty || scrollTarget == bottomID || scrollTarget == previous.last?.id
-      if following {
-        withAnimation(.snappy) { scrollTarget = bottomID }
-      } else if current.last != previous.last {
-        hasNewerMessages = true
+        scrollToBottom(using: proxy, animated: false)
       }
-    }
-    .onChange(of: scrollTarget) { _, value in
-      if value == bottomID || value == model.messages.last?.id { hasNewerMessages = false }
-    }
-    .overlay(alignment: .bottomTrailing) {
-      if hasNewerMessages {
-        Button("Jump to Latest", systemImage: "arrow.down") {
-          withAnimation(.snappy) { scrollTarget = bottomID }
+      .onChange(of: messageRevisions) { previous, current in
+        let following =
+          isFollowingLatest || previous.isEmpty || scrollTarget == bottomID
+        if following {
+          isFollowingLatest = true
+          scrollToBottom(using: proxy, animated: true)
+        } else if current.last != previous.last {
+          hasNewerMessages = true
+        }
+      }
+      .onChange(of: scrollTarget) { _, value in
+        if value == bottomID {
+          isFollowingLatest = true
           hasNewerMessages = false
         }
-        .labelStyle(.iconOnly)
-        .froggyGlassButton(tint: FrogTheme.brand)
-        .buttonBorderShape(.circle)
-        .padding(16)
+      }
+      .overlay(alignment: .bottomTrailing) {
+        if hasNewerMessages {
+          Button("Jump to Latest", systemImage: "arrow.down") {
+            scrollToBottom(using: proxy, animated: true)
+          }
+          .labelStyle(.iconOnly)
+          .froggyGlassButton(tint: FrogTheme.brand)
+          .buttonBorderShape(.circle)
+          .padding(16)
+        }
       }
     }
     .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -375,6 +408,18 @@ private struct ConversationView: View {
     .confirmationDialog("Delete \(model.title)?", isPresented: $showDelete) {
       Button("Delete", role: .destructive) { Task { await model.deleteCurrent() } }
     }
+  }
+
+  private func scrollToBottom(using proxy: ScrollViewProxy, animated: Bool) {
+    let scroll = { proxy.scrollTo(bottomID, anchor: .bottom) }
+    if animated {
+      withAnimation(.snappy) { scroll() }
+    } else {
+      scroll()
+    }
+    scrollTarget = bottomID
+    isFollowingLatest = true
+    hasNewerMessages = false
   }
 
   private var conversationIdentity: some View {
@@ -599,6 +644,16 @@ private struct MessageBubble: View {
         ["reject", "approveOnce", "approveAlways"].contains($0)
       }) == true
   }
+  private var activity: [String] {
+    (message.activity ?? []).filter {
+      !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+  }
+  private var hasBubbleContent: Bool {
+    awaitingApproval || !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || !(message.attachments ?? []).isEmpty
+      || message.allowedActions?.contains("saveDecision") == true
+  }
 
   var body: some View {
     HStack(alignment: .bottom, spacing: 7) {
@@ -616,54 +671,48 @@ private struct MessageBubble: View {
             .padding(.horizontal, 6)
         }
 
-        if !mine, message.isActive {
-          VStack(alignment: .leading, spacing: 5) {
-            ProgressView("Working…").controlSize(.small).tint(FrogTheme.brand)
-            if let activity = message.activity, !activity.isEmpty {
-              DisclosureGroup("Activity") {
-                ForEach(activity, id: \.self) { step in
-                  Label(step, systemImage: "sparkles")
-                }
-              }
-            }
-          }
-          .font(.caption).foregroundStyle(.secondary)
-          .padding(.horizontal, 6).padding(.bottom, 4)
+        if !mine, message.isActive || !activity.isEmpty {
+          MessageActivityView(steps: activity, isActive: message.isActive)
         }
 
-        VStack(alignment: .leading, spacing: 8) {
-          if awaitingApproval {
-            Label("Approval Needed", systemImage: "checkmark.shield")
-              .font(.headline)
-            Text(
-              "This reply may use \(message.approvalTools?.joined(separator: ", ") ?? "an interactive tool") to take action."
-            )
-            .font(.callout).foregroundStyle(.secondary)
-            Button("Review Action", systemImage: "checkmark.shield") {
-              reviewingApproval = true
+        if hasBubbleContent {
+          VStack(alignment: .leading, spacing: 8) {
+            if awaitingApproval {
+              Label("Approval Needed", systemImage: "checkmark.shield")
+                .font(.headline)
+              Text(
+                "This reply may use \(message.approvalTools?.joined(separator: ", ") ?? "an interactive tool") to take action."
+              )
+              .font(.callout).foregroundStyle(.secondary)
+              Button("Review Action", systemImage: "checkmark.shield") {
+                reviewingApproval = true
+              }
+              .buttonStyle(.borderedProminent)
+            } else if !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+              markdownText(message.text)
+                .font(.body).lineSpacing(3).textSelection(.enabled)
+                .foregroundStyle(mine ? .white : FrogTheme.textSoft)
             }
-            .buttonStyle(.borderedProminent)
-          } else {
-            markdownText(message.text)
-              .font(.body).lineSpacing(3).textSelection(.enabled)
-              .foregroundStyle(mine ? .white : FrogTheme.textSoft)
-          }
 
-          ForEach(message.attachments ?? []) { attachment in
-            Button { open(attachment) } label: {
-              Label(attachment.name, systemImage: attachment.kind == "image" ? "photo" : "doc")
+            ForEach(message.attachments ?? []) { attachment in
+              Button { open(attachment) } label: {
+                Label(
+                  attachment.name, systemImage: attachment.kind == "image" ? "photo" : "doc")
+              }
+              .buttonStyle(.plain).font(.callout.weight(.semibold)).foregroundStyle(FrogTheme.brand)
             }
-            .buttonStyle(.plain).font(.callout.weight(.semibold)).foregroundStyle(FrogTheme.brand)
-          }
-          if message.allowedActions?.contains("saveDecision") == true {
-            Button("Save decision", systemImage: "bookmark") { Task { await model.saveDecision(message) } }
+            if message.allowedActions?.contains("saveDecision") == true {
+              Button("Save decision", systemImage: "bookmark") {
+                Task { await model.saveDecision(message) }
+              }
               .buttonStyle(.bordered)
               .controlSize(.small)
+            }
           }
+          .padding(.horizontal, 14).padding(.vertical, 10)
+          .background(bubbleColor, in: bubbleShape)
+          .overlay { if bubbleBorder != .clear { bubbleShape.stroke(bubbleBorder) } }
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(bubbleColor, in: bubbleShape)
-        .overlay { if bubbleBorder != .clear { bubbleShape.stroke(bubbleBorder) } }
 
         HStack(spacing: 5) {
           if message.status != "complete" {
@@ -767,6 +816,98 @@ private struct MessageBubble: View {
       NSPasteboard.general.setString(text, forType: .string)
     #endif
   }
+}
+
+private struct MessageActivityView: View {
+  let steps: [String]
+  let isActive: Bool
+  @State private var isExpanded: Bool
+
+  init(steps: [String], isActive: Bool) {
+    self.steps = steps
+    self.isActive = isActive
+    _isExpanded = State(initialValue: isActive)
+  }
+
+  var body: some View {
+    Group {
+      if steps.isEmpty {
+        activityHeader
+      } else {
+        DisclosureGroup(isExpanded: $isExpanded) {
+          VStack(alignment: .leading, spacing: 9) {
+            ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+              HStack(alignment: .top, spacing: 8) {
+                Circle()
+                  .fill(stepColor(at: index))
+                  .frame(width: 5, height: 5)
+                  .padding(.top, 6)
+                Text(formattedActivityStep(step))
+                  .font(.caption)
+                  .lineSpacing(2)
+                  .foregroundStyle(
+                    isActive && index == steps.indices.last ? FrogTheme.textSoft : FrogTheme.muted
+                  )
+                  .frame(maxWidth: .infinity, alignment: .leading)
+                  .textSelection(.enabled)
+                  .accessibilityIdentifier("chat.activity.step.\(index)")
+              }
+            }
+          }
+          .padding(.top, 9)
+        } label: {
+          activityHeader
+        }
+      }
+    }
+    .tint(FrogTheme.brand)
+    .padding(.horizontal, 12)
+    .padding(.vertical, 10)
+    .background(FrogTheme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    .overlay(
+      RoundedRectangle(cornerRadius: 14, style: .continuous)
+        .stroke(FrogTheme.border.opacity(0.55), lineWidth: 0.5)
+    )
+    .padding(.horizontal, 6)
+    .padding(.bottom, 4)
+    .onChange(of: isActive) { wasActive, active in
+      if wasActive && !active {
+        withAnimation(.snappy) { isExpanded = false }
+      }
+    }
+  }
+
+  private var activityHeader: some View {
+    HStack(spacing: 8) {
+      if isActive {
+        ProgressView().controlSize(.small).tint(FrogTheme.brand)
+      } else {
+        Image(systemName: "checkmark.circle.fill").foregroundStyle(FrogTheme.brand)
+      }
+      Text(title).font(.caption.weight(.semibold))
+      Spacer(minLength: 0)
+    }
+    .foregroundStyle(isActive ? FrogTheme.brand : FrogTheme.muted)
+  }
+
+  private var title: String {
+    if isActive {
+      return steps.isEmpty
+        ? "Working…"
+        : "Working · \(steps.count) \(steps.count == 1 ? "update" : "updates")"
+    }
+    return "\(steps.count) \(steps.count == 1 ? "step" : "steps") completed"
+  }
+
+  private func stepColor(at index: Int) -> Color {
+    isActive && index == steps.indices.last ? FrogTheme.brand : FrogTheme.muted.opacity(0.55)
+  }
+}
+
+func formattedActivityStep(_ markdown: String) -> AttributedString {
+  (try? AttributedString(
+    markdown: markdown, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+    ?? AttributedString(markdown)
 }
 
 private struct ImportedPhoto: Transferable, Sendable {

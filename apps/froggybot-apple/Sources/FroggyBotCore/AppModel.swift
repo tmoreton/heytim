@@ -77,9 +77,14 @@ public final class AppModel {
     if demoMode {
       bootstrap = DemoData.bootstrap
       selection = .init(kind: .bot, id: DemoData.bootstrap.bots[0].id)
-      messages =
-        ProcessInfo.processInfo.arguments.contains("--ui-testing-empty-conversation")
-        ? [] : DemoData.messages
+      let arguments = ProcessInfo.processInfo.arguments
+      if arguments.contains("--ui-testing-empty-conversation") {
+        messages = []
+      } else if arguments.contains("--ui-testing-activity") {
+        messages = DemoData.activityMessages
+      } else {
+        messages = DemoData.messages
+      }
     }
   }
 
@@ -722,6 +727,29 @@ public enum DemoData {
       text:
         "Absolutely. The native SwiftUI client is sharing the same backend and API contract across iPhone and Mac.\n\n- Authentication and data stay in AWS.\n- Conversations and background tasks are preserved.\n- The existing web app remains available.",
       createdAt: "2026-09-12T12:01:00.000Z", status: "complete"),
+  ]
+  public static let activityMessages = [
+    ChatMessage(
+      id: "activity-user", role: "user", isMine: true,
+      text: "Please inspect the project and summarize what needs attention.",
+      createdAt: "2026-09-12T12:02:00.000Z", status: "complete"),
+    ChatMessage(
+      id: "activity-assistant", role: "assistant", authorType: "bot", authorId: "chief",
+      authorName: "Chief", authorColor: "#59B86B", text: "",
+      activity: [
+        "Reviewing the repository structure and current branch.",
+        "Checking `README.md` for the intended release workflow.",
+        "Inspecting the native conversation layout and message state.",
+        "Comparing API routes with the generated client contract.",
+        "Checking notification delivery and account cleanup behavior.",
+        "Reviewing attachment handling for images and documents.",
+        "Verifying session changes cannot leak drafts between accounts.",
+        "Running the focused native test suite.",
+        "Checking the final build for embedded framework duplication.",
+        "Preparing the verified summary and recommended follow-up.",
+      ],
+      createdAt: "2026-09-12T12:02:01.000Z", activityUpdatedAt: "2026-09-12T12:02:10.000Z",
+      status: "running"),
   ]
 }
 
