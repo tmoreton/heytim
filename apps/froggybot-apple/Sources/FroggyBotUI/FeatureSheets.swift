@@ -104,6 +104,7 @@ private struct BotEditor: View {
         }
       }
     }
+    .formStyle(.grouped)
     .froggyListSurface()
     .navigationTitle(id == nil ? "New bot" : "Edit bot")
     .toolbar {
@@ -224,16 +225,19 @@ private struct GroupEditor: View {
           }
         }
       }
-    }.froggyListSurface().navigationTitle(id == nil ? "New group" : "Edit group")
-      .toolbar {
-        CloseButton()
-        if editable {
-          ToolbarItem(placement: .confirmationAction) {
-            Button("Save") { save() }.disabled(draft.name.isEmpty || draft.botIds.isEmpty || saving)
-          }
+    }
+    .formStyle(.grouped)
+    .froggyListSurface()
+    .navigationTitle(id == nil ? "New group" : "Edit group")
+    .toolbar {
+      CloseButton()
+      if editable {
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save") { save() }.disabled(draft.name.isEmpty || draft.botIds.isEmpty || saving)
         }
       }
-      .onAppear { if let group { draft = GroupDraft(group: group) } }
+    }
+    .onAppear { if let group { draft = GroupDraft(group: group) } }
   }
   private func save() {
     saving = true
@@ -308,11 +312,13 @@ private struct SchedulesView: View {
         NavigationStack {
           ScheduleEditor(model: model, selection: selection, existing: nil) { await load() }
         }
+        .froggySheetSize()
       }
       .sheet(item: $editing) { task in
         NavigationStack {
           ScheduleEditor(model: model, selection: selection, existing: task) { await load() }
         }
+        .froggySheetSize()
       }
   }
   private func load() async {
@@ -370,22 +376,26 @@ private struct ScheduleEditor: View {
       TextField("Time (HH:mm)", text: $draft.time)
       TextField("Timezone", text: $draft.timezone)
       Toggle("Enabled", isOn: $draft.enabled)
-    }.froggyListSurface().navigationTitle(existing == nil ? "New task" : "Edit task")
-      .toolbar {
-        CloseButton()
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Save") {
-            Task {
-              do {
-                _ = try await model.api?.saveSchedule(draft, selection: selection, id: existing?.id)
-                await completed()
-                dismiss()
-              } catch { model.present(error) }
-            }
-          }.disabled(draft.name.isEmpty || draft.prompt.isEmpty)
+    }
+    .formStyle(.grouped)
+    .froggyListSurface()
+    .navigationTitle(existing == nil ? "New task" : "Edit task")
+    .toolbar {
+      CloseButton()
+      ToolbarItem(placement: .confirmationAction) {
+        Button("Save") {
+          Task {
+            do {
+              _ = try await model.api?.saveSchedule(draft, selection: selection, id: existing?.id)
+              await completed()
+              dismiss()
+            } catch { model.present(error) }
+          }
         }
+        .disabled(draft.name.isEmpty || draft.prompt.isEmpty)
       }
-      .onAppear { if let existing { draft = ScheduledTaskDraft(task: existing) } }
+    }
+    .onAppear { if let existing { draft = ScheduledTaskDraft(task: existing) } }
   }
 }
 

@@ -174,7 +174,7 @@ enum MarkdownBlockParser {
     guard let character = trimmed.first, character == "`" || character == "~" else {
       return nil
     }
-    let length = trimmed.prefix { $0 == character }.count
+    let length = trimmed.prefix(while: { $0 == character }).count
     guard length >= 3 else { return nil }
     let language = String(trimmed.dropFirst(length)).trimmingCharacters(in: .whitespaces)
     return Fence(character: character, length: length, language: language.isEmpty ? nil : language)
@@ -182,13 +182,15 @@ enum MarkdownBlockParser {
 
   private static func isClosingFence(_ line: String, matching fence: Fence) -> Bool {
     let trimmed = line.trimmingCharacters(in: .whitespaces)
-    guard trimmed.prefix { $0 == fence.character }.count >= fence.length else { return false }
+    guard trimmed.prefix(while: { $0 == fence.character }).count >= fence.length else {
+      return false
+    }
     return trimmed.allSatisfy { $0 == fence.character || $0.isWhitespace }
   }
 
   private static func heading(in line: String) -> (level: Int, text: String)? {
     let trimmed = line.trimmingCharacters(in: .whitespaces)
-    let level = trimmed.prefix { $0 == "#" }.count
+    let level = trimmed.prefix(while: { $0 == "#" }).count
     guard (1...6).contains(level) else { return nil }
     let contentStart = trimmed.index(trimmed.startIndex, offsetBy: level)
     guard contentStart < trimmed.endIndex, trimmed[contentStart].isWhitespace else { return nil }
@@ -222,7 +224,7 @@ enum MarkdownBlockParser {
     if ["-", "*", "+"].contains(content.first), content.dropFirst().first?.isWhitespace == true {
       itemText = String(content.dropFirst()).trimmingCharacters(in: .whitespaces)
     } else {
-      let digits = content.prefix { $0.isNumber }
+      let digits = content.prefix(while: { $0.isNumber })
       guard !digits.isEmpty, let parsedNumber = Int(digits) else { return nil }
       let punctuationIndex = content.index(content.startIndex, offsetBy: digits.count)
       guard punctuationIndex < content.endIndex,
@@ -251,7 +253,7 @@ enum MarkdownBlockParser {
   }
 
   private static func leadingWhitespace(in line: String) -> Int {
-    line.prefix { $0 == " " || $0 == "\t" }.reduce(into: 0) { count, character in
+    line.prefix(while: { $0 == " " || $0 == "\t" }).reduce(into: 0) { count, character in
       count += character == "\t" ? 4 : 1
     }
   }
@@ -349,21 +351,32 @@ enum MarkdownBlockParser {
 
 struct MarkdownMessageView: View {
   private let blocks: [MarkdownBlock]
+  private let expandsToFill: Bool
   private let baseColor: Color
 
-  init(_ markdown: String, baseColor: Color) {
+  init(_ markdown: String, expandsToFill: Bool = true, baseColor: Color) {
     blocks = MarkdownBlockParser.parse(markdown)
+    self.expandsToFill = expandsToFill
     self.baseColor = baseColor
   }
 
   var body: some View {
+    Group {
+      if expandsToFill {
+        content.frame(maxWidth: .infinity, alignment: .leading)
+      } else {
+        content
+      }
+    }
+    .textSelection(.enabled)
+  }
+
+  private var content: some View {
     VStack(alignment: .leading, spacing: 12) {
       ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
         MarkdownBlockView(block: block, baseColor: baseColor)
       }
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .textSelection(.enabled)
   }
 }
 

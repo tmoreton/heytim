@@ -218,15 +218,15 @@ extension View {
   }
 
   @ViewBuilder func froggySheetSize() -> some View {
-    if #available(iOS 18.0, macOS 15.0, *) {
-      self.presentationSizing(.form)
-    } else {
-      #if os(macOS)
-        self.frame(minWidth: 560, idealWidth: 680, minHeight: 520, idealHeight: 680)
-      #else
+    #if os(macOS)
+      self.frame(minWidth: 680, idealWidth: 720, minHeight: 560, idealHeight: 680)
+    #else
+      if #available(iOS 18.0, *) {
+        self.presentationSizing(.form)
+      } else {
         self
-      #endif
-    }
+      }
+    #endif
   }
 
   func froggyListSurface() -> some View {

@@ -62,7 +62,7 @@ public struct MainView: View {
         model.sheet = sheet
         presentedSheet = sheet
       }
-      .navigationSplitViewColumnWidth(min: 250, ideal: 290, max: 330)
+      .navigationSplitViewColumnWidth(min: 300, ideal: 310, max: 340)
     } detail: {
       if model.selection != nil {
         ConversationView(model: model, dictation: dictation) { sheet in
@@ -356,9 +356,11 @@ private struct ConversationView: View {
     }
     .navigationTitle(model.title)
     .toolbar {
-      ToolbarItem(placement: .principal) {
-        conversationIdentity
-      }
+      #if os(iOS)
+        ToolbarItem(placement: .principal) {
+          conversationIdentity
+        }
+      #endif
       ToolbarItem(placement: .primaryAction) {
         Button("Conversation Details", systemImage: "info.circle") {
           showInspector.toggle()
@@ -690,7 +692,7 @@ private struct MessageBubble: View {
               .buttonStyle(.borderedProminent)
             } else if !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
               MarkdownMessageView(
-                message.text,
+                message.text, expandsToFill: !mine,
                 baseColor: mine ? .white : FrogTheme.textSoft)
             }
 
@@ -940,82 +942,20 @@ private struct Composer: View {
     VStack(spacing: 0) {
       if model.selectedGroup != nil { replyPicker }
       if !model.pendingAttachments.isEmpty { attachmentPicker }
-      HStack(alignment: .bottom, spacing: 8) {
-        Menu {
-          Button("Photo Library", systemImage: "photo.on.rectangle") {
-            showingPhotoPicker = true
-          }
-          .disabled(model.remainingAttachmentSlots == 0 || model.isSending || model.isUploading)
-          Button("Choose Files", systemImage: "folder") { importing = true }
-            .disabled(model.remainingAttachmentSlots == 0 || model.isSending || model.isUploading)
-        } label: {
-          Label("Add attachment", systemImage: "plus")
-        }
-        .accessibilityIdentifier("chat.attachments")
-        .labelStyle(.iconOnly)
-        .froggyGlassButton(tint: FrogTheme.brand)
-        .buttonBorderShape(.circle)
-        .controlSize(.large)
-        .disabled(model.remainingAttachmentSlots == 0 || model.isSending || model.isUploading)
-
-        HStack(alignment: .bottom, spacing: 2) {
-          TextField("Message \(model.title)", text: $model.composerText, axis: .vertical)
-            .textFieldStyle(.plain)
-            .font(.body)
-            .lineLimit(1...6)
-            .focused(composerFocused)
-            .accessibilityIdentifier("chat.composer")
-            .submitLabel(.send)
-            .padding(.leading, 13)
-            .padding(.vertical, 12)
-            .onSubmit { if canSubmit { submitMessage() } }
-
-          if model.isSending || model.isUploading {
-            ProgressView()
-              .controlSize(.small)
-              .frame(width: 32, height: 44)
-              .accessibilityLabel(model.isUploading ? "Uploading attachments" : "Sending")
-          }
-
-          dictationButton
-        }
-        .frame(minHeight: 51)
-        .froggyComposerSurface()
-        .layoutPriority(1)
-
-        if model.canStop {
-          Button("Stop reply", systemImage: "stop.circle.fill") {
-            Task { await model.stop() }
-          }
-          .labelStyle(.iconOnly)
-          .buttonStyle(.bordered)
-          .buttonBorderShape(.circle)
-          .controlSize(.large)
-        }
-
-        if canSubmit {
-          Button("Send message", systemImage: "arrow.up") {
-            submitMessage()
-          }
-          .labelStyle(.iconOnly)
-          .font(.system(size: 17, weight: .bold))
-          .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
-          .buttonBorderShape(.circle)
-          .controlSize(.large)
-          .accessibilityIdentifier("chat.send")
-          .transition(.scale.combined(with: .opacity))
-        }
-      }
-      .frame(minHeight: 51)
-      .frame(maxWidth: 780)
-      .animation(.snappy, value: canSubmit)
+      #if os(macOS)
+        macComposer
+      #else
+        mobileComposer
+      #endif
 
       if let error = dictation.errorMessage {
         Label(error, systemImage: "exclamationmark.triangle")
           .font(.caption).foregroundStyle(.red).padding(.top, 5)
       }
     }
-    .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 9)
+    .padding(.horizontal, composerHorizontalPadding)
+    .padding(.top, composerTopPadding)
+    .padding(.bottom, composerBottomPadding)
     .frame(maxWidth: .infinity)
     .background(FrogTheme.appBackground)
     .photosPicker(
@@ -1067,6 +1007,175 @@ private struct Composer: View {
       photoImportTask?.cancel()
       photoImportTask = nil
     }
+  }
+
+  #if os(macOS)
+    private var macComposer: some View {
+      HStack(alignment: .bottom, spacing: 4) {
+        attachmentMenu
+          .menuIndicator(.hidden)
+          .froggyGlassButton(tint: FrogTheme.brand)
+          .buttonBorderShape(.circle)
+          .controlSize(.small)
+          .frame(width: 32, height: 32)
+
+        composerTextField
+          .padding(.leading, 5)
+          .padding(.vertical, 7)
+
+        if model.isSending || model.isUploading {
+          sendingProgress
+            .frame(width: 28, height: 32)
+        }
+
+        dictationButton
+
+        if model.canStop {
+          Button("Stop reply", systemImage: "stop.fill") {
+            Task { await model.stop() }
+          }
+          .labelStyle(.iconOnly)
+          .froggyGlassButton(tint: FrogTheme.brand)
+          .buttonBorderShape(.circle)
+          .controlSize(.small)
+          .frame(width: 32, height: 32)
+        } else {
+          Button("Send message", systemImage: "arrow.up") {
+            submitMessage()
+          }
+          .labelStyle(.iconOnly)
+          .font(.system(size: 12, weight: .bold))
+          .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
+          .buttonBorderShape(.circle)
+          .controlSize(.small)
+          .frame(width: 32, height: 32)
+          .accessibilityIdentifier("chat.send")
+          .disabled(!canSubmit)
+        }
+      }
+      .padding(.horizontal, 6)
+      .padding(.vertical, 5)
+      .frame(minHeight: 42)
+      .frame(maxWidth: composerMaxWidth)
+      .froggyComposerSurface()
+      .animation(.snappy, value: model.canStop)
+    }
+  #else
+    private var mobileComposer: some View {
+      HStack(alignment: .bottom, spacing: 8) {
+        attachmentMenu
+          .froggyGlassButton(tint: FrogTheme.brand)
+          .buttonBorderShape(.circle)
+          .controlSize(.large)
+
+        HStack(alignment: .bottom, spacing: 2) {
+          composerTextField
+            .padding(.leading, 13)
+            .padding(.vertical, 12)
+
+          if model.isSending || model.isUploading {
+            sendingProgress
+              .frame(width: 32, height: 44)
+          }
+
+          dictationButton
+        }
+        .frame(minHeight: 51)
+        .froggyComposerSurface()
+        .layoutPriority(1)
+
+        if model.canStop {
+          Button("Stop reply", systemImage: "stop.circle.fill") {
+            Task { await model.stop() }
+          }
+          .labelStyle(.iconOnly)
+          .buttonStyle(.bordered)
+          .buttonBorderShape(.circle)
+          .controlSize(.large)
+        }
+
+        if canSubmit {
+          Button("Send message", systemImage: "arrow.up") {
+            submitMessage()
+          }
+          .labelStyle(.iconOnly)
+          .font(.system(size: 17, weight: .bold))
+          .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
+          .buttonBorderShape(.circle)
+          .controlSize(.large)
+          .accessibilityIdentifier("chat.send")
+          .transition(.scale.combined(with: .opacity))
+        }
+      }
+      .frame(minHeight: 51)
+      .frame(maxWidth: composerMaxWidth)
+      .animation(.snappy, value: canSubmit)
+    }
+  #endif
+
+  private var attachmentMenu: some View {
+    Menu {
+      Button("Photo Library", systemImage: "photo.on.rectangle") {
+        showingPhotoPicker = true
+      }
+      .disabled(model.remainingAttachmentSlots == 0 || model.isSending || model.isUploading)
+      Button("Choose Files", systemImage: "folder") { importing = true }
+        .disabled(model.remainingAttachmentSlots == 0 || model.isSending || model.isUploading)
+    } label: {
+      Label("Add attachment", systemImage: "plus")
+    }
+    .accessibilityIdentifier("chat.attachments")
+    .labelStyle(.iconOnly)
+    .disabled(model.remainingAttachmentSlots == 0 || model.isSending || model.isUploading)
+  }
+
+  private var composerTextField: some View {
+    TextField("Message \(model.title)", text: $model.composerText, axis: .vertical)
+      .textFieldStyle(.plain)
+      .font(.body)
+      .lineLimit(1...6)
+      .focused(composerFocused)
+      .accessibilityIdentifier("chat.composer")
+      .submitLabel(.send)
+      .onSubmit { if canSubmit { submitMessage() } }
+  }
+
+  private var sendingProgress: some View {
+    ProgressView()
+      .controlSize(.small)
+      .accessibilityLabel(model.isUploading ? "Uploading attachments" : "Sending")
+  }
+
+  private var composerMaxWidth: CGFloat {
+    #if os(macOS)
+      720
+    #else
+      780
+    #endif
+  }
+
+  private var composerHorizontalPadding: CGFloat {
+    #if os(macOS)
+      18
+    #else
+      12
+    #endif
+  }
+
+  private var composerTopPadding: CGFloat {
+    #if os(macOS)
+      10
+    #else
+      8
+    #endif
+  }
+
+  private var composerBottomPadding: CGFloat {
+    #if os(macOS)
+      12
+    #else
+      9
+    #endif
   }
 
   private var canSend: Bool {
@@ -1142,7 +1251,7 @@ private struct Composer: View {
           Image(systemName: dictation.isRecording ? "stop.fill" : "mic.fill")
         }
       }
-      .frame(width: 44, height: 44)
+      .frame(width: dictationButtonSize, height: dictationButtonSize)
       .contentShape(Circle())
     }
     .buttonStyle(.plain)
@@ -1153,6 +1262,14 @@ private struct Composer: View {
     .disabled(
       !dictation.isRecording && !dictation.isStarting
         && (model.isSending || model.isUploading))
+  }
+
+  private var dictationButtonSize: CGFloat {
+    #if os(macOS)
+      32
+    #else
+      44
+    #endif
   }
 
   private func toggleDictation() {

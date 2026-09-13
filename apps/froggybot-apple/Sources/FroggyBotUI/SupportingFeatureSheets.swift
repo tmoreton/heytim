@@ -44,6 +44,7 @@ struct SkillEditor: View {
         Text("Anyone with link").tag("link")
       }
     }
+    .formStyle(.grouped)
     .froggyListSurface()
     .navigationTitle(id == nil ? "New skill" : "Edit skill").toolbar {
       CloseButton()
@@ -337,6 +338,7 @@ struct AccountView: View {
         Button("Delete Account", systemImage: "trash", role: .destructive) {
           confirmDelete = true
         }
+        .foregroundStyle(.red)
       } footer: {
         Text(
           "Permanently deletes your bots, chats, owned groups, schedules, skills, invitations, and shared links."

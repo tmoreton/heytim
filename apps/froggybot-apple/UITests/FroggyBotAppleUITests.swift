@@ -166,4 +166,65 @@ import XCTest
     XCTAssertTrue(aboutValue.waitForExistence(timeout: 5))
     XCTAssertTrue(app.staticTexts["Platforms, iPhone + Mac"].exists)
   }
+
+  #if os(macOS)
+    func testMacComposerAndToolbarStayInsideTheNativeWindowLayout() {
+      let app = XCUIApplication()
+      app.launchArguments = ["--ui-testing"]
+      app.launch()
+
+      let window = app.windows.firstMatch
+      let splitter = app.splitters.firstMatch
+      let attachment = app.buttons["chat.attachments"]
+      let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
+      let microphone = app.buttons["chat.microphone"]
+      let send = app.buttons["chat.send"]
+      XCTAssertTrue(window.waitForExistence(timeout: 10))
+      XCTAssertTrue(splitter.waitForExistence(timeout: 5))
+      XCTAssertTrue(attachment.waitForExistence(timeout: 5))
+      XCTAssertTrue(composer.waitForExistence(timeout: 5))
+      XCTAssertTrue(microphone.waitForExistence(timeout: 5))
+      XCTAssertTrue(send.waitForExistence(timeout: 5))
+
+      XCTAssertGreaterThanOrEqual(window.frame.width, 1_070)
+      XCTAssertGreaterThanOrEqual(attachment.frame.minX, splitter.frame.maxX + 12)
+      XCTAssertGreaterThan(composer.frame.width, 180)
+      XCTAssertLessThanOrEqual(send.frame.maxX, window.frame.maxX - 12)
+      XCTAssertEqual(app.toolbars.staticTexts.matching(identifier: "Chief").count, 0)
+
+      composer.click()
+      composer.typeText("Mac layout smoke test")
+      XCTAssertTrue(send.isEnabled)
+      XCTAssertLessThanOrEqual(send.frame.maxX, window.frame.maxX - 12)
+      send.click()
+      XCTAssertTrue(
+        app.staticTexts["This is the native app’s offline test reply."].waitForExistence(
+          timeout: 5))
+    }
+
+    func testMacEditorUsesAReadableNativeSheet() {
+      let app = XCUIApplication()
+      app.launchArguments = ["--ui-testing"]
+      app.launch()
+
+      let create = app.buttons["sidebar.create"]
+      XCTAssertTrue(create.waitForExistence(timeout: 10))
+      create.click()
+      let customBot = app.menuItems["Create a custom bot"]
+      XCTAssertTrue(customBot.waitForExistence(timeout: 5))
+      customBot.click()
+
+      let sheet = app.sheets.firstMatch
+      let name = app.textFields["Name"]
+      let tagline = app.textFields["What this bot does"]
+      XCTAssertTrue(sheet.waitForExistence(timeout: 5))
+      XCTAssertTrue(name.waitForExistence(timeout: 5))
+      XCTAssertTrue(tagline.waitForExistence(timeout: 5))
+      XCTAssertGreaterThanOrEqual(sheet.frame.width, 670)
+      XCTAssertGreaterThan(name.frame.minX, sheet.frame.minX + 20)
+      XCTAssertLessThan(name.frame.maxX, sheet.frame.maxX - 20)
+      XCTAssertGreaterThan(tagline.frame.minX, sheet.frame.minX + 20)
+      XCTAssertLessThan(tagline.frame.maxX, sheet.frame.maxX - 20)
+    }
+  #endif
 }
