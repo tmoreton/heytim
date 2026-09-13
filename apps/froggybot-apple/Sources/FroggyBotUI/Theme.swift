@@ -210,8 +210,11 @@ extension View {
   }
 
   @ViewBuilder func froggyComposerSurface() -> some View {
-    background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
-      .overlay(RoundedRectangle(cornerRadius: 20).stroke(FrogTheme.border))
+    background(FrogTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+      .overlay(
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+          .stroke(FrogTheme.border.opacity(0.7), lineWidth: 0.5)
+      )
   }
 
   @ViewBuilder func froggySheetSize() -> some View {

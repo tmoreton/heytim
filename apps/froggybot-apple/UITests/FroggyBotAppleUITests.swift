@@ -47,11 +47,13 @@ import XCTest
 
     let attachmentMenu = app.buttons["chat.attachments"]
     XCTAssertTrue(attachmentMenu.waitForExistence(timeout: 10))
+    let microphone = app.buttons["chat.microphone"]
+    XCTAssertTrue(microphone.waitForExistence(timeout: 5))
+    XCTAssertTrue(microphone.isHittable)
     attachmentMenu.tap()
 
     XCTAssertTrue(app.buttons["Photo Library"].waitForExistence(timeout: 5))
     XCTAssertTrue(app.buttons["Choose Files"].exists)
-    XCTAssertTrue(app.buttons["Start On-Device Transcription"].exists)
   }
 
   func testConversationDetailsUsesTheNativeInspector() {
@@ -65,7 +67,8 @@ import XCTest
 
     #if os(iOS)
       XCTAssertTrue(app.navigationBars["Details"].waitForExistence(timeout: 5))
-      XCTAssertTrue(app.buttons["Done"].exists)
+      XCTAssertTrue(app.buttons["Close"].exists)
+      XCTAssertFalse(app.buttons["Done"].exists)
     #else
       XCTAssertTrue(app.staticTexts["Details"].waitForExistence(timeout: 5))
       XCTAssertFalse(app.buttons["Done"].exists)
@@ -91,7 +94,8 @@ import XCTest
     XCTAssertTrue(app.staticTexts["Skills & tools"].exists)
     XCTAssertTrue(app.staticTexts["Connections"].exists)
     #if os(iOS)
-      XCTAssertTrue(app.buttons["Done"].exists)
+      XCTAssertTrue(app.buttons["Close"].exists)
+      XCTAssertFalse(app.buttons["Done"].exists)
     #else
       XCTAssertFalse(app.buttons["Done"].exists)
     #endif

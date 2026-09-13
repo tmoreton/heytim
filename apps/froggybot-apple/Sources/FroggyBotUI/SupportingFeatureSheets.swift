@@ -344,7 +344,10 @@ struct AccountView: View {
     .navigationTitle("Settings")
     .toolbar {
       if showsDismissButton {
-        ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Close", systemImage: "xmark") { dismiss() }
+            .labelStyle(.iconOnly)
+        }
       }
     }
     .task { await load() }

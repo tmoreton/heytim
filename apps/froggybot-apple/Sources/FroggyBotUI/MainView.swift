@@ -305,7 +305,6 @@ private struct ConversationView: View {
       ConversationInspector(
         model: model,
         open: openFromInspector,
-        close: { showInspector = false },
         clear: {
           confirmClearFromInspector()
         },
@@ -441,9 +440,9 @@ private struct ConversationView: View {
 }
 
 private struct ConversationInspector: View {
+  @Environment(\.dismiss) private var dismiss
   @Bindable var model: AppModel
   let open: (AppSheet) -> Void
-  let close: () -> Void
   let clear: () -> Void
   let delete: () -> Void
 
@@ -498,7 +497,10 @@ private struct ConversationInspector: View {
       .navigationTitle("Details")
       .toolbar {
         #if os(iOS)
-          ToolbarItem(placement: .confirmationAction) { Button("Done", action: close) }
+          ToolbarItem(placement: .cancellationAction) {
+            Button("Close", systemImage: "xmark") { dismiss() }
+              .labelStyle(.iconOnly)
+          }
         #endif
       }
     }
@@ -776,40 +778,40 @@ private struct Composer: View {
           .disabled(model.remainingAttachmentSlots == 0 || model.isSending || model.isUploading)
           Button("Choose Files", systemImage: "folder") { importing = true }
             .disabled(model.remainingAttachmentSlots == 0 || model.isSending || model.isUploading)
-          Divider()
-          Button(dictationActionTitle, systemImage: dictation.isRecording ? "stop.circle" : "waveform") {
-            toggleDictation()
-          }
-          .disabled(
-            !dictation.isRecording && !dictation.isStarting
-              && (model.isSending || model.isUploading))
-          if dictation.isStarting {
-            Label("Starting on-device transcription…", systemImage: "hourglass")
-          }
         } label: {
-          Label("Add attachment or dictate", systemImage: "plus")
+          Label("Add attachment", systemImage: "plus")
         }
         .accessibilityIdentifier("chat.attachments")
         .labelStyle(.iconOnly)
-        .buttonStyle(.bordered)
+        .froggyGlassButton(tint: FrogTheme.brand)
         .buttonBorderShape(.circle)
         .controlSize(.large)
+        .disabled(model.remainingAttachmentSlots == 0 || model.isSending || model.isUploading)
 
-        TextField("Message \(model.title)", text: $model.composerText, axis: .vertical)
-          .textFieldStyle(.plain)
-          .font(.body)
-          .lineLimit(1...6)
-          .focused($composerFocused)
-          .accessibilityIdentifier("chat.composer")
-          .submitLabel(.send)
-          .padding(.vertical, 9)
-          .onSubmit { if canSend { submitMessage() } }
+        HStack(alignment: .bottom, spacing: 2) {
+          TextField("Message \(model.title)", text: $model.composerText, axis: .vertical)
+            .textFieldStyle(.plain)
+            .font(.body)
+            .lineLimit(1...6)
+            .focused($composerFocused)
+            .accessibilityIdentifier("chat.composer")
+            .submitLabel(.send)
+            .padding(.leading, 13)
+            .padding(.vertical, 12)
+            .onSubmit { if canSubmit { submitMessage() } }
 
-        if model.isSending || model.isUploading {
-          ProgressView()
-            .controlSize(.small)
-            .accessibilityLabel(model.isUploading ? "Uploading attachments" : "Sending")
+          if model.isSending || model.isUploading {
+            ProgressView()
+              .controlSize(.small)
+              .frame(width: 32, height: 44)
+              .accessibilityLabel(model.isUploading ? "Uploading attachments" : "Sending")
+          }
+
+          dictationButton
         }
+        .frame(minHeight: 51)
+        .froggyComposerSurface()
+        .layoutPriority(1)
 
         if model.canStop {
           Button("Stop reply", systemImage: "stop.circle.fill") {
@@ -821,27 +823,25 @@ private struct Composer: View {
           .controlSize(.large)
         }
 
-        Button("Send message", systemImage: "arrow.up") {
-          submitMessage()
+        if canSubmit {
+          Button("Send message", systemImage: "arrow.up") {
+            submitMessage()
+          }
+          .labelStyle(.iconOnly)
+          .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
+          .buttonBorderShape(.circle)
+          .controlSize(.large)
+          .accessibilityIdentifier("chat.send")
+          .transition(.scale.combined(with: .opacity))
         }
-        .labelStyle(.iconOnly)
-        .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
-        .buttonBorderShape(.circle)
-        .controlSize(.large)
-        .accessibilityIdentifier("chat.send")
-        .disabled(model.isSending || model.isUploading || !canSend)
       }
-      .padding(.horizontal, 8).padding(.vertical, 6)
       .frame(minHeight: 51)
-      .froggyComposerSurface()
       .frame(maxWidth: 780)
+      .animation(.snappy, value: canSubmit)
 
-      Text("Bots can make mistakes. Check important work. · Enter to send · Shift+Enter for a new line.")
-        .font(.caption2).foregroundStyle(.secondary)
-        .multilineTextAlignment(.center).padding(.top, 5)
       if let error = dictation.errorMessage {
         Label(error, systemImage: "exclamationmark.triangle")
-          .font(.caption).foregroundStyle(.red).padding(.top, 3)
+          .font(.caption).foregroundStyle(.red).padding(.top, 5)
       }
     }
     .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 9)
@@ -900,6 +900,10 @@ private struct Composer: View {
     !model.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       || !model.pendingAttachments.isEmpty
   }
+
+  private var canSubmit: Bool {
+    canSend && !model.isSending && !model.isUploading
+  }
   private var attachmentPicker: some View {
     ScrollView(.horizontal) {
       HStack(spacing: 7) {
@@ -954,6 +958,28 @@ private struct Composer: View {
   private var dictationActionTitle: String {
     if dictation.isStarting { return "Cancel On-Device Transcription" }
     return dictation.isRecording ? "Stop On-Device Transcription" : "Start On-Device Transcription"
+  }
+
+  private var dictationButton: some View {
+    Button(action: toggleDictation) {
+      Group {
+        if dictation.isStarting {
+          ProgressView().controlSize(.small)
+        } else {
+          Image(systemName: dictation.isRecording ? "stop.fill" : "mic.fill")
+        }
+      }
+      .frame(width: 44, height: 44)
+      .contentShape(Circle())
+    }
+    .buttonStyle(.plain)
+    .foregroundStyle(dictation.isRecording ? Color.red : Color.secondary)
+    .accessibilityLabel(dictationActionTitle)
+    .accessibilityValue(dictation.isRecording ? "Recording" : "")
+    .accessibilityIdentifier("chat.microphone")
+    .disabled(
+      !dictation.isRecording && !dictation.isStarting
+        && (model.isSending || model.isUploading))
   }
 
   private func toggleDictation() {
