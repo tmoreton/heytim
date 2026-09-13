@@ -39,18 +39,19 @@ functions:
 | `FROGBOT_USER_WINDOW_RUN_UNIT_LIMIT` | 30 | 1–10,000 | Maximum run units admitted for one billing user in a short fixed window |
 | `FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT` | 300 | 1–100,000 | Maximum run units admitted across the service in that fixed window |
 | `FROGBOT_USAGE_WINDOW_SECONDS` | 60 | 10–3,600 | Fixed-window duration in seconds |
-| `FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT` | 100 | 3–1,000,000 | Maximum company-key YouTube Search Queries capacity FroggyBot may reserve per Pacific-time quota day |
+| `FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT` | 100 | 3–1,000,000 | Maximum conservative YouTube tool-call capacity FroggyBot may reserve per Pacific-time quota day |
 
-YouTube search has a separate provider budget. Before every YouTube-capable runtime session, the worker
-atomically reserves three search calls from the shared Pacific-time daily counter. The lease is
+YouTube access has a separate provider budget. Before every runtime session with public search or a connected
+YouTube channel, the worker atomically reserves three calls from the shared Pacific-time daily counter. The lease is
 idempotent for retries, is fenced against account deletion, and is passed to the runtime; the runtime blocks
-a fourth search or any search after that Pacific date changes. Reservations are intentionally conservative:
+a fourth metered YouTube call or any call after that Pacific date changes. Reservations are intentionally conservative:
 unused calls are not returned, so the default 100-call provider allocation admits at most 33 such runtime
 sessions. Before publishing Creator Studio or Trend Scout, verify the production Google project's current
 [Search Queries quota](https://developers.google.com/youtube/v3/docs/search/list), raise it for launch traffic,
 and set `FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT` no higher than the verified provider limit. Video-details and
-comment reads use YouTube's separate general endpoint quota, so verify that bucket as well before raising the
-search allocation; this counter intentionally governs only `search.list` calls.
+comment reads, plus connected channel and upload-list reads, use YouTube's general endpoint quota, so verify that
+bucket as well before raising the allocation. The application counter is intentionally conservative and treats each
+public search or connected-channel tool invocation as one reserved call even when the underlying quota costs differ.
 
 To stop new paid-work admissions and later continuation invocations manually, write this item to the main
 DynamoDB data table identified by the Amplify `dataTableName` output. No secret value is involved:
@@ -80,7 +81,8 @@ The AgentCore runtime also enforces in-process dispatch caps before paid provide
 | `FROGBOT_MAX_PROVIDER_TOOL_CALLS_PER_RUNTIME_RUN` | 24 | 1–100 | Combined metered AgentCore Gateway and OpenRouter image tool dispatches |
 | `FROGBOT_MAX_IMAGE_CALLS_PER_RUNTIME_RUN` | 2 | 1–10 | OpenRouter image-generation dispatches within the combined tool cap |
 
-Each valid YouTube quota lease has a fixed three-search ceiling in addition to the combined tool cap.
+Each valid YouTube quota lease has a fixed three-call ceiling across public search and connected-channel tools in
+addition to the combined tool cap.
 
 These runtime caps terminate the current AgentCore invocation with a user-readable error rather than dispatching
 the over-limit call. A later backend continuation is a separate runtime invocation and therefore gets a fresh

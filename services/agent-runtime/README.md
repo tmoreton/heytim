@@ -117,8 +117,10 @@ retrieve group preferences, facts, and group-wide topic summaries without readin
 retrieval prevents one category from consuming the full injection limit before the other categories are considered.
 
 Remote MCP connections accept HTTPS public endpoints only. The runtime resolves the hostname when it
-validates the catalog binding and again before every request, and it disables HTTP redirects. OAuth
-connections are limited to reviewed Gmail read/draft operations; secrets are fetched server-side.
+validates the catalog binding and again before every request, and it disables HTTP redirects. Gmail uses Google's
+generally available REST API with a fixed seven-tool read/draft-only surface; secrets are fetched server-side. GitHub
+App installation tokens are minted on demand and narrowed to the saved repository IDs. Optional YouTube and X
+account tools use read-only user OAuth.
 
 ## Verify the package
 

@@ -374,6 +374,15 @@ def test_youtube_search_requires_current_reserved_day(monkeypatch) -> None:
     assert provider_calls == []
 
 
+def test_connected_youtube_tools_share_the_project_quota_lease() -> None:
+    accumulator = UsageAccumulator(youtube_search_quota=_youtube_quota())
+
+    accumulator.observe_tool("youtube", "youtube_my_channel")
+    accumulator.observe_tool("youtube", "youtube_my_videos")
+    accumulator.observe_tool("agentcore-gateway", "youtube_search")
+    with pytest.raises(ProviderCallLimitExceeded, match="YouTube search"):
+        accumulator.observe_tool("youtube", "youtube_my_channel")
+
 def test_code_interpreter_reconnects_ready_session_after_cold_start(
     monkeypatch,
 ) -> None:

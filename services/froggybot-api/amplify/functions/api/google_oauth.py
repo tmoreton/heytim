@@ -27,6 +27,21 @@ GMAIL_SCOPES = (
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.compose",
 )
+YOUTUBE_SCOPES = ("https://www.googleapis.com/auth/youtube.readonly",)
+YOUTUBE_CHANNELS_URL = "https://www.googleapis.com/youtube/v3/channels"
+GOOGLE_WORKSPACE_SCOPES = (
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/documents.readonly",
+    "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+    "https://www.googleapis.com/auth/calendar.events.freebusy",
+    "https://www.googleapis.com/auth/calendar.events.readonly",
+)
+GOOGLE_DRIVE_ABOUT_URL = "https://www.googleapis.com/drive/v3/about"
+GOOGLE_PROVIDER_SCOPES = {
+    "gmail": GMAIL_SCOPES,
+    "youtube": YOUTUBE_SCOPES,
+    "google_workspace": GOOGLE_WORKSPACE_SCOPES,
+}
 OAUTH_STATE_SECONDS = 10 * 60
 OAUTH_CALLBACK_BUDGET_SECONDS = 12.0
 OAUTH_REQUEST_MAX_SECONDS = 4.0
@@ -77,10 +92,10 @@ def _oauth_client() -> tuple[str, str]:
 
 def _return_url(value: Any) -> str:
     if not isinstance(value, str) or len(value) > 500:
-        raise ApiError(400, "The return link is invalid")
+        raise ApiError(400, "The return link is invalid", code="invalid_return_url")
     parsed = urllib.parse.urlsplit(value)
     is_native = (
-        parsed.scheme == "frogbot"
+        parsed.scheme in {"frogbot", "froggybot"}
         and parsed.hostname == "app"
         and parsed.path in {"", "/"}
         and parsed.fragment == ""
@@ -94,7 +109,7 @@ def _return_url(value: Any) -> str:
         and parsed.fragment == ""
     )
     if not is_native and not is_web:
-        raise ApiError(400, "The return link is invalid")
+        raise ApiError(400, "The return link is invalid", code="invalid_return_url")
     return value
 
 
@@ -108,7 +123,10 @@ def _pkce_challenge(verifier: str) -> str:
     return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
-def _begin_gmail_authorization(user_id: str, value: dict) -> dict:
+def _begin_google_authorization(user_id: str, value: dict, provider_id: str) -> dict:
+    scopes = GOOGLE_PROVIDER_SCOPES.get(provider_id)
+    if not scopes:
+        raise ApiError(404, "Google connection provider not found")
     return_url = _return_url(value.get("returnUrl"))
     client_id, _ = _oauth_client()
     redirect_uri = os.environ.get("GOOGLE_OAUTH_REDIRECT_URI")
@@ -124,7 +142,7 @@ def _begin_gmail_authorization(user_id: str, value: dict) -> dict:
             **_state_key(state),
             "entity": "OAUTH_STATE",
             "userId": user_id,
-            "provider": "google",
+            "provider": provider_id,
             "verifier": verifier,
             "returnUrl": return_url,
             "clientSecretArn": client_secret_arn,
@@ -136,10 +154,10 @@ def _begin_gmail_authorization(user_id: str, value: dict) -> dict:
             "client_id": client_id,
             "redirect_uri": redirect_uri,
             "response_type": "code",
-            "scope": " ".join(GMAIL_SCOPES),
+            "scope": " ".join(scopes),
             "access_type": "offline",
             "prompt": "consent",
-            "include_granted_scopes": "true",
+            "include_granted_scopes": "false",
             "state": state,
             "code_challenge": _pkce_challenge(verifier),
             "code_challenge_method": "S256",
@@ -148,12 +166,28 @@ def _begin_gmail_authorization(user_id: str, value: dict) -> dict:
     return {"authorizationUrl": f"{GOOGLE_AUTH_URL}?{query}"}
 
 
+def _begin_gmail_authorization(user_id: str, value: dict) -> dict:
+    return _begin_google_authorization(user_id, value, "gmail")
+
+
+def _begin_youtube_authorization(user_id: str, value: dict) -> dict:
+    return _begin_google_authorization(user_id, value, "youtube")
+
+
+def _begin_google_workspace_authorization(user_id: str, value: dict) -> dict:
+    return _begin_google_authorization(user_id, value, "google_workspace")
+
+
 def _consume_state(state: Any) -> dict:
     if not isinstance(state, str) or not 20 <= len(state) <= 200:
         raise ApiError(400, "The Gmail connection expired. Please try again.")
     result = table.delete_item(Key=_state_key(state), ReturnValues="ALL_OLD")
     item = result.get("Attributes")
-    if not item or int(item.get("expiresAt", 0)) < int(time.time()):
+    if (
+        not item
+        or item.get("provider") not in GOOGLE_PROVIDER_SCOPES
+        or int(item.get("expiresAt", 0)) < int(time.time())
+    ):
         raise ApiError(400, "The Gmail connection expired. Please try again.")
     return item
 
@@ -218,6 +252,66 @@ def _gmail_profile(access_token: str, deadline: float) -> str:
     return email
 
 
+def _youtube_channel(access_token: str, deadline: float) -> tuple[str, str]:
+    query = urllib.parse.urlencode(
+        {"part": "id,snippet", "mine": "true", "maxResults": "1"}
+    )
+    request = urllib.request.Request(
+        f"{YOUTUBE_CHANNELS_URL}?{query}",
+        headers={"authorization": f"Bearer {access_token}"},
+    )
+    try:
+        with urllib.request.urlopen(  # nosec B310 - fixed Google API endpoint.
+            request, timeout=_remaining_timeout(deadline)
+        ) as response:
+            value = json.loads(response.read(100_001).decode("utf-8"))
+    except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        raise ApiError(400, "Google could not verify the YouTube channel") from exc
+    items = value.get("items") if isinstance(value, dict) else None
+    channel = items[0] if isinstance(items, list) and items else None
+    snippet = channel.get("snippet") if isinstance(channel, dict) else None
+    channel_id = channel.get("id") if isinstance(channel, dict) else None
+    title = snippet.get("title") if isinstance(snippet, dict) else None
+    if (
+        not isinstance(channel_id, str)
+        or not channel_id
+        or not isinstance(title, str)
+        or not title.strip()
+    ):
+        raise ApiError(400, "The Google account does not have a YouTube channel")
+    return channel_id, title.strip()[:100]
+
+
+def _google_workspace_account(access_token: str, deadline: float) -> tuple[str, str]:
+    query = urllib.parse.urlencode(
+        {"fields": "user(displayName,emailAddress,permissionId)"}
+    )
+    request = urllib.request.Request(
+        f"{GOOGLE_DRIVE_ABOUT_URL}?{query}",
+        headers={"authorization": f"Bearer {access_token}"},
+    )
+    try:
+        with urllib.request.urlopen(  # nosec B310 - fixed Google API endpoint.
+            request, timeout=_remaining_timeout(deadline)
+        ) as response:
+            value = json.loads(response.read(100_001).decode("utf-8"))
+    except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        raise ApiError(400, "Google could not verify the Workspace account") from exc
+    user = value.get("user") if isinstance(value, dict) else None
+    account_id = user.get("permissionId") if isinstance(user, dict) else None
+    email = user.get("emailAddress") if isinstance(user, dict) else None
+    display_name = user.get("displayName") if isinstance(user, dict) else None
+    account = email if isinstance(email, str) and "@" in email else display_name
+    if (
+        not isinstance(account_id, str)
+        or not account_id
+        or not isinstance(account, str)
+        or not account.strip()
+    ):
+        raise ApiError(400, "Google could not verify the Workspace account")
+    return account_id, account.strip()[:254]
+
+
 def _ensure_gmail_bot(user_id: str, connection_id: str) -> None:
     if any(connection_id in bot.get("toolIds", []) for bot in _list_bots(user_id)):
         return
@@ -248,10 +342,10 @@ def _ensure_gmail_bot(user_id: str, connection_id: str) -> None:
     )
 
 
-def _result_url(return_url: str, status: str) -> str:
+def _result_url(return_url: str, status: str, provider: str = "gmail") -> str:
     parsed = urllib.parse.urlsplit(return_url)
     query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
-    query.update({"connection": "gmail", "status": status})
+    query.update({"connection": provider, "status": status})
     return urllib.parse.urlunsplit(
         (parsed.scheme, parsed.netloc, parsed.path, urllib.parse.urlencode(query), "")
     )
@@ -269,13 +363,15 @@ def _redirect(location: str) -> dict:
     }
 
 
-def _gmail_callback(query: dict) -> dict:
+def _google_callback(query: dict) -> dict:
     return_url = DEFAULT_RETURN_URL
+    provider = "gmail"
     deadline = time.monotonic() + OAUTH_CALLBACK_BUDGET_SECONDS
     refresh_token = None
     persistence_attempted = False
     try:
         state = _consume_state(query.get("state"))
+        provider = state["provider"]
         return_url = _return_url(state.get("returnUrl"))
         _ensure_account_active(state["userId"])
         if query.get("error"):
@@ -288,23 +384,65 @@ def _gmail_callback(query: dict) -> dict:
         access_token = token.get("access_token")
         refresh_token = token.get("refresh_token")
         granted = set(str(token.get("scope", "")).split())
-        if not set(GMAIL_SCOPES).issubset(granted):
-            raise ApiError(400, "Gmail read and draft access are both required")
+        required_scopes = set(GOOGLE_PROVIDER_SCOPES[provider])
+        if granted != required_scopes:
+            raise ApiError(400, f"{provider.title()} requested access is required")
         if not isinstance(access_token, str) or not isinstance(refresh_token, str):
             raise ApiError(400, "Google did not return reusable Gmail access")
-        account = _gmail_profile(access_token, deadline)
         client_secret_arn = state["clientSecretArn"]
-        persistence_attempted = True
-        connection = catalog.save_gmail_connection(
-            state["userId"],
-            account,
-            refresh_token,
-            client_secret_arn,
-        )
-        _ensure_gmail_bot(state["userId"], connection["id"])
-        return _redirect(_result_url(return_url, "connected"))
+        if provider == "gmail":
+            account = _gmail_profile(access_token, deadline)
+            persistence_attempted = True
+            connection = catalog.save_gmail_connection(
+                state["userId"],
+                account,
+                refresh_token,
+                client_secret_arn,
+            )
+            _ensure_gmail_bot(state["userId"], connection["id"])
+        elif provider == "youtube":
+            channel_id, account = _youtube_channel(access_token, deadline)
+            persistence_attempted = True
+            catalog.save_oauth_api_connection(
+                state["userId"],
+                "youtube",
+                account,
+                channel_id,
+                refresh_token,
+                client_secret_arn,
+                list(YOUTUBE_SCOPES),
+            )
+        else:
+            account_id, account = _google_workspace_account(access_token, deadline)
+            persistence_attempted = True
+            catalog.save_google_workspace_connection(
+                state["userId"],
+                account,
+                account_id,
+                refresh_token,
+                client_secret_arn,
+                list(GOOGLE_WORKSPACE_SCOPES),
+            )
+        return _redirect(_result_url(return_url, "connected", provider))
     except (ApiError, CatalogError, KeyError, TypeError, ValueError):
         if not persistence_attempted and isinstance(refresh_token, str):
-            catalog.revoke_unused_gmail_token(refresh_token)
-        logger.exception("Gmail OAuth callback failed")
-        return _redirect(_result_url(return_url, "error"))
+            catalog.revoke_unused_google_token(refresh_token)
+        logger.exception("Google OAuth callback failed for %s", provider)
+        return _redirect(_result_url(return_url, "error", provider))
+
+
+def _gmail_callback(query: dict) -> dict:
+    """Compatibility alias for existing callback tests and deployed route callers."""
+    return _google_callback(query)
+
+
+__all__ = [
+    "GMAIL_SCOPES",
+    "GOOGLE_WORKSPACE_SCOPES",
+    "YOUTUBE_SCOPES",
+    "_begin_gmail_authorization",
+    "_begin_google_workspace_authorization",
+    "_begin_youtube_authorization",
+    "_gmail_callback",
+    "_google_callback",
+]

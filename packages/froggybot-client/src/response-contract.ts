@@ -1,4 +1,13 @@
-import type { AppConstraints, Bootstrap, Bot, Group, GroupDecision, Message, MessagePage } from '@froggybot/contracts';
+import type {
+  AppConstraints,
+  Bootstrap,
+  Bot,
+  ConnectionProvider,
+  Group,
+  GroupDecision,
+  Message,
+  MessagePage,
+} from '@froggybot/contracts';
 
 const BOT_ACTIONS = new Set(['edit', 'documents', 'browser', 'schedule', 'share', 'clear', 'delete']);
 const GROUP_ACTIONS = new Set(['view', 'edit', 'share', 'schedule', 'delete', 'viewMemory', 'manageMemory']);
@@ -24,6 +33,18 @@ const CONSTRAINT_FIELDS: (keyof AppConstraints)[] = [
   'imageMaxBytes',
   'documentMaxBytes',
   'maxPhotoDimension',
+];
+const CONNECTION_PROVIDER_FIELDS: (keyof ConnectionProvider)[] = [
+  'id',
+  'name',
+  'description',
+  'category',
+  'iconText',
+  'permissionsSummary',
+  'privacyTitle',
+  'privacyDescription',
+  'connectLabel',
+  'reconnectLabel',
 ];
 
 const invalid = (): never => {
@@ -92,6 +113,12 @@ const decodeMessage = (value: unknown): Message => {
   return message as Message;
 };
 
+const decodeConnectionProvider = (value: unknown): ConnectionProvider => {
+  const provider = record(value);
+  for (const field of CONNECTION_PROVIDER_FIELDS) stringField(provider, field);
+  return provider as ConnectionProvider;
+};
+
 export const decodeMessagePage = (value: unknown): MessagePage => {
   const page = record(value);
   const messages = page.messages;
@@ -114,8 +141,17 @@ export const decodeBootstrap = (value: unknown): Bootstrap => {
   ) invalid();
   const bots = objectArray(bootstrap, 'bots').map(decodeBot);
   const groups = objectArray(bootstrap, 'groups').map(decodeGroup);
-  for (const key of ['botTemplates', 'connectionProviders', 'tools', 'retiredToolIds', 'skills']) {
+  for (const key of ['botTemplates', 'tools', 'retiredToolIds', 'skills']) {
     if (!Array.isArray(bootstrap[key])) invalid();
   }
-  return { ...bootstrap, bots, groups, constraints: safeConstraints } as Bootstrap;
+  const connectionProviders = objectArray(bootstrap, 'connectionProviders').map(
+    decodeConnectionProvider,
+  );
+  return {
+    ...bootstrap,
+    bots,
+    connectionProviders,
+    groups,
+    constraints: safeConstraints,
+  } as Bootstrap;
 };

@@ -24,8 +24,11 @@ the source of truth
 for deployed agent resources. The older internal name `FrogBot` remains in AWS resource identities because
 renaming it would replace deployed infrastructure;
 user-facing product copy uses `FroggyBot`. The maintained boundary and request-flow
-guide is in [`docs/architecture.md`](docs/architecture.md), and the remaining product work is tracked
-in [`docs/grokbot-parity-roadmap.md`](docs/grokbot-parity-roadmap.md).
+guide is in [`docs/architecture.md`](docs/architecture.md), provider setup is in
+[`docs/integrations.md`](docs/integrations.md), and the remaining product work is tracked
+in [`docs/grokbot-parity-roadmap.md`](docs/grokbot-parity-roadmap.md). Reusable,
+account-owned specialist packs are documented in
+[`docs/bot-workflows.md`](docs/bot-workflows.md).
 
 ## Architecture
 
@@ -35,7 +38,7 @@ SwiftUI app (iPhone + Mac) --+
   |-- native APNs            +-- Cognito email-code sign-in
 Expo browser client ---------+-- authenticated HTTP API
         |-- DynamoDB: bot configs, chats, files, groups, tasks, tokens, and invites
-        |-- Secrets Manager: per-user OAuth and legacy connection credentials
+        |-- Secrets Manager: per-user OAuth and GitHub App installation grants
         |-- S3: private user uploads and generated artifacts
         |-- EventBridge Scheduler: daily, weekday, weekly, and monthly tasks
         |-- SQS: durable agent jobs
@@ -153,6 +156,11 @@ npm run contract:check
 export FROGBOT_AGENT_RUNTIME_ARN='arn:aws:bedrock-agentcore:us-east-1:188757775631:runtime/REPLACE_ME'
 export FROGBOT_MEMORY_ID='FrogBot_FrogBotMemory-REPLACE_ME'
 export FROGBOT_GOOGLE_OAUTH_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:frogbot/oauth/google-REPLACE_ME'
+export FROGBOT_GITHUB_APP_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:frogbot/oauth/github-REPLACE_ME'
+export FROGBOT_X_OAUTH_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:frogbot/oauth/x-REPLACE_ME'
+export FROGBOT_SLACK_OAUTH_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:frogbot/oauth/slack-REPLACE_ME'
+export FROGBOT_MICROSOFT_OAUTH_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:frogbot/oauth/microsoft-REPLACE_ME'
+export FROGBOT_NOTION_OAUTH_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:frogbot/oauth/notion-REPLACE_ME'
 export FROGBOT_ENVIRONMENT='production'
 npm run sandbox -- --once --identifier frogbot --profile YOUR_AWS_PROFILE
 ```
@@ -175,7 +183,9 @@ any source change still stops the release.
 
 The manual `Deploy FroggyBot production infrastructure` GitHub workflow is the preferred production path.
 Its `production` environment requires `AWS_DEPLOY_ROLE_ARN`, `AMPLIFY_APP_ID`, the three company-owned
-OpenRouter, X, and YouTube credentials documented in `agentcore/README.md`, and the Google OAuth secret ARN.
+OpenRouter, X, and YouTube credentials documented in `agentcore/README.md`, and the Google, GitHub App, and X OAuth
+secret ARNs plus the Slack, Microsoft, and Notion OAuth secret ARNs documented in
+[`docs/integrations.md`](docs/integrations.md).
 Users never enter these platform credentials. The backend's development stack creates the narrowly trusted
 GitHub OIDC role and exposes its ARN as `githubDeployRoleArn`; bootstrap that role once using IAM Identity
 Center or another reviewed administrator role, never account-root credentials.
@@ -202,22 +212,22 @@ API key is accepted from an end user or shipped in the client.
 Users can create instruction-only skills inside the app, attach only the tools that skill needs, and share a
 30-day installation link. Shared skills are read-only for the recipient and require an explicit trust confirmation.
 Installing a public bot never requires a developer key. Shared tools use FroggyBot-owned credentials behind narrow
-AgentCore Gateway targets. Private account data uses provider-specific OAuth; per-user tokens are encrypted in Secrets
-Manager and fetched only when the runtime invokes that account. They never enter the app bundle, a skill document, a
-prompt, or a shared link. Existing custom MCP connections remain viewable and removable as legacy connections, but
-the app no longer creates or edits developer-key connections. The public repository includes validation automation,
+AgentCore Gateway targets. Private account data uses provider-specific OAuth or a GitHub App installation; per-user
+grants are encrypted in Secrets Manager and fetched only when the runtime invokes that account. They never enter the app bundle, a skill document, a
+prompt, or a shared link. Legacy generic MCP bearer/API-key records remain in storage but are intentionally unlisted
+and unusable. The public repository includes validation automation,
 contribution templates, and separate request forms for public skills and tool proposals.
 
-Gmail uses Google's remote MCP server through a first-class OAuth connection. Each user grants their own account
-read-email and create-draft access; refresh tokens stay in a per-user Secrets Manager secret. The runtime exposes only
-search, read, list, and draft tools, so it cannot send, delete, relabel, archive, or mark email. Gmail access is treated
+Gmail uses Google's generally available REST API through a first-class OAuth connection. Each user grants their own
+account read-email and create-draft access; refresh tokens stay in a per-user Secrets Manager secret. The runtime
+exposes only search, read, list, and draft tools, so it cannot send, delete, relabel, archive, or mark email. This path
+supports personal Gmail accounts without enrolling a Workspace project in Developer Preview. Gmail access is treated
 as interactive because email is untrusted input, which keeps it out of groups and unattended schedules.
 
-The main AgentCore project gateway currently exposes only the reviewed web-search connector. X and YouTube use the
-reviewed auxiliary target template in the public skills repository because schema v1 cannot yet express their API-key
-placement. For providers the main schema supports, add the provider credential and gateway target to
-`agentcore/agentcore.json` together. In every case, do not describe a provider as available until its target is deployed,
-ready, and visible in the reviewed catalog.
+The reviewed catalog keeps public X and YouTube research available without sign-in. Optional private YouTube and X
+data use per-user read-only OAuth; GitHub uses a repository-selected GitHub App whose installation tokens are minted
+only when needed. Do not describe a provider as available until its adapter is deployed, ready, and visible in the
+reviewed catalog.
 
 ## Verification
 

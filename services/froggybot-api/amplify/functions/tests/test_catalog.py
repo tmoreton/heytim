@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 import unittest
 from decimal import Decimal
+from unittest.mock import patch
 
 import shared.catalog_sync as sync_module
 from catalog_test_fakes import FakeSecrets, FakeTable
@@ -289,93 +290,174 @@ class CatalogServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(CatalogError, "Unknown tools: never_existed"):
             self.catalog.validate_tools("owner", ["web", "never_existed"])
 
-    def test_private_mcp_connection_is_user_scoped_and_resolves_without_secret(
-        self,
-    ) -> None:
-        saved = self.catalog.save_connection(
+    def test_managed_connection_is_user_scoped_without_exposing_secrets(self) -> None:
+        saved = self.catalog.save_gmail_connection(
             "owner",
-            {
-                "name": "Private notes",
-                "description": "Read and update my private notes.",
-                "endpoint": "https://mcp.example.com/mcp",
-                "risk": "interactive",
-                "authType": "bearer",
-                "credential": "private-token",
-            },
+            "owner@example.com",
+            "refresh-token",
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+            "frogbot/oauth/google-ABC123",
         )
 
-        self.assertTrue(saved["hasCredential"])
+        self.assertNotIn("hasCredential", saved)
+        self.assertNotIn("authType", saved)
+        self.assertNotIn("endpoint", saved)
         self.assertNotIn("secretArn", saved)
-        self.assertNotIn("credential", saved)
         self.assertIn(
             saved["id"], {tool["id"] for tool in self.catalog.list_tools("owner")}
         )
         self.assertNotIn(
             saved["id"], {tool["id"] for tool in self.catalog.list_tools("other")}
         )
-
         resolved = self.catalog.resolve_tools_for_runtime("owner", [saved["id"]])
-        self.assertEqual(resolved[0]["runtime"]["kind"], "mcp")
-        self.assertEqual(resolved[0]["runtime"]["headerName"], "Authorization")
-        self.assertNotIn("credential", resolved[0]["runtime"])
+        self.assertEqual(resolved[0]["runtime"]["authType"], "oauth")
+        self.assertNotIn("refreshToken", resolved[0]["runtime"])
 
-    def test_private_connection_rejects_local_network_endpoints(self) -> None:
-        for endpoint in (
-            "http://mcp.example.com/mcp",
-            "https://localhost/mcp",
-            "https://127.0.0.1/mcp",
-            "https://mcp.example.com:8443/mcp",
-            "https://mcp.example.com/mcp?token=secret",
-        ):
-            with self.subTest(endpoint=endpoint), self.assertRaises(CatalogError):
-                self.catalog.save_connection(
-                    "owner",
-                    {
-                        "name": "Unsafe server",
-                        "description": "This endpoint should not be accepted.",
-                        "endpoint": endpoint,
-                        "risk": "read",
-                        "authType": "none",
-                    },
-                )
-
-    def test_private_connection_can_replace_a_deleted_credential(self) -> None:
-        saved = self.catalog.save_connection(
+    def test_google_workspace_connection_has_only_reviewed_read_tools(self) -> None:
+        saved = self.catalog.save_google_workspace_connection(
             "owner",
+            "owner@example.com",
+            "permission-1",
+            "refresh-token",
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+            "frogbot/oauth/google-ABC123",
+            [
+                "https://www.googleapis.com/auth/drive.readonly",
+                "https://www.googleapis.com/auth/documents.readonly",
+                "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+                "https://www.googleapis.com/auth/calendar.events.freebusy",
+                "https://www.googleapis.com/auth/calendar.events.readonly",
+            ],
+        )
+
+        with patch(
+            "shared.catalog_rules._hostname_resolves_publicly", return_value=True
+        ):
+            runtime = self.catalog.resolve_tools_for_runtime(
+                "owner", [saved["id"]]
+            )[0]["runtime"]
+
+        self.assertEqual(runtime["kind"], "mcp_bundle")
+        self.assertEqual(runtime["oauthProvider"], "google")
+        self.assertEqual(
+            {server["endpoint"] for server in runtime["servers"]},
             {
-                "name": "Private notes",
-                "description": "Read my notes.",
-                "endpoint": "https://mcp.example.com/mcp",
-                "risk": "read",
-                "authType": "bearer",
-                "credential": "first-token",
+                "https://drivemcp.googleapis.com/mcp/v1",
+                "https://docsmcp.googleapis.com/mcp/v1",
+                "https://calendarmcp.googleapis.com/mcp/v1",
             },
+        )
+        self.assertNotIn("delete_file", repr(runtime))
+        self.assertNotIn("create_event", repr(runtime))
+
+    def test_external_oauth_connection_keeps_credentials_server_side(self) -> None:
+        scopes = [
+            "openid",
+            "profile",
+            "email",
+            "offline_access",
+            "User.Read",
+            "Mail.Read",
+            "Calendars.Read",
+            "Files.Read.All",
+            "Sites.Read.All",
+        ]
+        saved = self.catalog.save_external_oauth_connection(
+            "owner",
+            "microsoft",
+            "owner@example.com",
+            "account-1",
+            {
+                "accessToken": "access-token",
+                "refreshToken": "refresh-token",
+                "expiresAt": 2_000_000_000,
+            },
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+            "frogbot/oauth/microsoft-production-ABC123",
+            scopes,
+        )
+
+        self.assertNotIn("accessToken", repr(saved))
+        self.assertNotIn("refreshToken", repr(saved))
+        runtime = self.catalog.resolve_tools_for_runtime("owner", [saved["id"]])[0][
+            "runtime"
+        ]
+        self.assertEqual(runtime["kind"], "provider_api")
+        self.assertEqual(runtime["provider"], "microsoft")
+        self.assertEqual(runtime["scopes"], scopes)
+        self.assertNotIn("accessToken", repr(runtime))
+        self.assertNotIn("refreshToken", repr(runtime))
+
+    def test_external_oauth_connection_rejects_write_scope(self) -> None:
+        with self.assertRaisesRegex(CatalogError, "OAuth scopes are invalid"):
+            self.catalog.save_external_oauth_connection(
+                "owner",
+                "microsoft",
+                "owner@example.com",
+                "account-1",
+                {
+                    "accessToken": "access-token",
+                    "refreshToken": "refresh-token",
+                    "expiresAt": 2_000_000_000,
+                },
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+                "frogbot/oauth/microsoft-production-ABC123",
+                ["User.Read", "Mail.Read", "Mail.Send"],
+            )
+
+    def test_legacy_connection_records_are_inert(self) -> None:
+        self.table.put_item(
+            Item={
+                "pk": "USER#owner",
+                "sk": "CONNECTION#connection_aaaaaaaaaaaaaaaaaaaa",
+                "entity": "CONNECTION",
+                "id": "connection_aaaaaaaaaaaaaaaaaaaa",
+                "name": "Legacy token",
+                "provider": "mcp",
+                "authType": "bearer",
+                "source": "user",
+                "editable": True,
+                "enabled": True,
+            }
+        )
+
+        self.assertEqual(self.catalog.list_connections("owner"), [])
+        with self.assertRaisesRegex(CatalogError, "Unknown tools"):
+            self.catalog.resolve_tools_for_runtime(
+                "owner", ["connection_aaaaaaaaaaaaaaaaaaaa"]
+            )
+
+    def test_managed_connection_reconnect_rotates_its_secret(self) -> None:
+        saved = self.catalog.save_gmail_connection(
+            "owner",
+            "owner@example.com",
+            "first-token",
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+            "frogbot/oauth/google-ABC123",
         )
         first_item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
         first_secret = first_item["secretArn"]
 
-        self.catalog.save_connection("owner", {"authType": "none"}, saved["id"])
-        replaced = self.catalog.save_connection(
+        replaced = self.catalog.save_gmail_connection(
             "owner",
-            {"authType": "bearer", "credential": "second-token"},
-            saved["id"],
+            "owner@example.com",
+            "second-token",
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+            "frogbot/oauth/google-ABC123",
         )
         second_item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
 
-        self.assertTrue(replaced["hasCredential"])
+        self.assertNotIn("hasCredential", replaced)
         self.assertIn(first_secret, self.secrets.deleted)
         self.assertNotEqual(first_secret, second_item["secretArn"])
 
     def test_connection_cannot_be_deleted_while_a_bot_uses_it(self) -> None:
-        saved = self.catalog.save_connection(
+        saved = self.catalog.save_gmail_connection(
             "owner",
-            {
-                "name": "Private notes",
-                "description": "Read my notes.",
-                "endpoint": "https://mcp.example.com/mcp",
-                "risk": "read",
-                "authType": "none",
-            },
+            "owner@example.com",
+            "refresh-token",
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+            "frogbot/oauth/google-ABC123",
         )
         self.table.put_item(
             Item={
@@ -391,15 +473,12 @@ class CatalogServiceTests(unittest.TestCase):
             self.catalog.delete_connection("owner", saved["id"])
 
     def test_skill_share_never_carries_a_private_connection(self) -> None:
-        connection = self.catalog.save_connection(
+        connection = self.catalog.save_gmail_connection(
             "owner",
-            {
-                "name": "Private notes",
-                "description": "Read my private notes.",
-                "endpoint": "https://mcp.example.com/mcp",
-                "risk": "read",
-                "authType": "none",
-            },
+            "owner@example.com",
+            "refresh-token",
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+            "frogbot/oauth/google-ABC123",
         )
         skill = self.catalog.save_skill(
             "owner",

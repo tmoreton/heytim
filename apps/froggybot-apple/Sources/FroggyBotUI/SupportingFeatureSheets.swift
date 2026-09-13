@@ -1,5 +1,8 @@
 import SwiftUI
+import AuthenticationServices
+import Observation
 import QuickLook
+import UniformTypeIdentifiers
 import UserNotifications
 
 #if os(iOS)
@@ -7,6 +10,64 @@ import UserNotifications
 #elseif os(macOS)
   import AppKit
 #endif
+
+private enum WebAuthenticationOutcome: Equatable {
+  case callback(URL)
+  case cancelled
+  case failed(String)
+}
+
+@MainActor @Observable
+private final class WebAuthenticationController: NSObject,
+  ASWebAuthenticationPresentationContextProviding
+{
+  private var session: ASWebAuthenticationSession?
+  var outcome: WebAuthenticationOutcome?
+  var isRunning = false
+
+  func start(url: URL) {
+    outcome = nil
+    isRunning = true
+    let session = ASWebAuthenticationSession(
+      url: url, callbackURLScheme: "froggybot"
+    ) { [weak self] callbackURL, error in
+      let nextOutcome: WebAuthenticationOutcome
+      if let callbackURL {
+        nextOutcome = .callback(callbackURL)
+      } else if let authenticationError = error as? ASWebAuthenticationSessionError,
+        authenticationError.code == .canceledLogin
+      {
+        nextOutcome = .cancelled
+      } else {
+        nextOutcome = .failed(error?.localizedDescription ?? "The sign-in window could not be opened.")
+      }
+      Task { @MainActor [weak self] in
+        self?.session = nil
+        self?.isRunning = false
+        self?.outcome = nextOutcome
+      }
+    }
+    session.presentationContextProvider = self
+    session.prefersEphemeralWebBrowserSession = false
+    self.session = session
+    if !session.start() {
+      self.session = nil
+      isRunning = false
+      outcome = .failed("The sign-in window could not be opened.")
+    }
+  }
+
+  func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+    #if os(iOS)
+      return UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+        .flatMap(\.windows)
+        .first(where: \.isKeyWindow) ?? ASPresentationAnchor()
+    #else
+      return NSApplication.shared.keyWindow ?? ASPresentationAnchor()
+    #endif
+  }
+}
 
 struct SkillEditor: View {
   @Bindable var model: AppModel
@@ -47,12 +108,12 @@ struct SkillEditor: View {
     .formStyle(.grouped)
     .froggyListSurface()
     .navigationTitle(id == nil ? "New skill" : "Edit skill").toolbar {
-      CloseButton()
+      CloseButton { model.sheet = nil }
       ToolbarItem(placement: .confirmationAction) {
         Button("Save") {
           Task {
             do {
-              _ = try await model.api?.saveSkill(draft, id: id)
+              _ = try await model.requireAPI().saveSkill(draft, id: id)
               await model.refreshBootstrap()
               dismiss()
             } catch { model.present(error) }
@@ -63,7 +124,7 @@ struct SkillEditor: View {
     .task {
       if let id {
         do {
-          if let value = try await model.api?.skill(id) { draft = SkillDraft(skill: value) }
+          draft = SkillDraft(skill: try await model.requireAPI().skill(id))
         } catch { model.present(error) }
       }
     }
@@ -72,54 +133,235 @@ struct SkillEditor: View {
 
 struct ConnectionsView: View {
   @Bindable var model: AppModel
-  @Environment(\.openURL) private var openURL
   @State private var connections: [Capability] = []
+  @State private var loading = true
+  @State private var loadError: String?
+  @State private var connectingProviderID: String?
+  @State private var disconnectCandidate: Capability?
+  @State private var successMessage: String?
+  @State private var webAuthentication = WebAuthenticationController()
+
+  private var providers: [ConnectionProvider] { model.bootstrap?.connectionProviders ?? [] }
+
   var body: some View {
     List {
-      Section("Available") {
-        ForEach(model.bootstrap?.connectionProviders ?? []) { provider in
-          HStack {
-            VStack(alignment: .leading) {
-              Text(provider.name).font(.headline)
-              Text(provider.permissionsSummary).font(.caption).foregroundStyle(.secondary)
+      if let loadError {
+        Section {
+          ContentUnavailableView {
+            Label("Couldn’t Load Accounts", systemImage: "wifi.exclamationmark")
+          } description: {
+            Text(loadError)
+          } actions: {
+            Button("Try Again") { Task { await load() } }
+          }
+        }
+      } else {
+        Section("Accounts") {
+          ForEach(providers) { provider in
+            if let connection = connection(for: provider.id) {
+              NavigationLink {
+                ConnectionDetailView(
+                  connection: connection, provider: provider,
+                  reconnect: { connect(provider.id) },
+                  disconnect: { disconnectCandidate = connection })
+              } label: {
+                connectionRow(connection, provider: provider)
+              }
+            } else {
+              HStack(spacing: 12) {
+                ProviderLogoView(provider: provider)
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(provider.name).font(.headline)
+                  Text(provider.description).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if connectingProviderID == provider.id {
+                  ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel("Connecting (provider.name)")
+                } else {
+                  Button(provider.connectLabel) {
+                    connect(provider.id)
+                  }
+                  .disabled(connectingProviderID != nil || webAuthentication.isRunning)
+                }
+              }
             }
-            Spacer()
-            Button("Connect") { connect(provider.id) }
+          }
+          if providers.isEmpty && !loading {
+            Text("No account providers are available.").foregroundStyle(.secondary)
           }
         }
       }
-      Section("Connected") {
-        ForEach(connections) { item in
-          HStack {
-            Text(item.name)
-            Spacer()
-            Button("Disconnect", role: .destructive) { remove(item.id) }
+    }
+    .froggyListSurface()
+    .navigationTitle("Connected Accounts")
+    .toolbar { CloseButton { model.sheet = nil } }
+    .overlay { if loading { ProgressView() } }
+    .refreshable { await load() }
+    .task { await load() }
+    .onChange(of: webAuthentication.outcome) { _, outcome in
+      guard let outcome else { return }
+      switch outcome {
+      case .callback(let url):
+        Task {
+          if let callback = await model.handleConnectionCallback(url),
+            callback.status == .connected
+          {
+            successMessage = "\(providerName(callback.providerID)) is now connected."
+            await load()
           }
+          connectingProviderID = nil
         }
+      case .cancelled:
+        connectingProviderID = nil
+      case .failed(let message):
+        connectingProviderID = nil
+        model.present(APIError.configuration(message))
       }
-    }.froggyListSurface().navigationTitle("Connections").toolbar { CloseButton() }.task { await load() }
-  }
-  private func load() async {
-    do { connections = try await model.api?.connections() ?? [] } catch { model.present(error) }
-  }
-  private func connect(_ id: String) {
-    Task {
-      do {
-        if let url = try await model.api?.beginConnection(
-          providerId: id, returnURL: URL(string: "froggybot://app")!)
-        {
-          openURL(url)
-        }
-      } catch { model.present(error) }
+      webAuthentication.outcome = nil
+    }
+    .alert(
+      "Account Connected",
+      isPresented: Binding(
+        get: { successMessage != nil }, set: { if !$0 { successMessage = nil } })
+    ) {
+      Button("OK") { successMessage = nil }
+    } message: {
+      Text(successMessage ?? "")
+    }
+    .confirmationDialog(
+      "Disconnect \(disconnectCandidate?.name ?? "this account")?",
+      isPresented: Binding(
+        get: { disconnectCandidate != nil }, set: { if !$0 { disconnectCandidate = nil } }),
+      titleVisibility: .visible
+    ) {
+      if let disconnectCandidate {
+        Button("Disconnect", role: .destructive) { remove(disconnectCandidate) }
+      }
+      Button("Cancel", role: .cancel) { disconnectCandidate = nil }
+    } message: {
+      Text("Bots using this account will lose access. FroggyBot will revoke supported OAuth access and schedule its stored credential for deletion.")
     }
   }
-  private func remove(_ id: String) {
+
+  private func load() async {
+    loading = true
+    defer { loading = false }
+    do {
+      connections = try await model.requireAPI().connections()
+      loadError = nil
+    } catch {
+      loadError = error.localizedDescription
+    }
+  }
+
+  private func connect(_ id: String) {
+    connectingProviderID = id
     Task {
       do {
-        try await model.api?.deleteConnection(id)
+        var callback = URLComponents()
+        callback.scheme = "froggybot"
+        callback.host = "app"
+        callback.queryItems = [URLQueryItem(name: "connection", value: id)]
+        guard let returnURL = callback.url else { throw APIError.invalidResponse }
+        let url = try await model.requireAPI().beginConnection(
+          providerId: id, returnURL: returnURL)
+        webAuthentication.start(url: url)
+      } catch {
+        connectingProviderID = nil
+        model.present(error)
+      }
+    }
+  }
+
+  private func remove(_ connection: Capability) {
+    disconnectCandidate = nil
+    Task {
+      do {
+        try await model.requireAPI().deleteConnection(connection.id)
+        await model.refreshBootstrap()
         await load()
       } catch { model.present(error) }
     }
+  }
+
+  private func connection(for providerID: String) -> Capability? {
+    connections.first { $0.provider == providerID }
+  }
+
+  private func providerName(_ id: String) -> String {
+    providers.first(where: { $0.id == id })?.name ?? "Account"
+  }
+
+  private func connectionRow(_ connection: Capability, provider: ConnectionProvider?) -> some View {
+    HStack(spacing: 12) {
+      if let provider {
+        ProviderLogoView(provider: provider)
+      } else {
+        Image(systemName: "link")
+          .frame(width: 36, height: 36)
+          .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
+      }
+      VStack(alignment: .leading, spacing: 3) {
+        Text(connection.name).font(.headline)
+        Text(connection.connectedAccount ?? connection.description)
+          .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+      }
+      Spacer()
+      Text(connection.connectionStatus == "connected" ? "Connected" : "Needs Attention")
+        .font(.caption)
+        .foregroundStyle(connection.connectionStatus == "connected" ? FrogTheme.accent : .orange)
+    }
+  }
+}
+
+private struct ConnectionDetailView: View {
+  let connection: Capability
+  let provider: ConnectionProvider?
+  let reconnect: (() -> Void)?
+  let disconnect: () -> Void
+
+  var body: some View {
+    Form {
+      Section {
+        LabeledContent("Status", value: statusLabel)
+        if let account = connection.connectedAccount {
+          LabeledContent("Account", value: account)
+        }
+        if let updatedAt = connection.updatedAt?.froggyDate {
+          LabeledContent("Last updated", value: updatedAt.formatted(date: .abbreviated, time: .shortened))
+        }
+      }
+      Section(provider?.privacyTitle ?? "Private Connection") {
+        Text(provider?.privacyDescription ?? connection.description)
+      }
+      if let actions = connection.actions, !actions.isEmpty {
+        Section("Access") {
+          ForEach(actions, id: \.self) { action in
+            Label(action, systemImage: "checkmark.circle")
+          }
+          if let permissions = provider?.permissionsSummary {
+            Text(permissions).font(.footnote).foregroundStyle(.secondary)
+          }
+        }
+      }
+      Section {
+        if let reconnect {
+          Button(
+            provider?.reconnectLabel ?? "Reconnect Account",
+            systemImage: "arrow.clockwise", action: reconnect)
+        }
+        Button("Disconnect", systemImage: "link.badge.minus", role: .destructive, action: disconnect)
+      }
+    }
+    .formStyle(.grouped)
+    .froggyListSurface()
+    .navigationTitle(connection.name)
+  }
+
+  private var statusLabel: String {
+    connection.connectionStatus == "connected" ? "Connected" : "Needs attention"
   }
 }
 
@@ -163,7 +405,7 @@ struct DocumentsView: View {
     }
     .froggyListSurface()
     .navigationTitle("Documents")
-    .toolbar { CloseButton() }
+    .toolbar { CloseButton { model.sheet = nil } }
     .overlay { if isLoading { ProgressView() } }
     .quickLookPreview($previewURL)
     .onChange(of: previewURL) { previous, current in
@@ -207,6 +449,7 @@ struct ShareView: View {
   @Bindable var model: AppModel
   let selection: ConversationSelection
   @State private var url: URL?
+  @State private var creatingLink = false
   var body: some View {
     VStack(spacing: 22) {
       Image(systemName: "person.2.badge.plus").font(.system(size: 48)).foregroundStyle(
@@ -220,13 +463,27 @@ struct ShareView: View {
         ShareLink(item: url) { Label("Share invitation", systemImage: "square.and.arrow.up") }
           .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
       } else {
-        ProgressView()
+        Button { createLink() } label: {
+          if creatingLink {
+            HStack(spacing: 8) {
+              ProgressView()
+              Text("Creating Link…")
+            }
+          } else {
+            Label("Create Invitation Link", systemImage: "link.badge.plus")
+          }
+        }
+        .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
+        .controlSize(.large)
+        .disabled(creatingLink)
+        Text("The link becomes active only after you create it, and you can revoke it from Settings.")
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
       }
     }.padding(32).frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(FrogTheme.pageBackground)
-      .navigationTitle("Share").toolbar { CloseButton() }.task {
-      url = await model.share(selection)
-    }
+      .navigationTitle("Share").toolbar { CloseButton { model.sheet = nil } }
   }
 
   private var title: String {
@@ -237,6 +494,32 @@ struct ShareView: View {
       model.bootstrap?.groups.first(where: { $0.id == selection.id })?.name ?? "Group"
     }
   }
+
+  private func createLink() {
+    creatingLink = true
+    Task {
+      url = await model.share(selection)
+      creatingLink = false
+    }
+  }
+}
+
+private struct MemoryExportDocument: FileDocument {
+  static var readableContentTypes: [UTType] { [.json] }
+  let data: Data
+
+  init(data: Data) { self.data = data }
+
+  init(configuration: ReadConfiguration) throws {
+    guard let data = configuration.file.regularFileContents else {
+      throw CocoaError(.fileReadCorruptFile)
+    }
+    self.data = data
+  }
+
+  func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+    FileWrapper(regularFileWithContents: data)
+  }
 }
 
 struct AccountView: View {
@@ -245,13 +528,27 @@ struct AccountView: View {
   var showsDismissButton = true
   @State private var links: [SharedLink] = []
   @State private var loadingLinks = true
+  @State private var linksError: String?
   @State private var busyLinkToken: String?
-  @State private var notificationsEnabled = false
+  @State private var revokeCandidate: SharedLink?
+  @State private var notificationAuthorization = UNAuthorizationStatus.notDetermined
   @State private var confirmDelete = false
+  @State private var deletingAccount = false
+  @State private var exportingMemory = false
+  @State private var memoryExportDocument: MemoryExportDocument?
+  @State private var showingMemoryExporter = false
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
     Form {
+      Section("Build Your Team") {
+        NavigationLink {
+          BotLibrary(model: model)
+        } label: {
+          Label("Add a Bot", systemImage: "plus.circle.fill")
+        }
+      }
+
       Section("Manage") {
         NavigationLink {
           MemoriesView(model: model, groupId: nil)
@@ -261,37 +558,50 @@ struct AccountView: View {
         NavigationLink {
           SkillsView(model: model)
         } label: {
-          Label("Skills & tools", systemImage: "sparkles")
+          Label("Capabilities", systemImage: "sparkles")
         }
         NavigationLink {
           ConnectionsView(model: model)
         } label: {
-          Label("Connections", systemImage: "link")
+          Label("Connected Accounts", systemImage: "link")
         }
       }
 
       Section {
         LabeledContent {
-          Text(notificationsEnabled ? "On" : "Off")
-            .foregroundStyle(notificationsEnabled ? FrogTheme.brand : .secondary)
+          Text(notificationStatusLabel)
+            .foregroundStyle(notificationStatusColor)
         } label: {
-          Label("Reply notifications", systemImage: "bell.badge")
+          Label("Reply Notifications", systemImage: "bell.badge")
         }
-        if !notificationsEnabled {
-          Button("Enable Notifications") { enableNotifications() }
+        notificationAction
+        if case .failed(let message) = model.pushRegistrationState,
+          isNotificationPermissionGranted
+        {
+          Label(message, systemImage: "exclamationmark.triangle")
+            .font(.footnote)
+            .foregroundStyle(.orange)
         }
       } header: {
         Text("Notifications")
       } footer: {
-        Text("Get an alert when a FroggyBot finishes a reply or scheduled task.")
+        Text("Apple permission and FroggyBot delivery registration must both be active.")
       }
 
-      Section("Active shared links") {
+      Section("Active Shared Links") {
         if loadingLinks {
           HStack {
             Spacer()
             ProgressView()
             Spacer()
+          }
+        } else if let linksError {
+          ContentUnavailableView {
+            Label("Couldn’t Load Links", systemImage: "wifi.exclamationmark")
+          } description: {
+            Text(linksError)
+          } actions: {
+            Button("Try Again") { Task { await loadLinks() } }
           }
         } else if links.isEmpty {
           Label("No active shared links", systemImage: "link.badge.plus")
@@ -315,39 +625,56 @@ struct AccountView: View {
                   Label("Share", systemImage: "square.and.arrow.up").labelStyle(.iconOnly)
                 }
               }
-              Button("Revoke", role: .destructive) { revoke(link) }
+              Button("Revoke", role: .destructive) { revokeCandidate = link }
                 .disabled(busyLinkToken != nil)
+                .tint(FrogTheme.danger)
+                .foregroundStyle(FrogTheme.danger)
             }
           }
         }
       }
 
-      Section("Data & privacy") {
+      Section("Data & Privacy") {
         Button { exportMemory() } label: {
-          Label("Export Memory", systemImage: "square.and.arrow.down")
+          if exportingMemory {
+            Label { Text("Preparing Memory Export…") } icon: { ProgressView() }
+          } else {
+            Label("Export Memory", systemImage: "square.and.arrow.down")
+          }
         }
+        .disabled(exportingMemory)
+        Link("Privacy Policy", destination: URL(string: "https://froggybot.com/privacy")!)
+        Link("Terms of Use", destination: URL(string: "https://froggybot.com/terms")!)
       }
 
       Section {
         Button { signOut() } label: {
           Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
         }
+        .disabled(deletingAccount)
+        .foregroundStyle(.primary)
       }
 
       Section {
-        Button("Delete Account", systemImage: "trash", role: .destructive) {
-          confirmDelete = true
+        Button(role: .destructive) { confirmDelete = true } label: {
+          if deletingAccount {
+            Label { Text("Deleting Account…") } icon: { ProgressView() }
+          } else {
+            Label("Delete Account", systemImage: "trash")
+          }
         }
-        .foregroundStyle(.red)
+        .disabled(deletingAccount)
+        .tint(FrogTheme.danger)
+        .foregroundStyle(FrogTheme.danger)
       } footer: {
-        Text(
-          "Permanently deletes your bots, chats, owned groups, schedules, skills, invitations, and shared links."
-        )
+        Text("Permanently deletes your bots, chats, memory, files, connected accounts, owned groups, schedules, skills, invitations, and shared links.")
       }
 
       Section("About") {
         LabeledContent("App", value: "FroggyBot for Apple")
         LabeledContent("Platforms", value: "iPhone + Mac")
+        LabeledContent("Version", value: versionLabel)
+        Link("Support", destination: URL(string: "mailto:tmoreton89@gmail.com?subject=FroggyBot%20Support")!)
       }
     }
     .formStyle(.grouped)
@@ -361,35 +688,123 @@ struct AccountView: View {
       }
     }
     .task { await load() }
+    .refreshable { await loadLinks() }
+    .fileExporter(
+      isPresented: $showingMemoryExporter,
+      document: memoryExportDocument,
+      contentType: .json,
+      defaultFilename: "froggybot-memory"
+    ) { result in
+      if case .failure(let error) = result {
+        let cocoaError = error as NSError
+        if cocoaError.domain != NSCocoaErrorDomain
+          || cocoaError.code != CocoaError.Code.userCancelled.rawValue
+        {
+          model.present(error)
+        }
+      }
+      memoryExportDocument = nil
+    }
+    .confirmationDialog(
+      "Revoke this shared link?",
+      isPresented: Binding(
+        get: { revokeCandidate != nil }, set: { if !$0 { revokeCandidate = nil } }),
+      titleVisibility: .visible
+    ) {
+      if let revokeCandidate {
+        Button("Revoke Link", role: .destructive) { revoke(revokeCandidate) }
+      }
+      Button("Cancel", role: .cancel) { revokeCandidate = nil }
+    } message: {
+      Text("Anyone using this link will immediately lose access.")
+    }
     .confirmationDialog(
       "Permanently delete your FroggyBot account?", isPresented: $confirmDelete,
       titleVisibility: .visible
     ) {
-      Button("Delete account", role: .destructive) {
-        Task {
-          do {
-            try await model.requireAPI().deleteAccount()
-            await auth.signOut()
-          } catch { model.present(error) }
-        }
-      }
+      Button("Delete Account", role: .destructive) { deleteAccount() }
       Button("Cancel", role: .cancel) {}
     } message: {
-      Text(
-        "This cannot be undone. Shared links will stop working and owned groups will be deleted for every member."
-      )
+      Text("This cannot be undone. Connected-account access will be revoked, shared links will stop working, and owned groups will be deleted for every member.")
     }
+  }
+
+  @ViewBuilder private var notificationAction: some View {
+    switch notificationAuthorization {
+    case .notDetermined:
+      Button("Enable Notifications") { enableNotifications() }
+    case .denied:
+      Button("Open System Settings", systemImage: "gear") {
+        NativeNotifications.openSystemSettings()
+      }
+    case .authorized, .provisional:
+      if model.pushRegistrationState != .registered {
+        Button("Retry Delivery Registration", systemImage: "arrow.clockwise") {
+          Task { await NativeNotifications.registerIfAuthorized() }
+        }
+      }
+    #if os(iOS)
+      case .ephemeral:
+        if model.pushRegistrationState != .registered {
+          Button("Retry Delivery Registration", systemImage: "arrow.clockwise") {
+            Task { await NativeNotifications.registerIfAuthorized() }
+          }
+        }
+    #endif
+    @unknown default:
+      EmptyView()
+    }
+  }
+
+  private var isNotificationPermissionGranted: Bool {
+    #if os(iOS)
+      notificationAuthorization == .authorized || notificationAuthorization == .provisional
+        || notificationAuthorization == .ephemeral
+    #else
+      notificationAuthorization == .authorized || notificationAuthorization == .provisional
+    #endif
+  }
+
+  private var notificationStatusLabel: String {
+    guard isNotificationPermissionGranted else { return "Off" }
+    switch model.pushRegistrationState {
+    case .registered: return "On"
+    case .registering: return "Registering"
+    case .failed: return "Needs Attention"
+    case .idle: return "Waiting"
+    }
+  }
+
+  private var notificationStatusColor: Color {
+    switch model.pushRegistrationState {
+    case .registered where isNotificationPermissionGranted: FrogTheme.accent
+    case .failed where isNotificationPermissionGranted: .orange
+    default: .secondary
+    }
+  }
+
+  private var versionLabel: String {
+    let info = Bundle.main.infoDictionary ?? [:]
+    let version = info["CFBundleShortVersionString"] as? String ?? "—"
+    let build = info["CFBundleVersion"] as? String ?? "—"
+    return "\(version) (\(build))"
   }
 
   private func load() async {
     async let notificationLoad: Void = refreshNotificationStatus()
-    do {
-      links = try await model.api?.shares() ?? []
-    } catch {
-      model.present(error)
-    }
-    loadingLinks = false
+    await loadLinks()
     _ = await notificationLoad
+  }
+
+  private func loadLinks() async {
+    loadingLinks = true
+    defer { loadingLinks = false }
+    do {
+      links = try await model.requireAPI().shares()
+      linksError = nil
+    } catch {
+      linksError = error.localizedDescription
+    }
   }
 
   private func enableNotifications() {
@@ -405,20 +820,20 @@ struct AccountView: View {
 
   private func refreshNotificationStatus() async {
     let settings = await UNUserNotificationCenter.current().notificationSettings()
-    notificationsEnabled =
-      settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+    notificationAuthorization = settings.authorizationStatus
   }
 
   private func revoke(_ link: SharedLink) {
+    revokeCandidate = nil
     busyLinkToken = link.token
     Task {
+      defer { busyLinkToken = nil }
       do {
-        try await model.api?.revokeShare(link.token)
+        try await model.requireAPI().revokeShare(link.token)
         links.removeAll { $0.token == link.token }
       } catch {
         model.present(error)
       }
-      busyLinkToken = nil
     }
   }
 
@@ -430,16 +845,29 @@ struct AccountView: View {
   }
 
   private func exportMemory() {
+    exportingMemory = true
+    Task {
+      defer { exportingMemory = false }
+      do {
+        memoryExportDocument = MemoryExportDocument(
+          data: try await model.requireAPI().downloadMemoryExport())
+        showingMemoryExporter = true
+      } catch {
+        model.present(error)
+      }
+    }
+  }
+
+  private func deleteAccount() {
+    deletingAccount = true
     Task {
       do {
-        if let url = try await model.api?.exportMemory() {
-          #if os(iOS)
-            await UIApplication.shared.open(url)
-          #else
-            NSWorkspace.shared.open(url)
-          #endif
-        }
-      } catch { model.present(error) }
+        try await model.requireAPI().deleteAccount()
+        await auth.signOut()
+      } catch {
+        deletingAccount = false
+        model.present(error)
+      }
     }
   }
 

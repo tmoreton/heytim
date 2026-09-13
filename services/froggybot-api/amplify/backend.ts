@@ -25,15 +25,17 @@ import {
   FUNCTION_ASSET_EXCLUDES, PUBLIC_WEB_BASE_URL,
   WORKER_CONCURRENCY, deploymentEnvironment,
   apnsApplicationArn, apnsSandboxApplicationArn,
-  globalWindowRunUnitLimit, googleOAuthSecretArn,
-  memoryId, monthlyBudgetUsd, monthlyRunUnitLimit,
+  githubAppSecretArn, globalWindowRunUnitLimit, googleOAuthSecretArn,
+  memoryId, microsoftOAuthSecretArn, monthlyBudgetUsd, monthlyRunUnitLimit,
+  notionOAuthSecretArn,
   runtimeArn, usageWindowSeconds, userWindowRunUnitLimit,
-  youtubeSearchDailyLimit,
+  slackOAuthSecretArn, xOAuthSecretArn, youtubeSearchDailyLimit,
 } from './infrastructure/app-settings';
 import { addBrowserAccess } from './infrastructure/browser-access';
 import { addGithubDeploymentRole } from './infrastructure/deployment-role';
 import { addNativePushAccess, nativePushEnvironment } from './infrastructure/native-push';
 import { addObservability } from './infrastructure/observability';
+import { addProviderConnectionAccess } from './infrastructure/provider-connections';
 const backend = defineBackend({ auth, preSignUp });
 const stack = backend.createStack('FrogBotApp');
 
@@ -311,7 +313,6 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
     FILES_BUCKET_NAME: filesBucket.bucketName,
     PUBLIC_WEB_BASE_URL,
     CAPABILITY_CATALOG_URL,
-    GOOGLE_OAUTH_SECRET_ARN: googleOAuthSecretArn,
     FROGBOT_MONTHLY_RUN_UNIT_LIMIT: String(monthlyRunUnitLimit),
     FROGBOT_USER_WINDOW_RUN_UNIT_LIMIT: String(userWindowRunUnitLimit),
     FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT: String(globalWindowRunUnitLimit),
@@ -394,12 +395,6 @@ apiFunction.addToRolePolicy(
       'secretsmanager:TagResource',
     ],
     resources: [connectionSecretsArn],
-  }),
-);
-apiFunction.addToRolePolicy(
-  new PolicyStatement({
-    actions: ['secretsmanager:GetSecretValue'],
-    resources: [googleOAuthSecretArn],
   }),
 );
 workerFunction.addToRolePolicy(
@@ -520,10 +515,14 @@ const httpApi = new HttpApi(stack, 'HttpApi', {
     ],
   },
 });
-apiFunction.addEnvironment(
-  'GOOGLE_OAUTH_REDIRECT_URI',
-  `${httpApi.apiEndpoint}/public/oauth/google/callback`,
-);
+addProviderConnectionAccess(apiFunction, httpApi.apiEndpoint, {
+  github: githubAppSecretArn,
+  google: googleOAuthSecretArn,
+  microsoft: microsoftOAuthSecretArn,
+  notion: notionOAuthSecretArn,
+  slack: slackOAuthSecretArn,
+  x: xOAuthSecretArn,
+});
 const authorizer = new HttpJwtAuthorizer(
   'CognitoAuthorizer',
   `https://cognito-idp.${stack.region}.amazonaws.com/${backend.auth.resources.userPool.userPoolId}`,

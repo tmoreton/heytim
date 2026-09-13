@@ -24,6 +24,12 @@ import XCTest
     XCTAssertTrue(composer.waitForExistence(timeout: 10))
 
     #if os(iOS)
+      let details = app.buttons["chat.details"]
+      XCTAssertTrue(details.waitForExistence(timeout: 5))
+      let chiefTitles = app.staticTexts.matching(identifier: "Chief").allElementsBoundByIndex
+      XCTAssertFalse(chiefTitles.isEmpty)
+      XCTAssertTrue(
+        chiefTitles.allSatisfy { $0.frame.isEmpty || $0.frame.maxY <= details.frame.maxY + 16 })
       app.buttons["FroggyBot"].tap()
     #endif
     XCTAssertTrue(app.searchFields["Search chats"].waitForExistence(timeout: 5))
@@ -92,6 +98,7 @@ import XCTest
     XCTAssertTrue(app.staticTexts["Working · 2 updates"].exists)
     XCTAssertTrue(app.staticTexts["Queued"].exists)
     XCTAssertTrue(app.staticTexts["Waiting for its turn"].exists)
+    XCTAssertTrue(app.staticTexts["Who should answer?"].exists)
     XCTAssertFalse(app.staticTexts["Activity"].exists)
     XCTAssertFalse(app.staticTexts["Pending"].exists)
     XCTAssertFalse(app.descendants(matching: .any)["chat.message.content.group-running"].exists)
@@ -102,6 +109,14 @@ import XCTest
       XCTAssertLessThan(running.frame.height, 180)
       XCTAssertLessThan(queued.frame.height, 80)
       XCTAssertLessThan(waiting.frame.height, 80)
+    #else
+      XCTAssertTrue(
+        app.descendants(matching: .any)["sidebar.processing.group.research-team"]
+          .waitForExistence(timeout: 5))
+      XCTAssertTrue(app.staticTexts["Working"].exists)
+      let replyPicker = app.descendants(matching: .any)["chat.replyPicker"]
+      XCTAssertTrue(replyPicker.waitForExistence(timeout: 5))
+      XCTAssertTrue(replyPicker.isHittable)
     #endif
   }
 
@@ -163,7 +178,9 @@ import XCTest
     app.launch()
 
     #if os(iOS)
-      app.buttons["FroggyBot"].tap()
+      let sidebar = app.buttons["FroggyBot"]
+      XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
+      sidebar.tap()
     #endif
     let create = app.buttons["sidebar.create"]
     XCTAssertTrue(create.waitForExistence(timeout: 10))
@@ -171,17 +188,25 @@ import XCTest
     let settings = app.buttons["sidebar.settings"]
     XCTAssertTrue(settings.waitForExistence(timeout: 10))
     XCTAssertTrue(settings.isHittable)
+    #if os(iOS)
+      XCTAssertLessThan(settings.frame.maxX, create.frame.minX)
+      XCTAssertEqual(settings.frame.midY, create.frame.midY, accuracy: 4)
+    #endif
     settings.tap()
 
     XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 5))
     XCTAssertTrue(app.staticTexts["Memory"].exists)
-    XCTAssertTrue(app.staticTexts["Skills & tools"].exists)
-    XCTAssertTrue(app.staticTexts["Connections"].exists)
+    XCTAssertTrue(app.staticTexts["Add a Bot"].exists)
+    XCTAssertTrue(app.staticTexts["Capabilities"].exists)
+    XCTAssertTrue(app.staticTexts["Connected Accounts"].exists)
     #if os(iOS)
       XCTAssertTrue(app.buttons["Close"].exists)
       XCTAssertFalse(app.buttons["Done"].exists)
     #else
+      XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 5))
+      XCTAssertTrue(app.buttons["Close"].exists)
       XCTAssertFalse(app.buttons["Done"].exists)
+      XCTAssertEqual(app.windows.count, 1)
     #endif
 
     let exportMemory = app.buttons["Export Memory"]
@@ -192,6 +217,59 @@ import XCTest
     for _ in 0..<4 where !aboutValue.exists { app.swipeUp() }
     XCTAssertTrue(aboutValue.waitForExistence(timeout: 5))
     XCTAssertTrue(app.staticTexts["Platforms, iPhone + Mac"].exists)
+    XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Version,'")).firstMatch.exists)
+  }
+
+  func testAddBotGalleryExplainsTheConfiguredSkillsToolsAndPrompt() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing"]
+    app.launch()
+
+    #if os(iOS)
+      app.buttons["FroggyBot"].tap()
+    #endif
+    let create = app.buttons["sidebar.create"]
+    XCTAssertTrue(create.waitForExistence(timeout: 10))
+    XCTAssertFalse(app.buttons["sidebar.addBot"].exists)
+    create.tap()
+    let addBot = app.buttons["Add a bot"]
+    XCTAssertTrue(addBot.waitForExistence(timeout: 5))
+    addBot.tap()
+
+    XCTAssertTrue(app.staticTexts["Add a Bot"].waitForExistence(timeout: 5))
+    let template = app.buttons["bot.template.research-reports"]
+    XCTAssertTrue(template.waitForExistence(timeout: 5))
+    template.tap()
+
+    XCTAssertTrue(
+      app.descendants(matching: .any)["bot.template.skills"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["Deep Research"].exists)
+    XCTAssertTrue(app.descendants(matching: .any)["bot.template.tools"].exists)
+    XCTAssertTrue(app.staticTexts["Web Search"].exists)
+    XCTAssertTrue(app.staticTexts["Files & Data"].exists)
+    XCTAssertTrue(app.buttons["View Full Instructions"].exists)
+    XCTAssertTrue(app.buttons["Add Bot"].exists)
+  }
+
+  func testCapabilitiesShowsBothSkillsAndBuiltInTools() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing"]
+    app.launch()
+
+    #if os(iOS)
+      app.buttons["FroggyBot"].tap()
+    #endif
+    XCTAssertTrue(app.buttons["sidebar.settings"].waitForExistence(timeout: 10))
+    app.buttons["sidebar.settings"].tap()
+    XCTAssertTrue(app.staticTexts["Capabilities"].waitForExistence(timeout: 5))
+    app.staticTexts["Capabilities"].tap()
+
+    XCTAssertTrue(app.staticTexts["Deep Research"].waitForExistence(timeout: 5))
+    let tools = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Tools'")).firstMatch
+    XCTAssertTrue(tools.waitForExistence(timeout: 5))
+    tools.tap()
+    XCTAssertTrue(app.staticTexts["Web Search"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["Files & Data"].exists)
   }
 
   #if os(macOS)
@@ -217,6 +295,11 @@ import XCTest
       XCTAssertGreaterThanOrEqual(attachment.frame.minX, splitter.frame.maxX + 12)
       XCTAssertGreaterThan(composer.frame.width, 180)
       XCTAssertLessThanOrEqual(send.frame.maxX, window.frame.maxX - 12)
+      for button in [attachment, microphone, send] {
+        XCTAssertGreaterThanOrEqual(button.frame.width, 42)
+        XCTAssertGreaterThanOrEqual(button.frame.height, 42)
+      }
+      XCTAssertGreaterThanOrEqual(send.frame.minX - microphone.frame.maxX, 8)
       XCTAssertEqual(app.toolbars.staticTexts.matching(identifier: "Chief").count, 0)
 
       composer.click()
@@ -252,6 +335,13 @@ import XCTest
       XCTAssertLessThan(name.frame.maxX, sheet.frame.maxX - 20)
       XCTAssertGreaterThan(tagline.frame.minX, sheet.frame.minX + 20)
       XCTAssertLessThan(tagline.frame.maxX, sheet.frame.maxX - 20)
+      XCTAssertTrue(app.staticTexts["Color"].exists)
+      XCTAssertTrue(app.descendants(matching: .any)["Instructions"].firstMatch.exists)
+
+      let close = app.buttons["Close"]
+      XCTAssertTrue(close.isHittable)
+      close.click()
+      XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))
     }
   #endif
 }

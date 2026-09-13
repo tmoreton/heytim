@@ -24,6 +24,11 @@ jobs:
           AGENTCORE_CREDENTIAL_FROGBOTXAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTXAPI }}
           AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI }}
           GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_GOOGLE_OAUTH_SECRET_ARN }}
+          GITHUB_APP_SECRET_ARN: ${{ secrets.FROGBOT_GITHUB_APP_SECRET_ARN }}
+          X_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_X_OAUTH_SECRET_ARN }}
+          SLACK_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_SLACK_OAUTH_SECRET_ARN }}
+          NOTION_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_NOTION_OAUTH_SECRET_ARN }}
+          APNS_APPLICATION_ARN: ${{ vars.FROGBOT_APNS_APPLICATION_ARN }}
         run: |
           if [ -z "$AWS_DEPLOY_ROLE_ARN" ] || [ -z "$AMPLIFY_APP_ID" ]; then
             echo "Set AWS_DEPLOY_ROLE_ARN and AMPLIFY_APP_ID in the production environment." >&2
@@ -39,6 +44,18 @@ jobs:
           fi
           if [ -z "$GOOGLE_OAUTH_SECRET_ARN" ]; then
             echo "Set FROGBOT_GOOGLE_OAUTH_SECRET_ARN in the production environment." >&2
+            exit 1
+          fi
+          if [ -z "$GITHUB_APP_SECRET_ARN" ] || [ -z "$X_OAUTH_SECRET_ARN" ]; then
+            echo "Set FROGBOT_GITHUB_APP_SECRET_ARN and FROGBOT_X_OAUTH_SECRET_ARN in the production environment." >&2
+            exit 1
+          fi
+          if [ -z "$SLACK_OAUTH_SECRET_ARN" ] || [ -z "$NOTION_OAUTH_SECRET_ARN" ]; then
+            echo "Set the Slack and Notion OAuth secret ARNs in the production environment." >&2
+            exit 1
+          fi
+          if [ -z "$APNS_APPLICATION_ARN" ]; then
+            echo "Set FROGBOT_APNS_APPLICATION_ARN in the production environment." >&2
             exit 1
           fi
 
@@ -107,6 +124,10 @@ jobs:
         env:
           FROGBOT_ENVIRONMENT: production
           FROGBOT_GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_GOOGLE_OAUTH_SECRET_ARN }}
+          FROGBOT_GITHUB_APP_SECRET_ARN: ${{ secrets.FROGBOT_GITHUB_APP_SECRET_ARN }}
+          FROGBOT_X_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_X_OAUTH_SECRET_ARN }}
+          FROGBOT_SLACK_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_SLACK_OAUTH_SECRET_ARN }}
+          FROGBOT_NOTION_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_NOTION_OAUTH_SECRET_ARN }}
           FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT: ${{ vars.FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT || '100' }}
           FROGBOT_APNS_APPLICATION_ARN: ${{ vars.FROGBOT_APNS_APPLICATION_ARN }}
           FROGBOT_APNS_SANDBOX_APPLICATION_ARN: ${{ vars.FROGBOT_APNS_SANDBOX_APPLICATION_ARN }}

@@ -403,7 +403,7 @@ private struct MarkdownBlockView: View {
     case .quote(let text):
       HStack(alignment: .top, spacing: 10) {
         Capsule()
-          .fill(FrogTheme.brand.opacity(0.75))
+          .fill(FrogTheme.accent.opacity(0.75))
           .frame(width: 3)
         Text(inlineMarkdown(text))
           .font(.body)

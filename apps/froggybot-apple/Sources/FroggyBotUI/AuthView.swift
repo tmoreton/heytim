@@ -6,7 +6,6 @@ public struct AuthView: View {
   @State private var email = ""
   @State private var code = ""
   @FocusState private var focusedField: Field?
-  @Environment(\.colorScheme) private var colorScheme
 
   private enum Field { case email, code }
 
@@ -22,15 +21,10 @@ public struct AuthView: View {
         VStack(spacing: 0) {
           brand
           card
-          Text("By continuing, you agree to use your bots responsibly.")
-            .font(.system(size: 12))
-            .foregroundStyle(FrogTheme.muted)
-            .multilineTextAlignment(.center)
-            .padding(.top, 22)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 18)
-        .frame(maxWidth: .infinity, minHeight: 650)
+        .frame(maxWidth: .infinity, minHeight: 560)
       }
       .scrollIndicators(.hidden)
     }
@@ -44,22 +38,12 @@ public struct AuthView: View {
         .font(.system(size: 34, weight: .heavy, design: .rounded))
         .tracking(-1.3)
         .foregroundStyle(.primary)
-      Text("The AI that helps your group decide and follow through.")
-        .font(.system(size: 16))
-        .foregroundStyle(FrogTheme.mutedWarm)
-        .multilineTextAlignment(.center)
-        .padding(.top, 7)
     }
-    .padding(.bottom, 32)
+    .padding(.bottom, 24)
   }
 
   private var card: some View {
     VStack(alignment: .leading, spacing: 0) {
-      Text(eyebrow)
-        .font(.system(size: 11, weight: .heavy))
-        .tracking(1.25)
-        .foregroundStyle(brandText)
-        .padding(.bottom, 9)
       Text(title)
         .font(.system(size: 25, weight: .bold))
         .tracking(-0.65)
@@ -92,9 +76,9 @@ public struct AuthView: View {
       } label: {
         Group {
           if auth.isBusy {
-            ProgressView()
+            ProgressView().tint(.white)
           } else {
-            Text(primaryLabel)
+            Text(primaryLabel).foregroundStyle(.white)
           }
         }
         .font(.system(size: 16, weight: .semibold))
@@ -117,8 +101,6 @@ public struct AuthView: View {
         .frame(maxWidth: .infinity, minHeight: 44)
         .padding(.top, 5)
       }
-
-      assurance
 
       if invitation == nil, !isCodeSent {
         Link(
@@ -169,7 +151,7 @@ public struct AuthView: View {
         .font(.system(size: 13, weight: .semibold))
         .foregroundStyle(FrogTheme.textSoft)
         .padding(.bottom, 9)
-      TextField("you@example.com", text: $email)
+      TextField("", text: $email)
         .textFieldStyle(.plain)
         .font(.system(size: 16))
         .focused($focusedField, equals: .email)
@@ -180,6 +162,17 @@ public struct AuthView: View {
         #endif
         .onSubmit { Task { await auth.begin(email: email, invitation: invitation) } }
         .accessibilityLabel("Email address")
+        .overlay(alignment: .leading) {
+          if email.isEmpty {
+            Text("you@example.com")
+              .font(.system(size: 16))
+              .foregroundStyle(FrogTheme.text)
+              .grayscale(1)
+              .opacity(0.45)
+              .padding(.horizontal, 16)
+              .allowsHitTesting(false)
+          }
+        }
     }
   }
 
@@ -193,38 +186,16 @@ public struct AuthView: View {
       }
     }
     .padding(12)
-    .background(FrogTheme.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: 16))
-    .overlay(RoundedRectangle(cornerRadius: 16).stroke(FrogTheme.brand.opacity(0.25)))
-  }
-
-  private var assurance: some View {
-    HStack(spacing: 7) {
-      Circle().fill(FrogTheme.brand).frame(width: 6, height: 6)
-      Text(
-        invitation == nil
-          ? "Existing members can always sign back in."
-          : "This invite unlocks your FroggyBot account."
-      )
-      .font(.system(size: 12.5))
-      .foregroundStyle(FrogTheme.muted)
-    }
-    .frame(maxWidth: .infinity)
-    .padding(.top, 18)
-    .overlay(alignment: .top) { Rectangle().fill(FrogTheme.border).frame(height: 1) }
-    .padding(.top, 22)
+    .background(FrogTheme.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 16))
+    .overlay(RoundedRectangle(cornerRadius: 16).stroke(FrogTheme.accent.opacity(0.25)))
   }
 
   private var isCodeSent: Bool {
     if case .codeSent = auth.phase { return true }
     return false
   }
-  private var brandText: Color {
-    colorScheme == .dark ? Color(hex: "#57E08C") : FrogTheme.brandDark
-  }
+  private var brandText: Color { FrogTheme.accent }
   private var primaryLabel: String { isCodeSent ? "Sign in" : "Continue" }
-  private var eyebrow: String {
-    isCodeSent ? "ONE LAST STEP" : invitation == nil ? "MEMBER SIGN IN" : "YOU'RE INVITED"
-  }
   private var title: String {
     isCodeSent ? "Check your messages" : invitation == nil ? "Welcome back" : "Join FroggyBot"
   }
@@ -233,7 +204,7 @@ public struct AuthView: View {
       return "We sent a \(purpose == .signIn ? 8 : 6)-digit code to \(email)."
     }
     return invitation == nil
-      ? "Sign in with your email. New accounts need an invitation from a member."
+      ? "Enter your email to continue."
       : "Use your email to accept this invitation. No password needed."
   }
 }
@@ -248,6 +219,6 @@ private extension View {
         in: RoundedRectangle(cornerRadius: 16))
       .overlay(
         RoundedRectangle(cornerRadius: 16)
-          .stroke(focused ? FrogTheme.brand : FrogTheme.subtleBorder))
+          .stroke(focused ? FrogTheme.accent : FrogTheme.subtleBorder))
   }
 }

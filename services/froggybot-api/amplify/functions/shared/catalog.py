@@ -71,7 +71,7 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
     def _available_tool_items(self, user_id: str | None = None) -> list[dict]:
         items = self._official_tool_items()
         if user_id:
-            items.extend(self._connection_items(user_id))
+            items.extend(self._active_connection_items(user_id))
         return [item for item in items if item.get("enabled", True) is True]
 
     def list_tools(self, user_id: str | None = None) -> list[dict]:

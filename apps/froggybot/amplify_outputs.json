@@ -36,6 +36,8 @@
     "dataTableName": "amplify-frogbot-frogbot-sandbox-278c55e757-FrogBotAppE7B48881-1DQMKWO79B5OA-Data666C94C7-IGZT555IH3TC",
     "filesBucketName": "frogbot-user-files-188757775631-us-east-1",
     "alarmTopicArn": "arn:aws:sns:us-east-1:188757775631:amplify-frogbot-frogbot-sandbox-278c55e757-FrogBotAppE7B48881-1DQMKWO79B5OA-ServiceAlarms935ECF17-eU7rO9zXtSvb",
+    "logsKeyArn": "arn:aws:kms:us-east-1:188757775631:key/e9929d3a-9dec-4f34-8c83-dd0586cb0ef8",
+    "githubDeployRoleArn": "arn:aws:iam::188757775631:role/amplify-frogbot-frogbot-s-GitHubProductionDeployRol-WzFTqr1SyFaz",
     "monthlyBudgetName": "amplify-frogbot-frogbot-sandbox-278c55e757-FrogBotAppE7B48881-1DQMKWO79B5OA-monthly-cost"
   }
 }

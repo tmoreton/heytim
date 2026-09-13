@@ -42,8 +42,8 @@ experience. `/app` hosts the authenticated product. Catalog links use `/app?bot=
 flag.
 
 The app contains no official tool-name or tool-description registry. Its Tools screen renders the sanitized tools in
-the current backend catalog snapshot; preview mode parses the same public catalog. User OAuth and legacy connections
-are separated by provenance and appear only on the Connections screen. That screen renders the backend's public-safe
+the current backend catalog snapshot; preview mode parses the same public catalog. User OAuth and GitHub App
+connections are separated by provenance and appear only on the Connections screen. That screen renders the backend's public-safe
 connection-provider manifest rather than branching on provider IDs. Browser-specific controls may still test the stable
 `browser` capability ID because they implement that capability rather than describe the catalog.
 
@@ -133,13 +133,15 @@ than being mixed into a participant's private memory.
 
 Public skills contain versioned instructions plus approved tool references, never executable code. Managed
 FroggyBot integrations stay in narrow AgentCore Gateway targets and use company-owned service credentials. Users
-never enter those developer keys. Private account data uses provider-specific OAuth; each user's token is encrypted
+never enter those developer keys. Private account data uses provider-specific OAuth or a GitHub App installation;
+each user's grant is encrypted
 in Secrets Manager, resolved only during invocation, and omitted from prompts, telemetry, catalog responses, and
-shares. Existing custom MCP connections remain runtime-compatible and removable, but no new or edited custom
-developer-key connections are exposed by the API.
-Provider display metadata is registered once in the backend's public-safe connection manifest. Adding that metadata
-makes the generic UI and authorization endpoint aware of the provider; adding the secret-bearing OAuth adapter and
-runtime permissions remains an explicit reviewed server change.
+shares. Existing custom MCP bearer/API-key records are deliberately ignored by both the catalog and runtime; no new
+or edited developer-key connections are exposed by the API.
+Provider identity, display metadata, and stored connection metadata are registered once in the backend.
+Clients render the server-supplied labels and treat authentication details as opaque; connection responses omit auth
+types, endpoints, and credential-state internals. A new reviewed provider therefore reuses the generic client UI and
+authorization route, while its secret-bearing adapter and runtime permissions remain an explicit server change.
 The separate `frogbot-skills` repository is the public website and capability publishing boundary. Pull requests are validated there;
 the backend then validates and caches releases before exposing only public metadata to signed-out visitors. Chief is a required public
 template: first-time setup installs it and applies the protected coordinator role without duplicating its prompt or capabilities in app code.
@@ -151,7 +153,7 @@ template: first-time setup installs it and applies the protected coordinator rol
 - Existing CDK construct IDs and resource names are stable because renaming them can replace data.
 - Every authenticated read/write verifies ownership or group membership server-side.
 - Invitation tokens are random, time-limited, and stored as hashes for sign-up validation.
-- A bot can receive only enabled built-ins, that user's connected accounts or existing legacy connections, and version-pinned skills in its saved configuration.
+- A bot can receive only enabled built-ins, that user's currently supported provider connections, and version-pinned skills in its saved configuration. Legacy generic credentials never resolve.
 - Agent jobs are retried through SQS and failed permanently only after the configured retry limit.
 - One worker owns a turn at a time through a renewable lease; completion is conditional on that ownership.
 - Scheduled executions are idempotent by schedule execution ID, use IANA timezones, and never embed bot prompts in EventBridge.

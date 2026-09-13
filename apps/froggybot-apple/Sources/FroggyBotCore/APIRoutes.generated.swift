@@ -18,6 +18,9 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case publicInvite
     case publicCatalog
     case googleOAuthCallback
+    case githubOAuthCallback
+    case xOAuthCallback
+    case providerOAuthCallback
     case bootstrap
     case botTemplateInstall
     case botCreate
@@ -148,6 +151,24 @@ public enum GeneratedAPIContract {
             id: .googleOAuthCallback,
             method: .get,
             pathTemplate: "/public/oauth/google/callback",
+            access: .publicAccess
+        ),
+        .githubOAuthCallback: APIContractRoute(
+            id: .githubOAuthCallback,
+            method: .get,
+            pathTemplate: "/public/oauth/github/callback",
+            access: .publicAccess
+        ),
+        .xOAuthCallback: APIContractRoute(
+            id: .xOAuthCallback,
+            method: .get,
+            pathTemplate: "/public/oauth/x/callback",
+            access: .publicAccess
+        ),
+        .providerOAuthCallback: APIContractRoute(
+            id: .providerOAuthCallback,
+            method: .get,
+            pathTemplate: "/public/oauth/provider/callback",
             access: .publicAccess
         ),
         .bootstrap: APIContractRoute(

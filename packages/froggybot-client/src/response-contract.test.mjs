@@ -32,6 +32,29 @@ test('accepts a bootstrap only when server-owned permissions and constraints are
   })), /cannot safely use/);
 });
 
+test('accepts arbitrary provider ids and validates server-owned presentation fields', () => {
+  const provider = {
+    id: 'future-provider',
+    name: 'Future Provider',
+    description: 'A new server-managed connection.',
+    category: 'Productivity',
+    iconText: 'FP',
+    permissionsSummary: 'Read-only',
+    privacyTitle: 'Private by default',
+    privacyDescription: 'Access is delegated only when needed.',
+    connectLabel: 'Connect workspace',
+    reconnectLabel: 'Update workspace',
+  };
+  assert.equal(
+    decodeBootstrap(bootstrap({ connectionProviders: [provider] })).connectionProviders[0].id,
+    'future-provider',
+  );
+  assert.throws(
+    () => decodeBootstrap(bootstrap({ connectionProviders: [{ ...provider, connectLabel: undefined }] })),
+    /cannot safely use/,
+  );
+});
+
 test('rejects message actions outside the contract', () => {
   assert.throws(() => decodeMessagePage({
     messages: [{ id: 'message', text: 'hello', status: 'complete', allowedActions: ['deleteEverything'] }],

@@ -24,7 +24,7 @@ trap cleanup EXIT
 
 xcodebuild test -quiet \
   -project "$project" \
-  -scheme FroggyBotApple \
+  -scheme FroggyBotAppleUnit \
   -destination 'platform=macOS' \
   -derivedDataPath "$derived_data" \
   -parallel-testing-enabled NO \

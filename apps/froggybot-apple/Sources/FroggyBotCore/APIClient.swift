@@ -324,6 +324,19 @@ public final class FrogBotAPI: Sendable {
     return url
   }
 
+  public func downloadMemoryExport() async throws -> Data {
+    let url = try await exportMemory()
+    let (data, rawResponse) = try await session.data(from: url)
+    guard let response = rawResponse as? HTTPURLResponse else { throw APIError.invalidResponse }
+    guard (200..<300).contains(response.statusCode) else {
+      throw APIError.downloadFailed(response.statusCode)
+    }
+    guard (try? JSONSerialization.jsonObject(with: data)) != nil else {
+      throw APIError.invalidResponse
+    }
+    return data
+  }
+
   public func shares() async throws -> [SharedLink] {
     let envelope: ArrayEnvelope<SharedLink> = try await request(.sharesList)
     return envelope.values

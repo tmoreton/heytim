@@ -7,6 +7,13 @@ import urllib.parse
 from typing import Any
 
 from shared.client_contract import BOT_PROMPT_MAX_LENGTH, SKILL_INSTRUCTIONS_MAX_LENGTH
+from shared.connection_providers import (
+    GMAIL_MCP_ENDPOINT,
+    GMAIL_MCP_TOOLS,
+    GOOGLE_WORKSPACE_MCP_SERVERS,
+    connection_specs,
+)
+from shared.github_app import GITHUB_MCP_ENDPOINT
 
 MAX_SKILLS_PER_BOT = 12
 MAX_TOOLS_PER_BOT = 12
@@ -54,16 +61,18 @@ BOT_CATALOG_FIELDS = {
     "skillIds",
     "toolIds",
 }
-GMAIL_MCP_ENDPOINT = "https://gmailmcp.googleapis.com/mcp/v1"
-GMAIL_MCP_TOOLS = (
-    "create_draft",
-    "list_drafts",
-    "get_draft",
-    "get_thread",
-    "get_message",
-    "search_threads",
-    "list_labels",
+PROVIDER_API_SCOPES = {
+    provider_id: frozenset(spec["scopes"])
+    for provider_id, spec in connection_specs().items()
+    if provider_id in {"youtube", "x", "slack", "microsoft", "notion"}
+}
+GOOGLE_WORKSPACE_SCOPES = frozenset(
+    connection_specs()["google_workspace"]["scopes"]
 )
+GOOGLE_WORKSPACE_SERVERS = {
+    server["endpoint"]: frozenset(server["allowedTools"])
+    for server in GOOGLE_WORKSPACE_MCP_SERVERS
+}
 
 
 class CatalogError(Exception):
@@ -137,7 +146,9 @@ def _hostname_resolves_publicly(hostname: str) -> bool:
         for result in results
         if len(result) > 4 and result[4] and isinstance(result[4][0], str)
     }
-    return bool(addresses) and all(ipaddress.ip_address(value).is_global for value in addresses)
+    return bool(addresses) and all(
+        ipaddress.ip_address(value).is_global for value in addresses
+    )
 
 
 def _validate_catalog_metadata(value: dict, *, actions: bool = False) -> dict:
@@ -231,27 +242,22 @@ def _validate_oauth_binding(value: dict, endpoint: str, secret_arn: Any) -> dict
     }
 
 
-def _validate_header_binding(
-    value: dict, endpoint: str, auth_type: Any, secret_arn: Any
-) -> dict:
-    header_name = value.get("headerName")
-    header_prefix = value.get("headerPrefix", "")
+def _validate_github_app_binding(value: dict, endpoint: str, secret_arn: Any) -> dict:
+    app_secret_arn = value.get("appSecretArn")
     if (
-        auth_type not in {"bearer", "api_key"}
+        endpoint.rstrip("/") != GITHUB_MCP_ENDPOINT.rstrip("/")
         or not isinstance(secret_arn, str)
         or not secret_arn.startswith("arn:aws:secretsmanager:")
-        or not isinstance(header_name, str)
-        or not re.fullmatch(r"^(Authorization|X-[A-Za-z0-9-]{1,60})$", header_name)
-        or header_prefix not in {"", "Bearer "}
+        or not isinstance(app_secret_arn, str)
+        or not app_secret_arn.startswith("arn:aws:secretsmanager:")
     ):
-        raise CatalogError("MCP connection authentication is invalid")
+        raise CatalogError("GitHub App connection is invalid")
     return {
         "kind": "mcp",
         "endpoint": endpoint,
-        "authType": auth_type,
+        "authType": "github_app",
         "secretArn": secret_arn,
-        "headerName": header_name,
-        "headerPrefix": header_prefix,
+        "appSecretArn": app_secret_arn,
     }
 
 
@@ -263,7 +269,93 @@ def _validate_mcp_binding(value: dict) -> dict:
     secret_arn = value.get("secretArn")
     if auth_type == "oauth":
         return _validate_oauth_binding(value, endpoint, secret_arn)
-    return _validate_header_binding(value, endpoint, auth_type, secret_arn)
+    if auth_type == "github_app":
+        return _validate_github_app_binding(value, endpoint, secret_arn)
+    raise CatalogError("Legacy MCP credentials are no longer supported")
+
+
+def _validate_mcp_bundle_binding(value: dict) -> dict:
+    secret_arn = value.get("secretArn")
+    client_secret_arn = value.get("oauthClientSecretArn")
+    scopes = value.get("scopes")
+    servers = value.get("servers")
+    if (
+        value.get("authType") != "oauth"
+        or value.get("oauthProvider") != "google"
+        or not isinstance(secret_arn, str)
+        or not secret_arn.startswith("arn:aws:secretsmanager:")
+        or not isinstance(client_secret_arn, str)
+        or not client_secret_arn.startswith("arn:aws:secretsmanager:")
+        or not isinstance(scopes, list)
+        or set(scopes) != GOOGLE_WORKSPACE_SCOPES
+        or len(scopes) != len(set(scopes))
+        or not isinstance(servers, list)
+        or len(servers) != len(GOOGLE_WORKSPACE_SERVERS)
+    ):
+        raise CatalogError("Google Workspace MCP connection is invalid")
+
+    normalized_servers = []
+    seen = set()
+    for server in servers:
+        if not isinstance(server, dict):
+            raise CatalogError("Google Workspace MCP connection is invalid")
+        endpoint = _validate_mcp_endpoint(server.get("endpoint"))
+        allowed_tools = server.get("allowedTools")
+        expected_tools = GOOGLE_WORKSPACE_SERVERS.get(endpoint)
+        if (
+            endpoint in seen
+            or expected_tools is None
+            or not isinstance(allowed_tools, list)
+            or set(allowed_tools) != expected_tools
+            or len(allowed_tools) != len(set(allowed_tools))
+        ):
+            raise CatalogError("Google Workspace MCP connection is invalid")
+        seen.add(endpoint)
+        normalized_servers.append(
+            {"endpoint": endpoint, "allowedTools": allowed_tools}
+        )
+    if seen != set(GOOGLE_WORKSPACE_SERVERS):
+        raise CatalogError("Google Workspace MCP connection is invalid")
+    return {
+        "kind": "mcp_bundle",
+        "authType": "oauth",
+        "oauthProvider": "google",
+        "secretArn": secret_arn,
+        "oauthClientSecretArn": client_secret_arn,
+        "scopes": scopes,
+        "servers": normalized_servers,
+    }
+
+
+def _validate_provider_api_binding(value: dict) -> dict:
+    provider = value.get("provider")
+    scopes = value.get("scopes")
+    secret_arn = value.get("secretArn")
+    client_secret_arn = value.get("oauthClientSecretArn")
+    expected = PROVIDER_API_SCOPES.get(provider)
+    oauth_provider = "google" if provider == "youtube" else provider
+    if (
+        expected is None
+        or value.get("authType") != "oauth"
+        or value.get("oauthProvider") != oauth_provider
+        or not isinstance(secret_arn, str)
+        or not secret_arn.startswith("arn:aws:secretsmanager:")
+        or not isinstance(client_secret_arn, str)
+        or not client_secret_arn.startswith("arn:aws:secretsmanager:")
+        or not isinstance(scopes, list)
+        or set(scopes) != expected
+        or len(scopes) != len(set(scopes))
+    ):
+        raise CatalogError("OAuth provider connection is invalid")
+    return {
+        "kind": "provider_api",
+        "provider": provider,
+        "authType": "oauth",
+        "oauthProvider": oauth_provider,
+        "secretArn": secret_arn,
+        "oauthClientSecretArn": client_secret_arn,
+        "scopes": scopes,
+    }
 
 
 def _validate_runtime_binding(value: Any) -> dict:
@@ -274,6 +366,10 @@ def _validate_runtime_binding(value: Any) -> dict:
         return _validate_gateway_binding(value)
     if kind == "mcp":
         return _validate_mcp_binding(value)
+    if kind == "mcp_bundle":
+        return _validate_mcp_bundle_binding(value)
+    if kind == "provider_api":
+        return _validate_provider_api_binding(value)
     allowed_names = RUNTIME_NAMES.get(kind)
     name = value.get("name")
     if not allowed_names or name not in allowed_names:
@@ -316,12 +412,9 @@ def _public_tool(item: dict) -> dict:
         "source",
         "editable",
         "relationship",
-        "endpoint",
-        "authType",
-        "headerName",
-        "hasCredential",
         "connectionStatus",
         "connectedAccount",
+        "repositoryCount",
         "updatedAt",
     )
     return {key: item[key] for key in keys if key in item}

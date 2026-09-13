@@ -19,6 +19,14 @@ class InfrastructureContractTests(unittest.TestCase):
         cls.deployment_role = (
             Path(__file__).parents[2] / "infrastructure" / "deployment-role.ts"
         ).read_text(encoding="utf-8")
+        cls.provider_connections = (
+            Path(__file__).parents[2]
+            / "infrastructure"
+            / "provider-connections.ts"
+        ).read_text(encoding="utf-8")
+        cls.production_workflow = (
+            Path(__file__).parents[5] / ".github" / "workflows" / "aws-production.yml"
+        ).read_text(encoding="utf-8")
 
     def test_worker_concurrency_protects_agentcore_and_is_observed(self) -> None:
         self.assertIn("reservedConcurrentExecutions: WORKER_CONCURRENCY", self.backend)
@@ -65,6 +73,33 @@ class InfrastructureContractTests(unittest.TestCase):
             ".ruff_cache/**",
         ):
             self.assertIn(pattern, self.settings)
+
+    def test_production_cannot_deploy_without_native_push(self) -> None:
+        self.assertIn(
+            "deploymentEnvironment === 'production' && !apnsApplicationArn",
+            self.settings,
+        )
+        self.assertIn("FROGBOT_APNS_APPLICATION_ARN", self.production_workflow)
+        self.assertIn("Set FROGBOT_APNS_APPLICATION_ARN", self.production_workflow)
+
+    def test_managed_connection_provider_secrets_are_scoped(self) -> None:
+        for name in (
+            "FROGBOT_GOOGLE_OAUTH_SECRET_ARN",
+            "FROGBOT_GITHUB_APP_SECRET_ARN",
+            "FROGBOT_X_OAUTH_SECRET_ARN",
+            "FROGBOT_SLACK_OAUTH_SECRET_ARN",
+            "FROGBOT_NOTION_OAUTH_SECRET_ARN",
+        ):
+            self.assertIn(name, self.settings)
+            self.assertIn(name, self.production_workflow)
+        self.assertIn("FROGBOT_MICROSOFT_OAUTH_SECRET_ARN", self.settings)
+        self.assertNotIn("FROGBOT_MICROSOFT_OAUTH_SECRET_ARN", self.production_workflow)
+        self.assertIn("addProviderConnectionAccess(apiFunction", self.backend)
+        self.assertIn("DISABLED_CONNECTION_PROVIDER_IDS", self.provider_connections)
+        self.assertIn(
+            "resources: configuredSecrets",
+            self.provider_connections,
+        )
 
     def test_worker_can_make_atomic_usage_admissions_for_runtime_users(self) -> None:
         self.assertIn("dynamodb:TransactWriteItems", self.backend)

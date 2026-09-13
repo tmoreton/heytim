@@ -35,7 +35,7 @@ struct BrowserHandoffView: View {
     }
     .navigationTitle("Secure browser handoff")
     .toolbar {
-      CloseButton()
+      CloseButton { model.sheet = nil }
       ToolbarItem(placement: .primaryAction) {
         Menu {
           Button("Disconnect browser", role: .destructive) { close() }.disabled(

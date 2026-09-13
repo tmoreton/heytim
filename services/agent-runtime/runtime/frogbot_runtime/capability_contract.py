@@ -5,7 +5,11 @@ import re
 from strands.vended_plugins.skills import Skill
 
 from .local_tools import CUSTOM_TOOLS
-from .mcp_connections import validated_connection_binding
+from .mcp_connections import (
+    validated_connection_binding,
+    validated_connection_bundle_binding,
+)
+from .provider_connections import validated_provider_binding
 
 MAX_SKILL_INSTRUCTIONS_CHARS = 20_000
 MAX_SKILLS = 12
@@ -112,6 +116,10 @@ def tool_bindings(bot: dict) -> list[dict]:
             binding = {"id": tool_id, "kind": kind, "operations": operations}
         elif kind == "mcp":
             binding = validated_connection_binding(tool_id, runtime)
+        elif kind == "mcp_bundle":
+            binding = validated_connection_bundle_binding(tool_id, runtime)
+        elif kind == "provider_api":
+            binding = validated_provider_binding(tool_id, runtime)
         else:
             name = runtime.get("name")
             allowed = {

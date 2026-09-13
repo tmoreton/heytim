@@ -82,8 +82,19 @@ public final class AuthSession {
   @ObservationIgnored private let network: URLSession
   @ObservationIgnored private var tokens: TokenSet?
   @ObservationIgnored private var pending: PendingCode?
-  @ObservationIgnored private let keychain = TokenKeychain()
+  @ObservationIgnored private let keychain = TokenKeychain(
+    service: AuthSession.keychainServiceForCurrentProcess)
   @ObservationIgnored private var sessionGeneration: UInt = 0
+
+  static var keychainServiceForCurrentProcess: String {
+    let process = ProcessInfo.processInfo
+    let isRunningTests =
+      process.environment["XCTestConfigurationFilePath"] != nil
+      || process.environment["XCInjectBundleInto"] != nil
+      || NSClassFromString("XCTestCase") != nil
+    guard isRunningTests else { return "com.frogbot.app.auth" }
+    return "com.frogbot.app.auth.tests.\(process.processIdentifier)"
+  }
 
   public init(configuration: AppConfiguration, network: URLSession = .shared) {
     self.configuration = configuration
@@ -380,8 +391,12 @@ public final class AuthSession {
 }
 
 private final class TokenKeychain: @unchecked Sendable {
-  private let service = "com.frogbot.app.auth"
+  private let service: String
   private let account = "cognito-session"
+
+  init(service: String) {
+    self.service = service
+  }
 
   func save(_ value: TokenSet) throws {
     let data = try JSONEncoder().encode(value)

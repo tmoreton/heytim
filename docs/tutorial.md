@@ -125,7 +125,7 @@ The application backend keeps only the catalog trust and persistence layer:
 catalog_rules.py       IDs, limits, and runtime-binding validation
 catalog_sync.py        Trusted remote download and shared refresh lease
 catalog.py             User libraries, version pinning, importing, and sharing
-connections.py         OAuth and legacy connection metadata and encrypted credential lifecycle
+connections.py         OAuth and GitHub App connection metadata and encrypted grant lifecycle
 ```
 
 The external `frogbot-skills` repository owns the public website, bot templates, capability catalog, and contribution
@@ -138,7 +138,7 @@ skill and tool links open the bot editor and still require an explicit save. The
 repository, independently of app releases.
 
 The signed-in bootstrap returns the same sanitized official tools together with that user's private connections. The
-client separates them by provenance: official entries populate Skills & tools, while OAuth and legacy entries populate
+client separates them by provenance: official entries populate Skills & tools, while managed account entries populate
 Connections. Even preview-mode sample bots derive their names, prompts, versions, skills, and tool requirements from
 the current catalog, so publishing an approved metadata or composition update does not require an app build.
 
@@ -148,10 +148,11 @@ descriptions, bindings, skill instructions, and external API schemas live only i
 
 Connections are declared in the backend's public-safe provider manifest, which drives the Connections screen and
 generic authorization route. Secret-bearing OAuth adapters remain provider-specific and server-side. Shared services
-use FroggyBot-owned credentials, so users never paste developer keys into the app. Private account data uses OAuth;
-the backend encrypts each user's token in Secrets Manager and the runtime fetches it only for the selected connection.
+use FroggyBot-owned credentials, so users never paste developer keys into the app. Private account data uses
+provider-specific OAuth or a GitHub App installation; the backend encrypts each user's grant in Secrets Manager and
+the runtime fetches it only for the selected connection.
 Connected accounts never appear in public catalog responses or shared bot and skill snapshots. Existing custom MCP
-connections are legacy-only: users can review or remove them, but cannot create or edit them.
+bearer/API-key records are legacy-only and deliberately ignored by both the catalog and runtime.
 
 ## 6. Add a feature vertically
 

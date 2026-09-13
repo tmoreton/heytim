@@ -7,8 +7,28 @@ import SwiftUI
 #endif
 
 public enum FrogTheme {
+  // Keep the original, darker FroggyBot green for filled surfaces where white text sits on top.
   public static let brand = Color(hex: "#007A3D")
   public static let brandDark = Color(hex: "#006633")
+  // Interactive controls and green text need a lighter green on dark system surfaces.
+  public static let accent: Color = {
+    #if os(iOS)
+      Color(
+        uiColor: UIColor { traits in
+          traits.userInterfaceStyle == .dark
+            ? UIColor(red: 87 / 255, green: 224 / 255, blue: 140 / 255, alpha: 1)
+            : UIColor(red: 0, green: 122 / 255, blue: 61 / 255, alpha: 1)
+        })
+    #else
+      Color(
+        nsColor: NSColor(name: nil) { appearance in
+          let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+          return isDark
+            ? NSColor(srgbRed: 87 / 255, green: 224 / 255, blue: 140 / 255, alpha: 1)
+            : NSColor(srgbRed: 0, green: 122 / 255, blue: 61 / 255, alpha: 1)
+        })
+    #endif
+  }()
   #if os(iOS)
     public static let canvas = Color(uiColor: .systemGroupedBackground)
     public static let appBackground = Color(uiColor: .systemBackground)
@@ -32,15 +52,17 @@ public enum FrogTheme {
   public static let textSoft = Color.primary
   public static let muted = Color.secondary
   public static let mutedWarm = Color.secondary
-  public static let selected = brand.opacity(0.12)
-  public static let teamBubble = brand.opacity(0.10)
-  public static let teamBorder = brand.opacity(0.35)
+  // Operational metadata is small and needs more contrast than ordinary secondary copy.
+  public static let statusText = Color.primary.opacity(0.68)
+  public static let selected = accent.opacity(0.12)
+  public static let teamBubble = accent.opacity(0.10)
+  public static let teamBorder = accent.opacity(0.35)
   public static let approval = Color.yellow.opacity(0.16)
   public static let approvalBorder = Color.orange.opacity(0.55)
   public static let danger = Color.red
 
   // Compatibility names used by the first native implementation.
-  public static let green = brand
+  public static let green = accent
   public static let background = canvas
   public static let secondary = muted
 }
@@ -230,7 +252,7 @@ extension View {
   }
 
   func froggyListSurface() -> some View {
-    tint(FrogTheme.brand)
+    tint(FrogTheme.accent)
   }
 }
 

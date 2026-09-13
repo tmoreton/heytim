@@ -35,8 +35,19 @@
       "Action": "secretsmanager:GetSecretValue",
       "Resource": [
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/connections/*",
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/google-*"
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/google-*",
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/github-*",
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/x-*",
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/slack-*",
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/microsoft-*",
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/notion-*"
       ]
+    },
+    {
+      "Sid": "RotateFrogBotUserOAuthTokens",
+      "Effect": "Allow",
+      "Action": "secretsmanager:PutSecretValue",
+      "Resource": "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/connections/*"
     }
   ]
 }

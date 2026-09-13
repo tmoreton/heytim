@@ -4,10 +4,9 @@ import hashlib
 import json
 import logging
 import re
-import urllib.error
-import urllib.parse
 import urllib.request
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 from botocore.exceptions import BotoCoreError, ClientError
@@ -19,24 +18,36 @@ from .account_state import (
     put_user_item_while_account_active,
 )
 from .catalog_rules import (
-    GMAIL_MCP_ENDPOINT,
-    GMAIL_MCP_TOOLS,
     CatalogError,
     _public_tool,
-    _validate_mcp_endpoint,
-    _validate_text,
-    _validate_tool_id,
+)
+from .connection_lifecycle import ConnectionLifecycleMixin
+from .connection_providers import (
+    GMAIL_MCP_ENDPOINT,
+    GMAIL_MCP_TOOLS,
+    GOOGLE_WORKSPACE_MCP_SERVERS,
+    SUPPORTED_CONNECTION_PROVIDER_IDS,
+    connection_specs,
+)
+from .connection_revocation import (
+    revoke_google_token,
+)
+from .github_app import (
+    GITHUB_MCP_ENDPOINT,
+    narrowed_permissions,
 )
 from .time import utc_now_iso as _now
 
-AUTH_TYPES = {"none", "bearer", "api_key"}
-HEADER_PATTERN = re.compile(r"^(Authorization|X-[A-Za-z0-9-]{1,60})$")
-MAX_CONNECTIONS = 12
-MAX_CREDENTIAL_LENGTH = 4_096
-# Public OAuth endpoint, not a password or token value.
-GOOGLE_TOKEN_REVOKE_URL = "https://oauth2.googleapis.com/revoke"  # nosec B105
-GOOGLE_TOKEN_REVOKE_TIMEOUT_SECONDS = 4
-GMAIL_SAVE_ATTEMPTS = 4
+MAX_CONNECTIONS = len(SUPPORTED_CONNECTION_PROVIDER_IDS)
+MAX_CREDENTIAL_DOCUMENT_LENGTH = 64_000
+CONNECTION_SAVE_ATTEMPTS = 4
+CONNECTION_SPECS = connection_specs()
+OAUTH_API_SCOPES = {
+    provider_id: set(spec["scopes"])
+    for provider_id, spec in CONNECTION_SPECS.items()
+    if provider_id in {"youtube", "x"}
+}
+EXTERNAL_OAUTH_PROVIDER_IDS = frozenset({"slack", "microsoft", "notion"})
 
 logger = logging.getLogger(__name__)
 
@@ -47,35 +58,16 @@ def _secret_name(user_id: str, connection_id: str) -> str:
     return f"frogbot/connections/{owner}/{connection_id}-{revision}"
 
 
-def _gmail_connection_id(user_id: str) -> str:
-    digest = hashlib.sha256(f"gmail:{user_id}".encode()).hexdigest()[:20]
+def _connection_id(provider: str, user_id: str) -> str:
+    digest = hashlib.sha256(f"{provider}:{user_id}".encode()).hexdigest()[:20]
     return f"connection_{digest}"
 
 
-def _auth_values(value: dict, previous: dict | None = None) -> dict:
-    previous = previous or {}
-    auth_type = value.get("authType", previous.get("authType", "none"))
-    if auth_type not in AUTH_TYPES:
-        raise CatalogError("Choose no authentication, bearer token, or API key")
-    if auth_type == "none":
-        return {"authType": "none"}
-    if auth_type == "bearer":
-        return {
-            "authType": auth_type,
-            "headerName": "Authorization",
-            "headerPrefix": "Bearer ",
-        }
-    header = value.get("headerName", previous.get("headerName", "X-API-Key"))
-    if not isinstance(header, str) or not HEADER_PATTERN.fullmatch(header.strip()):
-        raise CatalogError("API key header must be Authorization or start with X-")
-    return {
-        "authType": auth_type,
-        "headerName": header.strip(),
-        "headerPrefix": "",
-    }
+def _valid_secret_arn(value: Any) -> bool:
+    return isinstance(value, str) and value.startswith("arn:aws:secretsmanager:")
 
 
-class ConnectionMixin:
+class ConnectionMixin(ConnectionLifecycleMixin):
     table: Any
     secrets_manager: Any
 
@@ -104,15 +96,24 @@ class ConnectionMixin:
             ConsistentRead=True,
         ).get("Items", [])
 
+    def _active_connection_items(self, user_id: str) -> list[dict]:
+        return [
+            item
+            for item in self._connection_items(user_id)
+            if item.get("provider") in SUPPORTED_CONNECTION_PROVIDER_IDS
+            and item.get("authType") == CONNECTION_SPECS[item["provider"]]["authType"]
+        ]
+
     def list_connections(self, user_id: str) -> list[dict]:
         return sorted(
-            (_public_tool(item) for item in self._connection_items(user_id)),
+            (_public_tool(item) for item in self._active_connection_items(user_id)),
             key=lambda item: item["name"].lower(),
         )
 
     def _get_connection(self, user_id: str, connection_id: str) -> dict | None:
-        connection_id = _validate_tool_id(connection_id)
-        if not connection_id.startswith("connection_"):
+        if not isinstance(connection_id, str) or not re.fullmatch(
+            r"connection_[a-f0-9]{20}", connection_id
+        ):
             raise CatalogError("Connection id is invalid")
         return self.table.get_item(
             Key={
@@ -125,7 +126,7 @@ class ConnectionMixin:
     def _create_secret(self, user_id: str, connection_id: str, credential: str) -> str:
         response = self._secret_client().create_secret(
             Name=_secret_name(user_id, connection_id),
-            Description="User-managed credential for a private FroggyBot MCP connection",
+            Description="User OAuth or installation grant for a FroggyBot connection",
             SecretString=credential,
             Tags=[
                 {"Key": "frogbot:resource", "Value": "connection"},
@@ -165,176 +166,154 @@ class ConnectionMixin:
             )
         except AccountInactiveError as exc:
             raise CatalogError(
-                "Gmail cannot be connected while this account is being deleted"
+                "A provider cannot be connected while this account is being deleted"
             ) from exc
 
-    def _revoke_google_token(self, refresh_token: str) -> None:
-        request = urllib.request.Request(
-            GOOGLE_TOKEN_REVOKE_URL,
-            data=urllib.parse.urlencode({"token": refresh_token}).encode("utf-8"),
-            headers={"content-type": "application/x-www-form-urlencoded"},
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(  # nosec B310
-                request, timeout=GOOGLE_TOKEN_REVOKE_TIMEOUT_SECONDS
-            ):
-                pass
-        except urllib.error.HTTPError as error:
-            if error.code == 400:
-                logger.info(
-                    "Google reported that the Gmail credential was already invalid; "
-                    "continuing local connection removal"
-                )
-            else:
-                logger.warning(
-                    "Google Gmail revocation failed; continuing local connection removal"
-                )
-        except (urllib.error.URLError, TimeoutError, OSError):
-            logger.warning(
-                "Google Gmail revocation was unavailable; "
-                "continuing local connection removal"
+    def _secret_document(self, secret_arn: str) -> dict:
+        response = self._secret_client().get_secret_value(SecretId=secret_arn)
+        raw = response.get("SecretString")
+        value = json.loads(raw) if isinstance(raw, str) else None
+        if not isinstance(value, dict):
+            raise TypeError("Connection credential is invalid")
+        return value
+
+    def _save_managed_connection(
+        self,
+        user_id: str,
+        provider: str,
+        account: str,
+        credential: dict,
+        runtime_factory: Callable[[str], dict],
+        *,
+        provider_account_id: str | None = None,
+        repository_count: int | None = None,
+    ) -> dict:
+        spec = CONNECTION_SPECS.get(provider)
+        if not spec:
+            raise CatalogError("Connection provider is not supported")
+        if not isinstance(account, str) or not account.strip() or len(account) > 254:
+            raise CatalogError("The provider did not return a valid account")
+        if provider_account_id is not None and (
+            not isinstance(provider_account_id, str)
+            or not provider_account_id
+            or len(provider_account_id) > 200
+        ):
+            raise CatalogError("The provider account id is invalid")
+        credential_json = json.dumps(credential, separators=(",", ":"))
+        if len(credential_json) > MAX_CREDENTIAL_DOCUMENT_LENGTH:
+            raise CatalogError("The provider grant is too large")
+        if not self._account_accepts_connections(user_id):
+            raise CatalogError(
+                "A provider cannot be connected while this account is being deleted"
             )
 
-    def revoke_unused_gmail_token(self, refresh_token: str) -> None:
+        connections = self._active_connection_items(user_id)
+        existing = next(
+            (item for item in connections if item.get("provider") == provider), None
+        )
+        if not existing and len(connections) >= MAX_CONNECTIONS:
+            raise CatalogError(f"You can add up to {MAX_CONNECTIONS} connections")
+        connection_id = (
+            existing["id"] if existing else _connection_id(provider, user_id)
+        )
+        secret_arn = self._create_secret(user_id, connection_id, credential_json)
+        previous_secret_arn = None
+        item = None
+        try:
+            for attempt in range(CONNECTION_SAVE_ATTEMPTS):
+                if attempt:
+                    connections = self._active_connection_items(user_id)
+                    existing = next(
+                        (
+                            value
+                            for value in connections
+                            if value.get("provider") == provider
+                        ),
+                        None,
+                    )
+                    connection_id = (
+                        existing["id"]
+                        if existing
+                        else _connection_id(provider, user_id)
+                    )
+                previous_secret_arn = existing.get("secretArn") if existing else None
+                if existing and not _valid_secret_arn(previous_secret_arn):
+                    raise CatalogError("The connection credential is invalid")
+
+                current = _now()
+                item = {
+                    "pk": f"USER#{user_id}",
+                    "sk": f"CONNECTION#{connection_id}",
+                    "entity": "CONNECTION",
+                    "id": connection_id,
+                    "name": spec["name"],
+                    "description": spec["description"],
+                    "provider": provider,
+                    "risk": spec["risk"],
+                    "category": "Connections",
+                    "author": "You",
+                    "tags": spec["tags"],
+                    "featured": False,
+                    "actions": spec["actions"],
+                    "source": "user",
+                    "editable": True,
+                    "relationship": "owner",
+                    "connectionStatus": "connected",
+                    "connectedAccount": account.strip(),
+                    "authType": spec["authType"],
+                    "hasCredential": True,
+                    "secretArn": secret_arn,
+                    "runtime": runtime_factory(secret_arn),
+                    "createdAt": (
+                        existing.get("createdAt", current) if existing else current
+                    ),
+                    "updatedAt": current,
+                }
+                if "endpoint" in spec:
+                    item["endpoint"] = spec["endpoint"]
+                if provider_account_id is not None:
+                    item["providerAccountId"] = provider_account_id
+                if repository_count is not None:
+                    item["repositoryCount"] = repository_count
+                try:
+                    self._put_connection_while_account_active(
+                        user_id,
+                        item,
+                        require_absent=existing is None,
+                        expected_secret_arn=previous_secret_arn,
+                    )
+                except UserItemConflictError:
+                    if attempt + 1 == CONNECTION_SAVE_ATTEMPTS:
+                        raise CatalogError(
+                            "The connection changed while reconnecting. Try again."
+                        ) from None
+                    continue
+                break
+        except Exception:
+            self._delete_secret(secret_arn)
+            raise
+        if isinstance(previous_secret_arn, str):
+            try:
+                self._delete_secret(previous_secret_arn)
+            except (BotoCoreError, ClientError):
+                logger.warning(
+                    "Could not schedule a superseded connection secret for deletion"
+                )
+        if item is None:
+            raise RuntimeError("Connection was not saved")
+        return _public_tool(item)
+
+    def _revoke_google_token(self, refresh_token: str) -> None:
+        revoke_google_token(
+            refresh_token, urlopen=urllib.request.urlopen, logger=logger
+        )
+
+    def revoke_unused_google_token(self, refresh_token: str) -> None:
         if isinstance(refresh_token, str) and refresh_token:
             self._revoke_google_token(refresh_token)
 
-    def _revoke_gmail_access(self, item: dict) -> None:
-        if item.get("provider") != "gmail":
-            return
-        secret_arn = item.get("secretArn")
-        if not isinstance(secret_arn, str):
-            return
-
-        client = self._secret_client()
-        try:
-            response = client.get_secret_value(SecretId=secret_arn)
-            if not isinstance(response, dict):
-                raise TypeError("Gmail credential response is invalid")
-            raw = response.get("SecretString")
-            value = json.loads(raw) if isinstance(raw, str) else None
-            refresh_token = (
-                value.get("refreshToken") if isinstance(value, dict) else None
-            )
-            if not isinstance(refresh_token, str):
-                raise TypeError("Gmail refresh token is unavailable")
-            if not refresh_token:
-                raise ValueError("Gmail refresh token is unavailable")
-        except (
-            client.exceptions.ResourceNotFoundException,
-            BotoCoreError,
-            ClientError,
-            TypeError,
-            ValueError,
-        ):
-            logger.warning(
-                "Could not read the Gmail credential for revocation; "
-                "continuing local connection removal"
-            )
-            return
-
-        self._revoke_google_token(refresh_token)
-
-    def save_connection(
-        self, user_id: str, value: dict, connection_id: str | None = None
-    ) -> dict:
-        existing = None
-        if connection_id:
-            existing = self._get_connection(user_id, connection_id)
-            if not existing:
-                raise CatalogError("Connection not found")
-        elif len(self._connection_items(user_id)) >= MAX_CONNECTIONS:
-            raise CatalogError(
-                f"You can add up to {MAX_CONNECTIONS} private connections"
-            )
-
-        name = _validate_text(
-            value.get("name", existing and existing["name"]), "name", 80
-        )
-        description = _validate_text(
-            value.get("description", existing and existing["description"]),
-            "description",
-            240,
-        )
-        endpoint = _validate_mcp_endpoint(
-            value.get("endpoint", existing and existing["endpoint"])
-        )
-        risk = value.get("risk", existing and existing.get("risk", "interactive"))
-        if risk not in {"read", "interactive"}:
-            raise CatalogError(
-                "Connection access must be read-only or able to make changes"
-            )
-        auth = _auth_values(value, existing)
-        credential = value.get("credential")
-        if credential is not None and (
-            not isinstance(credential, str)
-            or not credential.strip()
-            or len(credential) > MAX_CREDENTIAL_LENGTH
-        ):
-            raise CatalogError("Credential must be between 1 and 4,096 characters")
-
-        connection_id = connection_id or f"connection_{uuid.uuid4().hex[:20]}"
-        previous_secret = existing.get("secretArn") if existing else None
-        secret_arn = previous_secret
-        created_secret = False
-        if auth["authType"] == "none":
-            secret_arn = None
-        elif credential is not None:
-            if previous_secret:
-                self._secret_client().put_secret_value(
-                    SecretId=previous_secret, SecretString=credential
-                )
-            else:
-                secret_arn = self._create_secret(user_id, connection_id, credential)
-                created_secret = True
-        elif not previous_secret:
-            raise CatalogError("Enter the credential for this connection")
-
-        current = _now()
-        runtime = {
-            "kind": "mcp",
-            "endpoint": endpoint,
-            **auth,
-        }
-        if secret_arn:
-            runtime["secretArn"] = secret_arn
-        item = {
-            "pk": f"USER#{user_id}",
-            "sk": f"CONNECTION#{connection_id}",
-            "entity": "CONNECTION",
-            "id": connection_id,
-            "name": name,
-            "description": description,
-            "endpoint": endpoint,
-            "provider": "mcp",
-            "risk": risk,
-            "category": "Connections",
-            "author": "You",
-            "tags": ["private", "mcp"],
-            "featured": False,
-            "actions": ["Use server tools"],
-            "source": "user",
-            "editable": True,
-            "relationship": "owner",
-            "connectionStatus": "connected",
-            "runtime": runtime,
-            "createdAt": existing.get("createdAt", current) if existing else current,
-            "updatedAt": current,
-            **auth,
-        }
-        if secret_arn:
-            item["secretArn"] = secret_arn
-            item["hasCredential"] = True
-        try:
-            self.table.put_item(Item=item)
-        except Exception:
-            if created_secret and secret_arn:
-                self._delete_secret(secret_arn)
-            raise
-        if previous_secret and auth["authType"] == "none":
-            self._delete_secret(previous_secret)
-        return _public_tool(item)
+    def revoke_unused_gmail_token(self, refresh_token: str) -> None:
+        self.revoke_unused_google_token(refresh_token)
 
     def save_gmail_connection(
         self,
@@ -345,64 +324,15 @@ class ConnectionMixin:
     ) -> dict:
         if not isinstance(refresh_token, str) or not refresh_token:
             raise CatalogError("Google did not return reusable Gmail access")
-        credential = json.dumps(
-            {"refreshToken": refresh_token}, separators=(",", ":")
-        )
-        secret_arn = None
+        if not _valid_secret_arn(client_secret_arn):
+            raise CatalogError("Gmail OAuth configuration is invalid")
         try:
-            if not self._account_accepts_connections(user_id):
-                raise CatalogError(
-                    "Gmail cannot be connected while this account is being deleted"
-                )
-            if (
-                not isinstance(account, str)
-                or "@" not in account
-                or len(account) > 254
-            ):
-                raise CatalogError("Google did not return a valid Gmail account")
-            if (
-                not isinstance(client_secret_arn, str)
-                or not client_secret_arn.startswith("arn:aws:secretsmanager:")
-            ):
-                raise CatalogError("Gmail OAuth configuration is invalid")
-
-            connections = self._connection_items(user_id)
-            existing = next(
-                (item for item in connections if item.get("provider") == "gmail"),
-                None,
-            )
-            if not existing and len(connections) >= MAX_CONNECTIONS:
-                raise CatalogError(
-                    f"You can add up to {MAX_CONNECTIONS} private connections"
-                )
-            connection_id = (
-                existing["id"] if existing else _gmail_connection_id(user_id)
-            )
-            secret_arn = self._create_secret(user_id, connection_id, credential)
-            for attempt in range(GMAIL_SAVE_ATTEMPTS):
-                if attempt:
-                    connections = self._connection_items(user_id)
-                    existing = next(
-                        (
-                            value
-                            for value in connections
-                            if value.get("provider") == "gmail"
-                        ),
-                        None,
-                    )
-                    connection_id = (
-                        existing["id"]
-                        if existing
-                        else _gmail_connection_id(user_id)
-                    )
-                previous_secret_arn = (
-                    existing.get("secretArn") if existing else None
-                )
-                if existing and not isinstance(previous_secret_arn, str):
-                    raise CatalogError("The Gmail connection credential is invalid")
-
-                current = _now()
-                runtime = {
+            return self._save_managed_connection(
+                user_id,
+                "gmail",
+                account,
+                {"refreshToken": refresh_token},
+                lambda secret_arn: {
                     "kind": "mcp",
                     "endpoint": GMAIL_MCP_ENDPOINT,
                     "authType": "oauth",
@@ -410,101 +340,224 @@ class ConnectionMixin:
                     "secretArn": secret_arn,
                     "oauthClientSecretArn": client_secret_arn,
                     "allowedTools": list(GMAIL_MCP_TOOLS),
-                }
-                item = {
-                    "pk": f"USER#{user_id}",
-                    "sk": f"CONNECTION#{connection_id}",
-                    "entity": "CONNECTION",
-                    "id": connection_id,
-                    "name": "Gmail",
-                    "description": (
-                        "Search and summarize email, and create drafts for review."
-                    ),
-                    "endpoint": GMAIL_MCP_ENDPOINT,
-                    "provider": "gmail",
-                    "risk": "interactive",
-                    "category": "Connections",
-                    "author": "You",
-                    "tags": ["private", "gmail", "mcp"],
-                    "featured": False,
-                    "actions": ["Search email", "Read threads", "Create drafts"],
-                    "source": "user",
-                    "editable": True,
-                    "relationship": "owner",
-                    "connectionStatus": "connected",
-                    "connectedAccount": account,
-                    "authType": "oauth",
-                    "hasCredential": True,
-                    "secretArn": secret_arn,
-                    "runtime": runtime,
-                    "createdAt": (
-                        existing.get("createdAt", current) if existing else current
-                    ),
-                    "updatedAt": current,
-                }
-                try:
-                    self._put_connection_while_account_active(
-                        user_id,
-                        item,
-                        require_absent=existing is None,
-                        expected_secret_arn=previous_secret_arn,
-                    )
-                except UserItemConflictError:
-                    if attempt + 1 == GMAIL_SAVE_ATTEMPTS:
-                        raise CatalogError(
-                            "The Gmail connection changed while reconnecting. Try again."
-                        ) from None
-                    continue
-                break
+                },
+            )
         except Exception:
             self._revoke_google_token(refresh_token)
-            if isinstance(secret_arn, str):
-                self._delete_secret(secret_arn)
             raise
-        if isinstance(previous_secret_arn, str):
-            try:
-                self._delete_secret(previous_secret_arn)
-            except (BotoCoreError, ClientError):
-                logger.warning(
-                    "Could not schedule the superseded Gmail credential for deletion"
-                )
-        return _public_tool(item)
 
-    def delete_connection(self, user_id: str, connection_id: str) -> dict:
-        item = self._get_connection(user_id, connection_id)
-        if not item:
-            raise CatalogError("Connection not found")
-        user_items = self.table.query(
-            KeyConditionExpression="pk = :pk",
-            ExpressionAttributeValues={":pk": f"USER#{user_id}"},
-        ).get("Items", [])
-        used_by = [
-            value.get("name", "an item")
-            for value in user_items
-            if connection_id in value.get("toolIds", [])
-            or connection_id in value.get("requiredToolIds", [])
-        ]
-        if used_by:
-            raise CatalogError(
-                f"Remove this connection from {used_by[0]} before deleting it"
+    def save_oauth_api_connection(
+        self,
+        user_id: str,
+        provider: str,
+        account: str,
+        provider_account_id: str,
+        refresh_token: str,
+        client_secret_arn: str,
+        scopes: list[str],
+        *,
+        access_token: str | None = None,
+        expires_at: int | None = None,
+    ) -> dict:
+        expected_scopes = OAUTH_API_SCOPES.get(provider)
+        if expected_scopes is None:
+            raise CatalogError("OAuth API provider is not supported")
+        if not isinstance(refresh_token, str) or not refresh_token:
+            raise CatalogError("The provider did not return reusable access")
+        if not _valid_secret_arn(client_secret_arn):
+            raise CatalogError("OAuth configuration is invalid")
+        if (
+            not isinstance(scopes, list)
+            or not scopes
+            or len(scopes) != len(set(scopes))
+            or any(not isinstance(scope, str) or len(scope) > 200 for scope in scopes)
+            or set(scopes) != expected_scopes
+        ):
+            raise CatalogError("OAuth scopes are invalid")
+        credential: dict[str, Any] = {"refreshToken": refresh_token}
+        if isinstance(access_token, str) and access_token:
+            credential["accessToken"] = access_token
+        if isinstance(expires_at, int):
+            credential["expiresAt"] = expires_at
+        oauth_provider = "google" if provider == "youtube" else "x"
+        try:
+            return self._save_managed_connection(
+                user_id,
+                provider,
+                account,
+                credential,
+                lambda secret_arn: {
+                    "kind": "provider_api",
+                    "provider": provider,
+                    "authType": "oauth",
+                    "oauthProvider": oauth_provider,
+                    "secretArn": secret_arn,
+                    "oauthClientSecretArn": client_secret_arn,
+                    "scopes": scopes,
+                },
+                provider_account_id=provider_account_id,
             )
-        self._revoke_gmail_access(item)
-        secret_arn = item.get("secretArn")
-        if isinstance(secret_arn, str):
-            self._delete_secret(secret_arn)
-        self.table.delete_item(
-            Key={"pk": f"USER#{user_id}", "sk": f"CONNECTION#{connection_id}"}
-        )
-        result = {"deleted": True}
-        if isinstance(secret_arn, str):
-            result["credentialDeletionWindowDays"] = 7
-        return result
+        except Exception:
+            try:
+                if provider == "youtube":
+                    self._revoke_google_token(refresh_token)
+                else:
+                    self._revoke_x_token(refresh_token, client_secret_arn)
+            except (BotoCoreError, ClientError, KeyError, TypeError, ValueError):
+                logger.warning("Could not revoke unused %s OAuth access", provider)
+            raise
 
-    def delete_connection_secrets(self, items: list[dict]) -> int:
-        connections = [item for item in items if item.get("entity") == "CONNECTION"]
-        for item in connections:
-            self._revoke_gmail_access(item)
-            secret_arn = item.get("secretArn")
-            if isinstance(secret_arn, str):
-                self._delete_secret(secret_arn)
-        return len(connections)
+    def save_google_workspace_connection(
+        self,
+        user_id: str,
+        account: str,
+        provider_account_id: str,
+        refresh_token: str,
+        client_secret_arn: str,
+        scopes: list[str],
+    ) -> dict:
+        spec = CONNECTION_SPECS["google_workspace"]
+        expected_scopes = set(spec["scopes"])
+        if not isinstance(refresh_token, str) or not refresh_token:
+            raise CatalogError("Google did not return reusable Workspace access")
+        if not _valid_secret_arn(client_secret_arn):
+            raise CatalogError("Google Workspace OAuth configuration is invalid")
+        if (
+            not isinstance(scopes, list)
+            or len(scopes) != len(set(scopes))
+            or set(scopes) != expected_scopes
+        ):
+            raise CatalogError("Google Workspace OAuth scopes are invalid")
+        servers = [
+            {
+                "endpoint": server["endpoint"],
+                "allowedTools": list(server["allowedTools"]),
+            }
+            for server in GOOGLE_WORKSPACE_MCP_SERVERS
+        ]
+        try:
+            return self._save_managed_connection(
+                user_id,
+                "google_workspace",
+                account,
+                {"refreshToken": refresh_token},
+                lambda secret_arn: {
+                    "kind": "mcp_bundle",
+                    "authType": "oauth",
+                    "oauthProvider": "google",
+                    "secretArn": secret_arn,
+                    "oauthClientSecretArn": client_secret_arn,
+                    "servers": servers,
+                    "scopes": scopes,
+                },
+                provider_account_id=provider_account_id,
+            )
+        except Exception:
+            self._revoke_google_token(refresh_token)
+            raise
+
+    def save_external_oauth_connection(
+        self,
+        user_id: str,
+        provider: str,
+        account: str,
+        provider_account_id: str,
+        credential: dict,
+        client_secret_arn: str,
+        scopes: list[str],
+    ) -> dict:
+        if provider not in EXTERNAL_OAUTH_PROVIDER_IDS:
+            raise CatalogError("OAuth provider is not supported")
+        expected_scopes = set(CONNECTION_SPECS[provider]["scopes"])
+        if not _valid_secret_arn(client_secret_arn):
+            raise CatalogError("OAuth configuration is invalid")
+        if (
+            not isinstance(scopes, list)
+            or len(scopes) != len(set(scopes))
+            or set(scopes) != expected_scopes
+        ):
+            raise CatalogError("OAuth scopes are invalid")
+        if not isinstance(credential, dict):
+            raise CatalogError("OAuth credential is invalid")
+        access_token = credential.get("accessToken")
+        refresh_token = credential.get("refreshToken")
+        expires_at = credential.get("expiresAt")
+        if not isinstance(access_token, str) or not access_token:
+            raise CatalogError("OAuth access token is invalid")
+        if provider in {"slack", "microsoft"} and (
+            not isinstance(refresh_token, str)
+            or not refresh_token
+            or isinstance(expires_at, bool)
+            or not isinstance(expires_at, int)
+            or expires_at <= 0
+        ):
+            raise CatalogError("OAuth refresh grant is invalid")
+        if refresh_token is not None and (
+            not isinstance(refresh_token, str) or not refresh_token
+        ):
+            raise CatalogError("OAuth refresh grant is invalid")
+        return self._save_managed_connection(
+            user_id,
+            provider,
+            account,
+            credential,
+            lambda secret_arn: {
+                "kind": "provider_api",
+                "provider": provider,
+                "authType": "oauth",
+                "oauthProvider": provider,
+                "secretArn": secret_arn,
+                "oauthClientSecretArn": client_secret_arn,
+                "scopes": scopes,
+            },
+            provider_account_id=provider_account_id,
+        )
+
+    def save_github_connection(
+        self,
+        user_id: str,
+        account: str,
+        installation_id: str,
+        repositories: list[dict],
+        permissions: dict[str, str],
+        app_secret_arn: str,
+    ) -> dict:
+        if not re.fullmatch(r"[0-9]{1,20}", installation_id):
+            raise CatalogError("GitHub installation id is invalid")
+        repository_ids = [
+            value.get("id") for value in repositories if isinstance(value, dict)
+        ]
+        if (
+            not repository_ids
+            or len(repository_ids) > 500
+            or len(repository_ids) != len(set(repository_ids))
+            or any(not isinstance(value, int) or value <= 0 for value in repository_ids)
+        ):
+            raise CatalogError("GitHub repository selection is invalid")
+        if not _valid_secret_arn(app_secret_arn):
+            raise CatalogError("GitHub App configuration is invalid")
+        try:
+            safe_permissions = narrowed_permissions(permissions)
+        except (TypeError, ValueError) as exc:
+            raise CatalogError("GitHub App permissions are invalid") from exc
+        if safe_permissions != permissions:
+            raise CatalogError("GitHub App permissions are invalid")
+        return self._save_managed_connection(
+            user_id,
+            "github",
+            account,
+            {
+                "installationId": installation_id,
+                "repositoryIds": repository_ids,
+                "permissions": safe_permissions,
+            },
+            lambda secret_arn: {
+                "kind": "mcp",
+                "endpoint": GITHUB_MCP_ENDPOINT,
+                "authType": "github_app",
+                "secretArn": secret_arn,
+                "appSecretArn": app_secret_arn,
+            },
+            provider_account_id=installation_id,
+            repository_count=len(repository_ids),
+        )

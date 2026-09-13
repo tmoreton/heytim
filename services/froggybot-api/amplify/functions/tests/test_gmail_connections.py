@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import shared.account_state as account_state_module
 import shared.catalog_sync as sync_module
+import shared.connection_revocation as revocation_module
 import shared.connections as connections_module
 import test_catalog
 from botocore.exceptions import ClientError, EndpointConnectionError
@@ -75,7 +76,7 @@ class GmailConnectionTests(unittest.TestCase):
             result = self.catalog.delete_connection("owner", saved["id"])
 
         request = urlopen.call_args.args[0]
-        self.assertEqual(request.full_url, connections_module.GOOGLE_TOKEN_REVOKE_URL)
+        self.assertEqual(request.full_url, revocation_module.GOOGLE_TOKEN_REVOKE_URL)
         self.assertEqual(request.get_method(), "POST")
         self.assertEqual(
             request.get_header("Content-type"), "application/x-www-form-urlencoded"
@@ -86,7 +87,7 @@ class GmailConnectionTests(unittest.TestCase):
         )
         self.assertEqual(
             urlopen.call_args.kwargs["timeout"],
-            connections_module.GOOGLE_TOKEN_REVOKE_TIMEOUT_SECONDS,
+            revocation_module.PROVIDER_REVOKE_TIMEOUT_SECONDS,
         )
         self.assertEqual(
             result,
@@ -98,7 +99,7 @@ class GmailConnectionTests(unittest.TestCase):
     def test_invalid_google_token_does_not_block_local_removal(self) -> None:
         saved, secret_arn = self._save_gmail()
         invalid_token = urllib.error.HTTPError(
-            connections_module.GOOGLE_TOKEN_REVOKE_URL,
+            revocation_module.GOOGLE_TOKEN_REVOKE_URL,
             400,
             "invalid_token",
             None,

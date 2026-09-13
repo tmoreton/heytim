@@ -46,8 +46,16 @@ RECENT_IMAGE_REFERENCE_TURNS = 20
 def _uses_youtube_search(resolved_tools: list[dict]) -> bool:
     return any(
         isinstance(tool.get("runtime"), dict)
-        and tool["runtime"].get("kind") == "gateway"
-        and "youtube_search" in tool["runtime"].get("operations", [])
+        and (
+            (
+                tool["runtime"].get("kind") == "gateway"
+                and "youtube_search" in tool["runtime"].get("operations", [])
+            )
+            or (
+                tool["runtime"].get("kind") == "provider_api"
+                and tool["runtime"].get("provider") == "youtube"
+            )
+        )
         for tool in resolved_tools
         if isinstance(tool, dict)
     )

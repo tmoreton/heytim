@@ -137,6 +137,14 @@ scheme.add_build_target(ui_tests, false)
 scheme.add_test_target(ui_tests)
 scheme.save_as(project_path, 'FroggyBotApple', true)
 
+# Keep Mac unit-test verification isolated from the UI-test target. The Mac
+# verification build intentionally disables code signing, and including the UI
+# target there causes Xcode to create an unsigned *UITests-Runner.app that
+# Gatekeeper repeatedly rejects even though only unit tests were requested.
+unit_scheme = Xcodeproj::XCScheme.new
+unit_scheme.configure_with_targets(app, tests, launch_target: true)
+unit_scheme.save_as(project_path, 'FroggyBotAppleUnit', true)
+
 # Keep a focused UI-test scheme so simulator checks do not also assemble the
 # large speech-model unit-test bundle. The main scheme remains the complete
 # app + unit + UI suite used by CI and release verification.

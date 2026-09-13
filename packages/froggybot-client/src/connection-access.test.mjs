@@ -27,12 +27,12 @@ const gmailConnection = {
   connectionStatus: 'connected',
 };
 
-const legacyConnection = {
+const youtubeConnection = {
   ...gmailConnection,
-  id: 'connection_legacy',
-  name: 'Private notes',
-  provider: 'mcp',
-  authType: 'api_key',
+  id: 'connection_youtube',
+  name: 'YouTube Studio',
+  provider: 'youtube',
+  endpoint: undefined,
 };
 
 test('platform-funded tools are included without customer credentials', () => {
@@ -45,9 +45,14 @@ test('OAuth accounts are connected rather than treated as platform tools', () =>
   assert.equal(capabilityAccessLabel(gmailConnection), 'Connected');
 });
 
-test('existing header-auth connections are clearly marked as legacy', () => {
-  assert.equal(isUserConnection(legacyConnection), true);
-  assert.equal(capabilityAccessLabel(legacyConnection), 'Legacy connection');
+test('managed API connections do not need an MCP endpoint', () => {
+  assert.equal(isUserConnection(youtubeConnection), true);
+  assert.equal(capabilityAccessLabel(youtubeConnection), 'Connected');
+});
+
+test('server-side authentication details are not required by clients', () => {
+  const { authType: _authType, endpoint: _endpoint, ...publicConnection } = gmailConnection;
+  assert.equal(isUserConnection(publicConnection), true);
 });
 
 test('catalog tools flow through without a client-side tool allowlist', () => {
@@ -58,7 +63,7 @@ test('catalog tools flow through without a client-side tool allowlist', () => {
     provider: 'agentcore-gateway',
     source: 'official',
   };
-  const capabilities = [officialTool, gmailConnection, newlyPublishedTool, legacyConnection];
+  const capabilities = [officialTool, gmailConnection, newlyPublishedTool, youtubeConnection];
 
   assert.deepEqual(
     catalogTools(capabilities).map((tool) => tool.id),
@@ -66,6 +71,6 @@ test('catalog tools flow through without a client-side tool allowlist', () => {
   );
   assert.deepEqual(
     userConnections(capabilities).map((connection) => connection.id),
-    ['connection_gmail', 'connection_legacy'],
+    ['connection_gmail', 'connection_youtube'],
   );
 });
