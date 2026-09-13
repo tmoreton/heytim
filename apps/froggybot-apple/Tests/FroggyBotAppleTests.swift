@@ -39,6 +39,19 @@ import UniformTypeIdentifiers
     XCTAssertEqual(String(formatted.characters), "Checking README.md before release.")
   }
 
+  func testMessageActivityPhasesUseAccurateProgressLabels() {
+    XCTAssertTrue(MessageActivityPhase(status: "running").isIndeterminate)
+    XCTAssertEqual(
+      MessageActivityPhase(status: "running").title(stepCount: 2), "Working · 2 updates")
+    XCTAssertEqual(MessageActivityPhase(status: "pending").title(stepCount: 0), "Queued")
+    XCTAssertEqual(
+      MessageActivityPhase(status: "waiting").title(stepCount: 0), "Waiting for its turn")
+    XCTAssertEqual(
+      MessageActivityPhase(status: "complete").title(stepCount: 1), "1 step completed")
+    XCTAssertEqual(MessageActivityPhase(status: "error").title(stepCount: 0), "Couldn’t finish")
+    XCTAssertFalse(MessageActivityPhase(status: "waiting").isIndeterminate)
+  }
+
   func testMessageMarkdownParsesHeadingListAndTableAsBlocks() throws {
     let blocks = MarkdownBlockParser.parse(
       """

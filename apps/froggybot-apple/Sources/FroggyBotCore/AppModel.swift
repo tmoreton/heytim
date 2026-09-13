@@ -78,7 +78,11 @@ public final class AppModel {
       bootstrap = DemoData.bootstrap
       selection = .init(kind: .bot, id: DemoData.bootstrap.bots[0].id)
       let arguments = ProcessInfo.processInfo.arguments
-      if arguments.contains("--ui-testing-empty-conversation") {
+      if arguments.contains("--ui-testing-group-progress") {
+        bootstrap = DemoData.groupProgressBootstrap
+        selection = .init(kind: .group, id: DemoData.groupProgressGroup.id)
+        messages = DemoData.groupProgressMessages
+      } else if arguments.contains("--ui-testing-empty-conversation") {
         messages = []
       } else if arguments.contains("--ui-testing-activity") {
         messages = DemoData.activityMessages
@@ -752,6 +756,53 @@ public enum DemoData {
       ],
       createdAt: "2026-09-12T12:02:01.000Z", activityUpdatedAt: "2026-09-12T12:02:10.000Z",
       status: "running"),
+  ]
+  public static let groupProgressGroup = BotGroup(
+    id: "research-team", name: "Research Team", memory: "", memoryUpdatedAt: nil,
+    memoryUpdatedByName: nil, ownerId: "owner", currentUserId: "owner", isOwner: true,
+    allowedActions: [], members: [],
+    bots: [
+      GroupBot(
+        id: "researcher", ownerId: "owner", name: "YouTube Research",
+        tagline: "Researches source material", color: "#3488E8", systemRole: nil),
+      GroupBot(
+        id: "chief", ownerId: "owner", name: "Chief", tagline: "Coordinates the team",
+        color: "#F47721", systemRole: "chief"),
+      GroupBot(
+        id: "reviewer", ownerId: "owner", name: "Reviewer", tagline: "Checks the result",
+        color: "#007A3D", systemRole: nil),
+    ], decisions: [], createdAt: "2026-09-13T11:00:00.000Z",
+    updatedAt: "2026-09-13T11:00:00.000Z", lastMessage: "Researching the request",
+    lastMessageAt: "2026-09-13T11:00:00.000Z", processing: true,
+    processingBotName: "YouTube Research")
+  public static var groupProgressBootstrap: Bootstrap {
+    var value = bootstrap
+    value.groups = [groupProgressGroup]
+    return value
+  }
+  public static let groupProgressMessages = [
+    ChatMessage(
+      id: "group-request", role: "user", authorType: "user", authorName: "You", isMine: true,
+      text: "Research the launch options and recommend the best approach.",
+      createdAt: "2026-09-13T11:00:00.000Z", status: "complete"),
+    ChatMessage(
+      id: "group-running", role: "assistant", authorType: "bot", authorId: "researcher",
+      authorName: "YouTube Research", authorColor: "#3488E8", text: "",
+      activity: [
+        "Reviewing the available source material.",
+        "Comparing the strongest options and supporting evidence.",
+      ], roundId: "round-1", roundPosition: 1, roundSize: 3, roundRole: "contributor",
+      createdAt: "2026-09-13T11:00:01.000Z", status: "running"),
+    ChatMessage(
+      id: "group-pending", role: "assistant", authorType: "bot", authorId: "chief",
+      authorName: "Chief", authorColor: "#F47721", text: "", roundId: "round-1",
+      roundPosition: 2, roundSize: 3, roundRole: "synthesizer",
+      createdAt: "2026-09-13T11:00:02.000Z", status: "pending"),
+    ChatMessage(
+      id: "group-waiting", role: "assistant", authorType: "bot", authorId: "reviewer",
+      authorName: "Reviewer", authorColor: "#007A3D", text: "", roundId: "round-1",
+      roundPosition: 3, roundSize: 3, roundRole: "contributor",
+      createdAt: "2026-09-13T11:00:03.000Z", status: "waiting"),
   ]
   public static let markdownMessages = [
     ChatMessage(

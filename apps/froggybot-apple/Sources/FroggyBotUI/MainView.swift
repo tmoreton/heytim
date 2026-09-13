@@ -656,10 +656,23 @@ private struct MessageBubble: View {
       || !(message.attachments ?? []).isEmpty
       || message.allowedActions?.contains("saveDecision") == true
   }
+  private var showsActivity: Bool {
+    let needsStandaloneStatus = !hasBubbleContent && message.status != "complete"
+    return !mine && (message.isActive || !activity.isEmpty || needsStandaloneStatus)
+  }
+  private var isProgressOnly: Bool {
+    showsActivity && !hasBubbleContent
+  }
+  private var timestamp: String {
+    message.createdAt.froggyDate?.formatted(date: .omitted, time: .shortened) ?? ""
+  }
 
   var body: some View {
-    HStack(alignment: .bottom, spacing: 7) {
-      if groupMode && !mine { avatar }
+    HStack(alignment: isProgressOnly ? .top : .bottom, spacing: 7) {
+      if groupMode && !mine {
+        avatar
+          .padding(.top, isProgressOnly ? 2 : 0)
+      }
       if mine { Spacer(minLength: 50) }
       VStack(alignment: mine ? .trailing : .leading, spacing: 3) {
         if groupMode {
@@ -673,8 +686,11 @@ private struct MessageBubble: View {
             .padding(.horizontal, 6)
         }
 
-        if !mine, message.isActive || !activity.isEmpty {
-          MessageActivityView(steps: activity, isActive: message.isActive)
+        if showsActivity {
+          MessageActivityView(
+            steps: activity,
+            status: message.status,
+            timestamp: isProgressOnly ? timestamp : nil)
         }
 
         if hasBubbleContent {
@@ -714,18 +730,21 @@ private struct MessageBubble: View {
           .padding(.horizontal, 14).padding(.vertical, 10)
           .background(bubbleColor, in: bubbleShape)
           .overlay { if bubbleBorder != .clear { bubbleShape.stroke(bubbleBorder) } }
+          .accessibilityIdentifier("chat.message.content.\(message.id)")
         }
 
-        HStack(spacing: 5) {
-          if message.status != "complete" {
-            Label(
-              message.status.replacingOccurrences(of: "_", with: " ").capitalized,
-              systemImage: message.status == "error" ? "exclamationmark.circle" : "clock")
+        if !isProgressOnly {
+          HStack(spacing: 5) {
+            if message.status != "complete" {
+              Label(
+                message.status.replacingOccurrences(of: "_", with: " ").capitalized,
+                systemImage: message.status == "error" ? "exclamationmark.circle" : "clock")
+            }
+            Text(timestamp)
           }
-          Text(message.createdAt.froggyDate?.formatted(date: .omitted, time: .shortened) ?? "")
+          .font(.caption2).foregroundStyle(.secondary)
+          .padding(.horizontal, 6).padding(.top, 1)
         }
-        .font(.caption2).foregroundStyle(.secondary)
-        .padding(.horizontal, 6).padding(.top, 1)
       }
       .frame(maxWidth: mine ? 650 : 720, alignment: mine ? .trailing : .leading)
       if !mine { Spacer(minLength: 50) }
@@ -815,16 +834,73 @@ private struct MessageBubble: View {
   }
 }
 
+enum MessageActivityPhase: Equatable {
+  case running
+  case queued
+  case waiting
+  case completed
+  case failed
+  case paused
+  case other(String)
+
+  init(status: String) {
+    switch status.lowercased() {
+    case "running", "processing", "in_progress", "streaming": self = .running
+    case "pending", "queued": self = .queued
+    case "waiting": self = .waiting
+    case "complete", "completed", "succeeded": self = .completed
+    case "error", "failed": self = .failed
+    case "cancelled", "canceled", "stopped", "needs_input", "awaiting_approval": self = .paused
+    default: self = .other(status)
+    }
+  }
+
+  var isIndeterminate: Bool { self == .running }
+
+  var systemImage: String {
+    switch self {
+    case .running: "circle.dotted"
+    case .queued: "clock"
+    case .waiting: "hourglass"
+    case .completed: "checkmark.circle.fill"
+    case .failed: "exclamationmark.circle.fill"
+    case .paused: "pause.circle.fill"
+    case .other: "circle"
+    }
+  }
+
+  func title(stepCount: Int) -> String {
+    switch self {
+    case .running:
+      stepCount == 0
+        ? "Working…"
+        : "Working · \(stepCount) \(stepCount == 1 ? "update" : "updates")"
+    case .queued: "Queued"
+    case .waiting: "Waiting for its turn"
+    case .completed:
+      "\(stepCount) \(stepCount == 1 ? "step" : "steps") completed"
+    case .failed: "Couldn’t finish"
+    case .paused: "Paused"
+    case .other(let status):
+      status.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+  }
+}
+
 private struct MessageActivityView: View {
   let steps: [String]
-  let isActive: Bool
+  let status: String
+  let timestamp: String?
   @State private var isExpanded: Bool
 
-  init(steps: [String], isActive: Bool) {
+  init(steps: [String], status: String, timestamp: String? = nil) {
     self.steps = steps
-    self.isActive = isActive
-    _isExpanded = State(initialValue: isActive)
+    self.status = status
+    self.timestamp = timestamp
+    _isExpanded = State(initialValue: MessageActivityPhase(status: status) == .running)
   }
+
+  private var phase: MessageActivityPhase { MessageActivityPhase(status: status) }
 
   var body: some View {
     Group {
@@ -843,7 +919,8 @@ private struct MessageActivityView: View {
                   .font(.caption)
                   .lineSpacing(2)
                   .foregroundStyle(
-                    isActive && index == steps.indices.last ? FrogTheme.textSoft : FrogTheme.muted
+                    phase == .running && index == steps.indices.last
+                      ? FrogTheme.textSoft : FrogTheme.muted
                   )
                   .frame(maxWidth: .infinity, alignment: .leading)
                   .textSelection(.enabled)
@@ -860,6 +937,7 @@ private struct MessageActivityView: View {
     .tint(FrogTheme.brand)
     .padding(.horizontal, 12)
     .padding(.vertical, 10)
+    .frame(maxWidth: 520, alignment: .leading)
     .background(FrogTheme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     .overlay(
       RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -867,8 +945,10 @@ private struct MessageActivityView: View {
     )
     .padding(.horizontal, 6)
     .padding(.bottom, 4)
-    .onChange(of: isActive) { wasActive, active in
-      if wasActive && !active {
+    .onChange(of: phase) { previous, current in
+      if current == .running, !steps.isEmpty {
+        withAnimation(.snappy) { isExpanded = true }
+      } else if previous == .running && current != .running {
         withAnimation(.snappy) { isExpanded = false }
       }
     }
@@ -876,28 +956,34 @@ private struct MessageActivityView: View {
 
   private var activityHeader: some View {
     HStack(spacing: 8) {
-      if isActive {
+      if phase.isIndeterminate {
         ProgressView().controlSize(.small).tint(FrogTheme.brand)
       } else {
-        Image(systemName: "checkmark.circle.fill").foregroundStyle(FrogTheme.brand)
+        Image(systemName: phase.systemImage)
       }
-      Text(title).font(.caption.weight(.semibold))
+      Text(phase.title(stepCount: steps.count)).font(.caption.weight(.semibold))
       Spacer(minLength: 0)
+      if let timestamp, !timestamp.isEmpty {
+        Text(timestamp)
+          .font(.caption2)
+          .foregroundStyle(FrogTheme.muted)
+      }
     }
-    .foregroundStyle(isActive ? FrogTheme.brand : FrogTheme.muted)
-  }
-
-  private var title: String {
-    if isActive {
-      return steps.isEmpty
-        ? "Working…"
-        : "Working · \(steps.count) \(steps.count == 1 ? "update" : "updates")"
-    }
-    return "\(steps.count) \(steps.count == 1 ? "step" : "steps") completed"
+    .foregroundStyle(headerColor)
+    .accessibilityIdentifier("chat.progress.\(status.lowercased())")
   }
 
   private func stepColor(at index: Int) -> Color {
-    isActive && index == steps.indices.last ? FrogTheme.brand : FrogTheme.muted.opacity(0.55)
+    phase == .running && index == steps.indices.last
+      ? FrogTheme.brand : FrogTheme.muted.opacity(0.55)
+  }
+
+  private var headerColor: Color {
+    switch phase {
+    case .running: FrogTheme.brand
+    case .failed: FrogTheme.danger
+    default: FrogTheme.muted
+    }
   }
 }
 

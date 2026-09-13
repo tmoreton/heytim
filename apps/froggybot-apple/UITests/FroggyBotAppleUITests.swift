@@ -78,6 +78,33 @@ import XCTest
     XCTAssertFalse(app.staticTexts["Checking `README.md` for the intended release workflow."].exists)
   }
 
+  func testGroupProgressUsesCompactStatusRowsWithoutEmptyReplyBubbles() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing", "--ui-testing-group-progress"]
+    app.launch()
+
+    let running = app.descendants(matching: .any)["chat.progress.running"].firstMatch
+    let queued = app.descendants(matching: .any)["chat.progress.pending"].firstMatch
+    let waiting = app.descendants(matching: .any)["chat.progress.waiting"].firstMatch
+    XCTAssertTrue(running.waitForExistence(timeout: 10))
+    XCTAssertTrue(queued.waitForExistence(timeout: 5))
+    XCTAssertTrue(waiting.waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["Working · 2 updates"].exists)
+    XCTAssertTrue(app.staticTexts["Queued"].exists)
+    XCTAssertTrue(app.staticTexts["Waiting for its turn"].exists)
+    XCTAssertFalse(app.staticTexts["Activity"].exists)
+    XCTAssertFalse(app.staticTexts["Pending"].exists)
+    XCTAssertFalse(app.descendants(matching: .any)["chat.message.content.group-running"].exists)
+    XCTAssertFalse(app.descendants(matching: .any)["chat.message.content.group-pending"].exists)
+    XCTAssertFalse(app.descendants(matching: .any)["chat.message.content.group-waiting"].exists)
+
+    #if os(iOS)
+      XCTAssertLessThan(running.frame.height, 180)
+      XCTAssertLessThan(queued.frame.height, 80)
+      XCTAssertLessThan(waiting.frame.height, 80)
+    #endif
+  }
+
   func testMessageMarkdownUsesNativeBlockFormatting() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing", "--ui-testing-markdown"]
