@@ -12,13 +12,15 @@ class NativePushInfrastructureTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
     def test_endpoint_management_uses_aws_required_unscoped_resource(self) -> None:
-        self.assertIn(
-            "actions: ['sns:DeleteEndpoint', 'sns:SetEndpointAttributes']",
-            self.source,
-        )
         endpoint_policy = self.source.split(
-            "actions: ['sns:DeleteEndpoint', 'sns:SetEndpointAttributes']", 1
-        )[1].split("}));", 1)[0]
+            "apiFunction.addToRolePolicy", 1
+        )[1].split("workerFunction.addToRolePolicy", 1)[0]
+        for action in (
+            "sns:CreatePlatformEndpoint",
+            "sns:DeleteEndpoint",
+            "sns:SetEndpointAttributes",
+        ):
+            self.assertIn(action, endpoint_policy)
         self.assertIn("resources: ['*']", endpoint_policy)
 
     def test_publish_remains_limited_to_device_endpoints(self) -> None:

@@ -44,6 +44,10 @@ test('accepts arbitrary provider ids and validates server-owned presentation fie
     privacyDescription: 'Access is delegated only when needed.',
     connectLabel: 'Connect workspace',
     reconnectLabel: 'Update workspace',
+    familyId: 'future-family',
+    familyName: 'Future Family',
+    familyIncludedToolIds: ['future-search'],
+    serviceName: 'Private access',
   };
   assert.equal(
     decodeBootstrap(bootstrap({ connectionProviders: [provider] })).connectionProviders[0].id,
@@ -51,6 +55,14 @@ test('accepts arbitrary provider ids and validates server-owned presentation fie
   );
   assert.throws(
     () => decodeBootstrap(bootstrap({ connectionProviders: [{ ...provider, connectLabel: undefined }] })),
+    /cannot safely use/,
+  );
+  assert.throws(
+    () => decodeBootstrap(bootstrap({ connectionProviders: [{ ...provider, familyName: 42 }] })),
+    /cannot safely use/,
+  );
+  assert.throws(
+    () => decodeBootstrap(bootstrap({ connectionProviders: [{ ...provider, familyIncludedToolIds: [42] }] })),
     /cannot safely use/,
   );
 });

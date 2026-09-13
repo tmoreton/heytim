@@ -1,6 +1,47 @@
 import XCTest
 
 @MainActor final class FroggyBotAppleUITests: XCTestCase {
+  func testEveryFeatureSheetCanOpenAndCloseWithoutSelfDismissing() {
+    let featureSheets = [
+      (argument: "bot-library", marker: "Add a Bot"),
+      (argument: "bot-editor", marker: "New bot"),
+      (argument: "group-editor", marker: "New group"),
+      (argument: "schedules", marker: "Scheduled tasks"),
+      (argument: "schedule-runs", marker: "Run history"),
+      (argument: "memory", marker: "Memory"),
+      (argument: "account", marker: "Settings"),
+      (argument: "skills", marker: "Tools & Skills"),
+      (argument: "skill-editor", marker: "New skill"),
+      (argument: "connections", marker: "Couldn’t Load Accounts"),
+      (argument: "documents", marker: "Documents"),
+      (argument: "browser", marker: "Secure browser handoff"),
+      (argument: "share", marker: "Share"),
+    ]
+
+    for featureSheet in featureSheets {
+      XCTContext.runActivity(named: featureSheet.argument) { _ in
+        let app = XCUIApplication()
+        app.launchArguments = [
+          "--ui-testing", "--ui-testing-sheet", featureSheet.argument,
+        ]
+        app.launch()
+
+        let marker = app.staticTexts[featureSheet.marker]
+        XCTAssertTrue(
+          marker.waitForExistence(timeout: 10),
+          "The \(featureSheet.argument) sheet did not remain presented.")
+        let close = app.buttons["Close"]
+        XCTAssertTrue(
+          close.waitForExistence(timeout: 5),
+          "The \(featureSheet.argument) sheet did not expose its dismissal control.")
+        XCTAssertTrue(marker.exists)
+        close.tap()
+        XCTAssertTrue(app.buttons["chat.details"].waitForExistence(timeout: 5))
+        app.terminate()
+      }
+    }
+  }
+
   func testNativeSignInMatchesTheFroggyBotFlow() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing-auth"]
@@ -168,6 +209,14 @@ import XCTest
     #else
       XCTAssertTrue(app.staticTexts["Details"].waitForExistence(timeout: 5))
       XCTAssertFalse(app.buttons["Done"].exists)
+      let window = app.windows.firstMatch
+      let settings = app.buttons["sidebar.settings"]
+      let create = app.buttons["sidebar.create"]
+      XCTAssertTrue(settings.isHittable)
+      XCTAssertTrue(create.isHittable)
+      XCTAssertGreaterThanOrEqual(settings.frame.minX, window.frame.minX)
+      XCTAssertLessThanOrEqual(create.frame.maxX, window.frame.maxX)
+      XCTAssertLessThan(settings.frame.maxX, create.frame.minX)
     #endif
     XCTAssertTrue(app.buttons["Memory"].exists)
   }
@@ -197,7 +246,7 @@ import XCTest
     XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 5))
     XCTAssertTrue(app.staticTexts["Memory"].exists)
     XCTAssertTrue(app.staticTexts["Add a Bot"].exists)
-    XCTAssertTrue(app.staticTexts["Capabilities"].exists)
+    XCTAssertTrue(app.staticTexts["Tools & Skills"].exists)
     XCTAssertTrue(app.staticTexts["Connected Accounts"].exists)
     #if os(iOS)
       XCTAssertTrue(app.buttons["Close"].exists)
@@ -221,6 +270,33 @@ import XCTest
     for _ in 0..<4 where !version.exists { app.swipeUp() }
     XCTAssertTrue(version.waitForExistence(timeout: 5))
   }
+
+  #if os(iOS)
+    func testConnectedAccountsUsesSettingsBackButtonWithoutARedundantTitleOrCloseButton() {
+      let app = XCUIApplication()
+      app.launchArguments = ["--ui-testing"]
+      app.launch()
+
+      let sidebar = app.buttons["FroggyBot"]
+      XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
+      sidebar.tap()
+      let settings = app.buttons["sidebar.settings"]
+      XCTAssertTrue(settings.waitForExistence(timeout: 10))
+      settings.tap()
+
+      let connectedAccounts = app.staticTexts["Connected Accounts"]
+      XCTAssertTrue(connectedAccounts.waitForExistence(timeout: 5))
+      connectedAccounts.tap()
+
+      let accountsLoaded = app.staticTexts["Accounts"].waitForExistence(timeout: 5)
+      let accountsUnavailable =
+        app.staticTexts["Couldn’t Load Accounts"].waitForExistence(timeout: accountsLoaded ? 0 : 5)
+      XCTAssertTrue(accountsLoaded || accountsUnavailable)
+      XCTAssertTrue(app.navigationBars.buttons["Settings"].exists)
+      XCTAssertFalse(app.buttons["Close"].exists)
+      XCTAssertFalse(app.staticTexts["Connected Accounts"].exists)
+    }
+  #endif
 
   func testAddBotGalleryExplainsTheConfiguredSkillsToolsAndPrompt() {
     let app = XCUIApplication()
@@ -253,7 +329,37 @@ import XCTest
     XCTAssertTrue(app.buttons["Add Bot"].exists)
   }
 
-  func testCapabilitiesShowsBothSkillsAndBuiltInTools() {
+  func testCreatingCustomBotKeepsTheEditorPresented() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing"]
+    app.launch()
+
+    #if os(iOS)
+      let sidebar = app.buttons["FroggyBot"]
+      XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
+      sidebar.tap()
+    #endif
+    let create = app.buttons["sidebar.create"]
+    XCTAssertTrue(create.waitForExistence(timeout: 10))
+    create.tap()
+    let addBot = app.buttons["Add a bot"]
+    XCTAssertTrue(addBot.waitForExistence(timeout: 5))
+    addBot.tap()
+
+    let customBot = app.buttons["Create a Custom Bot"]
+    XCTAssertTrue(customBot.waitForExistence(timeout: 5))
+    customBot.tap()
+
+    XCTAssertTrue(app.staticTexts["New bot"].waitForExistence(timeout: 5))
+    let name = app.textFields["Name"]
+    XCTAssertTrue(name.waitForExistence(timeout: 5))
+    name.tap()
+    name.typeText("Trip planner")
+    XCTAssertEqual(name.value as? String, "Trip planner")
+    XCTAssertTrue(app.buttons["Close"].exists)
+  }
+
+  func testToolsAndSkillsShowsBothSkillsAndBuiltInTools() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]
     app.launch()
@@ -263,8 +369,8 @@ import XCTest
     #endif
     XCTAssertTrue(app.buttons["sidebar.settings"].waitForExistence(timeout: 10))
     app.buttons["sidebar.settings"].tap()
-    XCTAssertTrue(app.staticTexts["Capabilities"].waitForExistence(timeout: 5))
-    app.staticTexts["Capabilities"].tap()
+    XCTAssertTrue(app.staticTexts["Tools & Skills"].waitForExistence(timeout: 5))
+    app.staticTexts["Tools & Skills"].tap()
 
     XCTAssertTrue(app.staticTexts["Deep Research"].waitForExistence(timeout: 5))
     let tools = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Tools'")).firstMatch
@@ -272,6 +378,55 @@ import XCTest
     tools.tap()
     XCTAssertTrue(app.staticTexts["Web Search"].waitForExistence(timeout: 5))
     XCTAssertTrue(app.staticTexts["Files & Data"].exists)
+  }
+
+  func testCreatingSkillKeepsTheEditorPresented() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing"]
+    app.launch()
+
+    #if os(iOS)
+      let sidebar = app.buttons["FroggyBot"]
+      XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
+      sidebar.tap()
+    #endif
+    let settings = app.buttons["sidebar.settings"]
+    XCTAssertTrue(settings.waitForExistence(timeout: 10))
+    settings.tap()
+    let toolsAndSkills = app.staticTexts["Tools & Skills"]
+    XCTAssertTrue(toolsAndSkills.waitForExistence(timeout: 5))
+    toolsAndSkills.tap()
+
+    let create = app.buttons["Create"]
+    XCTAssertTrue(create.waitForExistence(timeout: 5))
+    create.tap()
+
+    XCTAssertTrue(app.staticTexts["New skill"].waitForExistence(timeout: 5))
+    let name = app.textFields["Name"]
+    XCTAssertTrue(name.waitForExistence(timeout: 5))
+    name.tap()
+    name.typeText("Research helper")
+    XCTAssertEqual(name.value as? String, "Research helper")
+    XCTAssertTrue(app.buttons["Close"].exists)
+  }
+
+  func testCreatingScheduledTaskKeepsTheEditorPresented() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing", "--ui-testing-sheet", "schedules"]
+    app.launch()
+
+    XCTAssertTrue(app.staticTexts["Scheduled tasks"].waitForExistence(timeout: 10))
+    let create = app.buttons["New"]
+    XCTAssertTrue(create.waitForExistence(timeout: 5))
+    create.tap()
+
+    XCTAssertTrue(app.staticTexts["New task"].waitForExistence(timeout: 5))
+    let name = app.textFields["Name"]
+    XCTAssertTrue(name.waitForExistence(timeout: 5))
+    name.tap()
+    name.typeText("Daily summary")
+    XCTAssertEqual(name.value as? String, "Daily summary")
+    XCTAssertTrue(app.buttons["Close"].exists)
   }
 
   #if os(macOS)
@@ -293,7 +448,7 @@ import XCTest
       XCTAssertTrue(microphone.waitForExistence(timeout: 5))
       XCTAssertTrue(send.waitForExistence(timeout: 5))
 
-      XCTAssertGreaterThanOrEqual(window.frame.width, 1_070)
+      XCTAssertGreaterThanOrEqual(window.frame.width, 1_150)
       XCTAssertGreaterThanOrEqual(attachment.frame.minX, splitter.frame.maxX + 12)
       XCTAssertGreaterThan(composer.frame.width, 180)
       XCTAssertLessThanOrEqual(send.frame.maxX, window.frame.maxX - 12)
@@ -338,7 +493,14 @@ import XCTest
       XCTAssertGreaterThan(tagline.frame.minX, sheet.frame.minX + 20)
       XCTAssertLessThan(tagline.frame.maxX, sheet.frame.maxX - 20)
       XCTAssertTrue(app.staticTexts["Color"].exists)
-      XCTAssertTrue(app.descendants(matching: .any)["Instructions"].firstMatch.exists)
+      XCTAssertTrue(app.descendants(matching: .any)["bot.prompt.editor"].firstMatch.exists)
+      XCTAssertTrue(app.descendants(matching: .any)["bot.tools-and-skills"].firstMatch.exists)
+
+      app.descendants(matching: .any)["bot.prompt.editor"].firstMatch.click()
+      XCTAssertTrue(app.staticTexts["Bot Prompt"].waitForExistence(timeout: 5))
+      XCTAssertTrue(app.textViews["Bot prompt"].exists)
+      app.buttons["Done"].click()
+      XCTAssertTrue(app.descendants(matching: .any)["bot.tools-and-skills"].firstMatch.exists)
 
       let close = app.buttons["Close"]
       XCTAssertTrue(close.isHittable)

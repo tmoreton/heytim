@@ -16,6 +16,9 @@ class InfrastructureContractTests(unittest.TestCase):
         cls.observability = (
             Path(__file__).parents[2] / "infrastructure" / "observability.ts"
         ).read_text(encoding="utf-8")
+        cls.native_push = (
+            Path(__file__).parents[2] / "infrastructure" / "native-push.ts"
+        ).read_text(encoding="utf-8")
         cls.deployment_role = (
             Path(__file__).parents[2] / "infrastructure" / "deployment-role.ts"
         ).read_text(encoding="utf-8")
@@ -81,6 +84,17 @@ class InfrastructureContractTests(unittest.TestCase):
         )
         self.assertIn("FROGBOT_APNS_APPLICATION_ARN", self.production_workflow)
         self.assertIn("Set FROGBOT_APNS_APPLICATION_ARN", self.production_workflow)
+
+    def test_sandbox_uses_the_existing_named_native_push_applications(self) -> None:
+        self.assertIn("resolveNativePushApplicationArns", self.backend)
+        self.assertIn("resource: `app/${platform}`", self.native_push)
+        self.assertIn("resourceName: 'FroggyBot'", self.native_push)
+        self.assertIn("arnFormat: ArnFormat.SLASH_RESOURCE_NAME", self.native_push)
+        self.assertIn("applicationArn || namedApplicationArn('APNS')", self.native_push)
+        self.assertIn(
+            "sandboxApplicationArn || namedApplicationArn('APNS_SANDBOX')",
+            self.native_push,
+        )
 
     def test_managed_connection_provider_secrets_are_scoped(self) -> None:
         for name in (

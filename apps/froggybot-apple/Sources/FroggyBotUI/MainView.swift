@@ -16,20 +16,22 @@ public struct MainView: View {
   @State private var dictation = DictationModel()
   @State private var columns: NavigationSplitViewVisibility = .all
   @State private var presentedSheet: AppSheet?
+  @State private var pendingSheet: AppSheet?
 
   public init(model: AppModel, auth: AuthSession) {
     self.model = model
     self.auth = auth
+    _presentedSheet = State(initialValue: model.sheet)
   }
 
   public var body: some View {
     layout
     .tint(FrogTheme.accent)
-    .sheet(item: $presentedSheet, onDismiss: { model.sheet = nil }) { sheet in
+    .sheet(item: $presentedSheet, onDismiss: sheetDidDismiss) { sheet in
       FeatureSheet(sheet: sheet, model: model, auth: auth)
     }
     .onChange(of: model.sheet) { _, sheet in
-      if presentedSheet != sheet { presentedSheet = sheet }
+      synchronizePresentedSheet(with: sheet)
     }
     .alert(
       "FroggyBot",
@@ -60,14 +62,12 @@ public struct MainView: View {
         model.select(selection)
       } present: { sheet in
         model.sheet = sheet
-        presentedSheet = sheet
       }
-      .navigationSplitViewColumnWidth(min: 300, ideal: 310, max: 340)
+      .navigationSplitViewColumnWidth(min: 270, ideal: 290, max: 320)
     } detail: {
       if model.selection != nil {
         ConversationView(model: model, dictation: dictation) { sheet in
           model.sheet = sheet
-          presentedSheet = sheet
         }
       } else {
         EmptyPanel(
@@ -76,6 +76,36 @@ public struct MainView: View {
       }
     }
     .navigationSplitViewStyle(.balanced)
+  }
+
+  private func synchronizePresentedSheet(with requestedSheet: AppSheet?) {
+    guard presentedSheet != requestedSheet else { return }
+    guard let requestedSheet else {
+      pendingSheet = nil
+      presentedSheet = nil
+      return
+    }
+    if presentedSheet == nil {
+      presentedSheet = requestedSheet
+    } else {
+      // Replacing an active sheet's item in place can make SwiftUI dismiss both views.
+      // Finish the current dismissal before presenting the requested destination.
+      pendingSheet = requestedSheet
+      presentedSheet = nil
+    }
+  }
+
+  private func sheetDidDismiss() {
+    guard let nextSheet = pendingSheet else {
+      model.sheet = nil
+      return
+    }
+    pendingSheet = nil
+    Task { @MainActor in
+      await Task.yield()
+      guard model.sheet == nextSheet else { return }
+      presentedSheet = nextSheet
+    }
   }
 }
 
@@ -150,29 +180,34 @@ private struct ConversationSidebar: View {
           .accessibilityElement(children: .ignore)
           .accessibilityLabel("FroggyBot")
         }
+        ToolbarItem(placement: .primaryAction) {
+          createMenu
+        }
       #else
-        ToolbarItem(placement: .navigation) {
+        ToolbarItemGroup(placement: .primaryAction) {
           settingsButton
+          createMenu
         }
       #endif
-      ToolbarItem(placement: .primaryAction) {
-        Menu {
-          Button("Add a bot", systemImage: "plus.circle") { present(.botLibrary) }
-          Button("Create a custom bot", systemImage: "slider.horizontal.3") {
-            present(.botEditor(nil))
-          }
-          Button("New group", systemImage: "person.3") { present(.groupEditor(nil)) }
-        } label: {
-          Label("Create bot or group", systemImage: "plus")
-            .foregroundStyle(createButtonColor)
-        }
-        .labelStyle(.iconOnly)
-        .tint(createButtonColor)
-        .accessibilityIdentifier("sidebar.create")
-        .help("Add a bot or create a group")
-      }
     }
     .overlay { if model.isLoading { ProgressView().tint(FrogTheme.accent) } }
+  }
+
+  private var createMenu: some View {
+    Menu {
+      Button("Add a bot", systemImage: "plus.circle") { present(.botLibrary) }
+      Button("Create a custom bot", systemImage: "slider.horizontal.3") {
+        present(.botEditor(nil))
+      }
+      Button("New group", systemImage: "person.3") { present(.groupEditor(nil)) }
+    } label: {
+      Label("Create bot or group", systemImage: "plus")
+        .foregroundStyle(createButtonColor)
+    }
+    .labelStyle(.iconOnly)
+    .tint(createButtonColor)
+    .accessibilityIdentifier("sidebar.create")
+    .help("Add a bot or create a group")
   }
 
   private var settingsButton: some View {
@@ -292,6 +327,16 @@ private struct ConversationView: View {
     let id: String
     let fingerprint: Int
   }
+  private struct TranscriptIdentity: Hashable {
+    enum ContentState: Hashable {
+      case loading
+      case empty
+      case populated
+    }
+
+    let selection: ConversationSelection?
+    let contentState: ContentState
+  }
   private enum InspectorAction {
     case open(AppSheet)
     case clear
@@ -300,6 +345,18 @@ private struct ConversationView: View {
 
   private var messageRevisions: [MessageRevision] {
     model.messages.map { MessageRevision(id: $0.id, fingerprint: $0.hashValue) }
+  }
+
+  private var transcriptIdentity: TranscriptIdentity {
+    let contentState: TranscriptIdentity.ContentState
+    if !model.messages.isEmpty {
+      contentState = .populated
+    } else if model.isLoadingMessages {
+      contentState = .loading
+    } else {
+      contentState = .empty
+    }
+    return TranscriptIdentity(selection: model.selection, contentState: contentState)
   }
 
   var body: some View {
@@ -314,7 +371,11 @@ private struct ConversationView: View {
             .frame(minHeight: 44)
             .padding(.bottom, 8)
           }
-          if model.messages.isEmpty {
+          if model.isLoadingMessages && model.messages.isEmpty {
+            ProgressView("Loading conversation…")
+              .tint(FrogTheme.accent)
+              .containerRelativeFrame(.vertical, alignment: .center)
+          } else if model.messages.isEmpty {
             emptyConversation
               .containerRelativeFrame(.vertical, alignment: .center)
           }
@@ -391,6 +452,7 @@ private struct ConversationView: View {
         }
       }
     }
+    .id(transcriptIdentity)
     .safeAreaInset(edge: .bottom, spacing: 0) {
       Composer(
         model: model, dictation: dictation, importing: $importing,
@@ -430,7 +492,7 @@ private struct ConversationView: View {
         delete: {
           confirmDeleteFromInspector()
         })
-        .inspectorColumnWidth(min: 280, ideal: 320, max: 400)
+        .inspectorColumnWidth(min: 260, ideal: 300, max: 360)
     }
     .quickLookPreview($previewURL)
     .onChange(of: previewURL) { previous, current in
@@ -467,14 +529,21 @@ private struct ConversationView: View {
     pendingScroll?.cancel()
     isFollowingLatest = true
     hasNewerMessages = false
+    let requestedTranscript = transcriptIdentity
     pendingScroll = Task { @MainActor in
       // Let SwiftUI finish measuring newly loaded or expanded message content first.
       await Task.yield()
-      guard !Task.isCancelled else { return }
+      guard !Task.isCancelled, transcriptIdentity == requestedTranscript else { return }
       let scroll = { proxy.scrollTo(bottomID, anchor: .bottom) }
       if animated {
         withAnimation(.snappy) { scroll() }
       } else {
+        scroll()
+        // Lazy message content can finish sizing on the following display pass.
+        // Confirm the initial anchor so a reused offset cannot sit below the transcript.
+        try? await Task.sleep(for: .milliseconds(32))
+        guard !Task.isCancelled, transcriptIdentity == requestedTranscript, isFollowingLatest
+        else { return }
         scroll()
       }
     }

@@ -7,8 +7,21 @@ import SwiftUI
 #endif
 
 struct ProviderLogoView: View {
-  let provider: ConnectionProvider
-  var size: CGFloat = 36
+  let providerID: String
+  let iconText: String
+  let size: CGFloat
+
+  init(provider: ConnectionProvider, size: CGFloat = 36) {
+    providerID = provider.id
+    iconText = provider.iconText
+    self.size = size
+  }
+
+  init(providerID: String, iconText: String, size: CGFloat = 36) {
+    self.providerID = providerID
+    self.iconText = iconText
+    self.size = size
+  }
 
   var body: some View {
     ZStack {
@@ -23,7 +36,7 @@ struct ProviderLogoView: View {
           .scaledToFit()
           .padding(size * 0.13)
       } else {
-        Text(provider.iconText)
+        Text(iconText)
           .font(.system(size: size * 0.42, weight: .bold))
           .foregroundStyle(FrogTheme.accent)
       }
@@ -32,7 +45,7 @@ struct ProviderLogoView: View {
     .accessibilityHidden(true)
   }
 
-  private var assetName: String { "Provider-\(provider.id)" }
+  private var assetName: String { "Provider-\(providerID)" }
 
   private var hasBundledLogo: Bool {
     #if os(iOS)

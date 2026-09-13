@@ -108,7 +108,7 @@ struct SkillEditor: View {
     .formStyle(.grouped)
     .froggyListSurface()
     .navigationTitle(id == nil ? "New skill" : "Edit skill").toolbar {
-      CloseButton { model.sheet = nil }
+      CloseButton()
       ToolbarItem(placement: .confirmationAction) {
         Button("Save") {
           Task {
@@ -133,6 +133,7 @@ struct SkillEditor: View {
 
 struct ConnectionsView: View {
   @Bindable var model: AppModel
+  var showsDismissButton = true
   @State private var connections: [Capability] = []
   @State private var loading = true
   @State private var loadError: String?
@@ -157,35 +158,11 @@ struct ConnectionsView: View {
         }
       } else {
         Section("Accounts") {
-          ForEach(providers) { provider in
-            if let connection = connection(for: provider.id) {
-              NavigationLink {
-                ConnectionDetailView(
-                  connection: connection, provider: provider,
-                  reconnect: { connect(provider.id) },
-                  disconnect: { disconnectCandidate = connection })
-              } label: {
-                connectionRow(connection, provider: provider)
-              }
-            } else {
-              HStack(spacing: 12) {
-                ProviderLogoView(provider: provider)
-                VStack(alignment: .leading, spacing: 3) {
-                  Text(provider.name).font(.headline)
-                  Text(provider.description).font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                if connectingProviderID == provider.id {
-                  ProgressView()
-                    .controlSize(.small)
-                    .accessibilityLabel("Connecting (provider.name)")
-                } else {
-                  Button(provider.connectLabel) {
-                    connect(provider.id)
-                  }
-                  .disabled(connectingProviderID != nil || webAuthentication.isRunning)
-                }
-              }
+          ForEach(connectionProviderFamilies(providers)) { family in
+            if family.grouped {
+              connectionFamily(family)
+            } else if let provider = family.providers.first {
+              providerAccessRow(provider)
             }
           }
           if providers.isEmpty && !loading {
@@ -195,8 +172,13 @@ struct ConnectionsView: View {
       }
     }
     .froggyListSurface()
-    .navigationTitle("Connected Accounts")
-    .toolbar { CloseButton { model.sheet = nil } }
+    .navigationTitle("")
+    .toolbarTitleDisplayMode(.inline)
+    .toolbar {
+      if showsDismissButton {
+        CloseButton { model.sheet = nil }
+      }
+    }
     .overlay { if loading { ProgressView() } }
     .refreshable { await load() }
     .task { await load() }
@@ -294,7 +276,75 @@ struct ConnectionsView: View {
     providers.first(where: { $0.id == id })?.name ?? "Account"
   }
 
-  private func connectionRow(_ connection: Capability, provider: ConnectionProvider?) -> some View {
+  @ViewBuilder
+  private func providerAccessRow(_ provider: ConnectionProvider, nested: Bool = false) -> some View {
+    if let connection = connection(for: provider.id) {
+      NavigationLink {
+        ConnectionDetailView(
+          connection: connection, provider: provider,
+          reconnect: { connect(provider.id) },
+          disconnect: { disconnectCandidate = connection })
+      } label: {
+        connectionRow(
+          connection, provider: provider,
+          displayName: nested ? (provider.serviceName ?? provider.name) : nil)
+      }
+    } else {
+      HStack(spacing: 12) {
+        ProviderLogoView(provider: provider)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(nested ? (provider.serviceName ?? provider.name) : provider.name).font(.headline)
+          Text(provider.description).font(.caption).foregroundStyle(.secondary)
+          Text(provider.permissionsSummary).font(.caption2).foregroundStyle(.tertiary)
+        }
+        Spacer()
+        if connectingProviderID == provider.id {
+          ProgressView()
+            .controlSize(.small)
+            .accessibilityLabel("Connecting \(provider.name)")
+        } else {
+          Button(provider.connectLabel) {
+            connect(provider.id)
+          }
+          .disabled(connectingProviderID != nil || webAuthentication.isRunning)
+        }
+      }
+    }
+  }
+
+  private func connectionFamily(_ family: ConnectionProviderFamily) -> some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 12) {
+        ProviderLogoView(providerID: family.logoProviderId, iconText: family.iconText)
+        VStack(alignment: .leading, spacing: 4) {
+          HStack(spacing: 8) {
+            Text(family.name).font(.headline)
+            if family.includedSummary != nil {
+              Text("Included")
+                .font(.caption2.bold())
+                .foregroundStyle(FrogTheme.accent)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(FrogTheme.accent.opacity(0.12), in: Capsule())
+            }
+          }
+          Text(family.description).font(.caption).foregroundStyle(.secondary)
+          if let includedSummary = family.includedSummary {
+            Text(includedSummary).font(.caption2).foregroundStyle(.tertiary)
+          }
+        }
+      }
+      ForEach(family.providers) { provider in
+        Divider()
+        providerAccessRow(provider, nested: true)
+      }
+    }
+    .padding(.vertical, 4)
+  }
+
+  private func connectionRow(
+    _ connection: Capability, provider: ConnectionProvider?, displayName: String? = nil
+  ) -> some View {
     HStack(spacing: 12) {
       if let provider {
         ProviderLogoView(provider: provider)
@@ -304,7 +354,7 @@ struct ConnectionsView: View {
           .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
       }
       VStack(alignment: .leading, spacing: 3) {
-        Text(connection.name).font(.headline)
+        Text(displayName ?? connection.name).font(.headline)
         Text(connection.connectedAccount ?? connection.description)
           .font(.caption).foregroundStyle(.secondary).lineLimit(2)
       }
@@ -543,7 +593,7 @@ struct AccountView: View {
     Form {
       Section("Build Your Team") {
         NavigationLink {
-          BotLibrary(model: model)
+          BotLibrary(model: model, showsDismissButton: false)
         } label: {
           Label("Add a Bot", systemImage: "plus.circle.fill")
         }
@@ -551,17 +601,17 @@ struct AccountView: View {
 
       Section("Manage") {
         NavigationLink {
-          MemoriesView(model: model, groupId: nil)
+          MemoriesView(model: model, groupId: nil, showsDismissButton: false)
         } label: {
           Label("Memory", systemImage: "brain.head.profile")
         }
         NavigationLink {
-          SkillsView(model: model)
+          SkillsView(model: model, showsDismissButton: false)
         } label: {
-          Label("Capabilities", systemImage: "sparkles")
+          Label("Tools & Skills", systemImage: "wrench.and.screwdriver")
         }
         NavigationLink {
-          ConnectionsView(model: model)
+          ConnectionsView(model: model, showsDismissButton: false)
         } label: {
           Label("Connected Accounts", systemImage: "link")
         }

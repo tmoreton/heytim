@@ -261,6 +261,14 @@ export type ConnectionProvider = {
   privacyDescription: string;
   connectLabel: string;
   reconnectLabel: string;
+  familyId?: string;
+  familyName?: string;
+  familyDescription?: string;
+  familyIconText?: string;
+  familyLogoProviderId?: string;
+  familyIncludedSummary?: string;
+  familyIncludedToolIds?: string[];
+  serviceName?: string;
 };
 
 export type Connection = Capability & {

@@ -24,9 +24,9 @@ struct FroggyBotAppleApp: App {
     #if os(macOS)
       WindowGroup {
         AppRoot(configuration: configuration, auth: auth, model: model)
-          .frame(minWidth: auth.phase == .signedIn ? 1_080 : 480, minHeight: 520)
+          .frame(minWidth: auth.phase == .signedIn ? 1_160 : 480, minHeight: 520)
       }
-      .defaultSize(width: 1120, height: 760)
+      .defaultSize(width: 1200, height: 760)
       .windowResizability(.contentMinSize)
       .commands {
         CommandGroup(replacing: .appSettings) {

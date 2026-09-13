@@ -54,6 +54,7 @@ public final class AppModel {
   public var messages: [ChatMessage] = []
   public var nextToken: String?
   public var isLoading = false
+  public private(set) var isLoadingMessages = false
   public var isSending = false
   public private(set) var sendingSelection: ConversationSelection?
   public var errorMessage: String?
@@ -93,8 +94,38 @@ public final class AppModel {
       } else {
         messages = DemoData.messages
       }
+      #if DEBUG
+        if let flag = arguments.firstIndex(of: "--ui-testing-sheet"),
+          arguments.indices.contains(flag + 1)
+        {
+          sheet = Self.uiTestingSheet(named: arguments[flag + 1], bootstrap: DemoData.bootstrap)
+        }
+      #endif
     }
   }
+
+  #if DEBUG
+    private static func uiTestingSheet(named name: String, bootstrap: Bootstrap) -> AppSheet? {
+      guard let bot = bootstrap.bots.first else { return nil }
+      let selection = ConversationSelection(kind: .bot, id: bot.id)
+      switch name {
+      case "bot-library": return .botLibrary
+      case "bot-editor": return .botEditor(nil)
+      case "group-editor": return .groupEditor(nil)
+      case "schedules": return .schedules(selection)
+      case "schedule-runs": return .scheduleRuns(selection)
+      case "memory": return .memories(nil)
+      case "account": return .account
+      case "skills": return .skills
+      case "skill-editor": return .skillEditor(nil)
+      case "connections": return .connections
+      case "documents": return .documents(bot.id)
+      case "browser": return .browser(botId: bot.id, groupId: nil)
+      case "share": return .share(selection)
+      default: return nil
+      }
+    }
+  #endif
 
   deinit { pollTask?.cancel() }
 
@@ -115,6 +146,7 @@ public final class AppModel {
     messages = []
     nextToken = nil
     isLoading = false
+    isLoadingMessages = false
     isSending = false
     sendingSelection = nil
     errorMessage = nil
@@ -211,8 +243,22 @@ public final class AppModel {
     guard let requestedSelection = selection else { return }
     let requestedGeneration = selectionGeneration
     let requestedSession = sessionGeneration
-    if demoMode { return }
-    guard let api else { throw APIError.configuration("The service is not connected.") }
+    if demoMode {
+      isLoadingMessages = false
+      return
+    }
+    guard let api else {
+      isLoadingMessages = false
+      throw APIError.configuration("The service is not connected.")
+    }
+    if messages.isEmpty { isLoadingMessages = true }
+    defer {
+      if selection == requestedSelection, selectionGeneration == requestedGeneration,
+        sessionIsCurrent(requestedSession, api: api)
+      {
+        isLoadingMessages = false
+      }
+    }
     let page =
       requestedSelection.kind == .bot
       ? try await api.messages(bot: requestedSelection.id)
@@ -609,6 +655,7 @@ public final class AppModel {
     setSelection(value)
     messages = []
     nextToken = nil
+    isLoadingMessages = value != nil && !demoMode
     pollTask?.cancel()
     pollTask = nil
     return true

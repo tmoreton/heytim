@@ -375,10 +375,20 @@ public struct ConnectionProvider: Codable, Identifiable, Hashable, Sendable {
   public var privacyDescription: String
   public var connectLabel: String
   public var reconnectLabel: String
+  public var familyId: String?
+  public var familyName: String?
+  public var familyDescription: String?
+  public var familyIconText: String?
+  public var familyLogoProviderId: String?
+  public var familyIncludedSummary: String?
+  public var familyIncludedToolIds: [String]?
+  public var serviceName: String?
 
   private enum CodingKeys: String, CodingKey {
     case id, name, description, category, iconText, permissionsSummary
     case privacyTitle, privacyDescription, connectLabel, reconnectLabel
+    case familyId, familyName, familyDescription, familyIconText, familyLogoProviderId
+    case familyIncludedSummary, familyIncludedToolIds, serviceName
   }
 
   public init(from decoder: Decoder) throws {
@@ -399,7 +409,81 @@ public struct ConnectionProvider: Codable, Identifiable, Hashable, Sendable {
     reconnectLabel =
       try container.decodeIfPresent(String.self, forKey: .reconnectLabel)
       ?? (usesInstallationLanguage ? "Update installation" : "Reconnect account")
+    familyId = try container.decodeIfPresent(String.self, forKey: .familyId)
+    familyName = try container.decodeIfPresent(String.self, forKey: .familyName)
+    familyDescription = try container.decodeIfPresent(String.self, forKey: .familyDescription)
+    familyIconText = try container.decodeIfPresent(String.self, forKey: .familyIconText)
+    familyLogoProviderId = try container.decodeIfPresent(
+      String.self, forKey: .familyLogoProviderId)
+    familyIncludedSummary = try container.decodeIfPresent(
+      String.self, forKey: .familyIncludedSummary)
+    familyIncludedToolIds = try container.decodeIfPresent(
+      [String].self, forKey: .familyIncludedToolIds)
+    serviceName = try container.decodeIfPresent(String.self, forKey: .serviceName)
   }
+}
+
+struct ConnectionProviderFamily: Identifiable, Hashable, Sendable {
+  let id: String
+  let name: String
+  let description: String
+  let iconText: String
+  let logoProviderId: String
+  let includedSummary: String?
+  let includedToolIDs: [String]
+  let grouped: Bool
+  var providers: [ConnectionProvider]
+}
+
+func connectionProviderFamilies(_ providers: [ConnectionProvider]) -> [ConnectionProviderFamily] {
+  var families: [ConnectionProviderFamily] = []
+  var positions: [String: Int] = [:]
+  for provider in providers {
+    let familyID = provider.familyId ?? provider.id
+    if let position = positions[familyID] {
+      families[position].providers.append(provider)
+      continue
+    }
+    positions[familyID] = families.count
+    families.append(
+      ConnectionProviderFamily(
+        id: familyID,
+        name: provider.familyName ?? provider.name,
+        description: provider.familyDescription ?? provider.description,
+        iconText: provider.familyIconText ?? provider.iconText,
+        logoProviderId: provider.familyLogoProviderId ?? provider.id,
+        includedSummary: provider.familyIncludedSummary,
+        includedToolIDs: provider.familyIncludedToolIds ?? [],
+        grouped: provider.familyId != nil,
+        providers: [provider]))
+  }
+  return families
+}
+
+struct ConnectionProviderToolGroup: Identifiable {
+  var id: String { family.id }
+  let family: ConnectionProviderFamily
+  let tools: [Capability]
+}
+
+func connectionProviderToolGroups(
+  tools: [Capability], providers: [ConnectionProvider]
+) -> (groups: [ConnectionProviderToolGroup], ungrouped: [Capability]) {
+  var groupedToolIDs = Set<String>()
+  let groups: [ConnectionProviderToolGroup] = connectionProviderFamilies(providers).compactMap {
+    family -> ConnectionProviderToolGroup? in
+    guard family.grouped else { return nil }
+    let providerIDs = Set(family.providers.map(\.id))
+    let includedToolIDs = Set(family.includedToolIDs)
+    let familyTools = tools.filter { tool in
+      includedToolIDs.contains(tool.id)
+        || tool.provider.map(providerIDs.contains) == true
+    }
+    groupedToolIDs.formUnion(familyTools.map(\.id))
+    return familyTools.isEmpty
+      ? nil : ConnectionProviderToolGroup(family: family, tools: familyTools)
+  }
+  return (groups, tools.filter { !groupedToolIDs.contains($0.id) })
 }
 
 public struct ConnectionAuthorizationCallback: Equatable, Sendable {

@@ -4,6 +4,8 @@ import test from 'node:test';
 import {
   capabilityAccessLabel,
   catalogTools,
+  connectionProviderFamilies,
+  connectionProviderToolGroups,
   isUserConnection,
   userConnections,
 } from './connection-access.ts';
@@ -40,6 +42,40 @@ test('platform-funded tools are included without customer credentials', () => {
   assert.equal(capabilityAccessLabel(officialTool), 'Included');
 });
 
+test('tool families combine included and connected capabilities without merging ids', () => {
+  const providers = [
+    {
+      id: 'x',
+      name: 'X',
+      description: 'Account access.',
+      iconText: 'X',
+      familyId: 'x',
+      familyName: 'X',
+      familyDescription: 'Public and private X tools.',
+      familyIconText: 'X',
+      familyIncludedToolIds: ['x_search'],
+      serviceName: 'Account access',
+    },
+  ];
+  const connectedX = {
+    ...gmailConnection,
+    id: 'connection_x',
+    name: 'X',
+    provider: 'x',
+  };
+  const publicX = {
+    id: 'x_search',
+    name: 'X / Twitter search',
+    description: 'Search public posts.',
+    provider: 'agentcore-gateway',
+  };
+
+  const grouped = connectionProviderToolGroups([officialTool, publicX, connectedX], providers);
+
+  assert.deepEqual(grouped.groups[0].tools.map((tool) => tool.id), ['x_search', 'connection_x']);
+  assert.deepEqual(grouped.ungrouped.map((tool) => tool.id), ['youtube_search']);
+});
+
 test('OAuth accounts are connected rather than treated as platform tools', () => {
   assert.equal(isUserConnection(gmailConnection), true);
   assert.equal(capabilityAccessLabel(gmailConnection), 'Connected');
@@ -73,4 +109,38 @@ test('catalog tools flow through without a client-side tool allowlist', () => {
     userConnections(capabilities).map((connection) => connection.id),
     ['connection_gmail', 'connection_youtube'],
   );
+});
+
+test('provider families group related services without merging their grants', () => {
+  const sharedFamily = {
+    familyId: 'google',
+    familyName: 'Google',
+    familyDescription: 'Connect only the services each bot needs.',
+    familyIconText: 'G',
+    familyLogoProviderId: 'google_workspace',
+    familyIncludedSummary: 'Public YouTube research included',
+    familyIncludedToolIds: ['youtube_search'],
+  };
+  const providers = [
+    {
+      id: 'github', name: 'GitHub', description: 'Repositories.', iconText: 'GH',
+    },
+    {
+      id: 'gmail', name: 'Gmail', description: 'Email.', iconText: 'G',
+      serviceName: 'Gmail', ...sharedFamily,
+    },
+    {
+      id: 'youtube', name: 'YouTube Studio', description: 'Channel.', iconText: 'YT',
+      serviceName: 'YouTube Studio', ...sharedFamily,
+    },
+  ];
+
+  const families = connectionProviderFamilies(providers);
+
+  assert.equal(families.length, 2);
+  assert.equal(families[0].grouped, false);
+  assert.equal(families[1].name, 'Google');
+  assert.equal(families[1].includedSummary, 'Public YouTube research included');
+  assert.deepEqual(families[1].includedToolIds, ['youtube_search']);
+  assert.deepEqual(families[1].providers.map((provider) => provider.id), ['gmail', 'youtube']);
 });

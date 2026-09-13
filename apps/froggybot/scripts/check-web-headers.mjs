@@ -3,7 +3,11 @@ import { readFile } from 'node:fs/promises';
 const routes = JSON.parse(await readFile('dist/_expo/.routes.json', 'utf8'));
 const headers = routes.headers ?? {};
 const required = {
-  'Content-Security-Policy': ['frame-ancestors \'none\'', "object-src 'none'"],
+  'Content-Security-Policy': [
+    'frame-ancestors \'none\'',
+    "object-src 'none'",
+    "connect-src 'self' https://froggybot.com",
+  ],
   'Permissions-Policy': ['camera=()', 'geolocation=()'],
   'Referrer-Policy': ['strict-origin-when-cross-origin'],
   'X-Content-Type-Options': ['nosniff'],

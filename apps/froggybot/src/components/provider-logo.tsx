@@ -8,6 +8,8 @@ import {
 
 import type { ConnectionProvider } from '@froggybot/contracts';
 
+type ProviderIdentity = Pick<ConnectionProvider, 'id' | 'iconText'>;
+
 const PROVIDER_LOGOS: Readonly<Partial<Record<string, ImageSourcePropType>>> = {
   github: require('../../assets/images/providers/github.png'),
   gmail: require('../../assets/images/providers/gmail.png'),
@@ -18,7 +20,7 @@ const PROVIDER_LOGOS: Readonly<Partial<Record<string, ImageSourcePropType>>> = {
   youtube: require('../../assets/images/providers/youtube.png'),
 };
 
-export function ProviderLogo({ provider }: { provider: ConnectionProvider }) {
+export function ProviderLogo({ provider }: { provider: ProviderIdentity }) {
   const source = PROVIDER_LOGOS[provider.id];
 
   return (

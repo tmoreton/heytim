@@ -174,6 +174,34 @@ class BotBrandingTests(unittest.TestCase):
         self.assertNotIn("uiKind", provider)
         self.assertEqual(provider["connectLabel"], "Install app")
         self.assertEqual(provider["reconnectLabel"], "Update installation")
+        google = [
+            provider
+            for provider in result["connectionProviders"]
+            if provider.get("familyId") == "google"
+        ]
+        self.assertEqual(
+            [provider["serviceName"] for provider in google],
+            ["Gmail", "YouTube Studio", "Workspace"],
+        )
+        self.assertTrue(
+            all(provider["familyName"] == "Google" for provider in google)
+        )
+        self.assertTrue(
+            all(
+                provider["familyIncludedToolIds"] == ["youtube_search"]
+                for provider in google
+            )
+        )
+        x_provider = next(
+            provider
+            for provider in result["connectionProviders"]
+            if provider["id"] == "x"
+        )
+        self.assertEqual(x_provider["serviceName"], "Account access")
+        self.assertEqual(
+            x_provider["familyIncludedSummary"], "Public post search included"
+        )
+        self.assertEqual(x_provider["familyIncludedToolIds"], ["x_search"])
         self.assertTrue(result["needsBotOnboarding"])
         self.assertEqual(result["constraints"]["messageMaxLength"], 8_000)
         self.assertEqual(result["constraints"]["maxAttachmentsPerMessage"], 5)

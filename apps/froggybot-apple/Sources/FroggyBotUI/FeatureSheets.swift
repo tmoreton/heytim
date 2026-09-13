@@ -129,7 +129,9 @@ private struct BotColorPicker: View {
 
 struct BotLibrary: View {
   @Bindable var model: AppModel
+  var showsDismissButton = true
   @State private var search = ""
+  @State private var showingCustomBotEditor = false
 
   private var templates: [BotTemplate] {
     (model.bootstrap?.botTemplates ?? []).filter {
@@ -147,7 +149,7 @@ struct BotLibrary: View {
     List {
       Section {
         Button {
-          model.sheet = .botEditor(nil)
+          showingCustomBotEditor = true
         } label: {
           Label("Create a Custom Bot", systemImage: "slider.horizontal.3")
         }
@@ -179,7 +181,18 @@ struct BotLibrary: View {
     .froggyListSurface()
     .navigationTitle("Add a Bot")
     .searchable(text: $search, prompt: "Search templates")
-    .toolbar { CloseButton { model.sheet = nil } }
+    .toolbar {
+      if showsDismissButton {
+        CloseButton { model.sheet = nil }
+      }
+    }
+    .sheet(isPresented: $showingCustomBotEditor) {
+      NavigationStack {
+        BotEditor(model: model, id: nil)
+      }
+      .froggySheetSize()
+      .tint(FrogTheme.accent)
+    }
   }
 
   private func templateLink(_ template: BotTemplate) -> some View {
@@ -349,6 +362,7 @@ private struct BotEditor: View {
   let id: String?
   @State private var draft = BotDraft()
   @State private var saving = false
+  @State private var loadedDraft = false
   @Environment(\.dismiss) private var dismiss
 
   private var editingBot: Bot? {
@@ -387,9 +401,17 @@ private struct BotEditor: View {
 
   private var canSave: Bool { identityIssue == nil && instructionsIssue == nil && !saving }
 
+  private var selectedSkillCount: Int { draft.skillIds.count }
+
+  private var effectiveToolCount: Int {
+    let selectedSkillIDs = Set(draft.skillIds)
+    let requiredToolIDs = (model.bootstrap?.skills ?? []).lazy
+      .filter { selectedSkillIDs.contains($0.id) }
+      .flatMap(\.requiredToolIds)
+    return Set(draft.toolIds).union(requiredToolIDs).count
+  }
+
   var body: some View {
-    let alwaysAllowedTools = revocableAlwaysAllowedTools(
-      tools: model.bootstrap?.tools ?? [], skills: model.bootstrap?.skills ?? [], draft: draft)
     Form {
       Section {
         TextField("Name", text: $draft.name)
@@ -401,93 +423,307 @@ private struct BotEditor: View {
       } header: {
         Text("Identity")
       } footer: {
-        Text(identityIssue ?? "Use a short name and a one-line description people can scan quickly.")
+        Text(
+          identityIssue ?? "Use a short name and a one-line description people can scan quickly."
+        )
           .foregroundStyle(
             identityIssue == nil || draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
               ? Color.secondary : Color.red)
       }
       Section {
-        GuidedTextEditor(
-          title: "Instructions",
-          prompt: "Describe this bot’s role, tone, boundaries, and what a successful answer looks like.",
-          text: $draft.prompt,
-          minHeight: 150)
+        NavigationLink {
+          BotPromptEditor(
+            prompt: $draft.prompt,
+            maximumLength: model.constraints.botPromptMaxLength)
+        } label: {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Edit Prompt", systemImage: "text.alignleft")
+              .font(.headline)
+            Text(
+              draft.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "Add the bot’s role, tone, boundaries, and definition of success."
+                : draft.prompt
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .lineLimit(4)
+          }
+          .padding(.vertical, 4)
+        }
+        .accessibilityIdentifier("bot.prompt.editor")
       } header: {
-        Text("Instructions")
+        Text("Prompt")
       } footer: {
         HStack(alignment: .firstTextBaseline) {
-          Text(instructionsIssue ?? "Be specific. You can revise these instructions later.")
+          Text(
+            instructionsIssue ?? "Opens a dedicated editor so you can work with the full prompt."
+          )
           Spacer(minLength: 12)
-          Text("\(draft.prompt.count.formatted()) / \(model.constraints.botPromptMaxLength.formatted())")
+          Text(
+            "\(draft.prompt.count.formatted()) / \(model.constraints.botPromptMaxLength.formatted())"
+          )
             .monospacedDigit()
         }
         .foregroundStyle(
           instructionsIssue == nil || draft.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? Color.secondary : Color.red)
       }
-      Section("Skills") {
-        capabilitySelection(
-          items: model.bootstrap?.skills.map {
-            Capability(id: $0.id, name: $0.name, description: $0.description)
-          } ?? [], values: $draft.skillIds)
-      }
-      Section("Tools") {
-        capabilitySelection(items: model.bootstrap?.tools ?? [], values: $draft.toolIds)
-      }
-      if !alwaysAllowedTools.isEmpty {
-        Section {
-          capabilitySelection(items: alwaysAllowedTools, values: $draft.alwaysAllowedToolIds)
-        } header: {
-          Text("Always allowed in direct chats")
-        } footer: {
-          Text(
-            "Turn one off to require approval again. Groups and schedules still require supervision."
-          )
+
+      Section {
+        NavigationLink {
+          BotToolsAndSkillsEditor(
+            draft: $draft,
+            skills: model.bootstrap?.skills ?? [],
+            tools: model.bootstrap?.tools ?? [],
+            providers: model.bootstrap?.connectionProviders ?? [])
+        } label: {
+          Label {
+            VStack(alignment: .leading, spacing: 3) {
+              Text("Tools & Skills")
+              Text(
+                "\(selectedSkillCount) \(selectedSkillCount == 1 ? "skill" : "skills") · \(effectiveToolCount) \(effectiveToolCount == 1 ? "tool" : "tools")"
+              )
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            }
+          } icon: {
+            Image(systemName: "wrench.and.screwdriver")
+          }
         }
+        .accessibilityIdentifier("bot.tools-and-skills")
+      } footer: {
+        Text("Choose optional playbooks and the actions this bot can use.")
       }
     }
     .formStyle(.grouped)
     .froggyListSurface()
     .navigationTitle(id == nil ? "New bot" : "Edit bot")
     .toolbar {
-      CloseButton { model.sheet = nil }
+      CloseButton()
       ToolbarItem(placement: .confirmationAction) {
         Button("Save") { save() }.disabled(!canSave)
       }
     }
     .onAppear {
+      guard !loadedDraft else { return }
+      loadedDraft = true
       if let bot = editingBot {
         draft = BotDraft(bot: bot)
       }
     }
   }
-  @ViewBuilder private func capabilitySelection(items: [Capability], values: Binding<[String]>)
-    -> some View
-  {
-    ForEach(items) { item in
-      Toggle(
-        isOn: Binding(
-          get: { values.wrappedValue.contains(item.id) },
-          set: { enabled in
-            if enabled {
-              values.wrappedValue.append(item.id)
-            } else {
-              values.wrappedValue.removeAll { $0 == item.id }
-            }
-          })
-      ) {
-        VStack(alignment: .leading) {
-          Text(item.name)
-          Text(item.description).font(.caption).foregroundStyle(.secondary)
-        }
-      }
-    }
-  }
+
   private func save() {
     saving = true
     Task {
       if await model.saveBot(draft, id: id) { dismiss() }
       saving = false
+    }
+  }
+}
+
+private struct BotPromptEditor: View {
+  @Binding var prompt: String
+  let maximumLength: Int
+  @Environment(\.dismiss) private var dismiss
+
+  private var issue: String? {
+    if prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return "Add instructions so the bot knows how to help."
+    }
+    if prompt.count > maximumLength {
+      return "The prompt is longer than the supported limit."
+    }
+    return nil
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text("Describe the bot’s role, tone, boundaries, and what a successful answer looks like.")
+        .font(.callout)
+        .foregroundStyle(.secondary)
+      GuidedTextEditor(
+        title: "Bot prompt",
+        prompt: "Help people… Always include… Never… Keep responses…",
+        text: $prompt,
+        minHeight: 420)
+        .font(.body)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+      HStack(alignment: .firstTextBaseline) {
+        Text(issue ?? "This prompt is active for every reply from this bot.")
+        Spacer(minLength: 12)
+        Text("\(prompt.count.formatted()) / \(maximumLength.formatted())")
+          .monospacedDigit()
+      }
+      .font(.caption)
+      .foregroundStyle(issue == nil ? Color.secondary : Color.red)
+    }
+    .padding(20)
+    .background(FrogTheme.pageBackground)
+    .navigationTitle("Bot Prompt")
+    .toolbar {
+      ToolbarItem(placement: .confirmationAction) {
+        Button("Done") { dismiss() }
+      }
+    }
+  }
+}
+
+private struct BotToolsAndSkillsEditor: View {
+  @Binding var draft: BotDraft
+  let skills: [Skill]
+  let tools: [Capability]
+  let providers: [ConnectionProvider]
+
+  private var requiredByTool: [String: [String]] {
+    var result: [String: [String]] = [:]
+    for skill in skills where draft.skillIds.contains(skill.id) {
+      for toolID in skill.requiredToolIds {
+        result[toolID, default: []].append(skill.name)
+      }
+    }
+    return result
+  }
+
+  private var alwaysAllowedTools: [Capability] {
+    revocableAlwaysAllowedTools(tools: tools, skills: skills, draft: draft)
+  }
+
+  private var providerToolGroups: (
+    groups: [ConnectionProviderToolGroup], ungrouped: [Capability]
+  ) {
+    connectionProviderToolGroups(tools: tools, providers: providers)
+  }
+
+  var body: some View {
+    Form {
+      Section {
+        Text(
+          "Skills are playbooks the bot can activate when a request matches. Tools are actions it can call when needed."
+        )
+        .font(.callout)
+        .foregroundStyle(.secondary)
+      }
+
+      Section("Skills") {
+        ForEach(skills) { skill in
+          capabilityToggle(
+            id: skill.id,
+            name: skill.name,
+            description: skill.description,
+            values: $draft.skillIds)
+        }
+        if skills.isEmpty {
+          ContentUnavailableView("No Skills", systemImage: "sparkles")
+        }
+      }
+
+      ForEach(providerToolGroups.groups) { group in
+        Section {
+          ForEach(group.tools) { tool in
+            toolToggle(tool, name: toolName(tool, in: group.family))
+          }
+        } header: {
+          HStack(spacing: 10) {
+            ProviderLogoView(
+              providerID: group.family.logoProviderId,
+              iconText: group.family.iconText,
+              size: 30)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(group.family.name)
+              if let includedSummary = group.family.includedSummary {
+                Text(includedSummary)
+                  .font(.caption2)
+                  .foregroundStyle(FrogTheme.accent)
+                  .textCase(nil)
+              }
+            }
+          }
+        } footer: {
+          Text(group.family.description)
+        }
+      }
+
+      if !providerToolGroups.ungrouped.isEmpty {
+        Section(providerToolGroups.groups.isEmpty ? "Tools" : "Other Tools") {
+          ForEach(providerToolGroups.ungrouped) { tool in
+            toolToggle(tool)
+          }
+        }
+      } else if tools.isEmpty {
+        Section("Tools") {
+          ContentUnavailableView("No Tools", systemImage: "wrench.and.screwdriver")
+        }
+      }
+
+      if !alwaysAllowedTools.isEmpty {
+        Section {
+          ForEach(alwaysAllowedTools) { tool in
+            capabilityToggle(
+              id: tool.id,
+              name: tool.name,
+              description: tool.description,
+              values: $draft.alwaysAllowedToolIds)
+          }
+        } header: {
+          Text("Always allowed in direct chats")
+        } footer: {
+          Text("Turn one off to require approval again. Groups and schedules still require supervision.")
+        }
+      }
+    }
+    .formStyle(.grouped)
+    .froggyListSurface()
+    .navigationTitle("Tools & Skills")
+  }
+
+  @ViewBuilder private func capabilityToggle(
+    id: String, name: String, description: String, values: Binding<[String]>
+  ) -> some View {
+    Toggle(
+      isOn: Binding(
+        get: { values.wrappedValue.contains(id) },
+        set: { enabled in set(enabled, id: id, in: &values.wrappedValue) })
+    ) {
+      VStack(alignment: .leading, spacing: 3) {
+        Text(name)
+        Text(description).font(.caption).foregroundStyle(.secondary)
+      }
+    }
+  }
+
+  @ViewBuilder private func toolToggle(_ tool: Capability, name: String? = nil) -> some View {
+    let requiredBy = requiredByTool[tool.id] ?? []
+    Toggle(
+      isOn: Binding(
+        get: { requiredBy.isEmpty ? draft.toolIds.contains(tool.id) : true },
+        set: { enabled in
+          guard requiredBy.isEmpty else { return }
+          set(enabled, id: tool.id, in: &draft.toolIds)
+        })
+    ) {
+      VStack(alignment: .leading, spacing: 3) {
+        Text(name ?? tool.name)
+        Text(tool.description).font(.caption).foregroundStyle(.secondary)
+        if !requiredBy.isEmpty {
+          Text("Required by \(requiredBy.joined(separator: ", "))")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(FrogTheme.accent)
+        }
+      }
+    }
+    .disabled(!requiredBy.isEmpty)
+  }
+
+  private func toolName(_ tool: Capability, in family: ConnectionProviderFamily) -> String {
+    family.providers.first { $0.id == tool.provider }?.serviceName ?? tool.name
+  }
+
+  private func set(_ enabled: Bool, id: String, in values: inout [String]) {
+    if enabled {
+      if !values.contains(id) { values.append(id) }
+    } else {
+      values.removeAll { $0 == id }
     }
   }
 }
@@ -1054,9 +1290,88 @@ private struct ScheduleRunsView: View {
   }
 }
 
+enum MemoryUsageState: Equatable {
+  case allBots
+  case bot(String)
+  case group
+  case unused
+
+  var isInUse: Bool { self != .unused }
+
+  var label: String {
+    switch self {
+    case .allBots: "Available to every bot"
+    case .bot(let name): "Available to \(name)"
+    case .group: "Available in this group"
+    case .unused: "Not in use · original bot removed"
+    }
+  }
+
+  var systemImage: String {
+    switch self {
+    case .allBots: "person.2.fill"
+    case .bot: "bubble.left.and.sparkles.fill"
+    case .group: "person.3.fill"
+    case .unused: "archivebox"
+    }
+  }
+}
+
+func memoryUsageState(for record: MemoryRecord, groupID: String?) -> MemoryUsageState {
+  if groupID != nil || record.scope == "group" { return .group }
+  guard record.kind == "summary" else { return .allBots }
+  guard let botName = record.botName?.trimmingCharacters(in: .whitespacesAndNewlines),
+    !botName.isEmpty
+  else {
+    return record.botId == nil ? .unused : .bot("its original bot")
+  }
+  return .bot(botName)
+}
+
+private enum MemoryFilter: String, CaseIterable, Identifiable {
+  case all
+  case inUse
+  case cleanup
+  case facts
+  case preferences
+  case summaries
+
+  var id: Self { self }
+
+  var title: String {
+    switch self {
+    case .all: "All"
+    case .inUse: "In Use"
+    case .cleanup: "Cleanup"
+    case .facts: "Facts"
+    case .preferences: "Preferences"
+    case .summaries: "Summaries"
+    }
+  }
+
+  func includes(_ record: MemoryRecord, usage: MemoryUsageState) -> Bool {
+    switch self {
+    case .all: true
+    case .inUse: usage.isInUse
+    case .cleanup: !usage.isInUse
+    case .facts: record.kind == "fact"
+    case .preferences: record.kind == "preference"
+    case .summaries: record.kind == "summary"
+    }
+  }
+}
+
+private struct MemoryListSection: Identifiable {
+  let id: String
+  let title: String
+  let detail: String
+  let records: [MemoryRecord]
+}
+
 struct MemoriesView: View {
   @Bindable var model: AppModel
   let groupId: String?
+  var showsDismissButton = true
   @State private var snapshot: MemorySnapshot?
   @State private var newMemory = ""
   @State private var newKind = "fact"
@@ -1064,9 +1379,13 @@ struct MemoriesView: View {
   @State private var editingText = ""
   @State private var loading = true
   @State private var loadError: String?
+  @State private var search = ""
+  @State private var filter = MemoryFilter.all
+  @State private var selecting = false
+  @State private var selectedIDs: Set<String> = []
   @State private var savingNewMemory = false
-  @State private var busyMemoryID: String?
-  @State private var forgetCandidate: MemoryRecord?
+  @State private var busyMemoryIDs: Set<String> = []
+  @State private var forgetCandidates: [MemoryRecord] = []
 
   private var editable: Bool {
     guard let groupId else { return true }
@@ -1075,48 +1394,79 @@ struct MemoriesView: View {
   }
 
   private var maximumLength: Int { model.bootstrap?.constraints.memoryMaxLength ?? 16_000 }
+  private var records: [MemoryRecord] { snapshot?.records ?? [] }
   private var trimmedNewMemory: String {
     newMemory.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
+  private var inUseRecords: [MemoryRecord] {
+    records.filter { memoryUsageState(for: $0, groupID: groupId).isInUse }
+  }
+
+  private var cleanupRecords: [MemoryRecord] {
+    records.filter { !memoryUsageState(for: $0, groupID: groupId).isInUse }
+  }
+
+  private var filteredRecords: [MemoryRecord] {
+    let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+    return records.filter { record in
+      let usage = memoryUsageState(for: record, groupID: groupId)
+      guard filter.includes(record, usage: usage) else { return false }
+      guard !query.isEmpty else { return true }
+      return [record.content, record.kind, record.source, record.botName ?? "", usage.label]
+        .contains { $0.localizedCaseInsensitiveContains(query) }
+    }
+  }
+
+  private var sections: [MemoryListSection] {
+    if groupId != nil {
+      return section(
+        id: "group", title: "Available in This Group",
+        detail: "These can be recalled by every bot participating here.",
+        records: filteredRecords)
+    }
+    let allBots = filteredRecords.filter { $0.kind != "summary" }
+    let botSummaries = filteredRecords.filter {
+      if case .bot = memoryUsageState(for: $0, groupID: nil) { return true }
+      return false
+    }
+    let unused = filteredRecords.filter {
+      memoryUsageState(for: $0, groupID: nil) == .unused
+    }
+    return section(
+      id: "all-bots", title: "Available to Every Bot",
+      detail: "Personal facts and preferences are searched when any bot might need them.",
+      records: allBots)
+      + section(
+        id: "bot-summaries", title: "Bot Conversation Summaries",
+        detail: "Each summary is available only to the bot named on it.",
+        records: botSummaries)
+      + section(
+        id: "cleanup", title: "Ready for Cleanup",
+        detail: "These summaries belonged to bots that no longer exist and are not recalled.",
+        records: unused)
+  }
+
   var body: some View {
     List {
-      if editable {
-        Section {
-          if groupId == nil {
-            Picker("Kind", selection: $newKind) {
-              Text("Fact").tag("fact")
-              Text("Preference").tag("preference")
-            }
-            .pickerStyle(.segmented)
-          }
-          HStack {
-            TextField("Add a fact or preference", text: $newMemory)
-            Button("Add") { add() }
-              .disabled(
-                trimmedNewMemory.isEmpty || newMemory.count > maximumLength || savingNewMemory)
-          }
-          if !newMemory.isEmpty {
-            HStack {
-              if newMemory.count > maximumLength {
-                Text("Memory is too long").foregroundStyle(.red)
-              }
-              Spacer()
-              Text("\(newMemory.count.formatted()) / \(maximumLength.formatted())")
-                .foregroundStyle(newMemory.count > maximumLength ? .red : .secondary)
-            }
-            .font(.caption)
-          }
-        }
+      if let snapshot {
+        overview(snapshot)
       }
-      Section("Remembered") {
-        if loading {
+
+      if editable && !selecting && snapshot != nil {
+        addMemorySection
+      }
+
+      if loading && snapshot == nil {
+        Section {
           HStack {
             Spacer()
             ProgressView()
             Spacer()
           }
-        } else if let loadError, snapshot == nil {
+        }
+      } else if let loadError, snapshot == nil {
+        Section {
           ContentUnavailableView {
             Label("Couldn’t Load Memory", systemImage: "wifi.exclamationmark")
           } description: {
@@ -1124,75 +1474,333 @@ struct MemoriesView: View {
           } actions: {
             Button("Try Again") { Task { await load() } }
           }
-        } else if snapshot?.records.isEmpty != false {
+        }
+      } else if records.isEmpty {
+        Section {
           ContentUnavailableView(
             "Nothing Remembered Yet", systemImage: "brain.head.profile",
-            description: Text("Facts and preferences you add or ask FroggyBot to remember will appear here."))
-        } else {
-          ForEach(snapshot?.records ?? []) { record in
-            Group {
-              if editingID == record.id {
-                VStack(alignment: .leading, spacing: 8) {
-                  TextField("Memory text", text: $editingText, axis: .vertical)
-                  HStack {
-                    Button("Cancel") {
-                      editingID = nil
-                      editingText = ""
-                    }
-                    Spacer()
-                    Text("\(editingText.count.formatted()) / \(maximumLength.formatted())")
-                      .font(.caption).foregroundStyle(.secondary)
-                    Button("Save") { update(record) }.disabled(
-                      editingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        || editingText.count > maximumLength || busyMemoryID != nil)
-                  }
-                }
-              } else {
-                VStack(alignment: .leading, spacing: 4) {
-                  Text(record.content)
-                  Text("\(record.kind.capitalized) · \(record.source)").font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-              }
+            description: Text(
+              "Facts and preferences you add or ask FroggyBot to remember will appear here."))
+        }
+      } else if filteredRecords.isEmpty {
+        Section {
+          ContentUnavailableView(
+            filter == .cleanup ? "Nothing to Clean Up" : "No Matching Memories",
+            systemImage: filter == .cleanup ? "checkmark.circle" : "magnifyingglass",
+            description: Text(
+              filter == .cleanup
+                ? "Every saved memory is still connected to an active bot or group."
+                : "Try another search or choose a different filter."))
+        }
+      } else {
+        ForEach(sections) { section in
+          Section {
+            ForEach(section.records) { record in
+              memoryRow(record)
             }
-            .opacity(busyMemoryID == record.id ? 0.55 : 1)
-            .swipeActions {
-              if editable {
-                Button("Forget", role: .destructive) { forgetCandidate = record }
-                Button("Edit") {
-                  editingID = record.id
-                  editingText = record.content
-                }.tint(FrogTheme.green)
-              }
+          } header: {
+            HStack(alignment: .firstTextBaseline) {
+              Text(section.title)
+              Spacer()
+              Text(section.records.count.formatted()).monospacedDigit()
             }
+          } footer: {
+            Text(section.detail)
           }
         }
       }
+
       if let snapshot {
-        Section("Privacy") {
+        Section("How Memory Works") {
+          Text("In-use memories are searched for relevance; they are not all added to every reply.")
           Text(
-            "Raw conversation history is retained for \(snapshot.rawConversationRetentionDays) days. Learned memory can be reviewed and deleted here."
-          ).font(.footnote)
+            "Raw conversation history expires after \(snapshot.rawConversationRetentionDays) days. The memories listed here remain until you edit or forget them."
+          )
         }
+        .font(.footnote)
       }
     }
     .froggyListSurface()
     .navigationTitle(groupId == nil ? "Memory" : "Group Memory")
-    .toolbar { CloseButton { model.sheet = nil } }
+    .searchable(text: $search, prompt: "Search memories")
+    .toolbar {
+      if showsDismissButton {
+        CloseButton { model.sheet = nil }
+      }
+      ToolbarItemGroup(placement: .confirmationAction) {
+        if !records.isEmpty {
+          Menu {
+            Picker("Show", selection: $filter) {
+              ForEach(MemoryFilter.allCases) { option in
+                Text(option.title).tag(option)
+              }
+            }
+          } label: {
+            Label("Filter: \(filter.title)", systemImage: "line.3.horizontal.decrease.circle")
+          }
+          .help("Filter memories")
+        }
+        if editable && !records.isEmpty {
+          Button(selecting ? "Done" : "Select") {
+            selecting.toggle()
+            selectedIDs.removeAll()
+            editingID = nil
+            editingText = ""
+          }
+        }
+      }
+    }
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+      if selecting {
+        selectionBar
+      }
+    }
     .refreshable { await load() }
     .task { await load() }
     .confirmationDialog(
-      "Forget this memory?",
+      forgetCandidates.count == 1
+        ? "Forget this memory?" : "Forget \(forgetCandidates.count) memories?",
       isPresented: Binding(
-        get: { forgetCandidate != nil }, set: { if !$0 { forgetCandidate = nil } }),
+        get: { !forgetCandidates.isEmpty },
+        set: { if !$0 { forgetCandidates = [] } }),
       titleVisibility: .visible
     ) {
-      if let forgetCandidate {
-        Button("Forget Memory", role: .destructive) { remove(forgetCandidate.id) }
+      if !forgetCandidates.isEmpty {
+        Button(
+          forgetCandidates.count == 1 ? "Forget Memory" : "Forget Selected Memories",
+          role: .destructive
+        ) {
+          remove(forgetCandidates)
+        }
       }
-      Button("Cancel", role: .cancel) { forgetCandidate = nil }
+      Button("Cancel", role: .cancel) { forgetCandidates = [] }
     } message: {
-      Text("FroggyBot will stop using this information in future conversations.")
+      Text(
+        forgetCandidates.count == 1
+          ? "FroggyBot will stop using this information in future conversations."
+          : "This permanently removes the selected memories. This cannot be undone."
+      )
+    }
+  }
+
+  @ViewBuilder private func overview(_ snapshot: MemorySnapshot) -> some View {
+    Section {
+      LabeledContent("In use", value: inUseRecords.count.formatted())
+      if groupId == nil {
+        LabeledContent(
+          "Available to every bot",
+          value: records.filter { $0.kind != "summary" }.count.formatted())
+        LabeledContent(
+          "Bot-only summaries",
+          value: records.filter {
+            if case .bot = memoryUsageState(for: $0, groupID: nil) { return true }
+            return false
+          }.count.formatted())
+        if !cleanupRecords.isEmpty {
+          Button("Review \(cleanupRecords.count) unused summaries", systemImage: "archivebox") {
+            filter = .cleanup
+            search = ""
+          }
+          .foregroundStyle(.orange)
+        }
+      }
+    } header: {
+      Text("At a Glance")
+    } footer: {
+      Text(
+        groupId == nil
+          ? "“In use” means the memory can be recalled when it is relevant, not that it is sent with every message."
+          : "Every listed record can be recalled by bots in this group when it is relevant."
+      )
+    }
+  }
+
+  @ViewBuilder private var addMemorySection: some View {
+    Section {
+      if groupId == nil {
+        Picker("Kind", selection: $newKind) {
+          Text("Fact").tag("fact")
+          Text("Preference").tag("preference")
+        }
+        .pickerStyle(.segmented)
+      }
+      HStack {
+        TextField(
+          groupId == nil ? "Add a fact or preference" : "Add group context",
+          text: $newMemory)
+        Button("Add") { add() }
+          .disabled(
+            trimmedNewMemory.isEmpty || newMemory.count > maximumLength || savingNewMemory)
+      }
+      if !newMemory.isEmpty {
+        HStack {
+          if newMemory.count > maximumLength {
+            Text("Memory is too long").foregroundStyle(.red)
+          }
+          Spacer()
+          Text("\(newMemory.count.formatted()) / \(maximumLength.formatted())")
+            .foregroundStyle(newMemory.count > maximumLength ? .red : .secondary)
+        }
+        .font(.caption)
+      }
+    } header: {
+      Text("Add Memory")
+    } footer: {
+      Text(
+        groupId == nil
+          ? "Facts and preferences are available to every bot."
+          : "New group memories are available to every bot in this group."
+      )
+    }
+  }
+
+  @ViewBuilder private func memoryRow(_ record: MemoryRecord) -> some View {
+    if editingID == record.id {
+      VStack(alignment: .leading, spacing: 8) {
+        TextField("Memory text", text: $editingText, axis: .vertical)
+          .lineLimit(3...12)
+        HStack {
+          Button("Cancel") {
+            editingID = nil
+            editingText = ""
+          }
+          Spacer()
+          Text("\(editingText.count.formatted()) / \(maximumLength.formatted())")
+            .font(.caption)
+            .foregroundStyle(editingText.count > maximumLength ? .red : .secondary)
+          Button("Save") { update(record) }
+            .disabled(
+              editingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || editingText.count > maximumLength || !busyMemoryIDs.isEmpty)
+        }
+      }
+    } else if selecting {
+      Button {
+        toggleSelection(record.id)
+      } label: {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: selectedIDs.contains(record.id) ? "checkmark.circle.fill" : "circle")
+            .font(.title3)
+            .foregroundStyle(selectedIDs.contains(record.id) ? FrogTheme.accent : .secondary)
+          memorySummary(record)
+        }
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel(
+        "\(selectedIDs.contains(record.id) ? "Deselect" : "Select") memory: \(record.content)"
+      )
+    } else {
+      HStack(alignment: .top, spacing: 12) {
+        memorySummary(record)
+        if editable {
+          HStack(spacing: 4) {
+            Button("Edit memory", systemImage: "pencil") { beginEditing(record) }
+              .labelStyle(.iconOnly)
+              .help("Edit memory")
+            Button("Forget memory", systemImage: "trash", role: .destructive) {
+              forgetCandidates = [record]
+            }
+            .labelStyle(.iconOnly)
+            .help("Forget memory")
+          }
+          .buttonStyle(.borderless)
+          .disabled(!busyMemoryIDs.isEmpty)
+        }
+      }
+      .opacity(busyMemoryIDs.contains(record.id) ? 0.5 : 1)
+      .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+        if editable {
+          Button("Forget", role: .destructive) { forgetCandidates = [record] }
+          Button("Edit") { beginEditing(record) }.tint(FrogTheme.green)
+        }
+      }
+      .contextMenu {
+        if editable {
+          Button("Edit Memory", systemImage: "pencil") { beginEditing(record) }
+          Button("Forget Memory", systemImage: "trash", role: .destructive) {
+            forgetCandidates = [record]
+          }
+        }
+      }
+    }
+  }
+
+  private func memorySummary(_ record: MemoryRecord) -> some View {
+    let usage = memoryUsageState(for: record, groupID: groupId)
+    return VStack(alignment: .leading, spacing: 6) {
+      Text(record.content)
+        .textSelection(.enabled)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      Label(usage.label, systemImage: usage.systemImage)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(usage.isInUse ? FrogTheme.accent : Color.orange)
+      Text(memoryMetadata(record))
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+  }
+
+  private var selectionBar: some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: 12) {
+        selectionControls
+      }
+      VStack(spacing: 8) {
+        selectionControls
+      }
+    }
+    .padding(12)
+    .background(.bar)
+  }
+
+  @ViewBuilder private var selectionControls: some View {
+    if !cleanupRecords.isEmpty && groupId == nil {
+      Button("Select Unused") {
+        selectedIDs = Set(cleanupRecords.map(\.id))
+      }
+    }
+    Spacer(minLength: 8)
+    Text("\(selectedIDs.count) selected")
+      .font(.caption)
+      .foregroundStyle(.secondary)
+    Button("Forget Selected", role: .destructive) {
+      forgetCandidates = records.filter { selectedIDs.contains($0.id) }
+    }
+    .disabled(selectedIDs.isEmpty || !busyMemoryIDs.isEmpty)
+  }
+
+  private func section(
+    id: String, title: String, detail: String, records: [MemoryRecord]
+  ) -> [MemoryListSection] {
+    records.isEmpty
+      ? []
+      : [MemoryListSection(id: id, title: title, detail: detail, records: records)]
+  }
+
+  private func memoryMetadata(_ record: MemoryRecord) -> String {
+    let kind: String
+    switch record.kind {
+    case "fact": kind = "Fact"
+    case "preference": kind = "Preference"
+    case "summary": kind = "Conversation summary"
+    default: kind = record.kind.capitalized
+    }
+    let source = record.source == "manual" ? "Added by you" : "Learned from conversation"
+    let date = record.createdAt.froggyDate?.formatted(date: .abbreviated, time: .omitted)
+    return [kind, source, date].compactMap { $0 }.joined(separator: " · ")
+  }
+
+  private func beginEditing(_ record: MemoryRecord) {
+    editingID = record.id
+    editingText = record.content
+  }
+
+  private func toggleSelection(_ id: String) {
+    if selectedIDs.contains(id) {
+      selectedIDs.remove(id)
+    } else {
+      selectedIDs.insert(id)
     }
   }
 
@@ -1202,6 +1810,7 @@ struct MemoriesView: View {
     do {
       snapshot = try await model.requireAPI().memories(groupId: groupId)
       loadError = nil
+      selectedIDs.formIntersection(Set(records.map(\.id)))
     } catch {
       if snapshot == nil {
         loadError = error.localizedDescription
@@ -1217,45 +1826,63 @@ struct MemoriesView: View {
     Task {
       defer { savingNewMemory = false }
       do {
-        _ = try await model.requireAPI().createMemory(
+        let created = try await model.requireAPI().createMemory(
           kind: newKind, content: content, groupId: groupId)
+        snapshot?.records.insert(created, at: 0)
         newMemory = ""
-        await load()
       } catch { model.present(error) }
     }
   }
 
   private func update(_ record: MemoryRecord) {
     let content = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
-    busyMemoryID = record.id
+    busyMemoryIDs.insert(record.id)
     Task {
-      defer { busyMemoryID = nil }
+      defer { busyMemoryIDs.remove(record.id) }
       do {
-        _ = try await model.requireAPI().updateMemory(
+        let updated = try await model.requireAPI().updateMemory(
           id: record.id, content: content, groupId: groupId)
+        if let index = snapshot?.records.firstIndex(where: { $0.id == record.id }) {
+          snapshot?.records[index] = updated
+        }
         editingID = nil
         editingText = ""
-        await load()
       } catch { model.present(error) }
     }
   }
 
-  private func remove(_ id: String) {
-    forgetCandidate = nil
-    busyMemoryID = id
+  private func remove(_ candidates: [MemoryRecord]) {
+    let ids = Set(candidates.map(\.id))
+    forgetCandidates = []
+    busyMemoryIDs.formUnion(ids)
     Task {
-      defer { busyMemoryID = nil }
+      var deletedIDs: Set<String> = []
       do {
-        try await model.requireAPI().deleteMemory(id: id, groupId: groupId)
-        await load()
-      } catch { model.present(error) }
+        for id in ids {
+          try await model.requireAPI().deleteMemory(id: id, groupId: groupId)
+          deletedIDs.insert(id)
+        }
+      } catch {
+        model.present(error)
+      }
+      snapshot?.records.removeAll { deletedIDs.contains($0.id) }
+      busyMemoryIDs.subtract(ids)
+      selectedIDs.subtract(deletedIDs)
+      if selectedIDs.isEmpty && deletedIDs == ids { selecting = false }
     }
   }
 }
 
+private struct SkillEditorDestination: Identifiable {
+  let skillID: String?
+  var id: String { skillID ?? "new" }
+}
+
 struct SkillsView: View {
   @Bindable var model: AppModel
+  var showsDismissButton = true
   @State private var selection = CapabilityLibrarySection.skills
+  @State private var editor: SkillEditorDestination?
 
   private enum CapabilityLibrarySection: String, CaseIterable, Identifiable {
     case skills = "Skills"
@@ -1266,7 +1893,7 @@ struct SkillsView: View {
   var body: some View {
     List {
       Section {
-        Picker("Capabilities", selection: $selection) {
+        Picker("Tools and skills", selection: $selection) {
           ForEach(CapabilityLibrarySection.allCases) { section in
             Text("\(section.rawValue) \(count(for: section))").tag(section)
           }
@@ -1280,7 +1907,9 @@ struct SkillsView: View {
         Section("Skills") {
           ForEach(model.bootstrap?.skills ?? []) { skill in
             NavigationLink {
-              SkillDetailView(model: model, id: skill.id)
+              SkillDetailView(
+                model: model, id: skill.id,
+                edit: { editor = SkillEditorDestination(skillID: skill.id) })
             } label: {
               VStack(alignment: .leading, spacing: 3) {
                 HStack {
@@ -1318,13 +1947,24 @@ struct SkillsView: View {
           }
         }
       }
-    }.froggyListSurface().navigationTitle("Capabilities").toolbar {
-      CloseButton { model.sheet = nil }
+    }.froggyListSurface().navigationTitle("Tools & Skills").toolbar {
+      if showsDismissButton {
+        CloseButton { model.sheet = nil }
+      }
       if selection == .skills {
         ToolbarItem(placement: .primaryAction) {
-          Button("Create", systemImage: "plus") { model.sheet = .skillEditor(nil) }
+          Button("Create", systemImage: "plus") {
+            editor = SkillEditorDestination(skillID: nil)
+          }
         }
       }
+    }
+    .sheet(item: $editor) { destination in
+      NavigationStack {
+        SkillEditor(model: model, id: destination.skillID)
+      }
+      .froggySheetSize()
+      .tint(FrogTheme.accent)
     }
   }
 
@@ -1371,6 +2011,7 @@ private struct CapabilityDetailView: View {
 private struct SkillDetailView: View {
   @Bindable var model: AppModel
   let id: String
+  let edit: () -> Void
   @State private var detail: SkillDetail?
   @State private var shareURL: URL?
   @State private var loadError: String?
@@ -1395,7 +2036,7 @@ private struct SkillDetailView: View {
         }
         Section {
           if detail.editable {
-            Button("Edit Skill", systemImage: "pencil") { model.sheet = .skillEditor(id) }
+            Button("Edit Skill", systemImage: "pencil", action: edit)
           }
           if let shareURL {
             ShareLink(item: shareURL) { Label("Share Skill", systemImage: "square.and.arrow.up") }

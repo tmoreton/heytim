@@ -46,6 +46,15 @@ const CONNECTION_PROVIDER_FIELDS: (keyof ConnectionProvider)[] = [
   'connectLabel',
   'reconnectLabel',
 ];
+const OPTIONAL_CONNECTION_PROVIDER_FIELDS: (keyof ConnectionProvider)[] = [
+  'familyId',
+  'familyName',
+  'familyDescription',
+  'familyIconText',
+  'familyLogoProviderId',
+  'familyIncludedSummary',
+  'serviceName',
+];
 
 const invalid = (): never => {
   throw new Error('FroggyBot returned data the app cannot safely use. Please try again.');
@@ -116,6 +125,16 @@ const decodeMessage = (value: unknown): Message => {
 const decodeConnectionProvider = (value: unknown): ConnectionProvider => {
   const provider = record(value);
   for (const field of CONNECTION_PROVIDER_FIELDS) stringField(provider, field);
+  for (const field of OPTIONAL_CONNECTION_PROVIDER_FIELDS) {
+    if (provider[field] !== undefined) stringField(provider, field);
+  }
+  if (
+    provider.familyIncludedToolIds !== undefined
+    && (
+      !Array.isArray(provider.familyIncludedToolIds)
+      || provider.familyIncludedToolIds.some((id) => typeof id !== 'string')
+    )
+  ) invalid();
   return provider as ConnectionProvider;
 };
 

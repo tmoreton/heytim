@@ -14,7 +14,12 @@ import { PageSheet } from '@/components/page-sheet';
 import { ProviderLogo } from '@/components/provider-logo';
 import type { Capability, Connection, ConnectionProvider } from '@froggybot/contracts';
 
-import { capabilityAccessLabel, userConnections } from '@froggybot/client';
+import {
+  capabilityAccessLabel,
+  connectionProviderFamilies,
+  type ConnectionProviderFamily,
+  userConnections,
+} from '@froggybot/client';
 
 type Props = {
   tools: Capability[];
@@ -87,22 +92,26 @@ function ConnectionDetails({
 function ConnectionRow({
   connection,
   provider,
+  nested = false,
+  displayName,
   onPress,
 }: {
   connection: Connection;
   provider: ConnectionProvider;
+  nested?: boolean;
+  displayName?: string;
   onPress: () => void;
 }) {
   const label = capabilityAccessLabel(connection);
   return (
     <Pressable
       accessibilityRole="button"
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      style={({ pressed }) => [nested ? styles.familyServiceRow : styles.card, pressed && styles.pressed]}
       onPress={onPress}>
       <ProviderLogo provider={provider} />
       <View style={styles.cardText}>
         <View style={styles.nameRow}>
-          <Text style={styles.cardName}>{connection.name}</Text>
+          <Text style={styles.cardName}>{displayName ?? connection.name}</Text>
           <Text style={[styles.badge, styles.connectedBadge]}>{label}</Text>
         </View>
         <Text style={styles.description}>{connection.description}</Text>
@@ -112,6 +121,98 @@ function ConnectionRow({
       </View>
       <Text style={styles.chevron}>›</Text>
     </Pressable>
+  );
+}
+
+function AvailableConnectionRow({
+  provider,
+  busy,
+  nested = false,
+  onPress,
+}: {
+  provider: ConnectionProvider;
+  busy: boolean;
+  nested?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ busy, disabled: busy }}
+      disabled={busy}
+      style={({ pressed }) => [
+        nested ? styles.familyServiceRow : [styles.card, styles.connectCard],
+        pressed && styles.pressed,
+      ]}
+      onPress={onPress}>
+      <ProviderLogo provider={provider} />
+      <View style={styles.cardText}>
+        <View style={styles.nameRow}>
+          <Text style={styles.cardName}>{provider.serviceName ?? provider.name}</Text>
+          <Text style={[styles.badge, styles.connectBadge]}>{provider.connectLabel}</Text>
+        </View>
+        <Text style={styles.description}>{provider.description}</Text>
+        <Text style={styles.meta}>{provider.permissionsSummary}</Text>
+      </View>
+      {busy ? <ActivityIndicator color="#007A3D" /> : <Text style={styles.chevron}>›</Text>}
+    </Pressable>
+  );
+}
+
+function ConnectionFamilyCard({
+  family,
+  connectionsByProvider,
+  busy,
+  onConnect,
+  onOpen,
+}: {
+  family: ConnectionProviderFamily;
+  connectionsByProvider: Map<string, Connection>;
+  busy: boolean;
+  onConnect: (provider: ConnectionProvider) => void;
+  onOpen: (connection: Connection) => void;
+}) {
+  return (
+    <View style={styles.familyCard}>
+      <View style={styles.familyHeader}>
+        <ProviderLogo provider={{ id: family.logoProviderId, iconText: family.iconText }} />
+        <View style={styles.cardText}>
+          <View style={styles.nameRow}>
+            <Text style={styles.familyName}>{family.name}</Text>
+            {family.includedSummary ? (
+              <Text style={[styles.badge, styles.includedBadge]}>Included</Text>
+            ) : null}
+          </View>
+          <Text style={styles.description}>{family.description}</Text>
+          {family.includedSummary ? (
+            <Text style={styles.meta}>{family.includedSummary}</Text>
+          ) : null}
+        </View>
+      </View>
+      <View style={styles.familyServices}>
+        {family.providers.map((provider) => {
+          const connection = connectionsByProvider.get(provider.id);
+          return connection ? (
+            <ConnectionRow
+              key={provider.id}
+              connection={connection}
+              provider={provider}
+              nested
+              displayName={provider.serviceName ?? provider.name}
+              onPress={() => onOpen(connection)}
+            />
+          ) : (
+            <AvailableConnectionRow
+              key={provider.id}
+              provider={provider}
+              busy={busy}
+              nested
+              onPress={() => onConnect(provider)}
+            />
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -127,6 +228,7 @@ export function Connections({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const connections = userConnections(tools);
+  const families = connectionProviderFamilies(providers);
   const selected = connections.find((connection) => connection.id === selectedId);
   const providersById = new Map(providers.map((provider) => [provider.id, provider]));
   const connectionsByProvider = new Map(
@@ -215,7 +317,21 @@ export function Connections({
               </View>
 
               <Text style={styles.sectionLabel}>Available accounts</Text>
-              {providers.map((provider) => {
+              {families.map((family) => {
+                if (family.grouped) {
+                  return (
+                    <ConnectionFamilyCard
+                      key={family.id}
+                      family={family}
+                      connectionsByProvider={connectionsByProvider}
+                      busy={busy}
+                      onConnect={(provider) => void connect(provider)}
+                      onOpen={(connection) => setSelectedId(connection.id)}
+                    />
+                  );
+                }
+                const provider = family.providers[0];
+                if (!provider) return null;
                 const connection = connectionsByProvider.get(provider.id);
                 if (connection) {
                   return (
@@ -228,26 +344,12 @@ export function Connections({
                   );
                 }
                 return (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ busy, disabled: busy }}
-                    disabled={busy}
+                  <AvailableConnectionRow
                     key={provider.id}
-                    style={({ pressed }) => [styles.card, styles.connectCard, pressed && styles.pressed]}
-                    onPress={() => void connect(provider)}>
-                    <ProviderLogo provider={provider} />
-                    <View style={styles.cardText}>
-                      <View style={styles.nameRow}>
-                        <Text style={styles.cardName}>{provider.name}</Text>
-                        <Text style={[styles.badge, styles.connectBadge]}>
-                          {provider.connectLabel}
-                        </Text>
-                      </View>
-                      <Text style={styles.description}>{provider.description}</Text>
-                      <Text style={styles.meta}>{provider.permissionsSummary}</Text>
-                    </View>
-                    {busy ? <ActivityIndicator color="#007A3D" /> : <Text style={styles.chevron}>›</Text>}
-                  </Pressable>
+                    provider={provider}
+                    busy={busy}
+                    onPress={() => void connect(provider)}
+                  />
                 );
               })}
             </>
@@ -272,12 +374,18 @@ const styles = StyleSheet.create({
   sectionLabel: { color: '#24231F', fontSize: 13, fontWeight: '800', marginTop: 8, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.7 },
   card: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 10, borderRadius: 17, borderWidth: 1, borderColor: '#E2DFD7', backgroundColor: '#FFFFFF' },
   connectCard: { borderColor: '#CBE2D5', backgroundColor: '#F3FAF6' },
+  familyCard: { marginBottom: 10, overflow: 'hidden', borderRadius: 17, borderWidth: 1, borderColor: '#CBE2D5', backgroundColor: '#FFFFFF' },
+  familyHeader: { minHeight: 94, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, backgroundColor: '#F3FAF6' },
+  familyName: { flexShrink: 1, color: '#173E2A', fontSize: 17, fontWeight: '800' },
+  familyServices: { paddingHorizontal: 14 },
+  familyServiceRow: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth, borderColor: '#E2DFD7', backgroundColor: '#FFFFFF' },
   cardText: { flex: 1, minWidth: 0 },
   nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   cardName: { flexShrink: 1, color: '#24231F', fontSize: 15, fontWeight: '700' },
   badge: { overflow: 'hidden', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, fontSize: 10, fontWeight: '800' },
   connectBadge: { color: '#007A3D', backgroundColor: '#DCEFE4' },
   connectedBadge: { color: '#007A3D', backgroundColor: '#E4F1EA' },
+  includedBadge: { color: '#315F48', backgroundColor: '#DCEFE4' },
   description: { color: '#6E6A62', fontSize: 12, lineHeight: 17, marginTop: 4 },
   meta: { color: '#6E6A62', fontSize: 11, marginTop: 5 },
   chevron: { color: '#6E6A62', fontSize: 25, fontWeight: '300' },

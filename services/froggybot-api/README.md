@@ -18,4 +18,6 @@ Run commands from this directory. Resource construct names in `amplify/backend.t
 
 Create production and sandbox APNs platform applications in Amazon SNS using the Apple signing key owned by the release account. Set their ARNs as `FROGBOT_APNS_APPLICATION_ARN` and `FROGBOT_APNS_SANDBOX_APPLICATION_ARN` before the Amplify deployment. The API then creates per-device endpoints and the worker delivers directly through SNS. Existing Expo registrations continue to work unchanged.
 
+Local Amplify sandboxes default to same-account SNS platform applications named `FroggyBot` when those variables are omitted. This keeps repeated sandbox deployments from silently removing native notification delivery. Set the variables explicitly when an account uses different application names; production still requires the production ARN.
+
 Never store an Apple `.p8` key, APNs token, or signing certificate in this repository. CI should supply the two platform application ARNs as environment variables.

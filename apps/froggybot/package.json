@@ -72,7 +72,7 @@
     "nemotron:smoke:macos": "npm run nemotron:prepare:apple && swift run --package-path ../../packages/frogbot-transcription frogbot-nemotron-smoke",
     "eas-build-pre-install": "node scripts/reject-deprecated-native-build.mjs",
     "web": "npm run browser:build && expo start --web",
-    "web:preview": "npm run browser:build && FROGBOT_ENABLE_LOCAL_PREVIEW=1 expo start --web",
+    "web:preview": "npm run browser:build && FROGBOT_ENABLE_LOCAL_PREVIEW=1 EXPO_NO_METRO_LAZY=1 expo start --web",
     "build:web": "npm run browser:build && expo export --platform web && npm run preview:check && npm run bundle:size && npm run web:headers",
     "preview:check": "node scripts/check-preview-boundary.mjs",
     "view:boundary": "node scripts/check-view-boundary.mjs",

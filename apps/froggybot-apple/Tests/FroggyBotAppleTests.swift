@@ -164,6 +164,23 @@ import UniformTypeIdentifiers
       ["browser"])
   }
 
+  func testMemoryUsageMakesActiveScopeAndCleanupExplicit() {
+    let fact = MemoryRecord(
+      id: "fact", kind: "fact", content: "Prefers tea", createdAt: "2026-09-13T12:00:00Z",
+      scope: "personal", source: "learned", botId: nil, botName: nil)
+    let activeSummary = MemoryRecord(
+      id: "summary", kind: "summary", content: "Trip planning", createdAt: "2026-09-13T12:00:00Z",
+      scope: "personal", source: "learned", botId: "travel", botName: "Travel Bot")
+    var unusedSummary = activeSummary
+    unusedSummary.botId = nil
+    unusedSummary.botName = nil
+
+    XCTAssertEqual(memoryUsageState(for: fact, groupID: nil), .allBots)
+    XCTAssertEqual(memoryUsageState(for: activeSummary, groupID: nil), .bot("Travel Bot"))
+    XCTAssertEqual(memoryUsageState(for: unusedSummary, groupID: nil), .unused)
+    XCTAssertEqual(memoryUsageState(for: fact, groupID: "group"), .group)
+  }
+
   func testNewCustomBotStartsWithAServiceSupportedColor() {
     XCTAssertEqual(BotDraft().color, "#58BEAA")
   }
@@ -345,6 +362,36 @@ import UniformTypeIdentifiers
     XCTAssertEqual(AppModel.mergeLatest(current: current, latest: latest).map(\.id), ["m1", "m2"])
     XCTAssertEqual(
       AppModel.mergeEarlier(current: current, earlier: current).map(\.id), ["m1", "m2"])
+  }
+
+  func testInitialMessageLoadRemainsLoadingUntilHistoryArrives() async throws {
+    let requestStarted = expectation(description: "History request started")
+    let releaseRequest = DispatchSemaphore(value: 0)
+    MockURLProtocol.handler = { request in
+      requestStarted.fulfill()
+      releaseRequest.wait()
+      return Self.response(
+        for: request,
+        body:
+          #"{"messages":[{"id":"history","role":"assistant","text":"Existing reply","createdAt":"2026-09-12T12:00:00Z","status":"complete"}],"nextToken":null}"#)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let model = AppModel(api: api)
+    model.selection = .init(kind: .bot, id: "chief")
+
+    let load = Task { try await model.loadMessages() }
+    await fulfillment(of: [requestStarted], timeout: 2)
+
+    XCTAssertTrue(model.isLoadingMessages)
+    XCTAssertTrue(model.messages.isEmpty)
+
+    releaseRequest.signal()
+    try await load.value
+
+    XCTAssertFalse(model.isLoadingMessages)
+    XCTAssertEqual(model.messages.map(\.id), ["history"])
   }
 
   func testBootstrapRefreshLoadsMessagesForAReplacementSelection() async throws {
@@ -816,7 +863,7 @@ import UniformTypeIdentifiers
 
   func testConnectionProviderPresentationIsEntirelyServerDefined() throws {
     let data = try XCTUnwrap(
-      #"{"id":"future-provider","name":"Future Provider","description":"A new connection.","category":"Productivity","iconText":"FP","permissionsSummary":"Read-only","privacyTitle":"Private by default","privacyDescription":"Delegated only when needed.","connectLabel":"Connect workspace","reconnectLabel":"Update workspace"}"#
+      #"{"id":"future-provider","name":"Future Provider","description":"A new connection.","category":"Productivity","iconText":"FP","permissionsSummary":"Read-only","privacyTitle":"Private by default","privacyDescription":"Delegated only when needed.","connectLabel":"Connect workspace","reconnectLabel":"Update workspace","familyId":"future-family","familyName":"Future Family","familyDescription":"Related services.","familyIconText":"FF","familyLogoProviderId":"future-provider","familyIncludedSummary":"Public tools included","familyIncludedToolIds":["future-search"],"serviceName":"Private access"}"#
         .data(using: .utf8))
 
     let provider = try JSONDecoder().decode(ConnectionProvider.self, from: data)
@@ -824,6 +871,36 @@ import UniformTypeIdentifiers
     XCTAssertEqual(provider.id, "future-provider")
     XCTAssertEqual(provider.connectLabel, "Connect workspace")
     XCTAssertEqual(provider.reconnectLabel, "Update workspace")
+    XCTAssertEqual(provider.familyId, "future-family")
+    XCTAssertEqual(provider.familyName, "Future Family")
+    XCTAssertEqual(provider.familyIncludedSummary, "Public tools included")
+    XCTAssertEqual(provider.familyIncludedToolIds, ["future-search"])
+    XCTAssertEqual(provider.serviceName, "Private access")
+  }
+
+  func testConnectionProviderFamiliesGroupServicesWithoutMergingProviders() throws {
+    let data = try XCTUnwrap(
+      #"[{"id":"gmail","name":"Gmail","description":"Email.","category":"Email","iconText":"G","permissionsSummary":"Read and draft","privacyTitle":"Private","privacyDescription":"Email access.","connectLabel":"Connect","reconnectLabel":"Reconnect","familyId":"google","familyName":"Google","familyDescription":"Choose services.","familyIconText":"G","familyLogoProviderId":"google_workspace","familyIncludedSummary":"Public YouTube research included","familyIncludedToolIds":["youtube_search"],"serviceName":"Gmail"},{"id":"youtube","name":"YouTube Studio","description":"Channel.","category":"Video","iconText":"YT","permissionsSummary":"Read channel","privacyTitle":"Private","privacyDescription":"Channel access.","connectLabel":"Connect","reconnectLabel":"Reconnect","familyId":"google","familyName":"Google","familyDescription":"Choose services.","familyIconText":"G","familyLogoProviderId":"google_workspace","familyIncludedSummary":"Public YouTube research included","familyIncludedToolIds":["youtube_search"],"serviceName":"YouTube Studio"}]"#
+        .data(using: .utf8))
+    let providers = try JSONDecoder().decode([ConnectionProvider].self, from: data)
+
+    let families = connectionProviderFamilies(providers)
+
+    XCTAssertEqual(families.map(\.id), ["google"])
+    XCTAssertEqual(families[0].providers.map(\.id), ["gmail", "youtube"])
+    XCTAssertEqual(families[0].includedSummary, "Public YouTube research included")
+    XCTAssertEqual(families[0].includedToolIDs, ["youtube_search"])
+
+    let toolsData = try XCTUnwrap(
+      #"[{"id":"youtube_search","name":"YouTube Search","description":"Search public videos.","provider":"agentcore-gateway"},{"id":"connection-youtube","name":"YouTube Studio","description":"Read a connected channel.","provider":"youtube","source":"user","editable":true,"connectionStatus":"connected"},{"id":"web_search","name":"Web Search","description":"Search the web.","provider":"agentcore-gateway"}]"#
+        .data(using: .utf8))
+    let tools = try JSONDecoder().decode([Capability].self, from: toolsData)
+
+    let grouped = connectionProviderToolGroups(tools: tools, providers: providers)
+
+    XCTAssertEqual(grouped.groups.map(\.id), ["google"])
+    XCTAssertEqual(grouped.groups[0].tools.map(\.id), ["youtube_search", "connection-youtube"])
+    XCTAssertEqual(grouped.ungrouped.map(\.id), ["web_search"])
   }
 
   func testConnectionProviderAcceptsThePreviouslyDeployedResponseShape() throws {

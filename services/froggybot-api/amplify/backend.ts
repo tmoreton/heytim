@@ -1,8 +1,5 @@
 import { defineBackend } from '@aws-amplify/backend';
 import { ArnFormat, Duration, RemovalPolicy } from 'aws-cdk-lib';
-import { CfnStage, CorsHttpMethod, HttpApi, HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
-import { HttpJwtAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
-import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import { Trail } from 'aws-cdk-lib/aws-cloudtrail';
 import { AttributeType, BillingMode, Table, TableEncryption } from 'aws-cdk-lib/aws-dynamodb';
 import { Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
@@ -19,7 +16,6 @@ import path from 'node:path';
 
 import { preSignUp } from './auth/pre-sign-up/resource';
 import { auth, emailCodeMessage } from './auth/resource';
-import apiContract from './functions/api/api-contract.json';
 import {
   ALLOWED_WEB_ORIGINS, CAPABILITY_CATALOG_URL,
   FUNCTION_ASSET_EXCLUDES, PUBLIC_WEB_BASE_URL,
@@ -33,11 +29,21 @@ import {
 } from './infrastructure/app-settings';
 import { addBrowserAccess } from './infrastructure/browser-access';
 import { addGithubDeploymentRole } from './infrastructure/deployment-role';
-import { addNativePushAccess, nativePushEnvironment } from './infrastructure/native-push';
+import { addHttpApi } from './infrastructure/http-api';
+import {
+  addNativePushAccess,
+  nativePushEnvironment,
+  resolveNativePushApplicationArns,
+} from './infrastructure/native-push';
 import { addObservability } from './infrastructure/observability';
 import { addProviderConnectionAccess } from './infrastructure/provider-connections';
 const backend = defineBackend({ auth, preSignUp });
 const stack = backend.createStack('FrogBotApp');
+const nativePushApplications = resolveNativePushApplicationArns(
+  stack,
+  apnsApplicationArn,
+  apnsSandboxApplicationArn,
+);
 
 const { cfnIdentityPool, cfnUserPool, cfnUserPoolClient } = backend.auth.resources.cfnResources;
 // The app's public routes use API Gateway directly and never need AWS guest
@@ -318,7 +324,7 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
     FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT: String(globalWindowRunUnitLimit),
     FROGBOT_USAGE_WINDOW_SECONDS: String(usageWindowSeconds),
     FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT: String(youtubeSearchDailyLimit),
-    ...nativePushEnvironment(apnsApplicationArn, apnsSandboxApplicationArn),
+    ...nativePushEnvironment(nativePushApplications.production, nativePushApplications.sandbox),
   },
 });
 
@@ -355,7 +361,7 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
     FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT: String(globalWindowRunUnitLimit),
     FROGBOT_USAGE_WINDOW_SECONDS: String(usageWindowSeconds),
     FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT: String(youtubeSearchDailyLimit),
-    ...nativePushEnvironment(apnsApplicationArn, apnsSandboxApplicationArn),
+    ...nativePushEnvironment(nativePushApplications.production, nativePushApplications.sandbox),
   },
 });
 
@@ -364,7 +370,10 @@ addBrowserAccess(stack, apiFunction, workerFunction);
 inviteAccess.grantReadWriteData(apiFunction);
 inviteAccess.grantReadWriteData(workerFunction);
 table.grantReadWriteData(workerFunction);
-addNativePushAccess(apiFunction, workerFunction, [apnsApplicationArn, apnsSandboxApplicationArn]);
+addNativePushAccess(apiFunction, workerFunction, [
+  nativePushApplications.production,
+  nativePushApplications.sandbox,
+]);
 apiFunction.addToRolePolicy(
   new PolicyStatement({
     actions: ['dynamodb:TransactWriteItems'],
@@ -502,18 +511,13 @@ workerFunction.addToRolePolicy(
   }),
 );
 
-const httpApi = new HttpApi(stack, 'HttpApi', {
-  corsPreflight: {
-    allowOrigins: ALLOWED_WEB_ORIGINS,
-    allowHeaders: ['authorization', 'content-type'],
-    allowMethods: [
-      CorsHttpMethod.GET,
-      CorsHttpMethod.POST,
-      CorsHttpMethod.PUT,
-      CorsHttpMethod.DELETE,
-      CorsHttpMethod.OPTIONS,
-    ],
-  },
+const httpApi = addHttpApi({
+  stack,
+  apiFunction,
+  apiAccessLogGroup,
+  allowedOrigins: ALLOWED_WEB_ORIGINS,
+  userPoolId: backend.auth.resources.userPool.userPoolId,
+  userPoolClientId: backend.auth.resources.userPoolClient.userPoolClientId,
 });
 addProviderConnectionAccess(apiFunction, httpApi.apiEndpoint, {
   github: githubAppSecretArn,
@@ -523,54 +527,6 @@ addProviderConnectionAccess(apiFunction, httpApi.apiEndpoint, {
   slack: slackOAuthSecretArn,
   x: xOAuthSecretArn,
 });
-const authorizer = new HttpJwtAuthorizer(
-  'CognitoAuthorizer',
-  `https://cognito-idp.${stack.region}.amazonaws.com/${backend.auth.resources.userPool.userPoolId}`,
-  { jwtAudience: [backend.auth.resources.userPoolClient.userPoolClientId] },
-);
-const integration = new HttpLambdaIntegration('ApiIntegration', apiFunction, {
-  scopePermissionToRoute: false,
-});
-
-const defaultStage = httpApi.defaultStage?.node.defaultChild as CfnStage | undefined;
-if (!defaultStage) throw new Error('FroggyBot HTTP API must have a default stage.');
-defaultStage.accessLogSettings = {
-  destinationArn: apiAccessLogGroup.logGroupArn,
-  format: JSON.stringify({
-    requestId: '$context.requestId',
-    requestTime: '$context.requestTime',
-    httpMethod: '$context.httpMethod',
-    routeKey: '$context.routeKey',
-    status: '$context.status',
-    responseLatency: '$context.responseLatency',
-    integrationError: '$context.integrationErrorMessage',
-    sourceIp: '$context.identity.sourceIp',
-  }),
-};
-defaultStage.defaultRouteSettings = {
-  detailedMetricsEnabled: true,
-  throttlingBurstLimit: 100,
-  throttlingRateLimit: 50,
-};
-
-const contractMethods: Record<string, HttpMethod> = {
-  GET: HttpMethod.GET,
-  POST: HttpMethod.POST,
-  PUT: HttpMethod.PUT,
-  DELETE: HttpMethod.DELETE,
-  PATCH: HttpMethod.PATCH,
-};
-for (const route of apiContract.routes) {
-  if (route.access !== 'public' && route.access !== 'authenticated') throw new Error(`Unsupported API contract access: ${route.access}`);
-  const method = contractMethods[route.method];
-  if (!method) throw new Error(`Unsupported API contract method: ${route.method}`);
-  httpApi.addRoutes({
-    path: route.path,
-    methods: [method],
-    integration,
-    ...(route.access === 'authenticated' ? { authorizer } : {}),
-  });
-}
 
 const { alarmTopic, monthlyBudgetName } = addObservability({
   stack,

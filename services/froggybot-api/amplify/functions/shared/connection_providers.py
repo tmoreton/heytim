@@ -55,6 +55,29 @@ PUBLIC_PROVIDER_FIELDS = (
     "connectLabel",
     "reconnectLabel",
 )
+OPTIONAL_PUBLIC_PROVIDER_FIELDS = (
+    "familyId",
+    "familyName",
+    "familyDescription",
+    "familyIconText",
+    "familyLogoProviderId",
+    "familyIncludedSummary",
+    "familyIncludedToolIds",
+    "serviceName",
+)
+
+GOOGLE_FAMILY = {
+    "familyId": "google",
+    "familyName": "Google",
+    "familyDescription": (
+        "Public YouTube research is included. Connect only the Google services "
+        "each bot needs."
+    ),
+    "familyIconText": "G",
+    "familyLogoProviderId": "google_workspace",
+    "familyIncludedSummary": "Public YouTube research included",
+    "familyIncludedToolIds": ["youtube_search"],
+}
 
 # This is the single backend registry for connection identity, client presentation,
 # and stored connection metadata. Authentication implementations remain private to
@@ -99,6 +122,8 @@ CONNECTION_PROVIDER_SPECS = (
         "endpoint": GMAIL_MCP_ENDPOINT,
         "tags": ["private", "gmail", "mcp"],
         "actions": ["Search email", "Read threads", "Create drafts"],
+        **GOOGLE_FAMILY,
+        "serviceName": "Gmail",
     },
     {
         "id": "youtube",
@@ -119,6 +144,8 @@ CONNECTION_PROVIDER_SPECS = (
         "tags": ["private", "youtube", "oauth"],
         "actions": ["Read channel details", "List uploaded videos"],
         "scopes": ["https://www.googleapis.com/auth/youtube.readonly"],
+        **GOOGLE_FAMILY,
+        "serviceName": "YouTube Studio",
     },
     {
         "id": "google_workspace",
@@ -146,6 +173,8 @@ CONNECTION_PROVIDER_SPECS = (
             "https://www.googleapis.com/auth/calendar.events.freebusy",
             "https://www.googleapis.com/auth/calendar.events.readonly",
         ],
+        **GOOGLE_FAMILY,
+        "serviceName": "Workspace",
     },
     {
         "id": "slack",
@@ -247,6 +276,17 @@ CONNECTION_PROVIDER_SPECS = (
         "tags": ["private", "x", "oauth"],
         "actions": ["Read profile", "Read own posts", "Read mentions"],
         "scopes": ["tweet.read", "users.read", "offline.access"],
+        "familyId": "x",
+        "familyName": "X",
+        "familyDescription": (
+            "Search recent public posts without connecting an account. Connect only "
+            "when a bot needs your profile, posts, or mentions."
+        ),
+        "familyIconText": "X",
+        "familyLogoProviderId": "x",
+        "familyIncludedSummary": "Public post search included",
+        "familyIncludedToolIds": ["x_search"],
+        "serviceName": "Account access",
     },
 )
 
@@ -255,7 +295,11 @@ SUPPORTED_CONNECTION_PROVIDER_IDS = frozenset(_SPECS_BY_ID)
 
 
 def _public_provider(spec: dict) -> dict:
-    return {field: deepcopy(spec[field]) for field in PUBLIC_PROVIDER_FIELDS}
+    return {
+        field: deepcopy(spec[field])
+        for field in (*PUBLIC_PROVIDER_FIELDS, *OPTIONAL_PUBLIC_PROVIDER_FIELDS)
+        if field in spec
+    }
 
 
 def _disabled_provider_ids() -> frozenset[str]:
