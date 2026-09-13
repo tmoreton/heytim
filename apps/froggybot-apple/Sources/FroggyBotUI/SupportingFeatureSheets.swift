@@ -674,6 +674,7 @@ struct AccountView: View {
         LabeledContent("App", value: "FroggyBot for Apple")
         LabeledContent("Platforms", value: "iPhone + Mac")
         LabeledContent("Version", value: versionLabel)
+          .accessibilityIdentifier("settings.version")
         Link("Support", destination: URL(string: "mailto:tmoreton89@gmail.com?subject=FroggyBot%20Support")!)
       }
     }
