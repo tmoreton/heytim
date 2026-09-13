@@ -828,6 +828,7 @@ private struct Composer: View {
             submitMessage()
           }
           .labelStyle(.iconOnly)
+          .font(.system(size: 17, weight: .bold))
           .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
           .buttonBorderShape(.circle)
           .controlSize(.large)
@@ -846,7 +847,7 @@ private struct Composer: View {
     }
     .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 9)
     .frame(maxWidth: .infinity)
-    .background(.bar)
+    .background(FrogTheme.appBackground)
     .photosPicker(
       isPresented: $showingPhotoPicker,
       selection: $selectedPhotos,

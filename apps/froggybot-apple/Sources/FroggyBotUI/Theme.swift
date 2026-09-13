@@ -198,7 +198,7 @@ extension View {
   @ViewBuilder func froggyGlassButton(prominent: Bool = false, tint: Color? = nil) -> some View {
     if #available(iOS 26.0, macOS 26.0, *) {
       if prominent {
-        buttonStyle(.glass(.regular.tint(tint).interactive()))
+        buttonStyle(.glassProminent).tint(tint)
       } else {
         buttonStyle(.glass)
       }
