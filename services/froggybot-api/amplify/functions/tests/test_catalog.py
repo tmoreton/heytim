@@ -212,6 +212,25 @@ class CatalogServiceTests(unittest.TestCase):
             "include counts", self.catalog.get_version(first["id"], 2)["instructions"]
         )
 
+    def test_custom_skill_can_use_a_replay_safe_creation_id(self) -> None:
+        skill = self.catalog.save_skill(
+            "owner",
+            {
+                "name": "Newsletter review",
+                "description": "Reviews newsletter copy before publication.",
+                "instructions": "Flag specific style issues without guessing authorship.",
+                "requiredToolIds": [],
+                "visibility": "private",
+            },
+            new_skill_id="skill-ai-1234567890abcdef",
+        )
+
+        self.assertEqual(skill["id"], "skill-ai-1234567890abcdef")
+        self.assertEqual(
+            self.catalog.get_skill("owner", skill["id"])["instructions"],
+            "Flag specific style issues without guessing authorship.",
+        )
+
     def test_shared_skill_installs_without_becoming_editable(self) -> None:
         skill = self.catalog.save_skill(
             "owner",
@@ -289,6 +308,16 @@ class CatalogServiceTests(unittest.TestCase):
         self.assertEqual(self.catalog.retired_tool_ids(), ["meme_composer"])
         with self.assertRaisesRegex(CatalogError, "Unknown tools: never_existed"):
             self.catalog.validate_tools("owner", ["web", "never_existed"])
+
+    def test_execution_ignores_a_stale_connection_without_weakening_edits(self) -> None:
+        configured = ["web", "connection_removed", "web"]
+
+        self.assertEqual(
+            self.catalog.available_tool_ids("owner", configured), ["web"]
+        )
+        self.assertEqual(self.catalog.unapproved_tools("owner", configured, []), [])
+        with self.assertRaisesRegex(CatalogError, "Unknown tools: connection_removed"):
+            self.catalog.validate_tools("owner", configured)
 
     def test_managed_connection_is_user_scoped_without_exposing_secrets(self) -> None:
         saved = self.catalog.save_gmail_connection(

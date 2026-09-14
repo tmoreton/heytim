@@ -4,12 +4,15 @@ import json
 import uuid
 from typing import Any
 
-from .support import _bot_key, table
+from shared.catalog import CatalogError
+
+from .support import _bot_key, catalog, table
 
 MAX_MUTATIONS = 1
-MAX_MUTATION_BYTES = 20_000
+MAX_MUTATION_BYTES = 24_000
 CREATE_FIELDS = {"name", "tagline", "prompt", "color", "toolIds", "skillIds"}
 UPDATE_FIELDS = CREATE_FIELDS
+CREATE_SKILL_FIELDS = {"name", "description", "instructions", "requiredToolIds"}
 
 
 def _bot_api():
@@ -32,7 +35,7 @@ def _mutation(value: Any) -> tuple[str, str, dict]:
         raise ValueError("Bot mutation ID is invalid")
     action = value.get("action")
     body = value.get("value")
-    if action not in {"create", "install_template", "update"}:
+    if action not in {"create", "install_template", "update", "create_skill"}:
         raise ValueError("Bot mutation action is unsupported")
     if not isinstance(body, dict):
         raise TypeError("Bot mutation value must be an object")
@@ -85,6 +88,55 @@ def _update(user_id: str, value: dict) -> None:
     bot_api._update_bot(user_id, bot_id, changes)
 
 
+def _create_skill(
+    user_id: str, invoking_bot: dict, mutation_id: str, value: dict
+) -> None:
+    if set(value) != CREATE_SKILL_FIELDS:
+        raise ValueError("Create skill fields are invalid")
+    bot_id = invoking_bot.get("id")
+    if not isinstance(bot_id, str) or not bot_id:
+        raise ValueError("The invoking bot ID is invalid")
+    required_tool_ids = value.get("requiredToolIds")
+    if not isinstance(required_tool_ids, list) or not all(
+        isinstance(tool_id, str) for tool_id in required_tool_ids
+    ):
+        raise ValueError("Skill requiredToolIds must be a list")
+
+    bot_api = _bot_api()
+    target = bot_api._get_bot(user_id, bot_id)
+    allowed_tool_ids = {
+        tool_id
+        for tool_id in target.get("toolIds", [])
+        if isinstance(tool_id, str) and tool_id != "bot_manager"
+    }
+    if not set(required_tool_ids).issubset(allowed_tool_ids):
+        raise ValueError("A self-authored skill can use only tools the bot already has")
+
+    skill_id = f"skill-ai-{mutation_id.replace('-', '')}"
+    try:
+        catalog.get_skill(user_id, skill_id)
+    except CatalogError:
+        if any(
+            str(skill.get("name", "")).strip().casefold()
+            == str(value.get("name", "")).strip().casefold()
+            for skill in catalog.list_skills(user_id)
+        ):
+            raise ValueError("A skill with that name already exists")
+        catalog.save_skill(
+            user_id,
+            {**value, "visibility": "private"},
+            new_skill_id=skill_id,
+        )
+
+    skill_ids = [
+        skill_id_value
+        for skill_id_value in target.get("skillIds", [])
+        if isinstance(skill_id_value, str)
+    ]
+    if skill_id not in skill_ids:
+        bot_api._update_bot(user_id, bot_id, {"skillIds": [*skill_ids, skill_id]})
+
+
 def apply_bot_mutations(
     user_id: str,
     invoking_bot: dict,
@@ -99,11 +151,16 @@ def apply_bot_mutations(
         or len(raw_mutations) > MAX_MUTATIONS
     ):
         raise ValueError("Bot mutations must contain exactly one change")
-    if invoking_bot.get("systemRole") != "chief" or turn.get("source") == "schedule":
-        raise ValueError("Bot changes are allowed only from a direct Chief chat")
     if len(json.dumps(raw_mutations, ensure_ascii=False).encode("utf-8")) > MAX_MUTATION_BYTES:
         raise ValueError("Bot mutation is too large")
     mutation_id, action, value = _mutation(raw_mutations[0])
+    if turn.get("source") == "schedule":
+        raise ValueError("Bot and skill changes are unavailable during scheduled runs")
+    if action == "create_skill":
+        _create_skill(user_id, invoking_bot, mutation_id, value)
+        return
+    if invoking_bot.get("systemRole") != "chief":
+        raise ValueError("Bot changes are allowed only from a direct Chief chat")
     if action == "create":
         _create(user_id, mutation_id, value)
     elif action == "install_template":

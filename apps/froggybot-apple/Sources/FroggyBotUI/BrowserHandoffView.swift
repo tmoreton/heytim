@@ -34,6 +34,7 @@ struct BrowserHandoffView: View {
       }
     }
     .navigationTitle("Secure browser handoff")
+    .toolbarTitleDisplayMode(.inline)
     .toolbar {
       CloseButton { model.sheet = nil }
       ToolbarItem(placement: .primaryAction) {

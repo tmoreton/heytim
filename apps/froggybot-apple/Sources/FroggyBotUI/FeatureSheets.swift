@@ -73,7 +73,7 @@ private struct GuidedTextEditor: View {
   }
 }
 
-private struct BotColorOption: Identifiable, Sendable {
+struct BotColorOption: Identifiable, Sendable {
   let value: String
   let name: String
   var id: String { value }
@@ -84,7 +84,7 @@ private struct ScheduleWeekday: Identifiable, Sendable {
   let name: String
 }
 
-private let customBotColors = [
+let customBotColors = [
   BotColorOption(value: "#58BEAA", name: "Teal"),
   BotColorOption(value: "#FFAA34", name: "Gold"),
   BotColorOption(value: "#6C5CE7", name: "Purple"),
@@ -93,7 +93,7 @@ private let customBotColors = [
   BotColorOption(value: "#E95383", name: "Pink"),
 ]
 
-private struct BotColorPicker: View {
+struct BotColorPicker: View {
   @Binding var selection: String
   let options: [BotColorOption]
 
@@ -180,6 +180,7 @@ struct BotLibrary: View {
     }
     .froggyListSurface()
     .navigationTitle("Add a Bot")
+    .toolbarTitleDisplayMode(.inline)
     .searchable(text: $search, prompt: "Search templates")
     .toolbar {
       if showsDismissButton {
@@ -332,6 +333,7 @@ private struct BotTemplateDetailView: View {
     .formStyle(.grouped)
     .froggyListSurface()
     .navigationTitle(template.name)
+    .toolbarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .confirmationAction) {
         if installed {
@@ -498,6 +500,7 @@ private struct BotEditor: View {
     .formStyle(.grouped)
     .froggyListSurface()
     .navigationTitle(id == nil ? "New bot" : "Edit bot")
+    .toolbarTitleDisplayMode(.inline)
     .toolbar {
       CloseButton()
       ToolbarItem(placement: .confirmationAction) {
@@ -522,7 +525,7 @@ private struct BotEditor: View {
   }
 }
 
-private struct BotPromptEditor: View {
+struct BotPromptEditor: View {
   @Binding var prompt: String
   let maximumLength: Int
   @Environment(\.dismiss) private var dismiss
@@ -561,6 +564,7 @@ private struct BotPromptEditor: View {
     .padding(20)
     .background(FrogTheme.pageBackground)
     .navigationTitle("Bot Prompt")
+    .toolbarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .confirmationAction) {
         Button("Done") { dismiss() }
@@ -569,7 +573,7 @@ private struct BotPromptEditor: View {
   }
 }
 
-private struct BotToolsAndSkillsEditor: View {
+struct BotToolsAndSkillsEditor: View {
   @Binding var draft: BotDraft
   let skills: [Skill]
   let tools: [Capability]
@@ -675,6 +679,7 @@ private struct BotToolsAndSkillsEditor: View {
     .formStyle(.grouped)
     .froggyListSurface()
     .navigationTitle("Tools & Skills")
+    .toolbarTitleDisplayMode(.inline)
   }
 
   @ViewBuilder private func capabilityToggle(
@@ -857,6 +862,7 @@ private struct GroupEditor: View {
     .formStyle(.grouped)
     .froggyListSurface()
     .navigationTitle(id == nil ? "New group" : "Edit group")
+    .toolbarTitleDisplayMode(.inline)
     .toolbar {
       CloseButton { model.sheet = nil }
       if editable {
@@ -981,42 +987,45 @@ private struct SchedulesView: View {
       if schedules.isEmpty {
         ContentUnavailableView("No scheduled tasks", systemImage: "calendar.badge.plus")
       }
-    }.froggyListSurface().navigationTitle("Scheduled tasks")
-      .toolbar {
-        CloseButton { model.sheet = nil }
-        ToolbarItem(placement: .primaryAction) {
-          Button("New", systemImage: "plus") { creating = true }
+    }
+    .froggyListSurface()
+    .navigationTitle("Scheduled tasks")
+    .toolbarTitleDisplayMode(.inline)
+    .toolbar {
+      CloseButton { model.sheet = nil }
+      ToolbarItem(placement: .primaryAction) {
+        Button("New", systemImage: "plus") { creating = true }
+      }
+    }
+    .task { await load() }
+    .sheet(isPresented: $creating) {
+      NavigationStack {
+        ScheduleEditor(model: model, selection: selection, existing: nil) { await load() }
+      }
+      .froggySheetSize()
+    }
+    .sheet(item: $editing) { task in
+      NavigationStack {
+        ScheduleEditor(model: model, selection: selection, existing: task) { await load() }
+      }
+      .froggySheetSize()
+    }
+    .confirmationDialog(
+      "Delete this scheduled task?",
+      isPresented: Binding(
+        get: { deleteCandidate != nil },
+        set: { if !$0 { deleteCandidate = nil } }),
+      titleVisibility: .visible
+    ) {
+      if let deleteCandidate {
+        Button("Delete \(deleteCandidate.name)", role: .destructive) {
+          remove(deleteCandidate)
         }
       }
-      .task { await load() }
-      .sheet(isPresented: $creating) {
-        NavigationStack {
-          ScheduleEditor(model: model, selection: selection, existing: nil) { await load() }
-        }
-        .froggySheetSize()
-      }
-      .sheet(item: $editing) { task in
-        NavigationStack {
-          ScheduleEditor(model: model, selection: selection, existing: task) { await load() }
-        }
-        .froggySheetSize()
-      }
-      .confirmationDialog(
-        "Delete this scheduled task?",
-        isPresented: Binding(
-          get: { deleteCandidate != nil },
-          set: { if !$0 { deleteCandidate = nil } }),
-        titleVisibility: .visible
-      ) {
-        if let deleteCandidate {
-          Button("Delete \(deleteCandidate.name)", role: .destructive) {
-            remove(deleteCandidate)
-          }
-        }
-        Button("Cancel", role: .cancel) { deleteCandidate = nil }
-      } message: {
-        Text("This stops all future runs. Past run history is not changed.")
-      }
+      Button("Cancel", role: .cancel) { deleteCandidate = nil }
+    } message: {
+      Text("This stops all future runs. Past run history is not changed.")
+    }
   }
   private func load() async {
     guard let api = model.api else { return }
@@ -1165,6 +1174,7 @@ private struct ScheduleEditor: View {
     .formStyle(.grouped)
     .froggyListSurface()
     .navigationTitle(existing == nil ? "New task" : "Edit task")
+    .toolbarTitleDisplayMode(.inline)
     .toolbar {
       CloseButton { dismiss() }
       ToolbarItem(placement: .confirmationAction) {
@@ -1282,7 +1292,10 @@ private struct ScheduleRunsView: View {
       }
     }
     .froggyListSurface()
-    .navigationTitle("Run history").toolbar { CloseButton { model.sheet = nil } }.task {
+    .navigationTitle("Run history")
+    .toolbarTitleDisplayMode(.inline)
+    .toolbar { CloseButton { model.sheet = nil } }
+    .task {
       do { runs = try await model.api?.scheduleRuns(for: selection) ?? [] } catch {
         model.present(error)
       }
@@ -1522,6 +1535,7 @@ struct MemoriesView: View {
     }
     .froggyListSurface()
     .navigationTitle(groupId == nil ? "Memory" : "Group Memory")
+    .toolbarTitleDisplayMode(.inline)
     .searchable(text: $search, prompt: "Search memories")
     .toolbar {
       if showsDismissButton {
@@ -1947,7 +1961,11 @@ struct SkillsView: View {
           }
         }
       }
-    }.froggyListSurface().navigationTitle("Tools & Skills").toolbar {
+    }
+    .froggyListSurface()
+    .navigationTitle("Tools & Skills")
+    .toolbarTitleDisplayMode(.inline)
+    .toolbar {
       if showsDismissButton {
         CloseButton { model.sheet = nil }
       }
@@ -2001,6 +2019,7 @@ private struct CapabilityDetailView: View {
     .formStyle(.grouped)
     .froggyListSurface()
     .navigationTitle(capability.name)
+    .toolbarTitleDisplayMode(.inline)
   }
 
   private var accessLabel: String {
@@ -2059,6 +2078,7 @@ private struct SkillDetailView: View {
     .formStyle(.grouped)
     .froggyListSurface()
     .navigationTitle(detail?.name ?? "Skill")
+    .toolbarTitleDisplayMode(.inline)
     .task { await load() }
   }
 

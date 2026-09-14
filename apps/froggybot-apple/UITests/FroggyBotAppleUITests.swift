@@ -218,7 +218,15 @@ import XCTest
       XCTAssertLessThanOrEqual(create.frame.maxX, window.frame.maxX)
       XCTAssertLessThan(settings.frame.maxX, create.frame.minX)
     #endif
-    XCTAssertTrue(app.buttons["Memory"].exists)
+    XCTAssertTrue(app.textFields["Name"].exists)
+    XCTAssertTrue(app.buttons["bot.prompt.editor"].exists)
+    XCTAssertTrue(app.buttons["Save"].exists)
+    XCTAssertFalse(app.buttons["Edit Bot"].exists)
+    let toolsAndSkills = app.buttons["bot.tools-and-skills"]
+    let memory = app.buttons["Memory"]
+    for _ in 0..<4 where !toolsAndSkills.exists || !memory.exists { app.swipeUp() }
+    XCTAssertTrue(toolsAndSkills.exists)
+    XCTAssertTrue(memory.exists)
   }
 
   func testAccountSettingsUsesTheFroggyBotLayout() {

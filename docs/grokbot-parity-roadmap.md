@@ -107,6 +107,8 @@ demand justifies their additional maintenance.
 - Original PNG image generation through the configured OpenRouter image model
 - Deterministic caption compositing on user-supplied image templates through the Meme Maker bot
 - Chief-only creation, template installation, and editing of non-Chief bots in direct chats
+- Direct-chat private self-skill creation for every bot, restricted to the bot's existing tools and disabled for
+  scheduled and group mutations
 - Private per-user storage, typed download metadata, generated-file limits, retry cleanup, and formula-safe
   spreadsheet cells
 - Local visual checks for every native format, direct live runtime checks for every format, and an authenticated

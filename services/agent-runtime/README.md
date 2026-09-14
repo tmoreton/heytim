@@ -41,6 +41,8 @@ Tools:
 - `browser` - persistent AgentCore browser; the application requires per-turn user approval
 - `meme_lord` - private stored-template search and deterministic local caption rendering
 - `image_generator` - OpenRouter image generation plus reference-aware exact 1280x720 thumbnails from recent user images
+- `bot_manager` - direct-chat, replay-safe bot changes for Chief plus private self-skill creation for every bot;
+  self-authored skills cannot add tools the bot does not already have
 
 Skills and bot definitions are resolved from the current schema-version-3 public catalog. The runtime
 does not keep a second hard-coded bot catalog.

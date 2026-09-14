@@ -701,6 +701,7 @@ dependencies = [
     { name = "boto3" },
     { name = "botocore" },
     { name = "greenlet" },
+    { name = "grpcio" },
     { name = "httpx" },
     { name = "jiter" },
     { name = "mcp" },
@@ -714,6 +715,7 @@ dependencies = [
     { name = "strands-agents", extra = ["openai"] },
     { name = "strands-agents-stan" },
     { name = "strands-agents-tools", extra = ["agent-core-browser", "agent-core-code-interpreter"] },
+    { name = "uvicorn" },
     { name = "wrapt" },
 ]
 
@@ -731,6 +733,7 @@ requires-dist = [
     { name = "boto3", specifier = "==1.43.90" },
     { name = "botocore", specifier = "==1.43.90" },
     { name = "greenlet", specifier = "==3.2.5" },
+    { name = "grpcio", specifier = "==1.83.1" },
     { name = "httpx", specifier = "==0.28.1" },
     { name = "jiter", specifier = "==0.16.0" },
     { name = "mcp", specifier = ">=1.29.1,<2.0.0" },
@@ -744,6 +747,7 @@ requires-dist = [
     { name = "strands-agents", extras = ["openai"], specifier = "==1.55.0" },
     { name = "strands-agents-stan", path = "vendor/strands_agents_stan-0.0.1.dev53+g325058d51-py3-none-any.whl" },
     { name = "strands-agents-tools", extras = ["agent-core-browser", "agent-core-code-interpreter"], specifier = ">=0.2.0,<1.0.0" },
+    { name = "uvicorn", specifier = "==0.52.4" },
     { name = "wrapt", specifier = "==2.4.0" },
 ]
 

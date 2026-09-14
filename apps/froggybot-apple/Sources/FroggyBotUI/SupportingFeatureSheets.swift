@@ -107,7 +107,9 @@ struct SkillEditor: View {
     }
     .formStyle(.grouped)
     .froggyListSurface()
-    .navigationTitle(id == nil ? "New skill" : "Edit skill").toolbar {
+    .navigationTitle(id == nil ? "New skill" : "Edit skill")
+    .toolbarTitleDisplayMode(.inline)
+    .toolbar {
       CloseButton()
       ToolbarItem(placement: .confirmationAction) {
         Button("Save") {
@@ -408,6 +410,7 @@ private struct ConnectionDetailView: View {
     .formStyle(.grouped)
     .froggyListSurface()
     .navigationTitle(connection.name)
+    .toolbarTitleDisplayMode(.inline)
   }
 
   private var statusLabel: String {
@@ -455,6 +458,7 @@ struct DocumentsView: View {
     }
     .froggyListSurface()
     .navigationTitle("Documents")
+    .toolbarTitleDisplayMode(.inline)
     .toolbar { CloseButton { model.sheet = nil } }
     .overlay { if isLoading { ProgressView() } }
     .quickLookPreview($previewURL)
@@ -533,7 +537,9 @@ struct ShareView: View {
       }
     }.padding(32).frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(FrogTheme.pageBackground)
-      .navigationTitle("Share").toolbar { CloseButton { model.sheet = nil } }
+      .navigationTitle("Share")
+      .toolbarTitleDisplayMode(.inline)
+      .toolbar { CloseButton { model.sheet = nil } }
   }
 
   private var title: String {
@@ -730,6 +736,7 @@ struct AccountView: View {
     }
     .formStyle(.grouped)
     .navigationTitle("Settings")
+    .toolbarTitleDisplayMode(.inline)
     .toolbar {
       if showsDismissButton {
         ToolbarItem(placement: .cancellationAction) {

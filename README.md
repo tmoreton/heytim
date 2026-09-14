@@ -216,8 +216,10 @@ The Connections screen follows the same data-driven pattern using the backend pr
 reuse the generic UI and authorization route after its server adapter and permissions have been reviewed; no provider
 API key is accepted from an end user or shipped in the client.
 
-Users can create instruction-only skills inside the app, attach only the tools that skill needs, and share a
-30-day installation link. Shared skills are read-only for the recipient and require an explicit trust confirmation.
+Users can create instruction-only skills inside the app or explicitly ask a bot to create and attach a private
+skill to itself in a direct chat. Self-authored skills can reference only tools the bot already has, cannot run as
+a scheduled or group-chat mutation, and use replay-safe IDs. Users can also share a 30-day installation link;
+shared skills are read-only for the recipient and require an explicit trust confirmation.
 Installing a public bot never requires a developer key. Shared tools use FroggyBot-owned credentials behind narrow
 AgentCore Gateway targets. Private account data uses provider-specific OAuth or a GitHub App installation; per-user
 grants are encrypted in Secrets Manager and fetched only when the runtime invokes that account. They never enter the app bundle, a skill document, a

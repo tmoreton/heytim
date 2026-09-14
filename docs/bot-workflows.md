@@ -13,7 +13,10 @@ an abstract Journey on Points voice profile from relevant newsletters and public
 pages, stores the profile in the account's private versioned skill, and prepares a
 disabled weekly newsletter-draft task. Doctor of Credit and Frequent Miler are
 research leads; the workflow requires original copy, dated links, primary-source
-verification when available, and explicit offer caveats.
+verification when available, and explicit offer caveats. A second private review
+skill audits drafts for house-voice drift, generic AI-sounding patterns, unsupported
+claims, repetition, and publication readiness. It reports observable editorial
+signals without pretending that prose alone can prove AI authorship.
 
 ## Safety boundaries
 

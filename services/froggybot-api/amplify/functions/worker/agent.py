@@ -295,15 +295,20 @@ def _team_roster(user_id: str, current_bot_id: str) -> list[dict]:
     )[:MAX_TEAM_BOTS]
 
 
-def _bot_management_context(user_id: str) -> dict:
-    bot_items = table.query(
-        KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
-        ExpressionAttributeValues={
-            ":pk": f"USER#{user_id}",
-            ":prefix": "BOT#",
-        },
-        ConsistentRead=True,
-    ).get("Items", [])
+def _bot_management_context(user_id: str, current_bot: dict) -> dict:
+    can_manage_bots = current_bot.get("systemRole") == "chief"
+    bot_items = (
+        table.query(
+            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+            ExpressionAttributeValues={
+                ":pk": f"USER#{user_id}",
+                ":prefix": "BOT#",
+            },
+            ConsistentRead=True,
+        ).get("Items", [])
+        if can_manage_bots
+        else []
+    )
     bots = []
     for item in bot_items[:MAX_TEAM_BOTS]:
         if not isinstance(item.get("id"), str) or not isinstance(
@@ -334,20 +339,50 @@ def _bot_management_context(user_id: str) -> dict:
             if isinstance(item, dict)
         ]
 
+    tools = concise(
+        catalog.list_tools(user_id),
+        ("id", "name", "description", "category"),
+    )
+    self_tool_ids = [
+        tool_id
+        for tool_id in catalog.available_tool_ids(
+            user_id, current_bot.get("toolIds", [])
+        )
+        if tool_id != "bot_manager"
+    ]
+    if not can_manage_bots:
+        tools = [item for item in tools if item.get("id") in self_tool_ids]
+
     return {
+        "currentBot": {
+            key: current_bot[key]
+            for key in ("id", "name", "toolIds", "skillIds", "systemRole")
+            if key in current_bot
+        },
+        "canManageBots": can_manage_bots,
         "bots": bots,
-        "templates": concise(
-            catalog.list_bot_templates(user_id),
-            ("id", "name", "tagline", "category", "color", "toolIds", "skillIds"),
+        "templates": (
+            concise(
+                catalog.list_bot_templates(user_id),
+                (
+                    "id",
+                    "name",
+                    "tagline",
+                    "category",
+                    "color",
+                    "toolIds",
+                    "skillIds",
+                ),
+            )
+            if can_manage_bots
+            else []
         ),
-        "tools": concise(
-            catalog.list_tools(user_id),
-            ("id", "name", "description", "category"),
-        ),
+        "tools": tools,
         "skills": concise(
             catalog.list_skills(user_id),
             ("id", "name", "description", "category", "requiredToolIds"),
         ),
+        "selfToolIds": self_tool_ids,
     }
 
 
@@ -405,7 +440,7 @@ def _invoke(
     resolved_skills = catalog.resolve_for_runtime(skill_versions)
     tool_ids = [
         tool_id
-        for tool_id in dict.fromkeys(bot.get("toolIds", []))
+        for tool_id in catalog.available_tool_ids(user_id, bot.get("toolIds", []))
         if tool_id != "bot_manager"
     ]
     for skill in resolved_skills:
@@ -419,7 +454,6 @@ def _invoke(
         allow_bot_management
         and group_context is None
         and event_id
-        and bot.get("systemRole") == "chief"
     ):
         try:
             catalog.resolve_tools_for_runtime(user_id, ["bot_manager"])
@@ -427,7 +461,7 @@ def _invoke(
             pass
         else:
             tool_ids.append("bot_manager")
-            bot_management = _bot_management_context(user_id)
+            bot_management = _bot_management_context(user_id, bot)
     resolved_tools = catalog.resolve_tools_for_runtime(user_id, tool_ids)
     uses_youtube_search = _uses_youtube_search(resolved_tools)
     payload = {
@@ -437,6 +471,7 @@ def _invoke(
             else _get_history(user_id, bot_id, current_event_id=event_id)
         ),
         "bot": {
+            "id": bot_id,
             "name": bot["name"],
             "prompt": bot["prompt"],
             **(

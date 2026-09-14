@@ -238,6 +238,25 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
             raise CatalogError(f"A bot can use at most {MAX_TOOLS_PER_BOT} tools")
         return unique
 
+    def available_tool_ids(self, user_id: str, tool_ids: Any) -> list[str]:
+        """Return the configured tools that are still available to this account.
+
+        Persisted bot configurations can outlive a revoked connection or an account
+        migration. Execution paths use this narrower view so one stale connection ID
+        cannot turn an otherwise valid chat message into a server error. Explicit bot
+        edits continue to use validate_tools and reject unknown capabilities.
+        """
+        if not isinstance(tool_ids, list) or not all(
+            isinstance(item, str) for item in tool_ids
+        ):
+            raise CatalogError("toolIds must be a list")
+        allowed = {item["id"] for item in self._available_tool_items(user_id)}
+        return [
+            tool_id
+            for tool_id in dict.fromkeys(tool_ids)
+            if tool_id not in RETIRED_TOOL_IDS and tool_id in allowed
+        ]
+
     def resolve_tools_for_runtime(self, user_id: str, tool_ids: Any) -> list[dict]:
         selected = self.validate_tools(user_id, tool_ids)
         items = self._available_tool_items(user_id)
@@ -260,7 +279,7 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
         return resolved
 
     def approval_tools(self, user_id: str, tool_ids: Any) -> list[dict]:
-        selected = set(self.validate_tools(user_id, tool_ids))
+        selected = set(self.available_tool_ids(user_id, tool_ids))
         return [
             {"id": item["id"], "name": item["name"]}
             for item in self.list_tools(user_id)
@@ -304,7 +323,12 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
         return {**_public_skill(listing), "instructions": version["instructions"]}
 
     def save_skill(
-        self, user_id: str, value: dict, skill_id: str | None = None
+        self,
+        user_id: str,
+        value: dict,
+        skill_id: str | None = None,
+        *,
+        new_skill_id: str | None = None,
     ) -> dict:
         name = _validate_text(value.get("name"), "name", SKILL_NAME_MAX_LENGTH)
         description = _validate_text(
@@ -322,6 +346,8 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
             raise CatalogError("visibility must be private or link")
         current = _now()
 
+        if skill_id and new_skill_id:
+            raise CatalogError("A skill cannot be created and updated together")
         if skill_id:
             skill_id = _validate_id(skill_id, "skill id")
             listing = self._accessible_listing(user_id, skill_id)
@@ -334,7 +360,11 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
             version = int(listing["version"]) + 1
             created_at = listing.get("createdAt", current)
         else:
-            skill_id = f"skill-{uuid.uuid4().hex[:20]}"
+            skill_id = (
+                _validate_id(new_skill_id, "skill id")
+                if new_skill_id
+                else f"skill-{uuid.uuid4().hex[:20]}"
+            )
             version = 1
             created_at = current
 

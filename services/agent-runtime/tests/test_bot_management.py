@@ -15,6 +15,14 @@ from frogbot_runtime.configuration import bot_configuration
 
 def _context() -> dict:
     return {
+        "currentBot": {
+            "id": "chief",
+            "name": "Chief",
+            "toolIds": ["meme_lord"],
+            "skillIds": [],
+            "systemRole": "chief",
+        },
+        "canManageBots": True,
         "bots": [
             {"id": "chief", "name": "Chief", "systemRole": "chief"},
             {
@@ -34,6 +42,7 @@ def _context() -> dict:
             }
         ],
         "skills": [{"id": "meme-maker", "name": "Meme Maker"}],
+        "selfToolIds": ["meme_lord"],
     }
 
 
@@ -72,6 +81,43 @@ def test_chief_can_stage_a_custom_bot_with_reviewed_capabilities() -> None:
     assert mutation["value"]["skillIds"] == ["meme-maker"]
 
 
+def test_any_bot_can_stage_a_private_skill_using_only_its_existing_tools() -> None:
+    tracker, tools = _tools()
+
+    result = tools["create_skill_for_self"](
+        "Newsletter Review",
+        "Reviews newsletter drafts for voice and clarity.",
+        "Identify observable prose problems without claiming to prove authorship.",
+        required_tool_ids=["meme_lord"],
+    )
+
+    assert "created and attached" in result
+    assert tracker.pending == [
+        {
+            "mutationId": tracker.pending[0]["mutationId"],
+            "action": "create_skill",
+            "value": {
+                "name": "Newsletter Review",
+                "description": "Reviews newsletter drafts for voice and clarity.",
+                "instructions": (
+                    "Identify observable prose problems without claiming to prove "
+                    "authorship."
+                ),
+                "requiredToolIds": ["meme_lord"],
+            },
+        }
+    ]
+
+
+def test_self_authored_skill_cannot_grant_a_new_tool() -> None:
+    _, tools = _tools()
+
+    with pytest.raises(ValueError, match="Unknown required_tool_ids"):
+        tools["create_skill_for_self"](
+            "Unsafe Skill", "Requests a new tool.", "Use shell access.", ["shell"]
+        )
+
+
 def test_bot_manager_rejects_unknown_capabilities_and_multiple_changes() -> None:
     tracker, tools = _tools()
     with pytest.raises(ValueError, match="Unknown tool_ids"):
@@ -96,19 +142,43 @@ def test_list_options_returns_configuration_data() -> None:
     assert result["templates"][0]["id"] == "meme-maker"
 
 
-def test_bot_management_payload_is_limited_to_direct_chief_chat() -> None:
+def test_bot_management_payload_is_limited_to_direct_chat() -> None:
     payload = {
-        "bot": {"systemRole": "chief"},
+        "bot": {"id": "chief", "systemRole": "chief"},
         "botManagement": _context(),
     }
     assert bot_management_from_payload(payload) == _context()
 
     with pytest.raises(ValueError, match="direct chat"):
         bot_management_from_payload({**payload, "group": {}})
-    with pytest.raises(ValueError, match="direct chat"):
-        bot_management_from_payload(
-            {**payload, "bot": {"systemRole": "specialist"}}
-        )
+
+
+def test_non_chief_receives_only_self_skill_authoring_tools() -> None:
+    context = {
+        **_context(),
+        "currentBot": {
+            "id": "research",
+            "name": "Research",
+            "toolIds": [],
+            "skillIds": [],
+        },
+        "canManageBots": False,
+        "bots": [],
+        "templates": [],
+        "selfToolIds": [],
+    }
+    parsed = bot_management_from_payload(
+        {
+            "bot": {"id": "research"},
+            "botManagement": context,
+        }
+    )
+    assert parsed is not None
+    tools = {
+        item.tool_name
+        for item in bot_management_tools(parsed, BotMutationTracker())
+    }
+    assert tools == {"create_skill_for_self", "list_skill_authoring_options"}
 
 
 def test_catalog_bindings_expose_chief_and_meme_tools(monkeypatch) -> None:
@@ -117,6 +187,7 @@ def test_catalog_bindings_expose_chief_and_meme_tools(monkeypatch) -> None:
     monkeypatch.setattr(artifacts.boto3, "client", lambda *_args, **_kwargs: object())
     payload = {
         "bot": {
+            "id": "chief",
             "name": "Chief",
             "prompt": "Coordinate.",
             "systemRole": "chief",
@@ -154,8 +225,10 @@ def test_catalog_bindings_expose_chief_and_meme_tools(monkeypatch) -> None:
     assert {item.tool_name for item in config.tools} == {
         "compose_meme",
         "create_bot",
+        "create_skill_for_self",
         "install_bot_template",
         "list_bot_options",
+        "list_skill_authoring_options",
         "save_artifact",
         "search_meme_templates",
         "update_bot",
