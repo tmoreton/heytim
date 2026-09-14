@@ -566,13 +566,10 @@ class CatalogServiceTests(unittest.TestCase):
             result["contributionUrl"],
             "https://github.com/tmoreton/frogbot-skills/blob/main/CONTRIBUTING.md",
         )
-
     def test_runtime_resolves_dynamodb_decimal_skill_versions(self) -> None:
         skill = self.catalog.resolve_for_runtime({"planner": Decimal(1)})
-
         self.assertEqual(skill[0]["id"], "planner")
         self.assertEqual(skill[0]["version"], 1)
-
     def test_catalog_removes_stale_listings_but_keeps_immutable_versions(self) -> None:
         stale = {
             "id": "old-skill",
@@ -598,7 +595,6 @@ class CatalogServiceTests(unittest.TestCase):
         self.assertNotIn(("SYSTEM#TOOLS", "TOOL#old_tool"), self.table.items)
         self.assertNotIn(("SYSTEM#SKILLS", "SKILL#old-skill"), self.table.items)
         self.assertIn(("SKILL#old-skill", "VERSION#000000001"), self.table.items)
-
 
 if __name__ == "__main__":
     unittest.main()

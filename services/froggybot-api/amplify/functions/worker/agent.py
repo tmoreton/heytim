@@ -4,7 +4,6 @@ import json
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from boto3.dynamodb.conditions import Key
 from shared.agent_stream import AgentTerminalError, ProgressCallback, read_agent_stream
 from shared.catalog import CatalogError
 from shared.group_chat import (
@@ -19,6 +18,7 @@ from .artifacts import (
     _generated_artifact_prefix,
     _group_attachment_blocks,
 )
+from .image_references import recent_image_references
 from .runtime_jobs import queue_runtime_poll, runtime_work
 from .support import (
     AGENT_RUNTIME_ARN,
@@ -39,8 +39,6 @@ from .youtube_quota import (
 
 RECENT_DIRECT_TURNS = 50
 MAX_TEAM_BOTS = 24
-MAX_RECENT_IMAGE_REFERENCES = 5
-RECENT_IMAGE_REFERENCE_TURNS = 20
 
 
 def _uses_youtube_search(resolved_tools: list[dict]) -> bool:
@@ -154,53 +152,9 @@ def _get_history(
 
 
 def _recent_image_references(user_id: str, bot_id: str) -> list[dict]:
-    """Return recent images owned by this user and shared in this bot chat."""
-    turns = table.query(
-        KeyConditionExpression=Key("pk").eq(_turn_pk(user_id, bot_id))
-        & Key("sk").begins_with("TURN#"),
-        ScanIndexForward=False,
-        Limit=RECENT_IMAGE_REFERENCE_TURNS,
-        ConsistentRead=True,
-    ).get("Items", [])
-    references = []
-    seen = set()
-    for turn in turns:
-        attachments = turn.get("attachments", [])
-        if not isinstance(attachments, list):
-            continue
-        for attachment in attachments:
-            attachment_id = attachment.get("id") if isinstance(attachment, dict) else None
-            if (
-                not isinstance(attachment, dict)
-                or attachment.get("kind") != "image"
-                or not isinstance(attachment_id, str)
-                or not attachment_id
-                or attachment_id in seen
-            ):
-                continue
-            try:
-                blocks = _attachment_blocks({"attachments": [attachment]}, user_id)
-            except (TypeError, ValueError):
-                # Historical uploads are optional context. One malformed record
-                # must not prevent the user's current message from running.
-                continue
-            if not blocks or "image" not in blocks[0]:
-                continue
-            attachment_name = attachment.get("name")
-            references.append(
-                {
-                    "name": (
-                        attachment_name
-                        if isinstance(attachment_name, str) and attachment_name.strip()
-                        else f"Image {len(references) + 1}"
-                    ),
-                    "image": blocks[0]["image"],
-                }
-            )
-            seen.add(attachment_id)
-            if len(references) >= MAX_RECENT_IMAGE_REFERENCES:
-                return references
-    return references
+    return recent_image_references(
+        table, _turn_pk(user_id, bot_id), user_id, _attachment_blocks
+    )
 
 
 def _get_group_history(

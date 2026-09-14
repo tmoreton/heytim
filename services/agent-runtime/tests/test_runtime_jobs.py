@@ -119,10 +119,25 @@ def test_background_failures_never_become_false_completion(failure):
     assert json.loads(store.objects["run"])["status"] == "ERROR"
 
 
+def test_background_exception_emits_a_sanitized_repair_marker(monkeypatch):
+    store = Store()
+    store.objects["run.cancel"] = b'{"cancelled":false}'
+    state = jobs.RunState(jobs._now())
+    record = MagicMock()
+    monkeypatch.setattr(jobs, "record_runtime_failure", record)
+
+    async def runner(*_args):
+        raise RuntimeError("private conversation text")
+        yield
+
+    asyncio.run(jobs._execute(store, "run", state, runner, {}, None))
+
+    record.assert_called_once()
+    assert isinstance(record.call_args.args[1], RuntimeError)
+
+
 def test_openrouter_budget_failure_is_actionable():
-    message = jobs._runtime_failure_message(
-        RuntimeError("in_flight_budget_exhausted")
-    )
+    message = jobs._runtime_failure_message(RuntimeError("in_flight_budget_exhausted"))
 
     assert "OpenRouter" in message
     assert "wait a few minutes" in message

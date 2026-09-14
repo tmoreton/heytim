@@ -1,0 +1,281 @@
+name: Repair sanitized production failures
+
+on:
+  repository_dispatch:
+    types: [froggybot-production-error]
+  workflow_dispatch:
+    inputs:
+      incident:
+        description: Sanitized incident JSON using the production dispatcher schema
+        required: true
+        type: string
+
+concurrency:
+  group: froggybot-autofix-${{ github.event.client_payload.fingerprint || github.run_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Generate constrained patch
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/agent-runtime/uv.lock
+
+      - name: Ask FroggyBot's DeepSeek agent for a bounded repair
+        env:
+          AUTOFIX_INCIDENT_JSON: ${{ github.event_name == 'repository_dispatch' && toJSON(github.event.client_payload) || inputs.incident }}
+          OPENROUTER_API_KEY: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
+        run: |
+          install -d "$RUNNER_TEMP/froggybot-autofix"
+          uv run --project services/agent-runtime --frozen \
+            python services/agent-runtime/autofix_agent.py \
+            --root . \
+            --patch-out "$RUNNER_TEMP/froggybot-autofix/proposed.patch" \
+            --metadata-out "$RUNNER_TEMP/froggybot-autofix/metadata.json"
+
+      - name: Preserve proposed patch without credentials
+        uses: actions/upload-artifact@v4
+        with:
+          name: froggybot-autofix-${{ github.run_id }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            ${{ runner.temp }}/froggybot-autofix/proposed.patch
+            ${{ runner.temp }}/froggybot-autofix/metadata.json
+
+  verify-server:
+    name: Verify server and AgentCore
+    needs: generate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v5
+        with:
+          name: froggybot-autofix-${{ github.run_id }}
+          path: ${{ runner.temp }}/froggybot-autofix
+      - name: Apply the isolated patch artifact
+        run: git apply --check "$RUNNER_TEMP/froggybot-autofix/proposed.patch" && git apply "$RUNNER_TEMP/froggybot-autofix/proposed.patch"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.23.2
+          cache: npm
+          cache-dependency-path: |
+            services/froggybot-api/package-lock.json
+            agentcore/cdk/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/agent-runtime/uv.lock
+      - name: Install locked server dependencies
+        run: |
+          npm ci --prefix services/froggybot-api
+          npm ci --prefix agentcore/cdk
+          npm install --global @aws/agentcore@0.29.0
+      - name: Run the complete server verification
+        run: ./scripts/verify.sh server
+
+  verify-application:
+    name: Verify browser and shared clients
+    needs: generate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v5
+        with:
+          name: froggybot-autofix-${{ github.run_id }}
+          path: ${{ runner.temp }}/froggybot-autofix
+      - name: Apply the isolated patch artifact
+        run: git apply --check "$RUNNER_TEMP/froggybot-autofix/proposed.patch" && git apply "$RUNNER_TEMP/froggybot-autofix/proposed.patch"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.23.2
+          cache: npm
+          cache-dependency-path: |
+            apps/froggybot/package-lock.json
+            apps/froggybot-browser-viewer/package-lock.json
+      - name: Install locked client dependencies
+        run: |
+          npm ci --prefix apps/froggybot
+          npm ci --prefix apps/froggybot-browser-viewer
+      - name: Run browser and shared-client verification
+        run: ./scripts/verify.sh application
+
+  verify-apple:
+    name: Verify iPhone and Mac
+    needs: generate
+    runs-on: macos-26
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v5
+        with:
+          name: froggybot-autofix-${{ github.run_id }}
+          path: ${{ runner.temp }}/froggybot-autofix
+      - name: Apply the isolated patch artifact
+        run: git apply --check "$RUNNER_TEMP/froggybot-autofix/proposed.patch" && git apply "$RUNNER_TEMP/froggybot-autofix/proposed.patch"
+      - name: Cache native transcription assets
+        uses: actions/cache@v5
+        with:
+          path: packages/frogbot-transcription/ios/Generated
+          key: frogbot-nemotron-apple-v3
+      - name: Run iPhone and Mac verification
+        run: ./scripts/verify.sh apple
+
+  analyze:
+    name: Analyze ${{ matrix.language }}
+    needs: generate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, python]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v5
+        with:
+          name: froggybot-autofix-${{ github.run_id }}
+          path: ${{ runner.temp }}/froggybot-autofix
+      - name: Apply the isolated patch artifact
+        run: git apply --check "$RUNNER_TEMP/froggybot-autofix/proposed.patch" && git apply "$RUNNER_TEMP/froggybot-autofix/proposed.patch"
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+      - uses: github/codeql-action/analyze@v4
+        with:
+          output: results
+          upload: never
+
+  publish:
+    name: Open pull request and apply merge policy
+    needs: [generate, verify-server, verify-application, verify-apple, analyze]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v5
+        with:
+          name: froggybot-autofix-${{ github.run_id }}
+          path: ${{ runner.temp }}/froggybot-autofix
+      - name: Publish the already-tested patch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTOFIX_INCIDENT_JSON: ${{ github.event_name == 'repository_dispatch' && toJSON(github.event.client_payload) || inputs.incident }}
+        run: |
+          artifact="$RUNNER_TEMP/froggybot-autofix"
+          fingerprint="$(jq -r '.fingerprint' "$artifact/metadata.json")"
+          if [[ ! "$fingerprint" =~ ^[a-f0-9]{24}$ ]]; then
+            echo 'Autofix metadata fingerprint is invalid.' >&2
+            exit 1
+          fi
+          git fetch origin main
+          base_is_current=true
+          if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
+            base_is_current=false
+          fi
+          git apply --check "$artifact/proposed.patch"
+          git apply "$artifact/proposed.patch"
+          branch="autofix/${fingerprint}-${GITHUB_RUN_ID}"
+          git switch -c "$branch"
+          git config user.name 'FroggyBot Repair Agent'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m "Autofix production failure ${fingerprint}"
+          git push origin "$branch"
+
+          python - "$artifact/metadata.json" "$RUNNER_TEMP/autofix-pr.md" <<'PY'
+          import json
+          import os
+          import sys
+
+          metadata = json.load(open(sys.argv[1], encoding="utf-8"))
+          incident = json.loads(os.environ["AUTOFIX_INCIDENT_JSON"])
+          reasons = metadata.get("riskReasons") or ["none"]
+          body = f"""## Automated repair
+
+          FroggyBot generated this patch from structural production telemetry. No user message, tool argument, or raw exception text was sent to the model.
+
+          - Fingerprint: `{metadata['fingerprint']}`
+          - Source: `{incident['source']}`
+          - Category: `{incident['category']}`
+          - Exception: `{incident['exception']}`
+          - Location: `{incident['location']}`
+          - Proposed correction: {metadata['summary']}
+
+          ## Verification
+
+          - Server, backend, AgentCore, and runtime verification passed.
+          - Browser and shared-client verification passed.
+          - iPhone and Mac verification passed.
+          - CodeQL analysis passed for Python and JavaScript/TypeScript.
+
+          ## Merge policy
+
+          Automatic merge eligible: `{str(metadata['autoMergeEligible']).lower()}`
+
+          Risk reasons: {', '.join(reasons)}
+          """
+          open(sys.argv[2], "w", encoding="utf-8").write(body)
+          PY
+
+          title="Autofix production failure ${fingerprint}"
+          pr_url="$(gh pr create --base main --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/autofix-pr.md")"
+          gh label create autofix --color 1F883D --description 'Generated by the guarded FroggyBot repair workflow' --force
+          gh pr edit "$pr_url" --add-label autofix
+
+          eligible="$(jq -r '.autoMergeEligible' "$artifact/metadata.json")"
+          if [[ "$eligible" == true && "$base_is_current" == true ]]; then
+            gh pr merge "$pr_url" --squash --delete-branch --subject "$title"
+            echo "Merged tested low-risk repair: $pr_url" >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh label create needs-human-review --color D4A72C --description 'Automation cannot merge this change without review' --force
+            gh pr edit "$pr_url" --add-label needs-human-review
+            echo "Opened repair for human review: $pr_url" >> "$GITHUB_STEP_SUMMARY"
+          fi

@@ -24,10 +24,11 @@ import {
   githubAppSecretArn, globalWindowRunUnitLimit, googleOAuthSecretArn,
   memoryId, microsoftOAuthSecretArn, monthlyBudgetUsd, monthlyRunUnitLimit,
   notionOAuthSecretArn,
-  runtimeArn, usageWindowSeconds, userWindowRunUnitLimit,
+  runtimeArn, runtimeQualifier, usageWindowSeconds, userWindowRunUnitLimit,
   slackOAuthSecretArn, xOAuthSecretArn, youtubeSearchDailyLimit,
 } from './infrastructure/app-settings';
 import { addBrowserAccess } from './infrastructure/browser-access';
+import { addProductionAutofix } from './infrastructure/autofix';
 import { addGithubDeploymentRole } from './infrastructure/deployment-role';
 import { addHttpApi } from './infrastructure/http-api';
 import {
@@ -345,7 +346,7 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
     INVITE_TABLE_NAME: inviteAccess.tableName,
     USER_POOL_ID: backend.auth.resources.userPool.userPoolId,
     AGENT_RUNTIME_ARN: runtimeArn,
-    AGENT_RUNTIME_QUALIFIER: process.env.FROGBOT_AGENT_RUNTIME_QUALIFIER ?? 'DEFAULT',
+    AGENT_RUNTIME_QUALIFIER: runtimeQualifier,
     FROGBOT_MEMORY_ID: memoryId,
     FILES_BUCKET_NAME: filesBucket.bucketName,
     PUBLIC_WEB_BASE_URL,
@@ -375,7 +376,7 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
   environment: {
     ...functionDefaults.environment,
     AGENT_RUNTIME_ARN: runtimeArn,
-    AGENT_RUNTIME_QUALIFIER: process.env.FROGBOT_AGENT_RUNTIME_QUALIFIER ?? 'DEFAULT',
+    AGENT_RUNTIME_QUALIFIER: runtimeQualifier,
     QUEUE_URL: jobs.queueUrl,
     QUEUE_ARN: jobs.queueArn,
     SCHEDULE_DLQ_ARN: deadLetterQueue.queueArn,
@@ -557,12 +558,14 @@ const availabilityProbe = addPublicAvailabilityProbe({
   enabled: deploymentEnvironment === 'production',
 });
 addProviderConnectionAccess(apiFunction, httpApi.apiEndpoint, {
-  github: githubAppSecretArn,
-  google: googleOAuthSecretArn,
-  microsoft: microsoftOAuthSecretArn,
-  notion: notionOAuthSecretArn,
-  slack: slackOAuthSecretArn,
-  x: xOAuthSecretArn,
+  github: githubAppSecretArn, google: googleOAuthSecretArn,
+  microsoft: microsoftOAuthSecretArn, notion: notionOAuthSecretArn,
+  slack: slackOAuthSecretArn, x: xOAuthSecretArn,
+});
+
+const autofix = addProductionAutofix({
+  stack, table, workerLogGroup, logsKey, githubAppSecretArn, runtimeArn, runtimeQualifier,
+  enabled: deploymentEnvironment === 'production',
 });
 
 const { alarmTopic, monthlyBudgetName } = addObservability({
@@ -591,6 +594,7 @@ backend.addOutput({
     logsKeyArn: logsKey.keyArn,
     ...(nativePushFeedbackRole ? { nativePushFeedbackRoleArn: nativePushFeedbackRole.roleArn } : {}),
     ...(githubDeployRole ? { githubDeployRoleArn: githubDeployRole.roleArn } : {}),
+    ...(autofix ? { autofixDispatcherArn: autofix.dispatcher.functionArn } : {}),
     monthlyBudgetName,
   },
 });

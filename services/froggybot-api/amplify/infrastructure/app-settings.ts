@@ -92,6 +92,10 @@ export const youtubeSearchDailyLimit = boundedIntegerSetting(
 );
 
 export const runtimeArn = requiredSetting('FROGBOT_AGENT_RUNTIME_ARN');
+export const runtimeQualifier = process.env.FROGBOT_AGENT_RUNTIME_QUALIFIER ?? 'DEFAULT';
+if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/.test(runtimeQualifier)) {
+  throw new Error('FROGBOT_AGENT_RUNTIME_QUALIFIER is invalid.');
+}
 export const memoryId = requiredSetting('FROGBOT_MEMORY_ID');
 export const googleOAuthSecretArn = requiredSetting('FROGBOT_GOOGLE_OAUTH_SECRET_ARN');
 export const githubAppSecretArn = requiredSetting('FROGBOT_GITHUB_APP_SECRET_ARN');
