@@ -763,6 +763,7 @@ private struct ConversationInspector: View {
         .safeAreaInset(edge: .top, spacing: 0) {
           inspectorHeader
         }
+        .ignoresSafeArea(.container, edges: .top)
       #else
         .froggyNavigationTitle("Details", isPresented: isPresented)
         .toolbarTitleDisplayMode(.inline)
