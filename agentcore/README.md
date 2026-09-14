@@ -41,7 +41,9 @@ AgentCore credential providers are scoped to an account and Region rather than t
 production posture uses the dedicated member account so stable provider names have independent values. During the
 temporary management-account deployment, set `FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT=true`; without that exact
 opt-in, `scripts/check-production-config.mjs`, CDK synthesis, and the release workflow reject development-account
-reuse. Production storage, KMS keys, stacks, and application resources remain target-scoped.
+reuse. The shared-account binding uses the `FrogBotProduction` physical AgentCore project namespace, while production
+storage, KMS keys, stacks, and application resources remain target-scoped. The three platform API-key credential
+providers remain account-scoped and are therefore shared until production returns to the member account.
 
 The recurring GitHub deployment role can read the existing default token vault and create or rotate only
 these three named providers. It deliberately cannot create the vault encryption key or call

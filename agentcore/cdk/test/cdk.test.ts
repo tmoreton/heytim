@@ -67,11 +67,19 @@ test('target bindings isolate production storage and memory encryption', () => {
     memories: [{ name: 'FrogBotMemory', encryptionKeyArn: 'development-key' }],
   } as unknown as Parameters<typeof bindSpecToTarget>[0];
   const target = { name: 'production', account: '123456789012', region: 'us-east-1' } as const;
-  const bound = bindSpecToTarget(source, target, 'arn:aws:kms:us-east-1:123456789012:key/key-id') as unknown as {
+  const bound = bindSpecToTarget(
+    source,
+    target,
+    'arn:aws:kms:us-east-1:123456789012:key/key-id',
+    true
+  ) as unknown as {
+    name: string;
     runtimes: Array<{ envVars: Array<{ name: string; value: string }>; additionalPolicies: string[] }>;
     memories: Array<{ encryptionKeyArn: string }>;
   };
 
+  expect(bound.name).toBe('testprojectProduction');
+  expect((source as unknown as { name: string }).name).toBe('testproject');
   expect(filesBucketName(target)).toBe('frogbot-production-user-files-123456789012-us-east-1');
   expect(bound.runtimes[0].envVars).toContainEqual({
     name: 'FROGBOT_FILES_BUCKET',

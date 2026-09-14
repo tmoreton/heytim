@@ -124,11 +124,18 @@ async function main() {
   }
 
   const app = new App();
+  const developmentTarget = targets.find(target => target.name === 'development');
+  const sharedAccountOverride = process.env.FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT === 'true';
 
   for (const target of targets) {
     const env = toEnvironment(target);
     const stackName = toStackName(spec.name, target.name);
-    const targetSpec = bindSpecToTarget(spec, target);
+    const sharedProductionAccount =
+      target.name === 'production' &&
+      sharedAccountOverride &&
+      developmentTarget?.account === target.account &&
+      developmentTarget.region === target.region;
+    const targetSpec = bindSpecToTarget(spec, target, undefined, sharedProductionAccount);
 
     // Extract credentials from deployed state for this target
     const targetState = (deployedState as Record<string, unknown>)?.targets as

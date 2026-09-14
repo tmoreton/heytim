@@ -14,7 +14,8 @@ export function filesKeyAlias(target: AwsDeploymentTarget): string {
 export function bindSpecToTarget(
   source: AgentCoreProjectSpec,
   target: AwsDeploymentTarget,
-  productionMemoryKeyArn = process.env.FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN?.trim()
+  productionMemoryKeyArn = process.env.FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN?.trim(),
+  sharedProductionAccount = false
 ): AgentCoreProjectSpec {
   // The JSON remains the behavioral source of truth. This copy only resolves
   // account/Region-specific infrastructure values that cannot be shared by
@@ -24,6 +25,13 @@ export function bindSpecToTarget(
   // Keep the compatibility cast at this target-binding boundary.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mutable = spec as any;
+
+  // AgentCore service names are account/Region scoped and the L3 derives them
+  // from the project name. Give a temporary same-account production target a
+  // separate physical namespace without changing the authoritative JSON names.
+  if (target.name === 'production' && sharedProductionAccount) {
+    mutable.name = `${mutable.name}Production`;
+  }
 
   for (const runtime of mutable.runtimes ?? []) {
     const bucket = filesBucketName(target);
