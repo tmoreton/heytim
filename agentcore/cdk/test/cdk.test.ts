@@ -153,6 +153,39 @@ test('AgentCore service roles are protected against confused-deputy access', () 
   }
 });
 
+test('AgentCore Lambda permissions are protected against confused-deputy access', async () => {
+  const configRoot = path.resolve(__dirname, '../..');
+  const source = await new ConfigIO({ baseDir: configRoot }).readProjectSpec();
+  const spec = {
+    ...source,
+    runtimes: [],
+    memories: [],
+    onlineEvalConfigs: [],
+  };
+  const app = new cdk.App();
+  const stack = new AgentCoreStack(app, 'LambdaTrustStack', {
+    env: { account: '123456789012', region: 'us-east-1' },
+    spec,
+  });
+  const template = Template.fromStack(stack).toJSON();
+  const permissions = Object.values(
+    template.Resources as Record<string, { Type: string; Properties?: Record<string, unknown> }>
+  ).filter(
+    resource =>
+      resource.Type === 'AWS::Lambda::Permission' &&
+      resource.Properties?.Principal === 'bedrock-agentcore.amazonaws.com'
+  );
+
+  expect(permissions.length).toBeGreaterThan(0);
+  for (const permission of permissions) {
+    expect(permission.Properties).toMatchObject({
+      SourceAccount: '123456789012',
+      SourceArn: expect.anything(),
+    });
+    expect(JSON.stringify(permission.Properties?.SourceArn)).toContain('bedrock-agentcore:us-east-1:123456789012:*');
+  }
+});
+
 test('authoritative AgentCore config preserves the runtime wiring contract', async () => {
   const configRoot = path.resolve(__dirname, '../..');
   const spec = await new ConfigIO({ baseDir: configRoot }).readProjectSpec();
