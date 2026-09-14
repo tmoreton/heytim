@@ -55,6 +55,11 @@ private struct AppRoot: View {
   let configuration: AppConfiguration
   @Bindable var auth: AuthSession
   @Bindable var model: AppModel
+  @AppStorage(FroggyPreferenceKeys.appearance) private var storedAppearance =
+    FroggyAppearancePreference.system.rawValue
+  @AppStorage(FroggyPreferenceKeys.textSize) private var storedTextSize =
+    FroggyTextSizePreference.platformDefaultRawValue
+  @Environment(\.dynamicTypeSize) private var systemTextSize
   @State private var invitation: PendingInvitation?
   @State private var connected = false
 
@@ -68,6 +73,8 @@ private struct AppRoot: View {
       case .signedIn: MainView(model: model, auth: auth)
       }
     }
+    .environment(\.dynamicTypeSize, textSize.resolvedSize(systemSize: systemTextSize))
+    .preferredColorScheme(appearance.colorScheme)
     .task {
       guard !Self.isUnitTestHost else { return }
       await auth.restore()
@@ -151,6 +158,14 @@ private struct AppRoot: View {
         self.invitation = nil
       }
     } catch { model.present(error) }
+  }
+
+  private var appearance: FroggyAppearancePreference {
+    FroggyAppearancePreference(rawValue: storedAppearance) ?? .system
+  }
+
+  private var textSize: FroggyTextSizePreference {
+    FroggyTextSizePreference(rawValue: storedTextSize) ?? .system
   }
 
   static func invitation(from url: URL) -> PendingInvitation? {

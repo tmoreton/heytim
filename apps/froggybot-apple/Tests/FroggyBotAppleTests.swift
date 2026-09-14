@@ -33,6 +33,21 @@ import UniformTypeIdentifiers
     XCTAssertEqual(AppModel.nextPollingDelay(base: 1_500, failures: .max, random: 1), 30_000)
   }
 
+  func testAppearancePreferencesResolveSystemLightAndDarkModes() {
+    XCTAssertNil(FroggyAppearancePreference.system.colorScheme)
+    XCTAssertEqual(FroggyAppearancePreference.light.colorScheme, .light)
+    XCTAssertEqual(FroggyAppearancePreference.dark.colorScheme, .dark)
+  }
+
+  func testTextSizePreferencesResolveToIncreasingDynamicTypeSizes() {
+    XCTAssertEqual(
+      FroggyTextSizePreference.system.resolvedSize(systemSize: .accessibility2),
+      .accessibility2)
+    XCTAssertEqual(FroggyTextSizePreference.standard.resolvedSize(systemSize: .small), .large)
+    XCTAssertEqual(FroggyTextSizePreference.large.resolvedSize(systemSize: .small), .xLarge)
+    XCTAssertEqual(FroggyTextSizePreference.extraLarge.resolvedSize(systemSize: .small), .xxLarge)
+  }
+
   func testActivityStepsRenderInlineMarkdownInsteadOfLiteralMarkers() {
     let formatted = formattedActivityStep("Checking `README.md` before **release**.")
 

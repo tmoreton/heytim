@@ -256,6 +256,8 @@ import XCTest
     XCTAssertTrue(app.staticTexts["Add a Bot"].exists)
     XCTAssertTrue(app.staticTexts["Tools & Skills"].exists)
     XCTAssertTrue(app.staticTexts["Connected Accounts"].exists)
+    XCTAssertTrue(app.descendants(matching: .any)["settings.appearance"].exists)
+    XCTAssertTrue(app.descendants(matching: .any)["settings.text-size"].exists)
     #if os(iOS)
       XCTAssertTrue(app.buttons["Close"].exists)
       XCTAssertFalse(app.buttons["Done"].exists)

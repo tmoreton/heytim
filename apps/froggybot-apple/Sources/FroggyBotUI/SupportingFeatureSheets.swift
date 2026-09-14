@@ -582,6 +582,10 @@ struct AccountView: View {
   @Bindable var model: AppModel
   let auth: AuthSession
   var showsDismissButton = true
+  @AppStorage(FroggyPreferenceKeys.appearance) private var appearance =
+    FroggyAppearancePreference.system.rawValue
+  @AppStorage(FroggyPreferenceKeys.textSize) private var textSize =
+    FroggyTextSizePreference.platformDefaultRawValue
   @State private var links: [SharedLink] = []
   @State private var loadingLinks = true
   @State private var linksError: String?
@@ -621,6 +625,26 @@ struct AccountView: View {
         } label: {
           Label("Connected Accounts", systemImage: "link")
         }
+      }
+
+      Section {
+        Picker("Appearance", selection: $appearance) {
+          ForEach(FroggyAppearancePreference.allCases) { preference in
+            Text(preference.title).tag(preference.rawValue)
+          }
+        }
+        .accessibilityIdentifier("settings.appearance")
+
+        Picker("Text Size", selection: $textSize) {
+          ForEach(FroggyTextSizePreference.allCases) { preference in
+            Text(preference.title).tag(preference.rawValue)
+          }
+        }
+        .accessibilityIdentifier("settings.text-size")
+      } header: {
+        Text("Display")
+      } footer: {
+        Text("Changes apply immediately and stay on this device.")
       }
 
       Section {

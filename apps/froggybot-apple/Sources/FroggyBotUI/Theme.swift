@@ -6,6 +6,70 @@ import SwiftUI
   import AppKit
 #endif
 
+enum FroggyPreferenceKeys {
+  static let appearance = "froggybot.preferences.appearance"
+  static let textSize = "froggybot.preferences.text-size"
+}
+
+enum FroggyAppearancePreference: String, CaseIterable, Identifiable {
+  case system
+  case light
+  case dark
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .system: "System"
+    case .light: "Light"
+    case .dark: "Dark"
+    }
+  }
+
+  var colorScheme: ColorScheme? {
+    switch self {
+    case .system: nil
+    case .light: .light
+    case .dark: .dark
+    }
+  }
+}
+
+enum FroggyTextSizePreference: String, CaseIterable, Identifiable {
+  case system
+  case standard
+  case large
+  case extraLarge
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .system: "System"
+    case .standard: "Standard"
+    case .large: "Large"
+    case .extraLarge: "Extra Large"
+    }
+  }
+
+  func resolvedSize(systemSize: DynamicTypeSize) -> DynamicTypeSize {
+    switch self {
+    case .system: systemSize
+    case .standard: .large
+    case .large: .xLarge
+    case .extraLarge: .xxLarge
+    }
+  }
+
+  static var platformDefaultRawValue: String {
+    #if os(macOS)
+      FroggyTextSizePreference.large.rawValue
+    #else
+      FroggyTextSizePreference.system.rawValue
+    #endif
+  }
+}
+
 public enum FrogTheme {
   // Keep the original, darker FroggyBot green for filled surfaces where white text sits on top.
   public static let brand = Color(hex: "#007A3D")
