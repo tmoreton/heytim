@@ -101,12 +101,13 @@
         "datasets": {
           "FrogBotRegression": {
             "datasetId": "FrogBot_FrogBotRegression-7f5JaJFilR",
-            "datasetArn": "arn:aws:bedrock-agentcore:us-east-1:820323452649:dataset/FrogBot_FrogBotRegression-7f5JaJFilR"
+            "datasetArn": "arn:aws:bedrock-agentcore:us-east-1:820323452649:dataset/FrogBot_FrogBotRegression-7f5JaJFilR",
+            "contentHash": "4c4ad983e757e094466eb08830ee71b7b651cb0f69054d4877f5a1c1a3b3e527"
           }
         },
         "stackName": "AgentCore-FrogBot-production",
         "identityKmsKeyArn": "arn:aws:kms:us-east-1:820323452649:key/4893a4c0-00e8-4381-823b-19c8bc8ed248",
-        "deployHash": "4d9d0e14d7fad4f8"
+        "deployHash": "4d80f54e262af146"
       }
     }
   }
