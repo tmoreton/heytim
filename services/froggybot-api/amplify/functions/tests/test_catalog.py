@@ -89,6 +89,7 @@ TEST_SKILLS = [
     }
 ]
 
+
 class CatalogServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         sync_module._last_sync_at = time.monotonic()
@@ -97,6 +98,7 @@ class CatalogServiceTests(unittest.TestCase):
         self.secrets = FakeSecrets()
         self.catalog = CatalogService(self.table, self.secrets)
         self.catalog._store_official(TEST_TOOLS, TEST_SKILLS, [])
+
     def test_cold_start_performs_initial_sync(self) -> None:
         sync_module._last_sync_at = 0
         calls = []
@@ -312,12 +314,26 @@ class CatalogServiceTests(unittest.TestCase):
     def test_execution_ignores_a_stale_connection_without_weakening_edits(self) -> None:
         configured = ["web", "connection_removed", "web"]
 
-        self.assertEqual(
-            self.catalog.available_tool_ids("owner", configured), ["web"]
-        )
+        self.assertEqual(self.catalog.available_tool_ids("owner", configured), ["web"])
         self.assertEqual(self.catalog.unapproved_tools("owner", configured, []), [])
         with self.assertRaisesRegex(CatalogError, "Unknown tools: connection_removed"):
             self.catalog.validate_tools("owner", configured)
+
+    def test_available_tools_describe_unlisted_existing_capabilities(self) -> None:
+        tools = [dict(item) for item in TEST_TOOLS]
+        next(item for item in tools if item["id"] == "calculator")["listed"] = False
+        self.catalog._store_official(tools, TEST_SKILLS, [])
+
+        self.assertNotIn(
+            "calculator", {item["id"] for item in self.catalog.list_tools("owner")}
+        )
+        available = self.catalog.available_tools(
+            "owner", ["calculator", "connection_removed"]
+        )
+
+        self.assertEqual([item["id"] for item in available], ["calculator"])
+        self.assertEqual(available[0]["name"], "Test calculator")
+        self.assertNotIn("runtime", available[0])
 
     def test_managed_connection_is_user_scoped_without_exposing_secrets(self) -> None:
         saved = self.catalog.save_gmail_connection(

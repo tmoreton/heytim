@@ -37,7 +37,7 @@ def _text(value: Any, field_name: str, maximum: int, *, required: bool = True) -
     return clean
 
 
-def _ids(value: Any, field_name: str, allowed: set[str]) -> list[str]:
+def _id_list(value: Any, field_name: str) -> list[str]:
     if value is None:
         return []
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
@@ -45,6 +45,11 @@ def _ids(value: Any, field_name: str, allowed: set[str]) -> list[str]:
     unique = list(dict.fromkeys(item.strip() for item in value if item.strip()))
     if len(unique) > 12:
         raise ValueError(f"{field_name} can contain at most 12 IDs")
+    return unique
+
+
+def _ids(value: Any, field_name: str, allowed: set[str]) -> list[str]:
+    unique = _id_list(value, field_name)
     unknown = set(unique) - allowed
     if unknown:
         raise ValueError(f"Unknown {field_name}: {', '.join(sorted(unknown))}")
@@ -103,24 +108,41 @@ def bot_management_from_payload(payload: dict) -> dict | None:
     templates = _option_list(raw.get("templates"), "templates")
     if not can_manage_bots and templates:
         raise ValueError("Only Chief can receive bot template options")
-    self_tool_ids = _ids(
-        raw.get("selfToolIds"),
-        "selfToolIds",
-        {
-            item["id"]
-            for item in _option_list(raw.get("tools"), "tools")
-            if isinstance(item.get("id"), str)
-        },
+    tools = _option_list(raw.get("tools"), "tools")
+    raw_self_tools = raw.get("selfTools")
+    self_tools = (
+        _option_list(raw_self_tools, "selfTools")
+        if raw_self_tools is not None
+        else tools
     )
-    return {
+    allowed_self_tool_ids = {
+        item["id"] for item in self_tools if isinstance(item.get("id"), str)
+    }
+    if raw_self_tools is None:
+        # Older API deployments only sent the public tool catalog. Some existing
+        # bots legitimately retain unlisted built-ins, so intersect during a
+        # rolling deployment instead of rejecting the entire chat invocation.
+        self_tool_ids = [
+            tool_id
+            for tool_id in _id_list(raw.get("selfToolIds"), "selfToolIds")
+            if tool_id in allowed_self_tool_ids
+        ]
+    else:
+        self_tool_ids = _ids(
+            raw.get("selfToolIds"), "selfToolIds", allowed_self_tool_ids
+        )
+    context = {
         "currentBot": dict(current_bot),
         "canManageBots": can_manage_bots,
         "bots": bots,
         "templates": templates,
-        "tools": _option_list(raw.get("tools"), "tools"),
+        "tools": tools,
         "skills": _option_list(raw.get("skills"), "skills"),
         "selfToolIds": self_tool_ids,
     }
+    if raw_self_tools is not None:
+        context["selfTools"] = self_tools
+    return context
 
 
 def _named_items(items: list[dict], *, include_prompt: bool = False) -> list[dict]:
@@ -154,6 +176,7 @@ def bot_management_tools(context: dict, tracker: BotMutationTracker) -> list[Any
         item["id"] for item in context["skills"] if isinstance(item.get("id"), str)
     }
     self_tool_ids = set(context["selfToolIds"])
+    self_tools = context.get("selfTools", context["tools"])
     template_ids = {
         item["id"]
         for item in templates
@@ -193,7 +216,7 @@ def bot_management_tools(context: dict, tracker: BotMutationTracker) -> list[Any
                 "allowedTools": _named_items(
                     [
                         item
-                        for item in context["tools"]
+                        for item in self_tools
                         if item.get("id") in self_tool_ids
                     ]
                 ),

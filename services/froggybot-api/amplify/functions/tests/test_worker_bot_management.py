@@ -35,6 +35,17 @@ class WorkerBotManagementTests(WorkerTestCase):
             ),
             patch.object(
                 self.agent.catalog,
+                "available_tools",
+                return_value=[
+                    {
+                        "id": "current_time",
+                        "name": "World clock",
+                        "description": "Read the current time.",
+                    }
+                ],
+            ),
+            patch.object(
+                self.agent.catalog,
                 "resolve_tools_for_runtime",
                 return_value=[
                     {
@@ -77,9 +88,8 @@ class WorkerBotManagementTests(WorkerTestCase):
         )
         self.assertEqual(payload["bot"]["systemRole"], "chief")
         self.assertEqual(payload["botManagement"]["currentBot"]["id"], "chief")
-        self.assertEqual(
-            payload["botManagement"]["templates"][0]["id"], "meme-maker"
-        )
+        self.assertEqual(payload["botManagement"]["templates"][0]["id"], "meme-maker")
+        self.assertEqual(payload["botManagement"]["selfTools"][0]["id"], "current_time")
 
     def test_direct_specialist_receives_only_self_skill_authoring_context(self) -> None:
         bot = {
@@ -101,6 +111,17 @@ class WorkerBotManagementTests(WorkerTestCase):
                 "available_tool_ids",
                 side_effect=lambda _user_id, tool_ids: [
                     tool_id for tool_id in tool_ids if tool_id == "current_time"
+                ],
+            ),
+            patch.object(
+                self.agent.catalog,
+                "available_tools",
+                return_value=[
+                    {
+                        "id": "current_time",
+                        "name": "World clock",
+                        "description": "Read the current time.",
+                    }
                 ],
             ),
             patch.object(
@@ -138,6 +159,9 @@ class WorkerBotManagementTests(WorkerTestCase):
         self.assertEqual(context["templates"], [])
         self.assertEqual(context["selfToolIds"], ["current_time"])
         self.assertEqual([item["id"] for item in context["tools"]], ["current_time"])
+        self.assertEqual(
+            [item["id"] for item in context["selfTools"]], ["current_time"]
+        )
         self.assertNotIn("connection_removed", payload["bot"]["toolIds"])
         templates.assert_not_called()
 

@@ -343,13 +343,12 @@ def _bot_management_context(user_id: str, current_bot: dict) -> dict:
         catalog.list_tools(user_id),
         ("id", "name", "description", "category"),
     )
-    self_tool_ids = [
-        tool_id
-        for tool_id in catalog.available_tool_ids(
-            user_id, current_bot.get("toolIds", [])
-        )
-        if tool_id != "bot_manager"
+    self_tools = [
+        item
+        for item in catalog.available_tools(user_id, current_bot.get("toolIds", []))
+        if item.get("id") != "bot_manager"
     ]
+    self_tool_ids = [item["id"] for item in self_tools]
     if not can_manage_bots:
         tools = [item for item in tools if item.get("id") in self_tool_ids]
 
@@ -381,6 +380,10 @@ def _bot_management_context(user_id: str, current_bot: dict) -> dict:
         "skills": concise(
             catalog.list_skills(user_id),
             ("id", "name", "description", "category", "requiredToolIds"),
+        ),
+        "selfTools": concise(
+            self_tools,
+            ("id", "name", "description", "category"),
         ),
         "selfToolIds": self_tool_ids,
     }

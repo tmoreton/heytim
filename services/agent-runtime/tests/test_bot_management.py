@@ -153,6 +153,55 @@ def test_bot_management_payload_is_limited_to_direct_chat() -> None:
         bot_management_from_payload({**payload, "group": {}})
 
 
+def test_legacy_payload_ignores_unlisted_self_tools_instead_of_crashing() -> None:
+    context = {
+        **_context(),
+        "tools": [],
+        "selfToolIds": ["calculator", "current_time", "web"],
+    }
+
+    parsed = bot_management_from_payload(
+        {"bot": {"id": "chief", "systemRole": "chief"}, "botManagement": context}
+    )
+
+    assert parsed is not None
+    assert parsed["selfToolIds"] == []
+
+
+def test_unlisted_self_tools_do_not_expand_chief_management_options() -> None:
+    context = {
+        **_context(),
+        "selfTools": [
+            {"id": "calculator", "name": "Calculator"},
+            {"id": "current_time", "name": "World clock"},
+            {"id": "web", "name": "Web reader"},
+        ],
+        "selfToolIds": ["calculator", "current_time", "web"],
+    }
+    parsed = bot_management_from_payload(
+        {"bot": {"id": "chief", "systemRole": "chief"}, "botManagement": context}
+    )
+    assert parsed is not None
+    tools = {
+        item.tool_name: item
+        for item in bot_management_tools(parsed, BotMutationTracker())
+    }
+
+    management = json.loads(tools["list_bot_options"]())
+    authoring = json.loads(tools["list_skill_authoring_options"]())
+
+    assert [item["id"] for item in management["tools"]] == ["meme_lord"]
+    assert [item["id"] for item in authoring["allowedTools"]] == [
+        "calculator",
+        "current_time",
+        "web",
+    ]
+    with pytest.raises(ValueError, match="Unknown tool_ids"):
+        tools["create_bot"](
+            "Calculator bot", "", "Calculate.", tool_ids=["calculator"]
+        )
+
+
 def test_non_chief_receives_only_self_skill_authoring_tools() -> None:
     context = {
         **_context(),

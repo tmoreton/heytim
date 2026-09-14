@@ -238,8 +238,8 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
             raise CatalogError(f"A bot can use at most {MAX_TOOLS_PER_BOT} tools")
         return unique
 
-    def available_tool_ids(self, user_id: str, tool_ids: Any) -> list[str]:
-        """Return the configured tools that are still available to this account.
+    def available_tools(self, user_id: str, tool_ids: Any) -> list[dict]:
+        """Return safe metadata for configured tools still available to this account.
 
         Persisted bot configurations can outlive a revoked connection or an account
         migration. Execution paths use this narrower view so one stale connection ID
@@ -250,12 +250,20 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
             isinstance(item, str) for item in tool_ids
         ):
             raise CatalogError("toolIds must be a list")
-        allowed = {item["id"] for item in self._available_tool_items(user_id)}
+        by_id = {
+            item["id"]: item
+            for item in self._available_tool_items(user_id)
+            if isinstance(item.get("id"), str)
+        }
         return [
-            tool_id
+            _public_tool(by_id[tool_id])
             for tool_id in dict.fromkeys(tool_ids)
-            if tool_id not in RETIRED_TOOL_IDS and tool_id in allowed
+            if tool_id not in RETIRED_TOOL_IDS and tool_id in by_id
         ]
+
+    def available_tool_ids(self, user_id: str, tool_ids: Any) -> list[str]:
+        """Return configured tool IDs that are still available to this account."""
+        return [item["id"] for item in self.available_tools(user_id, tool_ids)]
 
     def resolve_tools_for_runtime(self, user_id: str, tool_ids: Any) -> list[dict]:
         selected = self.validate_tools(user_id, tool_ids)
