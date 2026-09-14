@@ -36,8 +36,10 @@ the current checkout or environment still has the same status.
   and its project generator now preserve that non-debug launcher configuration.
 - Created production-configured iPhone and Mac archives for version `6.0.0`, build `202609140210`, bundle
   `com.frogbot.app`, and team `GVXC5FQ2RP`. Both archives compiled and signed successfully with the available Apple
-  Development identity. The iPhone TestFlight export then failed before transmission because Xcode could not use its
-  stale signed-in account credentials (`missing Xcode-Token`); the Mac upload was not attempted after that failure.
+  Development identity. The initial command-line export stopped before transmission because Xcode could not use its
+  stale signed-in account credentials (`missing Xcode-Token`). After the local Xcode account was refreshed, Organizer
+  uploaded both archives to App Store Connect and confirmed `Uploaded to Apple` at 8:45 AM for iPhone and 8:51 AM for
+  Mac. Both TestFlight builds are now awaiting Apple's processing.
 
 ## 2026-09-13 — production account bootstrap (Lambda quota pending)
 
