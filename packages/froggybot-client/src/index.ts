@@ -60,7 +60,16 @@ export {
 export { nextPollingDelay } from './state/polling.ts';
 export { createBotDraft } from './bot-draft.ts';
 export { requiredToolLabels } from './capability-labels.ts';
-export { capabilityAccessLabel, catalogTools, isUserConnection, userConnections } from './connection-access.ts';
+export {
+  capabilityAccessLabel,
+  catalogTools,
+  connectionProviderFamilies,
+  connectionProviderToolGroups,
+  isUserConnection,
+  userConnections,
+} from './connection-access.ts';
+export type { ConnectionProviderFamily } from './connection-access.ts';
+export type { ConnectionProviderToolGroup } from './connection-access.ts';
 export { isPreviewableImage, readableFileSize } from './file-preview.ts';
 export { firstRouteParam, invitationFromParams, invitationFromUrl, invitationUrl } from './invitation-url.ts';
 export { messagePreview } from './message-preview.ts';

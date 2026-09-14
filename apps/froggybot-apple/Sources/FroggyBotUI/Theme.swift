@@ -6,9 +6,175 @@ import SwiftUI
   import AppKit
 #endif
 
+enum FroggyPreferenceKeys {
+  static let appearance = "froggybot.preferences.appearance"
+  static let textSize = "froggybot.preferences.text-size"
+}
+
+enum FroggyAppearancePreference: String, CaseIterable, Identifiable {
+  case system
+  case light
+  case dark
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .system: "System"
+    case .light: "Light"
+    case .dark: "Dark"
+    }
+  }
+
+  var colorScheme: ColorScheme? {
+    switch self {
+    case .system: nil
+    case .light: .light
+    case .dark: .dark
+    }
+  }
+}
+
+enum FroggyTextSizePreference: String, CaseIterable, Identifiable {
+  case system
+  case standard
+  case large
+  case extraLarge
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .system: "System"
+    case .standard: "Standard"
+    case .large: "Large"
+    case .extraLarge: "Extra Large"
+    }
+  }
+
+  func resolvedSize(systemSize: DynamicTypeSize) -> DynamicTypeSize {
+    switch self {
+    case .system: systemSize
+    case .standard: .large
+    case .large: .xLarge
+    case .extraLarge: .xxLarge
+    }
+  }
+
+  static var platformDefaultRawValue: String {
+    #if os(macOS)
+      FroggyTextSizePreference.large.rawValue
+    #else
+      FroggyTextSizePreference.system.rawValue
+    #endif
+  }
+
+  var macScale: CGFloat {
+    switch self {
+    case .system, .standard: 1
+    case .large: 1.15
+    case .extraLarge: 1.3
+    }
+  }
+}
+
+private struct FroggyTextScaleKey: EnvironmentKey {
+  static let defaultValue: CGFloat = 1
+}
+
+private extension EnvironmentValues {
+  var froggyTextScale: CGFloat {
+    get { self[FroggyTextScaleKey.self] }
+    set { self[FroggyTextScaleKey.self] = newValue }
+  }
+}
+
+private extension Font.TextStyle {
+  var froggyMacPointSize: CGFloat {
+    if self == .largeTitle { return 26 }
+    if self == .title { return 22 }
+    if self == .title2 { return 17 }
+    if self == .title3 { return 15 }
+    if self == .headline { return 13 }
+    if self == .subheadline { return 11 }
+    if self == .callout { return 12 }
+    if self == .footnote || self == .caption || self == .caption2 { return 10 }
+    return 13
+  }
+
+  var froggyMacDefaultWeight: Font.Weight {
+    self == .headline ? .semibold : .regular
+  }
+}
+
+private struct FroggySemanticFontModifier: ViewModifier {
+  @Environment(\.froggyTextScale) private var scale
+  let style: Font.TextStyle
+  let weight: Font.Weight?
+  let design: Font.Design
+
+  func body(content: Content) -> some View {
+    #if os(macOS)
+      content.font(
+        .system(
+          size: style.froggyMacPointSize * scale,
+          weight: weight ?? style.froggyMacDefaultWeight,
+          design: design))
+    #else
+      content.font(.system(style, design: design, weight: weight))
+    #endif
+  }
+}
+
+private struct FroggyFixedFontModifier: ViewModifier {
+  @Environment(\.froggyTextScale) private var scale
+  @ScaledMetric private var scaledSize: CGFloat
+  let originalSize: CGFloat
+  let weight: Font.Weight
+  let design: Font.Design
+
+  init(
+    size: CGFloat, weight: Font.Weight, design: Font.Design,
+    relativeTo style: Font.TextStyle
+  ) {
+    originalSize = size
+    self.weight = weight
+    self.design = design
+    _scaledSize = ScaledMetric(wrappedValue: size, relativeTo: style)
+  }
+
+  func body(content: Content) -> some View {
+    #if os(macOS)
+      content.font(.system(size: originalSize * scale, weight: weight, design: design))
+    #else
+      content.font(.system(size: scaledSize, weight: weight, design: design))
+    #endif
+  }
+}
+
 public enum FrogTheme {
+  // Keep the original, darker FroggyBot green for filled surfaces where white text sits on top.
   public static let brand = Color(hex: "#007A3D")
   public static let brandDark = Color(hex: "#006633")
+  // Interactive controls and green text need a lighter green on dark system surfaces.
+  public static let accent: Color = {
+    #if os(iOS)
+      Color(
+        uiColor: UIColor { traits in
+          traits.userInterfaceStyle == .dark
+            ? UIColor(red: 87 / 255, green: 224 / 255, blue: 140 / 255, alpha: 1)
+            : UIColor(red: 0, green: 122 / 255, blue: 61 / 255, alpha: 1)
+        })
+    #else
+      Color(
+        nsColor: NSColor(name: nil) { appearance in
+          let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+          return isDark
+            ? NSColor(srgbRed: 87 / 255, green: 224 / 255, blue: 140 / 255, alpha: 1)
+            : NSColor(srgbRed: 0, green: 122 / 255, blue: 61 / 255, alpha: 1)
+        })
+    #endif
+  }()
   #if os(iOS)
     public static let canvas = Color(uiColor: .systemGroupedBackground)
     public static let appBackground = Color(uiColor: .systemBackground)
@@ -32,15 +198,17 @@ public enum FrogTheme {
   public static let textSoft = Color.primary
   public static let muted = Color.secondary
   public static let mutedWarm = Color.secondary
-  public static let selected = brand.opacity(0.12)
-  public static let teamBubble = brand.opacity(0.10)
-  public static let teamBorder = brand.opacity(0.35)
+  // Operational metadata is small and needs more contrast than ordinary secondary copy.
+  public static let statusText = Color.primary.opacity(0.68)
+  public static let selected = accent.opacity(0.12)
+  public static let teamBubble = accent.opacity(0.10)
+  public static let teamBorder = accent.opacity(0.35)
   public static let approval = Color.yellow.opacity(0.16)
   public static let approvalBorder = Color.orange.opacity(0.55)
   public static let danger = Color.red
 
   // Compatibility names used by the first native implementation.
-  public static let green = brand
+  public static let green = accent
   public static let background = canvas
   public static let secondary = muted
 }
@@ -195,6 +363,50 @@ extension Color {
 }
 
 extension View {
+  @ViewBuilder func froggyTextSize(
+    _ preference: FroggyTextSizePreference, systemSize: DynamicTypeSize
+  ) -> some View {
+    #if os(macOS)
+      environment(\.froggyTextScale, preference.macScale)
+        .font(.system(size: 13 * preference.macScale))
+    #else
+      environment(\.dynamicTypeSize, preference.resolvedSize(systemSize: systemSize))
+    #endif
+  }
+
+  func froggyFont(
+    _ style: Font.TextStyle, weight: Font.Weight? = nil,
+    design: Font.Design = .default
+  ) -> some View {
+    modifier(FroggySemanticFontModifier(style: style, weight: weight, design: design))
+  }
+
+  func froggyFont(
+    size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default,
+    relativeTo style: Font.TextStyle = .body
+  ) -> some View {
+    modifier(
+      FroggyFixedFontModifier(
+        size: size, weight: weight, design: design, relativeTo: style))
+  }
+
+  @ViewBuilder func froggyNavigationTitle(_ title: String, isPresented: Bool = true) -> some View {
+    #if os(macOS)
+      navigationTitle("")
+        .toolbar {
+          if isPresented {
+            ToolbarItem(placement: .navigation) {
+              Text(title)
+                .froggyFont(.title3, weight: .semibold)
+                .accessibilityAddTraits(.isHeader)
+            }
+          }
+        }
+    #else
+      navigationTitle(title)
+    #endif
+  }
+
   @ViewBuilder func froggyGlassButton(prominent: Bool = false, tint: Color? = nil) -> some View {
     if #available(iOS 26.0, macOS 26.0, *) {
       if prominent {
@@ -230,7 +442,7 @@ extension View {
   }
 
   func froggyListSurface() -> some View {
-    tint(FrogTheme.brand)
+    tint(FrogTheme.accent)
   }
 }
 
@@ -248,8 +460,8 @@ public struct EmptyPanel: View {
   public var body: some View {
     VStack(spacing: 14) {
       FrogMark(size: 70)
-      Text(title).font(.system(size: 22, weight: .heavy)).foregroundStyle(FrogTheme.text)
-      Text(detail).font(.system(size: 14)).foregroundStyle(FrogTheme.muted)
+      Text(title).froggyFont(.title, weight: .heavy).foregroundStyle(FrogTheme.text)
+      Text(detail).froggyFont(.callout).foregroundStyle(FrogTheme.muted)
         .multilineTextAlignment(.center)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)

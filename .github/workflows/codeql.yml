@@ -8,6 +8,7 @@ on:
     - cron: "17 7 * * 1"
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
@@ -15,6 +16,7 @@ jobs:
     name: Analyze ${{ matrix.language }}
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       security-events: write
       packages: read
       contents: read
@@ -27,4 +29,15 @@ jobs:
       - uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
-      - uses: github/codeql-action/analyze@v4
+      - id: analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          output: results
+          upload: never
+      - name: Preserve CodeQL results
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-${{ matrix.language }}-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: results/*.sarif

@@ -14,7 +14,7 @@ Usage:
   ./scripts/apple-app.sh run <ios|macos>
   ./scripts/apple-app.sh verify
   APPLE_TEAM_ID=TEAMID ./scripts/apple-app.sh archive [--dry-run] <ios|macos>
-  APPLE_TEAM_ID=TEAMID ./scripts/apple-app.sh testflight [--dry-run] <ios|macos>
+  APPLE_TEAM_ID=TEAMID ./scripts/apple-app.sh testflight [--dry-run] <ios|macos|all>
 
 The SwiftUI project is the only supported local or TestFlight build source for
 iPhone and Mac. The preserved Expo project is the browser client and legacy

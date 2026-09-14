@@ -24,34 +24,23 @@ struct FroggyBotAppleApp: App {
     #if os(macOS)
       WindowGroup {
         AppRoot(configuration: configuration, auth: auth, model: model)
-          .frame(minWidth: auth.phase == .signedIn ? 1_080 : 480, minHeight: 520)
+          .frame(minWidth: auth.phase == .signedIn ? 1_160 : 480, minHeight: 520)
       }
-      .defaultSize(width: 1120, height: 760)
+      .defaultSize(width: 1200, height: 760)
+      .windowStyle(.hiddenTitleBar)
       .windowResizability(.contentMinSize)
       .commands {
+        CommandGroup(replacing: .appSettings) {
+          Button("Settings…") { model.sheet = .account }
+            .keyboardShortcut(",", modifiers: .command)
+            .disabled(auth.phase != .signedIn)
+        }
         CommandGroup(after: .newItem) {
           Button("New Bot") { model.sheet = .botEditor(nil) }.keyboardShortcut(
             "n", modifiers: [.command, .shift])
           Button("New Group") { model.sheet = .groupEditor(nil) }
         }
         InspectorCommands()
-      }
-
-      Settings {
-        NavigationStack {
-          switch auth.phase {
-          case .signedIn:
-            AccountView(model: model, auth: auth, showsDismissButton: false)
-          case .checking:
-            ProgressView("Opening FroggyBot…")
-              .frame(maxWidth: .infinity, maxHeight: .infinity)
-          case .signedOut, .codeSent:
-            ContentUnavailableView(
-              "Sign in to manage settings", systemImage: "person.crop.circle.badge.exclamationmark")
-          }
-        }
-        .frame(minWidth: 620, idealWidth: 680, minHeight: 620, idealHeight: 720)
-        .tint(FrogTheme.brand)
       }
     #else
       WindowGroup {
@@ -66,6 +55,11 @@ private struct AppRoot: View {
   let configuration: AppConfiguration
   @Bindable var auth: AuthSession
   @Bindable var model: AppModel
+  @AppStorage(FroggyPreferenceKeys.appearance) private var storedAppearance =
+    FroggyAppearancePreference.system.rawValue
+  @AppStorage(FroggyPreferenceKeys.textSize) private var storedTextSize =
+    FroggyTextSizePreference.platformDefaultRawValue
+  @Environment(\.dynamicTypeSize) private var systemTextSize
   @State private var invitation: PendingInvitation?
   @State private var connected = false
 
@@ -79,10 +73,15 @@ private struct AppRoot: View {
       case .signedIn: MainView(model: model, auth: auth)
       }
     }
+    .froggyTextSize(textSize, systemSize: systemTextSize)
+    .preferredColorScheme(appearance.colorScheme)
     .task {
       guard !Self.isUnitTestHost else { return }
       await auth.restore()
       await connectIfNeeded()
+      if let selection = PushNotificationDelegate.shared.consumePendingSelection() {
+        selectFromPush(selection)
+      }
     }
     .onChange(of: auth.phase) { _, phase in
       if phase == .signedIn {
@@ -93,7 +92,9 @@ private struct AppRoot: View {
       }
     }
     .onOpenURL { url in
-      if auth.phase == .signedIn, url.scheme == "froggybot", url.host == "app" {
+      if auth.phase == .signedIn, ConnectionAuthorizationCallback(url: url) != nil {
+        Task { await model.handleConnectionCallback(url) }
+      } else if auth.phase == .signedIn, url.scheme == "froggybot", url.host == "app" {
         Task { await model.refreshBootstrap() }
       } else if auth.phase == .signedIn {
         model.handle(url: url)
@@ -110,13 +111,23 @@ private struct AppRoot: View {
       #endif
       Task { await model.registerPush(token, platform: platform) }
     }
+    .onReceive(NotificationCenter.default.publisher(for: .froggyPushRegistrationFailure)) {
+      notification in
+      let message = notification.object as? String ?? "Apple could not register this device."
+      model.reportPushRegistrationFailure(message)
+    }
     .onReceive(NotificationCenter.default.publisher(for: .froggyPushSelection)) { notification in
-      let info = notification.userInfo ?? [:]
-      if let groupId = info["groupId"] as? String {
-        model.select(.init(kind: .group, id: groupId))
-      } else if let botId = info["botId"] as? String {
-        model.select(.init(kind: .bot, id: botId))
-      }
+      guard let selection = notification.object as? PushSelection else { return }
+      _ = PushNotificationDelegate.shared.consumePendingSelection(matching: selection)
+      selectFromPush(selection)
+    }
+  }
+
+  private func selectFromPush(_ selection: PushSelection) {
+    if let groupId = selection.groupId {
+      model.select(.init(kind: .group, id: groupId))
+    } else if let botId = selection.botId {
+      model.select(.init(kind: .bot, id: botId))
     }
   }
 
@@ -147,6 +158,14 @@ private struct AppRoot: View {
         self.invitation = nil
       }
     } catch { model.present(error) }
+  }
+
+  private var appearance: FroggyAppearancePreference {
+    FroggyAppearancePreference(rawValue: storedAppearance) ?? .system
+  }
+
+  private var textSize: FroggyTextSizePreference {
+    FroggyTextSizePreference(rawValue: storedTextSize) ?? .system
   }
 
   static func invitation(from url: URL) -> PendingInvitation? {

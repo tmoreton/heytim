@@ -5,7 +5,9 @@ from typing import Any
 
 from . import authenticated_routes
 from .account import _begin_account_deletion
-from .google_oauth import _gmail_callback
+from .external_oauth import _external_callback
+from .github_oauth import _github_callback
+from .google_oauth import _google_callback
 from .sharing import _public_invite_preview
 from .support import (
     ApiError,
@@ -16,6 +18,7 @@ from .support import (
     _username,
     catalog,
 )
+from .x_oauth import _x_callback
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +36,18 @@ def _public_route(event: dict, method: str, path: str, params: dict) -> dict | N
         )
         return response
     if method == "GET" and path == "/public/oauth/google/callback":
-        return _gmail_callback(event.get("queryStringParameters") or {})
+        return _google_callback(event.get("queryStringParameters") or {})
+    if method == "GET" and path == "/public/oauth/github/callback":
+        return _github_callback(event.get("queryStringParameters") or {})
+    if method == "GET" and path == "/public/oauth/x/callback":
+        return _x_callback(event.get("queryStringParameters") or {})
+    if method == "GET" and path == "/public/oauth/provider/callback":
+        return _external_callback(event.get("queryStringParameters") or {})
     return None
 
 
 def handler(event: dict, _context: Any) -> dict:
+    route_key = ""
     try:
         request_context = event.get("requestContext", {})
         method = request_context.get("http", {}).get("method", "")
@@ -64,9 +74,13 @@ def handler(event: dict, _context: Any) -> dict:
             route_key=route_key,
         )
     except ApiError as exc:
-        return _response(
-            exc.status_code, {"code": exc.code, "message": exc.message}
+        logger.warning(
+            "API request rejected route=%s status=%s code=%s",
+            route_key,
+            exc.status_code,
+            exc.code,
         )
+        return _response(exc.status_code, {"code": exc.code, "message": exc.message})
     except Exception:
         logger.exception("Unhandled API error")
         return _response(

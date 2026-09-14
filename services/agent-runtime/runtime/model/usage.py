@@ -201,10 +201,11 @@ class UsageAccumulator:
                 provider == "agentcore-gateway"
                 and operation == YOUTUBE_SEARCH_OPERATION
             )
-            if is_youtube_search:
+            is_metered_youtube = is_youtube_search or provider == "youtube"
+            if is_metered_youtube:
                 if self._youtube_search_quota is None:
                     raise ProviderCallLimitExceeded(
-                        "YouTube search has no reserved shared quota."
+                        "YouTube search or channel access has no reserved shared quota."
                     )
                 quota_day, lease_calls = self._youtube_search_quota
                 if quota_day != self._youtube_quota_day():
@@ -214,9 +215,18 @@ class UsageAccumulator:
                 youtube_limit = min(
                     lease_calls, self._limits.youtube_search_calls
                 )
-                if self._tools.get(key, 0) >= youtube_limit:
+                youtube_calls = sum(
+                    count
+                    for (tracked_provider, tracked_operation), count in self._tools.items()
+                    if tracked_provider == "youtube"
+                    or (
+                        tracked_provider == "agentcore-gateway"
+                        and tracked_operation == YOUTUBE_SEARCH_OPERATION
+                    )
+                )
+                if youtube_calls >= youtube_limit:
                     raise ProviderCallLimitExceeded(
-                        "This run reached its YouTube search safety limit."
+                        "This run reached its YouTube search or channel-access safety limit."
                     )
             self._tools[key] = self._tools.get(key, 0) + 1
             if is_image:

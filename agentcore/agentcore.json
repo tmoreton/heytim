@@ -223,7 +223,7 @@
       "description": "Critical behavior checks for research, browser, image, bot management, and failover",
       "config": {
         "managed": {
-          "location": "agentcore/datasets/FrogBotRegression.jsonl"
+          "location": "datasets/FrogBotRegression.jsonl"
         }
       }
     }

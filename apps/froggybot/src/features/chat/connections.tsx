@@ -11,9 +11,15 @@ import {
 } from 'react-native';
 
 import { PageSheet } from '@/components/page-sheet';
+import { ProviderLogo } from '@/components/provider-logo';
 import type { Capability, Connection, ConnectionProvider } from '@froggybot/contracts';
 
-import { capabilityAccessLabel, userConnections } from '@froggybot/client';
+import {
+  capabilityAccessLabel,
+  connectionProviderFamilies,
+  type ConnectionProviderFamily,
+  userConnections,
+} from '@froggybot/client';
 
 type Props = {
   tools: Capability[];
@@ -37,13 +43,10 @@ function ConnectionDetails({
   onReconnect?: () => void;
   onRemove: () => void;
 }) {
-  const oauth = connection.authType === 'oauth';
   return (
     <>
-      <View style={[styles.detailCard, oauth ? styles.connectedCard : styles.legacyCard]}>
-        <Text style={[styles.detailStatus, !oauth && styles.legacyStatus]}>
-          {capabilityAccessLabel(connection)}
-        </Text>
+      <View style={[styles.detailCard, styles.connectedCard]}>
+        <Text style={styles.detailStatus}>{capabilityAccessLabel(connection)}</Text>
         <Text style={styles.detailName}>{connection.name}</Text>
         {connection.connectedAccount ? (
           <Text style={styles.account}>{connection.connectedAccount}</Text>
@@ -51,26 +54,12 @@ function ConnectionDetails({
         <Text style={styles.description}>{connection.description}</Text>
       </View>
 
-      {oauth ? (
-        <View style={styles.notice}>
-          <Text style={styles.noticeTitle}>{provider?.privacyTitle ?? 'Your account stays private'}</Text>
-          <Text style={styles.noticeText}>
-            {provider?.privacyDescription ?? 'FroggyBot uses this connection only when a bot needs the account.'}
-          </Text>
-        </View>
-      ) : (
-        <View style={styles.notice}>
-          <Text style={styles.noticeTitle}>Existing connection</Text>
-          <Text style={styles.noticeText}>
-            This earlier private connection remains available to bots that already use it. You can remove it, but
-            cannot change its endpoint or developer credential. New supported services use Connect account.
-          </Text>
-          <Text selectable style={styles.endpoint}>{connection.endpoint}</Text>
-          <Text style={styles.accessLevel}>
-            {connection.risk === 'read' ? 'Read only' : 'Can make changes with approval'}
-          </Text>
-        </View>
-      )}
+      <View style={styles.notice}>
+        <Text style={styles.noticeTitle}>{provider?.privacyTitle ?? 'Your account stays private'}</Text>
+        <Text style={styles.noticeText}>
+          {provider?.privacyDescription ?? 'FroggyBot uses this connection only when a bot needs the account.'}
+        </Text>
+      </View>
 
       {onReconnect ? (
         <Pressable
@@ -82,7 +71,9 @@ function ConnectionDetails({
           {busy ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.primaryButtonText}>Reconnect account</Text>
+            <Text style={styles.primaryButtonText}>
+              {provider?.reconnectLabel ?? 'Reconnect account'}
+            </Text>
           )}
         </Pressable>
       ) : null}
@@ -100,32 +91,128 @@ function ConnectionDetails({
 
 function ConnectionRow({
   connection,
+  provider,
+  nested = false,
+  displayName,
   onPress,
 }: {
   connection: Connection;
+  provider: ConnectionProvider;
+  nested?: boolean;
+  displayName?: string;
   onPress: () => void;
 }) {
   const label = capabilityAccessLabel(connection);
   return (
     <Pressable
       accessibilityRole="button"
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      style={({ pressed }) => [nested ? styles.familyServiceRow : styles.card, pressed && styles.pressed]}
       onPress={onPress}>
-      <View style={styles.connectionMark}><Text style={styles.connectionMarkText}>C</Text></View>
+      <ProviderLogo provider={provider} />
       <View style={styles.cardText}>
         <View style={styles.nameRow}>
-          <Text style={styles.cardName}>{connection.name}</Text>
-          <Text style={[styles.badge, label === 'Connected' ? styles.connectedBadge : styles.legacyBadge]}>
-            {label}
-          </Text>
+          <Text style={styles.cardName}>{displayName ?? connection.name}</Text>
+          <Text style={[styles.badge, styles.connectedBadge]}>{label}</Text>
         </View>
         <Text style={styles.description}>{connection.description}</Text>
         <Text style={styles.meta}>
-          {connection.connectedAccount ?? 'Available to existing bots'}
+          {connection.connectedAccount ?? 'Connected'}
         </Text>
       </View>
       <Text style={styles.chevron}>›</Text>
     </Pressable>
+  );
+}
+
+function AvailableConnectionRow({
+  provider,
+  busy,
+  nested = false,
+  onPress,
+}: {
+  provider: ConnectionProvider;
+  busy: boolean;
+  nested?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ busy, disabled: busy }}
+      disabled={busy}
+      style={({ pressed }) => [
+        nested ? styles.familyServiceRow : [styles.card, styles.connectCard],
+        pressed && styles.pressed,
+      ]}
+      onPress={onPress}>
+      <ProviderLogo provider={provider} />
+      <View style={styles.cardText}>
+        <View style={styles.nameRow}>
+          <Text style={styles.cardName}>{provider.serviceName ?? provider.name}</Text>
+          <Text style={[styles.badge, styles.connectBadge]}>{provider.connectLabel}</Text>
+        </View>
+        <Text style={styles.description}>{provider.description}</Text>
+        <Text style={styles.meta}>{provider.permissionsSummary}</Text>
+      </View>
+      {busy ? <ActivityIndicator color="#007A3D" /> : <Text style={styles.chevron}>›</Text>}
+    </Pressable>
+  );
+}
+
+function ConnectionFamilyCard({
+  family,
+  connectionsByProvider,
+  busy,
+  onConnect,
+  onOpen,
+}: {
+  family: ConnectionProviderFamily;
+  connectionsByProvider: Map<string, Connection>;
+  busy: boolean;
+  onConnect: (provider: ConnectionProvider) => void;
+  onOpen: (connection: Connection) => void;
+}) {
+  return (
+    <View style={styles.familyCard}>
+      <View style={styles.familyHeader}>
+        <ProviderLogo provider={{ id: family.logoProviderId, iconText: family.iconText }} />
+        <View style={styles.cardText}>
+          <View style={styles.nameRow}>
+            <Text style={styles.familyName}>{family.name}</Text>
+            {family.includedSummary ? (
+              <Text style={[styles.badge, styles.includedBadge]}>Included</Text>
+            ) : null}
+          </View>
+          <Text style={styles.description}>{family.description}</Text>
+          {family.includedSummary ? (
+            <Text style={styles.meta}>{family.includedSummary}</Text>
+          ) : null}
+        </View>
+      </View>
+      <View style={styles.familyServices}>
+        {family.providers.map((provider) => {
+          const connection = connectionsByProvider.get(provider.id);
+          return connection ? (
+            <ConnectionRow
+              key={provider.id}
+              connection={connection}
+              provider={provider}
+              nested
+              displayName={provider.serviceName ?? provider.name}
+              onPress={() => onOpen(connection)}
+            />
+          ) : (
+            <AvailableConnectionRow
+              key={provider.id}
+              provider={provider}
+              busy={busy}
+              nested
+              onPress={() => onConnect(provider)}
+            />
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -141,16 +228,13 @@ export function Connections({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const connections = userConnections(tools);
+  const families = connectionProviderFamilies(providers);
   const selected = connections.find((connection) => connection.id === selectedId);
   const providersById = new Map(providers.map((provider) => [provider.id, provider]));
   const connectionsByProvider = new Map(
     connections.flatMap((connection) => connection.provider ? [[connection.provider, connection] as const] : []),
   );
   const selectedProvider = selected?.provider ? providersById.get(selected.provider) : undefined;
-  const unmanagedOAuth = connections.filter(
-    (connection) => connection.authType === 'oauth' && !providersById.has(connection.provider ?? ''),
-  );
-  const legacy = connections.filter((connection) => connection.authType !== 'oauth');
 
   const connect = async (provider: ConnectionProvider) => {
     setBusy(true);
@@ -233,64 +317,41 @@ export function Connections({
               </View>
 
               <Text style={styles.sectionLabel}>Available accounts</Text>
-              {providers.map((provider) => {
+              {families.map((family) => {
+                if (family.grouped) {
+                  return (
+                    <ConnectionFamilyCard
+                      key={family.id}
+                      family={family}
+                      connectionsByProvider={connectionsByProvider}
+                      busy={busy}
+                      onConnect={(provider) => void connect(provider)}
+                      onOpen={(connection) => setSelectedId(connection.id)}
+                    />
+                  );
+                }
+                const provider = family.providers[0];
+                if (!provider) return null;
                 const connection = connectionsByProvider.get(provider.id);
                 if (connection) {
                   return (
                     <ConnectionRow
                       key={provider.id}
                       connection={connection}
+                      provider={provider}
                       onPress={() => setSelectedId(connection.id)}
                     />
                   );
                 }
                 return (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ busy, disabled: busy }}
-                    disabled={busy}
+                  <AvailableConnectionRow
                     key={provider.id}
-                    style={({ pressed }) => [styles.card, styles.connectCard, pressed && styles.pressed]}
-                    onPress={() => void connect(provider)}>
-                    <View style={styles.providerMark}>
-                      <Text style={styles.providerMarkText}>{provider.iconText}</Text>
-                    </View>
-                    <View style={styles.cardText}>
-                      <View style={styles.nameRow}>
-                        <Text style={styles.cardName}>{provider.name}</Text>
-                        <Text style={[styles.badge, styles.connectBadge]}>Connect account</Text>
-                      </View>
-                      <Text style={styles.description}>{provider.description}</Text>
-                      <Text style={styles.meta}>{provider.permissionsSummary}</Text>
-                    </View>
-                    {busy ? <ActivityIndicator color="#007A3D" /> : <Text style={styles.chevron}>›</Text>}
-                  </Pressable>
+                    provider={provider}
+                    busy={busy}
+                    onPress={() => void connect(provider)}
+                  />
                 );
               })}
-              {unmanagedOAuth.map((connection) => (
-                <ConnectionRow
-                  key={connection.id}
-                  connection={connection}
-                  onPress={() => setSelectedId(connection.id)}
-                />
-              ))}
-
-              {legacy.length ? (
-                <>
-                  <Text style={styles.sectionLabel}>Existing private connections</Text>
-                  <Text style={styles.sectionHelp}>
-                    These remain available to existing bots. They are read-only here and can be removed when no bot or
-                    skill uses them.
-                  </Text>
-                  {legacy.map((connection) => (
-                    <ConnectionRow
-                      key={connection.id}
-                      connection={connection}
-                      onPress={() => setSelectedId(connection.id)}
-                    />
-                  ))}
-                </>
-              ) : null}
             </>
           )}
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
@@ -311,35 +372,31 @@ const styles = StyleSheet.create({
   introTitle: { color: '#173E2A', fontSize: 18, lineHeight: 24, fontWeight: '800' },
   introText: { color: '#527060', fontSize: 13, lineHeight: 19, marginTop: 5 },
   sectionLabel: { color: '#24231F', fontSize: 13, fontWeight: '800', marginTop: 8, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.7 },
-  sectionHelp: { color: '#6E6A62', fontSize: 13, lineHeight: 19, marginTop: -4, marginBottom: 12 },
   card: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 10, borderRadius: 17, borderWidth: 1, borderColor: '#E2DFD7', backgroundColor: '#FFFFFF' },
   connectCard: { borderColor: '#CBE2D5', backgroundColor: '#F3FAF6' },
-  providerMark: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#DCEFE4' },
-  providerMarkText: { color: '#007A3D', fontSize: 18, fontWeight: '900' },
-  connectionMark: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFEEE9' },
-  connectionMarkText: { color: '#57534C', fontSize: 17, fontWeight: '900' },
+  familyCard: { marginBottom: 10, overflow: 'hidden', borderRadius: 17, borderWidth: 1, borderColor: '#CBE2D5', backgroundColor: '#FFFFFF' },
+  familyHeader: { minHeight: 94, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, backgroundColor: '#F3FAF6' },
+  familyName: { flexShrink: 1, color: '#173E2A', fontSize: 17, fontWeight: '800' },
+  familyServices: { paddingHorizontal: 14 },
+  familyServiceRow: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth, borderColor: '#E2DFD7', backgroundColor: '#FFFFFF' },
   cardText: { flex: 1, minWidth: 0 },
   nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   cardName: { flexShrink: 1, color: '#24231F', fontSize: 15, fontWeight: '700' },
   badge: { overflow: 'hidden', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, fontSize: 10, fontWeight: '800' },
   connectBadge: { color: '#007A3D', backgroundColor: '#DCEFE4' },
   connectedBadge: { color: '#007A3D', backgroundColor: '#E4F1EA' },
-  legacyBadge: { color: '#6E5A26', backgroundColor: '#F6EDD2' },
+  includedBadge: { color: '#315F48', backgroundColor: '#DCEFE4' },
   description: { color: '#6E6A62', fontSize: 12, lineHeight: 17, marginTop: 4 },
   meta: { color: '#6E6A62', fontSize: 11, marginTop: 5 },
   chevron: { color: '#6E6A62', fontSize: 25, fontWeight: '300' },
   detailCard: { padding: 18, borderRadius: 18, borderWidth: 1, marginBottom: 12 },
   connectedCard: { borderColor: '#CBE2D5', backgroundColor: '#E9F4EE' },
-  legacyCard: { borderColor: '#E6D6A8', backgroundColor: '#FFF9E8' },
   detailStatus: { color: '#007A3D', fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
-  legacyStatus: { color: '#6E5A26' },
   detailName: { color: '#173E2A', fontSize: 18, fontWeight: '800', marginTop: 6 },
   account: { color: '#007A3D', fontSize: 14, fontWeight: '700', marginTop: 5 },
   notice: { padding: 16, borderRadius: 17, borderWidth: 1, borderColor: '#DEDAD2', backgroundColor: '#FFFFFF' },
   noticeTitle: { color: '#37352F', fontSize: 15, fontWeight: '800' },
   noticeText: { color: '#6E6A62', fontSize: 13, lineHeight: 19, marginTop: 5 },
-  endpoint: { color: '#4F4C46', fontSize: 12, lineHeight: 18, marginTop: 14 },
-  accessLevel: { color: '#6E5A26', fontSize: 12, fontWeight: '700', marginTop: 8 },
   primaryButton: { minHeight: 47, marginTop: 24, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#007A3D' },
   primaryButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
   removeButton: { minHeight: 47, marginTop: 12, borderRadius: 14, borderWidth: 1, borderColor: '#E2B9B4', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF8F7' },

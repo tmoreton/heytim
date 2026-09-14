@@ -40,6 +40,14 @@ CLIENT_CONTRACT = BACKEND_FUNCTIONS / "shared/client_contract.py"
 GROUP_SCHEMA = (
     Path(__file__).resolve().parents[1] / "contracts/group-context.v1.schema.json"
 )
+ATTACHMENTS_POLICY = (
+    Path(__file__).resolve().parents[1] / "runtime/attachments-policy.json"
+)
+CLIENT_CONNECTION_SURFACES = (
+    REPOSITORY_ROOT / "apps/froggybot/src/features/chat/connections.tsx",
+    REPOSITORY_ROOT
+    / "apps/froggybot-apple/Sources/FroggyBotUI/SupportingFeatureSheets.swift",
+)
 
 
 def _load_group_producer():
@@ -153,6 +161,39 @@ def test_attachment_limits_and_formats_match_amplify_producer() -> None:
     assert producer["IMAGE_MAX_BYTES"] <= MAX_ATTACHMENT_BYTES
     assert DOCUMENT_FORMATS == document_formats
     assert IMAGE_FORMATS == image_formats
+
+
+def test_runtime_can_read_provider_configuration_but_rotate_only_user_grants() -> None:
+    policy = json.loads(ATTACHMENTS_POLICY.read_text(encoding="utf-8"))
+    statements = {item["Sid"]: item for item in policy["Statement"]}
+
+    readable = set(statements["ReadFrogBotConnectionCredentials"]["Resource"])
+    assert any("secret:frogbot/connections/*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/google-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/github-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/x-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/slack-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/microsoft-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/notion-*" in arn for arn in readable)
+
+    rotatable = statements["RotateFrogBotUserOAuthTokens"]["Resource"]
+    assert rotatable.endswith("secret:frogbot/connections/*")
+    assert "/oauth/" not in rotatable
+
+
+def test_connection_clients_are_provider_and_authentication_agnostic() -> None:
+    for path in CLIENT_CONNECTION_SURFACES:
+        source = path.read_text(encoding="utf-8")
+        assert "GitHub" not in source
+        assert "YouTube Studio" not in source
+        assert ".uiKind" not in source
+        assert ".authType" not in source
+
+    apple_demo = (
+        REPOSITORY_ROOT
+        / "apps/froggybot-apple/Sources/FroggyBotCore/AppModel.swift"
+    ).read_text(encoding="utf-8")
+    assert "static let connectionProviders" not in apple_demo
 
 
 def test_large_group_transcript_remains_accepted_without_losing_contributions():

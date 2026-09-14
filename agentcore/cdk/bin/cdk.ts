@@ -5,6 +5,12 @@ import { App, type Environment } from 'aws-cdk-lib';
 import * as path from 'path';
 import * as fs from 'fs';
 import { assertCleanDeploySource } from '../lib/deploy-preflight';
+import {
+  assertProductionTargetConfigured,
+  bindSpecToTarget,
+  filesBucketName,
+  filesKeyAlias,
+} from '../lib/target-bindings';
 
 function toEnvironment(target: AwsDeploymentTarget): Environment {
   return {
@@ -57,6 +63,9 @@ async function main() {
 
   if (targets.length === 0) {
     throw new Error('No deployment targets configured. Please define targets in agentcore/aws-targets.json');
+  }
+  if (process.env.FROGBOT_ENVIRONMENT === 'production') {
+    assertProductionTargetConfigured(targets);
   }
 
   // Read harness configs: the full validated spec drives the CFN resource; the
@@ -115,10 +124,18 @@ async function main() {
   }
 
   const app = new App();
+  const developmentTarget = targets.find(target => target.name === 'development');
+  const sharedAccountOverride = process.env.FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT === 'true';
 
   for (const target of targets) {
     const env = toEnvironment(target);
     const stackName = toStackName(spec.name, target.name);
+    const sharedProductionAccount =
+      target.name === 'production' &&
+      sharedAccountOverride &&
+      developmentTarget?.account === target.account &&
+      developmentTarget.region === target.region;
+    const targetSpec = bindSpecToTarget(spec, target, undefined, sharedProductionAccount);
 
     // Extract credentials from deployed state for this target
     const targetState = (deployedState as Record<string, unknown>)?.targets as
@@ -191,12 +208,14 @@ async function main() {
       : undefined;
 
     new AgentCoreStack(app, stackName, {
-      spec,
+      spec: targetSpec,
       mcpSpec,
       credentials,
       connectorParametersByFile,
       harnesses: harnessConfigs.length > 0 ? harnessConfigs : undefined,
       paymentSpec,
+      filesBucketName: filesBucketName(target),
+      filesKeyAlias: filesKeyAlias(target),
       env,
       description: `AgentCore stack for ${spec.name} deployed to ${target.name} (${target.region})`,
       tags: {

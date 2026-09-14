@@ -250,29 +250,33 @@ export type Capability = {
   connectedAccount?: string;
 };
 
-export type ConnectionAuthType = 'none' | 'bearer' | 'api_key' | 'oauth';
-
 export type ConnectionProvider = {
   id: string;
   name: string;
   description: string;
   category: string;
-  authType: 'oauth';
-  uiKind: 'oauth';
   iconText: string;
   permissionsSummary: string;
   privacyTitle: string;
   privacyDescription: string;
+  connectLabel: string;
+  reconnectLabel: string;
+  familyId?: string;
+  familyName?: string;
+  familyDescription?: string;
+  familyIconText?: string;
+  familyLogoProviderId?: string;
+  familyIncludedSummary?: string;
+  familyIncludedToolIds?: string[];
+  serviceName?: string;
 };
 
 export type Connection = Capability & {
   source: 'user';
   editable: true;
-  endpoint: string;
-  authType: ConnectionAuthType;
-  headerName?: string;
-  hasCredential?: boolean;
+  provider: string;
   connectionStatus: 'connected';
+  repositoryCount?: number;
 };
 
 export type Skill = Capability & {

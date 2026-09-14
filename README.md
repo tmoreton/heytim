@@ -24,8 +24,11 @@ the source of truth
 for deployed agent resources. The older internal name `FrogBot` remains in AWS resource identities because
 renaming it would replace deployed infrastructure;
 user-facing product copy uses `FroggyBot`. The maintained boundary and request-flow
-guide is in [`docs/architecture.md`](docs/architecture.md), and the remaining product work is tracked
-in [`docs/grokbot-parity-roadmap.md`](docs/grokbot-parity-roadmap.md).
+guide is in [`docs/architecture.md`](docs/architecture.md), provider setup is in
+[`docs/integrations.md`](docs/integrations.md), and the remaining product work is tracked
+in [`docs/grokbot-parity-roadmap.md`](docs/grokbot-parity-roadmap.md). Reusable,
+account-owned specialist packs are documented in
+[`docs/bot-workflows.md`](docs/bot-workflows.md).
 
 ## Architecture
 
@@ -35,7 +38,7 @@ SwiftUI app (iPhone + Mac) --+
   |-- native APNs            +-- Cognito email-code sign-in
 Expo browser client ---------+-- authenticated HTTP API
         |-- DynamoDB: bot configs, chats, files, groups, tasks, tokens, and invites
-        |-- Secrets Manager: per-user OAuth and legacy connection credentials
+        |-- Secrets Manager: per-user OAuth and GitHub App installation grants
         |-- S3: private user uploads and generated artifacts
         |-- EventBridge Scheduler: daily, weekday, weekly, and monthly tasks
         |-- SQS: durable agent jobs
@@ -85,7 +88,8 @@ order for the preview app, live request path, AgentCore runtime, infrastructure,
 - Bot snapshots, conversation snapshots, and live group invitations with 30-day links
 - Scoped AgentCore memory: private user preferences/facts, per-bot summaries, and isolated shared group preferences/facts/summaries, with in-app creation, review, editing, and forgetting
 - Explicit clear-chat choices for preserving or forgetting conversation memory; bot and group deletion also enqueue matching memory cleanup
-- Persistent two-hour browser and code-interpreter sessions; browser use requires one-time approval for each turn
+- Persistent browser and code-interpreter sessions with an eight-hour ceiling and a 15-minute idle-runtime timeout;
+  browser use requires one-time approval for each turn
 - DynamoDB persistence, encrypted queues and topics, retries, work leases, cancellation, and a dead-letter queue
 - CloudTrail audit logs, API access logs, X-Ray tracing, service alarms, and a CloudWatch dashboard
 - Permanent in-app account deletion, including active share revocation and versioned user-file deletion
@@ -122,18 +126,20 @@ agentcore status --target production --runtime FrogBot --json
 agentcore status --target production --type memory --json
 ```
 
-Development and production use separate target stacks in account `188757775631`, `us-east-1`; never rename
-either target because that changes resource identity. Confirm that both the runtime and
+Development and production use separate target stacks; never rename either target because that changes resource
+identity. Production temporarily uses management account `188757775631` while the dedicated member account's Lambda
+quota request is pending. Set `FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT=true` only for that temporary posture; the
+release guard fails closed without it. Confirm that both the runtime and
 memory are ready, then copy the deployed runtime ARN from the status output. Model selection is defined only in
 `agentcore/agentcore.json`: OpenRouter uses DeepSeek V4.1 Flash with GLM 5.3 as a bounded pre-response fallback, while
 the separately selected image tool uses GPT Image 2.5 Sunburst through OpenRouter. Finished thumbnails send the full
 composition and selected recent image references to OpenRouter, then normalize the result to 1280x720.
 CDK synthesis and the release scripts refuse uncommitted source, and AWS releases also refuse account-root
-credentials. Required provider access must be available in the configured accounts and regions. Development
-owns the existing `frogbot-user-files-188757775631-us-east-1` bucket and its customer-managed encryption
-key; production imports that bucket and key so attachments remain compatible with the runtime's fixed
-`FROGBOT_FILES_BUCKET` configuration. Authentication, message tables, queues, functions, and stacks remain
-separate between the two deployment targets.
+credentials. Required provider access must be available in the configured accounts and regions. Each target owns
+an independent, versioned, customer-managed-KMS user-files bucket. The target binding resolves
+`FROGBOT_FILES_BUCKET` and the runtime attachment policy to that account and Region; production never imports the
+development bucket or key. Authentication, message tables, queues, functions, provider credentials, and stacks
+remain separate between the deployment targets.
 
 ### 2. Optional future phone sign-in
 
@@ -153,6 +159,11 @@ npm run contract:check
 export FROGBOT_AGENT_RUNTIME_ARN='arn:aws:bedrock-agentcore:us-east-1:188757775631:runtime/REPLACE_ME'
 export FROGBOT_MEMORY_ID='FrogBot_FrogBotMemory-REPLACE_ME'
 export FROGBOT_GOOGLE_OAUTH_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:frogbot/oauth/google-REPLACE_ME'
+export FROGBOT_GITHUB_APP_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:frogbot/oauth/github-REPLACE_ME'
+export FROGBOT_X_OAUTH_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:frogbot/oauth/x-REPLACE_ME'
+export FROGBOT_SLACK_OAUTH_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:frogbot/oauth/slack-REPLACE_ME'
+export FROGBOT_MICROSOFT_OAUTH_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:frogbot/oauth/microsoft-REPLACE_ME'
+export FROGBOT_NOTION_OAUTH_SECRET_ARN='arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:frogbot/oauth/notion-REPLACE_ME'
 export FROGBOT_ENVIRONMENT='production'
 npm run sandbox -- --once --identifier frogbot --profile YOUR_AWS_PROFILE
 ```
@@ -173,12 +184,18 @@ customer-managed encryption to the runtime log group and enforces the same non-r
 mode permits only the CLI deployment state and Amplify outputs generated by the preceding release commands;
 any source change still stops the release.
 
-The manual `Deploy FroggyBot production infrastructure` GitHub workflow is the preferred production path.
-Its `production` environment requires `AWS_DEPLOY_ROLE_ARN`, `AMPLIFY_APP_ID`, the three company-owned
-OpenRouter, X, and YouTube credentials documented in `agentcore/README.md`, and the Google OAuth secret ARN.
-Users never enter these platform credentials. The backend's development stack creates the narrowly trusted
-GitHub OIDC role and exposes its ARN as `githubDeployRoleArn`; bootstrap that role once using IAM Identity
-Center or another reviewed administrator role, never account-root credentials.
+The manual `Deploy FroggyBot production release` GitHub workflow is the only supported production path. It deploys
+the services, preserves the generated native configuration, and then verifies, signs, and uploads both SwiftUI apps
+to TestFlight. It does not build or publish Expo.
+Its `production` environment requires the configured production account, `AWS_DEPLOY_ROLE_ARN`, `AMPLIFY_APP_ID`, the
+production memory KMS key, explicit quota and budget values, the three company-owned
+OpenRouter, X, and YouTube credentials documented in `agentcore/README.md`, and the Google, GitHub App, and X OAuth
+secret ARNs plus the Slack and Notion OAuth secret ARNs documented in
+[`docs/integrations.md`](docs/integrations.md). It also requires provider-review, compliance, and physical-device
+push attestations and a confirmed alarm subscriber. The complete gate is in
+[`docs/production-release.md`](docs/production-release.md).
+Users never enter these platform credentials. Bootstrap the narrowly trusted GitHub OIDC role in the production
+account once using IAM Identity Center or another reviewed administrator role, never account-root credentials.
 
 ## Bots, skills, and tools
 
@@ -199,25 +216,27 @@ The Connections screen follows the same data-driven pattern using the backend pr
 reuse the generic UI and authorization route after its server adapter and permissions have been reviewed; no provider
 API key is accepted from an end user or shipped in the client.
 
-Users can create instruction-only skills inside the app, attach only the tools that skill needs, and share a
-30-day installation link. Shared skills are read-only for the recipient and require an explicit trust confirmation.
+Users can create instruction-only skills inside the app or explicitly ask a bot to create and attach a private
+skill to itself in a direct chat. Self-authored skills can reference only tools the bot already has, cannot run as
+a scheduled or group-chat mutation, and use replay-safe IDs. Users can also share a 30-day installation link;
+shared skills are read-only for the recipient and require an explicit trust confirmation.
 Installing a public bot never requires a developer key. Shared tools use FroggyBot-owned credentials behind narrow
-AgentCore Gateway targets. Private account data uses provider-specific OAuth; per-user tokens are encrypted in Secrets
-Manager and fetched only when the runtime invokes that account. They never enter the app bundle, a skill document, a
-prompt, or a shared link. Existing custom MCP connections remain viewable and removable as legacy connections, but
-the app no longer creates or edits developer-key connections. The public repository includes validation automation,
+AgentCore Gateway targets. Private account data uses provider-specific OAuth or a GitHub App installation; per-user
+grants are encrypted in Secrets Manager and fetched only when the runtime invokes that account. They never enter the app bundle, a skill document, a
+prompt, or a shared link. Legacy generic MCP bearer/API-key records remain in storage but are intentionally unlisted
+and unusable. The public repository includes validation automation,
 contribution templates, and separate request forms for public skills and tool proposals.
 
-Gmail uses Google's remote MCP server through a first-class OAuth connection. Each user grants their own account
-read-email and create-draft access; refresh tokens stay in a per-user Secrets Manager secret. The runtime exposes only
-search, read, list, and draft tools, so it cannot send, delete, relabel, archive, or mark email. Gmail access is treated
+Gmail uses Google's generally available REST API through a first-class OAuth connection. Each user grants their own
+account read-email and create-draft access; refresh tokens stay in a per-user Secrets Manager secret. The runtime
+exposes only search, read, list, and draft tools, so it cannot send, delete, relabel, archive, or mark email. This path
+supports personal Gmail accounts without enrolling a Workspace project in Developer Preview. Gmail access is treated
 as interactive because email is untrusted input, which keeps it out of groups and unattended schedules.
 
-The main AgentCore project gateway currently exposes only the reviewed web-search connector. X and YouTube use the
-reviewed auxiliary target template in the public skills repository because schema v1 cannot yet express their API-key
-placement. For providers the main schema supports, add the provider credential and gateway target to
-`agentcore/agentcore.json` together. In every case, do not describe a provider as available until its target is deployed,
-ready, and visible in the reviewed catalog.
+The reviewed catalog keeps public X and YouTube research available without sign-in. Optional private YouTube and X
+data use per-user read-only OAuth; GitHub uses a repository-selected GitHub App whose installation tokens are minted
+only when needed. Do not describe a provider as available until its adapter is deployed, ready, and visible in the
+reviewed catalog.
 
 ## Verification
 
@@ -237,6 +256,7 @@ APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh archive ios
 APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh archive macos
 APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh testflight ios
 APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh testflight macos
+APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh testflight all
 ```
 
 The TestFlight command refuses a dirty source tree, checks the bundled backend configuration, runs the Apple test
@@ -244,9 +264,9 @@ suite, and preserves the selected build number. It uses the Apple Developer acco
 Store Connect API key supplied through the documented environment variables. No signing material belongs in this
 repository.
 
-The GitHub Actions workflow at `.github/workflows/eas-update.yml` now builds and deploys only the browser client after
-every push to `main`; it no longer publishes native Expo updates. The Expo credential remains the repository secret
-`EXPO_TOKEN` for that web deployment. The browser app at `https://app.froggybot.com` owns application and invite routes.
+The workflow at `.github/workflows/eas-update.yml` keeps the preserved Expo browser client verified as a supporting
+surface, but it does not publish it and it is not part of the production release gate. Browser deployment is a
+separate, explicitly authorized operation. No Expo credential is required for an Apple production release.
 
 The separate [FroggyBot Skills](https://github.com/tmoreton/frogbot-skills) repository owns the public homepage,
 library, contribution guide, and legal pages at `https://froggybot.com`. Its GitHub Pages workflow publishes on

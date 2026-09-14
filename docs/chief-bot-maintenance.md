@@ -1,7 +1,9 @@
 # Chief-assisted bot maintenance
 
-Status: proposed design, not enabled. Start with diagnostics and approved changes;
-do not give Chief unrestricted access to production configuration or credentials.
+Status: scoped creation is enabled. Chief can create, install, and edit non-Chief
+bots in direct chats. Every bot can create and attach a private skill to itself when
+the user explicitly asks in a direct chat. Broader diagnostics and repair automation
+remain proposed; no bot has unrestricted access to production configuration or credentials.
 
 ## Motivation and current boundaries
 
@@ -14,12 +16,18 @@ interference bug, also fixed in the shared adapter. See the
 Separately, the former Anthropic submission URL now redirects
 to documentation, so repairing the browser does not itself complete submission.
 
-The app already validates bot creation and editing in
+The app validates bot creation and editing in
 `services/froggybot-api/amplify/functions/api/bots.py`, including catalog access, pinned
 skills, and interactive-tool scheduling restrictions. The runtime resolves
-capabilities through `capability_contract.py` and `capabilities.py`; it currently
-has no first-party bot-management tool. Reuse the existing validation through a
-scoped service instead of allowing agents to write directly to the database.
+capabilities through `capability_contract.py` and `capabilities.py`. Its scoped
+`bot_manager` capability returns typed mutations for server-side validation instead
+of giving an agent direct database access.
+
+Self-authored skills are always private and attach only to the invoking bot. Their
+required tools must be a subset of that bot's current effective tools, so skill
+creation cannot widen permissions. Server-generated deterministic IDs make retries
+safe. Scheduled work and group replies cannot create or edit skills; a previously
+attached skill remains available when that bot later participates in a group.
 
 ## Proposed control surface
 

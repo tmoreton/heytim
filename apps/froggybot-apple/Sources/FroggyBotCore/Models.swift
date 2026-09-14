@@ -39,7 +39,8 @@ public struct Bot: Codable, Identifiable, Hashable, Sendable {
 public struct BotDraft: Codable, Equatable, Sendable {
   public var name = ""
   public var tagline = ""
-  public var color = "#59B86B"
+  // Chief owns FroggyBot green. New custom bots start with the service's supported teal.
+  public var color = "#58BEAA"
   public var prompt = ""
   public var toolIds: [String] = []
   public var skillIds: [String] = []
@@ -70,6 +71,14 @@ public struct BotTemplate: Codable, Identifiable, Hashable, Sendable {
   public var author: String?
   public var tags: [String]?
   public var featured: Bool?
+  public var updatedAt: String?
+
+  public func effectiveToolIDs(skills: [Skill]) -> [String] {
+    let skillsByID = Dictionary(uniqueKeysWithValues: skills.map { ($0.id, $0) })
+    var seen = Set<String>()
+    return (toolIds + skillIds.flatMap { skillsByID[$0]?.requiredToolIds ?? [] })
+      .filter { seen.insert($0).inserted }
+  }
 }
 
 public struct Attachment: Codable, Identifiable, Hashable, Sendable {
@@ -165,6 +174,64 @@ public struct BotGroup: Codable, Identifiable, Hashable, Sendable {
   public var lastMessageAt: String
   public var processing: Bool?
   public var processingBotName: String?
+}
+
+public enum ConversationListItem: Identifiable, Hashable, Sendable {
+  case bot(Bot)
+  case group(BotGroup)
+
+  public var id: ConversationSelection { selection }
+
+  public var selection: ConversationSelection {
+    switch self {
+    case .bot(let bot): ConversationSelection(kind: .bot, id: bot.id)
+    case .group(let group): ConversationSelection(kind: .group, id: group.id)
+    }
+  }
+
+  public var name: String {
+    switch self {
+    case .bot(let bot): bot.name
+    case .group(let group): group.name
+    }
+  }
+
+  public var lastMessage: String {
+    switch self {
+    case .bot(let bot): bot.lastMessage
+    case .group(let group): group.lastMessage
+    }
+  }
+
+  public var lastMessageAt: String {
+    switch self {
+    case .bot(let bot): bot.lastMessageAt
+    case .group(let group): group.lastMessageAt
+    }
+  }
+
+  public var processing: Bool {
+    switch self {
+    case .bot(let bot): bot.processing == true
+    case .group(let group): group.processing == true
+    }
+  }
+
+  public var processingBotName: String? {
+    switch self {
+    case .bot(let bot): bot.name
+    case .group(let group): group.processingBotName
+    }
+  }
+
+  public static func recentFirst(bots: [Bot], groups: [BotGroup]) -> [ConversationListItem] {
+    (bots.map(ConversationListItem.bot) + groups.map(ConversationListItem.group)).sorted {
+      let left = $0.lastMessageAt.froggyDate ?? .distantPast
+      let right = $1.lastMessageAt.froggyDate ?? .distantPast
+      if left != right { return left > right }
+      return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+    }
+  }
 }
 
 public struct GroupDraft: Codable, Equatable, Sendable {
@@ -292,11 +359,9 @@ public struct Capability: Codable, Identifiable, Hashable, Sendable {
   public var source: String?
   public var editable: Bool?
   public var connectedAccount: String?
-  public var endpoint: String?
-  public var authType: String?
-  public var headerName: String?
-  public var hasCredential: Bool?
   public var connectionStatus: String?
+  public var relationship: String?
+  public var updatedAt: String?
 }
 
 public struct ConnectionProvider: Codable, Identifiable, Hashable, Sendable {
@@ -304,12 +369,150 @@ public struct ConnectionProvider: Codable, Identifiable, Hashable, Sendable {
   public var name: String
   public var description: String
   public var category: String
-  public var authType: String
-  public var uiKind: String
   public var iconText: String
   public var permissionsSummary: String
   public var privacyTitle: String
   public var privacyDescription: String
+  public var connectLabel: String
+  public var reconnectLabel: String
+  public var familyId: String?
+  public var familyName: String?
+  public var familyDescription: String?
+  public var familyIconText: String?
+  public var familyLogoProviderId: String?
+  public var familyIncludedSummary: String?
+  public var familyIncludedToolIds: [String]?
+  public var serviceName: String?
+
+  private enum CodingKeys: String, CodingKey {
+    case id, name, description, category, iconText, permissionsSummary
+    case privacyTitle, privacyDescription, connectLabel, reconnectLabel
+    case familyId, familyName, familyDescription, familyIconText, familyLogoProviderId
+    case familyIncludedSummary, familyIncludedToolIds, serviceName
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(String.self, forKey: .id)
+    name = try container.decode(String.self, forKey: .name)
+    description = try container.decode(String.self, forKey: .description)
+    category = try container.decode(String.self, forKey: .category)
+    iconText = try container.decode(String.self, forKey: .iconText)
+    permissionsSummary = try container.decode(String.self, forKey: .permissionsSummary)
+    privacyTitle = try container.decode(String.self, forKey: .privacyTitle)
+    privacyDescription = try container.decode(String.self, forKey: .privacyDescription)
+
+    let usesInstallationLanguage = id == "github"
+    connectLabel =
+      try container.decodeIfPresent(String.self, forKey: .connectLabel)
+      ?? (usesInstallationLanguage ? "Install app" : "Connect account")
+    reconnectLabel =
+      try container.decodeIfPresent(String.self, forKey: .reconnectLabel)
+      ?? (usesInstallationLanguage ? "Update installation" : "Reconnect account")
+    familyId = try container.decodeIfPresent(String.self, forKey: .familyId)
+    familyName = try container.decodeIfPresent(String.self, forKey: .familyName)
+    familyDescription = try container.decodeIfPresent(String.self, forKey: .familyDescription)
+    familyIconText = try container.decodeIfPresent(String.self, forKey: .familyIconText)
+    familyLogoProviderId = try container.decodeIfPresent(
+      String.self, forKey: .familyLogoProviderId)
+    familyIncludedSummary = try container.decodeIfPresent(
+      String.self, forKey: .familyIncludedSummary)
+    familyIncludedToolIds = try container.decodeIfPresent(
+      [String].self, forKey: .familyIncludedToolIds)
+    serviceName = try container.decodeIfPresent(String.self, forKey: .serviceName)
+  }
+}
+
+struct ConnectionProviderFamily: Identifiable, Hashable, Sendable {
+  let id: String
+  let name: String
+  let description: String
+  let iconText: String
+  let logoProviderId: String
+  let includedSummary: String?
+  let includedToolIDs: [String]
+  let grouped: Bool
+  var providers: [ConnectionProvider]
+}
+
+func connectionProviderFamilies(_ providers: [ConnectionProvider]) -> [ConnectionProviderFamily] {
+  var families: [ConnectionProviderFamily] = []
+  var positions: [String: Int] = [:]
+  for provider in providers {
+    let familyID = provider.familyId ?? provider.id
+    if let position = positions[familyID] {
+      families[position].providers.append(provider)
+      continue
+    }
+    positions[familyID] = families.count
+    families.append(
+      ConnectionProviderFamily(
+        id: familyID,
+        name: provider.familyName ?? provider.name,
+        description: provider.familyDescription ?? provider.description,
+        iconText: provider.familyIconText ?? provider.iconText,
+        logoProviderId: provider.familyLogoProviderId ?? provider.id,
+        includedSummary: provider.familyIncludedSummary,
+        includedToolIDs: provider.familyIncludedToolIds ?? [],
+        grouped: provider.familyId != nil,
+        providers: [provider]))
+  }
+  return families
+}
+
+struct ConnectionProviderToolGroup: Identifiable {
+  var id: String { family.id }
+  let family: ConnectionProviderFamily
+  let tools: [Capability]
+}
+
+func connectionProviderToolGroups(
+  tools: [Capability], providers: [ConnectionProvider]
+) -> (groups: [ConnectionProviderToolGroup], ungrouped: [Capability]) {
+  var groupedToolIDs = Set<String>()
+  let groups: [ConnectionProviderToolGroup] = connectionProviderFamilies(providers).compactMap {
+    family -> ConnectionProviderToolGroup? in
+    guard family.grouped else { return nil }
+    let providerIDs = Set(family.providers.map(\.id))
+    let includedToolIDs = Set(family.includedToolIDs)
+    let familyTools = tools.filter { tool in
+      includedToolIDs.contains(tool.id)
+        || tool.provider.map(providerIDs.contains) == true
+    }
+    groupedToolIDs.formUnion(familyTools.map(\.id))
+    return familyTools.isEmpty
+      ? nil : ConnectionProviderToolGroup(family: family, tools: familyTools)
+  }
+  return (groups, tools.filter { !groupedToolIDs.contains($0.id) })
+}
+
+public struct ConnectionAuthorizationCallback: Equatable, Sendable {
+  public enum Status: String, Equatable, Sendable {
+    case connected
+    case error
+  }
+
+  public let providerID: String
+  public let status: Status
+
+  public init?(url: URL) {
+    guard url.scheme?.lowercased() == "froggybot", url.host?.lowercased() == "app",
+      let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+      let providerID = components.queryItems?.first(where: { $0.name == "connection" })?.value,
+      !providerID.isEmpty,
+      let rawStatus = components.queryItems?.first(where: { $0.name == "status" })?.value,
+      let status = Status(rawValue: rawStatus)
+    else { return nil }
+    self.providerID = providerID
+    self.status = status
+  }
+}
+
+public enum PushRegistrationState: Equatable, Sendable {
+  case idle
+  case registering
+  case registered
+  case failed(String)
 }
 
 public struct Skill: Codable, Identifiable, Hashable, Sendable {

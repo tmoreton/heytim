@@ -39,7 +39,7 @@ app.build_configurations.each do |config|
     'PRODUCT_MODULE_NAME' => 'FroggyBotApple',
     'ASSETCATALOG_COMPILER_APPICON_NAME' => 'AppIcon',
     'INFOPLIST_FILE' => 'Resources/Info.plist',
-    'MARKETING_VERSION' => '1.0.0',
+    'MARKETING_VERSION' => '6.0.0',
     'CURRENT_PROJECT_VERSION' => '202609130148',
     'CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]' => release ? 'Resources/FroggyBot-iOS-Release.entitlements' : 'Resources/FroggyBot-iOS.entitlements',
     'CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]' => 'Resources/FroggyBot-iOS.entitlements',
@@ -137,10 +137,25 @@ scheme.add_build_target(ui_tests, false)
 scheme.add_test_target(ui_tests)
 scheme.save_as(project_path, 'FroggyBotApple', true)
 
+# Keep Mac unit-test verification isolated from the UI-test target. The Mac
+# verification build intentionally disables code signing, and including the UI
+# target there causes Xcode to create an unsigned *UITests-Runner.app that
+# Gatekeeper repeatedly rejects even though only unit tests were requested.
+unit_scheme = Xcodeproj::XCScheme.new
+unit_scheme.configure_with_targets(app, tests, launch_target: true)
+unit_scheme.save_as(project_path, 'FroggyBotAppleUnit', true)
+
 # Keep a focused UI-test scheme so simulator checks do not also assemble the
 # large speech-model unit-test bundle. The main scheme remains the complete
 # app + unit + UI suite used by CI and release verification.
 ui_scheme = Xcodeproj::XCScheme.new
 ui_scheme.configure_with_targets(app, ui_tests, launch_target: true)
+# Xcode 26 can fail before launching UI tests when this focused scheme forces
+# LLDB (DebuggerVersionStore reports that no debugger version is available).
+# UI tests do not require an attached debugger in verification or release jobs,
+# so use Xcode's standard non-debug launcher for this test-only scheme.
+ui_scheme.test_action.xml_element.attributes['selectedDebuggerIdentifier'] = ''
+ui_scheme.test_action.xml_element.attributes['selectedLauncherIdentifier'] =
+  'Xcode.IDEFoundation.Launcher.PosixSpawn'
 ui_scheme.save_as(project_path, 'FroggyBotAppleUI', true)
 puts project_path

@@ -54,7 +54,9 @@ public final class AppModel {
   public var messages: [ChatMessage] = []
   public var nextToken: String?
   public var isLoading = false
+  public private(set) var isLoadingMessages = false
   public var isSending = false
+  public private(set) var sendingSelection: ConversationSelection?
   public var errorMessage: String?
   public var sheet: AppSheet?
   public var pendingAttachments: [Attachment] = []
@@ -62,6 +64,7 @@ public final class AppModel {
   public var groupReplyBotId: String? = "all"
   public private(set) var uploadsInProgress = 0
   public var deepLinkInvite: (kind: String, token: String)?
+  public private(set) var pushRegistrationState: PushRegistrationState = .idle
 
   @ObservationIgnored var api: FrogBotAPI?
   @ObservationIgnored private var pollTask: Task<Void, Never>?
@@ -88,11 +91,43 @@ public final class AppModel {
         messages = DemoData.activityMessages
       } else if arguments.contains("--ui-testing-markdown") {
         messages = DemoData.markdownMessages
+      } else if arguments.contains("--ui-testing-scroll") {
+        messages = DemoData.scrollMessages
       } else {
         messages = DemoData.messages
       }
+      #if DEBUG
+        if let flag = arguments.firstIndex(of: "--ui-testing-sheet"),
+          arguments.indices.contains(flag + 1)
+        {
+          sheet = Self.uiTestingSheet(named: arguments[flag + 1], bootstrap: DemoData.bootstrap)
+        }
+      #endif
     }
   }
+
+  #if DEBUG
+    private static func uiTestingSheet(named name: String, bootstrap: Bootstrap) -> AppSheet? {
+      guard let bot = bootstrap.bots.first else { return nil }
+      let selection = ConversationSelection(kind: .bot, id: bot.id)
+      switch name {
+      case "bot-library": return .botLibrary
+      case "bot-editor": return .botEditor(nil)
+      case "group-editor": return .groupEditor(nil)
+      case "schedules": return .schedules(selection)
+      case "schedule-runs": return .scheduleRuns(selection)
+      case "memory": return .memories(nil)
+      case "account": return .account
+      case "skills": return .skills
+      case "skill-editor": return .skillEditor(nil)
+      case "connections": return .connections
+      case "documents": return .documents(bot.id)
+      case "browser": return .browser(botId: bot.id, groupId: nil)
+      case "share": return .share(selection)
+      default: return nil
+      }
+    }
+  #endif
 
   deinit { pollTask?.cancel() }
 
@@ -113,7 +148,9 @@ public final class AppModel {
     messages = []
     nextToken = nil
     isLoading = false
+    isLoadingMessages = false
     isSending = false
+    sendingSelection = nil
     errorMessage = nil
     sheet = nil
     pendingAttachments = []
@@ -122,6 +159,7 @@ public final class AppModel {
     uploadsInProgress = 0
     deepLinkInvite = nil
     pushToken = nil
+    pushRegistrationState = .idle
     composerDrafts = [:]
   }
 
@@ -207,8 +245,22 @@ public final class AppModel {
     guard let requestedSelection = selection else { return }
     let requestedGeneration = selectionGeneration
     let requestedSession = sessionGeneration
-    if demoMode { return }
-    guard let api else { throw APIError.configuration("The service is not connected.") }
+    if demoMode {
+      isLoadingMessages = false
+      return
+    }
+    guard let api else {
+      isLoadingMessages = false
+      throw APIError.configuration("The service is not connected.")
+    }
+    if messages.isEmpty { isLoadingMessages = true }
+    defer {
+      if selection == requestedSelection, selectionGeneration == requestedGeneration,
+        sessionIsCurrent(requestedSession, api: api)
+      {
+        isLoadingMessages = false
+      }
+    }
     let page =
       requestedSelection.kind == .bot
       ? try await api.messages(bot: requestedSelection.id)
@@ -259,14 +311,19 @@ public final class AppModel {
     pendingAttachments = []
     composerDrafts[selection] = nil
     isSending = true
+    sendingSelection = selection
     defer {
-      if sessionGeneration == requestedSession { isSending = false }
+      if sessionGeneration == requestedSession {
+        isSending = false
+        if sendingSelection == selection { sendingSelection = nil }
+      }
     }
     if demoMode {
       let now = ISO8601DateFormatter().string(from: Date())
       messages.append(
         ChatMessage(
           id: UUID().uuidString, role: "user", text: text, createdAt: now, status: "complete"))
+      await Task.yield()
       messages.append(
         ChatMessage(
           id: UUID().uuidString, role: "assistant", authorName: selectedBot?.name ?? "FroggyBot",
@@ -346,9 +403,12 @@ public final class AppModel {
   public func registerPush(_ token: Data, platform: String) async {
     pushToken = token
     guard let api, !demoMode else { return }
+    pushRegistrationState = .registering
     do {
       try await api.registerAPNsToken(token, platform: platform)
+      pushRegistrationState = .registered
     } catch {
+      pushRegistrationState = .failed(error.localizedDescription)
       Self.pushLogger.error(
         "Push registration failed without interrupting the chat: \(error.localizedDescription, privacy: .public)"
       )
@@ -360,10 +420,28 @@ public final class AppModel {
     do {
       try await api.unregisterAPNsToken(token)
       pushToken = nil
+      pushRegistrationState = .idle
     } catch {
       Self.pushLogger.error(
         "Push unregistration failed: \(error.localizedDescription, privacy: .public)")
     }
+  }
+
+  public func reportPushRegistrationFailure(_ message: String) {
+    pushRegistrationState = .failed(message)
+  }
+
+  @discardableResult public func handleConnectionCallback(_ url: URL) async
+    -> ConnectionAuthorizationCallback?
+  {
+    guard let callback = ConnectionAuthorizationCallback(url: url) else { return nil }
+    switch callback.status {
+    case .connected:
+      await refreshBootstrap()
+    case .error:
+      errorMessage = "The account could not be connected. Please try again."
+    }
+    return callback
   }
 
   public func upload(urls: [URL], for requestedSelection: ConversationSelection? = nil) async {
@@ -580,6 +658,7 @@ public final class AppModel {
     setSelection(value)
     messages = []
     nextToken = nil
+    isLoadingMessages = value != nil && !demoMode
     pollTask?.cancel()
     pollTask = nil
     return true
@@ -711,16 +790,48 @@ public enum DemoData {
     memoryMaxLength: 2_000, maxAttachmentsPerMessage: 10,
     imageMaxBytes: 20_000_000, documentMaxBytes: 50_000_000, maxPhotoDimension: 4096
   )
+  public static let tools = [
+    Capability(
+      id: "web_search", name: "Web Search",
+      description: "Find current information from public web sources.", risk: "read",
+      category: "Research", actions: ["Search the web", "Open public pages"],
+      source: "official"),
+    Capability(
+      id: "code_interpreter", name: "Files & Data",
+      description: "Analyze data and create useful documents.", risk: "interactive",
+      category: "Files", actions: ["Analyze files", "Create documents"],
+      source: "official"),
+  ]
+  public static let skills = [
+    Skill(
+      id: "deep-research", name: "Deep Research",
+      description: "Produce a current, sourced, decision-ready synthesis.",
+      category: "Research", featured: true, version: 1,
+      requiredToolIds: ["web_search", "code_interpreter"], source: "official",
+      visibility: "public", editable: false)
+  ]
+  public static let botTemplates = [
+    BotTemplate(
+      id: "research-reports", version: 1, name: "Research & Reports",
+      tagline: "Finds reliable answers and turns them into useful files.",
+      prompt: "Research broad questions with current, high-quality sources and lead with the conclusion. Distinguish evidence from interpretation and create a polished report when it helps.",
+      color: "#5C6BC0", skillIds: ["deep-research"], toolIds: [],
+      category: "Research", author: "FroggyBot", tags: ["research", "reports"],
+      featured: true)
+  ]
   public static let bootstrap = Bootstrap(
     bots: [
       Bot(
-        id: "chief", name: "Chief", tagline: "Your capable AI chief of staff", color: "#59B86B",
+        id: "chief", name: "Chief", tagline: "Your capable AI chief of staff", color: "#007A3D",
         prompt: "Help thoughtfully.", toolIds: [], skillIds: [],
+        systemRole: "chief",
         createdAt: "2026-09-12T12:00:00.000Z", updatedAt: "2026-09-12T12:00:00.000Z",
-        lastMessage: "Your project brief is ready.", lastMessageAt: "2026-09-12T12:01:00.000Z")
+        lastMessage: "Your project brief is ready.", lastMessageAt: "2026-09-12T12:01:00.000Z",
+        allowedActions: ["schedule", "share", "documents", "browser", "edit", "clear", "delete"])
     ],
-    botTemplates: [], connectionProviders: [], needsBotOnboarding: false, groups: [], tools: [],
-    retiredToolIds: [], skills: [], constraints: constraints
+    botTemplates: botTemplates, connectionProviders: [],
+    needsBotOnboarding: false, groups: [], tools: tools,
+    retiredToolIds: [], skills: skills, constraints: constraints
   )
   public static let messages = [
     ChatMessage(
@@ -729,11 +840,24 @@ public enum DemoData {
       status: "complete"),
     ChatMessage(
       id: "m2", role: "assistant", authorType: "bot", authorId: "chief", authorName: "Chief",
-      authorColor: "#59B86B",
+      authorColor: "#007A3D",
       text:
         "Absolutely. The native SwiftUI client is sharing the same backend and API contract across iPhone and Mac.\n\n- Authentication and data stay in AWS.\n- Conversations and background tasks are preserved.\n- The existing web app remains available.",
       createdAt: "2026-09-12T12:01:00.000Z", status: "complete"),
   ]
+  public static let scrollMessages = (1...24).map { index in
+    ChatMessage(
+      id: "scroll-\(index)", role: index.isMultiple(of: 2) ? "assistant" : "user",
+      authorType: index.isMultiple(of: 2) ? "bot" : "user",
+      authorName: index.isMultiple(of: 2) ? "Chief" : "You",
+      authorColor: index.isMultiple(of: 2) ? "#007A3D" : nil,
+      isMine: !index.isMultiple(of: 2),
+      text: index == 24
+        ? "Latest message before send."
+        : "Conversation history item \(index) with enough detail to exercise scrolling.",
+      createdAt: "2026-09-12T12:\(String(format: "%02d", index)):00.000Z",
+      status: "complete")
+  }
   public static let activityMessages = [
     ChatMessage(
       id: "activity-user", role: "user", isMine: true,
@@ -741,7 +865,7 @@ public enum DemoData {
       createdAt: "2026-09-12T12:02:00.000Z", status: "complete"),
     ChatMessage(
       id: "activity-assistant", role: "assistant", authorType: "bot", authorId: "chief",
-      authorName: "Chief", authorColor: "#59B86B", text: "",
+      authorName: "Chief", authorColor: "#007A3D", text: "",
       activity: [
         "Reviewing the repository structure and current branch.",
         "Checking `README.md` for the intended release workflow.",
@@ -760,17 +884,20 @@ public enum DemoData {
   public static let groupProgressGroup = BotGroup(
     id: "research-team", name: "Research Team", memory: "", memoryUpdatedAt: nil,
     memoryUpdatedByName: nil, ownerId: "owner", currentUserId: "owner", isOwner: true,
-    allowedActions: [], members: [],
+    allowedActions: ["schedule", "share", "viewMemory", "manageMemory", "edit", "clear", "delete"],
+    members: [
+      GroupMember(id: "owner", name: "You", role: "owner", allowedActions: [])
+    ],
     bots: [
       GroupBot(
         id: "researcher", ownerId: "owner", name: "YouTube Research",
         tagline: "Researches source material", color: "#3488E8", systemRole: nil),
       GroupBot(
         id: "chief", ownerId: "owner", name: "Chief", tagline: "Coordinates the team",
-        color: "#F47721", systemRole: "chief"),
+        color: "#007A3D", systemRole: "chief"),
       GroupBot(
         id: "reviewer", ownerId: "owner", name: "Reviewer", tagline: "Checks the result",
-        color: "#007A3D", systemRole: nil),
+        color: "#6C5CE7", systemRole: nil),
     ], decisions: [], createdAt: "2026-09-13T11:00:00.000Z",
     updatedAt: "2026-09-13T11:00:00.000Z", lastMessage: "Researching the request",
     lastMessageAt: "2026-09-13T11:00:00.000Z", processing: true,
@@ -807,7 +934,7 @@ public enum DemoData {
   public static let markdownMessages = [
     ChatMessage(
       id: "markdown-assistant", role: "assistant", authorType: "bot", authorId: "chief",
-      authorName: "Chief", authorColor: "#59B86B",
+      authorName: "Chief", authorColor: "#007A3D",
       text: """
         ## Release check
 

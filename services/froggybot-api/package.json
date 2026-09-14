@@ -8,6 +8,7 @@
     "contract:check": "node scripts/generate-api-contract.mjs --check",
     "outputs:apple": "node scripts/sync-apple-outputs.mjs",
     "outputs:apple:check": "node scripts/sync-apple-outputs.mjs --check",
+    "outputs:apple:production:check": "node scripts/sync-apple-outputs.mjs --check --require-production",
     "typecheck": "tsc --noEmit",
     "test": "PYTHONPATH=amplify/functions uv run --project ../agent-runtime --frozen python -m unittest discover -s amplify/functions/tests -p 'test_*.py'",
     "verify": "npm run contract:check && npm run outputs:apple:check && npm --prefix ../../packages/froggybot-contract test && npm run typecheck && npm test",

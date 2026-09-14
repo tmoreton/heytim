@@ -182,6 +182,11 @@ class ApiSafetyTests(ApiTestCase):
                 side_effect=lambda _user, tool_ids: list(tool_ids),
             ),
             patch.object(
+                self.bots.catalog,
+                "available_tool_ids",
+                side_effect=lambda _user, tool_ids: list(tool_ids),
+            ),
+            patch.object(
                 self.bots.catalog, "approval_tool_ids", return_value=["home"]
             ),
         ):

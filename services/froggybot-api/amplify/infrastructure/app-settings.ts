@@ -1,13 +1,19 @@
 export const PUBLIC_WEB_BASE_URL = 'https://froggybot.com';
 export const CAPABILITY_CATALOG_URL = `${PUBLIC_WEB_BASE_URL}/catalog.json`;
-export const ALLOWED_WEB_ORIGINS = [
+export const deploymentEnvironment = process.env.FROGBOT_ENVIRONMENT ?? 'development';
+if (!/^[a-z][a-z0-9-]{0,20}$/.test(deploymentEnvironment)) {
+  throw new Error('FROGBOT_ENVIRONMENT must be a short lowercase environment name.');
+}
+
+const PRODUCTION_WEB_ORIGINS = [
   PUBLIC_WEB_BASE_URL,
   'https://app.froggybot.com',
   'https://www.froggybot.com',
   'https://frogbot.expo.app',
-  'http://localhost:8081',
-  'http://localhost:19006',
 ];
+export const ALLOWED_WEB_ORIGINS = deploymentEnvironment === 'production'
+  ? PRODUCTION_WEB_ORIGINS
+  : [...PRODUCTION_WEB_ORIGINS, 'http://localhost:8081', 'http://localhost:19006'];
 export const FUNCTION_ASSET_EXCLUDES = [
   'tests/**',
   '**/__pycache__/**',
@@ -22,9 +28,15 @@ function boundedIntegerSetting(
   defaultValue: number,
   minimum: number,
   maximum: number,
+  requiredInProduction = false,
 ): number {
   const raw = process.env[name];
-  if (raw === undefined) return defaultValue;
+  if (raw === undefined) {
+    if (requiredInProduction && deploymentEnvironment === 'production') {
+      throw new Error(`${name} must be set before deploying production.`);
+    }
+    return defaultValue;
+  }
   if (!/^\d+$/.test(raw)) {
     throw new Error(`${name} must be a whole number.`);
   }
@@ -41,6 +53,18 @@ function requiredSetting(name: string): string {
     throw new Error(`Set ${name} before running an Amplify sandbox or deploy.`);
   }
   return value;
+}
+
+function stagedProviderSetting(name: string): string {
+  const value = process.env[name]?.trim() ?? '';
+  if ((process.env.FROGBOT_ENVIRONMENT ?? 'development') === 'production' && !value) {
+    throw new Error(name + ' must be set before deploying production.');
+  }
+  return value;
+}
+
+function optionalProviderSetting(name: string): string {
+  return process.env[name]?.trim() ?? '';
 }
 
 function optionalPlatformApplicationArn(name: string): string {
@@ -64,19 +88,29 @@ export const usageWindowSeconds = boundedIntegerSetting(
   'FROGBOT_USAGE_WINDOW_SECONDS', 60, 10, 3_600,
 );
 export const youtubeSearchDailyLimit = boundedIntegerSetting(
-  'FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT', 100, 3, 1_000_000,
+  'FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT', 100, 3, 1_000_000, true,
 );
 
-export const deploymentEnvironment = process.env.FROGBOT_ENVIRONMENT ?? 'development';
-if (!/^[a-z][a-z0-9-]{0,20}$/.test(deploymentEnvironment)) {
-  throw new Error('FROGBOT_ENVIRONMENT must be a short lowercase environment name.');
-}
-
 export const runtimeArn = requiredSetting('FROGBOT_AGENT_RUNTIME_ARN');
+export const runtimeQualifier = process.env.FROGBOT_AGENT_RUNTIME_QUALIFIER ?? 'DEFAULT';
+if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/.test(runtimeQualifier)) {
+  throw new Error('FROGBOT_AGENT_RUNTIME_QUALIFIER is invalid.');
+}
 export const memoryId = requiredSetting('FROGBOT_MEMORY_ID');
 export const googleOAuthSecretArn = requiredSetting('FROGBOT_GOOGLE_OAUTH_SECRET_ARN');
+export const githubAppSecretArn = requiredSetting('FROGBOT_GITHUB_APP_SECRET_ARN');
+export const xOAuthSecretArn = requiredSetting('FROGBOT_X_OAUTH_SECRET_ARN');
+export const slackOAuthSecretArn = stagedProviderSetting('FROGBOT_SLACK_OAUTH_SECRET_ARN');
+export const microsoftOAuthSecretArn = optionalProviderSetting('FROGBOT_MICROSOFT_OAUTH_SECRET_ARN');
+export const notionOAuthSecretArn = stagedProviderSetting('FROGBOT_NOTION_OAUTH_SECRET_ARN');
 export const apnsApplicationArn = optionalPlatformApplicationArn('FROGBOT_APNS_APPLICATION_ARN');
 export const apnsSandboxApplicationArn = optionalPlatformApplicationArn('FROGBOT_APNS_SANDBOX_APPLICATION_ARN');
+if (deploymentEnvironment === 'production' && !apnsApplicationArn) {
+  throw new Error('Set FROGBOT_APNS_APPLICATION_ARN before deploying production.');
+}
+if (deploymentEnvironment === 'production' && !process.env.FROGBOT_MONTHLY_BUDGET_USD) {
+  throw new Error('FROGBOT_MONTHLY_BUDGET_USD must be set before deploying production.');
+}
 export const monthlyBudgetUsd = Number(process.env.FROGBOT_MONTHLY_BUDGET_USD ?? '100');
 if (!Number.isFinite(monthlyBudgetUsd) || monthlyBudgetUsd <= 0) {
   throw new Error('FROGBOT_MONTHLY_BUDGET_USD must be a positive number.');

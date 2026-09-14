@@ -11,7 +11,8 @@ AWS until a later reviewed deployment updates both infrastructure and state.
 
 ## Environment posture
 
-Development and production are separate stable deployment targets. Their `PUBLIC` runtime network mode is
+Development is deployed, and production temporarily uses the management account `188757775631` while the dedicated
+organization member account's Lambda concurrency quota request is pending. Its `PUBLIC` runtime network mode is
 intentional because the runtime needs outbound access to OpenRouter and reviewed remote MCP endpoints.
 Moving production into a VPC requires a reviewed NAT egress path and service endpoints; do not switch the
 network mode without that path or rename either existing target.
@@ -33,14 +34,16 @@ Create these environment secrets once under the GitHub `production` environment:
 - `AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI`
 
 To rotate a provider key, replace that GitHub environment secret and rerun **Deploy FroggyBot production
-infrastructure**. The AgentCore CLI updates the existing credential provider by name, so never rename a
+release**. The AgentCore CLI updates the existing credential provider by name, so never rename a
 provider to perform a rotation. The workflow never writes or prints the secret values.
 
-Development and production currently use the same AWS account and Region. AgentCore credential providers
-are scoped to that account and Region rather than to a target stack, so the two targets currently resolve
-the same named providers. Do not configure different development and production values while this is true:
-the most recent deployment would rotate the shared provider for both targets. Move production to a separate
-AWS account or Region before assigning independent keys.
+AgentCore credential providers are scoped to an account and Region rather than to a target stack. The preferred
+production posture uses the dedicated member account so stable provider names have independent values. During the
+temporary management-account deployment, set `FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT=true`; without that exact
+opt-in, `scripts/check-production-config.mjs`, CDK synthesis, and the release workflow reject development-account
+reuse. The shared-account binding uses the `FrogBotProduction` physical AgentCore project namespace, while production
+storage, KMS keys, stacks, and application resources remain target-scoped. The three platform API-key credential
+providers remain account-scoped and are therefore shared until production returns to the member account.
 
 The recurring GitHub deployment role can read the existing default token vault and create or rotate only
 these three named providers. It deliberately cannot create the vault encryption key or call

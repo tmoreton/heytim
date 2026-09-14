@@ -1,6 +1,7 @@
 import XCTest
 import CoreGraphics
 import ImageIO
+import SwiftUI
 import UniformTypeIdentifiers
 
 @testable import FroggyBotApple
@@ -13,7 +14,7 @@ import UniformTypeIdentifiers
   }
 
   func testGeneratedContractIncludesEveryBackendRoute() throws {
-    XCTAssertEqual(APIRouteID.allCases.count, 69)
+    XCTAssertEqual(APIRouteID.allCases.count, 72)
     XCTAssertEqual(GeneratedAPIContract.routes.count, APIRouteID.allCases.count)
   }
 
@@ -32,6 +33,70 @@ import UniformTypeIdentifiers
     XCTAssertEqual(AppModel.nextPollingDelay(base: 1_500, failures: .max, random: 0), 24_000)
     XCTAssertEqual(AppModel.nextPollingDelay(base: 1_500, failures: .max, random: 1), 30_000)
   }
+
+  func testConversationScrollUpdatesOnlyForTheLatestMessage() {
+    let original = [
+      ConversationMessageRevision(id: "one", fingerprint: 1),
+      ConversationMessageRevision(id: "two", fingerprint: 2),
+    ]
+
+    XCTAssertEqual(
+      ConversationTranscriptUpdate.classify(previous: [], current: original), .initial)
+    XCTAssertEqual(
+      ConversationTranscriptUpdate.classify(
+        previous: original,
+        current: original + [ConversationMessageRevision(id: "three", fingerprint: 3)]),
+      .newLatest)
+    XCTAssertEqual(
+      ConversationTranscriptUpdate.classify(
+        previous: original,
+        current: [original[0], ConversationMessageRevision(id: "two", fingerprint: 20)]),
+      .revisedLatest)
+    XCTAssertEqual(
+      ConversationTranscriptUpdate.classify(
+        previous: original,
+        current: [ConversationMessageRevision(id: "older", fingerprint: 0)] + original),
+      .none)
+  }
+
+  func testAppearancePreferencesResolveSystemLightAndDarkModes() {
+    XCTAssertNil(FroggyAppearancePreference.system.colorScheme)
+    XCTAssertEqual(FroggyAppearancePreference.light.colorScheme, .light)
+    XCTAssertEqual(FroggyAppearancePreference.dark.colorScheme, .dark)
+  }
+
+  func testTextSizePreferencesResolveToIncreasingDynamicTypeSizes() {
+    XCTAssertEqual(
+      FroggyTextSizePreference.system.resolvedSize(systemSize: .accessibility2),
+      .accessibility2)
+    XCTAssertEqual(FroggyTextSizePreference.standard.resolvedSize(systemSize: .small), .large)
+    XCTAssertEqual(FroggyTextSizePreference.large.resolvedSize(systemSize: .small), .xLarge)
+    XCTAssertEqual(FroggyTextSizePreference.extraLarge.resolvedSize(systemSize: .small), .xxLarge)
+    XCTAssertEqual(FroggyTextSizePreference.standard.macScale, 1)
+    XCTAssertGreaterThan(FroggyTextSizePreference.large.macScale, FroggyTextSizePreference.standard.macScale)
+    XCTAssertGreaterThan(
+      FroggyTextSizePreference.extraLarge.macScale, FroggyTextSizePreference.large.macScale)
+  }
+
+  #if os(macOS)
+    func testMacTextSizePreferenceChangesRenderedSemanticText() throws {
+      let standard = ImageRenderer(
+        content: Text("Sidebar title")
+          .froggyFont(.headline)
+          .froggyTextSize(.standard, systemSize: .large)
+          .fixedSize())
+      let extraLarge = ImageRenderer(
+        content: Text("Sidebar title")
+          .froggyFont(.headline)
+          .froggyTextSize(.extraLarge, systemSize: .large)
+          .fixedSize())
+
+      let standardSize = try XCTUnwrap(standard.nsImage?.size)
+      let extraLargeSize = try XCTUnwrap(extraLarge.nsImage?.size)
+      XCTAssertGreaterThan(extraLargeSize.width, standardSize.width)
+      XCTAssertGreaterThan(extraLargeSize.height, standardSize.height)
+    }
+  #endif
 
   func testActivityStepsRenderInlineMarkdownInsteadOfLiteralMarkers() {
     let formatted = formattedActivityStep("Checking `README.md` before **release**.")
@@ -164,9 +229,87 @@ import UniformTypeIdentifiers
       ["browser"])
   }
 
+  func testMemoryUsageMakesActiveScopeAndCleanupExplicit() {
+    let fact = MemoryRecord(
+      id: "fact", kind: "fact", content: "Prefers tea", createdAt: "2026-09-13T12:00:00Z",
+      scope: "personal", source: "learned", botId: nil, botName: nil)
+    let activeSummary = MemoryRecord(
+      id: "summary", kind: "summary", content: "Trip planning", createdAt: "2026-09-13T12:00:00Z",
+      scope: "personal", source: "learned", botId: "travel", botName: "Travel Bot")
+    var unusedSummary = activeSummary
+    unusedSummary.botId = nil
+    unusedSummary.botName = nil
+
+    XCTAssertEqual(memoryUsageState(for: fact, groupID: nil), .allBots)
+    XCTAssertEqual(memoryUsageState(for: activeSummary, groupID: nil), .bot("Travel Bot"))
+    XCTAssertEqual(memoryUsageState(for: unusedSummary, groupID: nil), .unused)
+    XCTAssertEqual(memoryUsageState(for: fact, groupID: "group"), .group)
+  }
+
+  func testNewCustomBotStartsWithAServiceSupportedColor() {
+    XCTAssertEqual(BotDraft().color, "#58BEAA")
+  }
+
+  func testBotTemplateResolvesToolsInheritedFromSkillsWithoutDuplicates() throws {
+    let template = try XCTUnwrap(DemoData.botTemplates.first)
+
+    XCTAssertEqual(
+      template.effectiveToolIDs(skills: DemoData.skills),
+      ["web_search", "code_interpreter"])
+  }
+
+  func testConnectionCallbackAcceptsOnlyCompletedNativeOAuthResults() throws {
+    XCTAssertEqual(
+      ConnectionAuthorizationCallback(
+        url: try XCTUnwrap(
+          URL(string: "froggybot://app?connection=gmail&status=connected"))),
+      ConnectionAuthorizationCallback(
+        url: try XCTUnwrap(
+          URL(string: "froggybot://app?status=connected&connection=gmail"))))
+    XCTAssertEqual(
+      ConnectionAuthorizationCallback(
+        url: try XCTUnwrap(URL(string: "froggybot://app?connection=gmail&status=error")))?
+        .status,
+      .error)
+    XCTAssertNil(
+      ConnectionAuthorizationCallback(
+        url: try XCTUnwrap(URL(string: "froggybot://invite?connection=gmail&status=connected"))))
+    XCTAssertNil(
+      ConnectionAuthorizationCallback(
+        url: try XCTUnwrap(URL(string: "froggybot://app?connection=gmail"))))
+  }
+
   func testDirectMessageIDsMapBackToBackendTurnIDs() {
     XCTAssertEqual(AppModel.directTurnID("turn-123-assistant"), "turn-123")
     XCTAssertEqual(AppModel.directTurnID("group-message"), "group-message")
+  }
+
+  func testConversationListSortsBotsAndGroupsByMostRecentActivity() {
+    var olderBot = DemoData.bootstrap.bots[0]
+    olderBot.id = "older-bot"
+    olderBot.name = "Older Bot"
+    olderBot.lastMessageAt = "2026-09-13T12:00:00.000Z"
+
+    var newestBot = olderBot
+    newestBot.id = "newest-bot"
+    newestBot.name = "Newest Bot"
+    newestBot.lastMessageAt = "2026-09-13T14:00:00.000Z"
+
+    var middleGroup = Self.demoGroup()
+    middleGroup.id = "middle-group"
+    middleGroup.name = "Middle Group"
+    middleGroup.lastMessageAt = "2026-09-13T13:00:00.000Z"
+
+    let items = ConversationListItem.recentFirst(
+      bots: [olderBot, newestBot], groups: [middleGroup])
+
+    XCTAssertEqual(
+      items.map(\.selection),
+      [
+        ConversationSelection(kind: .bot, id: "newest-bot"),
+        ConversationSelection(kind: .group, id: "middle-group"),
+        ConversationSelection(kind: .bot, id: "older-bot"),
+      ])
   }
 
   func testGroupReplyTargetDefaultsAndExplicitPeopleOnlySelection() {
@@ -284,6 +427,36 @@ import UniformTypeIdentifiers
     XCTAssertEqual(AppModel.mergeLatest(current: current, latest: latest).map(\.id), ["m1", "m2"])
     XCTAssertEqual(
       AppModel.mergeEarlier(current: current, earlier: current).map(\.id), ["m1", "m2"])
+  }
+
+  func testInitialMessageLoadRemainsLoadingUntilHistoryArrives() async throws {
+    let requestStarted = expectation(description: "History request started")
+    let releaseRequest = DispatchSemaphore(value: 0)
+    MockURLProtocol.handler = { request in
+      requestStarted.fulfill()
+      releaseRequest.wait()
+      return Self.response(
+        for: request,
+        body:
+          #"{"messages":[{"id":"history","role":"assistant","text":"Existing reply","createdAt":"2026-09-12T12:00:00Z","status":"complete"}],"nextToken":null}"#)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let model = AppModel(api: api)
+    model.selection = .init(kind: .bot, id: "chief")
+
+    let load = Task { try await model.loadMessages() }
+    await fulfillment(of: [requestStarted], timeout: 2)
+
+    XCTAssertTrue(model.isLoadingMessages)
+    XCTAssertTrue(model.messages.isEmpty)
+
+    releaseRequest.signal()
+    try await load.value
+
+    XCTAssertFalse(model.isLoadingMessages)
+    XCTAssertEqual(model.messages.map(\.id), ["history"])
   }
 
   func testBootstrapRefreshLoadsMessagesForAReplacementSelection() async throws {
@@ -499,6 +672,10 @@ import UniformTypeIdentifiers
         try XCTUnwrap(URL(string: "froggybot://invite?kind=skill&token=shared"))),
       PendingInvitation(kind: "skill", token: "shared")
     )
+  }
+
+  func testAuthenticationTestsUseAnIsolatedKeychainService() {
+    XCTAssertTrue(AuthSession.keychainServiceForCurrentProcess.hasPrefix("com.frogbot.app.auth.tests."))
   }
 
   func testEmailOTPUsesCognitoChallengeResponseField() async throws {
@@ -730,6 +907,78 @@ import UniformTypeIdentifiers
     XCTAssertEqual(bootstrap.constraints, .serviceDefaults)
   }
 
+  func testBootstrapAcceptsThePublicConnectionProviderShape() async throws {
+    MockURLProtocol.handler = { request in
+      Self.response(
+        for: request,
+        body:
+          #"{"bots":[],"botTemplates":[],"connectionProviders":[{"id":"github","name":"GitHub","description":"Work with selected repositories.","category":"Developer tools","iconText":"GH","permissionsSummary":"Selected repositories only","privacyTitle":"Repository access stays scoped","privacyDescription":"Uses an installation grant.","connectLabel":"Install app","reconnectLabel":"Update installation"}],"needsBotOnboarding":false,"groups":[],"tools":[],"retiredToolIds":[],"skills":[],"constraints":{"botNameMaxLength":48,"botTaglineMaxLength":120,"botPromptMaxLength":12000,"groupNameMaxLength":64,"groupMemoryMaxLength":4000,"messageMaxLength":8000,"scheduleNameMaxLength":64,"schedulePromptMaxLength":8000,"scheduleDayOfMonthMin":1,"scheduleDayOfMonthMax":28,"skillNameMaxLength":80,"skillDescriptionMaxLength":240,"skillInstructionsMaxLength":20000,"memoryMaxLength":16000,"maxAttachmentsPerMessage":5,"imageMaxBytes":3750000,"documentMaxBytes":4500000,"maxPhotoDimension":1920}}"#)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+
+    let bootstrap = try await api.bootstrap()
+
+    let provider = try XCTUnwrap(bootstrap.connectionProviders.first)
+    XCTAssertEqual(provider.id, "github")
+    XCTAssertEqual(provider.connectLabel, "Install app")
+    XCTAssertEqual(provider.reconnectLabel, "Update installation")
+  }
+
+  func testConnectionProviderPresentationIsEntirelyServerDefined() throws {
+    let data = try XCTUnwrap(
+      #"{"id":"future-provider","name":"Future Provider","description":"A new connection.","category":"Productivity","iconText":"FP","permissionsSummary":"Read-only","privacyTitle":"Private by default","privacyDescription":"Delegated only when needed.","connectLabel":"Connect workspace","reconnectLabel":"Update workspace","familyId":"future-family","familyName":"Future Family","familyDescription":"Related services.","familyIconText":"FF","familyLogoProviderId":"future-provider","familyIncludedSummary":"Public tools included","familyIncludedToolIds":["future-search"],"serviceName":"Private access"}"#
+        .data(using: .utf8))
+
+    let provider = try JSONDecoder().decode(ConnectionProvider.self, from: data)
+
+    XCTAssertEqual(provider.id, "future-provider")
+    XCTAssertEqual(provider.connectLabel, "Connect workspace")
+    XCTAssertEqual(provider.reconnectLabel, "Update workspace")
+    XCTAssertEqual(provider.familyId, "future-family")
+    XCTAssertEqual(provider.familyName, "Future Family")
+    XCTAssertEqual(provider.familyIncludedSummary, "Public tools included")
+    XCTAssertEqual(provider.familyIncludedToolIds, ["future-search"])
+    XCTAssertEqual(provider.serviceName, "Private access")
+  }
+
+  func testConnectionProviderFamiliesGroupServicesWithoutMergingProviders() throws {
+    let data = try XCTUnwrap(
+      #"[{"id":"gmail","name":"Gmail","description":"Email.","category":"Email","iconText":"G","permissionsSummary":"Read and draft","privacyTitle":"Private","privacyDescription":"Email access.","connectLabel":"Connect","reconnectLabel":"Reconnect","familyId":"google","familyName":"Google","familyDescription":"Choose services.","familyIconText":"G","familyLogoProviderId":"google_workspace","familyIncludedSummary":"Public YouTube research included","familyIncludedToolIds":["youtube_search"],"serviceName":"Gmail"},{"id":"youtube","name":"YouTube Studio","description":"Channel.","category":"Video","iconText":"YT","permissionsSummary":"Read channel","privacyTitle":"Private","privacyDescription":"Channel access.","connectLabel":"Connect","reconnectLabel":"Reconnect","familyId":"google","familyName":"Google","familyDescription":"Choose services.","familyIconText":"G","familyLogoProviderId":"google_workspace","familyIncludedSummary":"Public YouTube research included","familyIncludedToolIds":["youtube_search"],"serviceName":"YouTube Studio"}]"#
+        .data(using: .utf8))
+    let providers = try JSONDecoder().decode([ConnectionProvider].self, from: data)
+
+    let families = connectionProviderFamilies(providers)
+
+    XCTAssertEqual(families.map(\.id), ["google"])
+    XCTAssertEqual(families[0].providers.map(\.id), ["gmail", "youtube"])
+    XCTAssertEqual(families[0].includedSummary, "Public YouTube research included")
+    XCTAssertEqual(families[0].includedToolIDs, ["youtube_search"])
+
+    let toolsData = try XCTUnwrap(
+      #"[{"id":"youtube_search","name":"YouTube Search","description":"Search public videos.","provider":"agentcore-gateway"},{"id":"connection-youtube","name":"YouTube Studio","description":"Read a connected channel.","provider":"youtube","source":"user","editable":true,"connectionStatus":"connected"},{"id":"web_search","name":"Web Search","description":"Search the web.","provider":"agentcore-gateway"}]"#
+        .data(using: .utf8))
+    let tools = try JSONDecoder().decode([Capability].self, from: toolsData)
+
+    let grouped = connectionProviderToolGroups(tools: tools, providers: providers)
+
+    XCTAssertEqual(grouped.groups.map(\.id), ["google"])
+    XCTAssertEqual(grouped.groups[0].tools.map(\.id), ["youtube_search", "connection-youtube"])
+    XCTAssertEqual(grouped.ungrouped.map(\.id), ["web_search"])
+  }
+
+  func testConnectionProviderAcceptsThePreviouslyDeployedResponseShape() throws {
+    let data = try XCTUnwrap(
+      #"{"id":"gmail","name":"Gmail","description":"Email access.","category":"Productivity","iconText":"G","permissionsSummary":"Read email","privacyTitle":"Private by default","privacyDescription":"Used only when requested.","authType":"oauth","uiKind":"oauth"}"#
+        .data(using: .utf8))
+
+    let provider = try JSONDecoder().decode(ConnectionProvider.self, from: data)
+
+    XCTAssertEqual(provider.connectLabel, "Connect account")
+    XCTAssertEqual(provider.reconnectLabel, "Reconnect account")
+  }
+
   func testAPIServerErrorPreservesStatusCodeAndMessage() async throws {
     MockURLProtocol.handler = { request in
       Self.response(
@@ -892,6 +1141,84 @@ import UniformTypeIdentifiers
     XCTAssertEqual(requestedURLs.last?.absoluteString, "https://files.example.com/signed/document")
     FrogBotAPI.removeDownloadedPreview(at: file)
     XCTAssertFalse(FileManager.default.fileExists(atPath: previewFolder.path))
+  }
+
+  func testMemoryExportDownloadsAndValidatesTheSignedJSONFile() async throws {
+    var requestedURLs: [URL] = []
+    let export = #"{"format":"FroggyBot memory export","version":1,"memories":[]}"#
+    MockURLProtocol.handler = { request in
+      requestedURLs.append(try XCTUnwrap(request.url))
+      if request.url?.host == "files.example.com" {
+        return Self.response(for: request, body: export)
+      }
+      return Self.response(
+        for: request, body: #"{"url":"https://files.example.com/signed/memory"}"#)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+
+    let data = try await api.downloadMemoryExport()
+
+    XCTAssertEqual(String(decoding: data, as: UTF8.self), export)
+    XCTAssertEqual(requestedURLs.map(\.absoluteString), [
+      "https://api.example.com/memory/export",
+      "https://files.example.com/signed/memory",
+    ])
+  }
+
+  func testPushRegistrationFailureIsVisibleToSettings() async throws {
+    MockURLProtocol.handler = { request in
+      Self.response(
+        for: request, status: 503,
+        body: #"{"code":"native_push_unavailable","message":"Native reply notifications are not configured"}"#)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let model = AppModel(api: api)
+
+    await model.registerPush(Data(repeating: 1, count: 32), platform: "ios")
+
+    guard case .failed(let message) = model.pushRegistrationState else {
+      return XCTFail("Expected a visible push registration failure")
+    }
+    XCTAssertEqual(message, "Native reply notifications are not configured")
+  }
+
+  func testPushSelectionAcceptsConversationTargetsAndRejectsMalformedPayloads() throws {
+    let selection = try XCTUnwrap(
+      PushSelection(userInfo: ["botId": "bot-one", "groupId": "group-one"]))
+
+    XCTAssertEqual(selection.botId, "bot-one")
+    XCTAssertEqual(selection.groupId, "group-one")
+    XCTAssertNil(PushSelection(userInfo: ["botId": "", "groupId": 42]))
+    XCTAssertNil(PushSelection(userInfo: ["messageId": "message-one"]))
+  }
+
+  func testPushResponseCompletesAndPublishesNavigationOnMainThread() async throws {
+    let delegate = PushNotificationDelegate.shared
+    _ = delegate.consumePendingSelection()
+    let completion = expectation(description: "Notification response completed")
+    let publication = expectation(description: "Push selection published")
+    let expected = try XCTUnwrap(PushSelection(userInfo: ["botId": "chief"]))
+    let observer = NotificationCenter.default.addObserver(
+      forName: .froggyPushSelection, object: nil, queue: nil
+    ) { notification in
+      XCTAssertTrue(Thread.isMainThread)
+      XCTAssertEqual(notification.object as? PushSelection, expected)
+      publication.fulfill()
+    }
+    defer { NotificationCenter.default.removeObserver(observer) }
+
+    delegate.handleResponse(userInfo: ["botId": "chief"]) {
+      XCTAssertTrue(Thread.isMainThread)
+      completion.fulfill()
+    }
+
+    await fulfillment(of: [completion, publication], timeout: 1)
+    // AppRoot may already have consumed the buffered selection in the test host.
+    _ = delegate.consumePendingSelection()
   }
 
   private static func demoGroup(bots: [GroupBot]? = nil) -> BotGroup {

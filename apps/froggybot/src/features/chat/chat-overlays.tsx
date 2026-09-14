@@ -106,6 +106,7 @@ export function ChatOverlays({
           bot={overlay.mode === 'edit' ? editingBot : undefined}
           constraints={data.constraints}
           tools={data.tools}
+          providers={data.connectionProviders ?? []}
           retiredToolIds={data.retiredToolIds ?? []}
           skills={data.skills}
           suggestedCapability={suggestedCapability}

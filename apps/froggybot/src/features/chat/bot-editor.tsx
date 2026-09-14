@@ -13,14 +13,32 @@ import {
 
 import { BotAvatar } from '@/components/bot-avatar';
 import { PageSheet } from '@/components/page-sheet';
-import { BOT_COLORS, CHIEF_COLOR, createBotDraft, displayBotColor, requiredToolLabels } from '@froggybot/client';
-import type { AppConstraints, Bot, BotDraft, Capability, CapabilitySelection, Skill, SkillDetail } from '@froggybot/contracts';
+import { ProviderLogo } from '@/components/provider-logo';
+import {
+  BOT_COLORS,
+  CHIEF_COLOR,
+  connectionProviderToolGroups,
+  createBotDraft,
+  displayBotColor,
+  requiredToolLabels,
+} from '@froggybot/client';
+import type {
+  AppConstraints,
+  Bot,
+  BotDraft,
+  Capability,
+  CapabilitySelection,
+  ConnectionProvider,
+  Skill,
+  SkillDetail,
+} from '@froggybot/contracts';
 
 
 type Props = {
   bot?: Bot;
   constraints: AppConstraints;
   tools: Capability[];
+  providers: ConnectionProvider[];
   retiredToolIds: string[];
   skills: Skill[];
   suggestedCapability?: CapabilitySelection;
@@ -29,7 +47,43 @@ type Props = {
   onLoadSkill: (skillId: string) => Promise<SkillDetail>;
 };
 
-export function BotEditor({ bot, constraints, tools, retiredToolIds, skills, suggestedCapability, onClose, onSave, onLoadSkill }: Props) {
+function ToolSelectionRow({
+  tool,
+  displayName,
+  active,
+  requiredBy,
+  onToggle,
+}: {
+  tool: Capability;
+  displayName?: string;
+  active: boolean;
+  requiredBy: string[];
+  onToggle: () => void;
+}) {
+  const required = requiredBy.length > 0;
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: active, disabled: required }}
+      aria-checked={active}
+      disabled={required}
+      style={[styles.tool, active && styles.capabilityActive, required && styles.requiredTool]}
+      onPress={onToggle}>
+      <View style={[styles.check, active && styles.checkActive]}>
+        {active ? <Text style={styles.checkMark}>✓</Text> : null}
+      </View>
+      <View style={styles.capabilityText}>
+        <Text style={styles.capabilityName}>{displayName ?? tool.name}</Text>
+        <Text style={styles.capabilityDescription}>{tool.description}</Text>
+        <Text style={[styles.capabilityMeta, required && styles.requiredMeta]}>
+          {required ? `Required by ${requiredBy.join(', ')}` : 'The model calls this automatically when needed'}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+export function BotEditor({ bot, constraints, tools, providers, retiredToolIds, skills, suggestedCapability, onClose, onSave, onLoadSkill }: Props) {
   const [draft, setDraft] = useState<BotDraft>(() => createBotDraft(
     bot ? { ...bot, color: displayBotColor(bot) } : undefined,
     skills,
@@ -65,6 +119,7 @@ export function BotEditor({ bot, constraints, tools, retiredToolIds, skills, sug
   const suggestedItem = suggestedCapability?.kind === 'skill'
     ? skills.find((skill) => skill.id === suggestedCapability.id)
     : tools.find((tool) => tool.id === suggestedCapability?.id);
+  const providerToolGroups = connectionProviderToolGroups(tools, providers);
 
   const toggleTool = (id: string) => {
     if (requiredByTool.has(id)) return;
@@ -324,28 +379,51 @@ export function BotEditor({ bot, constraints, tools, retiredToolIds, skills, sug
             </View>
             <Text style={styles.count}>{effectiveToolCount} available</Text>
           </View>
-          {tools.map((tool) => {
-            const requiredBy = requiredByTool.get(tool.id) ?? [];
-            const required = requiredBy.length > 0;
-            const active = required || draft.toolIds.includes(tool.id);
-            return (
-              <Pressable
-                key={tool.id}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: active, disabled: required }}
-                aria-checked={active}
-                disabled={required}
-                style={[styles.tool, active && styles.capabilityActive, required && styles.requiredTool]}
-                onPress={() => toggleTool(tool.id)}>
-                <View style={[styles.check, active && styles.checkActive]}>{active ? <Text style={styles.checkMark}>✓</Text> : null}</View>
+          {providerToolGroups.groups.map(({ family, tools: familyTools }) => (
+            <View key={family.id} style={styles.toolFamily}>
+              <View style={styles.toolFamilyHeader}>
+                <ProviderLogo provider={{ id: family.logoProviderId, iconText: family.iconText }} />
                 <View style={styles.capabilityText}>
-                  <Text style={styles.capabilityName}>{tool.name}</Text>
-                  <Text style={styles.capabilityDescription}>{tool.description}</Text>
-                  <Text style={[styles.capabilityMeta, required && styles.requiredMeta]}>
-                    {required ? `Required by ${requiredBy.join(', ')}` : 'The model calls this automatically when needed'}
-                  </Text>
+                  <View style={styles.toolFamilyNameRow}>
+                    <Text style={styles.toolFamilyName}>{family.name}</Text>
+                    {family.includedSummary ? (
+                      <Text style={styles.toolFamilyBadge}>Included</Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.capabilityDescription}>{family.description}</Text>
+                  {family.includedSummary ? (
+                    <Text style={styles.capabilityMeta}>{family.includedSummary}</Text>
+                  ) : null}
                 </View>
-              </Pressable>
+              </View>
+              {familyTools.map((tool) => {
+                const requiredBy = requiredByTool.get(tool.id) ?? [];
+                const active = requiredBy.length > 0 || draft.toolIds.includes(tool.id);
+                const provider = family.providers.find((item) => item.id === tool.provider);
+                return (
+                  <ToolSelectionRow
+                    key={tool.id}
+                    tool={tool}
+                    displayName={provider?.serviceName}
+                    active={active}
+                    requiredBy={requiredBy}
+                    onToggle={() => toggleTool(tool.id)}
+                  />
+                );
+              })}
+            </View>
+          ))}
+          {providerToolGroups.ungrouped.map((tool) => {
+            const requiredBy = requiredByTool.get(tool.id) ?? [];
+            const active = requiredBy.length > 0 || draft.toolIds.includes(tool.id);
+            return (
+              <ToolSelectionRow
+                key={tool.id}
+                tool={tool}
+                active={active}
+                requiredBy={requiredBy}
+                onToggle={() => toggleTool(tool.id)}
+              />
             );
           })}
           </> : (
@@ -419,6 +497,11 @@ const styles = StyleSheet.create({
   capabilityDescription: { fontSize: 13, lineHeight: 18, color: '#77736B', marginTop: 2 },
   capabilityMeta: { fontSize: 10.5, lineHeight: 15, color: '#6E6A62', marginTop: 5 },
   requiredMeta: { color: '#007A3D', fontWeight: '700' },
+  toolFamily: { padding: 12, marginBottom: 12, borderRadius: 16, borderWidth: 1, borderColor: '#D8D4CB', backgroundColor: '#F5F8F6' },
+  toolFamilyHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
+  toolFamilyNameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7 },
+  toolFamilyName: { color: '#263A2F', fontSize: 16, fontWeight: '800' },
+  toolFamilyBadge: { color: '#136B3B', fontSize: 10, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, backgroundColor: '#DCEFE4', overflow: 'hidden' },
   detailsButton: { minWidth: 46, minHeight: 30, alignItems: 'center', justifyContent: 'center' },
   detailsButtonText: { color: '#007A3D', fontSize: 12, fontWeight: '800' },
   skillDetail: { borderTopWidth: 1, borderColor: '#CFE0D6', marginTop: 13, paddingTop: 13 },

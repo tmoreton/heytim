@@ -6,6 +6,32 @@ project="$apple_root/FroggyBotApple.xcodeproj"
 derived_data="$(mktemp -d /tmp/FroggyBotAppleVerification.XXXXXX)"
 temporary_simulator=false
 
+run_with_timeout() {
+  local seconds="$1"
+  local label="$2"
+  shift 2
+  "$@" &
+  local command_pid=$!
+  (
+    sleep "$seconds"
+    if kill -0 "$command_pid" >/dev/null 2>&1; then
+      echo "$label exceeded ${seconds}s; terminating it." >&2
+      kill -TERM "$command_pid" >/dev/null 2>&1 || true
+      sleep 10
+      kill -KILL "$command_pid" >/dev/null 2>&1 || true
+    fi
+  ) &
+  local watchdog_pid=$!
+  local status=0
+  wait "$command_pid" || status=$?
+  kill "$watchdog_pid" >/dev/null 2>&1 || true
+  wait "$watchdog_pid" >/dev/null 2>&1 || true
+  if (( status != 0 )); then
+    echo "$label failed or timed out with status $status." >&2
+    return "$status"
+  fi
+}
+
 cleanup() {
   if [[ "$temporary_simulator" == true ]]; then
     xcrun simctl shutdown "$simulator_id" >/dev/null 2>&1 || true
@@ -22,9 +48,9 @@ trap cleanup EXIT
   swift test
 )
 
-xcodebuild test -quiet \
+run_with_timeout 1200 'macOS unit tests' xcodebuild test -quiet \
   -project "$project" \
-  -scheme FroggyBotApple \
+  -scheme FroggyBotAppleUnit \
   -destination 'platform=macOS' \
   -derivedDataPath "$derived_data" \
   -parallel-testing-enabled NO \
@@ -56,8 +82,8 @@ if [[ -z "$simulator_id" ]]; then
   exit 1
 fi
 xcrun simctl boot "$simulator_id" 2>/dev/null || true
-xcrun simctl bootstatus "$simulator_id" -b
-xcodebuild test -quiet \
+run_with_timeout 300 'iOS simulator boot' xcrun simctl bootstatus "$simulator_id" -b
+run_with_timeout 1200 'iOS UI tests' xcodebuild test -quiet \
   -project "$project" \
   -scheme FroggyBotAppleUI \
   -destination "id=$simulator_id" \

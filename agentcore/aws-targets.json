@@ -7,7 +7,7 @@
   },
   {
     "name": "production",
-    "description": "Stable FroggyBot production stack; provider isolation pending a separate account or Region",
+    "description": "Temporary stable production stack in the management account pending member-account Lambda quota",
     "account": "188757775631",
     "region": "us-east-1"
   }

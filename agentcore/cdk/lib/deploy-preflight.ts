@@ -16,11 +16,10 @@ export function dirtySourceEntries(status: string): string[] {
 export function assertCleanDeploySource(projectRoot: string): void {
   let status: string;
   try {
-    status = execFileSync(
-      'git',
-      ['status', '--porcelain=v1', '--untracked-files=all'],
-      { cwd: projectRoot, encoding: 'utf8' }
-    );
+    status = execFileSync('git', ['status', '--porcelain=v1', '--untracked-files=all'], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+    });
   } catch (error) {
     throw new Error(
       `Deployment source must be a readable Git worktree: ${error instanceof Error ? error.message : error}`

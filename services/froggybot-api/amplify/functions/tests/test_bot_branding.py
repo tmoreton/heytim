@@ -155,11 +155,65 @@ class BotBrandingTests(unittest.TestCase):
 
         self.assertEqual(result["bots"], [chief])
         self.assertEqual(result["botTemplates"], templates)
-        self.assertEqual(result["connectionProviders"][0]["id"], "gmail")
-        self.assertNotIn("clientSecret", result["connectionProviders"][0])
+        self.assertEqual(
+            [provider["id"] for provider in result["connectionProviders"]],
+            [
+                "github",
+                "gmail",
+                "youtube",
+                "google_workspace",
+                "slack",
+                "microsoft",
+                "notion",
+                "x",
+            ],
+        )
+        provider = result["connectionProviders"][0]
+        self.assertNotIn("clientSecret", provider)
+        self.assertNotIn("authType", provider)
+        self.assertNotIn("uiKind", provider)
+        self.assertEqual(provider["connectLabel"], "Install app")
+        self.assertEqual(provider["reconnectLabel"], "Update installation")
+        google = [
+            provider
+            for provider in result["connectionProviders"]
+            if provider.get("familyId") == "google"
+        ]
+        self.assertEqual(
+            [provider["serviceName"] for provider in google],
+            ["Gmail", "YouTube Studio", "Workspace"],
+        )
+        self.assertTrue(
+            all(provider["familyName"] == "Google" for provider in google)
+        )
+        self.assertTrue(
+            all(
+                provider["familyIncludedToolIds"] == ["youtube_search"]
+                for provider in google
+            )
+        )
+        x_provider = next(
+            provider
+            for provider in result["connectionProviders"]
+            if provider["id"] == "x"
+        )
+        self.assertEqual(x_provider["serviceName"], "Account access")
+        self.assertEqual(
+            x_provider["familyIncludedSummary"], "Public post search included"
+        )
+        self.assertEqual(x_provider["familyIncludedToolIds"], ["x_search"])
         self.assertTrue(result["needsBotOnboarding"])
         self.assertEqual(result["constraints"]["messageMaxLength"], 8_000)
         self.assertEqual(result["constraints"]["maxAttachmentsPerMessage"], 5)
+
+    def test_unconfigured_provider_is_hidden_from_bootstrap(self) -> None:
+        with patch.dict(
+            "os.environ", {"DISABLED_CONNECTION_PROVIDER_IDS": "microsoft"}
+        ):
+            providers = self.bots.connection_providers()
+
+        self.assertNotIn("microsoft", [provider["id"] for provider in providers])
+        self.assertIn("slack", [provider["id"] for provider in providers])
 
 
 if __name__ == "__main__":

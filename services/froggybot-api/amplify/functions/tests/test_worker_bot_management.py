@@ -28,6 +28,24 @@ class WorkerBotManagementTests(WorkerTestCase):
             patch.object(self.agent.catalog, "resolve_for_runtime", return_value=[]),
             patch.object(
                 self.agent.catalog,
+                "available_tool_ids",
+                side_effect=lambda _user_id, tool_ids: [
+                    tool_id for tool_id in tool_ids if tool_id == "current_time"
+                ],
+            ),
+            patch.object(
+                self.agent.catalog,
+                "available_tools",
+                return_value=[
+                    {
+                        "id": "current_time",
+                        "name": "World clock",
+                        "description": "Read the current time.",
+                    }
+                ],
+            ),
+            patch.object(
+                self.agent.catalog,
                 "resolve_tools_for_runtime",
                 return_value=[
                     {
@@ -69,9 +87,83 @@ class WorkerBotManagementTests(WorkerTestCase):
             self.agentcore.invoke_agent_runtime.call_args.kwargs["payload"]
         )
         self.assertEqual(payload["bot"]["systemRole"], "chief")
-        self.assertEqual(
-            payload["botManagement"]["templates"][0]["id"], "meme-maker"
+        self.assertEqual(payload["botManagement"]["currentBot"]["id"], "chief")
+        self.assertEqual(payload["botManagement"]["templates"][0]["id"], "meme-maker")
+        self.assertEqual(payload["botManagement"]["selfTools"][0]["id"], "current_time")
+
+    def test_direct_specialist_receives_only_self_skill_authoring_context(self) -> None:
+        bot = {
+            "id": "writer",
+            "name": "Writer",
+            "prompt": "Write clearly.",
+            "skillVersions": {},
+            "skillIds": [],
+            "toolIds": ["current_time", "connection_removed"],
+        }
+        tool_catalog = [
+            {"id": "current_time", "name": "Current Time"},
+            {"id": "web", "name": "Web"},
+        ]
+        with (
+            patch.object(self.agent.catalog, "resolve_for_runtime", return_value=[]),
+            patch.object(
+                self.agent.catalog,
+                "available_tool_ids",
+                side_effect=lambda _user_id, tool_ids: [
+                    tool_id for tool_id in tool_ids if tool_id == "current_time"
+                ],
+            ),
+            patch.object(
+                self.agent.catalog,
+                "available_tools",
+                return_value=[
+                    {
+                        "id": "current_time",
+                        "name": "World clock",
+                        "description": "Read the current time.",
+                    }
+                ],
+            ),
+            patch.object(
+                self.agent.catalog,
+                "resolve_tools_for_runtime",
+                return_value=[
+                    {
+                        "id": "bot_manager",
+                        "risk": "sandbox",
+                        "runtime": {"kind": "local", "name": "bot_manager"},
+                    }
+                ],
+            ),
+            patch.object(self.agent.catalog, "list_tools", return_value=tool_catalog),
+            patch.object(self.agent.catalog, "list_skills", return_value=[]),
+            patch.object(self.agent.catalog, "list_bot_templates") as templates,
+            patch.object(self.agent, "_team_roster", return_value=[]),
+            patch.object(self.agent, "read_agent_stream", return_value="Done"),
+        ):
+            self.agent._invoke(
+                "user-1",
+                "writer",
+                bot,
+                history=[],
+                event_id="turn-1",
+                allow_bot_management=True,
+            )
+
+        payload = json.loads(
+            self.agentcore.invoke_agent_runtime.call_args.kwargs["payload"]
         )
+        context = payload["botManagement"]
+        self.assertFalse(context["canManageBots"])
+        self.assertEqual(context["bots"], [])
+        self.assertEqual(context["templates"], [])
+        self.assertEqual(context["selfToolIds"], ["current_time"])
+        self.assertEqual([item["id"] for item in context["tools"]], ["current_time"])
+        self.assertEqual(
+            [item["id"] for item in context["selfTools"]], ["current_time"]
+        )
+        self.assertNotIn("connection_removed", payload["bot"]["toolIds"])
+        templates.assert_not_called()
 
     def test_scheduled_chief_invocation_does_not_receive_bot_manager(self) -> None:
         bot = {
@@ -115,6 +207,13 @@ class WorkerBotManagementTests(WorkerTestCase):
 
         with (
             patch.object(self.agent.catalog, "resolve_for_runtime", return_value=[]),
+            patch.object(
+                self.agent.catalog,
+                "available_tool_ids",
+                side_effect=lambda _user_id, tool_ids: [
+                    tool_id for tool_id in tool_ids if tool_id == "current_time"
+                ],
+            ),
             patch.object(
                 self.agent.catalog,
                 "resolve_tools_for_runtime",
@@ -229,6 +328,148 @@ class WorkerBotManagementTests(WorkerTestCase):
         api._put_bot.assert_called_once()
         self.assertEqual(api._put_bot.call_args.kwargs["bot_id"], f"ai-{mutation_id}")
 
+    def test_create_skill_mutation_is_private_attached_and_replay_safe(self) -> None:
+        mutation_id = str(uuid.uuid4())
+        skill_id = f"skill-ai-{mutation_id.replace('-', '')}"
+        target = {
+            "id": "writer",
+            "name": "Writer",
+            "toolIds": ["current_time"],
+            "skillIds": [],
+        }
+        api = SimpleNamespace(_get_bot=MagicMock(return_value=target), _update_bot=MagicMock())
+        saved: dict[str, dict] = {}
+        catalog = SimpleNamespace(
+            get_skill=MagicMock(),
+            list_skills=MagicMock(return_value=[]),
+            save_skill=MagicMock(),
+        )
+
+        def get_skill(_user_id, requested_skill_id):
+            if requested_skill_id not in saved:
+                raise self.bot_mutation_globals["CatalogError"]("Skill not found")
+            return saved[requested_skill_id]
+
+        def save_skill(_user_id, value, *, new_skill_id):
+            saved[new_skill_id] = value
+            return value
+
+        def update_bot(_user_id, _bot_id, changes):
+            target["skillIds"] = changes["skillIds"]
+
+        catalog.get_skill.side_effect = get_skill
+        catalog.save_skill.side_effect = save_skill
+        api._update_bot.side_effect = update_bot
+        raw = [
+            {
+                "mutationId": mutation_id,
+                "action": "create_skill",
+                "value": {
+                    "name": "Newsletter Review",
+                    "description": "Reviews newsletter copy.",
+                    "instructions": "Flag observable style problems without guessing authorship.",
+                    "requiredToolIds": ["current_time"],
+                },
+            }
+        ]
+
+        with patch.dict(
+            self.bot_mutation_globals,
+            {"_bot_api": lambda: api, "catalog": catalog},
+        ):
+            self.apply_bot_mutations("user-1", target, {}, raw)
+            self.apply_bot_mutations("user-1", target, {}, raw)
+
+        catalog.save_skill.assert_called_once()
+        self.assertEqual(
+            catalog.save_skill.call_args.args[1]["visibility"], "private"
+        )
+        self.assertEqual(
+            catalog.save_skill.call_args.args[1]["requiredToolIds"],
+            ["current_time"],
+        )
+        self.assertEqual(
+            catalog.save_skill.call_args.kwargs["new_skill_id"], skill_id
+        )
+        api._update_bot.assert_called_once_with(
+            "user-1", "writer", {"skillIds": [skill_id]}
+        )
+
+    def test_create_skill_drops_tools_removed_while_the_agent_was_running(self) -> None:
+        target = {
+            "id": "writer",
+            "toolIds": ["web_search"],
+            "skillIds": [],
+        }
+        raw = [
+            {
+                "mutationId": str(uuid.uuid4()),
+                "action": "create_skill",
+                "value": {
+                    "name": "Source List",
+                    "description": "Keeps the standing source list.",
+                    "instructions": "Use currently available research tools.",
+                    "requiredToolIds": ["web", "web_search"],
+                },
+            }
+        ]
+        api = SimpleNamespace(
+            _get_bot=MagicMock(return_value=target),
+            _update_bot=MagicMock(),
+        )
+        catalog = SimpleNamespace(
+            get_skill=MagicMock(
+                side_effect=self.bot_mutation_globals["CatalogError"]("Skill not found")
+            ),
+            list_skills=MagicMock(return_value=[]),
+            save_skill=MagicMock(),
+        )
+        with patch.dict(
+            self.bot_mutation_globals,
+            {"_bot_api": lambda: api, "catalog": catalog},
+        ):
+            self.apply_bot_mutations("user-1", {"id": "writer"}, {}, raw)
+
+        saved = catalog.save_skill.call_args.args[1]
+        self.assertEqual(saved["requiredToolIds"], ["web_search"])
+        self.assertNotIn("web", saved["requiredToolIds"])
+        api._update_bot.assert_called_once()
+
+    def test_create_skill_cannot_grant_a_tool_the_bot_does_not_have(self) -> None:
+        target = {"id": "writer", "toolIds": [], "skillIds": []}
+        raw = [
+            {
+                "mutationId": str(uuid.uuid4()),
+                "action": "create_skill",
+                "value": {
+                    "name": "Safe Skill",
+                    "description": "Does not receive unapproved access.",
+                    "instructions": "Keep the workflow within available tools.",
+                    "requiredToolIds": ["shell"],
+                },
+            }
+        ]
+        api = SimpleNamespace(
+            _get_bot=MagicMock(return_value=target),
+            _update_bot=MagicMock(),
+        )
+        catalog = SimpleNamespace(
+            get_skill=MagicMock(
+                side_effect=self.bot_mutation_globals["CatalogError"]("Skill not found")
+            ),
+            list_skills=MagicMock(return_value=[]),
+            save_skill=MagicMock(),
+        )
+        with patch.dict(
+            self.bot_mutation_globals,
+            {"_bot_api": lambda: api, "catalog": catalog},
+        ):
+            self.apply_bot_mutations("user-1", {"id": "writer"}, {}, raw)
+
+        self.assertEqual(
+            catalog.save_skill.call_args.args[1]["requiredToolIds"], []
+        )
+
     def test_mutation_rejects_non_chief_and_scheduled_runs(self) -> None:
         raw = [
             {
@@ -241,7 +482,7 @@ class WorkerBotManagementTests(WorkerTestCase):
             self.apply_bot_mutations(
                 "user-1", {"systemRole": "specialist"}, {}, raw
             )
-        with self.assertRaisesRegex(ValueError, "direct Chief"):
+        with self.assertRaisesRegex(ValueError, "scheduled runs"):
             self.apply_bot_mutations(
                 "user-1", {"systemRole": "chief"}, {"source": "schedule"}, raw
             )

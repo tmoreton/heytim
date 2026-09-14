@@ -15,14 +15,17 @@ from .capability_contract import (
     validate_skill_selection,
 )
 from .gateway_tools import gateway_client, gateway_operations
+from .gmail_api import gmail_api_tools
 from .image_generation import image_generation_tools
 from .local_tools import CUSTOM_TOOLS
 from .mcp_connections import (
     GITHUB_MCP_ENDPOINT,
-    connection_client,
-    connection_credential,
+    GMAIL_MCP_ENDPOINT,
+    connection_clients,
+    github_installation_token,
 )
 from .memes import meme_tools
+from .provider_connections import provider_connection_tools
 from .repository_workspace import repository_workspace_tool
 
 
@@ -98,19 +101,29 @@ def resolve_capabilities(
     )
     if (
         github_binding
-        and github_binding.get("authType") in {"bearer", "api_key"}
+        and github_binding.get("authType") == "github_app"
         and interpreter
     ):
         tools.append(
             repository_workspace_tool(
                 interpreter,
-                lambda: connection_credential(github_binding),
+                lambda: github_installation_token(github_binding),
             )
         )
     managed_gateway = gateway_client(gateway_operations(bindings), usage)
     if managed_gateway:
         tools.append(managed_gateway)
-    tools.extend(connection_client(item) for item in bindings if item["kind"] == "mcp")
+    for item in bindings:
+        if item["kind"] in {"mcp", "mcp_bundle"}:
+            if item["kind"] == "mcp" and item["endpoint"].rstrip(
+                "/"
+            ) == GMAIL_MCP_ENDPOINT.rstrip("/"):
+                tools.extend(gmail_api_tools(item))
+            else:
+                tools.extend(connection_clients(item))
+    for item in bindings:
+        if item["kind"] == "provider_api":
+            tools.extend(provider_connection_tools(item, usage))
     validate_skill_selection(bot, skills)
 
     return CapabilityConfiguration(

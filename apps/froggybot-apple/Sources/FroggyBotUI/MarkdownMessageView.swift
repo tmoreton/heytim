@@ -388,13 +388,13 @@ private struct MarkdownBlockView: View {
     switch block {
     case .heading(let level, let text):
       Text(inlineMarkdown(text))
-        .font(headingFont(level))
+        .froggyFont(headingStyle(level), weight: headingWeight(level))
         .foregroundStyle(baseColor)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityAddTraits(.isHeader)
     case .paragraph(let text):
       Text(inlineMarkdown(text))
-        .font(.body)
+        .froggyFont(.body)
         .lineSpacing(3)
         .foregroundStyle(baseColor)
         .fixedSize(horizontal: false, vertical: true)
@@ -403,10 +403,10 @@ private struct MarkdownBlockView: View {
     case .quote(let text):
       HStack(alignment: .top, spacing: 10) {
         Capsule()
-          .fill(FrogTheme.brand.opacity(0.75))
+          .fill(FrogTheme.accent.opacity(0.75))
           .frame(width: 3)
         Text(inlineMarkdown(text))
-          .font(.body)
+          .froggyFont(.body)
           .italic()
           .lineSpacing(3)
           .foregroundStyle(baseColor.opacity(0.78))
@@ -423,14 +423,18 @@ private struct MarkdownBlockView: View {
     }
   }
 
-  private func headingFont(_ level: Int) -> Font {
+  private func headingStyle(_ level: Int) -> Font.TextStyle {
     switch level {
-    case 1: .title2.weight(.bold)
-    case 2: .title3.weight(.bold)
+    case 1: .title2
+    case 2: .title3
     case 3: .headline
-    case 4: .body.weight(.semibold)
-    default: .callout.weight(.semibold)
+    case 4: .body
+    default: .callout
     }
+  }
+
+  private func headingWeight(_ level: Int) -> Font.Weight? {
+    level == 3 ? nil : level <= 2 ? .bold : .semibold
   }
 
   private func list(ordered: Bool, items: [MarkdownListItem]) -> some View {
@@ -445,12 +449,12 @@ private struct MarkdownBlockView: View {
               Text(ordered ? "\(item.number ?? index + 1)." : "•")
             }
           }
-          .font(.body.weight(.semibold))
+          .froggyFont(.body, weight: .semibold)
           .foregroundStyle(baseColor.opacity(0.72))
           .frame(width: 22, alignment: .trailing)
 
           Text(inlineMarkdown(item.text))
-            .font(.body)
+            .froggyFont(.body)
             .lineSpacing(3)
             .foregroundStyle(baseColor)
             .fixedSize(horizontal: false, vertical: true)
@@ -464,14 +468,14 @@ private struct MarkdownBlockView: View {
     VStack(alignment: .leading, spacing: 0) {
       if let language {
         Text(language.uppercased())
-          .font(.caption2.weight(.semibold))
+          .froggyFont(.caption2, weight: .semibold)
           .foregroundStyle(baseColor.opacity(0.58))
           .padding(.horizontal, 11)
           .padding(.top, 8)
       }
       ScrollView(.horizontal) {
         Text(text)
-          .font(.system(.callout, design: .monospaced))
+          .froggyFont(.callout, design: .monospaced)
           .foregroundStyle(baseColor)
           .padding(11)
           .fixedSize(horizontal: true, vertical: false)
@@ -523,7 +527,7 @@ private struct MarkdownBlockView: View {
     isAlternate: Bool
   ) -> some View {
     Text(inlineMarkdown(text))
-      .font(isHeader ? .callout.weight(.semibold) : .callout)
+      .froggyFont(.callout, weight: isHeader ? .semibold : nil)
       .lineSpacing(2)
       .foregroundStyle(baseColor)
       .frame(minWidth: 90, maxWidth: 240, alignment: frameAlignment(alignment))

@@ -15,6 +15,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from .artifacts import FILES_BUCKET_NAME, artifact_prefix_from_payload
+from .failure_events import record_runtime_failure
 from .memory import memory_context_from_payload
 from .streaming import AGENT_RUN_TIMEOUT_SECONDS
 
@@ -185,6 +186,7 @@ async def _execute(client, key, state, runner, payload, context) -> None:
         if not state.value.get("terminalError"):
             await task
     except Exception as error:
+        record_runtime_failure(log, error)
         log.exception("Background agent job failed")
         state.fail(_runtime_failure_message(error))
     finally:

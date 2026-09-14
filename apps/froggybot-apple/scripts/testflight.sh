@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: APPLE_TEAM_ID=TEAMID ./scripts/testflight.sh [--dry-run] <ios|macos>
+Usage: APPLE_TEAM_ID=TEAMID ./scripts/testflight.sh [--dry-run] <ios|macos|all>
 
 This creates a release archive from the SwiftUI project and uploads it to App
 Store Connect for TestFlight processing. Xcode can use the signed-in developer
@@ -30,8 +30,9 @@ if [[ -z "$platform" || $# -ne 1 ]]; then
 fi
 
 case "$platform" in
-  ios) platform_label="iOS" ;;
-  macos) platform_label="macOS" ;;
+  ios) platforms=(ios) ;;
+  macos) platforms=(macos) ;;
+  all) platforms=(ios macos) ;;
   *)
     echo "Unsupported platform: $platform" >&2
     usage >&2
@@ -57,25 +58,23 @@ fi
 
 apple_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repository_root="$(cd "$apple_root/../.." && pwd)"
-archive_path="$apple_root/Archives/FroggyBot-$platform_label-$build_number.xcarchive"
-export_path="$apple_root/Archives/TestFlight-$platform_label-$build_number"
 export_options="$apple_root/Resources/TestFlightExportOptions.plist"
 
 if [[ "$dry_run" == true ]]; then
-  FROGGYBOT_BUILD_NUMBER="$build_number" "$apple_root/scripts/archive.sh" --dry-run "$platform"
+  for release_platform in "${platforms[@]}"; do
+    FROGGYBOT_BUILD_NUMBER="$build_number" "$apple_root/scripts/archive.sh" --dry-run "$release_platform"
+  done
   echo "Upload destination: App Store Connect / TestFlight"
   exit 0
 fi
 
-"$repository_root/scripts/assert-release-ready.sh"
+"$repository_root/scripts/assert-release-ready.sh" --post-deploy
 
 (
   cd "$repository_root/services/froggybot-api"
-  npm run outputs:apple:check
+  npm run outputs:apple:production:check
 )
 "$repository_root/scripts/verify.sh" apple
-
-FROGGYBOT_BUILD_NUMBER="$build_number" "$apple_root/scripts/archive.sh" "$platform"
 
 key_path="${APP_STORE_CONNECT_KEY_PATH:-}"
 key_id="${APP_STORE_CONNECT_KEY_ID:-}"
@@ -91,26 +90,37 @@ if [[ -n "$key_path" || -n "$key_id" || -n "$issuer_id" ]]; then
   fi
 fi
 
-if [[ -e "$export_path" ]]; then
-  echo "TestFlight export directory already exists: $export_path" >&2
-  exit 1
-fi
+for release_platform in "${platforms[@]}"; do
+  case "$release_platform" in
+    ios) platform_label="iOS" ;;
+    macos) platform_label="macOS" ;;
+  esac
+  archive_path="$apple_root/Archives/FroggyBot-$platform_label-$build_number.xcarchive"
+  export_path="$apple_root/Archives/TestFlight-$platform_label-$build_number"
 
-export_args=(
-  -exportArchive
-  -archivePath "$archive_path"
-  -exportPath "$export_path"
-  -exportOptionsPlist "$export_options"
-  -allowProvisioningUpdates
-)
-if [[ -n "$key_path" ]]; then
-  export_args+=(
-    -authenticationKeyPath "$key_path"
-    -authenticationKeyID "$key_id"
-    -authenticationKeyIssuerID "$issuer_id"
+  FROGGYBOT_BUILD_NUMBER="$build_number" "$apple_root/scripts/archive.sh" "$release_platform"
+
+  if [[ -e "$export_path" ]]; then
+    echo "TestFlight export directory already exists: $export_path" >&2
+    exit 1
+  fi
+
+  export_args=(
+    -exportArchive
+    -archivePath "$archive_path"
+    -exportPath "$export_path"
+    -exportOptionsPlist "$export_options"
+    -allowProvisioningUpdates
   )
-fi
-xcodebuild "${export_args[@]}"
+  if [[ -n "$key_path" ]]; then
+    export_args+=(
+      -authenticationKeyPath "$key_path"
+      -authenticationKeyID "$key_id"
+      -authenticationKeyIssuerID "$issuer_id"
+    )
+  fi
+  xcodebuild "${export_args[@]}"
 
-echo "$platform_label build $build_number was uploaded to App Store Connect."
-echo "Apple will show it in TestFlight after processing completes."
+  echo "$platform_label build $build_number was uploaded to App Store Connect."
+done
+echo "Apple will show the selected build or builds in TestFlight after processing completes."

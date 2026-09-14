@@ -1,34 +1,53 @@
 version: 2
 updates:
-  - package-ecosystem: npm
-    directory: /apps/froggybot
-    schedule:
-      interval: weekly
-    groups:
-      application-dependencies:
-        patterns: ["*"]
-  - package-ecosystem: npm
-    directory: /apps/froggybot/amplify
-    schedule:
-      interval: weekly
-    groups:
-      backend-dependencies:
-        patterns: ["*"]
-  - package-ecosystem: npm
-    directory: /agentcore/cdk
-    schedule:
-      interval: weekly
-    groups:
-      agentcore-dependencies:
-        patterns: ["*"]
-  - package-ecosystem: uv
-    directory: /services/agent-runtime
-    schedule:
-      interval: weekly
-    groups:
-      runtime-dependencies:
-        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+      day: monday
+      timezone: America/New_York
+    groups:
+      github-actions:
+        patterns: ['*']
+
+  - package-ecosystem: npm
+    directories:
+      - /apps/froggybot
+      - /apps/froggybot-browser-viewer
+      - /packages/froggybot-client
+      - /packages/froggybot-preview
+      - /services/froggybot-api
+      - /agentcore/cdk
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: America/New_York
+    groups:
+      npm-production:
+        dependency-type: production
+        patterns: ['*']
+      npm-development:
+        dependency-type: development
+        patterns: ['*']
+
+  - package-ecosystem: uv
+    directory: /services/agent-runtime
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: America/New_York
+    groups:
+      python-runtime:
+        patterns: ['*']
+
+  - package-ecosystem: swift
+    directories:
+      - /apps/froggybot-apple
+      - /packages/frogbot-transcription
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: America/New_York
+    groups:
+      swift:
+        patterns: ['*']

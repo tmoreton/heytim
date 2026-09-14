@@ -8,8 +8,9 @@ import {
   type CustomJWTAuthorizerConfig,
   type HarnessDeploymentConfig,
 } from '@aws/agentcore-cdk';
-import { CfnOutput, Stack, type StackProps } from 'aws-cdk-lib';
+import { ArnFormat, CfnOutput, Stack, type StackProps } from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { Construct } from 'constructs';
 
 /**
@@ -74,6 +75,10 @@ export interface AgentCoreStackProps extends StackProps {
    * Payment specifications with resolved credential provider ARNs.
    */
   paymentSpec?: PaymentSpec[];
+  /** KMS-encrypted user-file bucket for this deployment target. */
+  filesBucketName?: string;
+  /** KMS alias used to encrypt this target's user-file bucket. */
+  filesKeyAlias?: string;
 }
 
 function toCdkId(name: string): string {
@@ -96,6 +101,32 @@ function isPaymentEligibleAgent(agent: { entrypoint?: string; protocol?: string 
   return entrypointFile.endsWith('.py');
 }
 
+function hardenAgentCoreCrossServiceAccess(stack: Stack): void {
+  const sourceArn = `arn:${stack.partition}:bedrock-agentcore:${stack.region}:${stack.account}:*`;
+  for (const construct of stack.node.findAll()) {
+    if (construct instanceof iam.CfnRole) {
+      const document = stack.resolve(construct.assumeRolePolicyDocument) as {
+        Statement?: Array<{ Principal?: { Service?: string | string[] } }>;
+      };
+      for (let index = 0; index < (document.Statement?.length ?? 0); index += 1) {
+        const service = document.Statement?.[index]?.Principal?.Service;
+        const services = Array.isArray(service) ? service : [service];
+        if (!services.includes('bedrock-agentcore.amazonaws.com')) continue;
+        construct.addPropertyOverride(`AssumeRolePolicyDocument.Statement.${index}.Condition`, {
+          StringEquals: { 'aws:SourceAccount': stack.account },
+          ArnLike: { 'aws:SourceArn': sourceArn },
+        });
+      }
+    }
+    if (construct instanceof lambda.CfnPermission) {
+      const principal = stack.resolve(construct.principal);
+      if (principal !== 'bedrock-agentcore.amazonaws.com') continue;
+      construct.addPropertyOverride('SourceAccount', stack.account);
+      construct.addPropertyOverride('SourceArn', sourceArn);
+    }
+  }
+}
+
 /**
  * CDK Stack that deploys AgentCore infrastructure.
  *
@@ -109,7 +140,16 @@ export class AgentCoreStack extends Stack {
   constructor(scope: Construct, id: string, props: AgentCoreStackProps) {
     super(scope, id, props);
 
-    const { spec, mcpSpec, credentials, harnesses, connectorParametersByFile, paymentSpec } = props;
+    const {
+      spec,
+      mcpSpec,
+      credentials,
+      harnesses,
+      connectorParametersByFile,
+      paymentSpec,
+      filesBucketName,
+      filesKeyAlias,
+    } = props;
 
     // Create AgentCoreApplication with all agents and harness roles
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -124,6 +164,86 @@ export class AgentCoreStack extends Stack {
       appProps.credentials = credentials;
     }
     this.application = new AgentCoreApplication(this, 'Application', appProps as any);
+
+    const memoryKeyArns = [
+      ...new Set(
+        (spec.memories ?? [])
+          .map(memory => memory.encryptionKeyArn)
+          .filter((arn): arn is string => typeof arn === 'string' && arn.length > 0)
+      ),
+    ];
+    if (memoryKeyArns.length > 0) {
+      for (const environment of this.application.environments.values()) {
+        environment.runtime.role.addToPrincipalPolicy(
+          new iam.PolicyStatement({
+            actions: ['kms:Decrypt', 'kms:DescribeKey', 'kms:Encrypt', 'kms:GenerateDataKey'],
+            resources: memoryKeyArns,
+          })
+        );
+      }
+    }
+
+    if (filesBucketName && filesKeyAlias) {
+      const bucketArn = this.formatArn({
+        service: 's3',
+        region: '',
+        account: '',
+        resource: filesBucketName,
+        arnFormat: ArnFormat.NO_RESOURCE_NAME,
+      });
+      const connectionSecretsArn = this.formatArn({
+        service: 'secretsmanager',
+        resource: 'secret',
+        resourceName: 'frogbot/connections/*',
+        arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+      });
+      const providerConfigurationArns = ['google', 'github', 'x', 'slack', 'microsoft', 'notion'].map(provider =>
+        this.formatArn({
+          service: 'secretsmanager',
+          resource: 'secret',
+          resourceName: `frogbot/oauth/${provider}-*`,
+          arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+        })
+      );
+      for (const environment of this.application.environments.values()) {
+        environment.runtime.role.addToPrincipalPolicy(
+          new iam.PolicyStatement({
+            actions: ['s3:ListBucket'],
+            resources: [bucketArn],
+            conditions: {
+              StringLike: { 's3:prefix': ['users/*', 'groups/*', 'meme-templates/*'] },
+            },
+          })
+        );
+        environment.runtime.role.addToPrincipalPolicy(
+          new iam.PolicyStatement({
+            actions: ['s3:GetObject', 's3:PutObject'],
+            resources: [`${bucketArn}/users/*`, `${bucketArn}/groups/*`, `${bucketArn}/meme-templates/*`],
+          })
+        );
+        environment.runtime.role.addToPrincipalPolicy(
+          new iam.PolicyStatement({
+            actions: ['kms:Decrypt', 'kms:DescribeKey', 'kms:Encrypt', 'kms:GenerateDataKey'],
+            resources: ['*'],
+            conditions: {
+              'ForAnyValue:StringEquals': { 'kms:ResourceAliases': filesKeyAlias },
+            },
+          })
+        );
+        environment.runtime.role.addToPrincipalPolicy(
+          new iam.PolicyStatement({
+            actions: ['secretsmanager:GetSecretValue'],
+            resources: [connectionSecretsArn, ...providerConfigurationArns],
+          })
+        );
+        environment.runtime.role.addToPrincipalPolicy(
+          new iam.PolicyStatement({
+            actions: ['secretsmanager:PutSecretValue'],
+            resources: [connectionSecretsArn],
+          })
+        );
+      }
+    }
 
     // Create AgentCoreMcp if there are gateways configured
     if (mcpSpec?.agentCoreGateways && mcpSpec.agentCoreGateways.length > 0) {
@@ -287,5 +407,7 @@ export class AgentCoreStack extends Stack {
       description: 'Name of the CloudFormation Stack',
       value: this.stackName,
     });
+
+    hardenAgentCoreCrossServiceAccess(this);
   }
 }

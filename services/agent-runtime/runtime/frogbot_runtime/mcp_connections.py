@@ -20,6 +20,16 @@ from strands.tools.mcp.mcp_agent_tool import MCPAgentTool
 from strands.tools.mcp.mcp_client import MCPClient
 from strands.types import PaginatedList
 
+from .github_app import (
+    GITHUB_API_URL,
+    GITHUB_API_VERSION,
+    GITHUB_APP_PERMISSIONS,
+    GITHUB_MCP_ENDPOINT,
+    github_app_config,
+    github_app_jwt,
+    validate_installation_grant,
+)
+
 SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
     r"secret:frogbot/connections/[a-f0-9]{24}/"
@@ -27,11 +37,13 @@ SECRET_ARN_PATTERN = re.compile(
 )
 OAUTH_CLIENT_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:frogbot/oauth/google-[A-Za-z0-9]+$"
+    r"secret:frogbot/oauth/google-[A-Za-z0-9-]+$"
 )
-HEADER_PATTERN = re.compile(r"^(Authorization|X-[A-Za-z0-9-]{1,60})$")
+GITHUB_APP_SECRET_ARN_PATTERN = re.compile(
+    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
+    r"secret:frogbot/oauth/github-[A-Za-z0-9-]+$"
+)
 GMAIL_MCP_ENDPOINT = "https://gmailmcp.googleapis.com/mcp/v1"
-GITHUB_MCP_ENDPOINT = "https://api.githubcopilot.com/mcp/"
 GMAIL_MCP_TOOLS = {
     "create_draft",
     "list_drafts",
@@ -40,6 +52,31 @@ GMAIL_MCP_TOOLS = {
     "get_message",
     "search_threads",
     "list_labels",
+}
+GOOGLE_WORKSPACE_MCP_SERVERS = {
+    "https://drivemcp.googleapis.com/mcp/v1": {
+        "download_file_content",
+        "get_file_metadata",
+        "get_file_permissions",
+        "list_recent_files",
+        "read_file_content",
+        "search_files",
+    },
+    "https://docsmcp.googleapis.com/mcp/v1": {"read_doc"},
+    "https://calendarmcp.googleapis.com/mcp/v1": {
+        "get_event",
+        "list_calendars",
+        "list_events",
+        "search_events",
+        "suggest_time",
+    },
+}
+GOOGLE_WORKSPACE_SCOPES = {
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/documents.readonly",
+    "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+    "https://www.googleapis.com/auth/calendar.events.freebusy",
+    "https://www.googleapis.com/auth/calendar.events.readonly",
 }
 GOOGLE_OAUTH_ENDPOINT = "https://oauth2.googleapis.com/token"
 _secrets_manager = None
@@ -184,22 +221,78 @@ def validated_connection_binding(tool_id: str, runtime: dict) -> dict:
             "oauthClientSecretArn": client_secret_arn,
             "allowedTools": allowed_tools,
         }
-    header_name = runtime.get("headerName")
-    header_prefix = runtime.get("headerPrefix", "")
+    app_secret_arn = runtime.get("appSecretArn")
     if (
-        auth_type not in {"bearer", "api_key"}
+        auth_type != "github_app"
+        or endpoint.rstrip("/") != GITHUB_MCP_ENDPOINT.rstrip("/")
         or not isinstance(secret_arn, str)
         or not SECRET_ARN_PATTERN.fullmatch(secret_arn)
-        or not isinstance(header_name, str)
-        or not HEADER_PATTERN.fullmatch(header_name)
-        or header_prefix not in {"", "Bearer "}
+        or not isinstance(app_secret_arn, str)
+        or not GITHUB_APP_SECRET_ARN_PATTERN.fullmatch(app_secret_arn)
     ):
         raise ValueError(f"MCP connection authentication is invalid: {tool_id}")
     return {
         **binding,
         "secretArn": secret_arn,
-        "headerName": header_name,
-        "headerPrefix": header_prefix,
+        "appSecretArn": app_secret_arn,
+    }
+
+
+def validated_connection_bundle_binding(tool_id: str, runtime: dict) -> dict:
+    secret_arn = runtime.get("secretArn")
+    client_secret_arn = runtime.get("oauthClientSecretArn")
+    scopes = runtime.get("scopes")
+    servers = runtime.get("servers")
+    if (
+        runtime.get("authType") != "oauth"
+        or runtime.get("oauthProvider") != "google"
+        or not isinstance(secret_arn, str)
+        or not SECRET_ARN_PATTERN.fullmatch(secret_arn)
+        or not isinstance(client_secret_arn, str)
+        or not OAUTH_CLIENT_SECRET_ARN_PATTERN.fullmatch(client_secret_arn)
+        or not isinstance(scopes, list)
+        or set(scopes) != GOOGLE_WORKSPACE_SCOPES
+        or len(scopes) != len(set(scopes))
+        or not isinstance(servers, list)
+        or len(servers) != len(GOOGLE_WORKSPACE_MCP_SERVERS)
+    ):
+        raise ValueError(f"Google Workspace MCP connection is invalid: {tool_id}")
+
+    normalized_servers = []
+    seen = set()
+    for server in servers:
+        if not isinstance(server, dict):
+            raise TypeError(
+                f"Google Workspace MCP connection is invalid: {tool_id}"
+            )
+        endpoint = _validated_endpoint(server.get("endpoint"))
+        allowed_tools = server.get("allowedTools")
+        expected_tools = GOOGLE_WORKSPACE_MCP_SERVERS.get(endpoint)
+        if (
+            endpoint in seen
+            or expected_tools is None
+            or not isinstance(allowed_tools, list)
+            or set(allowed_tools) != expected_tools
+            or len(allowed_tools) != len(set(allowed_tools))
+        ):
+            raise ValueError(
+                f"Google Workspace MCP connection is invalid: {tool_id}"
+            )
+        seen.add(endpoint)
+        normalized_servers.append(
+            {"endpoint": endpoint, "allowedTools": allowed_tools}
+        )
+    if seen != set(GOOGLE_WORKSPACE_MCP_SERVERS):
+        raise ValueError(f"Google Workspace MCP connection is invalid: {tool_id}")
+    return {
+        "id": tool_id,
+        "kind": "mcp_bundle",
+        "authType": "oauth",
+        "oauthProvider": "google",
+        "secretArn": secret_arn,
+        "oauthClientSecretArn": client_secret_arn,
+        "scopes": scopes,
+        "servers": normalized_servers,
     }
 
 
@@ -219,12 +312,6 @@ def _secret_value(secret_arn: str) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError("MCP connection credential is unavailable")
     return value
-
-
-def connection_credential(binding: dict) -> str:
-    if binding.get("authType") not in {"bearer", "api_key"}:
-        raise ValueError("Connection does not use a reusable API credential")
-    return _secret_value(binding["secretArn"])
 
 
 def _json_secret(secret_arn: str) -> dict:
@@ -277,13 +364,54 @@ def _google_access_token(binding: dict) -> str:
     return access_token
 
 
+def github_installation_token(binding: dict) -> str:
+    if binding.get("authType") != "github_app":
+        raise ValueError("Connection does not use a GitHub App installation")
+    grant = validate_installation_grant(_json_secret(binding["secretArn"]))
+    config = github_app_config(_json_secret(binding["appSecretArn"]))
+    request = urllib.request.Request(
+        (f"{GITHUB_API_URL}/app/installations/{grant['installationId']}/access_tokens"),
+        data=json.dumps(
+            {
+                "repository_ids": grant["repositoryIds"],
+                "permissions": {
+                    name: value
+                    for name, value in grant["permissions"].items()
+                    if name in GITHUB_APP_PERMISSIONS
+                },
+            },
+            separators=(",", ":"),
+        ).encode("utf-8"),
+        headers={
+            "accept": "application/vnd.github+json",
+            "authorization": (
+                f"Bearer {github_app_jwt(config['appId'], config['privateKey'])}"
+            ),
+            "content-type": "application/json",
+            "user-agent": "FroggyBot/1.0",
+            "x-github-api-version": GITHUB_API_VERSION,
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(  # nosec B310 - fixed GitHub API endpoint.
+            request, timeout=10
+        ) as response:
+            value = json.loads(response.read(100_001).decode("utf-8"))
+    except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        raise ValueError("GitHub installation access is unavailable") from exc
+    token = value.get("token") if isinstance(value, dict) else None
+    if not isinstance(token, str) or not token:
+        raise ValueError("GitHub installation access is unavailable")
+    return token
+
+
 def connection_client(binding: dict) -> MCPClient:
     headers = None
     if binding["authType"] == "oauth":
         headers = {"Authorization": f"Bearer {_google_access_token(binding)}"}
-    elif binding["authType"] != "none":
-        credential = _secret_value(binding["secretArn"])
-        headers = {binding["headerName"]: f"{binding['headerPrefix']}{credential}"}
+    elif binding["authType"] == "github_app":
+        headers = {"Authorization": f"Bearer {github_installation_token(binding)}"}
     options = {
         "connection_id": binding["id"],
         "startup_timeout": 15,
@@ -296,3 +424,25 @@ def connection_client(binding: dict) -> MCPClient:
         partial(_secure_streamable_http, binding["endpoint"], headers),
         **options,
     )
+
+
+def connection_clients(binding: dict) -> list[MCPClient]:
+    if binding["kind"] == "mcp":
+        return [connection_client(binding)]
+    if binding["kind"] != "mcp_bundle" or binding["authType"] != "oauth":
+        raise ValueError("MCP connection bundle is invalid")
+    headers = {"Authorization": f"Bearer {_google_access_token(binding)}"}
+    clients = []
+    for server in binding["servers"]:
+        hostname = urllib.parse.urlsplit(server["endpoint"]).hostname or "mcp"
+        clients.append(
+            BoundedMCPClient(
+                partial(_secure_streamable_http, server["endpoint"], headers),
+                connection_id=f"{binding['id']}:{hostname}",
+                startup_timeout=15,
+                continue_on_error=False,
+                application_name="FroggyBot",
+                tool_filters={"allowed": server["allowedTools"]},
+            )
+        )
+    return clients

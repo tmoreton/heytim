@@ -5,23 +5,46 @@ struct BrowserHandoffView: View {
   @Bindable var model: AppModel
   let botId: String
   let groupId: String?
+  var showsDismissButton = true
   @State private var state: BrowserState?
   @State private var address = ""
   @State private var loading = false
+  @State private var refreshing = false
+  @State private var loadError: String?
 
   var body: some View {
     VStack(spacing: 0) {
-      HStack {
-        TextField("https://example.com", text: $address).textFieldStyle(.roundedBorder).onSubmit {
-          open()
+      VStack(alignment: .trailing, spacing: 10) {
+        HStack(spacing: 8) {
+          TextField("https://example.com", text: $address)
+            .textFieldStyle(.roundedBorder)
+            .accessibilityLabel("Website address")
+            .disabled(isBusy)
+            .onSubmit { open() }
+          Button("Open") { open() }
+            .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
+            .disabled(isBusy)
         }
-        Button("Open") { open() }
-          .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
-          .disabled(loading)
-        if state?.status == "human_control" { Button("Return control") { resume() } }
-      }.padding()
+        if state?.status == "human_control" {
+          Button("Return Control", systemImage: "arrow.uturn.backward") { resume() }
+            .froggyGlassButton(tint: FrogTheme.accent)
+            .disabled(isBusy)
+        }
+      }
+      .padding()
       Divider()
-      if let raw = state?.liveViewUrl, let url = URL(string: raw) {
+      if refreshing && state == nil {
+        ProgressView("Loading secure browser…")
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else if let loadError, state == nil {
+        ContentUnavailableView {
+          Label("Couldn’t Load Browser", systemImage: "wifi.exclamationmark")
+        } description: {
+          Text(loadError)
+        } actions: {
+          Button("Try Again") { Task { await refresh() } }
+        }
+      } else if let raw = state?.liveViewUrl, let url = URL(string: raw) {
         BrowserWebView(url: url)
       } else {
         ContentUnavailableView(
@@ -33,15 +56,23 @@ struct BrowserHandoffView: View {
         )
       }
     }
-    .navigationTitle("Secure browser handoff")
+    .froggyNavigationTitle("Secure Browser")
+    .toolbarTitleDisplayMode(.inline)
     .toolbar {
-      CloseButton()
+      if showsDismissButton {
+        CloseButton { model.sheet = nil }
+      }
       ToolbarItem(placement: .primaryAction) {
         Menu {
+          Button("Refresh", systemImage: "arrow.clockwise") {
+            Task { await refresh() }
+          }
+          .disabled(isBusy)
+          Divider()
           Button("Disconnect browser", role: .destructive) { close() }.disabled(
-            state?.status == "closed")
+            state?.status == "closed" || isBusy)
           Button("Forget saved login", role: .destructive) { forget() }.disabled(
-            state?.hasSavedLogin != true)
+            state?.hasSavedLogin != true || isBusy)
         } label: {
           Image(systemName: "ellipsis.circle")
         }
@@ -50,10 +81,24 @@ struct BrowserHandoffView: View {
     .task { await refresh() }
   }
 
+  private var isBusy: Bool { loading || refreshing }
+
   private func refresh() async {
-    guard let api = model.api else { return }
-    do { state = try await api.browserState(botId: botId, groupId: groupId) } catch {
-      model.present(error)
+    refreshing = true
+    defer { refreshing = false }
+    guard let api = model.api else {
+      loadError = nil
+      return
+    }
+    do {
+      state = try await api.browserState(botId: botId, groupId: groupId)
+      loadError = nil
+    } catch {
+      if state == nil {
+        loadError = error.localizedDescription
+      } else {
+        model.present(error)
+      }
     }
   }
   private func open() {

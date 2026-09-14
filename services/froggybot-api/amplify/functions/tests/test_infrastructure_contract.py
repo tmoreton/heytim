@@ -7,17 +7,35 @@ from pathlib import Path
 class InfrastructureContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.backend = (
-            Path(__file__).parents[2] / "backend.ts"
-        ).read_text(encoding="utf-8")
+        cls.backend = (Path(__file__).parents[2] / "backend.ts").read_text(
+            encoding="utf-8"
+        )
         cls.settings = (
             Path(__file__).parents[2] / "infrastructure" / "app-settings.ts"
         ).read_text(encoding="utf-8")
         cls.observability = (
             Path(__file__).parents[2] / "infrastructure" / "observability.ts"
         ).read_text(encoding="utf-8")
+        cls.native_push = (
+            Path(__file__).parents[2] / "infrastructure" / "native-push.ts"
+        ).read_text(encoding="utf-8")
+        cls.production_readiness = (
+            Path(__file__).parents[2] / "infrastructure" / "production-readiness.ts"
+        ).read_text(encoding="utf-8")
         cls.deployment_role = (
             Path(__file__).parents[2] / "infrastructure" / "deployment-role.ts"
+        ).read_text(encoding="utf-8")
+        cls.provider_connections = (
+            Path(__file__).parents[2] / "infrastructure" / "provider-connections.ts"
+        ).read_text(encoding="utf-8")
+        cls.autofix = (
+            Path(__file__).parents[2] / "infrastructure" / "autofix.ts"
+        ).read_text(encoding="utf-8")
+        cls.production_workflow = (
+            Path(__file__).parents[5] / ".github" / "workflows" / "aws-production.yml"
+        ).read_text(encoding="utf-8")
+        cls.autofix_workflow = (
+            Path(__file__).parents[5] / ".github" / "workflows" / "autofix.yml"
         ).read_text(encoding="utf-8")
 
     def test_worker_concurrency_protects_agentcore_and_is_observed(self) -> None:
@@ -26,18 +44,63 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("WorkerConcurrencyAlarm", self.observability)
 
     def test_signed_out_clients_get_no_aws_credentials(self) -> None:
-        self.assertIn("cfnIdentityPool.allowUnauthenticatedIdentities = false", self.backend)
+        self.assertIn(
+            "cfnIdentityPool.allowUnauthenticatedIdentities = false", self.backend
+        )
 
     def test_worker_polling_is_explicitly_allowed(self) -> None:
-        worker = self.backend.split("const workerFunction =", 1)[1].split("table.grantReadWriteData", 1)[0]
+        worker = self.backend.split("const workerFunction =", 1)[1].split(
+            "table.grantReadWriteData", 1
+        )[0]
         self.assertIn("recursiveLoop: RecursiveLoop.ALLOW", worker)
         self.assertNotIn("FROGBOT_ALLOW_RECURSIVE_POLLS", self.backend)
         self.assertEqual(worker.count("recursiveLoop:"), 1)
 
     def test_access_log_5xx_responses_raise_an_alarm(self) -> None:
         self.assertIn("ApiServerErrorMetric", self.observability)
-        self.assertIn("FilterPattern.stringValue('$.status', '=', '5*')", self.observability)
+        self.assertIn(
+            "FilterPattern.stringValue('$.status', '=', '5*')", self.observability
+        )
         self.assertIn("ApiServerErrorAlarm", self.observability)
+
+    def test_production_has_a_public_availability_probe(self) -> None:
+        self.assertIn("addPublicAvailabilityProbe", self.backend)
+        self.assertIn("PublicAvailabilityProbe", self.production_readiness)
+        self.assertIn("/public/catalog", self.production_readiness)
+        self.assertIn("PublicAvailabilityAlarm", self.observability)
+        self.assertIn("TreatMissingData.BREACHING", self.observability)
+
+    def test_production_errors_dispatch_through_a_bounded_github_app_path(self) -> None:
+        self.assertIn("addProductionAutofix", self.backend)
+        self.assertIn("enabled: deploymentEnvironment === 'production'", self.backend)
+        self.assertIn("AgentRuntimeAutofixSubscription", self.autofix)
+        self.assertIn("WorkerAutofixSubscription", self.autofix)
+        self.assertEqual(self.autofix.count("FROGBOT_TERMINAL_ERROR"), 2)
+        self.assertIn("AUTOFIX_COOLDOWN_HOURS: '6'", self.autofix)
+        self.assertIn("AUTOFIX_DAILY_LIMIT: '3'", self.autofix)
+        self.assertIn("actions: ['secretsmanager:GetSecretValue']", self.autofix)
+        self.assertNotIn("secretsmanager:*", self.autofix)
+        self.assertIn("autofixDispatcherArn", self.backend)
+
+    def test_autofix_separates_model_tests_and_repository_write_access(self) -> None:
+        generate = self.autofix_workflow.split("  generate:", 1)[1].split(
+            "  verify-server:", 1
+        )[0]
+        verification = self.autofix_workflow.split("  verify-server:", 1)[1].split(
+            "  publish:", 1
+        )[0]
+        publish = self.autofix_workflow.split("  publish:", 1)[1]
+        self.assertIn("OPENROUTER_API_KEY", generate)
+        self.assertIn("contents: read", generate)
+        self.assertNotIn("OPENROUTER_API_KEY", verification)
+        self.assertGreaterEqual(verification.count("persist-credentials: false"), 4)
+        self.assertIn("contents: write", publish)
+        self.assertNotIn("OPENROUTER_API_KEY", publish)
+        self.assertIn(
+            "needs: [generate, verify-server, verify-application, verify-apple, analyze]",
+            publish,
+        )
+        self.assertIn("autoMergeEligible", publish)
 
     def test_queue_age_alarm_ignores_healthy_inflight_work(self) -> None:
         self.assertIn("expression: 'IF(visible > 0, age, 0)'", self.observability)
@@ -54,7 +117,9 @@ class InfrastructureContractTests(unittest.TestCase):
             "    actions: ['cognito-idp:AdminDeleteUser'"
         )
         self.assertIn(permission, self.backend)
-        self.assertNotIn("for (const fn of [apiFunction, workerFunction])", self.backend)
+        self.assertNotIn(
+            "for (const fn of [apiFunction, workerFunction])", self.backend
+        )
 
     def test_function_assets_exclude_tests_and_local_caches(self) -> None:
         for pattern in (
@@ -65,6 +130,68 @@ class InfrastructureContractTests(unittest.TestCase):
             ".ruff_cache/**",
         ):
             self.assertIn(pattern, self.settings)
+
+    def test_production_cannot_deploy_without_native_push(self) -> None:
+        self.assertIn(
+            "deploymentEnvironment === 'production' && !apnsApplicationArn",
+            self.settings,
+        )
+        self.assertIn("FROGBOT_APNS_APPLICATION_ARN", self.production_workflow)
+        self.assertIn(
+            "NOTION_OAUTH_SECRET_ARN APNS_APPLICATION_ARN", self.production_workflow
+        )
+
+    def test_production_data_is_isolated_and_protected(self) -> None:
+        self.assertIn("frogbot-production-user-files", self.backend)
+        self.assertIn("alias/frogbot-production-user-files", self.backend)
+        self.assertGreaterEqual(self.backend.count("deletionProtection:"), 2)
+        self.assertIn("auditTrail.addS3EventSelector", self.backend)
+        self.assertIn("ReadWriteType.ALL", self.backend)
+        self.assertIn("nativePushFeedbackRoleArn", self.backend)
+
+    def test_production_settings_fail_closed(self) -> None:
+        self.assertIn(
+            "requiredInProduction && deploymentEnvironment === 'production'",
+            self.settings,
+        )
+        self.assertIn(
+            "'FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT', 100, 3, 1_000_000, true",
+            self.settings,
+        )
+        self.assertIn(
+            "FROGBOT_MONTHLY_BUDGET_USD must be set before deploying production",
+            self.settings,
+        )
+
+    def test_sandbox_uses_the_existing_named_native_push_applications(self) -> None:
+        self.assertIn("resolveNativePushApplicationArns", self.backend)
+        self.assertIn("resource: `app/${platform}`", self.native_push)
+        self.assertIn("resourceName: 'FroggyBot'", self.native_push)
+        self.assertIn("arnFormat: ArnFormat.SLASH_RESOURCE_NAME", self.native_push)
+        self.assertIn("applicationArn || namedApplicationArn('APNS')", self.native_push)
+        self.assertIn(
+            "sandboxApplicationArn || namedApplicationArn('APNS_SANDBOX')",
+            self.native_push,
+        )
+
+    def test_managed_connection_provider_secrets_are_scoped(self) -> None:
+        for name in (
+            "FROGBOT_GOOGLE_OAUTH_SECRET_ARN",
+            "FROGBOT_GITHUB_APP_SECRET_ARN",
+            "FROGBOT_X_OAUTH_SECRET_ARN",
+            "FROGBOT_SLACK_OAUTH_SECRET_ARN",
+            "FROGBOT_NOTION_OAUTH_SECRET_ARN",
+        ):
+            self.assertIn(name, self.settings)
+            self.assertIn(name, self.production_workflow)
+        self.assertIn("FROGBOT_MICROSOFT_OAUTH_SECRET_ARN", self.settings)
+        self.assertNotIn("FROGBOT_MICROSOFT_OAUTH_SECRET_ARN", self.production_workflow)
+        self.assertIn("addProviderConnectionAccess(apiFunction", self.backend)
+        self.assertIn("DISABLED_CONNECTION_PROVIDER_IDS", self.provider_connections)
+        self.assertIn(
+            "resources: configuredSecrets",
+            self.provider_connections,
+        )
 
     def test_worker_can_make_atomic_usage_admissions_for_runtime_users(self) -> None:
         self.assertIn("dynamodb:TransactWriteItems", self.backend)
@@ -93,15 +220,15 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertGreaterEqual(self.backend.count("dynamodb:TransactWriteItems"), 2)
 
     def test_cleanup_roles_can_read_only_scoped_connection_secrets(self) -> None:
-        connection_policies = self.backend.split(
-            "const connectionSecretsArn =", 1
-        )[1].split("jobs.grantSendMessages", 1)[0]
-        api_policy = connection_policies.split(
-            "apiFunction.addToRolePolicy(", 1
-        )[1].split("\n);", 1)[0]
-        worker_policy = connection_policies.split(
-            "workerFunction.addToRolePolicy(", 1
-        )[1].split("\n);", 1)[0]
+        connection_policies = self.backend.split("const connectionSecretsArn =", 1)[
+            1
+        ].split("jobs.grantSendMessages", 1)[0]
+        api_policy = connection_policies.split("apiFunction.addToRolePolicy(", 1)[
+            1
+        ].split("\n);", 1)[0]
+        worker_policy = connection_policies.split("workerFunction.addToRolePolicy(", 1)[
+            1
+        ].split("\n);", 1)[0]
 
         for policy in (api_policy, worker_policy):
             self.assertIn("'secretsmanager:GetSecretValue'", policy)
@@ -110,8 +237,12 @@ class InfrastructureContractTests(unittest.TestCase):
     def test_production_deploy_role_scopes_company_credentials(self) -> None:
         self.assertNotIn("bedrock-agentcore:*", self.deployment_role)
         self.assertIn("bedrock-agentcore:GetTokenVault", self.deployment_role)
-        self.assertIn("bedrock-agentcore:CreateApiKeyCredentialProvider", self.deployment_role)
-        self.assertIn("bedrock-agentcore:UpdateApiKeyCredentialProvider", self.deployment_role)
+        self.assertIn(
+            "bedrock-agentcore:CreateApiKeyCredentialProvider", self.deployment_role
+        )
+        self.assertIn(
+            "bedrock-agentcore:UpdateApiKeyCredentialProvider", self.deployment_role
+        )
         for provider in (
             "FrogBot_OpenRouter",
             "FrogBotXApi",
@@ -129,6 +260,11 @@ class InfrastructureContractTests(unittest.TestCase):
         )
         self.assertIn(
             "'iam:PassedToService': 'bedrock-agentcore.amazonaws.com'",
+            self.deployment_role,
+        )
+        self.assertIn("nativePushFeedbackRoleArn", self.deployment_role)
+        self.assertIn(
+            "'iam:PassedToService': 'sns.amazonaws.com'",
             self.deployment_role,
         )
 

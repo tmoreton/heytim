@@ -57,6 +57,7 @@ class GoogleOAuthTests(unittest.TestCase):
         query = result["authorizationUrl"].split("?", 1)[1]
         parameters = dict(self.google_oauth.urllib.parse.parse_qsl(query))
         self.assertEqual(parameters["access_type"], "offline")
+        self.assertEqual(parameters["include_granted_scopes"], "false")
         self.assertEqual(parameters["code_challenge_method"], "S256")
         item = self.data_table.items[
             (self.google_oauth._state_key(state)["pk"], "STATE")
@@ -64,11 +65,21 @@ class GoogleOAuthTests(unittest.TestCase):
         self.assertEqual(item["userId"], "user-1")
         self.assertEqual(item["expiresAt"], 1_600)
 
+    def test_native_return_url_accepts_the_apple_callback_shape(self) -> None:
+        self.assertEqual(
+            self.google_oauth._return_url("froggybot://app?connection=gmail"),
+            "froggybot://app?connection=gmail",
+        )
+        with self.assertRaises(self.google_oauth.ApiError) as rejected:
+            self.google_oauth._return_url("froggybot://other?connection=gmail")
+        self.assertEqual(rejected.exception.code, "invalid_return_url")
+
     def test_callback_consumes_state_and_creates_connection(self) -> None:
         state = "state-token-with-enough-entropy"
         state_item = {
             **self.google_oauth._state_key(state),
             "userId": "user-1",
+            "provider": "gmail",
             "verifier": "verifier",
             "returnUrl": "frogbot://app?oauth=gmail",
             "clientSecretArn": GOOGLE_ENV["GOOGLE_OAUTH_SECRET_ARN"],
@@ -127,6 +138,7 @@ class GoogleOAuthTests(unittest.TestCase):
             Item={
                 **self.google_oauth._state_key(state),
                 "userId": "user-1",
+                "provider": "gmail",
                 "verifier": "verifier",
                 "returnUrl": "frogbot://app?oauth=gmail",
                 "clientSecretArn": GOOGLE_ENV["GOOGLE_OAUTH_SECRET_ARN"],
@@ -152,7 +164,7 @@ class GoogleOAuthTests(unittest.TestCase):
                     400, "Google could not verify the Gmail account"
                 ),
             ),
-            patch.object(self.catalog, "revoke_unused_gmail_token") as revoke,
+            patch.object(self.catalog, "revoke_unused_google_token") as revoke,
             patch.object(self.catalog, "save_gmail_connection") as save,
         ):
             response = self.google_oauth._gmail_callback(
@@ -184,6 +196,7 @@ class GoogleOAuthTests(unittest.TestCase):
         state_item = {
             **self.google_oauth._state_key(state),
             "userId": "user-1",
+            "provider": "gmail",
             "verifier": "verifier",
             "returnUrl": "frogbot://app?oauth=gmail",
             "clientSecretArn": GOOGLE_ENV["GOOGLE_OAUTH_SECRET_ARN"],
@@ -222,6 +235,7 @@ class GoogleOAuthTests(unittest.TestCase):
             Item={
                 **self.google_oauth._state_key(state),
                 "userId": "user-1",
+                "provider": "gmail",
                 "verifier": "verifier",
                 "returnUrl": "frogbot://app?oauth=gmail",
                 "clientSecretArn": GOOGLE_ENV["GOOGLE_OAUTH_SECRET_ARN"],

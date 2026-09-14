@@ -112,10 +112,12 @@ def _bot_values(
         if "toolIds" in value:
             extra_tool_ids = catalog.validate_tools(user_id, value.get("toolIds"))
         elif isinstance(previous.get("extraToolIds"), list):
-            extra_tool_ids = catalog.validate_tools(user_id, previous["extraToolIds"])
+            extra_tool_ids = catalog.available_tool_ids(
+                user_id, previous["extraToolIds"]
+            )
         else:
             required_tool_set = set(required_tools)
-            extra_tool_ids = catalog.validate_tools(
+            extra_tool_ids = catalog.available_tool_ids(
                 user_id,
                 [
                     tool_id

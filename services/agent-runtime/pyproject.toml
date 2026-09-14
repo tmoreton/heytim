@@ -21,6 +21,9 @@ dependencies = [
     "greenlet == 3.2.5",
     # Direct dependency: hardened remote MCP transports use HTTPX directly.
     "httpx == 0.28.1",
+    # CodeZip resolves transitive packages afresh. Keep the compiled gRPC wheel
+    # identical to the version exercised by the locked runtime environment.
+    "grpcio == 1.83.1",
     # CodeZip resolves OpenAI transitives afresh; keep the packaged parser on
     # the exact version exercised by the locked runtime environment.
     "jiter == 0.16.0",
@@ -39,6 +42,9 @@ dependencies = [
     "strands-agents[openai] == 1.55.0",
     "strands-agents-tools[agent_core_browser,agent_core_code_interpreter] >= 0.2.0, < 1.0.0",
     "strands-agents-stan",
+    # AgentCore's package builder otherwise takes the newest Uvicorn release,
+    # which can drift from the dependency-complete archive verified in uv.lock.
+    "uvicorn == 0.52.4",
     # CodeZip resolves transitive instrumentation dependencies afresh. Keep its
     # ARM64 wheel identical to the version recorded in uv.lock.
     "wrapt == 2.4.0",
