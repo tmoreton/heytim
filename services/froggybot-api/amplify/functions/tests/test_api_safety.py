@@ -477,6 +477,45 @@ class ApiSafetyTests(ApiTestCase):
 
         self.assertEqual(saved["name"], "Browser check")
 
+    def test_existing_schedule_does_not_block_enabling_interactive_tool(self) -> None:
+        previous = {
+            "id": "bot-1",
+            "systemRole": None,
+            "createdAt": "2026-09-14T12:00:00Z",
+        }
+        values = {
+            "name": "Mail helper",
+            "tagline": "Prepares drafts.",
+            "prompt": "Help with Gmail.",
+            "color": "#58BEAA",
+            "toolIds": ["connection_gmail"],
+            "extraToolIds": ["connection_gmail"],
+            "alwaysAllowedToolIds": [],
+            "skillIds": [],
+            "skillVersions": {},
+        }
+        with (
+            patch.object(self.bots, "_get_bot", return_value=previous),
+            patch.object(self.bots, "_bot_values", return_value=values),
+            patch.object(
+                self.bots,
+                "_schedule_items",
+                return_value=[{"id": "schedule-1"}],
+            ) as schedules,
+            patch.object(
+                self.bots,
+                "_put_bot",
+                return_value={"id": "bot-1"},
+            ) as put_bot,
+        ):
+            saved = self.bots._update_bot(
+                "user-1", "bot-1", {"toolIds": ["connection_gmail"]}
+            )
+
+        self.assertEqual(saved, {"id": "bot-1"})
+        schedules.assert_not_called()
+        put_bot.assert_called_once_with("user-1", values, "bot-1", None)
+
     def test_schedule_run_inbox_includes_output_and_pending_approval(self) -> None:
         turns = [
             {
