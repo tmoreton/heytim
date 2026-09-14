@@ -3,6 +3,29 @@
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-09-13 — production account bootstrap (Lambda quota pending)
+
+- Created the dedicated AWS Organizations member account `820323452649` (`FroggyBot Production`) and bootstrapped
+  CDK in `us-east-1` with termination protection. Production deployments use the member account's
+  `FroggyBotOrganizationAccessRole`; account-root credentials are not used for application resources.
+- Created a rotating customer-managed AgentCore memory key, isolated copies of the configured provider secrets, the
+  production Amplify app `d17sj7dvhx07c`, and production/sandbox SNS APNs platform applications for
+  `com.frogbot.app`.
+- Deployed `AgentCore-FrogBot-production`. Runtime `FrogBot_FrogBot-3pPvmu2ODl` and gateway
+  `frogbot-frogbottools-muu7bqevxo` reported `READY`; encrypted memory
+  `FrogBot_FrogBotMemory-T17d4eBnCx` reported `ACTIVE`; the evaluator and five-percent online evaluation reported
+  `ACTIVE`. The corrected regression dataset source published five examples to the managed draft.
+- The first Amplify backend create reached the worker Lambda and then rolled back because AWS assigned the new member
+  account only 10 regional concurrent executions. The production worker reserves 10 and Lambda requires additional
+  unreserved capacity. Quota request `6c0b66ca52be4a4cbb809df314bb0ecbFAR2XZbA` opened support case
+  `178934881900679` for 1,100 concurrent executions; its status remained `CASE_OPENED` at the end of this run.
+- Verified the failed create contained no users or table records, removed its failed CloudFormation stack and empty
+  retained data artifacts, and scheduled only its three orphaned KMS keys for deletion on 2026-09-20. The production
+  AgentCore stack, Amplify app, provider secrets, APNs applications, and APNs delivery logs were preserved.
+- Xcode 26.6 recognized Apple team `GVXC5FQ2RP`, bundle `com.frogbot.app`, release version `6.0.0`, and both native
+  archive plans. Actual iOS/macOS archives remain gated on a successful production backend so no TestFlight build can
+  accidentally embed development client configuration.
+
 ## 2026-09-13 — production release-readiness audit (not deployed)
 
 - Made the shared SwiftUI target the production release surface: the controlled workflow no longer requires Expo or
