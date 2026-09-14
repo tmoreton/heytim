@@ -41,6 +41,7 @@
     "logsKeyArn": "arn:aws:kms:us-east-1:188757775631:key/da1bedac-62cd-4214-8bf3-b08eb55bc5a3",
     "nativePushFeedbackRoleArn": "arn:aws:iam::188757775631:role/amplify-d1tu46ki1836w1-ma-NativePushFeedbackRole267-Kk6L37S1jkkd",
     "githubDeployRoleArn": "arn:aws:iam::188757775631:role/amplify-d1tu46ki1836w1-ma-GitHubProductionDeployRol-4yCU2lqEKbXU",
+    "autofixDispatcherArn": "arn:aws:lambda:us-east-1:188757775631:function:amplify-d1tu46ki1836w1-ma-AutofixDispatcher62964F5-jeQUz1MDgTl6",
     "monthlyBudgetName": "amplify-d1tu46ki1836w1-main-branch-6ca713cbb2-FrogBotAppE7B48881-JFCXVU7AR8CZ-monthly-cost"
   }
 }
