@@ -211,8 +211,12 @@ import XCTest
       XCTAssertTrue(app.buttons["Close"].exists)
       XCTAssertFalse(app.buttons["Done"].exists)
     #else
-      XCTAssertTrue(app.toolbars.staticTexts["Details"].waitForExistence(timeout: 5))
-      XCTAssertFalse(app.toolbars.staticTexts["Chief"].exists)
+      XCTAssertTrue(app.staticTexts["Details"].waitForExistence(timeout: 5))
+      XCTAssertFalse(app.toolbars.staticTexts["Details"].exists)
+      XCTAssertTrue(app.toolbars.staticTexts["Chief"].exists)
+      XCTAssertFalse(app.buttons["chat.details"].exists)
+      let inspectorClose = app.buttons["inspector.close"]
+      XCTAssertTrue(inspectorClose.exists)
       XCTAssertFalse(app.buttons["Done"].exists)
       let window = app.windows.firstMatch
       let settings = app.buttons["sidebar.settings"]
@@ -222,6 +226,7 @@ import XCTest
       XCTAssertGreaterThanOrEqual(settings.frame.minX, window.frame.minX)
       XCTAssertLessThanOrEqual(create.frame.maxX, window.frame.maxX)
       XCTAssertLessThan(settings.frame.maxX, create.frame.minX)
+      XCTAssertGreaterThan(inspectorClose.frame.midX, window.frame.midX)
     #endif
     XCTAssertTrue(app.textFields["Name"].exists)
     XCTAssertTrue(app.buttons["bot.prompt.editor"].exists)
@@ -283,9 +288,11 @@ import XCTest
       let sheet = app.sheets.firstMatch
       XCTAssertTrue(sheet.waitForExistence(timeout: 5))
       let close = app.buttons["sheet.close"]
+      let title = app.staticTexts["Settings"]
       XCTAssertTrue(close.exists)
       XCTAssertLessThan(close.frame.midY, sheet.frame.midY)
-      XCTAssertGreaterThan(close.frame.midX, app.staticTexts["Settings"].frame.midX)
+      XCTAssertGreaterThan(close.frame.midX, title.frame.midX)
+      XCTAssertLessThan(title.frame.minY - sheet.frame.minY, 50)
       XCTAssertFalse(app.buttons["Done"].exists)
       XCTAssertEqual(app.windows.count, 1)
     #endif
@@ -604,6 +611,21 @@ import XCTest
       XCTAssertTrue(app.textViews["Bot prompt"].exists)
       app.buttons["Done"].click()
       XCTAssertTrue(app.descendants(matching: .any)["bot.tools-and-skills"].firstMatch.exists)
+
+      app.descendants(matching: .any)["bot.tools-and-skills"].firstMatch.click()
+      let providerConnections = ["gmail", "youtube", "google_workspace", "x"].map {
+        app.descendants(matching: .any)["bot.connection.\($0)"].firstMatch
+      }
+      for _ in 0..<4 where providerConnections.contains(where: { !$0.exists }) {
+        app.swipeUp()
+      }
+      for connection in providerConnections {
+        XCTAssertTrue(connection.exists)
+      }
+      XCTAssertTrue(app.staticTexts["Google Workspace"].exists)
+      let back = app.buttons["chevron.backward"]
+      XCTAssertTrue(back.waitForExistence(timeout: 5))
+      back.click()
 
       let close = app.buttons["Close"]
       XCTAssertTrue(close.isHittable)

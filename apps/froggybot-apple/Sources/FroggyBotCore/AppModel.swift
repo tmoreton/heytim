@@ -792,6 +792,16 @@ public enum DemoData {
   )
   public static let tools = [
     Capability(
+      id: "youtube_search", name: "YouTube",
+      description: "Find public videos and inspect their metadata and comments.",
+      provider: "agentcore-gateway", risk: "read", category: "Research",
+      actions: ["Search public videos", "Read public metadata"], source: "official"),
+    Capability(
+      id: "x_search", name: "X / Twitter Search",
+      description: "Search recent public posts on X.",
+      provider: "agentcore-gateway", risk: "read", category: "Research",
+      actions: ["Search public posts"], source: "official"),
+    Capability(
       id: "web_search", name: "Web Search",
       description: "Find current information from public web sources.", risk: "read",
       category: "Research", actions: ["Search the web", "Open public pages"],
@@ -801,6 +811,56 @@ public enum DemoData {
       description: "Analyze data and create useful documents.", risk: "interactive",
       category: "Files", actions: ["Analyze files", "Create documents"],
       source: "official"),
+  ]
+  public static let connectionProviders = [
+    ConnectionProvider(
+      id: "gmail", name: "Gmail",
+      description: "Search and summarize email, then create drafts for review.",
+      category: "Email", iconText: "G",
+      permissionsSummary: "No sending, deleting, relabeling, or archiving",
+      privacyTitle: "Your Gmail account stays private",
+      privacyDescription: "Used only when a bot needs the account.",
+      familyId: "google", familyName: "Google",
+      familyDescription: "Connect only the Google services each bot needs.",
+      familyIconText: "G", familyLogoProviderId: "google_workspace",
+      familyIncludedSummary: "Public YouTube research included",
+      familyIncludedToolIds: ["youtube_search"], serviceName: "Gmail"),
+    ConnectionProvider(
+      id: "youtube", name: "YouTube Studio",
+      description: "Read your own channel, uploads, and private channel data.",
+      category: "Video", iconText: "YT",
+      permissionsSummary: "Read-only channel access",
+      privacyTitle: "Your channel connection is optional",
+      privacyDescription: "Public YouTube research remains included without sign-in.",
+      familyId: "google", familyName: "Google",
+      familyDescription: "Connect only the Google services each bot needs.",
+      familyIconText: "G", familyLogoProviderId: "google_workspace",
+      familyIncludedSummary: "Public YouTube research included",
+      familyIncludedToolIds: ["youtube_search"], serviceName: "YouTube Studio"),
+    ConnectionProvider(
+      id: "google_workspace", name: "Google Workspace",
+      description: "Search and read Drive files, Docs, and Calendar events.",
+      category: "Productivity", iconText: "GW",
+      permissionsSummary: "Read-only Drive, Docs, and Calendar access",
+      privacyTitle: "Workspace content stays user-scoped",
+      privacyDescription: "It cannot change files or calendar events.",
+      familyId: "google", familyName: "Google",
+      familyDescription: "Connect only the Google services each bot needs.",
+      familyIconText: "G", familyLogoProviderId: "google_workspace",
+      familyIncludedSummary: "Public YouTube research included",
+      familyIncludedToolIds: ["youtube_search"], serviceName: "Workspace"),
+    ConnectionProvider(
+      id: "x", name: "X",
+      description: "Access your profile, posts, and mentions when a bot needs them.",
+      category: "Social", iconText: "X",
+      permissionsSummary: "Read-only account access",
+      privacyTitle: "Your X account stays private",
+      privacyDescription: "Public post search remains included without sign-in.",
+      familyId: "x", familyName: "X",
+      familyDescription: "Connect only when a bot needs your private account data.",
+      familyIconText: "X", familyLogoProviderId: "x",
+      familyIncludedSummary: "Public post search included",
+      familyIncludedToolIds: ["x_search"], serviceName: "Account access"),
   ]
   public static let skills = [
     Skill(
@@ -829,7 +889,7 @@ public enum DemoData {
         lastMessage: "Your project brief is ready.", lastMessageAt: "2026-09-12T12:01:00.000Z",
         allowedActions: ["schedule", "share", "documents", "browser", "edit", "clear", "delete"])
     ],
-    botTemplates: botTemplates, connectionProviders: [],
+    botTemplates: botTemplates, connectionProviders: connectionProviders,
     needsBotOnboarding: false, groups: [], tools: tools,
     retiredToolIds: [], skills: skills, constraints: constraints
   )

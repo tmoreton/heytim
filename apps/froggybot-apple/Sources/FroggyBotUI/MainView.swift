@@ -496,8 +496,7 @@ private struct ConversationView: View {
       }
     }
     .id(transcriptIdentity)
-    .froggyNavigationTitle(
-      model.title, isPresented: !showInspector, horizontalPadding: 8)
+    .froggyNavigationTitle(model.title, horizontalPadding: 8)
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       #if os(iOS)
@@ -505,31 +504,20 @@ private struct ConversationView: View {
           conversationIdentity
         }
       #endif
-      ToolbarItem(placement: .primaryAction) {
-        Button {
-          showInspector.toggle()
-        } label: {
-          Label(
-            showInspector ? "Close Details" : "Details",
-            systemImage: showInspector ? "xmark" : "info.circle")
+      #if os(macOS)
+        if !showInspector {
+          ToolbarItem(placement: .primaryAction) { detailsButton }
         }
-        #if os(iOS)
-          .labelStyle(.iconOnly)
-        #endif
-        .accessibilityLabel(showInspector ? "Close Details" : "Conversation Details")
-        .accessibilityHint(
-          showInspector
-            ? "Hides conversation details"
-            : "Shows tasks, history, sharing, memory, and editing options")
-        .accessibilityIdentifier("chat.details")
-        .help("Details, tasks, history, sharing, memory, and editing")
-      }
+      #else
+        ToolbarItem(placement: .primaryAction) { detailsButton }
+      #endif
     }
     .background(FrogTheme.appBackground)
     .froggyInspector(isPresented: $showInspector, onDismiss: finishInspectorAction) {
       ConversationInspector(
         model: model,
         isPresented: showInspector,
+        close: { showInspector = false },
         clear: {
           confirmClearFromInspector()
         },
@@ -613,6 +601,26 @@ private struct ConversationView: View {
     }
   }
 
+  private var detailsButton: some View {
+    Button {
+      showInspector.toggle()
+    } label: {
+      Label(
+        showInspector ? "Close Details" : "Details",
+        systemImage: showInspector ? "xmark" : "info.circle")
+    }
+    #if os(iOS)
+      .labelStyle(.iconOnly)
+    #endif
+    .accessibilityLabel(showInspector ? "Close Details" : "Conversation Details")
+    .accessibilityHint(
+      showInspector
+        ? "Hides conversation details"
+        : "Shows tasks, history, sharing, memory, and editing options")
+    .accessibilityIdentifier("chat.details")
+    .help("Details, tasks, history, sharing, memory, and editing")
+  }
+
   private func confirmClearFromInspector() {
     #if os(iOS)
       pendingInspectorAction = .clear
@@ -686,9 +694,9 @@ private struct ConversationView: View {
 }
 
 private struct ConversationInspector: View {
-  @Environment(\.dismiss) private var dismiss
   @Bindable var model: AppModel
   let isPresented: Bool
+  let close: () -> Void
   let clear: () -> Void
   let delete: () -> Void
   @State private var botDraft = BotDraft()
@@ -751,27 +759,62 @@ private struct ConversationInspector: View {
         }
       }
       .formStyle(.grouped)
-      .froggyNavigationTitle("Details", isPresented: isPresented)
-      .toolbarTitleDisplayMode(.inline)
-      .toolbar {
-        #if os(iOS)
+      #if os(macOS)
+        .safeAreaInset(edge: .top, spacing: 0) {
+          inspectorHeader
+        }
+      #else
+        .froggyNavigationTitle("Details", isPresented: isPresented)
+        .toolbarTitleDisplayMode(.inline)
+        .toolbar {
           ToolbarItem(placement: .cancellationAction) {
-            Button("Close", systemImage: "xmark") { dismiss() }
+            Button("Close", systemImage: "xmark", action: close)
               .labelStyle(.iconOnly)
           }
-        #endif
-        if isPresented, let bot = editingBot, actions.contains("edit") {
-          ToolbarItem(placement: .confirmationAction) {
-            Button("Save") { save(bot) }
-              .disabled(!canSaveBot)
-              .accessibilityIdentifier("inspector.save")
+          if isPresented, let bot = editingBot, actions.contains("edit") {
+            ToolbarItem(placement: .confirmationAction) {
+              Button("Save") { save(bot) }
+                .disabled(!canSaveBot)
+                .accessibilityIdentifier("inspector.save")
+            }
           }
         }
-      }
+      #endif
       .onAppear { loadBotDraftIfNeeded() }
       .onChange(of: model.selectedBot?.id) { _, _ in loadBotDraftIfNeeded(force: true) }
     }
   }
+
+  #if os(macOS)
+    private var inspectorHeader: some View {
+      HStack(spacing: 10) {
+        Text("Details")
+          .froggyFont(.headline, weight: .semibold)
+          .accessibilityAddTraits(.isHeader)
+        Spacer(minLength: 8)
+        if isPresented, let bot = editingBot, actions.contains("edit") {
+          Button("Save") { save(bot) }
+            .froggyGlassButton(tint: FrogTheme.accent)
+            .disabled(!canSaveBot)
+            .accessibilityIdentifier("inspector.save")
+        }
+        Button("Close Details", systemImage: "xmark", action: close)
+          .labelStyle(.iconOnly)
+          .buttonStyle(.plain)
+          .foregroundStyle(FrogTheme.accent)
+          .frame(width: 36, height: 36)
+          .background(FrogTheme.accent.opacity(0.10), in: Circle())
+          .contentShape(Circle())
+          .accessibilityIdentifier("inspector.close")
+          .help("Close Details")
+      }
+      .padding(.leading, 14)
+      .padding(.trailing, 10)
+      .padding(.vertical, 6)
+      .background(FrogTheme.appBackground)
+      .overlay(alignment: .bottom) { Divider() }
+    }
+  #endif
 
   @ViewBuilder private var botEditorSections: some View {
     Section {
@@ -883,7 +926,7 @@ private struct ConversationInspector: View {
       if actions.contains("edit") {
         NavigationLink {
           BotToolsAndSkillsEditor(
-            draft: $botDraft,
+            model: model, draft: $botDraft,
             skills: model.bootstrap?.skills ?? [],
             tools: model.bootstrap?.tools ?? [],
             providers: model.bootstrap?.connectionProviders ?? [])
