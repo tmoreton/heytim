@@ -496,7 +496,7 @@ private struct ConversationView: View {
       }
     }
     .id(transcriptIdentity)
-    .froggyNavigationTitle(model.title)
+    .froggyNavigationTitle(model.title, isPresented: !showInspector)
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       #if os(iOS)
@@ -745,7 +745,7 @@ private struct ConversationInspector: View {
         }
       }
       .formStyle(.grouped)
-      .froggyNavigationTitle("Details")
+      .froggyNavigationTitle("Details", isPresented: isPresented)
       .toolbarTitleDisplayMode(.inline)
       .toolbar {
         #if os(iOS)

@@ -390,14 +390,16 @@ extension View {
         size: size, weight: weight, design: design, relativeTo: style))
   }
 
-  @ViewBuilder func froggyNavigationTitle(_ title: String) -> some View {
+  @ViewBuilder func froggyNavigationTitle(_ title: String, isPresented: Bool = true) -> some View {
     #if os(macOS)
       navigationTitle("")
         .toolbar {
-          ToolbarItem(placement: .navigation) {
-            Text(title)
-              .froggyFont(.title3, weight: .semibold)
-              .accessibilityAddTraits(.isHeader)
+          if isPresented {
+            ToolbarItem(placement: .navigation) {
+              Text(title)
+                .froggyFont(.title3, weight: .semibold)
+                .accessibilityAddTraits(.isHeader)
+            }
           }
         }
     #else

@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 _AWS_CONFIG = Config(
+    region_name=os.environ.get("AWS_REGION", "us-east-1"),
     connect_timeout=5,
     read_timeout=10,
     retries={"total_max_attempts": 3, "mode": "adaptive"},

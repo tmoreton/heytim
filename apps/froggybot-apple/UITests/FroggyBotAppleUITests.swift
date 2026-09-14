@@ -201,6 +201,9 @@ import XCTest
     let details = app.buttons["chat.details"]
     XCTAssertTrue(details.waitForExistence(timeout: 10))
     XCTAssertFalse(app.buttons["inspector.save"].exists)
+    #if os(macOS)
+      XCTAssertFalse(app.toolbars.staticTexts["Details"].exists)
+    #endif
     details.tap()
 
     #if os(iOS)
@@ -208,7 +211,8 @@ import XCTest
       XCTAssertTrue(app.buttons["Close"].exists)
       XCTAssertFalse(app.buttons["Done"].exists)
     #else
-      XCTAssertTrue(app.staticTexts["Details"].waitForExistence(timeout: 5))
+      XCTAssertTrue(app.toolbars.staticTexts["Details"].waitForExistence(timeout: 5))
+      XCTAssertFalse(app.toolbars.staticTexts["Chief"].exists)
       XCTAssertFalse(app.buttons["Done"].exists)
       let window = app.windows.firstMatch
       let settings = app.buttons["sidebar.settings"]
