@@ -496,7 +496,8 @@ private struct ConversationView: View {
       }
     }
     .id(transcriptIdentity)
-    .froggyNavigationTitle(model.title, isPresented: !showInspector)
+    .froggyNavigationTitle(
+      model.title, isPresented: !showInspector, horizontalPadding: 8)
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       #if os(iOS)
@@ -508,13 +509,18 @@ private struct ConversationView: View {
         Button {
           showInspector.toggle()
         } label: {
-          Label("Details", systemImage: "info.circle")
+          Label(
+            showInspector ? "Close Details" : "Details",
+            systemImage: showInspector ? "xmark" : "info.circle")
         }
         #if os(iOS)
           .labelStyle(.iconOnly)
         #endif
-        .accessibilityLabel("Conversation Details")
-        .accessibilityHint("Shows tasks, history, sharing, memory, and editing options")
+        .accessibilityLabel(showInspector ? "Close Details" : "Conversation Details")
+        .accessibilityHint(
+          showInspector
+            ? "Hides conversation details"
+            : "Shows tasks, history, sharing, memory, and editing options")
         .accessibilityIdentifier("chat.details")
         .help("Details, tasks, history, sharing, memory, and editing")
       }

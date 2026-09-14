@@ -167,6 +167,7 @@ private struct FroggyNavigationTitleModifier: ViewModifier {
   @Environment(\.froggyUsesSheetNavigation) private var usesSheetNavigation
   let title: String
   let isPresented: Bool
+  let horizontalPadding: CGFloat
 
   @ViewBuilder func body(content: Content) -> some View {
     #if os(macOS)
@@ -180,6 +181,9 @@ private struct FroggyNavigationTitleModifier: ViewModifier {
                 ToolbarItem(placement: .navigation) {
                   Text(title)
                     .froggyFont(.title3, weight: .semibold)
+                    .padding(.horizontal, horizontalPadding)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(title)
                     .accessibilityAddTraits(.isHeader)
                 }
               }
@@ -195,6 +199,9 @@ private struct FroggyNavigationTitleModifier: ViewModifier {
               ToolbarItem(placement: .navigation) {
                 Text(title)
                   .froggyFont(.title3, weight: .semibold)
+                  .padding(.horizontal, horizontalPadding)
+                  .accessibilityElement(children: .ignore)
+                  .accessibilityLabel(title)
                   .accessibilityAddTraits(.isHeader)
               }
             }
@@ -444,8 +451,12 @@ extension View {
         size: size, weight: weight, design: design, relativeTo: style))
   }
 
-  func froggyNavigationTitle(_ title: String, isPresented: Bool = true) -> some View {
-    modifier(FroggyNavigationTitleModifier(title: title, isPresented: isPresented))
+  func froggyNavigationTitle(
+    _ title: String, isPresented: Bool = true, horizontalPadding: CGFloat = 0
+  ) -> some View {
+    modifier(
+      FroggyNavigationTitleModifier(
+        title: title, isPresented: isPresented, horizontalPadding: horizontalPadding))
   }
 
   func froggySheetNavigation() -> some View {
