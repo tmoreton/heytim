@@ -1,8 +1,8 @@
 # FroggyBot operations
 
 This runbook defines service objectives and response steps for the current serverless architecture. Declarative
-`development` and `production` AgentCore targets exist, but production intentionally points at an invalid account
-placeholder until a dedicated account is provisioned. Treat these objectives as production launch gates until the
+`development` and `production` AgentCore targets exist, and production uses the dedicated organization member account
+`820323452649`. Treat these objectives as production launch gates until the
 production deployment, authenticated end-to-end checks, alert subscription, and recovery drill are complete.
 Review them after 30 days of representative
 traffic and tighten them from observed percentiles rather than relaxing them to hide incidents.

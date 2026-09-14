@@ -11,9 +11,8 @@ AWS until a later reviewed deployment updates both infrastructure and state.
 
 ## Environment posture
 
-Development is deployed and the stable production target is declared with an intentionally invalid account
-placeholder. Production must be provisioned in a separate AWS account before the release gate will pass. Their
-`PUBLIC` runtime network mode is
+Development is deployed, and the stable production target uses the dedicated organization member account
+`820323452649`. Their `PUBLIC` runtime network mode is
 intentional because the runtime needs outbound access to OpenRouter and reviewed remote MCP endpoints.
 Moving production into a VPC requires a reviewed NAT egress path and service endpoints; do not switch the
 network mode without that path or rename either existing target.
@@ -38,10 +37,9 @@ To rotate a provider key, replace that GitHub environment secret and rerun **Dep
 release**. The AgentCore CLI updates the existing credential provider by name, so never rename a
 provider to perform a rotation. The workflow never writes or prints the secret values.
 
-AgentCore credential providers are scoped to an account and Region rather than to a target stack. Production
-therefore must use a separate AWS account before assigning independent values to the same stable provider names.
-`scripts/check-production-config.mjs` and the release workflow reject the placeholder account and development
-account reuse.
+AgentCore credential providers are scoped to an account and Region rather than to a target stack. Production uses a
+separate AWS account so the same stable provider names have independent values. `scripts/check-production-config.mjs`
+and the release workflow reject placeholder and development-account reuse.
 
 The recurring GitHub deployment role can read the existing default token vault and create or rotate only
 these three named providers. It deliberately cannot create the vault encryption key or call

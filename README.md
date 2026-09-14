@@ -127,9 +127,8 @@ agentcore status --target production --type memory --json
 ```
 
 Development and production use separate target stacks and separate AWS accounts; never rename either target
-because that changes resource identity. The checked-in production account is an intentional
-`000000000000` placeholder and the release workflow refuses it. Replace it with the provisioned production
-account before release. Confirm that both the runtime and
+because that changes resource identity. Production uses the dedicated organization member account
+`820323452649`. Confirm that both the runtime and
 memory are ready, then copy the deployed runtime ARN from the status output. Model selection is defined only in
 `agentcore/agentcore.json`: OpenRouter uses DeepSeek V4.1 Flash with GLM 5.3 as a bounded pre-response fallback, while
 the separately selected image tool uses GPT Image 2.5 Sunburst through OpenRouter. Finished thumbnails send the full

@@ -7,8 +7,8 @@ they are present.
 
 ## One-time production bootstrap
 
-1. Provision a dedicated AWS account in `us-east-1`. Replace the `000000000000` account placeholder in
-   `agentcore/aws-targets.json`; do not reuse the development account and do not rename either target.
+1. Use the dedicated production AWS account `820323452649` in `us-east-1`; do not reuse the development account and
+   do not rename either target.
 2. Bootstrap CDK and the AgentCore token vault with a reviewed IAM Identity Center or administrator role. Create a
    rotating customer-managed KMS key for AgentCore memory and retain its ARN.
 3. Perform the first AgentCore and Amplify bootstrap with that reviewed principal. The Amplify stack creates the

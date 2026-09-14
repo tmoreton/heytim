@@ -21,8 +21,9 @@ the current checkout or environment still has the same status.
 - The GitHub production environment was restricted to `main`, repository vulnerability alerts were enabled, and CI
   dependency installation/uv/CodeQL artifact handling were repaired. Environment reviewers remain unavailable on the
   current private-repository plan.
-- Production now fails closed until a dedicated account replaces the placeholder, monitored alarms and APNs feedback
-  are verified, provider/compliance/device attestations are complete, and the production workflow passes end to end.
+- A dedicated production member account (`820323452649`) was created after the audit. Production still fails closed
+  until monitored alarms and APNs feedback are verified, provider/compliance/device attestations are complete, and
+  the production workflow passes end to end.
 
 ## 2026-09-05 — us-east-1
 

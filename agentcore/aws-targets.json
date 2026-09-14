@@ -7,8 +7,8 @@
   },
   {
     "name": "production",
-    "description": "Stable FroggyBot production stack; replace the account placeholder during production bootstrap",
-    "account": "000000000000",
+    "description": "Stable FrogBot production stack in the dedicated organization member account",
+    "account": "820323452649",
     "region": "us-east-1"
   }
 ]
