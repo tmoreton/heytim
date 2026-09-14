@@ -150,5 +150,12 @@ unit_scheme.save_as(project_path, 'FroggyBotAppleUnit', true)
 # app + unit + UI suite used by CI and release verification.
 ui_scheme = Xcodeproj::XCScheme.new
 ui_scheme.configure_with_targets(app, ui_tests, launch_target: true)
+# Xcode 26 can fail before launching UI tests when this focused scheme forces
+# LLDB (DebuggerVersionStore reports that no debugger version is available).
+# UI tests do not require an attached debugger in verification or release jobs,
+# so use Xcode's standard non-debug launcher for this test-only scheme.
+ui_scheme.test_action.xml_element.attributes['selectedDebuggerIdentifier'] = ''
+ui_scheme.test_action.xml_element.attributes['selectedLauncherIdentifier'] =
+  'Xcode.IDEFoundation.Launcher.PosixSpawn'
 ui_scheme.save_as(project_path, 'FroggyBotAppleUI', true)
 puts project_path

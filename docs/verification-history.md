@@ -29,10 +29,15 @@ the current checkout or environment still has the same status.
   `https://twrxzanvwg.execute-api.us-east-1.amazonaws.com/public/oauth/google/callback`. Google and the other provider
   consoles still require their production callback/distribution approvals before public release.
 - AgentCore validation, generated CDK tests, 216 runtime tests, and 373 backend tests passed before deployment. The
-  TestFlight gate passed the transcription package and macOS application suites, but Xcode 26.6 could not launch the
-  unchanged iOS UI suite on either iOS 18.5 or 26.2 because its host LLDB registry repeatedly returned
-  `DebuggerVersionStore.StoreError` / `no debugger version`. No iPhone or Mac archive was uploaded after that gate
-  failure.
+  TestFlight gate passed the transcription package and macOS application suites. Xcode 26.6's headless runner still
+  could not launch the iOS UI suite because its host LLDB registry repeatedly returned
+  `DebuggerVersionStore.StoreError` / `no debugger version`, even with the focused UI-test scheme using the non-debug
+  launcher. The same scheme completed all 16 iOS UI tests in Xcode on iOS 26.2 with zero failures; the shared scheme
+  and its project generator now preserve that non-debug launcher configuration.
+- Created production-configured iPhone and Mac archives for version `6.0.0`, build `202609140210`, bundle
+  `com.frogbot.app`, and team `GVXC5FQ2RP`. Both archives compiled and signed successfully with the available Apple
+  Development identity. The iPhone TestFlight export then failed before transmission because Xcode could not use its
+  stale signed-in account credentials (`missing Xcode-Token`); the Mac upload was not attempted after that failure.
 
 ## 2026-09-13 — production account bootstrap (Lambda quota pending)
 
