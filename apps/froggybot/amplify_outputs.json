@@ -1,9 +1,9 @@
 {
   "auth": {
-    "user_pool_id": "us-east-1_D8i89eToN",
+    "user_pool_id": "us-east-1_N22obdhLi",
     "aws_region": "us-east-1",
-    "user_pool_client_id": "5bb3d9c7g5628dn1dp24fnoa8s",
-    "identity_pool_id": "us-east-1:d2250201-180d-44e2-836c-0bbe06ca41f1",
+    "user_pool_client_id": "ct7oq9i58nige4ts6vas49vbd",
+    "identity_pool_id": "us-east-1:b8bb632d-78e6-459a-b49b-296e9091c817",
     "mfa_methods": [
       "EMAIL"
     ],
@@ -31,13 +31,16 @@
   },
   "version": "1.5",
   "custom": {
-    "apiUrl": "https://6zsrnchqr6.execute-api.us-east-1.amazonaws.com",
+    "environment": "production",
+    "apiUrl": "https://twrxzanvwg.execute-api.us-east-1.amazonaws.com",
     "shareBaseUrl": "https://froggybot.com/invite",
-    "dataTableName": "amplify-frogbot-frogbot-sandbox-278c55e757-FrogBotAppE7B48881-1DQMKWO79B5OA-Data666C94C7-IGZT555IH3TC",
-    "filesBucketName": "frogbot-user-files-188757775631-us-east-1",
-    "alarmTopicArn": "arn:aws:sns:us-east-1:188757775631:amplify-frogbot-frogbot-sandbox-278c55e757-FrogBotAppE7B48881-1DQMKWO79B5OA-ServiceAlarms935ECF17-eU7rO9zXtSvb",
-    "logsKeyArn": "arn:aws:kms:us-east-1:188757775631:key/e9929d3a-9dec-4f34-8c83-dd0586cb0ef8",
-    "githubDeployRoleArn": "arn:aws:iam::188757775631:role/amplify-frogbot-frogbot-s-GitHubProductionDeployRol-WzFTqr1SyFaz",
-    "monthlyBudgetName": "amplify-frogbot-frogbot-sandbox-278c55e757-FrogBotAppE7B48881-1DQMKWO79B5OA-monthly-cost"
+    "dataTableName": "amplify-d1tu46ki1836w1-main-branch-6ca713cbb2-FrogBotAppE7B48881-JFCXVU7AR8CZ-Data666C94C7-11QZBY5HST87M",
+    "inviteTableName": "amplify-d1tu46ki1836w1-main-branch-6ca713cbb2-auth179371D7-1XFXVPVDVYJ2M-InviteAccess65794604-MMIJ330UTNUS",
+    "filesBucketName": "frogbot-production-user-files-188757775631-us-east-1",
+    "alarmTopicArn": "arn:aws:sns:us-east-1:188757775631:amplify-d1tu46ki1836w1-main-branch-6ca713cbb2-FrogBotAppE7B48881-JFCXVU7AR8CZ-ServiceAlarms935ECF17-4w8jhtn0AgXJ",
+    "logsKeyArn": "arn:aws:kms:us-east-1:188757775631:key/da1bedac-62cd-4214-8bf3-b08eb55bc5a3",
+    "nativePushFeedbackRoleArn": "arn:aws:iam::188757775631:role/amplify-d1tu46ki1836w1-ma-NativePushFeedbackRole267-Kk6L37S1jkkd",
+    "githubDeployRoleArn": "arn:aws:iam::188757775631:role/amplify-d1tu46ki1836w1-ma-GitHubProductionDeployRol-4yCU2lqEKbXU",
+    "monthlyBudgetName": "amplify-d1tu46ki1836w1-main-branch-6ca713cbb2-FrogBotAppE7B48881-JFCXVU7AR8CZ-monthly-cost"
   }
 }

@@ -3,6 +3,37 @@
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-09-14 — temporary management-account production deployment
+
+- Temporarily retargeted production to management account `188757775631` in `us-east-1` while the dedicated member
+  account Lambda quota request remains open. Deployments used the assumed `FrogBotDeploymentRole`, never AWS
+  account-root credentials, and require the explicit `FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT=true` safeguard.
+- Deployed `AgentCore-FrogBot-production` with the target-scoped `FrogBotProduction` physical namespace. Runtime
+  `FrogBotProduction_FrogBot-WAhqXM7v63` and gateway
+  `frogbotproduction-frogbottools-psxeb1nzdt` reported `READY`; encrypted memory
+  `FrogBotProduction_FrogBotMemory-FWrlGD61iY`, all three memory strategies, and the continuous evaluation reported
+  `ACTIVE`. Regression dataset version 1 published all five expected examples.
+- Deployed Amplify app `d1tu46ki1836w1` and stack
+  `amplify-d1tu46ki1836w1-main-branch-6ca713cbb2`. Its public API is
+  `https://twrxzanvwg.execute-api.us-east-1.amazonaws.com`; both tracked Swift client configurations now identify the
+  environment as `production` and use that API.
+- Verified DynamoDB deletion protection and point-in-time recovery, versioned encrypted production storage, 30-day
+  customer-key-encrypted AgentCore logs, worker reserved concurrency of 10, five `OK` AgentCore alarms, enabled APNs
+  production/sandbox applications with delivery feedback, and a healthy public catalog containing 15 bots, 15 skills,
+  and seven built-in tools. The aggregate deployment check remains correctly blocked because the new alarm topic has
+  no confirmed accountable subscriber.
+- Updated the GitHub production environment with the new Amplify app, generated least-privilege OIDC deployment role,
+  production memory key, shared-account safeguard, quotas, APNs applications, Apple team, and AgentCore credentials.
+  Human/provider/compliance/device approval flags were deliberately left unset.
+- Updated the production Google secret callback metadata to
+  `https://twrxzanvwg.execute-api.us-east-1.amazonaws.com/public/oauth/google/callback`. Google and the other provider
+  consoles still require their production callback/distribution approvals before public release.
+- AgentCore validation, generated CDK tests, 216 runtime tests, and 373 backend tests passed before deployment. The
+  TestFlight gate passed the transcription package and macOS application suites, but Xcode 26.6 could not launch the
+  unchanged iOS UI suite on either iOS 18.5 or 26.2 because its host LLDB registry repeatedly returned
+  `DebuggerVersionStore.StoreError` / `no debugger version`. No iPhone or Mac archive was uploaded after that gate
+  failure.
+
 ## 2026-09-13 — production account bootstrap (Lambda quota pending)
 
 - Created the dedicated AWS Organizations member account `820323452649` (`FroggyBot Production`) and bootstrapped
