@@ -91,6 +91,8 @@ public final class AppModel {
         messages = DemoData.activityMessages
       } else if arguments.contains("--ui-testing-markdown") {
         messages = DemoData.markdownMessages
+      } else if arguments.contains("--ui-testing-scroll") {
+        messages = DemoData.scrollMessages
       } else {
         messages = DemoData.messages
       }
@@ -321,6 +323,7 @@ public final class AppModel {
       messages.append(
         ChatMessage(
           id: UUID().uuidString, role: "user", text: text, createdAt: now, status: "complete"))
+      await Task.yield()
       messages.append(
         ChatMessage(
           id: UUID().uuidString, role: "assistant", authorName: selectedBot?.name ?? "FroggyBot",
@@ -842,6 +845,19 @@ public enum DemoData {
         "Absolutely. The native SwiftUI client is sharing the same backend and API contract across iPhone and Mac.\n\n- Authentication and data stay in AWS.\n- Conversations and background tasks are preserved.\n- The existing web app remains available.",
       createdAt: "2026-09-12T12:01:00.000Z", status: "complete"),
   ]
+  public static let scrollMessages = (1...24).map { index in
+    ChatMessage(
+      id: "scroll-\(index)", role: index.isMultiple(of: 2) ? "assistant" : "user",
+      authorType: index.isMultiple(of: 2) ? "bot" : "user",
+      authorName: index.isMultiple(of: 2) ? "Chief" : "You",
+      authorColor: index.isMultiple(of: 2) ? "#007A3D" : nil,
+      isMine: !index.isMultiple(of: 2),
+      text: index == 24
+        ? "Latest message before send."
+        : "Conversation history item \(index) with enough detail to exercise scrolling.",
+      createdAt: "2026-09-12T12:\(String(format: "%02d", index)):00.000Z",
+      status: "complete")
+  }
   public static let activityMessages = [
     ChatMessage(
       id: "activity-user", role: "user", isMine: true,

@@ -305,6 +305,50 @@ private struct ConversationSidebar: View {
   }
 }
 
+struct ConversationMessageRevision: Equatable {
+  let id: String
+  let fingerprint: Int
+
+  init(id: String, fingerprint: Int) {
+    self.id = id
+    self.fingerprint = fingerprint
+  }
+
+  init(_ message: ChatMessage) {
+    id = message.id
+    fingerprint = message.hashValue
+  }
+}
+
+enum ConversationTranscriptUpdate: Equatable {
+  case none
+  case initial
+  case newLatest
+  case revisedLatest
+
+  static func classify(
+    previous: [ConversationMessageRevision], current: [ConversationMessageRevision]
+  ) -> Self {
+    guard let currentLatest = current.last else { return .none }
+    guard let previousLatest = previous.last else { return .initial }
+    if currentLatest.id != previousLatest.id { return .newLatest }
+    if currentLatest.fingerprint != previousLatest.fingerprint { return .revisedLatest }
+    return .none
+  }
+}
+
+private extension View {
+  @ViewBuilder func froggyUserScrollInteraction(_ action: @escaping () -> Void) -> some View {
+    if #available(iOS 18.0, macOS 15.0, *) {
+      onScrollPhaseChange { _, phase in
+        if phase == .tracking || phase == .interacting { action() }
+      }
+    } else {
+      simultaneousGesture(DragGesture(minimumDistance: 8).onChanged { _ in action() })
+    }
+  }
+}
+
 private struct ConversationView: View {
   @Bindable var model: AppModel
   @Bindable var dictation: DictationModel
@@ -325,10 +369,6 @@ private struct ConversationView: View {
 
   private let bottomID = "froggy-conversation-bottom"
   private let scrollSpace = "froggy-conversation-scroll"
-  private struct MessageRevision: Equatable {
-    let id: String
-    let fingerprint: Int
-  }
   private struct TranscriptIdentity: Hashable {
     enum ContentState: Hashable {
       case loading
@@ -345,8 +385,8 @@ private struct ConversationView: View {
     case delete
   }
 
-  private var messageRevisions: [MessageRevision] {
-    model.messages.map { MessageRevision(id: $0.id, fingerprint: $0.hashValue) }
+  private var messageRevisions: [ConversationMessageRevision] {
+    model.messages.map(ConversationMessageRevision.init)
   }
 
   private var transcriptIdentity: TranscriptIdentity {
@@ -402,11 +442,6 @@ private struct ConversationView: View {
         .padding(.bottom, model.messages.isEmpty ? 0 : 16)
         .frame(maxWidth: 780)
         .frame(maxWidth: .infinity)
-        .onGeometryChange(for: CGFloat.self) { geometry in
-          geometry.size.height
-        } action: { _ in
-          if isFollowingLatest { scheduleScrollToBottom(using: proxy, animated: false) }
-        }
       }
       .coordinateSpace(name: scrollSpace)
       .onGeometryChange(for: CGFloat.self) { geometry in
@@ -420,11 +455,7 @@ private struct ConversationView: View {
         TapGesture().onEnded {
           composerFocused = false
         })
-      .simultaneousGesture(
-        DragGesture(minimumDistance: 8).onChanged { _ in
-          pendingScroll?.cancel()
-          isFollowingLatest = false
-        })
+      .froggyUserScrollInteraction(stopFollowingLatest)
       .onAppear { scheduleScrollToBottom(using: proxy, animated: false) }
       .onChange(of: model.selection) { _, _ in
         cancelPreview()
@@ -434,11 +465,12 @@ private struct ConversationView: View {
         scheduleScrollToBottom(using: proxy, animated: false)
       }
       .onChange(of: messageRevisions) { previous, current in
-        let following = isFollowingLatest || previous.isEmpty
-        if following {
+        let update = ConversationTranscriptUpdate.classify(previous: previous, current: current)
+        guard update != .none else { return }
+        if isFollowingLatest || update == .initial {
           isFollowingLatest = true
-          scheduleScrollToBottom(using: proxy, animated: !previous.isEmpty)
-        } else if current.last != previous.last {
+          scheduleScrollToBottom(using: proxy, animated: update == .newLatest)
+        } else {
           hasNewerMessages = true
         }
       }
@@ -453,13 +485,17 @@ private struct ConversationView: View {
           .padding(16)
         }
       }
+      .safeAreaInset(edge: .bottom, spacing: 0) {
+        Composer(
+          model: model, dictation: dictation, importing: $importing,
+          composerFocused: $composerFocused,
+          onSubmit: {
+            scheduleScrollToBottom(using: proxy, animated: true)
+            Task { await model.send() }
+          })
+      }
     }
     .id(transcriptIdentity)
-    .safeAreaInset(edge: .bottom, spacing: 0) {
-      Composer(
-        model: model, dictation: dictation, importing: $importing,
-        composerFocused: $composerFocused)
-    }
     .navigationTitle(model.title)
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
@@ -538,17 +574,23 @@ private struct ConversationView: View {
       guard !Task.isCancelled, transcriptIdentity == requestedTranscript else { return }
       let scroll = { proxy.scrollTo(bottomID, anchor: .bottom) }
       if animated {
-        withAnimation(.snappy) { scroll() }
+        withAnimation(.easeOut(duration: 0.18)) { scroll() }
       } else {
         scroll()
-        // Lazy message content can finish sizing on the following display pass.
-        // Confirm the initial anchor so a reused offset cannot sit below the transcript.
-        try? await Task.sleep(for: .milliseconds(32))
-        guard !Task.isCancelled, transcriptIdentity == requestedTranscript, isFollowingLatest
-        else { return }
-        scroll()
       }
+      // Newly inserted Markdown and activity rows can finish measuring after the
+      // first anchor. Settle once after that layout pass without animating every
+      // incremental AI update.
+      try? await Task.sleep(for: .milliseconds(animated ? 220 : 40))
+      guard !Task.isCancelled, transcriptIdentity == requestedTranscript, isFollowingLatest
+      else { return }
+      scroll()
     }
+  }
+
+  private func stopFollowingLatest() {
+    pendingScroll?.cancel()
+    isFollowingLatest = false
   }
 
   private var conversationIdentity: some View {
@@ -1289,6 +1331,7 @@ private struct Composer: View {
   @Bindable var dictation: DictationModel
   @Binding var importing: Bool
   var composerFocused: FocusState<Bool>.Binding
+  let onSubmit: () -> Void
   @State private var showingPhotoPicker = false
   @State private var selectedPhotos: [PhotosPickerItem] = []
   @State private var dictationPrefix = ""
@@ -1679,7 +1722,7 @@ private struct Composer: View {
 
   private func submitMessage() {
     cancelDictation()
-    Task { await model.send() }
+    onSubmit()
   }
 
   private func cancelDictation() {

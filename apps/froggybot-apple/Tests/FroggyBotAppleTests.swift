@@ -33,6 +33,31 @@ import UniformTypeIdentifiers
     XCTAssertEqual(AppModel.nextPollingDelay(base: 1_500, failures: .max, random: 1), 30_000)
   }
 
+  func testConversationScrollUpdatesOnlyForTheLatestMessage() {
+    let original = [
+      ConversationMessageRevision(id: "one", fingerprint: 1),
+      ConversationMessageRevision(id: "two", fingerprint: 2),
+    ]
+
+    XCTAssertEqual(
+      ConversationTranscriptUpdate.classify(previous: [], current: original), .initial)
+    XCTAssertEqual(
+      ConversationTranscriptUpdate.classify(
+        previous: original,
+        current: original + [ConversationMessageRevision(id: "three", fingerprint: 3)]),
+      .newLatest)
+    XCTAssertEqual(
+      ConversationTranscriptUpdate.classify(
+        previous: original,
+        current: [original[0], ConversationMessageRevision(id: "two", fingerprint: 20)]),
+      .revisedLatest)
+    XCTAssertEqual(
+      ConversationTranscriptUpdate.classify(
+        previous: original,
+        current: [ConversationMessageRevision(id: "older", fingerprint: 0)] + original),
+      .none)
+  }
+
   func testAppearancePreferencesResolveSystemLightAndDarkModes() {
     XCTAssertNil(FroggyAppearancePreference.system.colorScheme)
     XCTAssertEqual(FroggyAppearancePreference.light.colorScheme, .light)

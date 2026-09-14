@@ -479,6 +479,32 @@ import XCTest
           timeout: 5))
     }
 
+    func testMacSendReturnsToAndFollowsTheLatestMessage() {
+      let app = XCUIApplication()
+      app.launchArguments = ["--ui-testing", "--ui-testing-scroll"]
+      app.launch()
+
+      let transcript = app.scrollViews["chat.transcript"]
+      let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
+      let latestBeforeSend = app.staticTexts["Latest message before send."]
+      XCTAssertTrue(transcript.waitForExistence(timeout: 10))
+      XCTAssertTrue(composer.waitForExistence(timeout: 5))
+      XCTAssertTrue(latestBeforeSend.waitForExistence(timeout: 5))
+      XCTAssertTrue(latestBeforeSend.isHittable)
+
+      transcript.swipeDown(velocity: .fast)
+      transcript.swipeDown(velocity: .fast)
+      composer.click()
+      composer.typeText("Return to the latest message")
+      app.buttons["chat.send"].click()
+
+      let reply = app.staticTexts["This is the native app’s offline test reply."]
+      XCTAssertTrue(reply.waitForExistence(timeout: 5))
+      XCTAssertTrue(reply.isHittable)
+      XCTAssertLessThan(reply.frame.maxY, composer.frame.minY)
+      XCTAssertFalse(app.buttons["Jump to Latest"].exists)
+    }
+
     func testMacEditorUsesAReadableNativeSheet() {
       let app = XCUIApplication()
       app.launchArguments = ["--ui-testing"]
