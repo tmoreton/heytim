@@ -408,13 +408,6 @@ def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:
             ),
         }
     )
-    if catalog.approval_tool_names(user_id, values["toolIds"]) and _schedule_items(
-        user_id, bot_id
-    ):
-        raise ApiError(
-            409,
-            "Remove this bot's scheduled tasks before enabling interactive tools.",
-        )
     return _put_bot(user_id, values, bot_id, previous.get("systemRole"))
 
 
