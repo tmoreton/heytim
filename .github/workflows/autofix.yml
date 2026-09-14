@@ -26,15 +26,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
 
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
           cache-dependency-glob: services/agent-runtime/uv.lock
@@ -52,7 +52,7 @@ jobs:
             --metadata-out "$RUNNER_TEMP/froggybot-autofix/metadata.json"
 
       - name: Preserve proposed patch without credentials
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: froggybot-autofix-${{ github.run_id }}
           if-no-files-found: error
@@ -69,26 +69,26 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: froggybot-autofix-${{ github.run_id }}
           path: ${{ runner.temp }}/froggybot-autofix
       - name: Apply the isolated patch artifact
         run: git apply --check "$RUNNER_TEMP/froggybot-autofix/proposed.patch" && git apply "$RUNNER_TEMP/froggybot-autofix/proposed.patch"
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22.23.2
           cache: npm
           cache-dependency-path: |
             services/froggybot-api/package-lock.json
             agentcore/cdk/package-lock.json
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
           cache-dependency-glob: services/agent-runtime/uv.lock
@@ -108,16 +108,16 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: froggybot-autofix-${{ github.run_id }}
           path: ${{ runner.temp }}/froggybot-autofix
       - name: Apply the isolated patch artifact
         run: git apply --check "$RUNNER_TEMP/froggybot-autofix/proposed.patch" && git apply "$RUNNER_TEMP/froggybot-autofix/proposed.patch"
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22.23.2
           cache: npm
@@ -139,17 +139,17 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: froggybot-autofix-${{ github.run_id }}
           path: ${{ runner.temp }}/froggybot-autofix
       - name: Apply the isolated patch artifact
         run: git apply --check "$RUNNER_TEMP/froggybot-autofix/proposed.patch" && git apply "$RUNNER_TEMP/froggybot-autofix/proposed.patch"
       - name: Cache native transcription assets
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: packages/frogbot-transcription/ios/Generated
           key: frogbot-nemotron-apple-v3
@@ -170,10 +170,10 @@ jobs:
       matrix:
         language: [javascript-typescript, python]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: froggybot-autofix-${{ github.run_id }}
           path: ${{ runner.temp }}/froggybot-autofix
@@ -197,10 +197,10 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: froggybot-autofix-${{ github.run_id }}
           path: ${{ runner.temp }}/froggybot-autofix
