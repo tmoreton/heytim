@@ -7,8 +7,8 @@
   },
   {
     "name": "production",
-    "description": "Stable FrogBot production stack in the dedicated organization member account",
-    "account": "820323452649",
+    "description": "Temporary stable production stack in the management account pending member-account Lambda quota",
+    "account": "188757775631",
     "region": "us-east-1"
   }
 ]

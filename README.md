@@ -126,9 +126,10 @@ agentcore status --target production --runtime FrogBot --json
 agentcore status --target production --type memory --json
 ```
 
-Development and production use separate target stacks and separate AWS accounts; never rename either target
-because that changes resource identity. Production uses the dedicated organization member account
-`820323452649`. Confirm that both the runtime and
+Development and production use separate target stacks; never rename either target because that changes resource
+identity. Production temporarily uses management account `188757775631` while the dedicated member account's Lambda
+quota request is pending. Set `FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT=true` only for that temporary posture; the
+release guard fails closed without it. Confirm that both the runtime and
 memory are ready, then copy the deployed runtime ARN from the status output. Model selection is defined only in
 `agentcore/agentcore.json`: OpenRouter uses DeepSeek V4.1 Flash with GLM 5.3 as a bounded pre-response fallback, while
 the separately selected image tool uses GPT Image 2.5 Sunburst through OpenRouter. Finished thumbnails send the full
@@ -186,7 +187,7 @@ any source change still stops the release.
 The manual `Deploy FroggyBot production release` GitHub workflow is the only supported production path. It deploys
 the services, preserves the generated native configuration, and then verifies, signs, and uploads both SwiftUI apps
 to TestFlight. It does not build or publish Expo.
-Its `production` environment requires the dedicated account, `AWS_DEPLOY_ROLE_ARN`, `AMPLIFY_APP_ID`, the
+Its `production` environment requires the configured production account, `AWS_DEPLOY_ROLE_ARN`, `AMPLIFY_APP_ID`, the
 production memory KMS key, explicit quota and budget values, the three company-owned
 OpenRouter, X, and YouTube credentials documented in `agentcore/README.md`, and the Google, GitHub App, and X OAuth
 secret ARNs plus the Slack and Notion OAuth secret ARNs documented in

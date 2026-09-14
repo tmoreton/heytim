@@ -49,7 +49,10 @@ export function bindSpecToTarget(
   return spec;
 }
 
-export function assertProductionTargetConfigured(targets: AwsDeploymentTarget[]): AwsDeploymentTarget {
+export function assertProductionTargetConfigured(
+  targets: AwsDeploymentTarget[],
+  allowSharedAccount = process.env.FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT === 'true'
+): AwsDeploymentTarget {
   const development = targets.find(target => target.name === 'development');
   const production = targets.find(target => target.name === 'production');
   if (!development || !production) {
@@ -58,8 +61,10 @@ export function assertProductionTargetConfigured(targets: AwsDeploymentTarget[])
   if (production.account === UNCONFIGURED_AWS_ACCOUNT) {
     throw new Error('Replace the production AWS account placeholder before release.');
   }
-  if (production.account === development.account) {
-    throw new Error('Production must use a different AWS account from development.');
+  if (production.account === development.account && !allowSharedAccount) {
+    throw new Error(
+      'Production must use a different AWS account from development unless FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT=true.'
+    );
   }
   return production;
 }

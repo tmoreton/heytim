@@ -5,7 +5,12 @@ import { App, type Environment } from 'aws-cdk-lib';
 import * as path from 'path';
 import * as fs from 'fs';
 import { assertCleanDeploySource } from '../lib/deploy-preflight';
-import { bindSpecToTarget, filesBucketName, filesKeyAlias } from '../lib/target-bindings';
+import {
+  assertProductionTargetConfigured,
+  bindSpecToTarget,
+  filesBucketName,
+  filesKeyAlias,
+} from '../lib/target-bindings';
 
 function toEnvironment(target: AwsDeploymentTarget): Environment {
   return {
@@ -58,6 +63,9 @@ async function main() {
 
   if (targets.length === 0) {
     throw new Error('No deployment targets configured. Please define targets in agentcore/aws-targets.json');
+  }
+  if (process.env.FROGBOT_ENVIRONMENT === 'production') {
+    assertProductionTargetConfigured(targets);
   }
 
   // Read harness configs: the full validated spec drives the CFN resource; the

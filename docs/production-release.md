@@ -1,14 +1,16 @@
 # FroggyBot production release gate
 
 The repository is release-hardened, but a production release is not complete merely because the code passes locally.
-The dedicated AWS account, third-party approvals, monitored alert destination, device evidence, and controlled
+The configured AWS account, third-party approvals, monitored alert destination, device evidence, and controlled
 deployment are external release inputs. The manual **Deploy FroggyBot production release** workflow fails closed until
-they are present.
+they are present. Production temporarily shares management account `188757775631` with development while the dedicated
+member account's Lambda quota increase is pending; target-scoped stacks, KMS keys, storage, and secrets remain separate.
 
 ## One-time production bootstrap
 
-1. Use the dedicated production AWS account `820323452649` in `us-east-1`; do not reuse the development account and
-   do not rename either target.
+1. Use the configured production AWS account in `us-east-1` and do not rename either target. While production shares
+   the management account, set `FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT=true`. Remove that variable when the target
+   returns to dedicated member account `820323452649`.
 2. Bootstrap CDK and the AgentCore token vault with a reviewed IAM Identity Center or administrator role. Create a
    rotating customer-managed KMS key for AgentCore memory and retain its ARN.
 3. Perform the first AgentCore and Amplify bootstrap with that reviewed principal. The Amplify stack creates the
@@ -25,6 +27,7 @@ they are present.
 Set these non-secret variables:
 
 - `AWS_DEPLOY_ROLE_ARN`, `AMPLIFY_APP_ID`, `FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN`
+- `FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT=true` only while production and development share an AWS account
 - `FROGBOT_APPLE_TEAM_ID`, `FROGBOT_APP_STORE_CONNECT_KEY_ID`, and
   `FROGBOT_APP_STORE_CONNECT_ISSUER_ID`
 - `FROGBOT_APNS_APPLICATION_ARN` and optional `FROGBOT_APNS_SANDBOX_APPLICATION_ARN`

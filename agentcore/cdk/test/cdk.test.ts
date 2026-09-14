@@ -84,7 +84,7 @@ test('target bindings isolate production storage and memory encryption', () => {
   ).toEqual(['attachments-policy.json']);
 });
 
-test('production target rejects placeholders and development account reuse', () => {
+test('production target rejects placeholders and requires an explicit shared-account override', () => {
   expect(() =>
     assertProductionTargetConfigured([
       { name: 'development', account: '123456789012', region: 'us-east-1' },
@@ -97,6 +97,15 @@ test('production target rejects placeholders and development account reuse', () 
       { name: 'production', account: '123456789012', region: 'us-east-1' },
     ])
   ).toThrow('different AWS account');
+  expect(
+    assertProductionTargetConfigured(
+      [
+        { name: 'development', account: '123456789012', region: 'us-east-1' },
+        { name: 'production', account: '123456789012', region: 'us-east-1' },
+      ],
+      true
+    )
+  ).toEqual({ name: 'production', account: '123456789012', region: 'us-east-1' });
 });
 
 test('AgentCore service roles are protected against confused-deputy access', () => {
