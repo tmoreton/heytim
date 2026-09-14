@@ -73,61 +73,182 @@ struct SkillEditor: View {
   @Bindable var model: AppModel
   let id: String?
   @State private var draft = SkillDraft()
+  @State private var loading = false
+  @State private var saving = false
+  @State private var loadError: String?
   @Environment(\.dismiss) private var dismiss
+
+  private var nameIssue: String? {
+    if draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return "Enter a skill name."
+    }
+    if draft.name.count > model.constraints.skillNameMaxLength {
+      return "Keep the name under \(model.constraints.skillNameMaxLength) characters."
+    }
+    return nil
+  }
+
+  private var descriptionIssue: String? {
+    draft.description.count > model.constraints.skillDescriptionMaxLength
+      ? "The description is longer than the supported limit." : nil
+  }
+
+  private var instructionsIssue: String? {
+    if draft.instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return "Add instructions so the bot knows when and how to use this skill."
+    }
+    if draft.instructions.count > model.constraints.skillInstructionsMaxLength {
+      return "The instructions are longer than the supported limit."
+    }
+    return nil
+  }
+
+  private var canSave: Bool {
+    nameIssue == nil && descriptionIssue == nil && instructionsIssue == nil && !loading && !saving
+  }
+
   var body: some View {
-    Form {
-      TextField("Name", text: $draft.name)
-      TextField("Description", text: $draft.description, axis: .vertical)
-      Section("Instructions") { TextEditor(text: $draft.instructions).frame(minHeight: 180) }
-      Section("Required tools") {
-        ForEach(model.bootstrap?.tools ?? []) { tool in
-          Toggle(
-            isOn: Binding(
-              get: { draft.requiredToolIds.contains(tool.id) },
-              set: { enabled in
-                if enabled {
-                  draft.requiredToolIds.append(tool.id)
-                } else {
-                  draft.requiredToolIds.removeAll { $0 == tool.id }
+    Group {
+      if loading {
+        ProgressView("Loading skill…")
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else if let loadError {
+        ContentUnavailableView {
+          Label("Couldn’t Load Skill", systemImage: "wifi.exclamationmark")
+        } description: {
+          Text(loadError)
+        } actions: {
+          Button("Try Again") { Task { await load() } }
+        }
+      } else {
+        Form {
+          Section {
+            TextField("Name", text: $draft.name)
+            TextField("Description", text: $draft.description, axis: .vertical)
+          } header: {
+            Text("Overview")
+          } footer: {
+            VStack(alignment: .leading, spacing: 4) {
+              Text(nameIssue ?? descriptionIssue ?? "Use a clear name and a short description people can scan quickly.")
+              Text("\(draft.description.count.formatted()) / \(model.constraints.skillDescriptionMaxLength.formatted())")
+                .monospacedDigit()
+            }
+            .foregroundStyle(
+              nameIssue == nil && descriptionIssue == nil ? Color.secondary : Color.red)
+          }
+
+          Section {
+            GuidedTextEditor(
+              title: "Skill instructions",
+              prompt: "Explain when to use this skill, the steps to follow, and what a good result looks like.",
+              text: $draft.instructions,
+              minHeight: 180)
+          } header: {
+            Text("Instructions")
+          } footer: {
+            HStack(alignment: .firstTextBaseline) {
+              Text(instructionsIssue ?? "These instructions guide the bot whenever the skill is active.")
+              Spacer(minLength: 12)
+              Text(
+                "\(draft.instructions.count.formatted()) / \(model.constraints.skillInstructionsMaxLength.formatted())"
+              )
+              .monospacedDigit()
+            }
+            .foregroundStyle(instructionsIssue == nil ? Color.secondary : Color.red)
+          }
+
+          Section {
+            let tools = model.bootstrap?.tools ?? []
+            ForEach(tools) { tool in
+              Toggle(
+                isOn: Binding(
+                  get: { draft.requiredToolIds.contains(tool.id) },
+                  set: { enabled in
+                    if enabled {
+                      draft.requiredToolIds.append(tool.id)
+                    } else {
+                      draft.requiredToolIds.removeAll { $0 == tool.id }
+                    }
+                  }
+                )
+              ) {
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(tool.name)
+                  Text(tool.description).froggyFont(.caption).foregroundStyle(.secondary)
                 }
               }
-            )
-          ) {
-            VStack(alignment: .leading) {
-              Text(tool.name)
-              Text(tool.description).font(.caption).foregroundStyle(.secondary)
             }
+            if tools.isEmpty {
+              Text("No tools are available.").foregroundStyle(.secondary)
+            }
+          } header: {
+            Text("Required Tools")
+          } footer: {
+            Text("Selected tools are enabled whenever a bot uses this skill.")
+          }
+
+          Section {
+            Picker("Visibility", selection: $draft.visibility) {
+              Text("Private").tag("private")
+              Text("Anyone with link").tag("link")
+            }
+          } footer: {
+            Text(
+              draft.visibility == "link"
+                ? "People with a share link can add a copy of this skill."
+                : "Only you can use this skill."
+            )
           }
         }
-      }
-      Picker("Visibility", selection: $draft.visibility) {
-        Text("Private").tag("private")
-        Text("Anyone with link").tag("link")
+        .formStyle(.grouped)
+        .froggyListSurface()
       }
     }
-    .formStyle(.grouped)
-    .froggyListSurface()
-    .navigationTitle(id == nil ? "New skill" : "Edit skill")
+    .background(FrogTheme.pageBackground)
+    .froggyNavigationTitle(id == nil ? "New skill" : "Edit skill")
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       CloseButton()
-      ToolbarItem(placement: .confirmationAction) {
-        Button("Save") {
-          Task {
-            do {
-              _ = try await model.requireAPI().saveSkill(draft, id: id)
-              await model.refreshBootstrap()
-              dismiss()
-            } catch { model.present(error) }
+      if loadError == nil && !loading {
+        ToolbarItem(placement: .confirmationAction) {
+          Button {
+            save()
+          } label: {
+            if saving {
+              Label { Text("Saving…") } icon: { ProgressView().controlSize(.small) }
+            } else {
+              Text("Save")
+            }
           }
-        }.disabled(draft.name.isEmpty || draft.instructions.isEmpty)
+          .disabled(!canSave)
+        }
       }
     }
-    .task {
-      if let id {
-        do {
-          draft = SkillDraft(skill: try await model.requireAPI().skill(id))
-        } catch { model.present(error) }
+    .task { await load() }
+  }
+
+  private func load() async {
+    guard let id else { return }
+    loading = true
+    defer { loading = false }
+    do {
+      draft = SkillDraft(skill: try await model.requireAPI().skill(id))
+      loadError = nil
+    } catch {
+      loadError = error.localizedDescription
+    }
+  }
+
+  private func save() {
+    saving = true
+    Task {
+      defer { saving = false }
+      do {
+        _ = try await model.requireAPI().saveSkill(draft, id: id)
+        await model.refreshBootstrap()
+        dismiss()
+      } catch {
+        model.present(error)
       }
     }
   }
@@ -295,9 +416,9 @@ struct ConnectionsView: View {
       HStack(spacing: 12) {
         ProviderLogoView(provider: provider)
         VStack(alignment: .leading, spacing: 3) {
-          Text(nested ? (provider.serviceName ?? provider.name) : provider.name).font(.headline)
-          Text(provider.description).font(.caption).foregroundStyle(.secondary)
-          Text(provider.permissionsSummary).font(.caption2).foregroundStyle(.tertiary)
+          Text(nested ? (provider.serviceName ?? provider.name) : provider.name).froggyFont(.headline)
+          Text(provider.description).froggyFont(.caption).foregroundStyle(.secondary)
+          Text(provider.permissionsSummary).froggyFont(.caption2).foregroundStyle(.tertiary)
         }
         Spacer()
         if connectingProviderID == provider.id {
@@ -320,19 +441,19 @@ struct ConnectionsView: View {
         ProviderLogoView(providerID: family.logoProviderId, iconText: family.iconText)
         VStack(alignment: .leading, spacing: 4) {
           HStack(spacing: 8) {
-            Text(family.name).font(.headline)
+            Text(family.name).froggyFont(.headline)
             if family.includedSummary != nil {
               Text("Included")
-                .font(.caption2.bold())
+                .froggyFont(.caption2, weight: .bold)
                 .foregroundStyle(FrogTheme.accent)
                 .padding(.horizontal, 7)
                 .padding(.vertical, 3)
                 .background(FrogTheme.accent.opacity(0.12), in: Capsule())
             }
           }
-          Text(family.description).font(.caption).foregroundStyle(.secondary)
+          Text(family.description).froggyFont(.caption).foregroundStyle(.secondary)
           if let includedSummary = family.includedSummary {
-            Text(includedSummary).font(.caption2).foregroundStyle(.tertiary)
+            Text(includedSummary).froggyFont(.caption2).foregroundStyle(.tertiary)
           }
         }
       }
@@ -356,13 +477,13 @@ struct ConnectionsView: View {
           .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
       }
       VStack(alignment: .leading, spacing: 3) {
-        Text(displayName ?? connection.name).font(.headline)
+        Text(displayName ?? connection.name).froggyFont(.headline)
         Text(connection.connectedAccount ?? connection.description)
-          .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+          .froggyFont(.caption).foregroundStyle(.secondary).lineLimit(2)
       }
       Spacer()
       Text(connection.connectionStatus == "connected" ? "Connected" : "Needs Attention")
-        .font(.caption)
+        .froggyFont(.caption)
         .foregroundStyle(connection.connectionStatus == "connected" ? FrogTheme.accent : .orange)
     }
   }
@@ -394,7 +515,7 @@ private struct ConnectionDetailView: View {
             Label(action, systemImage: "checkmark.circle")
           }
           if let permissions = provider?.permissionsSummary {
-            Text(permissions).font(.footnote).foregroundStyle(.secondary)
+            Text(permissions).froggyFont(.footnote).foregroundStyle(.secondary)
           }
         }
       }
@@ -409,7 +530,7 @@ private struct ConnectionDetailView: View {
     }
     .formStyle(.grouped)
     .froggyListSurface()
-    .navigationTitle(connection.name)
+    .froggyNavigationTitle(connection.name)
     .toolbarTitleDisplayMode(.inline)
   }
 
@@ -421,13 +542,25 @@ private struct ConnectionDetailView: View {
 struct DocumentsView: View {
   @Bindable var model: AppModel
   let botId: String
+  var showsDismissButton = true
   @State private var documents: [BotDocument] = []
   @State private var previewURL: URL?
   @State private var previewTask: Task<Void, Never>?
   @State private var isLoading = false
+  @State private var loadError: String?
   var body: some View {
     List {
-      if documents.isEmpty && !isLoading {
+      if let loadError {
+        Section {
+          ContentUnavailableView {
+            Label("Couldn’t Load Documents", systemImage: "wifi.exclamationmark")
+          } description: {
+            Text(loadError)
+          } actions: {
+            Button("Try Again") { Task { await load() } }
+          }
+        }
+      } else if documents.isEmpty && !isLoading {
         ContentUnavailableView(
           "No Documents", systemImage: "doc",
           description: Text("Documents created or shared in this chat will appear here."))
@@ -443,7 +576,7 @@ struct DocumentsView: View {
                   ByteCountFormatter.string(
                     fromByteCount: Int64(document.size), countStyle: .file)
                 )
-                .font(.caption).foregroundStyle(.secondary)
+                .froggyFont(.caption).foregroundStyle(.secondary)
               }
             } icon: {
               Image(systemName: document.kind == "image" ? "photo" : "doc")
@@ -457,9 +590,13 @@ struct DocumentsView: View {
       }
     }
     .froggyListSurface()
-    .navigationTitle("Documents")
+    .froggyNavigationTitle("Documents")
     .toolbarTitleDisplayMode(.inline)
-    .toolbar { CloseButton { model.sheet = nil } }
+    .toolbar {
+      if showsDismissButton {
+        CloseButton { model.sheet = nil }
+      }
+    }
     .overlay { if isLoading { ProgressView() } }
     .quickLookPreview($previewURL)
     .onChange(of: previewURL) { previous, current in
@@ -493,8 +630,15 @@ struct DocumentsView: View {
   private func load() async {
     isLoading = true
     defer { isLoading = false }
-    do { documents = try await model.api?.botDocuments(botId) ?? [] } catch {
-      model.present(error)
+    guard let api = model.api else {
+      loadError = nil
+      return
+    }
+    do {
+      documents = try await api.botDocuments(botId)
+      loadError = nil
+    } catch {
+      loadError = error.localizedDescription
     }
   }
 }
@@ -502,18 +646,19 @@ struct DocumentsView: View {
 struct ShareView: View {
   @Bindable var model: AppModel
   let selection: ConversationSelection
+  var showsDismissButton = true
   @State private var url: URL?
   @State private var creatingLink = false
   var body: some View {
     VStack(spacing: 22) {
       Image(systemName: "person.2.badge.plus").font(.system(size: 48)).foregroundStyle(
         FrogTheme.green)
-      Text("Share \(title)").font(.title2.bold())
+      Text("Share \(title)").froggyFont(.title2, weight: .bold)
       Text("Anyone with this link can accept the invitation before it expires.").foregroundStyle(
         .secondary
       ).multilineTextAlignment(.center)
       if let url {
-        Text(url.absoluteString).textSelection(.enabled).font(.caption)
+        Text(url.absoluteString).textSelection(.enabled).froggyFont(.caption)
         ShareLink(item: url) { Label("Share invitation", systemImage: "square.and.arrow.up") }
           .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
       } else {
@@ -531,15 +676,19 @@ struct ShareView: View {
         .controlSize(.large)
         .disabled(creatingLink)
         Text("The link becomes active only after you create it, and you can revoke it from Settings.")
-          .font(.footnote)
+          .froggyFont(.footnote)
           .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)
       }
     }.padding(32).frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(FrogTheme.pageBackground)
-      .navigationTitle("Share")
+      .froggyNavigationTitle("Share")
       .toolbarTitleDisplayMode(.inline)
-      .toolbar { CloseButton { model.sheet = nil } }
+      .toolbar {
+        if showsDismissButton {
+          CloseButton { model.sheet = nil }
+        }
+      }
   }
 
   private var title: String {
@@ -597,7 +746,6 @@ struct AccountView: View {
   @State private var exportingMemory = false
   @State private var memoryExportDocument: MemoryExportDocument?
   @State private var showingMemoryExporter = false
-  @Environment(\.dismiss) private var dismiss
 
   var body: some View {
     Form {
@@ -659,7 +807,7 @@ struct AccountView: View {
           isNotificationPermissionGranted
         {
           Label(message, systemImage: "exclamationmark.triangle")
-            .font(.footnote)
+            .froggyFont(.footnote)
             .foregroundStyle(.orange)
         }
       } header: {
@@ -693,7 +841,7 @@ struct AccountView: View {
                 VStack(alignment: .leading, spacing: 2) {
                   Text(link.title).lineLimit(1)
                   Text("\(shareKind(link.kind)) · expires \(shareExpiration(link.expiresAt))")
-                    .font(.caption)
+                    .froggyFont(.caption)
                     .foregroundStyle(.secondary)
                 }
               } icon: {
@@ -759,14 +907,11 @@ struct AccountView: View {
       }
     }
     .formStyle(.grouped)
-    .navigationTitle("Settings")
+    .froggyNavigationTitle("Settings")
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       if showsDismissButton {
-        ToolbarItem(placement: .cancellationAction) {
-          Button("Close", systemImage: "xmark") { dismiss() }
-            .labelStyle(.iconOnly)
-        }
+        CloseButton()
       }
     }
     .task { await load() }

@@ -73,7 +73,7 @@ private struct AppRoot: View {
       case .signedIn: MainView(model: model, auth: auth)
       }
     }
-    .environment(\.dynamicTypeSize, textSize.resolvedSize(systemSize: systemTextSize))
+    .froggyTextSize(textSize, systemSize: systemTextSize)
     .preferredColorScheme(appearance.colorScheme)
     .task {
       guard !Self.isUnitTestHost else { return }

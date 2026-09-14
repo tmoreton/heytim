@@ -35,7 +35,7 @@ public struct AuthView: View {
     VStack(spacing: 0) {
       FrogMark(size: 84).frame(height: 72).padding(.bottom, 12)
       Text("FroggyBot")
-        .font(.system(size: 34, weight: .heavy, design: .rounded))
+        .froggyFont(size: 34, weight: .heavy, design: .rounded, relativeTo: .largeTitle)
         .tracking(-1.3)
         .foregroundStyle(.primary)
     }
@@ -45,10 +45,10 @@ public struct AuthView: View {
   private var card: some View {
     VStack(alignment: .leading, spacing: 0) {
       Text(title)
-        .font(.system(size: 25, weight: .bold))
+        .froggyFont(size: 25, weight: .bold, relativeTo: .title)
         .tracking(-0.65)
       Text(copy)
-        .font(.system(size: 15))
+        .froggyFont(size: 15, relativeTo: .body)
         .foregroundStyle(FrogTheme.mutedWarm)
         .lineSpacing(4)
         .padding(.top, 7)
@@ -59,7 +59,7 @@ public struct AuthView: View {
 
       if let error = auth.errorMessage {
         Text(error)
-          .font(.system(size: 13))
+          .froggyFont(size: 13, relativeTo: .footnote)
           .foregroundStyle(FrogTheme.danger)
           .padding(.top, 10)
           .accessibilityLabel("Error: \(error)")
@@ -81,7 +81,7 @@ public struct AuthView: View {
             Text(primaryLabel).foregroundStyle(.white)
           }
         }
-        .font(.system(size: 16, weight: .semibold))
+        .froggyFont(size: 16, weight: .semibold, relativeTo: .body)
         .frame(maxWidth: .infinity, minHeight: 44)
       }
       .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
@@ -96,7 +96,7 @@ public struct AuthView: View {
           focusedField = .email
         }
         .buttonStyle(.plain)
-        .font(.system(size: 14, weight: .semibold))
+        .froggyFont(size: 14, weight: .semibold, relativeTo: .callout)
         .foregroundStyle(brandText)
         .frame(maxWidth: .infinity, minHeight: 44)
         .padding(.top, 5)
@@ -108,7 +108,7 @@ public struct AuthView: View {
           destination: URL(
             string: "mailto:tmoreton89@gmail.com?subject=FroggyBot%20beta%20access")!
         )
-        .font(.system(size: 13, weight: .bold))
+        .froggyFont(size: 13, weight: .bold, relativeTo: .footnote)
         .foregroundStyle(brandText)
         .underline()
         .frame(maxWidth: .infinity, minHeight: 44)
@@ -130,11 +130,11 @@ public struct AuthView: View {
         Spacer()
         Text("\(length) digits").foregroundStyle(FrogTheme.muted)
       }
-      .font(.system(size: 13, weight: .semibold))
+      .froggyFont(size: 13, weight: .semibold, relativeTo: .footnote)
       .padding(.bottom, 9)
       TextField(String(repeating: "0", count: length), text: $code)
         .textFieldStyle(.plain)
-        .font(.system(size: 26, weight: .semibold))
+        .froggyFont(size: 26, weight: .semibold, relativeTo: .title)
         .multilineTextAlignment(.center)
         .tracking(9)
         .focused($focusedField, equals: .code)
@@ -148,12 +148,12 @@ public struct AuthView: View {
         .onSubmit { Task { await auth.confirm(code: code) } }
     } else {
       Text("Email address")
-        .font(.system(size: 13, weight: .semibold))
+        .froggyFont(size: 13, weight: .semibold, relativeTo: .footnote)
         .foregroundStyle(FrogTheme.textSoft)
         .padding(.bottom, 9)
       TextField("", text: $email)
         .textFieldStyle(.plain)
-        .font(.system(size: 16))
+        .froggyFont(size: 16, relativeTo: .body)
         .focused($focusedField, equals: .email)
         .froggyField(focused: focusedField == .email)
         #if os(iOS)
@@ -165,7 +165,7 @@ public struct AuthView: View {
         .overlay(alignment: .leading) {
           if email.isEmpty {
             Text("you@example.com")
-              .font(.system(size: 16))
+              .froggyFont(size: 16, relativeTo: .body)
               .foregroundStyle(FrogTheme.text)
               .grayscale(1)
               .opacity(0.45)
@@ -180,9 +180,10 @@ public struct AuthView: View {
     HStack(spacing: 12) {
       FrogMark(size: 38)
       VStack(alignment: .leading, spacing: 2) {
-        Text("FroggyBot invitation").font(.system(size: 14, weight: .bold))
+        Text("FroggyBot invitation")
+          .froggyFont(size: 14, weight: .bold, relativeTo: .callout)
         Text("Your invitation will be verified after email confirmation.")
-          .font(.system(size: 12)).foregroundStyle(.secondary)
+          .froggyFont(size: 12, relativeTo: .footnote).foregroundStyle(.secondary)
       }
     }
     .padding(12)

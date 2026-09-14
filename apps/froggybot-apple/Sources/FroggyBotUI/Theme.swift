@@ -68,6 +68,88 @@ enum FroggyTextSizePreference: String, CaseIterable, Identifiable {
       FroggyTextSizePreference.system.rawValue
     #endif
   }
+
+  var macScale: CGFloat {
+    switch self {
+    case .system, .standard: 1
+    case .large: 1.15
+    case .extraLarge: 1.3
+    }
+  }
+}
+
+private struct FroggyTextScaleKey: EnvironmentKey {
+  static let defaultValue: CGFloat = 1
+}
+
+private extension EnvironmentValues {
+  var froggyTextScale: CGFloat {
+    get { self[FroggyTextScaleKey.self] }
+    set { self[FroggyTextScaleKey.self] = newValue }
+  }
+}
+
+private extension Font.TextStyle {
+  var froggyMacPointSize: CGFloat {
+    if self == .largeTitle { return 26 }
+    if self == .title { return 22 }
+    if self == .title2 { return 17 }
+    if self == .title3 { return 15 }
+    if self == .headline { return 13 }
+    if self == .subheadline { return 11 }
+    if self == .callout { return 12 }
+    if self == .footnote || self == .caption || self == .caption2 { return 10 }
+    return 13
+  }
+
+  var froggyMacDefaultWeight: Font.Weight {
+    self == .headline ? .semibold : .regular
+  }
+}
+
+private struct FroggySemanticFontModifier: ViewModifier {
+  @Environment(\.froggyTextScale) private var scale
+  let style: Font.TextStyle
+  let weight: Font.Weight?
+  let design: Font.Design
+
+  func body(content: Content) -> some View {
+    #if os(macOS)
+      content.font(
+        .system(
+          size: style.froggyMacPointSize * scale,
+          weight: weight ?? style.froggyMacDefaultWeight,
+          design: design))
+    #else
+      content.font(.system(style, design: design, weight: weight))
+    #endif
+  }
+}
+
+private struct FroggyFixedFontModifier: ViewModifier {
+  @Environment(\.froggyTextScale) private var scale
+  @ScaledMetric private var scaledSize: CGFloat
+  let originalSize: CGFloat
+  let weight: Font.Weight
+  let design: Font.Design
+
+  init(
+    size: CGFloat, weight: Font.Weight, design: Font.Design,
+    relativeTo style: Font.TextStyle
+  ) {
+    originalSize = size
+    self.weight = weight
+    self.design = design
+    _scaledSize = ScaledMetric(wrappedValue: size, relativeTo: style)
+  }
+
+  func body(content: Content) -> some View {
+    #if os(macOS)
+      content.font(.system(size: originalSize * scale, weight: weight, design: design))
+    #else
+      content.font(.system(size: scaledSize, weight: weight, design: design))
+    #endif
+  }
 }
 
 public enum FrogTheme {
@@ -281,6 +363,48 @@ extension Color {
 }
 
 extension View {
+  @ViewBuilder func froggyTextSize(
+    _ preference: FroggyTextSizePreference, systemSize: DynamicTypeSize
+  ) -> some View {
+    #if os(macOS)
+      environment(\.froggyTextScale, preference.macScale)
+        .font(.system(size: 13 * preference.macScale))
+    #else
+      environment(\.dynamicTypeSize, preference.resolvedSize(systemSize: systemSize))
+    #endif
+  }
+
+  func froggyFont(
+    _ style: Font.TextStyle, weight: Font.Weight? = nil,
+    design: Font.Design = .default
+  ) -> some View {
+    modifier(FroggySemanticFontModifier(style: style, weight: weight, design: design))
+  }
+
+  func froggyFont(
+    size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default,
+    relativeTo style: Font.TextStyle = .body
+  ) -> some View {
+    modifier(
+      FroggyFixedFontModifier(
+        size: size, weight: weight, design: design, relativeTo: style))
+  }
+
+  @ViewBuilder func froggyNavigationTitle(_ title: String) -> some View {
+    #if os(macOS)
+      navigationTitle("")
+        .toolbar {
+          ToolbarItem(placement: .navigation) {
+            Text(title)
+              .froggyFont(.title3, weight: .semibold)
+              .accessibilityAddTraits(.isHeader)
+          }
+        }
+    #else
+      navigationTitle(title)
+    #endif
+  }
+
   @ViewBuilder func froggyGlassButton(prominent: Bool = false, tint: Color? = nil) -> some View {
     if #available(iOS 26.0, macOS 26.0, *) {
       if prominent {
@@ -334,8 +458,8 @@ public struct EmptyPanel: View {
   public var body: some View {
     VStack(spacing: 14) {
       FrogMark(size: 70)
-      Text(title).font(.system(size: 22, weight: .heavy)).foregroundStyle(FrogTheme.text)
-      Text(detail).font(.system(size: 14)).foregroundStyle(FrogTheme.muted)
+      Text(title).froggyFont(.title, weight: .heavy).foregroundStyle(FrogTheme.text)
+      Text(detail).froggyFont(.callout).foregroundStyle(FrogTheme.muted)
         .multilineTextAlignment(.center)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)

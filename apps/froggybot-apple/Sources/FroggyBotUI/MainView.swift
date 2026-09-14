@@ -66,9 +66,7 @@ public struct MainView: View {
       .navigationSplitViewColumnWidth(min: 270, ideal: 290, max: 320)
     } detail: {
       if model.selection != nil {
-        ConversationView(model: model, dictation: dictation) { sheet in
-          model.sheet = sheet
-        }
+        ConversationView(model: model, dictation: dictation)
       } else {
         EmptyPanel(
           icon: "bubble.left.and.bubble.right", title: "Choose a chat",
@@ -162,7 +160,7 @@ private struct ConversationSidebar: View {
     }
     .listStyle(.sidebar)
     #if os(iOS)
-      .navigationTitle("FroggyBot")
+      .froggyNavigationTitle("FroggyBot")
       .toolbarTitleDisplayMode(.inline)
     #endif
     .searchable(text: $search, placement: .sidebar, prompt: "Search chats")
@@ -175,7 +173,7 @@ private struct ConversationSidebar: View {
           ViewThatFits(in: .horizontal) {
             HStack(spacing: 6) {
               FrogMark(size: 26)
-              Text("FroggyBot").font(.headline).lineLimit(1)
+              Text("FroggyBot").froggyFont(.headline).lineLimit(1)
             }
             FrogMark(size: 26)
           }
@@ -230,12 +228,16 @@ private struct ConversationSidebar: View {
       avatar()
       VStack(alignment: .leading, spacing: 3) {
         HStack(spacing: 7) {
-          Text(name).font(.headline).lineLimit(1)
+          Text(name)
+            .froggyFont(.headline)
+            .lineLimit(1)
+            .accessibilityIdentifier(
+              "sidebar.title.\(selection.kind.rawValue).\(selection.id)")
           Spacer(minLength: 4)
           if processing {
             HStack(spacing: 5) {
               ProgressView().controlSize(.mini).tint(FrogTheme.accent)
-              Text("Working").font(.caption2.weight(.semibold))
+              Text("Working").froggyFont(.caption2, weight: .semibold)
             }
             .foregroundStyle(FrogTheme.accent)
             .padding(.horizontal, 7)
@@ -247,12 +249,12 @@ private struct ConversationSidebar: View {
               "sidebar.processing.\(selection.kind.rawValue).\(selection.id)")
           } else if date != .distantPast {
             Text(date.formatted(.dateTime.month().day()))
-              .font(.caption)
+              .froggyFont(.caption)
               .foregroundStyle(.secondary)
           }
         }
         Text(processing ? "\(processingName ?? name) is working…" : preview)
-          .font(.caption)
+          .froggyFont(.caption)
           .foregroundStyle(processing ? FrogTheme.accent : .secondary)
           .lineLimit(1)
       }
@@ -352,7 +354,6 @@ private extension View {
 private struct ConversationView: View {
   @Bindable var model: AppModel
   @Bindable var dictation: DictationModel
-  let present: (AppSheet) -> Void
   @State private var importing = false
   @State private var showDelete = false
   @State private var showClear = false
@@ -380,7 +381,6 @@ private struct ConversationView: View {
     let contentState: ContentState
   }
   private enum InspectorAction {
-    case open(AppSheet)
     case clear
     case delete
   }
@@ -496,7 +496,7 @@ private struct ConversationView: View {
       }
     }
     .id(transcriptIdentity)
-    .navigationTitle(model.title)
+    .froggyNavigationTitle(model.title)
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       #if os(iOS)
@@ -523,7 +523,7 @@ private struct ConversationView: View {
     .froggyInspector(isPresented: $showInspector, onDismiss: finishInspectorAction) {
       ConversationInspector(
         model: model,
-        open: openFromInspector,
+        isPresented: showInspector,
         clear: {
           confirmClearFromInspector()
         },
@@ -601,19 +601,10 @@ private struct ConversationView: View {
         BotAvatar(name: bot.name, color: bot.color, size: 31)
       }
       VStack(alignment: .leading, spacing: 1) {
-        Text(model.title).font(.headline).lineLimit(1)
-        Text(model.subtitle).font(.caption).foregroundStyle(FrogTheme.accent).lineLimit(1)
+        Text(model.title).froggyFont(.headline).lineLimit(1)
+        Text(model.subtitle).froggyFont(.caption).foregroundStyle(FrogTheme.accent).lineLimit(1)
       }
     }
-  }
-
-  private func openFromInspector(_ sheet: AppSheet) {
-    #if os(iOS)
-      pendingInspectorAction = .open(sheet)
-      showInspector = false
-    #else
-      present(sheet)
-    #endif
   }
 
   private func confirmClearFromInspector() {
@@ -638,7 +629,6 @@ private struct ConversationView: View {
     guard let action = pendingInspectorAction else { return }
     pendingInspectorAction = nil
     switch action {
-    case .open(let sheet): present(sheet)
     case .clear: showClear = true
     case .delete: showDelete = true
     }
@@ -680,9 +670,9 @@ private struct ConversationView: View {
     VStack(spacing: 0) {
       if let bot = model.selectedBot { BotAvatar(name: bot.name, color: bot.color, size: 70) }
       Text("Start a conversation")
-        .font(.system(size: 22, weight: .heavy)).tracking(-0.4).padding(.top, 18)
+        .froggyFont(.title, weight: .heavy).tracking(-0.4).padding(.top, 18)
       Text("Ask \(model.title) what you would like to move forward.")
-        .font(.system(size: 14)).foregroundStyle(FrogTheme.muted)
+        .froggyFont(.callout).foregroundStyle(FrogTheme.muted)
         .multilineTextAlignment(.center).padding(.top, 7)
     }
     .frame(maxWidth: .infinity)
@@ -692,7 +682,7 @@ private struct ConversationView: View {
 private struct ConversationInspector: View {
   @Environment(\.dismiss) private var dismiss
   @Bindable var model: AppModel
-  let open: (AppSheet) -> Void
+  let isPresented: Bool
   let clear: () -> Void
   let delete: () -> Void
   @State private var botDraft = BotDraft()
@@ -710,8 +700,8 @@ private struct ConversationInspector: View {
               BotAvatar(name: bot.name, color: bot.color, size: 52)
             }
             VStack(alignment: .leading, spacing: 3) {
-              Text(model.title).font(.headline)
-              Text(model.subtitle).font(.subheadline).foregroundStyle(.secondary)
+              Text(model.title).froggyFont(.headline)
+              Text(model.subtitle).froggyFont(.subheadline).foregroundStyle(.secondary)
             }
           }
         }
@@ -755,7 +745,7 @@ private struct ConversationInspector: View {
         }
       }
       .formStyle(.grouped)
-      .navigationTitle("Details")
+      .froggyNavigationTitle("Details")
       .toolbarTitleDisplayMode(.inline)
       .toolbar {
         #if os(iOS)
@@ -764,10 +754,11 @@ private struct ConversationInspector: View {
               .labelStyle(.iconOnly)
           }
         #endif
-        if let bot = editingBot, actions.contains("edit") {
+        if isPresented, let bot = editingBot, actions.contains("edit") {
           ToolbarItem(placement: .confirmationAction) {
             Button("Save") { save(bot) }
               .disabled(!canSaveBot)
+              .accessibilityIdentifier("inspector.save")
           }
         }
       }
@@ -781,7 +772,7 @@ private struct ConversationInspector: View {
       TextField("Name", text: $botDraft.name)
       TextField("What this bot does", text: $botDraft.tagline)
       VStack(alignment: .leading, spacing: 4) {
-        Text("Color").font(.subheadline)
+        Text("Color").froggyFont(.subheadline)
         BotColorPicker(selection: $botDraft.color, options: colorOptions)
       }
     } header: {
@@ -804,13 +795,13 @@ private struct ConversationInspector: View {
       } label: {
         VStack(alignment: .leading, spacing: 6) {
           Label("Edit Prompt", systemImage: "text.alignleft")
-            .font(.headline)
+            .froggyFont(.headline)
           Text(
             botDraft.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
               ? "Add the bot’s role, tone, boundaries, and definition of success."
               : botDraft.prompt
           )
-          .font(.callout)
+          .froggyFont(.callout)
           .foregroundStyle(.secondary)
           .lineLimit(4)
         }
@@ -837,24 +828,51 @@ private struct ConversationInspector: View {
 
   @ViewBuilder private var conversationActions: some View {
     if let selection = model.selection, actions.contains("schedule") {
-      Button("Scheduled Tasks", systemImage: "calendar") { open(.schedules(selection)) }
-      Button("Run History", systemImage: "clock.arrow.circlepath") {
-        open(.scheduleRuns(selection))
+      NavigationLink {
+        SchedulesView(model: model, selection: selection, showsDismissButton: false)
+      } label: {
+        Label("Scheduled Tasks", systemImage: "calendar")
       }
+      .accessibilityIdentifier("conversation.schedules")
+      NavigationLink {
+        ScheduleRunsView(model: model, selection: selection, showsDismissButton: false)
+      } label: {
+        Label("Run History", systemImage: "clock.arrow.circlepath")
+      }
+      .accessibilityIdentifier("conversation.runs")
     }
     if let selection = model.selection, actions.contains("share") {
-      Button("Share", systemImage: "square.and.arrow.up") { open(.share(selection)) }
+      NavigationLink {
+        ShareView(model: model, selection: selection, showsDismissButton: false)
+      } label: {
+        Label("Share", systemImage: "square.and.arrow.up")
+      }
+      .accessibilityIdentifier("conversation.share")
     }
     if let bot = model.selectedBot {
       if actions.contains("documents") {
-        Button("Documents", systemImage: "doc") { open(.documents(bot.id)) }
+        NavigationLink {
+          DocumentsView(model: model, botId: bot.id, showsDismissButton: false)
+        } label: {
+          Label("Documents", systemImage: "doc")
+        }
+        .accessibilityIdentifier("conversation.documents")
       }
       if actions.contains("browser") {
-        Button("Browser", systemImage: "globe") {
-          open(.browser(botId: bot.id, groupId: nil))
+        NavigationLink {
+          BrowserHandoffView(
+            model: model, botId: bot.id, groupId: nil, showsDismissButton: false)
+        } label: {
+          Label("Browser", systemImage: "globe")
         }
+        .accessibilityIdentifier("conversation.browser")
       }
-      Button("Memory", systemImage: "brain.head.profile") { open(.memories(nil)) }
+      NavigationLink {
+        MemoriesView(model: model, groupId: nil, showsDismissButton: false)
+      } label: {
+        Label("Memory", systemImage: "brain.head.profile")
+      }
+      .accessibilityIdentifier("conversation.memory")
       if actions.contains("edit") {
         NavigationLink {
           BotToolsAndSkillsEditor(
@@ -869,12 +887,20 @@ private struct ConversationInspector: View {
       }
     } else if let group = model.selectedGroup {
       if actions.contains("viewMemory") || actions.contains("manageMemory") {
-        Button("Group Memory", systemImage: "brain.head.profile") {
-          open(.memories(group.id))
+        NavigationLink {
+          MemoriesView(model: model, groupId: group.id, showsDismissButton: false)
+        } label: {
+          Label("Group Memory", systemImage: "brain.head.profile")
         }
+        .accessibilityIdentifier("conversation.group-memory")
       }
       if actions.contains("edit") {
-        Button("Edit Group", systemImage: "pencil") { open(.groupEditor(group.id)) }
+        NavigationLink {
+          GroupEditor(model: model, id: group.id, showsDismissButton: false)
+        } label: {
+          Label("Edit Group", systemImage: "pencil")
+        }
+        .accessibilityIdentifier("conversation.edit-group")
       }
     }
   }
@@ -990,12 +1016,12 @@ private struct MessageBubble: View {
       VStack(alignment: mine ? .trailing : .leading, spacing: 3) {
         if groupMode {
           Text(mine ? "You" : authorLabel)
-            .font(.caption.weight(.semibold))
+            .froggyFont(.caption, weight: .semibold)
             .foregroundStyle(mine ? FrogTheme.accent : FrogTheme.statusText)
             .padding(.horizontal, 6)
         } else if message.source == "schedule" {
           Text("Scheduled · \(message.scheduleName ?? "Recurring task")")
-            .font(.caption.weight(.bold)).foregroundStyle(FrogTheme.statusText)
+            .froggyFont(.caption, weight: .bold).foregroundStyle(FrogTheme.statusText)
             .padding(.horizontal, 6)
         }
 
@@ -1010,11 +1036,11 @@ private struct MessageBubble: View {
           VStack(alignment: .leading, spacing: 8) {
             if awaitingApproval {
               Label("Approval Needed", systemImage: "checkmark.shield")
-                .font(.headline)
+                .froggyFont(.headline)
               Text(
                 "This reply may use \(message.approvalTools?.joined(separator: ", ") ?? "an interactive tool") to take action."
               )
-              .font(.callout).foregroundStyle(.secondary)
+              .froggyFont(.callout).foregroundStyle(.secondary)
               Button("Review Action", systemImage: "checkmark.shield") {
                 reviewingApproval = true
               }
@@ -1030,7 +1056,7 @@ private struct MessageBubble: View {
                 Label(
                   attachment.name, systemImage: attachment.kind == "image" ? "photo" : "doc")
               }
-              .buttonStyle(.plain).font(.callout.weight(.semibold)).foregroundStyle(FrogTheme.accent)
+              .buttonStyle(.plain).froggyFont(.callout, weight: .semibold).foregroundStyle(FrogTheme.accent)
             }
             if message.allowedActions?.contains("saveDecision") == true {
               Button("Save decision", systemImage: "bookmark") {
@@ -1055,7 +1081,7 @@ private struct MessageBubble: View {
             }
             Text(timestamp)
           }
-          .font(.caption).foregroundStyle(FrogTheme.statusText)
+          .froggyFont(.caption).foregroundStyle(FrogTheme.statusText)
           .padding(.horizontal, 6).padding(.top, 1)
         }
       }
@@ -1229,7 +1255,7 @@ private struct MessageActivityView: View {
                   .frame(width: 5, height: 5)
                   .padding(.top, 6)
                 Text(formattedActivityStep(step))
-                  .font(.caption)
+                  .froggyFont(.caption)
                   .lineSpacing(2)
                   .foregroundStyle(
                     phase == .running && index == steps.indices.last
@@ -1274,11 +1300,11 @@ private struct MessageActivityView: View {
       } else {
         Image(systemName: phase.systemImage)
       }
-      Text(phase.title(stepCount: steps.count)).font(.caption.weight(.semibold))
+      Text(phase.title(stepCount: steps.count)).froggyFont(.caption, weight: .semibold)
       Spacer(minLength: 0)
       if let timestamp, !timestamp.isEmpty {
         Text(timestamp)
-          .font(.caption)
+          .froggyFont(.caption)
           .foregroundStyle(FrogTheme.statusText)
       }
     }
@@ -1350,7 +1376,7 @@ private struct Composer: View {
 
       if let error = dictation.errorMessage {
         Label(error, systemImage: "exclamationmark.triangle")
-          .font(.caption).foregroundStyle(.red).padding(.top, 5)
+          .froggyFont(.caption).foregroundStyle(.red).padding(.top, 5)
       }
     }
     .padding(.horizontal, composerHorizontalPadding)
@@ -1410,6 +1436,8 @@ private struct Composer: View {
   }
 
   #if os(macOS)
+    private let macComposerControlSize: CGFloat = 44
+
     private var macComposer: some View {
       HStack(alignment: .bottom, spacing: 6) {
         attachmentMenu
@@ -1444,7 +1472,7 @@ private struct Composer: View {
             .foregroundStyle(.red)
             .background(.quaternary, in: Circle())
             .overlay(Circle().stroke(FrogTheme.border.opacity(0.7), lineWidth: 0.5))
-            .frame(width: 44, height: 44)
+            .accessibilityIdentifier("chat.stop")
           } else {
             Button {
               submitMessage()
@@ -1452,10 +1480,11 @@ private struct Composer: View {
               macComposerIcon("arrow.up")
             }
             .accessibilityLabel("Send message")
-            .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
-            .buttonBorderShape(.circle)
-            .controlSize(.large)
-            .frame(width: 44, height: 44)
+            .buttonStyle(.plain)
+            .foregroundStyle(canSubmit ? Color.white : Color.secondary)
+            .background(
+              canSubmit ? FrogTheme.brand : Color.primary.opacity(0.08), in: Circle())
+            .overlay(Circle().stroke(FrogTheme.border.opacity(0.7), lineWidth: 0.5))
             .accessibilityIdentifier("chat.send")
             .disabled(!canSubmit)
           }
@@ -1471,7 +1500,7 @@ private struct Composer: View {
     private func macComposerIcon(_ systemName: String) -> some View {
       Image(systemName: systemName)
         .font(.system(size: 18, weight: .bold))
-        .frame(width: 40, height: 40)
+        .frame(width: macComposerControlSize, height: macComposerControlSize)
         .contentShape(Circle())
     }
   #else
@@ -1539,7 +1568,7 @@ private struct Composer: View {
       Label("Add attachment", systemImage: "plus")
         #if os(macOS)
           .font(.system(size: 18, weight: .semibold))
-          .frame(width: 40, height: 40)
+          .frame(width: macComposerControlSize, height: macComposerControlSize)
           .contentShape(Circle())
         #endif
     }
@@ -1551,7 +1580,7 @@ private struct Composer: View {
   private var composerTextField: some View {
     TextField("Message \(model.title)", text: $model.composerText, axis: .vertical)
       .textFieldStyle(.plain)
-      .font(.body)
+      .froggyFont(.body)
       .lineLimit(1...6)
       .focused(composerFocused)
       .accessibilityIdentifier("chat.composer")
@@ -1611,7 +1640,7 @@ private struct Composer: View {
         ForEach(model.pendingAttachments) { item in
           HStack(spacing: 7) {
             Image(systemName: "paperclip")
-            Text(item.name).font(.caption.weight(.semibold)).lineLimit(1)
+            Text(item.name).froggyFont(.caption, weight: .semibold).lineLimit(1)
             Button { model.removeAttachment(item.id) } label: {
               Image(systemName: "xmark.circle.fill")
                 .frame(minWidth: 44, minHeight: 44)
@@ -1628,7 +1657,7 @@ private struct Composer: View {
   private var replyPicker: some View {
     HStack(spacing: 10) {
       Label("Who should answer?", systemImage: "person.2")
-        .font(.callout.weight(.medium))
+        .froggyFont(.callout, weight: .medium)
         .foregroundStyle(FrogTheme.statusText)
       Spacer(minLength: 14)
       Picker("Who should reply", selection: replySelection) {
@@ -1703,7 +1732,7 @@ private struct Composer: View {
 
   private var dictationButtonSize: CGFloat {
     #if os(macOS)
-      44
+      macComposerControlSize
     #else
       44
     #endif

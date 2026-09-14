@@ -1,6 +1,7 @@
 import XCTest
 import CoreGraphics
 import ImageIO
+import SwiftUI
 import UniformTypeIdentifiers
 
 @testable import FroggyBotApple
@@ -71,7 +72,31 @@ import UniformTypeIdentifiers
     XCTAssertEqual(FroggyTextSizePreference.standard.resolvedSize(systemSize: .small), .large)
     XCTAssertEqual(FroggyTextSizePreference.large.resolvedSize(systemSize: .small), .xLarge)
     XCTAssertEqual(FroggyTextSizePreference.extraLarge.resolvedSize(systemSize: .small), .xxLarge)
+    XCTAssertEqual(FroggyTextSizePreference.standard.macScale, 1)
+    XCTAssertGreaterThan(FroggyTextSizePreference.large.macScale, FroggyTextSizePreference.standard.macScale)
+    XCTAssertGreaterThan(
+      FroggyTextSizePreference.extraLarge.macScale, FroggyTextSizePreference.large.macScale)
   }
+
+  #if os(macOS)
+    func testMacTextSizePreferenceChangesRenderedSemanticText() throws {
+      let standard = ImageRenderer(
+        content: Text("Sidebar title")
+          .froggyFont(.headline)
+          .froggyTextSize(.standard, systemSize: .large)
+          .fixedSize())
+      let extraLarge = ImageRenderer(
+        content: Text("Sidebar title")
+          .froggyFont(.headline)
+          .froggyTextSize(.extraLarge, systemSize: .large)
+          .fixedSize())
+
+      let standardSize = try XCTUnwrap(standard.nsImage?.size)
+      let extraLargeSize = try XCTUnwrap(extraLarge.nsImage?.size)
+      XCTAssertGreaterThan(extraLargeSize.width, standardSize.width)
+      XCTAssertGreaterThan(extraLargeSize.height, standardSize.height)
+    }
+  #endif
 
   func testActivityStepsRenderInlineMarkdownInsteadOfLiteralMarkers() {
     let formatted = formattedActivityStep("Checking `README.md` before **release**.")

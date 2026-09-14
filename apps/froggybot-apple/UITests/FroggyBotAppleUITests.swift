@@ -14,7 +14,7 @@ import XCTest
       (argument: "skill-editor", marker: "New skill"),
       (argument: "connections", marker: "Couldn’t Load Accounts"),
       (argument: "documents", marker: "Documents"),
-      (argument: "browser", marker: "Secure browser handoff"),
+      (argument: "browser", marker: "Secure Browser"),
       (argument: "share", marker: "Share"),
     ]
 
@@ -200,6 +200,7 @@ import XCTest
 
     let details = app.buttons["chat.details"]
     XCTAssertTrue(details.waitForExistence(timeout: 10))
+    XCTAssertFalse(app.buttons["inspector.save"].exists)
     details.tap()
 
     #if os(iOS)
@@ -220,13 +221,26 @@ import XCTest
     #endif
     XCTAssertTrue(app.textFields["Name"].exists)
     XCTAssertTrue(app.buttons["bot.prompt.editor"].exists)
-    XCTAssertTrue(app.buttons["Save"].exists)
+    XCTAssertTrue(app.buttons["inspector.save"].exists)
     XCTAssertFalse(app.buttons["Edit Bot"].exists)
     let toolsAndSkills = app.buttons["bot.tools-and-skills"]
-    let memory = app.buttons["Memory"]
+    let conversationLinks = [
+      "conversation.schedules", "conversation.runs", "conversation.share",
+      "conversation.documents", "conversation.browser", "conversation.memory",
+    ].map { app.buttons[$0] }
+    let memory = app.buttons["conversation.memory"]
     for _ in 0..<4 where !toolsAndSkills.exists || !memory.exists { app.swipeUp() }
     XCTAssertTrue(toolsAndSkills.exists)
-    XCTAssertTrue(memory.exists)
+    for link in conversationLinks {
+      XCTAssertTrue(link.exists)
+    }
+
+    memory.tap()
+    XCTAssertTrue(app.staticTexts["Memory"].waitForExistence(timeout: 5))
+    let rootLinksDisappear = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "exists == false"),
+      object: app.buttons["conversation.schedules"])
+    wait(for: [rootLinksDisappear], timeout: 5)
   }
 
   func testAccountSettingsUsesTheFroggyBotLayout() {
@@ -262,8 +276,12 @@ import XCTest
       XCTAssertTrue(app.buttons["Close"].exists)
       XCTAssertFalse(app.buttons["Done"].exists)
     #else
-      XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 5))
-      XCTAssertTrue(app.buttons["Close"].exists)
+      let sheet = app.sheets.firstMatch
+      XCTAssertTrue(sheet.waitForExistence(timeout: 5))
+      let close = app.buttons["sheet.close"]
+      XCTAssertTrue(close.exists)
+      XCTAssertLessThan(close.frame.midY, sheet.frame.midY)
+      XCTAssertGreaterThan(close.frame.midX, app.staticTexts["Settings"].frame.midX)
       XCTAssertFalse(app.buttons["Done"].exists)
       XCTAssertEqual(app.windows.count, 1)
     #endif
@@ -280,6 +298,47 @@ import XCTest
     for _ in 0..<4 where !version.exists { app.swipeUp() }
     XCTAssertTrue(version.waitForExistence(timeout: 5))
   }
+
+  #if os(macOS)
+    func testMacTextSizeUpdatesSettingsAndSidebarImmediately() {
+      let app = XCUIApplication()
+      app.launchArguments = ["--ui-testing"]
+      app.launch()
+
+      let sidebarTitle = app.staticTexts["sidebar.title.bot.chief"]
+      let settings = app.buttons["sidebar.settings"]
+      XCTAssertTrue(sidebarTitle.waitForExistence(timeout: 10))
+      XCTAssertTrue(settings.waitForExistence(timeout: 5))
+
+      func chooseTextSize(_ name: String) {
+        let picker = app.descendants(matching: .any)["settings.text-size"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        picker.click()
+        let option = app.menuItems[name]
+        XCTAssertTrue(option.waitForExistence(timeout: 5))
+        option.click()
+      }
+
+      settings.click()
+      chooseTextSize("Standard")
+      let standardSettingsHeight = app.staticTexts["Memory"].frame.height
+      app.buttons["sheet.close"].click()
+      let standardSidebarHeight = sidebarTitle.frame.height
+
+      settings.click()
+      chooseTextSize("Extra Large")
+      let extraLargeSettingsHeight = app.staticTexts["Memory"].frame.height
+      app.buttons["sheet.close"].click()
+      let extraLargeSidebarHeight = sidebarTitle.frame.height
+
+      XCTAssertGreaterThan(extraLargeSettingsHeight, standardSettingsHeight)
+      XCTAssertGreaterThan(extraLargeSidebarHeight, standardSidebarHeight)
+
+      settings.click()
+      chooseTextSize("Standard")
+      app.buttons["sheet.close"].click()
+    }
+  #endif
 
   #if os(iOS)
     func testConnectedAccountsUsesSettingsBackButtonWithoutARedundantTitleOrCloseButton() {
@@ -466,8 +525,12 @@ import XCTest
         XCTAssertGreaterThanOrEqual(button.frame.width, 42)
         XCTAssertGreaterThanOrEqual(button.frame.height, 42)
       }
+      XCTAssertEqual(attachment.frame.width, microphone.frame.width, accuracy: 1)
+      XCTAssertEqual(attachment.frame.height, microphone.frame.height, accuracy: 1)
+      XCTAssertEqual(send.frame.width, microphone.frame.width, accuracy: 1)
+      XCTAssertEqual(send.frame.height, microphone.frame.height, accuracy: 1)
       XCTAssertGreaterThanOrEqual(send.frame.minX - microphone.frame.maxX, 8)
-      XCTAssertEqual(app.toolbars.staticTexts.matching(identifier: "Chief").count, 0)
+      XCTAssertTrue(app.toolbars.staticTexts["Chief"].exists)
 
       composer.click()
       composer.typeText("Mac layout smoke test")

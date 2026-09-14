@@ -37,19 +37,27 @@ struct CloseButton: ToolbarContent {
   }
 
   var body: some ToolbarContent {
-    ToolbarItem(placement: .cancellationAction) {
-      Button("Close") {
-        if let action {
-          action()
-        } else {
-          dismiss()
-        }
+    #if os(macOS)
+      ToolbarItem(placement: .primaryAction) { button }
+    #else
+      ToolbarItem(placement: .cancellationAction) { button }
+    #endif
+  }
+
+  private var button: some View {
+    Button("Close", systemImage: "xmark") {
+      if let action {
+        action()
+      } else {
+        dismiss()
       }
     }
+    .labelStyle(.iconOnly)
+    .accessibilityIdentifier("sheet.close")
   }
 }
 
-private struct GuidedTextEditor: View {
+struct GuidedTextEditor: View {
   let title: String
   let prompt: String
   @Binding var text: String
@@ -109,7 +117,7 @@ struct BotColorPicker: View {
               .frame(width: 30, height: 30)
             if selection == option.value {
               Image(systemName: "checkmark")
-                .font(.caption.bold())
+                .froggyFont(.caption, weight: .bold)
                 .foregroundStyle(.white)
                 .shadow(radius: 1)
             }
@@ -179,7 +187,7 @@ struct BotLibrary: View {
       }
     }
     .froggyListSurface()
-    .navigationTitle("Add a Bot")
+    .froggyNavigationTitle("Add a Bot")
     .toolbarTitleDisplayMode(.inline)
     .searchable(text: $search, prompt: "Search templates")
     .toolbar {
@@ -204,19 +212,19 @@ struct BotLibrary: View {
         BotAvatar(name: template.name, color: template.color)
         VStack(alignment: .leading, spacing: 4) {
           HStack {
-            Text(template.name).font(.headline)
+            Text(template.name).froggyFont(.headline)
             if isInstalled(template) {
               Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(FrogTheme.accent)
                 .accessibilityLabel("Added")
             }
           }
-          Text(template.tagline).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+          Text(template.tagline).froggyFont(.subheadline).foregroundStyle(.secondary).lineLimit(2)
           HStack(spacing: 12) {
             Label(countLabel(template.skillIds.count, singular: "skill"), systemImage: "sparkles")
             Label(countLabel(effectiveToolCount(template), singular: "tool"), systemImage: "wrench.and.screwdriver")
           }
-          .font(.caption)
+          .froggyFont(.caption)
           .foregroundStyle(.secondary)
         }
       }
@@ -266,10 +274,10 @@ private struct BotTemplateDetailView: View {
         HStack(alignment: .top, spacing: 14) {
           BotAvatar(name: template.name, color: template.color, size: 54)
           VStack(alignment: .leading, spacing: 5) {
-            Text(template.name).font(.title2.bold())
+            Text(template.name).froggyFont(.title2, weight: .bold)
             Text(template.tagline).foregroundStyle(.secondary)
             if let category = template.category {
-              Text(category).font(.caption).foregroundStyle(FrogTheme.accent)
+              Text(category).froggyFont(.caption).foregroundStyle(FrogTheme.accent)
             }
           }
         }
@@ -285,7 +293,7 @@ private struct BotTemplateDetailView: View {
             Label {
               VStack(alignment: .leading, spacing: 2) {
                 Text(skill.name)
-                Text(skill.description).font(.caption).foregroundStyle(.secondary)
+                Text(skill.description).froggyFont(.caption).foregroundStyle(.secondary)
               }
             } icon: {
               Image(systemName: "sparkles")
@@ -306,7 +314,7 @@ private struct BotTemplateDetailView: View {
               VStack(alignment: .leading, spacing: 2) {
                 Text(toolsByID[id]?.name ?? capabilityName(id))
                 if let description = toolsByID[id]?.description, !description.isEmpty {
-                  Text(description).font(.caption).foregroundStyle(.secondary)
+                  Text(description).froggyFont(.caption).foregroundStyle(.secondary)
                 }
               }
             } icon: {
@@ -322,7 +330,7 @@ private struct BotTemplateDetailView: View {
       Section {
         DisclosureGroup("View Full Instructions") {
           Text(template.prompt)
-            .font(.callout)
+            .froggyFont(.callout)
             .textSelection(.enabled)
             .padding(.vertical, 6)
         }
@@ -332,7 +340,7 @@ private struct BotTemplateDetailView: View {
     }
     .formStyle(.grouped)
     .froggyListSurface()
-    .navigationTitle(template.name)
+    .froggyNavigationTitle(template.name)
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .confirmationAction) {
@@ -419,7 +427,7 @@ private struct BotEditor: View {
         TextField("Name", text: $draft.name)
         TextField("What this bot does", text: $draft.tagline)
         VStack(alignment: .leading, spacing: 4) {
-          Text("Color").font(.subheadline)
+          Text("Color").froggyFont(.subheadline)
           BotColorPicker(selection: $draft.color, options: colorOptions)
         }
       } header: {
@@ -440,13 +448,13 @@ private struct BotEditor: View {
         } label: {
           VStack(alignment: .leading, spacing: 6) {
             Label("Edit Prompt", systemImage: "text.alignleft")
-              .font(.headline)
+              .froggyFont(.headline)
             Text(
               draft.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? "Add the bot’s role, tone, boundaries, and definition of success."
                 : draft.prompt
             )
-            .font(.callout)
+            .froggyFont(.callout)
             .foregroundStyle(.secondary)
             .lineLimit(4)
           }
@@ -485,7 +493,7 @@ private struct BotEditor: View {
               Text(
                 "\(selectedSkillCount) \(selectedSkillCount == 1 ? "skill" : "skills") · \(effectiveToolCount) \(effectiveToolCount == 1 ? "tool" : "tools")"
               )
-              .font(.caption)
+              .froggyFont(.caption)
               .foregroundStyle(.secondary)
             }
           } icon: {
@@ -499,7 +507,7 @@ private struct BotEditor: View {
     }
     .formStyle(.grouped)
     .froggyListSurface()
-    .navigationTitle(id == nil ? "New bot" : "Edit bot")
+    .froggyNavigationTitle(id == nil ? "New bot" : "Edit bot")
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       CloseButton()
@@ -543,14 +551,14 @@ struct BotPromptEditor: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       Text("Describe the bot’s role, tone, boundaries, and what a successful answer looks like.")
-        .font(.callout)
+        .froggyFont(.callout)
         .foregroundStyle(.secondary)
       GuidedTextEditor(
         title: "Bot prompt",
         prompt: "Help people… Always include… Never… Keep responses…",
         text: $prompt,
         minHeight: 420)
-        .font(.body)
+        .froggyFont(.body)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       HStack(alignment: .firstTextBaseline) {
         Text(issue ?? "This prompt is active for every reply from this bot.")
@@ -558,12 +566,12 @@ struct BotPromptEditor: View {
         Text("\(prompt.count.formatted()) / \(maximumLength.formatted())")
           .monospacedDigit()
       }
-      .font(.caption)
+      .froggyFont(.caption)
       .foregroundStyle(issue == nil ? Color.secondary : Color.red)
     }
     .padding(20)
     .background(FrogTheme.pageBackground)
-    .navigationTitle("Bot Prompt")
+    .froggyNavigationTitle("Bot Prompt")
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .confirmationAction) {
@@ -605,7 +613,7 @@ struct BotToolsAndSkillsEditor: View {
         Text(
           "Skills are playbooks the bot can activate when a request matches. Tools are actions it can call when needed."
         )
-        .font(.callout)
+        .froggyFont(.callout)
         .foregroundStyle(.secondary)
       }
 
@@ -637,7 +645,7 @@ struct BotToolsAndSkillsEditor: View {
               Text(group.family.name)
               if let includedSummary = group.family.includedSummary {
                 Text(includedSummary)
-                  .font(.caption2)
+                  .froggyFont(.caption2)
                   .foregroundStyle(FrogTheme.accent)
                   .textCase(nil)
               }
@@ -678,7 +686,7 @@ struct BotToolsAndSkillsEditor: View {
     }
     .formStyle(.grouped)
     .froggyListSurface()
-    .navigationTitle("Tools & Skills")
+    .froggyNavigationTitle("Tools & Skills")
     .toolbarTitleDisplayMode(.inline)
   }
 
@@ -692,7 +700,7 @@ struct BotToolsAndSkillsEditor: View {
     ) {
       VStack(alignment: .leading, spacing: 3) {
         Text(name)
-        Text(description).font(.caption).foregroundStyle(.secondary)
+        Text(description).froggyFont(.caption).foregroundStyle(.secondary)
       }
     }
   }
@@ -709,10 +717,10 @@ struct BotToolsAndSkillsEditor: View {
     ) {
       VStack(alignment: .leading, spacing: 3) {
         Text(name ?? tool.name)
-        Text(tool.description).font(.caption).foregroundStyle(.secondary)
+        Text(tool.description).froggyFont(.caption).foregroundStyle(.secondary)
         if !requiredBy.isEmpty {
           Text("Required by \(requiredBy.joined(separator: ", "))")
-            .font(.caption2.weight(.semibold))
+            .froggyFont(.caption2, weight: .semibold)
             .foregroundStyle(FrogTheme.accent)
         }
       }
@@ -747,9 +755,10 @@ func revocableAlwaysAllowedTools(tools: [Capability], skills: [Skill], draft: Bo
   }
 }
 
-private struct GroupEditor: View {
+struct GroupEditor: View {
   @Bindable var model: AppModel
   let id: String?
+  var showsDismissButton = true
   @State private var draft = GroupDraft()
   @State private var saving = false
   @State private var memberRemovalCandidate: GroupMember?
@@ -848,7 +857,7 @@ private struct GroupEditor: View {
           ForEach(group.decisions) { decision in
             VStack(alignment: .leading) {
               Text(decision.text)
-              Text("Saved by \(decision.createdByName)").font(.caption).foregroundStyle(.secondary)
+              Text("Saved by \(decision.createdByName)").froggyFont(.caption).foregroundStyle(.secondary)
             }
             .swipeActions {
               if decision.allowedActions?.contains("remove") == true {
@@ -861,10 +870,12 @@ private struct GroupEditor: View {
     }
     .formStyle(.grouped)
     .froggyListSurface()
-    .navigationTitle(id == nil ? "New group" : "Edit group")
+    .froggyNavigationTitle(id == nil ? "New group" : "Edit group")
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
-      CloseButton { model.sheet = nil }
+      if showsDismissButton {
+        CloseButton { model.sheet = nil }
+      }
       if editable {
         ToolbarItem(placement: .confirmationAction) {
           Button("Save") { save() }.disabled(!canSave)
@@ -926,77 +937,98 @@ private struct GroupEditor: View {
   }
 }
 
-private struct SchedulesView: View {
+struct SchedulesView: View {
   @Bindable var model: AppModel
   let selection: ConversationSelection
+  var showsDismissButton = true
   @State private var schedules: [ScheduledTask] = []
   @State private var editing: ScheduledTask?
   @State private var creating = false
   @State private var runningID: String?
   @State private var deleteCandidate: ScheduledTask?
+  @State private var isLoading = false
+  @State private var loadError: String?
   var body: some View {
     List {
-      ForEach(schedules) { item in
-        HStack {
-          Button {
-            editing = item
-          } label: {
-            HStack {
-              Image(systemName: item.enabled ? "clock.badge.checkmark" : "clock")
-              VStack(alignment: .leading) {
-                Text(item.name)
-                Text("\(item.frequency.capitalized) · \(item.time) · \(item.timezone)")
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
+      if let loadError {
+        Section {
+          ContentUnavailableView {
+            Label("Couldn’t Load Scheduled Tasks", systemImage: "wifi.exclamationmark")
+          } description: {
+            Text(loadError)
+          } actions: {
+            Button("Try Again") { Task { await load() } }
+          }
+        }
+      } else {
+        ForEach(schedules) { item in
+          HStack {
+            Button {
+              editing = item
+            } label: {
+              HStack {
+                Image(systemName: item.enabled ? "clock.badge.checkmark" : "clock")
+                VStack(alignment: .leading) {
+                  Text(item.name)
+                  Text("\(item.frequency.capitalized) · \(item.time) · \(item.timezone)")
+                    .froggyFont(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                Spacer()
               }
-              Spacer()
+              .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-          Button { run(item.id) } label: {
-            if runningID == item.id {
-              HStack(spacing: 7) {
-                ProgressView().controlSize(.small)
-                Text("Running")
+            .buttonStyle(.plain)
+            Button { run(item.id) } label: {
+              if runningID == item.id {
+                HStack(spacing: 7) {
+                  ProgressView().controlSize(.small)
+                  Text("Running")
+                }
+              } else {
+                Label("Run Now", systemImage: "play.fill")
               }
-            } else {
-              Label("Run Now", systemImage: "play.fill")
+            }
+              .froggyGlassButton(tint: FrogTheme.accent)
+              .controlSize(.large)
+              .frame(minWidth: 104, minHeight: 44)
+              .disabled(runningID != nil)
+          }
+          .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button("Delete", systemImage: "trash", role: .destructive) {
+              deleteCandidate = item
             }
           }
-            .froggyGlassButton(tint: FrogTheme.accent)
-            .controlSize(.large)
-            .frame(minWidth: 104, minHeight: 44)
-            .disabled(runningID != nil)
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-          Button("Delete", systemImage: "trash", role: .destructive) {
-            deleteCandidate = item
+          .contextMenu {
+            Button("Edit Task", systemImage: "pencil") { editing = item }
+            Button("Run Now", systemImage: "play.fill") { run(item.id) }
+              .disabled(runningID != nil)
+            Divider()
+            Button("Delete Task", systemImage: "trash", role: .destructive) {
+              deleteCandidate = item
+            }
           }
         }
-        .contextMenu {
-          Button("Edit Task", systemImage: "pencil") { editing = item }
-          Button("Run Now", systemImage: "play.fill") { run(item.id) }
-            .disabled(runningID != nil)
-          Divider()
-          Button("Delete Task", systemImage: "trash", role: .destructive) {
-            deleteCandidate = item
-          }
+        if schedules.isEmpty && !isLoading {
+          ContentUnavailableView(
+            "No Scheduled Tasks", systemImage: "calendar.badge.plus",
+            description: Text("Create a task to have this conversation run automatically."))
         }
-      }
-      if schedules.isEmpty {
-        ContentUnavailableView("No scheduled tasks", systemImage: "calendar.badge.plus")
       }
     }
     .froggyListSurface()
-    .navigationTitle("Scheduled tasks")
+    .froggyNavigationTitle("Scheduled tasks")
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
-      CloseButton { model.sheet = nil }
+      if showsDismissButton {
+        CloseButton { model.sheet = nil }
+      }
       ToolbarItem(placement: .primaryAction) {
         Button("New", systemImage: "plus") { creating = true }
       }
     }
+    .overlay { if isLoading { ProgressView() } }
+    .refreshable { await load() }
     .task { await load() }
     .sheet(isPresented: $creating) {
       NavigationStack {
@@ -1028,8 +1060,18 @@ private struct SchedulesView: View {
     }
   }
   private func load() async {
-    guard let api = model.api else { return }
-    do { schedules = try await api.schedules(for: selection) } catch { model.present(error) }
+    isLoading = true
+    defer { isLoading = false }
+    guard let api = model.api else {
+      loadError = nil
+      return
+    }
+    do {
+      schedules = try await api.schedules(for: selection)
+      loadError = nil
+    } catch {
+      loadError = error.localizedDescription
+    }
   }
   private func run(_ id: String) {
     runningID = id
@@ -1173,7 +1215,7 @@ private struct ScheduleEditor: View {
     }
     .formStyle(.grouped)
     .froggyListSurface()
-    .navigationTitle(existing == nil ? "New task" : "Edit task")
+    .froggyNavigationTitle(existing == nil ? "New task" : "Edit task")
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       CloseButton { dismiss() }
@@ -1272,33 +1314,71 @@ private struct ScheduleEditor: View {
   }
 }
 
-private struct ScheduleRunsView: View {
+struct ScheduleRunsView: View {
   @Bindable var model: AppModel
   let selection: ConversationSelection
+  var showsDismissButton = true
   @State private var runs: [ScheduleRun] = []
+  @State private var isLoading = false
+  @State private var loadError: String?
   var body: some View {
-    List(runs) { run in
-      VStack(alignment: .leading, spacing: 6) {
-        HStack {
-          Text(run.scheduleName).font(.headline)
-          Spacer()
-          Text(run.status.capitalized).foregroundStyle(
-            run.status == "complete" ? FrogTheme.green : .secondary)
+    List {
+      if let loadError {
+        Section {
+          ContentUnavailableView {
+            Label("Couldn’t Load Run History", systemImage: "wifi.exclamationmark")
+          } description: {
+            Text(loadError)
+          } actions: {
+            Button("Try Again") { Task { await load() } }
+          }
         }
-        Text(run.prompt).lineLimit(2)
-        if let output = run.output {
-          Text(output).font(.callout).foregroundStyle(.secondary).lineLimit(5)
+      } else if runs.isEmpty && !isLoading {
+        ContentUnavailableView(
+          "No Runs Yet", systemImage: "clock.arrow.circlepath",
+          description: Text("Completed and in-progress scheduled task runs will appear here."))
+      } else {
+        ForEach(runs) { run in
+          VStack(alignment: .leading, spacing: 6) {
+            HStack {
+              Text(run.scheduleName).froggyFont(.headline)
+              Spacer()
+              Text(run.status.capitalized).foregroundStyle(
+                run.status == "complete" ? FrogTheme.green : .secondary)
+            }
+            Text(run.prompt).lineLimit(2)
+            if let output = run.output {
+              Text(output).froggyFont(.callout).foregroundStyle(.secondary).lineLimit(5)
+            }
+          }
         }
       }
     }
     .froggyListSurface()
-    .navigationTitle("Run history")
+    .froggyNavigationTitle("Run history")
     .toolbarTitleDisplayMode(.inline)
-    .toolbar { CloseButton { model.sheet = nil } }
-    .task {
-      do { runs = try await model.api?.scheduleRuns(for: selection) ?? [] } catch {
-        model.present(error)
+    .toolbar {
+      if showsDismissButton {
+        CloseButton { model.sheet = nil }
       }
+    }
+    .overlay { if isLoading { ProgressView() } }
+    .refreshable { await load() }
+    .task { await load() }
+  }
+
+  private func load() async {
+    isLoading = true
+    defer { isLoading = false }
+    guard let api = model.api else {
+      loadError = nil
+      return
+    }
+    do {
+      runs = try await api.scheduleRuns(for: selection)
+      loadError = nil
+    } catch {
+      loadError = error.localizedDescription
     }
   }
 }
@@ -1530,11 +1610,11 @@ struct MemoriesView: View {
             "Raw conversation history expires after \(snapshot.rawConversationRetentionDays) days. The memories listed here remain until you edit or forget them."
           )
         }
-        .font(.footnote)
+        .froggyFont(.footnote)
       }
     }
     .froggyListSurface()
-    .navigationTitle(groupId == nil ? "Memory" : "Group Memory")
+    .froggyNavigationTitle(groupId == nil ? "Memory" : "Group Memory")
     .toolbarTitleDisplayMode(.inline)
     .searchable(text: $search, prompt: "Search memories")
     .toolbar {
@@ -1655,7 +1735,7 @@ struct MemoriesView: View {
           Text("\(newMemory.count.formatted()) / \(maximumLength.formatted())")
             .foregroundStyle(newMemory.count > maximumLength ? .red : .secondary)
         }
-        .font(.caption)
+        .froggyFont(.caption)
       }
     } header: {
       Text("Add Memory")
@@ -1680,7 +1760,7 @@ struct MemoriesView: View {
           }
           Spacer()
           Text("\(editingText.count.formatted()) / \(maximumLength.formatted())")
-            .font(.caption)
+            .froggyFont(.caption)
             .foregroundStyle(editingText.count > maximumLength ? .red : .secondary)
           Button("Save") { update(record) }
             .disabled(
@@ -1694,7 +1774,7 @@ struct MemoriesView: View {
       } label: {
         HStack(alignment: .top, spacing: 12) {
           Image(systemName: selectedIDs.contains(record.id) ? "checkmark.circle.fill" : "circle")
-            .font(.title3)
+            .froggyFont(.title3)
             .foregroundStyle(selectedIDs.contains(record.id) ? FrogTheme.accent : .secondary)
           memorySummary(record)
         }
@@ -1747,10 +1827,10 @@ struct MemoriesView: View {
         .textSelection(.enabled)
         .frame(maxWidth: .infinity, alignment: .leading)
       Label(usage.label, systemImage: usage.systemImage)
-        .font(.caption.weight(.semibold))
+        .froggyFont(.caption, weight: .semibold)
         .foregroundStyle(usage.isInUse ? FrogTheme.accent : Color.orange)
       Text(memoryMetadata(record))
-        .font(.caption2)
+        .froggyFont(.caption2)
         .foregroundStyle(.secondary)
     }
   }
@@ -1776,7 +1856,7 @@ struct MemoriesView: View {
     }
     Spacer(minLength: 8)
     Text("\(selectedIDs.count) selected")
-      .font(.caption)
+      .froggyFont(.caption)
       .foregroundStyle(.secondary)
     Button("Forget Selected", role: .destructive) {
       forgetCandidates = records.filter { selectedIDs.contains($0.id) }
@@ -1927,7 +2007,7 @@ struct SkillsView: View {
             } label: {
               VStack(alignment: .leading, spacing: 3) {
                 HStack {
-                  Text(skill.name).font(.headline)
+                  Text(skill.name).froggyFont(.headline)
                   if skill.source == "official" {
                     Image(systemName: "checkmark.seal.fill").foregroundStyle(FrogTheme.green)
                   }
@@ -1948,7 +2028,7 @@ struct SkillsView: View {
             } label: {
               Label {
                 VStack(alignment: .leading, spacing: 3) {
-                  Text(tool.name).font(.headline)
+                  Text(tool.name).froggyFont(.headline)
                   Text(tool.description).foregroundStyle(.secondary)
                 }
               } icon: {
@@ -1963,7 +2043,7 @@ struct SkillsView: View {
       }
     }
     .froggyListSurface()
-    .navigationTitle("Tools & Skills")
+    .froggyNavigationTitle("Tools & Skills")
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       if showsDismissButton {
@@ -2018,7 +2098,7 @@ private struct CapabilityDetailView: View {
     }
     .formStyle(.grouped)
     .froggyListSurface()
-    .navigationTitle(capability.name)
+    .froggyNavigationTitle(capability.name)
     .toolbarTitleDisplayMode(.inline)
   }
 
@@ -2077,7 +2157,7 @@ private struct SkillDetailView: View {
     }
     .formStyle(.grouped)
     .froggyListSurface()
-    .navigationTitle(detail?.name ?? "Skill")
+    .froggyNavigationTitle(detail?.name ?? "Skill")
     .toolbarTitleDisplayMode(.inline)
     .task { await load() }
   }
