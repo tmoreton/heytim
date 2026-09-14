@@ -5,18 +5,19 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { AgentCoreStack } from '../lib/cdk-stack';
 import { dirtySourceEntries } from '../lib/deploy-preflight';
+import {
+  UNCONFIGURED_AWS_ACCOUNT,
+  assertProductionTargetConfigured,
+  bindSpecToTarget,
+  filesBucketName,
+} from '../lib/target-bindings';
 
 test('deployment preflight rejects source changes but ignores generated deploy state', () => {
   expect(
     dirtySourceEntries(
-      ' M services/agent-runtime/runtime/main.py\n' +
-        ' M agentcore/.cli/deployed-state.json\n' +
-        '?? scratch.txt\n'
+      ' M services/agent-runtime/runtime/main.py\n' + ' M agentcore/.cli/deployed-state.json\n' + '?? scratch.txt\n'
     )
-  ).toEqual([
-    ' M services/agent-runtime/runtime/main.py',
-    '?? scratch.txt',
-  ]);
+  ).toEqual([' M services/agent-runtime/runtime/main.py', '?? scratch.txt']);
 });
 
 test('AgentCoreStack synthesizes with a minimal resource spec', () => {
@@ -51,6 +52,105 @@ test('AgentCoreStack synthesizes with a minimal resource spec', () => {
   template.hasOutput('StackNameOutput', {
     Description: 'Name of the CloudFormation Stack',
   });
+});
+
+test('target bindings isolate production storage and memory encryption', () => {
+  const source = {
+    name: 'testproject',
+    runtimes: [
+      {
+        name: 'FrogBot',
+        envVars: [{ name: 'FROGBOT_FILES_BUCKET', value: 'development-bucket' }],
+        additionalPolicies: ['attachments-policy.json'],
+      },
+    ],
+    memories: [{ name: 'FrogBotMemory', encryptionKeyArn: 'development-key' }],
+  } as unknown as Parameters<typeof bindSpecToTarget>[0];
+  const target = { name: 'production', account: '123456789012', region: 'us-east-1' } as const;
+  const bound = bindSpecToTarget(source, target, 'arn:aws:kms:us-east-1:123456789012:key/key-id') as unknown as {
+    runtimes: Array<{ envVars: Array<{ name: string; value: string }>; additionalPolicies: string[] }>;
+    memories: Array<{ encryptionKeyArn: string }>;
+  };
+
+  expect(filesBucketName(target)).toBe('frogbot-production-user-files-123456789012-us-east-1');
+  expect(bound.runtimes[0].envVars).toContainEqual({
+    name: 'FROGBOT_FILES_BUCKET',
+    value: 'frogbot-production-user-files-123456789012-us-east-1',
+  });
+  expect(bound.runtimes[0].additionalPolicies).toEqual([]);
+  expect(bound.memories[0].encryptionKeyArn).toContain(':123456789012:key/');
+  expect(
+    (source as unknown as { runtimes: Array<{ additionalPolicies: string[] }> }).runtimes[0].additionalPolicies
+  ).toEqual(['attachments-policy.json']);
+});
+
+test('production target rejects placeholders and development account reuse', () => {
+  expect(() =>
+    assertProductionTargetConfigured([
+      { name: 'development', account: '123456789012', region: 'us-east-1' },
+      { name: 'production', account: UNCONFIGURED_AWS_ACCOUNT, region: 'us-east-1' },
+    ])
+  ).toThrow('placeholder');
+  expect(() =>
+    assertProductionTargetConfigured([
+      { name: 'development', account: '123456789012', region: 'us-east-1' },
+      { name: 'production', account: '123456789012', region: 'us-east-1' },
+    ])
+  ).toThrow('different AWS account');
+});
+
+test('AgentCore service roles are protected against confused-deputy access', () => {
+  const app = new cdk.App();
+  const stack = new AgentCoreStack(app, 'TrustStack', {
+    env: { account: '123456789012', region: 'us-east-1' },
+    spec: {
+      name: 'testproject',
+      version: 1,
+      managedBy: 'CDK' as const,
+      runtimes: [],
+      memories: [{ name: 'TestMemory', eventExpiryDuration: 30, strategies: [] }],
+      credentials: [],
+      evaluators: [],
+      onlineEvalConfigs: [],
+      configBundles: [],
+      policyEngines: [],
+      payments: [],
+      agentCoreGateways: [],
+      mcpRuntimeTools: [],
+      unassignedTargets: [],
+      datasets: [],
+      knowledgeBases: [],
+    },
+  });
+  const template = Template.fromStack(stack).toJSON();
+  const agentCoreRoles = Object.values(
+    template.Resources as Record<
+      string,
+      {
+        Type: string;
+        Properties?: { AssumeRolePolicyDocument?: { Statement?: Array<Record<string, unknown>> } };
+      }
+    >
+  )
+    .filter(resource => resource.Type === 'AWS::IAM::Role')
+    .flatMap(resource => resource.Properties?.AssumeRolePolicyDocument?.Statement ?? [])
+    .filter(
+      statement =>
+        (statement.Principal as { Service?: string } | undefined)?.Service === 'bedrock-agentcore.amazonaws.com'
+    );
+
+  expect(agentCoreRoles.length).toBeGreaterThan(0);
+  for (const statement of agentCoreRoles) {
+    expect(statement).toEqual(
+      expect.objectContaining({
+        Condition: expect.objectContaining({
+          StringEquals: { 'aws:SourceAccount': '123456789012' },
+          ArnLike: expect.objectContaining({ 'aws:SourceArn': expect.anything() }),
+        }),
+      })
+    );
+    expect(JSON.stringify(statement.Condition)).toContain('bedrock-agentcore:us-east-1:123456789012:*');
+  }
 });
 
 test('authoritative AgentCore config preserves the runtime wiring contract', async () => {
@@ -94,11 +194,7 @@ test('authoritative AgentCore config preserves the runtime wiring contract', asy
     name: 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
     value: 'NO_CONTENT',
   });
-  expect(actual.credentials.map(item => item.name)).toEqual([
-    'FrogBot_OpenRouter',
-    'FrogBotXApi',
-    'FrogBotYouTubeApi',
-  ]);
+  expect(actual.credentials.map(item => item.name)).toEqual(['FrogBot_OpenRouter', 'FrogBotXApi', 'FrogBotYouTubeApi']);
   expect(actual.memories).toContainEqual(
     expect.objectContaining({
       name: 'FrogBotMemory',

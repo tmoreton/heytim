@@ -1,9 +1,10 @@
 # FroggyBot operations
 
 This runbook defines service objectives and response steps for the current serverless architecture. Declarative
-`development` and `production` AgentCore targets exist, but they still share one AWS account and Region, including
-named credential providers. Treat these objectives as production launch gates until the production deployment,
-authenticated end-to-end checks, and provider isolation are complete. Review them after 30 days of representative
+`development` and `production` AgentCore targets exist, but production intentionally points at an invalid account
+placeholder until a dedicated account is provisioned. Treat these objectives as production launch gates until the
+production deployment, authenticated end-to-end checks, alert subscription, and recovery drill are complete.
+Review them after 30 days of representative
 traffic and tighten them from observed percentiles rather than relaxing them to hide incidents.
 
 ## Service objectives
@@ -99,10 +100,12 @@ claimed by this phase.
    HTTP API access log status distribution.
 4. For worker errors or latency, check queue age, current concurrency, AgentCore runtime state, model errors,
    and the lease state of the affected turn.
-5. For dead-letter messages, inspect the failure before redriving. The worker's conditional lease and
+5. For AgentCore alarms, inspect the `AWS/Bedrock-AgentCore` runtime or gateway `Resource` dimension, then
+   correlate `SystemErrors`, `Throttles`, `Invocations`, and p99 `Latency` with the app request/session IDs.
+6. For dead-letter messages, inspect the failure before redriving. The worker's conditional lease and
    idempotent schedule identifiers make replay safe, but a malformed or permanently unauthorized message
    should be quarantined rather than replayed repeatedly.
-6. Record the start time, customer impact, mitigation, root cause, and follow-up owner. Confirm alarms return
+7. Record the start time, customer impact, mitigation, root cause, and follow-up owner. Confirm alarms return
    to `OK` after recovery.
 
 ## Recovery procedures

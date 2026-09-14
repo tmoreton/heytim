@@ -28,6 +28,14 @@ class NativePushInfrastructureTests(unittest.TestCase):
         self.assertIn("resources: endpoints", publish_policy)
         self.assertNotIn("resources: endpointManagementResources", publish_policy)
 
+    def test_delivery_feedback_role_is_source_scoped(self) -> None:
+        feedback = self.source.split("export function addNativePushFeedbackRole", 1)[1]
+        self.assertIn("'aws:SourceAccount': stack.account", feedback)
+        self.assertIn("'aws:SourceArn': applications", feedback)
+        self.assertIn("logs:PutLogEvents", feedback)
+        self.assertIn("encryptionKey: logsKey", feedback)
+        self.assertIn("retention: RetentionDays.ONE_MONTH", feedback)
+
 
 if __name__ == "__main__":
     unittest.main()

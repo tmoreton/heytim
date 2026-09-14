@@ -11,7 +11,9 @@ AWS until a later reviewed deployment updates both infrastructure and state.
 
 ## Environment posture
 
-Development and production are separate stable deployment targets. Their `PUBLIC` runtime network mode is
+Development is deployed and the stable production target is declared with an intentionally invalid account
+placeholder. Production must be provisioned in a separate AWS account before the release gate will pass. Their
+`PUBLIC` runtime network mode is
 intentional because the runtime needs outbound access to OpenRouter and reviewed remote MCP endpoints.
 Moving production into a VPC requires a reviewed NAT egress path and service endpoints; do not switch the
 network mode without that path or rename either existing target.
@@ -33,14 +35,13 @@ Create these environment secrets once under the GitHub `production` environment:
 - `AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI`
 
 To rotate a provider key, replace that GitHub environment secret and rerun **Deploy FroggyBot production
-infrastructure**. The AgentCore CLI updates the existing credential provider by name, so never rename a
+release**. The AgentCore CLI updates the existing credential provider by name, so never rename a
 provider to perform a rotation. The workflow never writes or prints the secret values.
 
-Development and production currently use the same AWS account and Region. AgentCore credential providers
-are scoped to that account and Region rather than to a target stack, so the two targets currently resolve
-the same named providers. Do not configure different development and production values while this is true:
-the most recent deployment would rotate the shared provider for both targets. Move production to a separate
-AWS account or Region before assigning independent keys.
+AgentCore credential providers are scoped to an account and Region rather than to a target stack. Production
+therefore must use a separate AWS account before assigning independent values to the same stable provider names.
+`scripts/check-production-config.mjs` and the release workflow reject the placeholder account and development
+account reuse.
 
 The recurring GitHub deployment role can read the existing default token vault and create or rotate only
 these three named providers. It deliberately cannot create the vault encryption key or call

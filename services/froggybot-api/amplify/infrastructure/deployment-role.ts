@@ -4,9 +4,14 @@ import { FederatedPrincipal, PolicyStatement, Role } from 'aws-cdk-lib/aws-iam';
 type DeploymentRoleResources = {
   stack: Stack;
   enabled: boolean;
+  nativePushFeedbackRoleArn?: string;
 };
 
-export function addGithubDeploymentRole({ stack, enabled }: DeploymentRoleResources) {
+export function addGithubDeploymentRole({
+  stack,
+  enabled,
+  nativePushFeedbackRoleArn,
+}: DeploymentRoleResources) {
   if (!enabled) return undefined;
 
   const agentCoreArn = (resource: string, resourceName: string) => stack.formatArn({
@@ -132,6 +137,70 @@ export function addGithubDeploymentRole({ stack, enabled }: DeploymentRoleResour
       resource: 'log-group',
       resourceName: '/aws/bedrock-agentcore/runtimes/*',
       arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+    })],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['logs:DescribeLogGroups'],
+    resources: ['*'],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['cloudwatch:PutMetricAlarm'],
+    resources: [stack.formatArn({
+      service: 'cloudwatch',
+      resource: 'alarm',
+      resourceName: 'FroggyBot-production-*',
+      arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+    })],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['cloudwatch:DescribeAlarms'],
+    resources: ['*'],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['sns:SetPlatformApplicationAttributes', 'sns:GetPlatformApplicationAttributes'],
+    resources: [stack.formatArn({
+      service: 'sns',
+      resource: 'app/APNS*',
+      resourceName: 'FroggyBot',
+      arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+    })],
+  }));
+  if (nativePushFeedbackRoleArn) {
+    role.addToPolicy(new PolicyStatement({
+      actions: ['iam:PassRole'],
+      resources: [nativePushFeedbackRoleArn],
+      conditions: {
+        StringEquals: {
+          'iam:PassedToService': 'sns.amazonaws.com',
+        },
+      },
+    }));
+  }
+  role.addToPolicy(new PolicyStatement({
+    actions: ['sns:ListSubscriptionsByTopic'],
+    resources: [stack.formatArn({
+      service: 'sns',
+      resource: '*',
+      arnFormat: ArnFormat.NO_RESOURCE_NAME,
+    })],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['dynamodb:DescribeTable', 'dynamodb:DescribeContinuousBackups'],
+    resources: [stack.formatArn({
+      service: 'dynamodb',
+      resource: 'table',
+      resourceName: '*',
+      arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+    })],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['s3:ListBucket', 's3:GetBucketLocation', 's3:GetBucketVersioning', 's3:GetEncryptionConfiguration'],
+    resources: [stack.formatArn({
+      service: 's3',
+      region: '',
+      account: '',
+      resource: `frogbot-production-user-files-${stack.account}-${stack.region}`,
+      arnFormat: ArnFormat.NO_RESOURCE_NAME,
     })],
   }));
   role.addToPolicy(new PolicyStatement({

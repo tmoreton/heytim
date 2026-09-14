@@ -30,6 +30,7 @@ type ObservabilityResources = {
   logsKey: Key;
   monthlyBudgetUsd: number;
   workerConcurrencyLimit: number;
+  availabilityProbe?: LambdaFunction;
 };
 
 export function addObservability({
@@ -43,6 +44,7 @@ export function addObservability({
   logsKey,
   monthlyBudgetUsd,
   workerConcurrencyLimit,
+  availabilityProbe,
 }: ObservabilityResources) {
   const lambdaErrorRate = (fn: LambdaFunction, label: string) =>
     new MathExpression({
@@ -202,6 +204,16 @@ export function addObservability({
     displayName: 'FroggyBot service alarms',
     masterKey: logsKey,
   });
+  const availabilityAlarm = availabilityProbe
+    ? new Alarm(stack, 'PublicAvailabilityAlarm', {
+        metric: availabilityProbe.metricErrors({ period: Duration.minutes(5) }),
+        threshold: 0,
+        comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+        evaluationPeriods: 2,
+        datapointsToAlarm: 2,
+        treatMissingData: TreatMissingData.BREACHING,
+      })
+    : undefined;
   alarmTopic.addToResourcePolicy(
     new PolicyStatement({
       effect: Effect.ALLOW,
@@ -271,6 +283,7 @@ export function addObservability({
     workerConcurrencyAlarm,
     queueAgeAlarm,
     deadLetterAlarm,
+    ...(availabilityAlarm ? [availabilityAlarm] : []),
     ...terminalErrorAlarms,
   ]) {
     alarm.addAlarmAction(new SnsAction(alarmTopic));

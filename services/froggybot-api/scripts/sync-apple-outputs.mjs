@@ -7,7 +7,11 @@ const root = path.resolve(here, '../../..');
 const source = path.join(root, 'apps/froggybot/amplify_outputs.json');
 const destination = path.join(root, 'apps/froggybot-apple/Resources/amplify_outputs.json');
 const check = process.argv.includes('--check');
+const requireProduction = process.argv.includes('--require-production');
 const outputs = JSON.parse(await readFile(source, 'utf8'));
+if (requireProduction && outputs.custom?.environment !== 'production') {
+  throw new Error('Refusing an Apple release with non-production Amplify outputs.');
+}
 const value = `${JSON.stringify({
   auth: {
     user_pool_id: outputs.auth?.user_pool_id,
@@ -18,6 +22,7 @@ const value = `${JSON.stringify({
   custom: {
     apiUrl: outputs.custom?.apiUrl,
     shareBaseUrl: outputs.custom?.shareBaseUrl,
+    environment: outputs.custom?.environment,
   },
 }, null, 2)}\n`;
 

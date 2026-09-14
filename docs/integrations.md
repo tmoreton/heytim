@@ -111,7 +111,8 @@ writes the replacement back to the same per-user secret before using it.
 
 ### Slack OAuth app
 
-Create an internal Slack app with OAuth v2 and this redirect URL:
+Create a Slack app with OAuth v2 and this redirect URL. Internal testing may begin in the owner workspace, but a
+general FroggyBot release requires Slack's distribution review and installation flow for other workspaces:
 
 ```text
 https://API_HOST/public/oauth/provider/callback
@@ -146,7 +147,17 @@ provider configuration paths and each user's connection secret; it can write onl
 is needed for rotating X, Slack, and future Microsoft refresh grants. Never deploy with AWS account-root credentials. The
 release preflight rejects root sessions.
 
-All four planned additions now share the provider registry and common client flow. Add future providers through the
+## Deferred Meta and LinkedIn connectors
+
+Meta and LinkedIn both offer OAuth-based developer platforms, but neither connector is shipped or advertised in
+this release. Meta access must be designed per product (for example Facebook Pages or Instagram), with the exact
+permissions, business verification, App Review, data-deletion callback, webhook validation, and least-privilege
+tool set completed before a registry entry is enabled. LinkedIn likewise requires an approved LinkedIn product and
+only the scopes granted to that application; basic sign-in access must not be presented as general profile, company,
+posting, or analytics access. Until those reviews and end-to-end revocation tests exist, both providers remain absent
+from the provider registry and clients.
+
+The active provider additions share the provider registry and common client flow. Add future providers through the
 same catalog contract: delegated read-only access first, provider-side revocation where available, exact scope checks,
 and runtime tool allowlists. Add write scopes only alongside an explicit approval surface and before/after previews.
 

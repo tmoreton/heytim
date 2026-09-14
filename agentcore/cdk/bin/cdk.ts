@@ -5,6 +5,7 @@ import { App, type Environment } from 'aws-cdk-lib';
 import * as path from 'path';
 import * as fs from 'fs';
 import { assertCleanDeploySource } from '../lib/deploy-preflight';
+import { bindSpecToTarget, filesBucketName, filesKeyAlias } from '../lib/target-bindings';
 
 function toEnvironment(target: AwsDeploymentTarget): Environment {
   return {
@@ -119,6 +120,7 @@ async function main() {
   for (const target of targets) {
     const env = toEnvironment(target);
     const stackName = toStackName(spec.name, target.name);
+    const targetSpec = bindSpecToTarget(spec, target);
 
     // Extract credentials from deployed state for this target
     const targetState = (deployedState as Record<string, unknown>)?.targets as
@@ -191,12 +193,14 @@ async function main() {
       : undefined;
 
     new AgentCoreStack(app, stackName, {
-      spec,
+      spec: targetSpec,
       mcpSpec,
       credentials,
       connectorParametersByFile,
       harnesses: harnessConfigs.length > 0 ? harnessConfigs : undefined,
       paymentSpec,
+      filesBucketName: filesBucketName(target),
+      filesKeyAlias: filesKeyAlias(target),
       env,
       description: `AgentCore stack for ${spec.name} deployed to ${target.name} (${target.region})`,
       tags: {

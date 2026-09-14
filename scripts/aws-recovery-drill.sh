@@ -16,7 +16,7 @@ fi
 
 drill_bucket="${FROGBOT_FILES_BUCKET_NAME:-$(jq -r '.custom.filesBucketName // empty' "$outputs_file")}"
 drill_source_table="${FROGBOT_DATA_TABLE_NAME:-$(jq -r '.custom.dataTableName // empty' "$outputs_file")}"
-if [[ ! "$drill_bucket" =~ ^frogbot-user-files-[0-9]{12}-[a-z0-9-]+$ ]]; then
+if [[ ! "$drill_bucket" =~ ^frogbot(-production)?-user-files-[0-9]{12}-[a-z0-9-]+$ ]]; then
   echo "Refusing to run: the resolved bucket is not a FroggyBot user-files bucket." >&2
   exit 1
 fi

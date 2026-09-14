@@ -1,13 +1,19 @@
 export const PUBLIC_WEB_BASE_URL = 'https://froggybot.com';
 export const CAPABILITY_CATALOG_URL = `${PUBLIC_WEB_BASE_URL}/catalog.json`;
-export const ALLOWED_WEB_ORIGINS = [
+export const deploymentEnvironment = process.env.FROGBOT_ENVIRONMENT ?? 'development';
+if (!/^[a-z][a-z0-9-]{0,20}$/.test(deploymentEnvironment)) {
+  throw new Error('FROGBOT_ENVIRONMENT must be a short lowercase environment name.');
+}
+
+const PRODUCTION_WEB_ORIGINS = [
   PUBLIC_WEB_BASE_URL,
   'https://app.froggybot.com',
   'https://www.froggybot.com',
   'https://frogbot.expo.app',
-  'http://localhost:8081',
-  'http://localhost:19006',
 ];
+export const ALLOWED_WEB_ORIGINS = deploymentEnvironment === 'production'
+  ? PRODUCTION_WEB_ORIGINS
+  : [...PRODUCTION_WEB_ORIGINS, 'http://localhost:8081', 'http://localhost:19006'];
 export const FUNCTION_ASSET_EXCLUDES = [
   'tests/**',
   '**/__pycache__/**',
@@ -22,9 +28,15 @@ function boundedIntegerSetting(
   defaultValue: number,
   minimum: number,
   maximum: number,
+  requiredInProduction = false,
 ): number {
   const raw = process.env[name];
-  if (raw === undefined) return defaultValue;
+  if (raw === undefined) {
+    if (requiredInProduction && deploymentEnvironment === 'production') {
+      throw new Error(`${name} must be set before deploying production.`);
+    }
+    return defaultValue;
+  }
   if (!/^\d+$/.test(raw)) {
     throw new Error(`${name} must be a whole number.`);
   }
@@ -76,13 +88,8 @@ export const usageWindowSeconds = boundedIntegerSetting(
   'FROGBOT_USAGE_WINDOW_SECONDS', 60, 10, 3_600,
 );
 export const youtubeSearchDailyLimit = boundedIntegerSetting(
-  'FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT', 100, 3, 1_000_000,
+  'FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT', 100, 3, 1_000_000, true,
 );
-
-export const deploymentEnvironment = process.env.FROGBOT_ENVIRONMENT ?? 'development';
-if (!/^[a-z][a-z0-9-]{0,20}$/.test(deploymentEnvironment)) {
-  throw new Error('FROGBOT_ENVIRONMENT must be a short lowercase environment name.');
-}
 
 export const runtimeArn = requiredSetting('FROGBOT_AGENT_RUNTIME_ARN');
 export const memoryId = requiredSetting('FROGBOT_MEMORY_ID');
@@ -96,6 +103,9 @@ export const apnsApplicationArn = optionalPlatformApplicationArn('FROGBOT_APNS_A
 export const apnsSandboxApplicationArn = optionalPlatformApplicationArn('FROGBOT_APNS_SANDBOX_APPLICATION_ARN');
 if (deploymentEnvironment === 'production' && !apnsApplicationArn) {
   throw new Error('Set FROGBOT_APNS_APPLICATION_ARN before deploying production.');
+}
+if (deploymentEnvironment === 'production' && !process.env.FROGBOT_MONTHLY_BUDGET_USD) {
+  throw new Error('FROGBOT_MONTHLY_BUDGET_USD must be set before deploying production.');
 }
 export const monthlyBudgetUsd = Number(process.env.FROGBOT_MONTHLY_BUDGET_USD ?? '100');
 if (!Number.isFinite(monthlyBudgetUsd) || monthlyBudgetUsd <= 0) {

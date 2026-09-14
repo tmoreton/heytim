@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+required_values=(
+  APPLE_TEAM_ID APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID
+  APP_STORE_CONNECT_PRIVATE_KEY APPLE_DISTRIBUTION_CERTIFICATE_BASE64
+  APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD FROGGYBOT_BUILD_NUMBER
+)
+missing=()
+for name in "${required_values[@]}"; do
+  [[ -n "${!name:-}" ]] || missing+=("$name")
+done
+if (( ${#missing[@]} > 0 )); then
+  printf 'Missing Apple release configuration: %s\n' "${missing[*]}" >&2
+  exit 2
+fi
+
+apple_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+temporary_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/FroggyBotSigning.XXXXXX")"
+keychain="$temporary_root/froggybot-signing.keychain-db"
+certificate="$temporary_root/distribution.p12"
+api_key="$temporary_root/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+keychain_password="$(uuidgen | tr -d '-')"
+original_keychains=()
+while IFS= read -r existing_keychain; do
+  original_keychains+=("${existing_keychain//\"/}")
+done < <(security list-keychains -d user)
+
+cleanup() {
+  if (( ${#original_keychains[@]} > 0 )); then
+    security list-keychains -d user -s "${original_keychains[@]}" >/dev/null 2>&1 || true
+  fi
+  security delete-keychain "$keychain" >/dev/null 2>&1 || true
+  find "$temporary_root" -depth -delete 2>/dev/null || true
+}
+trap cleanup EXIT
+
+umask 077
+printf '%s' "$APPLE_DISTRIBUTION_CERTIFICATE_BASE64" | base64 -D > "$certificate"
+printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$api_key"
+
+security create-keychain -p "$keychain_password" "$keychain"
+security set-keychain-settings -lut 7200 "$keychain"
+security unlock-keychain -p "$keychain_password" "$keychain"
+security import "$certificate" -k "$keychain" -P "$APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD" \
+  -T /usr/bin/codesign -T /usr/bin/security
+security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
+  -k "$keychain_password" "$keychain" >/dev/null
+security list-keychains -d user -s "$keychain" "${original_keychains[@]}"
+if ! security find-identity -v -p codesigning "$keychain" | grep -q 'Apple Distribution'; then
+  echo 'The supplied certificate does not contain an Apple Distribution signing identity.' >&2
+  exit 1
+fi
+
+APP_STORE_CONNECT_KEY_PATH="$api_key" \
+  "$apple_root/scripts/testflight.sh" all

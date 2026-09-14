@@ -1,4 +1,4 @@
-name: Verify FroggyBot Apple app
+name: Verify primary SwiftUI apps
 
 on:
   push:
@@ -15,6 +15,7 @@ permissions:
 jobs:
   apple:
     runs-on: macos-26
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - name: Cache native transcription assets

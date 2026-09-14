@@ -19,6 +19,11 @@ class InfrastructureContractTests(unittest.TestCase):
         cls.native_push = (
             Path(__file__).parents[2] / "infrastructure" / "native-push.ts"
         ).read_text(encoding="utf-8")
+        cls.production_readiness = (
+            Path(__file__).parents[2]
+            / "infrastructure"
+            / "production-readiness.ts"
+        ).read_text(encoding="utf-8")
         cls.deployment_role = (
             Path(__file__).parents[2] / "infrastructure" / "deployment-role.ts"
         ).read_text(encoding="utf-8")
@@ -49,6 +54,13 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("ApiServerErrorMetric", self.observability)
         self.assertIn("FilterPattern.stringValue('$.status', '=', '5*')", self.observability)
         self.assertIn("ApiServerErrorAlarm", self.observability)
+
+    def test_production_has_a_public_availability_probe(self) -> None:
+        self.assertIn("addPublicAvailabilityProbe", self.backend)
+        self.assertIn("PublicAvailabilityProbe", self.production_readiness)
+        self.assertIn("/public/catalog", self.production_readiness)
+        self.assertIn("PublicAvailabilityAlarm", self.observability)
+        self.assertIn("TreatMissingData.BREACHING", self.observability)
 
     def test_queue_age_alarm_ignores_healthy_inflight_work(self) -> None:
         self.assertIn("expression: 'IF(visible > 0, age, 0)'", self.observability)
@@ -83,7 +95,20 @@ class InfrastructureContractTests(unittest.TestCase):
             self.settings,
         )
         self.assertIn("FROGBOT_APNS_APPLICATION_ARN", self.production_workflow)
-        self.assertIn("Set FROGBOT_APNS_APPLICATION_ARN", self.production_workflow)
+        self.assertIn("NOTION_OAUTH_SECRET_ARN APNS_APPLICATION_ARN", self.production_workflow)
+
+    def test_production_data_is_isolated_and_protected(self) -> None:
+        self.assertIn("frogbot-production-user-files", self.backend)
+        self.assertIn("alias/frogbot-production-user-files", self.backend)
+        self.assertGreaterEqual(self.backend.count("deletionProtection:"), 2)
+        self.assertIn("auditTrail.addS3EventSelector", self.backend)
+        self.assertIn("ReadWriteType.ALL", self.backend)
+        self.assertIn("nativePushFeedbackRoleArn", self.backend)
+
+    def test_production_settings_fail_closed(self) -> None:
+        self.assertIn("requiredInProduction && deploymentEnvironment === 'production'", self.settings)
+        self.assertIn("'FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT', 100, 3, 1_000_000, true", self.settings)
+        self.assertIn("FROGBOT_MONTHLY_BUDGET_USD must be set before deploying production", self.settings)
 
     def test_sandbox_uses_the_existing_named_native_push_applications(self) -> None:
         self.assertIn("resolveNativePushApplicationArns", self.backend)
@@ -178,6 +203,11 @@ class InfrastructureContractTests(unittest.TestCase):
         )
         self.assertIn(
             "'iam:PassedToService': 'bedrock-agentcore.amazonaws.com'",
+            self.deployment_role,
+        )
+        self.assertIn("nativePushFeedbackRoleArn", self.deployment_role)
+        self.assertIn(
+            "'iam:PassedToService': 'sns.amazonaws.com'",
             self.deployment_role,
         )
 

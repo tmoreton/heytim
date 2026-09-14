@@ -1,11 +1,11 @@
 import { defineBackend } from '@aws-amplify/backend';
 import { ArnFormat, Duration, RemovalPolicy } from 'aws-cdk-lib';
-import { Trail } from 'aws-cdk-lib/aws-cloudtrail';
+import { ReadWriteType, Trail } from 'aws-cdk-lib/aws-cloudtrail';
 import { AttributeType, BillingMode, Table, TableEncryption } from 'aws-cdk-lib/aws-dynamodb';
 import { Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
 import { SqsQueue } from 'aws-cdk-lib/aws-events-targets';
 import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
-import { Alias, Key } from 'aws-cdk-lib/aws-kms';
+import { Key } from 'aws-cdk-lib/aws-kms';
 import { Code, Function as LambdaFunction, RecursiveLoop, Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
@@ -32,10 +32,12 @@ import { addGithubDeploymentRole } from './infrastructure/deployment-role';
 import { addHttpApi } from './infrastructure/http-api';
 import {
   addNativePushAccess,
+  addNativePushFeedbackRole,
   nativePushEnvironment,
   resolveNativePushApplicationArns,
 } from './infrastructure/native-push';
 import { addObservability } from './infrastructure/observability';
+import { addPublicAvailabilityProbe } from './infrastructure/production-readiness';
 import { addProviderConnectionAccess } from './infrastructure/provider-connections';
 const backend = defineBackend({ auth, preSignUp });
 const stack = backend.createStack('FrogBotApp');
@@ -69,6 +71,14 @@ cfnUserPool.addPropertyOverride('Policies.SignInPolicy.AllowedFirstAuthFactors',
   'EMAIL_OTP',
 ]);
 cfnUserPoolClient.explicitAuthFlows = ['ALLOW_REFRESH_TOKEN_AUTH', 'ALLOW_USER_AUTH'];
+// Authentication happens in the native/web clients through Cognito APIs. Do
+// not synthesize the generated example.com hosted-UI callback configuration.
+cfnUserPoolClient.allowedOAuthFlows = undefined;
+cfnUserPoolClient.allowedOAuthFlowsUserPoolClient = false;
+cfnUserPoolClient.allowedOAuthScopes = undefined;
+cfnUserPoolClient.callbackUrLs = undefined;
+cfnUserPoolClient.logoutUrLs = undefined;
+cfnUserPoolClient.supportedIdentityProviders = ['COGNITO'];
 
 cfnUserPool.emailAuthenticationSubject = 'Your FroggyBot sign-in code';
 cfnUserPool.emailAuthenticationMessage = emailCodeMessage('{####}');
@@ -84,6 +94,7 @@ const inviteAccess = new Table(backend.auth.stack, 'InviteAccess', {
   pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
   timeToLiveAttribute: 'expiresAt',
   removalPolicy: RemovalPolicy.RETAIN,
+  deletionProtection: deploymentEnvironment === 'production',
   encryption: TableEncryption.CUSTOMER_MANAGED,
   encryptionKey: new Key(backend.auth.stack, 'InviteDataKey', {
     description: 'Encrypts FroggyBot invitation records.',
@@ -114,9 +125,10 @@ const dataKey = new Key(stack, 'DataKey', {
   enableKeyRotation: true,
   removalPolicy: RemovalPolicy.RETAIN,
 });
-if (deploymentEnvironment === 'development') {
-  dataKey.addAlias('alias/frogbot-user-files');
-}
+const filesKeyAlias = deploymentEnvironment === 'production'
+  ? 'alias/frogbot-production-user-files'
+  : 'alias/frogbot-user-files';
+dataKey.addAlias(filesKeyAlias);
 
 const table = new Table(stack, 'Data', {
   partitionKey: { name: 'pk', type: AttributeType.STRING },
@@ -125,44 +137,39 @@ const table = new Table(stack, 'Data', {
   pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
   timeToLiveAttribute: 'expiresAt',
   removalPolicy: RemovalPolicy.RETAIN,
+  deletionProtection: deploymentEnvironment === 'production',
   encryption: TableEncryption.CUSTOMER_MANAGED,
   encryptionKey: dataKey,
 });
 
-const sharedFilesBucketName = `frogbot-user-files-${stack.account}-${stack.region}`;
-const sharedFilesKey = deploymentEnvironment === 'development'
-  ? dataKey
-  : Alias.fromAliasName(stack, 'SharedUserFilesKey', 'alias/frogbot-user-files');
-const filesBucket = deploymentEnvironment === 'development'
-  ? new Bucket(stack, 'UserFiles', {
-      bucketName: sharedFilesBucketName,
-      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
-      encryption: BucketEncryption.KMS,
-      encryptionKey: dataKey,
-      bucketKeyEnabled: true,
-      enforceSSL: true,
-      versioned: true,
-      cors: [
-        {
-          allowedHeaders: ['*'],
-          allowedMethods: [HttpMethods.GET, HttpMethods.HEAD, HttpMethods.POST],
-          allowedOrigins: ALLOWED_WEB_ORIGINS,
-          exposedHeaders: ['etag'],
-          maxAge: 3600,
-        },
-      ],
-      lifecycleRules: [
-        {
-          abortIncompleteMultipartUploadAfter: Duration.days(1),
-          noncurrentVersionExpiration: Duration.days(30),
-        },
-      ],
-      removalPolicy: RemovalPolicy.RETAIN,
-    })
-  : Bucket.fromBucketAttributes(stack, 'SharedUserFiles', {
-      bucketName: sharedFilesBucketName,
-      encryptionKey: sharedFilesKey,
-    });
+const filesBucketPrefix = deploymentEnvironment === 'production'
+  ? 'frogbot-production-user-files'
+  : 'frogbot-user-files';
+const filesBucket = new Bucket(stack, 'UserFiles', {
+  bucketName: `${filesBucketPrefix}-${stack.account}-${stack.region}`,
+  blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+  encryption: BucketEncryption.KMS,
+  encryptionKey: dataKey,
+  bucketKeyEnabled: true,
+  enforceSSL: true,
+  versioned: true,
+  cors: [
+    {
+      allowedHeaders: ['*'],
+      allowedMethods: [HttpMethods.GET, HttpMethods.HEAD, HttpMethods.POST],
+      allowedOrigins: ALLOWED_WEB_ORIGINS,
+      exposedHeaders: ['etag'],
+      maxAge: 3600,
+    },
+  ],
+  lifecycleRules: [
+    {
+      abortIncompleteMultipartUploadAfter: Duration.days(1),
+      noncurrentVersionExpiration: Duration.days(30),
+    },
+  ],
+  removalPolicy: RemovalPolicy.RETAIN,
+});
 
 const logsKey = new Key(stack, 'LogsKey', {
   description: 'Encrypts FroggyBot application and audit logs.',
@@ -194,10 +201,6 @@ logsKey.addToResourcePolicy(
     },
   }),
 );
-const githubDeployRole = addGithubDeploymentRole({
-  stack,
-  enabled: deploymentEnvironment === 'development',
-});
 logsKey.addToResourcePolicy(
   new PolicyStatement({
     effect: Effect.ALLOW,
@@ -237,6 +240,16 @@ const apiAccessLogGroup = new LogGroup(stack, 'ApiAccessLogs', {
   retention: RetentionDays.ONE_MONTH,
   removalPolicy: RemovalPolicy.RETAIN,
 });
+const nativePushFeedbackRole = addNativePushFeedbackRole(
+  stack,
+  [nativePushApplications.production, nativePushApplications.sandbox],
+  logsKey,
+);
+const githubDeployRole = addGithubDeploymentRole({
+  stack,
+  enabled: true,
+  nativePushFeedbackRoleArn: nativePushFeedbackRole?.roleArn,
+});
 
 const auditBucket = new Bucket(stack, 'AuditLogs', {
   blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
@@ -244,16 +257,34 @@ const auditBucket = new Bucket(stack, 'AuditLogs', {
   encryptionKey: logsKey,
   enforceSSL: true,
   versioned: true,
+  lifecycleRules: [{
+    id: 'RetainAuditRecordsSevenYears',
+    abortIncompleteMultipartUploadAfter: Duration.days(1),
+    expiration: Duration.days(2_555),
+    noncurrentVersionExpiration: Duration.days(2_555),
+  }],
   removalPolicy: RemovalPolicy.RETAIN,
 });
-new Trail(stack, 'AuditTrail', {
+const auditLogGroup = deploymentEnvironment === 'production'
+  ? new LogGroup(stack, 'AuditCloudWatchLogs', {
+      encryptionKey: logsKey,
+      retention: RetentionDays.ONE_YEAR,
+      removalPolicy: RemovalPolicy.RETAIN,
+    })
+  : undefined;
+const auditTrail = new Trail(stack, 'AuditTrail', {
   bucket: auditBucket,
   encryptionKey: logsKey,
   enableFileValidation: true,
   includeGlobalServiceEvents: true,
   isMultiRegionTrail: true,
   sendToCloudWatchLogs: true,
-  cloudWatchLogsRetention: RetentionDays.ONE_MONTH,
+  ...(auditLogGroup
+    ? { cloudWatchLogGroup: auditLogGroup }
+    : { cloudWatchLogsRetention: RetentionDays.ONE_MONTH }),
+});
+auditTrail.addS3EventSelector([{ bucket: filesBucket }], {
+  readWriteType: ReadWriteType.ALL,
 });
 
 const deadLetterQueue = new Queue(stack, 'AgentJobsDeadLetter', {
@@ -519,6 +550,12 @@ const httpApi = addHttpApi({
   userPoolId: backend.auth.resources.userPool.userPoolId,
   userPoolClientId: backend.auth.resources.userPoolClient.userPoolClientId,
 });
+const availabilityProbe = addPublicAvailabilityProbe({
+  stack,
+  apiEndpoint: httpApi.apiEndpoint,
+  logsKey,
+  enabled: deploymentEnvironment === 'production',
+});
 addProviderConnectionAccess(apiFunction, httpApi.apiEndpoint, {
   github: githubAppSecretArn,
   google: googleOAuthSecretArn,
@@ -537,18 +574,22 @@ const { alarmTopic, monthlyBudgetName } = addObservability({
   jobs,
   deadLetterQueue,
   logsKey,
+  availabilityProbe,
   monthlyBudgetUsd,
   workerConcurrencyLimit: WORKER_CONCURRENCY,
 });
 
 backend.addOutput({
   custom: {
+    environment: deploymentEnvironment,
     apiUrl: httpApi.apiEndpoint,
     shareBaseUrl: `${PUBLIC_WEB_BASE_URL}/invite`,
     dataTableName: table.tableName,
+    inviteTableName: inviteAccess.tableName,
     filesBucketName: filesBucket.bucketName,
     alarmTopicArn: alarmTopic.topicArn,
     logsKeyArn: logsKey.keyArn,
+    ...(nativePushFeedbackRole ? { nativePushFeedbackRoleArn: nativePushFeedbackRole.roleArn } : {}),
     ...(githubDeployRole ? { githubDeployRoleArn: githubDeployRole.roleArn } : {}),
     monthlyBudgetName,
   },

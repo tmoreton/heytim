@@ -16,7 +16,7 @@ verify_agentcore() {
     if command -v agentcore >/dev/null 2>&1; then
       agentcore validate
     else
-      npx --yes @aws/agentcore@0.28.1 validate
+      npx --yes @aws/agentcore@0.29.0 validate
     fi
   )
 
@@ -85,12 +85,19 @@ verify_apple() {
   "$repository_root/apps/froggybot-apple/scripts/verify.sh"
 }
 
+verify_server() {
+  verify_agentcore
+  verify_runtime
+  verify_backend
+}
+
 case "$component" in
   all)
-    verify_agentcore
-    verify_runtime
-    verify_backend
+    verify_server
     verify_application
+    ;;
+  server)
+    verify_server
     ;;
   agentcore)
     verify_agentcore
@@ -108,7 +115,7 @@ case "$component" in
     verify_apple
     ;;
   *)
-    printf 'Usage: %s [all|agentcore|runtime|backend|application|apple]\n' "$0" >&2
+    printf 'Usage: %s [all|server|agentcore|runtime|backend|application|apple]\n' "$0" >&2
     exit 2
     ;;
 esac

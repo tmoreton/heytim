@@ -38,8 +38,9 @@ The generator uses the `xcodeproj` Ruby gem bundled with Homebrew CocoaPods. Ord
 Run `npm --prefix services/froggybot-api run outputs:apple` whenever Amplify produces a new
 `apps/froggybot/amplify_outputs.json`. The Apple copy contains public client configuration only. Before external
 TestFlight or App Store distribution, confirm that the source file came from the production Amplify deployment and
-run the sync command. The TestFlight script runs `outputs:apple:check` automatically. An internal TestFlight build may
-intentionally use the sandbox, but record that choice and never archive with stale or unknown outputs.
+run the sync command. The TestFlight script runs `outputs:apple:production:check` automatically and refuses sandbox,
+stale, or unknown outputs. Download the production client-configuration artifact from the successful production
+release workflow before creating the archive.
 
 Before installing on physical devices or distributing the app:
 
@@ -69,10 +70,15 @@ To archive and upload directly for TestFlight processing:
 ```bash
 APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh testflight ios
 APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh testflight macos
+APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh testflight all
 ```
 
-The TestFlight entry point requires a clean working tree, checks the bundled public backend configuration, and runs
-the shared iPhone/Mac verification suite before archiving. It uses the developer account signed into Xcode by default.
+The TestFlight entry point requires a clean working tree except for the two generated production output files, checks
+the bundled public backend configuration, and runs the shared iPhone/Mac verification suite before archiving. The
+`all` form verifies once and uploads matching iPhone and Mac builds with the same build number. The manual production
+workflow uses this path after its backend deployment succeeds; its signing material is injected from the protected
+GitHub production environment and removed from the runner afterward. Local runs use the developer account signed
+into Xcode by default.
 For unattended uploads, set `APP_STORE_CONNECT_KEY_PATH`, `APP_STORE_CONNECT_KEY_ID`, and
 `APP_STORE_CONNECT_ISSUER_ID` together; never commit the `.p8` key. Add `--dry-run` before the platform to inspect
 the selected archive path and build number without signing or uploading.
