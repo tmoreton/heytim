@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OSLog
 import Security
 
 public enum AuthPhase: Equatable, Sendable {
@@ -391,6 +392,8 @@ public final class AuthSession {
 }
 
 private final class TokenKeychain: @unchecked Sendable {
+  private static let logger = Logger(subsystem: "com.frogbot.app", category: "SecureSession")
+
   private let service: String
   private let account = "cognito-session"
 
@@ -400,32 +403,101 @@ private final class TokenKeychain: @unchecked Sendable {
 
   func save(_ value: TokenSet) throws {
     let data = try JSONEncoder().encode(value)
-    delete()
-    let status = SecItemAdd(
-      [
-        kSecClass: kSecClassGenericPassword, kSecAttrService: service,
-        kSecAttrAccount: account, kSecValueData: data,
-        kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-      ] as CFDictionary, nil)
-    guard status == errSecSuccess else {
-      throw APIError.configuration("The secure session could not be saved.")
+    let values: [CFString: Any] = [
+      kSecValueData: data,
+      kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+    ]
+    var status = SecItemUpdate(query as CFDictionary, values as CFDictionary)
+    if status == errSecItemNotFound {
+      var attributes = query
+      values.forEach { attributes[$0.key] = $0.value }
+      status = SecItemAdd(attributes as CFDictionary, nil)
+      if status == errSecDuplicateItem {
+        status = SecItemUpdate(query as CFDictionary, values as CFDictionary)
+      }
     }
+    guard status == errSecSuccess else {
+      #if targetEnvironment(simulator)
+        if status == errSecMissingEntitlement {
+          // A bundle installed directly with simctl has no runtime keychain access group.
+          // Keep simulator logins usable without weakening storage on Apple hardware.
+          UserDefaults.standard.set(data, forKey: simulatorFallbackKey)
+          return
+        }
+      #endif
+      Self.logFailure(operation: "save", status: status)
+      throw APIError.configuration(
+        status == errSecMissingEntitlement
+          ? "Secure storage is unavailable in this build. Reinstall FroggyBot and try again."
+          : "The secure session could not be saved. Try again.")
+    }
+    #if targetEnvironment(simulator)
+      UserDefaults.standard.removeObject(forKey: simulatorFallbackKey)
+    #endif
   }
 
   func load() -> TokenSet? {
     var result: CFTypeRef?
-    let status = SecItemCopyMatching(
-      [
-        kSecClass: kSecClassGenericPassword, kSecAttrService: service,
-        kSecAttrAccount: account, kSecReturnData: true, kSecMatchLimit: kSecMatchLimitOne,
-      ] as CFDictionary, &result)
-    guard status == errSecSuccess, let data = result as? Data else { return nil }
-    return try? JSONDecoder().decode(TokenSet.self, from: data)
+    var request = query
+    request[kSecReturnData] = true
+    request[kSecMatchLimit] = kSecMatchLimitOne
+    let status = SecItemCopyMatching(request as CFDictionary, &result)
+    if status == errSecSuccess, let data = result as? Data {
+      return try? JSONDecoder().decode(TokenSet.self, from: data)
+    }
+    #if targetEnvironment(simulator)
+      if let data = UserDefaults.standard.data(forKey: simulatorFallbackKey),
+        let value = try? JSONDecoder().decode(TokenSet.self, from: data)
+      {
+        return value
+      }
+    #endif
+    #if targetEnvironment(simulator)
+      if status != errSecItemNotFound && status != errSecMissingEntitlement {
+        Self.logFailure(operation: "load", status: status)
+      }
+    #else
+      if status != errSecItemNotFound { Self.logFailure(operation: "load", status: status) }
+    #endif
+    return nil
   }
 
   func delete() {
-    SecItemDelete(
-      [kSecClass: kSecClassGenericPassword, kSecAttrService: service, kSecAttrAccount: account]
-        as CFDictionary)
+    let status = SecItemDelete(query as CFDictionary)
+    #if targetEnvironment(simulator)
+      UserDefaults.standard.removeObject(forKey: simulatorFallbackKey)
+    #endif
+    #if targetEnvironment(simulator)
+      if status != errSecSuccess && status != errSecItemNotFound
+        && status != errSecMissingEntitlement
+      {
+        Self.logFailure(operation: "delete", status: status)
+      }
+    #else
+      if status != errSecSuccess && status != errSecItemNotFound {
+        Self.logFailure(operation: "delete", status: status)
+      }
+    #endif
+  }
+
+  private var query: [CFString: Any] {
+    [
+      kSecClass: kSecClassGenericPassword,
+      kSecAttrService: service,
+      kSecAttrAccount: account,
+    ]
+  }
+
+  #if targetEnvironment(simulator)
+    private var simulatorFallbackKey: String {
+      "froggybot.simulator-session.\(service).\(account)"
+    }
+  #endif
+
+  private static func logFailure(operation: String, status: OSStatus) {
+    let detail = SecCopyErrorMessageString(status, nil) as String? ?? "Unknown keychain error"
+    logger.error(
+      "Secure session \(operation, privacy: .public) failed with OSStatus \(status, privacy: .public): \(detail, privacy: .public)"
+    )
   }
 }
