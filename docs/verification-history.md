@@ -28,6 +28,11 @@ the current checkout or environment still has the same status.
 - Updated the production Google secret callback metadata to
   `https://twrxzanvwg.execute-api.us-east-1.amazonaws.com/public/oauth/google/callback`. Google and the other provider
   consoles still require their production callback/distribution approvals before public release.
+- Created a confirmed, email-verified production identity for the release owner and migrated its durable content from
+  the development environment without changing the source account. The verified copy includes 10 bots, 45 direct-chat
+  turns, two groups with 124 messages, 28 stored files (21.8 MB), one custom skill, three production-targeted schedules,
+  161 AgentCore conversation events, and all 334 extracted long-term memory records. Stale device push tokens, browser
+  sessions, usage counters, notification deliveries, and development OAuth credentials were deliberately excluded.
 - AgentCore validation, generated CDK tests, 216 runtime tests, and 373 backend tests passed before deployment. The
   TestFlight gate passed the transcription package and macOS application suites. Xcode 26.6's headless runner still
   could not launch the iOS UI suite because its host LLDB registry repeatedly returned
