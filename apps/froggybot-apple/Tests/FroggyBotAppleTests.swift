@@ -78,6 +78,21 @@ import UniformTypeIdentifiers
       FroggyTextSizePreference.extraLarge.macScale, FroggyTextSizePreference.large.macScale)
   }
 
+  func testWebAuthenticationCompletionMayArriveOffMainActor() async throws {
+    let controller = WebAuthenticationController()
+    let callbackURL = try XCTUnwrap(URL(string: "froggybot://app?connection=gmail&status=connected"))
+
+    await Task.detached {
+      controller.finish(callbackURL: callbackURL, error: nil)
+    }.value
+    for _ in 0..<100 where controller.outcome == nil {
+      await Task.yield()
+    }
+
+    XCTAssertEqual(controller.outcome, .callback(callbackURL))
+    XCTAssertFalse(controller.isRunning)
+  }
+
   #if os(macOS)
     func testMacTextSizePreferenceChangesRenderedSemanticText() throws {
       let standard = ImageRenderer(

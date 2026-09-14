@@ -11,14 +11,14 @@ import UserNotifications
   import AppKit
 #endif
 
-private enum WebAuthenticationOutcome: Equatable {
+enum WebAuthenticationOutcome: Equatable, Sendable {
   case callback(URL)
   case cancelled
   case failed(String)
 }
 
 @MainActor @Observable
-private final class WebAuthenticationController: NSObject,
+final class WebAuthenticationController: NSObject,
   ASWebAuthenticationPresentationContextProviding
 {
   private var session: ASWebAuthenticationSession?
@@ -30,22 +30,8 @@ private final class WebAuthenticationController: NSObject,
     isRunning = true
     let session = ASWebAuthenticationSession(
       url: url, callbackURLScheme: "froggybot"
-    ) { [weak self] callbackURL, error in
-      let nextOutcome: WebAuthenticationOutcome
-      if let callbackURL {
-        nextOutcome = .callback(callbackURL)
-      } else if let authenticationError = error as? ASWebAuthenticationSessionError,
-        authenticationError.code == .canceledLogin
-      {
-        nextOutcome = .cancelled
-      } else {
-        nextOutcome = .failed(error?.localizedDescription ?? "The sign-in window could not be opened.")
-      }
-      Task { @MainActor [weak self] in
-        self?.session = nil
-        self?.isRunning = false
-        self?.outcome = nextOutcome
-      }
+    ) { @Sendable [weak self] callbackURL, error in
+      self?.finish(callbackURL: callbackURL, error: error)
     }
     session.presentationContextProvider = self
     session.prefersEphemeralWebBrowserSession = false
@@ -54,6 +40,26 @@ private final class WebAuthenticationController: NSObject,
       self.session = nil
       isRunning = false
       outcome = .failed("The sign-in window could not be opened.")
+    }
+  }
+
+  // AuthenticationServices completes on a SafariLaunchAgent XPC queue on macOS.
+  // Keep this boundary nonisolated, then cross to the main actor for UI state.
+  nonisolated func finish(callbackURL: URL?, error: Error?) {
+    let nextOutcome: WebAuthenticationOutcome
+    if let callbackURL {
+      nextOutcome = .callback(callbackURL)
+    } else if let authenticationError = error as? ASWebAuthenticationSessionError,
+      authenticationError.code == .canceledLogin
+    {
+      nextOutcome = .cancelled
+    } else {
+      nextOutcome = .failed(error?.localizedDescription ?? "The sign-in window could not be opened.")
+    }
+    Task { @MainActor [weak self] in
+      self?.session = nil
+      self?.isRunning = false
+      self?.outcome = nextOutcome
     }
   }
 
