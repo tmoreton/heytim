@@ -770,7 +770,8 @@ private struct ConversationInspector: View {
   @ViewBuilder private var botEditorSections: some View {
     Section {
       TextField("Name", text: $botDraft.name)
-      TextField("What this bot does", text: $botDraft.tagline)
+      TextField("Description", text: $botDraft.tagline)
+        .accessibilityLabel("What this bot does")
       VStack(alignment: .leading, spacing: 4) {
         Text("Color").froggyFont(.subheadline)
         BotColorPicker(selection: $botDraft.color, options: colorOptions)
@@ -1459,7 +1460,7 @@ private struct Composer: View {
 
         HStack(alignment: .bottom, spacing: 10) {
           dictationButton
-            .font(.system(size: 18, weight: .medium))
+            .froggyFont(size: 18, weight: .medium)
 
           if model.canStop {
             Button {
@@ -1499,7 +1500,7 @@ private struct Composer: View {
 
     private func macComposerIcon(_ systemName: String) -> some View {
       Image(systemName: systemName)
-        .font(.system(size: 18, weight: .bold))
+        .froggyFont(size: 18, weight: .bold)
         .frame(width: macComposerControlSize, height: macComposerControlSize)
         .contentShape(Circle())
     }
@@ -1542,7 +1543,7 @@ private struct Composer: View {
             submitMessage()
           }
           .labelStyle(.iconOnly)
-          .font(.system(size: 17, weight: .bold))
+          .froggyFont(size: 17, weight: .bold)
           .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
           .buttonBorderShape(.circle)
           .controlSize(.large)
@@ -1567,7 +1568,7 @@ private struct Composer: View {
     } label: {
       Label("Add attachment", systemImage: "plus")
         #if os(macOS)
-          .font(.system(size: 18, weight: .semibold))
+          .froggyFont(size: 18, weight: .semibold)
           .frame(width: macComposerControlSize, height: macComposerControlSize)
           .contentShape(Circle())
         #endif
