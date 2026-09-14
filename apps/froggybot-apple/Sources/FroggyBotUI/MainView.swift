@@ -161,8 +161,10 @@ private struct ConversationSidebar: View {
       }
     }
     .listStyle(.sidebar)
-    .navigationTitle("FroggyBot")
-    .toolbarTitleDisplayMode(.inline)
+    #if os(iOS)
+      .navigationTitle("FroggyBot")
+      .toolbarTitleDisplayMode(.inline)
+    #endif
     .searchable(text: $search, placement: .sidebar, prompt: "Search chats")
     .toolbar {
       #if os(iOS)
