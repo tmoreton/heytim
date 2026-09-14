@@ -295,7 +295,11 @@ struct ConnectionsView: View {
       }
     }
     .froggyListSurface()
-    .froggyNavigationTitle("Connected Accounts")
+    #if os(macOS)
+      .froggyNavigationTitle("Connected Accounts")
+    #else
+      .navigationTitle("")
+    #endif
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       if showsDismissButton {
