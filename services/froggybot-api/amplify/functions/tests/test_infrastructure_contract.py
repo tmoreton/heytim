@@ -188,6 +188,8 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertNotIn("FROGBOT_MICROSOFT_OAUTH_SECRET_ARN", self.production_workflow)
         self.assertIn("addProviderConnectionAccess(apiFunction", self.backend)
         self.assertIn("DISABLED_CONNECTION_PROVIDER_IDS", self.provider_connections)
+        self.assertIn("GITHUB_OAUTH_REDIRECT_URI", self.provider_connections)
+        self.assertIn("/public/oauth/github/callback", self.provider_connections)
         self.assertIn(
             "resources: configuredSecrets",
             self.provider_connections,
