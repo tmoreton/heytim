@@ -3,6 +3,34 @@
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-09-14 — Mac message recovery and native TestFlight refresh
+
+- Committed release revision `8cbe7ab`. CloudWatch tied the Mac desktop “Something went wrong” response to an old
+  `connection_*` tool ID copied with the production bot while OAuth connections were intentionally excluded from the
+  owner migration. Removed the four migrated bots' stale connection references and verified all 10 production bots now
+  contain zero stale connection IDs. Runtime and API execution also filter unavailable stored tools so a revoked or
+  non-migrated connection cannot make an otherwise ordinary message fail.
+- Moved editable bot identity and prompt settings onto the main native Details page above its conversation controls,
+  replaced the Edit Bot row with Tools & Skills, and switched Details and every native subpage to the compact centered
+  navigation title. The focused iPhone Details-page UI regression and the macOS application suite passed.
+- Enabled every bot to create and attach a private skill for itself during an explicit direct user conversation. The
+  capability cannot grant new tools, run from a schedule, mutate another bot, or publish the skill. Installed
+  `JOP Newsletter Voice & AI-Tell Review` as production skill `skill-0eeb70c63f964883afa0` on JOPbot; its review is
+  explicitly heuristic and does not claim to determine authorship.
+- AgentCore validation, Python lint, all 219 runtime tests, and all 378 backend tests passed. The full native wrapper
+  completed its transcription and Mac suites, but the local Xcode 26.6 iOS runner again failed to materialize the test
+  worker because its LLDB registry reported `DebuggerVersionStore.StoreError` / `no debugger version`. The focused
+  iPhone regression had already passed on the same app change, and both signed Release archives subsequently compiled
+  and passed store validation.
+- Deployed the existing `AgentCore-FrogBot-production` runtime in place, preserving
+  `FrogBotProduction_FrogBotMemory-FWrlGD61iY`, then updated Amplify app `d1tu46ki1836w1`. The runtime reports `READY`,
+  the CloudFormation stacks report `UPDATE_COMPLETE`, the public catalog responds successfully, and all five AgentCore
+  alarms remain present. The aggregate production verification remains blocked only by the already-recorded missing
+  confirmed subscriber on the service-alarm topic.
+- Uploaded matching iPhone and Mac TestFlight packages for version `6.0.0`, build `202609141145`, bundle
+  `com.frogbot.app`, and team `GVXC5FQ2RP`. App Store Connect accepted the iPhone upload at 11:45 AM EDT and the Mac
+  upload at 11:48 AM EDT and began processing both packages.
+
 ## 2026-09-14 — temporary management-account production deployment
 
 - Temporarily retargeted production to management account `188757775631` in `us-east-1` while the dedicated member
