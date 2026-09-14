@@ -82,10 +82,21 @@ private struct FroggyTextScaleKey: EnvironmentKey {
   static let defaultValue: CGFloat = 1
 }
 
+struct FroggySheetNavigationKey: EnvironmentKey {
+  static let defaultValue = false
+}
+
 private extension EnvironmentValues {
   var froggyTextScale: CGFloat {
     get { self[FroggyTextScaleKey.self] }
     set { self[FroggyTextScaleKey.self] = newValue }
+  }
+}
+
+extension EnvironmentValues {
+  var froggyUsesSheetNavigation: Bool {
+    get { self[FroggySheetNavigationKey.self] }
+    set { self[FroggySheetNavigationKey.self] = newValue }
   }
 }
 
@@ -148,6 +159,56 @@ private struct FroggyFixedFontModifier: ViewModifier {
       content.font(.system(size: originalSize * scale, weight: weight, design: design))
     #else
       content.font(.system(size: scaledSize, weight: weight, design: design))
+    #endif
+  }
+}
+
+private struct FroggyNavigationTitleModifier: ViewModifier {
+  @Environment(\.froggyUsesSheetNavigation) private var usesSheetNavigation
+  let title: String
+  let isPresented: Bool
+  let horizontalPadding: CGFloat
+
+  @ViewBuilder func body(content: Content) -> some View {
+    #if os(macOS)
+      if usesSheetNavigation {
+        if #available(macOS 15.0, *) {
+          content
+            .navigationTitle(isPresented ? title : "")
+            .toolbar(removing: .title)
+            .toolbar {
+              if isPresented {
+                ToolbarItem(placement: .navigation) {
+                  Text(title)
+                    .froggyFont(.title3, weight: .semibold)
+                    .padding(.horizontal, horizontalPadding)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(title)
+                    .accessibilityAddTraits(.isHeader)
+                }
+              }
+            }
+        } else {
+          content.navigationTitle(isPresented ? title : "")
+        }
+      } else {
+        content
+          .navigationTitle("")
+          .toolbar {
+            if isPresented {
+              ToolbarItem(placement: .navigation) {
+                Text(title)
+                  .froggyFont(.title3, weight: .semibold)
+                  .padding(.horizontal, horizontalPadding)
+                  .accessibilityElement(children: .ignore)
+                  .accessibilityLabel(title)
+                  .accessibilityAddTraits(.isHeader)
+              }
+            }
+          }
+      }
+    #else
+      content.navigationTitle(isPresented ? title : "")
     #endif
   }
 }
@@ -304,7 +365,7 @@ public struct PersonAvatar: View {
       .fill(personColor)
       .overlay(
         Text(name.trimmingCharacters(in: .whitespaces).prefix(1).uppercased())
-          .font(.system(size: max(11, size * 0.4), weight: .bold))
+          .froggyFont(size: max(11, size * 0.4), weight: .bold)
           .foregroundStyle(.white)
       )
       .frame(width: size, height: size)
@@ -390,21 +451,16 @@ extension View {
         size: size, weight: weight, design: design, relativeTo: style))
   }
 
-  @ViewBuilder func froggyNavigationTitle(_ title: String, isPresented: Bool = true) -> some View {
-    #if os(macOS)
-      navigationTitle("")
-        .toolbar {
-          if isPresented {
-            ToolbarItem(placement: .navigation) {
-              Text(title)
-                .froggyFont(.title3, weight: .semibold)
-                .accessibilityAddTraits(.isHeader)
-            }
-          }
-        }
-    #else
-      navigationTitle(title)
-    #endif
+  func froggyNavigationTitle(
+    _ title: String, isPresented: Bool = true, horizontalPadding: CGFloat = 0
+  ) -> some View {
+    modifier(
+      FroggyNavigationTitleModifier(
+        title: title, isPresented: isPresented, horizontalPadding: horizontalPadding))
+  }
+
+  func froggySheetNavigation() -> some View {
+    environment(\.froggyUsesSheetNavigation, true)
   }
 
   @ViewBuilder func froggyGlassButton(prominent: Bool = false, tint: Color? = nil) -> some View {

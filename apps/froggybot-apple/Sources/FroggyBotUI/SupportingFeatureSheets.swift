@@ -550,42 +550,26 @@ struct DocumentsView: View {
   @State private var loadError: String?
   var body: some View {
     List {
-      if let loadError {
-        Section {
-          ContentUnavailableView {
-            Label("Couldn’t Load Documents", systemImage: "wifi.exclamationmark")
-          } description: {
-            Text(loadError)
-          } actions: {
-            Button("Try Again") { Task { await load() } }
+      ForEach(documents) { document in
+        Button {
+          open(document)
+        } label: {
+          Label {
+            VStack(alignment: .leading) {
+              Text(document.name)
+              Text(
+                ByteCountFormatter.string(
+                  fromByteCount: Int64(document.size), countStyle: .file)
+              )
+              .froggyFont(.caption).foregroundStyle(.secondary)
+            }
+          } icon: {
+            Image(systemName: document.kind == "image" ? "photo" : "doc")
           }
         }
-      } else if documents.isEmpty && !isLoading {
-        ContentUnavailableView(
-          "No Documents", systemImage: "doc",
-          description: Text("Documents created or shared in this chat will appear here."))
-      } else {
-        ForEach(documents) { document in
-          Button {
-            open(document)
-          } label: {
-            Label {
-              VStack(alignment: .leading) {
-                Text(document.name)
-                Text(
-                  ByteCountFormatter.string(
-                    fromByteCount: Int64(document.size), countStyle: .file)
-                )
-                .froggyFont(.caption).foregroundStyle(.secondary)
-              }
-            } icon: {
-              Image(systemName: document.kind == "image" ? "photo" : "doc")
-            }
-          }
-          .buttonStyle(.plain)
-          .contextMenu {
-            Button("Quick Look", systemImage: "eye") { open(document) }
-          }
+        .buttonStyle(.plain)
+        .contextMenu {
+          Button("Quick Look", systemImage: "eye") { open(document) }
         }
       }
     }
@@ -597,7 +581,23 @@ struct DocumentsView: View {
         CloseButton { model.sheet = nil }
       }
     }
-    .overlay { if isLoading { ProgressView() } }
+    .overlay {
+      if isLoading && documents.isEmpty {
+        ProgressView("Loading documents…")
+      } else if let loadError, documents.isEmpty {
+        ContentUnavailableView {
+          Label("Couldn’t Load Documents", systemImage: "wifi.exclamationmark")
+        } description: {
+          Text(loadError)
+        } actions: {
+          Button("Try Again") { Task { await load() } }
+        }
+      } else if documents.isEmpty {
+        ContentUnavailableView(
+          "No Documents", systemImage: "doc",
+          description: Text("Documents created or shared in this chat will appear here."))
+      }
+    }
     .quickLookPreview($previewURL)
     .onChange(of: previewURL) { previous, current in
       if previous != current { FrogBotAPI.removeDownloadedPreview(at: previous) }
@@ -638,7 +638,11 @@ struct DocumentsView: View {
       documents = try await api.botDocuments(botId)
       loadError = nil
     } catch {
-      loadError = error.localizedDescription
+      if documents.isEmpty {
+        loadError = error.localizedDescription
+      } else {
+        model.present(error)
+      }
     }
   }
 }
@@ -651,7 +655,7 @@ struct ShareView: View {
   @State private var creatingLink = false
   var body: some View {
     VStack(spacing: 22) {
-      Image(systemName: "person.2.badge.plus").font(.system(size: 48)).foregroundStyle(
+      Image(systemName: "person.2.badge.plus").froggyFont(size: 48, relativeTo: .title).foregroundStyle(
         FrogTheme.green)
       Text("Share \(title)").froggyFont(.title2, weight: .bold)
       Text("Anyone with this link can accept the invitation before it expires.").foregroundStyle(
@@ -731,6 +735,7 @@ struct AccountView: View {
   @Bindable var model: AppModel
   let auth: AuthSession
   var showsDismissButton = true
+  @Environment(\.dismiss) private var dismiss
   @AppStorage(FroggyPreferenceKeys.appearance) private var appearance =
     FroggyAppearancePreference.system.rawValue
   @AppStorage(FroggyPreferenceKeys.textSize) private var textSize =
@@ -907,12 +912,21 @@ struct AccountView: View {
       }
     }
     .formStyle(.grouped)
-    .froggyNavigationTitle("Settings")
+    #if os(macOS)
+      .safeAreaInset(edge: .top, spacing: 0) {
+        if showsDismissButton { settingsHeader }
+      }
+      .froggyNavigationTitle("Settings", isPresented: !showsDismissButton)
+    #else
+      .froggyNavigationTitle("Settings")
+    #endif
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
-      if showsDismissButton {
-        CloseButton()
-      }
+      #if os(iOS)
+        if showsDismissButton {
+          CloseButton()
+        }
+      #endif
     }
     .task { await load() }
     .refreshable { await loadLinks() }
@@ -955,6 +969,35 @@ struct AccountView: View {
       Text("This cannot be undone. Connected-account access will be revoked, shared links will stop working, and owned groups will be deleted for every member.")
     }
   }
+
+  #if os(macOS)
+    private var settingsHeader: some View {
+      HStack(spacing: 12) {
+        Text("Settings")
+          .froggyFont(.title3, weight: .semibold)
+          .accessibilityAddTraits(.isHeader)
+        Spacer()
+        Button("Close", systemImage: "xmark") { dismiss() }
+          .labelStyle(.iconOnly)
+          .buttonStyle(.plain)
+          .foregroundStyle(FrogTheme.accent)
+          .frame(width: 44, height: 44)
+          .background(FrogTheme.accent.opacity(0.10), in: Circle())
+          .overlay {
+            Circle()
+              .stroke(FrogTheme.border.opacity(0.7), lineWidth: 0.5)
+          }
+          .contentShape(Circle())
+          .accessibilityIdentifier("sheet.close")
+          .help("Close Settings")
+      }
+      .padding(.leading, 20)
+      .padding(.trailing, 12)
+      .padding(.vertical, 7)
+      .background(FrogTheme.appBackground)
+      .overlay(alignment: .bottom) { Divider() }
+    }
+  #endif
 
   @ViewBuilder private var notificationAction: some View {
     switch notificationAuthorization {

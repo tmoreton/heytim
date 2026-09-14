@@ -37,7 +37,7 @@ struct ProviderLogoView: View {
           .padding(size * 0.13)
       } else {
         Text(iconText)
-          .font(.system(size: size * 0.42, weight: .bold))
+          .froggyFont(size: size * 0.42, weight: .bold)
           .foregroundStyle(FrogTheme.accent)
       }
     }

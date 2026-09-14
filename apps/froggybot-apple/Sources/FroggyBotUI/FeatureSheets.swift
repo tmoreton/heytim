@@ -23,6 +23,7 @@ public struct FeatureSheet: View {
       case .share(let selection): ShareView(model: model, selection: selection)
       }
     }
+    .froggySheetNavigation()
     .froggySheetSize()
     .tint(FrogTheme.accent)
   }
@@ -30,6 +31,7 @@ public struct FeatureSheet: View {
 
 struct CloseButton: ToolbarContent {
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.froggyUsesSheetNavigation) private var usesSheetNavigation
   private let action: (() -> Void)?
 
   init(action: (() -> Void)? = nil) {
@@ -38,7 +40,11 @@ struct CloseButton: ToolbarContent {
 
   var body: some ToolbarContent {
     #if os(macOS)
-      ToolbarItem(placement: .primaryAction) { button }
+      if usesSheetNavigation {
+        ToolbarItem(placement: .cancellationAction) { button }
+      } else {
+        ToolbarItem(placement: .primaryAction) { button }
+      }
     #else
       ToolbarItem(placement: .cancellationAction) { button }
     #endif
@@ -425,7 +431,8 @@ private struct BotEditor: View {
     Form {
       Section {
         TextField("Name", text: $draft.name)
-        TextField("What this bot does", text: $draft.tagline)
+        TextField("Description", text: $draft.tagline)
+          .accessibilityLabel("What this bot does")
         VStack(alignment: .leading, spacing: 4) {
           Text("Color").froggyFont(.subheadline)
           BotColorPicker(selection: $draft.color, options: colorOptions)
@@ -950,69 +957,52 @@ struct SchedulesView: View {
   @State private var loadError: String?
   var body: some View {
     List {
-      if let loadError {
-        Section {
-          ContentUnavailableView {
-            Label("Couldn’t Load Scheduled Tasks", systemImage: "wifi.exclamationmark")
-          } description: {
-            Text(loadError)
-          } actions: {
-            Button("Try Again") { Task { await load() } }
+      ForEach(schedules) { item in
+        HStack {
+          Button {
+            editing = item
+          } label: {
+            HStack {
+              Image(systemName: item.enabled ? "clock.badge.checkmark" : "clock")
+              VStack(alignment: .leading) {
+                Text(item.name)
+                Text("\(item.frequency.capitalized) · \(item.time) · \(item.timezone)")
+                  .froggyFont(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+            }
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          Button { run(item.id) } label: {
+            if runningID == item.id {
+              HStack(spacing: 7) {
+                ProgressView().controlSize(.small)
+                Text("Running")
+              }
+            } else {
+              Label("Run Now", systemImage: "play.fill")
+            }
+          }
+            .froggyGlassButton(tint: FrogTheme.accent)
+            .controlSize(.large)
+            .frame(minWidth: 104, minHeight: 44)
+            .disabled(runningID != nil)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+          Button("Delete", systemImage: "trash", role: .destructive) {
+            deleteCandidate = item
           }
         }
-      } else {
-        ForEach(schedules) { item in
-          HStack {
-            Button {
-              editing = item
-            } label: {
-              HStack {
-                Image(systemName: item.enabled ? "clock.badge.checkmark" : "clock")
-                VStack(alignment: .leading) {
-                  Text(item.name)
-                  Text("\(item.frequency.capitalized) · \(item.time) · \(item.timezone)")
-                    .froggyFont(.caption)
-                    .foregroundStyle(.secondary)
-                }
-                Spacer()
-              }
-              .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            Button { run(item.id) } label: {
-              if runningID == item.id {
-                HStack(spacing: 7) {
-                  ProgressView().controlSize(.small)
-                  Text("Running")
-                }
-              } else {
-                Label("Run Now", systemImage: "play.fill")
-              }
-            }
-              .froggyGlassButton(tint: FrogTheme.accent)
-              .controlSize(.large)
-              .frame(minWidth: 104, minHeight: 44)
-              .disabled(runningID != nil)
+        .contextMenu {
+          Button("Edit Task", systemImage: "pencil") { editing = item }
+          Button("Run Now", systemImage: "play.fill") { run(item.id) }
+            .disabled(runningID != nil)
+          Divider()
+          Button("Delete Task", systemImage: "trash", role: .destructive) {
+            deleteCandidate = item
           }
-          .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button("Delete", systemImage: "trash", role: .destructive) {
-              deleteCandidate = item
-            }
-          }
-          .contextMenu {
-            Button("Edit Task", systemImage: "pencil") { editing = item }
-            Button("Run Now", systemImage: "play.fill") { run(item.id) }
-              .disabled(runningID != nil)
-            Divider()
-            Button("Delete Task", systemImage: "trash", role: .destructive) {
-              deleteCandidate = item
-            }
-          }
-        }
-        if schedules.isEmpty && !isLoading {
-          ContentUnavailableView(
-            "No Scheduled Tasks", systemImage: "calendar.badge.plus",
-            description: Text("Create a task to have this conversation run automatically."))
         }
       }
     }
@@ -1027,7 +1017,23 @@ struct SchedulesView: View {
         Button("New", systemImage: "plus") { creating = true }
       }
     }
-    .overlay { if isLoading { ProgressView() } }
+    .overlay {
+      if isLoading && schedules.isEmpty {
+        ProgressView("Loading scheduled tasks…")
+      } else if let loadError, schedules.isEmpty {
+        ContentUnavailableView {
+          Label("Couldn’t Load Scheduled Tasks", systemImage: "wifi.exclamationmark")
+        } description: {
+          Text(loadError)
+        } actions: {
+          Button("Try Again") { Task { await load() } }
+        }
+      } else if schedules.isEmpty {
+        ContentUnavailableView(
+          "No Scheduled Tasks", systemImage: "calendar.badge.plus",
+          description: Text("Create a task to have this conversation run automatically."))
+      }
+    }
     .refreshable { await load() }
     .task { await load() }
     .sheet(isPresented: $creating) {
@@ -1070,7 +1076,11 @@ struct SchedulesView: View {
       schedules = try await api.schedules(for: selection)
       loadError = nil
     } catch {
-      loadError = error.localizedDescription
+      if schedules.isEmpty {
+        loadError = error.localizedDescription
+      } else {
+        model.present(error)
+      }
     }
   }
   private func run(_ id: String) {
@@ -1323,33 +1333,17 @@ struct ScheduleRunsView: View {
   @State private var loadError: String?
   var body: some View {
     List {
-      if let loadError {
-        Section {
-          ContentUnavailableView {
-            Label("Couldn’t Load Run History", systemImage: "wifi.exclamationmark")
-          } description: {
-            Text(loadError)
-          } actions: {
-            Button("Try Again") { Task { await load() } }
+      ForEach(runs) { run in
+        VStack(alignment: .leading, spacing: 6) {
+          HStack {
+            Text(run.scheduleName).froggyFont(.headline)
+            Spacer()
+            Text(run.status.capitalized).foregroundStyle(
+              run.status == "complete" ? FrogTheme.green : .secondary)
           }
-        }
-      } else if runs.isEmpty && !isLoading {
-        ContentUnavailableView(
-          "No Runs Yet", systemImage: "clock.arrow.circlepath",
-          description: Text("Completed and in-progress scheduled task runs will appear here."))
-      } else {
-        ForEach(runs) { run in
-          VStack(alignment: .leading, spacing: 6) {
-            HStack {
-              Text(run.scheduleName).froggyFont(.headline)
-              Spacer()
-              Text(run.status.capitalized).foregroundStyle(
-                run.status == "complete" ? FrogTheme.green : .secondary)
-            }
-            Text(run.prompt).lineLimit(2)
-            if let output = run.output {
-              Text(output).froggyFont(.callout).foregroundStyle(.secondary).lineLimit(5)
-            }
+          Text(run.prompt).lineLimit(2)
+          if let output = run.output {
+            Text(output).froggyFont(.callout).foregroundStyle(.secondary).lineLimit(5)
           }
         }
       }
@@ -1362,7 +1356,23 @@ struct ScheduleRunsView: View {
         CloseButton { model.sheet = nil }
       }
     }
-    .overlay { if isLoading { ProgressView() } }
+    .overlay {
+      if isLoading && runs.isEmpty {
+        ProgressView("Loading run history…")
+      } else if let loadError, runs.isEmpty {
+        ContentUnavailableView {
+          Label("Couldn’t Load Run History", systemImage: "wifi.exclamationmark")
+        } description: {
+          Text(loadError)
+        } actions: {
+          Button("Try Again") { Task { await load() } }
+        }
+      } else if runs.isEmpty {
+        ContentUnavailableView(
+          "No Runs Yet", systemImage: "clock.arrow.circlepath",
+          description: Text("Completed and in-progress scheduled task runs will appear here."))
+      }
+    }
     .refreshable { await load() }
     .task { await load() }
   }
@@ -1378,7 +1388,11 @@ struct ScheduleRunsView: View {
       runs = try await api.scheduleRuns(for: selection)
       loadError = nil
     } catch {
-      loadError = error.localizedDescription
+      if runs.isEmpty {
+        loadError = error.localizedDescription
+      } else {
+        model.present(error)
+      }
     }
   }
 }

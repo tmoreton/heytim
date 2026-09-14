@@ -56,6 +56,7 @@ struct BrowserHandoffView: View {
         )
       }
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     .froggyNavigationTitle("Secure Browser")
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
