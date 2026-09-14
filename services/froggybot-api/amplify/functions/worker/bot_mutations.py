@@ -109,8 +109,16 @@ def _create_skill(
         for tool_id in target.get("toolIds", [])
         if isinstance(tool_id, str) and tool_id != "bot_manager"
     }
-    if not set(required_tool_ids).issubset(allowed_tool_ids):
-        raise ValueError("A self-authored skill can use only tools the bot already has")
+    # A bot can be edited while its agent run is still in progress. The runtime
+    # authorizes the mutation against the invocation snapshot, but applying that
+    # stale snapshot must never restore a tool the user removed in the meantime.
+    # Keep the skill creation successful while narrowing it to the bot's current
+    # capabilities. This remains fail-closed: a mutation can never add a tool.
+    current_required_tool_ids = [
+        tool_id
+        for tool_id in dict.fromkeys(required_tool_ids)
+        if tool_id in allowed_tool_ids
+    ]
 
     skill_id = f"skill-ai-{mutation_id.replace('-', '')}"
     try:
@@ -124,7 +132,11 @@ def _create_skill(
             raise ValueError("A skill with that name already exists")
         catalog.save_skill(
             user_id,
-            {**value, "visibility": "private"},
+            {
+                **value,
+                "requiredToolIds": current_required_tool_ids,
+                "visibility": "private",
+            },
             new_skill_id=skill_id,
         )
 

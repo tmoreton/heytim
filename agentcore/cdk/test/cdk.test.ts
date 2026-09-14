@@ -54,6 +54,41 @@ test('AgentCoreStack synthesizes with a minimal resource spec', () => {
   });
 });
 
+test('runtime roles can use the configured memory encryption key', async () => {
+  const configRoot = path.resolve(__dirname, '../..');
+  const source = await new ConfigIO({ baseDir: configRoot }).readProjectSpec();
+  const memoryKeyArn = 'arn:aws:kms:us-east-1:123456789012:key/memory-key';
+  const spec = {
+    ...source,
+    memories: source.memories.map(memory => ({ ...memory, encryptionKeyArn: memoryKeyArn })),
+    evaluators: [],
+    onlineEvalConfigs: [],
+    agentCoreGateways: [],
+  };
+  const app = new cdk.App();
+  const stack = new AgentCoreStack(app, 'MemoryKeyStack', {
+    env: { account: '123456789012', region: 'us-east-1' },
+    spec,
+  });
+  const template = Template.fromStack(stack).toJSON();
+  const statements = Object.values(
+    template.Resources as Record<
+      string,
+      { Type: string; Properties?: { PolicyDocument?: { Statement?: Array<Record<string, unknown>> } } }
+    >
+  )
+    .filter(resource => resource.Type === 'AWS::IAM::Policy')
+    .flatMap(resource => resource.Properties?.PolicyDocument?.Statement ?? []);
+
+  expect(statements).toContainEqual(
+    expect.objectContaining({
+      Effect: 'Allow',
+      Action: expect.arrayContaining(['kms:Decrypt', 'kms:Encrypt', 'kms:GenerateDataKey']),
+      Resource: memoryKeyArn,
+    })
+  );
+});
+
 test('target bindings isolate production storage and memory encryption', () => {
   const source = {
     name: 'testproject',
@@ -67,12 +102,7 @@ test('target bindings isolate production storage and memory encryption', () => {
     memories: [{ name: 'FrogBotMemory', encryptionKeyArn: 'development-key' }],
   } as unknown as Parameters<typeof bindSpecToTarget>[0];
   const target = { name: 'production', account: '123456789012', region: 'us-east-1' } as const;
-  const bound = bindSpecToTarget(
-    source,
-    target,
-    'arn:aws:kms:us-east-1:123456789012:key/key-id',
-    true
-  ) as unknown as {
+  const bound = bindSpecToTarget(source, target, 'arn:aws:kms:us-east-1:123456789012:key/key-id', true) as unknown as {
     name: string;
     runtimes: Array<{ envVars: Array<{ name: string; value: string }>; additionalPolicies: string[] }>;
     memories: Array<{ encryptionKeyArn: string }>;

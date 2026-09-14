@@ -385,35 +385,90 @@ class WorkerBotManagementTests(WorkerTestCase):
             catalog.save_skill.call_args.args[1]["visibility"], "private"
         )
         self.assertEqual(
+            catalog.save_skill.call_args.args[1]["requiredToolIds"],
+            ["current_time"],
+        )
+        self.assertEqual(
             catalog.save_skill.call_args.kwargs["new_skill_id"], skill_id
         )
         api._update_bot.assert_called_once_with(
             "user-1", "writer", {"skillIds": [skill_id]}
         )
 
-    def test_create_skill_cannot_add_a_tool_the_bot_does_not_have(self) -> None:
+    def test_create_skill_drops_tools_removed_while_the_agent_was_running(self) -> None:
+        target = {
+            "id": "writer",
+            "toolIds": ["web_search"],
+            "skillIds": [],
+        }
         raw = [
             {
                 "mutationId": str(uuid.uuid4()),
                 "action": "create_skill",
                 "value": {
-                    "name": "Unsafe Skill",
-                    "description": "Requests extra access.",
-                    "instructions": "Use the shell.",
+                    "name": "Source List",
+                    "description": "Keeps the standing source list.",
+                    "instructions": "Use currently available research tools.",
+                    "requiredToolIds": ["web", "web_search"],
+                },
+            }
+        ]
+        api = SimpleNamespace(
+            _get_bot=MagicMock(return_value=target),
+            _update_bot=MagicMock(),
+        )
+        catalog = SimpleNamespace(
+            get_skill=MagicMock(
+                side_effect=self.bot_mutation_globals["CatalogError"]("Skill not found")
+            ),
+            list_skills=MagicMock(return_value=[]),
+            save_skill=MagicMock(),
+        )
+        with patch.dict(
+            self.bot_mutation_globals,
+            {"_bot_api": lambda: api, "catalog": catalog},
+        ):
+            self.apply_bot_mutations("user-1", {"id": "writer"}, {}, raw)
+
+        saved = catalog.save_skill.call_args.args[1]
+        self.assertEqual(saved["requiredToolIds"], ["web_search"])
+        self.assertNotIn("web", saved["requiredToolIds"])
+        api._update_bot.assert_called_once()
+
+    def test_create_skill_cannot_grant_a_tool_the_bot_does_not_have(self) -> None:
+        target = {"id": "writer", "toolIds": [], "skillIds": []}
+        raw = [
+            {
+                "mutationId": str(uuid.uuid4()),
+                "action": "create_skill",
+                "value": {
+                    "name": "Safe Skill",
+                    "description": "Does not receive unapproved access.",
+                    "instructions": "Keep the workflow within available tools.",
                     "requiredToolIds": ["shell"],
                 },
             }
         ]
         api = SimpleNamespace(
-            _get_bot=MagicMock(
-                return_value={"id": "writer", "toolIds": [], "skillIds": []}
-            )
+            _get_bot=MagicMock(return_value=target),
+            _update_bot=MagicMock(),
         )
-        with (
-            patch.dict(self.bot_mutation_globals, {"_bot_api": lambda: api}),
-            self.assertRaisesRegex(ValueError, "only tools the bot already has"),
+        catalog = SimpleNamespace(
+            get_skill=MagicMock(
+                side_effect=self.bot_mutation_globals["CatalogError"]("Skill not found")
+            ),
+            list_skills=MagicMock(return_value=[]),
+            save_skill=MagicMock(),
+        )
+        with patch.dict(
+            self.bot_mutation_globals,
+            {"_bot_api": lambda: api, "catalog": catalog},
         ):
             self.apply_bot_mutations("user-1", {"id": "writer"}, {}, raw)
+
+        self.assertEqual(
+            catalog.save_skill.call_args.args[1]["requiredToolIds"], []
+        )
 
     def test_mutation_rejects_non_chief_and_scheduled_runs(self) -> None:
         raw = [

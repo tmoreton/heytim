@@ -23,10 +23,10 @@ class NativePushInfrastructureTests(unittest.TestCase):
             self.assertIn(action, endpoint_policy)
         self.assertIn("resources: ['*']", endpoint_policy)
 
-    def test_publish_remains_limited_to_device_endpoints(self) -> None:
+    def test_publish_uses_aws_required_unscoped_resource(self) -> None:
         publish_policy = self.source.split("actions: ['sns:Publish']", 1)[1]
-        self.assertIn("resources: endpoints", publish_policy)
-        self.assertNotIn("resources: endpointManagementResources", publish_policy)
+        self.assertIn("resources: ['*']", publish_policy)
+        self.assertNotIn("resources: endpoints", publish_policy)
 
     def test_delivery_feedback_role_is_source_scoped(self) -> None:
         feedback = self.source.split("export function addNativePushFeedbackRole", 1)[1]

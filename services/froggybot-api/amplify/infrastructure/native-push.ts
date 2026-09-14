@@ -43,9 +43,9 @@ export function addNativePushAccess(
 ): void {
   const applications = applicationArns.filter(Boolean);
   if (!applications.length) return;
-  const endpoints = applications.map((arn) => `${arn.replace(':app/', ':endpoint/')}/*`);
-  // SNS mobile endpoint-management actions do not support resource-level permissions.
-  // AWS therefore requires "*" even when a call receives an application or endpoint ARN.
+  // SNS mobile actions, including direct endpoint Publish, do not expose a
+  // resource type for IAM policies. AWS therefore requires "*" even though the
+  // API call itself receives a specific application or endpoint ARN.
   apiFunction.addToRolePolicy(new PolicyStatement({
     actions: [
       'sns:CreatePlatformEndpoint',
@@ -60,7 +60,7 @@ export function addNativePushAccess(
   }));
   workerFunction.addToRolePolicy(new PolicyStatement({
     actions: ['sns:Publish'],
-    resources: endpoints,
+    resources: ['*'],
   }));
 }
 

@@ -165,6 +165,24 @@ export class AgentCoreStack extends Stack {
     }
     this.application = new AgentCoreApplication(this, 'Application', appProps as any);
 
+    const memoryKeyArns = [
+      ...new Set(
+        (spec.memories ?? [])
+          .map(memory => memory.encryptionKeyArn)
+          .filter((arn): arn is string => typeof arn === 'string' && arn.length > 0)
+      ),
+    ];
+    if (memoryKeyArns.length > 0) {
+      for (const environment of this.application.environments.values()) {
+        environment.runtime.role.addToPrincipalPolicy(
+          new iam.PolicyStatement({
+            actions: ['kms:Decrypt', 'kms:DescribeKey', 'kms:Encrypt', 'kms:GenerateDataKey'],
+            resources: memoryKeyArns,
+          })
+        );
+      }
+    }
+
     if (filesBucketName && filesKeyAlias) {
       const bucketArn = this.formatArn({
         service: 's3',
