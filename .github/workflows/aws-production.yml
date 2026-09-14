@@ -124,7 +124,7 @@ jobs:
           echo "account=$(jq -r '.[] | select(.name == "production") | .account' agentcore/aws-targets.json)" >> "$GITHUB_OUTPUT"
           echo "region=$(jq -r '.[] | select(.name == "production") | .region' agentcore/aws-targets.json)" >> "$GITHUB_OUTPUT"
 
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ steps.target.outputs.region }}
