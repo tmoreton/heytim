@@ -71,6 +71,9 @@ deferred and absent from the registry for this release.
 
 ## Release and evidence
 
+The workflow installs the checked-in `agentcore/cdk/package-lock.json` and disables the AgentCore CLI's automatic CDK
+dependency rewriting. This keeps the audited repository lockfile authoritative during deployment.
+
 1. Merge a clean, reviewed commit to `main`; confirm application, backend, runtime, AgentCore, Apple, dependency,
    provider-contract, and security workflows pass.
 2. Run **Deploy FroggyBot production release** from `main`. It validates the target/account and approvals, verifies and
