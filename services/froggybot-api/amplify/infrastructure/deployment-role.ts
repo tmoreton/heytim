@@ -296,7 +296,12 @@ export function addGithubDeploymentRole({
     },
   }));
   role.addToPolicy(new PolicyStatement({
-    actions: ['amplify:GetApp', 'amplify:GetBranch', 'cloudformation:DescribeStacks'],
+    actions: [
+      'amplify:GetApp',
+      'amplify:GetBranch',
+      'cloudformation:DescribeStacks',
+      'cloudformation:GetTemplateSummary',
+    ],
     resources: ['*'],
   }));
   return role;
