@@ -10,16 +10,17 @@ an independent owner and release cadence with a versioned contract between repos
 | Work | Trigger | Compute |
 | --- | --- | --- |
 | Apple verification | Apple, transcription, or generated-route changes on a pull request or `main` | Repository-scoped `frogbot-macmini` runner |
-| Browser/backend/runtime/AgentCore verification | Pull requests and `main`, classified by changed path | GitHub-hosted Linux runners for affected suites only |
-| CodeQL | Relevant JavaScript, TypeScript, or Python changes and the weekly schedule | GitHub-hosted Linux runner |
+| Browser/backend/runtime/AgentCore verification | Trusted pull requests and `main`, classified by changed path | Repository-scoped `frogbot-macmini` runner |
+| CodeQL | Relevant JavaScript, TypeScript, or Python changes and the weekly schedule | Repository-scoped `frogbot-macmini` runner |
 | Production backend | Manual production workflow from `main` | GitHub-hosted Linux runner using GitHub OIDC, never stored AWS keys |
 | TestFlight | Dependent step of a successful full production release | Repository-scoped `frogbot-macmini` runner |
-| Provider contract probe | Daily and manual | GitHub-hosted Linux runner |
+| Provider contract probe and constrained autofix | Scheduled or explicitly trusted events | Repository-scoped `frogbot-macmini` runner |
 
-The Mac mini is intentionally limited to this private repository and has the custom `frogbot-apple` label. Apple
-jobs also require the default `self-hosted`, `macOS`, and `ARM64` labels. Pull requests from forks cannot execute on
-the persistent runner. The runner is installed as the `homelab` user's launch agent and updates itself using the
-standard GitHub runner update channel.
+The Mac mini is intentionally limited to this private repository and has the custom `frogbot-apple` and `frogbot-ci`
+labels. Jobs also require the default `self-hosted`, `macOS`, and `ARM64` labels. Pull requests from forks cannot
+execute on the persistent runner. The runner is installed as the `homelab` user's launch agent and updates itself
+using the standard GitHub runner update channel. One runner processes jobs sequentially, avoiding concurrent builds
+competing for Simulator state, memory, or disk.
 
 ## Why AWS deployment stays in GitHub for now
 
@@ -28,10 +29,10 @@ a release. Moving that low-frequency control plane into CodePipeline and CodeBui
 a CodeConnection, another IAM surface, and a second place to diagnose releases. The first optimization target is the
 frequent Apple verification job and unrelated test suites, not the manual backend deployment.
 
-If Linux runner usage remains material after measuring the path filters, the next step is an AWS CodeBuild project
-for server verification. Use a queued build, GitHub CodeConnection restricted to this repository and branch, no
-long-lived access token, and Secrets Manager or Parameter Store for any build secret. Keep the production deployment
-manual until CodeBuild verification has been stable long enough to replace the current gate.
+If Linux runtime fidelity becomes necessary, the next step is an AWS CodeBuild project for server verification. Use a
+queued build, GitHub CodeConnection restricted to this repository and branch, no long-lived access token, and Secrets
+Manager or Parameter Store for any build secret. Keep the production deployment manual until CodeBuild verification
+has been stable long enough to replace the current gate.
 
 ## Mac mini operations
 
@@ -61,5 +62,6 @@ assets are restored through the repository cache and verified by checksum before
   then verifies, signs, and uploads both Apple builds on the Mac mini.
 - The Expo project remains a browser client and is not an Apple release source.
 
-Review GitHub Actions usage after several normal development cycles. If hosted Linux minutes are still significant,
-move server verification to CodeBuild before considering repository separation.
+Review GitHub Actions usage and Mac mini queue time after several normal development cycles. If the single runner is
+too slow or server tests need Linux-specific behavior, move server verification to CodeBuild before considering
+repository separation.

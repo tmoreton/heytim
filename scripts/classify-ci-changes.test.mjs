@@ -13,7 +13,7 @@ test('documentation-only changes skip product verification suites', () => {
   });
 });
 
-test('Apple-only changes stay out of Linux suites', () => {
+test('Apple-only changes stay out of non-Apple suites', () => {
   assert.deepEqual(classifyPaths(['apps/froggybot-apple/Sources/FroggyBotUI/MainView.swift']), {
     dependencies: false,
     application: false,

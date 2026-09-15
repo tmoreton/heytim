@@ -13,7 +13,8 @@ concurrency:
 jobs:
   changes:
     name: Select affected verification suites
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
     permissions:
       contents: read
     outputs:
@@ -45,7 +46,7 @@ jobs:
     name: Audit production dependencies
     needs: changes
     if: needs.changes.outputs.dependencies == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
     permissions:
       contents: read
     steps:
@@ -63,7 +64,7 @@ jobs:
     name: Verify supporting browser client
     needs: changes
     if: needs.changes.outputs.application == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
     permissions:
       contents: read
     defaults:
@@ -98,7 +99,7 @@ jobs:
     name: Verify application backend
     needs: changes
     if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
     permissions:
       contents: read
     defaults:
@@ -128,7 +129,7 @@ jobs:
     name: Verify AgentCore runtime
     needs: changes
     if: needs.changes.outputs.runtime == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
     permissions:
       contents: read
     defaults:
@@ -164,7 +165,7 @@ jobs:
     name: Verify AgentCore configuration
     needs: changes
     if: needs.changes.outputs.agentcore == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
     permissions:
       contents: read
     defaults:
