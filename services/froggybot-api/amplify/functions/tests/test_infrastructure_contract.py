@@ -183,6 +183,13 @@ class InfrastructureContractTests(unittest.TestCase):
             'if [[ "$RELEASE_SCOPE" == full ]]; then', self.production_workflow
         )
 
+    def test_production_release_uses_locked_agentcore_cdk_dependencies(self) -> None:
+        self.assertIn(
+            "agentcore config disableDependencyManagement true",
+            self.production_workflow,
+        )
+        self.assertIn("npm ci --prefix agentcore/cdk", self.production_workflow)
+
     def test_production_settings_fail_closed(self) -> None:
         self.assertIn(
             "requiredInProduction && deploymentEnvironment === 'production'",

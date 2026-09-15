@@ -187,6 +187,9 @@ jobs:
       - name: Audit production dependencies
         run: ./scripts/audit-dependencies.sh
 
+      - name: Use repository-managed AgentCore CDK dependencies
+        run: agentcore config disableDependencyManagement true
+
       - name: Deploy AgentCore production target
         env:
           FROGBOT_ENVIRONMENT: production
