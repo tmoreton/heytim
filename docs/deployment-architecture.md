@@ -47,7 +47,10 @@ cd /Users/homelab/ActionsRunners/frogbot
 
 GitHub reports the machine as `frogbot-macmini`. A healthy idle runner is online and not busy. The machine must keep
 automatic login or an active `homelab` GUI session available for Simulator work, remain awake, and retain the Xcode
-and iOS runtime versions required by the project.
+and iOS runtime versions required by the project. Its service PATH includes Homebrew Node 22, Python 3.14, `uv`,
+GitHub CLI, CMake, and CocoaPods. Do not use `actions/setup-python` on this ARM64 macOS runner: GitHub's downloadable Python
+package currently assumes the hosted `/Users/runner` account, while the checked machine Python is installed and
+updated through Homebrew.
 
 The Apple verification script creates and deletes a temporary simulator and derived-data directory for every run.
 Do not delete `/Library/Developer/CoreSimulator/Volumes`; that is the installed runtime. Generated transcription
