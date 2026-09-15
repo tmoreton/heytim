@@ -56,6 +56,32 @@ aws s3api head-bucket --bucket "$bucket_name"
 }
 aws s3api get-bucket-encryption --bucket "$bucket_name" >/dev/null
 
+meme_prefix="$(jq -r '.runtimes[] | select(.name == "FrogBot") | .envVars[] | select(.name == "FROGBOT_MEME_TEMPLATE_PREFIX") | .value' "$repository_root/agentcore/agentcore.json")"
+[[ -n "$meme_prefix" ]] || { echo 'Meme template prefix is missing.' >&2; exit 1; }
+meme_catalog="$(mktemp)"
+trap 'find "$meme_catalog" -delete 2>/dev/null || true' EXIT
+aws s3api get-object \
+  --bucket "$bucket_name" \
+  --key "${meme_prefix%/}/catalog.json" \
+  "$meme_catalog" >/dev/null
+jq -e --arg image_prefix "${meme_prefix%/}/images/" '
+  .schemaVersion == 2
+  and (.templates | type == "array" and length > 0)
+  and all(.templates[];
+    (.id | type == "string")
+    and (.name | type == "string" and length > 0)
+    and (.key | type == "string" and startswith($image_prefix))
+  )
+' "$meme_catalog" >/dev/null || {
+  echo 'Production meme template catalog is invalid.' >&2
+  exit 1
+}
+while IFS= read -r template_key; do
+  aws s3api head-object --bucket "$bucket_name" --key "$template_key" >/dev/null
+done < <(jq -r '.templates[].key' "$meme_catalog")
+find "$meme_catalog" -delete
+trap - EXIT
+
 runtime_id="${runtime_arn##*/}"
 runtime_log_group="/aws/bedrock-agentcore/runtimes/${runtime_id}-DEFAULT"
 runtime_log_settings="$(aws logs describe-log-groups \

@@ -58,7 +58,9 @@ def _layout_document() -> bytes:
             "default_settings": settings,
         }
     ]
-    return f"<script>usermemeID=181913649;memes={json.dumps(metadata)};</script>".encode()
+    return (
+        f"<script>usermemeID=181913649;memes={json.dumps(metadata)};</script>".encode()
+    )
 
 
 def test_sync_stores_normalized_templates_then_publishes_catalog() -> None:
@@ -103,10 +105,12 @@ def test_sync_stores_normalized_templates_then_publishes_catalog() -> None:
     assert image_request["Key"] == "meme-templates/v1/images/181913649.png"
     assert image_request["ContentType"] == "image/png"
     assert image_request["Body"].startswith(b"\x89PNG\r\n\x1a\n")
+    assert "ServerSideEncryption" not in image_request
     assert image_request["Metadata"]["source-url"] == (
         "https://i.imgflip.com/30b1gx.jpg"
     )
     assert catalog_request["Key"] == "meme-templates/v1/catalog.json"
+    assert "ServerSideEncryption" not in catalog_request
     catalog = json.loads(catalog_request["Body"])
     assert catalog["schemaVersion"] == 2
     assert catalog["syncedAt"] == "2026-09-10T12:00:00Z"
@@ -117,11 +121,11 @@ def test_sync_stores_normalized_templates_then_publishes_catalog() -> None:
         "drake no yes",
     ]
     assert catalog["templates"][0]["textBoxes"][0] == {
-            "label": "top right",
-            "x": 0.5,
-            "y": 0.0,
-            "width": 0.5,
-            "height": 0.5,
+        "label": "top right",
+        "x": 0.5,
+        "y": 0.0,
+        "width": 0.5,
+        "height": 0.5,
         "horizontalAlign": "center",
         "verticalAlign": "middle",
         "fill": "#000000",
@@ -158,9 +162,7 @@ def test_sync_rejects_template_urls_outside_imgflip() -> None:
         raise AssertionError("unsafe URL should not be fetched")
 
     with pytest.raises(ValueError, match="unsupported template URL"):
-        sync_meme_templates.sync_templates(
-            "files", s3_client=storage, fetch=fetch
-        )
+        sync_meme_templates.sync_templates("files", s3_client=storage, fetch=fetch)
     assert storage.requests == []
 
 

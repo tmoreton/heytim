@@ -214,6 +214,26 @@ jobs:
         working-directory: services/froggybot-api
         run: npm run outputs:apple
 
+      - name: Ensure production meme template catalog
+        working-directory: services/agent-runtime
+        run: |
+          outputs='../../apps/froggybot/amplify_outputs.json'
+          config='../../agentcore/agentcore.json'
+          bucket="$(jq -r '.custom.filesBucketName // empty' "$outputs")"
+          prefix="$(jq -r '.runtimes[] | select(.name == "FrogBot") | .envVars[] | select(.name == "FROGBOT_MEME_TEMPLATE_PREFIX") | .value' "$config")"
+          if [[ -z "$bucket" || -z "$prefix" ]]; then
+            echo 'Production meme-template storage configuration is missing.' >&2
+            exit 1
+          fi
+          catalog_key="${prefix%/}/catalog.json"
+          if aws s3api head-object --bucket "$bucket" --key "$catalog_key" >/dev/null 2>&1; then
+            echo "Meme template catalog already exists at s3://$bucket/$catalog_key."
+          else
+            uv run --frozen python scripts/sync_meme_templates.py \
+              --bucket "$bucket" \
+              --prefix "$prefix"
+          fi
+
       - name: Resolve production observability outputs
         run: |
           output() { jq -r ".custom.$1 // empty" apps/froggybot/amplify_outputs.json; }

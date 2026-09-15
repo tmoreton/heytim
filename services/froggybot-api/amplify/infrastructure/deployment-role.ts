@@ -39,6 +39,14 @@ export function addGithubDeploymentRole({
       'aws:ResourceTag/agentcore:project-name': 'FrogBot',
     },
   };
+  const productionFilesBucketName = `frogbot-production-user-files-${stack.account}-${stack.region}`;
+  const productionFilesBucketArn = stack.formatArn({
+    service: 's3',
+    region: '',
+    account: '',
+    resource: productionFilesBucketName,
+    arnFormat: ArnFormat.NO_RESOURCE_NAME,
+  });
 
   const role = new Role(stack, 'GitHubProductionDeployRole', {
     description: 'Least-privilege GitHub OIDC entrypoint for reviewed FroggyBot production deployments.',
@@ -195,13 +203,25 @@ export function addGithubDeploymentRole({
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['s3:ListBucket', 's3:GetBucketLocation', 's3:GetBucketVersioning', 's3:GetEncryptionConfiguration'],
+    resources: [productionFilesBucketArn],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['s3:GetObject', 's3:PutObject'],
+    resources: [`${productionFilesBucketArn}/meme-templates/*`],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['kms:Decrypt', 'kms:DescribeKey', 'kms:Encrypt', 'kms:GenerateDataKey'],
     resources: [stack.formatArn({
-      service: 's3',
-      region: '',
-      account: '',
-      resource: `frogbot-production-user-files-${stack.account}-${stack.region}`,
-      arnFormat: ArnFormat.NO_RESOURCE_NAME,
+      service: 'kms',
+      resource: 'key',
+      resourceName: '*',
+      arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
     })],
+    conditions: {
+      'ForAnyValue:StringEquals': {
+        'kms:ResourceAliases': 'alias/frogbot-production-user-files',
+      },
+    },
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['amplify:GetApp', 'amplify:GetBranch', 'cloudformation:DescribeStacks'],

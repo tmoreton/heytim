@@ -12,13 +12,21 @@ MAX_MUTATIONS = 1
 MAX_MUTATION_BYTES = 24_000
 CREATE_FIELDS = {"name", "tagline", "prompt", "color", "toolIds", "skillIds"}
 UPDATE_FIELDS = CREATE_FIELDS
+SELF_UPDATE_FIELDS = {"name", "tagline", "prompt", "color", "skillIds"}
 CREATE_SKILL_FIELDS = {"name", "description", "instructions", "requiredToolIds"}
+CREATE_MEMORY_FIELDS = {"kind", "content"}
 
 
 def _bot_api():
     from api import bots
 
     return bots
+
+
+def _memory_api():
+    from api import memories
+
+    return memories
 
 
 def _mutation(value: Any) -> tuple[str, str, dict]:
@@ -35,7 +43,14 @@ def _mutation(value: Any) -> tuple[str, str, dict]:
         raise ValueError("Bot mutation ID is invalid")
     action = value.get("action")
     body = value.get("value")
-    if action not in {"create", "install_template", "update", "create_skill"}:
+    if action not in {
+        "create",
+        "install_template",
+        "update",
+        "create_skill",
+        "update_self",
+        "create_memory",
+    }:
         raise ValueError("Bot mutation action is unsupported")
     if not isinstance(body, dict):
         raise TypeError("Bot mutation value must be an object")
@@ -46,15 +61,13 @@ def _create(user_id: str, mutation_id: str, value: dict) -> None:
     if set(value) != CREATE_FIELDS:
         raise ValueError("Create bot fields are invalid")
     bot_id = f"ai-{mutation_id}"
-    existing = table.get_item(
-        Key=_bot_key(user_id, bot_id), ConsistentRead=True
-    ).get("Item")
+    existing = table.get_item(Key=_bot_key(user_id, bot_id), ConsistentRead=True).get(
+        "Item"
+    )
     if existing:
         return
     bot_api = _bot_api()
-    bot_api._put_bot(
-        user_id, bot_api._bot_values(user_id, value), bot_id=bot_id
-    )
+    bot_api._put_bot(user_id, bot_api._bot_values(user_id, value), bot_id=bot_id)
 
 
 def _install(user_id: str, value: dict) -> None:
@@ -64,10 +77,7 @@ def _install(user_id: str, value: dict) -> None:
     if not isinstance(template_id, str) or not template_id:
         raise ValueError("Bot template ID is invalid")
     bot_api = _bot_api()
-    if any(
-        bot.get("templateId") == template_id
-        for bot in bot_api._list_bots(user_id)
-    ):
+    if any(bot.get("templateId") == template_id for bot in bot_api._list_bots(user_id)):
         return
     bot_api._install_bot_template(user_id, template_id)
 
@@ -149,6 +159,49 @@ def _create_skill(
         bot_api._update_bot(user_id, bot_id, {"skillIds": [*skill_ids, skill_id]})
 
 
+def _update_self(user_id: str, invoking_bot: dict, value: dict) -> None:
+    if set(value) != {"changes"} or not isinstance(value.get("changes"), dict):
+        raise ValueError("Self-update fields are invalid")
+    changes = value["changes"]
+    if not changes or set(changes) - SELF_UPDATE_FIELDS:
+        raise ValueError("Self-update settings are invalid")
+    bot_id = invoking_bot.get("id")
+    if not isinstance(bot_id, str) or not bot_id:
+        raise ValueError("The invoking bot ID is invalid")
+
+    bot_api = _bot_api()
+    target = bot_api._get_bot(user_id, bot_id)
+    if target.get("systemRole") == "chief" and "color" in changes:
+        raise ValueError("Chief's protected color cannot be changed")
+    requested_skills = changes.get("skillIds")
+    if requested_skills is not None:
+        if not isinstance(requested_skills, list) or not all(
+            isinstance(skill_id, str) for skill_id in requested_skills
+        ):
+            raise ValueError("Self-update skillIds must be a list")
+        current_tool_ids = {
+            tool_id
+            for tool_id in target.get("toolIds", [])
+            if isinstance(tool_id, str) and tool_id != "bot_manager"
+        }
+        for skill_id in dict.fromkeys(requested_skills):
+            skill = catalog.get_skill(user_id, skill_id)
+            required_tool_ids = skill.get("requiredToolIds", [])
+            if not isinstance(required_tool_ids, list) or not set(
+                required_tool_ids
+            ).issubset(current_tool_ids):
+                raise ValueError(
+                    "A self-attached skill cannot grant this bot a new tool"
+                )
+    bot_api._update_bot(user_id, bot_id, changes)
+
+
+def _create_memory(user_id: str, mutation_id: str, value: dict) -> None:
+    if set(value) != CREATE_MEMORY_FIELDS:
+        raise ValueError("Create memory fields are invalid")
+    _memory_api()._create_user_memory(user_id, value, request_identifier=mutation_id)
+
+
 def apply_bot_mutations(
     user_id: str,
     invoking_bot: dict,
@@ -163,13 +216,24 @@ def apply_bot_mutations(
         or len(raw_mutations) > MAX_MUTATIONS
     ):
         raise ValueError("Bot mutations must contain exactly one change")
-    if len(json.dumps(raw_mutations, ensure_ascii=False).encode("utf-8")) > MAX_MUTATION_BYTES:
+    if (
+        len(json.dumps(raw_mutations, ensure_ascii=False).encode("utf-8"))
+        > MAX_MUTATION_BYTES
+    ):
         raise ValueError("Bot mutation is too large")
     mutation_id, action, value = _mutation(raw_mutations[0])
     if turn.get("source") == "schedule":
-        raise ValueError("Bot and skill changes are unavailable during scheduled runs")
+        raise ValueError(
+            "Bot, skill, and memory changes are unavailable during scheduled runs"
+        )
     if action == "create_skill":
         _create_skill(user_id, invoking_bot, mutation_id, value)
+        return
+    if action == "update_self":
+        _update_self(user_id, invoking_bot, value)
+        return
+    if action == "create_memory":
+        _create_memory(user_id, mutation_id, value)
         return
     if invoking_bot.get("systemRole") != "chief":
         raise ValueError("Bot changes are allowed only from a direct Chief chat")

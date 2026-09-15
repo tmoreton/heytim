@@ -107,11 +107,16 @@ class MemoryTests(unittest.TestCase):
             patch.object(self.memories, "memory_actor_id", return_value="actor"),
         ):
             result = self.memories._create_user_memory(
-                "user-1", {"kind": "fact", "content": "I live in Boston."}
+                "user-1",
+                {"kind": "fact", "content": "I live in Boston."},
+                request_identifier="12345678-1234-1234-1234-123456789012",
             )
 
         request = self.agentcore.batch_create_memory_records.call_args.kwargs
         record = request["records"][0]
+        self.assertEqual(
+            record["requestIdentifier"], "12345678-1234-1234-1234-123456789012"
+        )
         self.assertEqual(record["namespaces"], ["/facts/actor/"])
         self.assertEqual(record["metadata"]["frogbotSource"]["stringValue"], "manual")
         self.assertEqual(result["scope"], "personal")

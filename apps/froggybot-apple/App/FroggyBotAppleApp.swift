@@ -62,6 +62,7 @@ private struct AppRoot: View {
   @Environment(\.dynamicTypeSize) private var systemTextSize
   @State private var invitation: PendingInvitation?
   @State private var connected = false
+  @State private var pendingPushSelection: PushSelection?
 
   var body: some View {
     Group {
@@ -78,16 +79,20 @@ private struct AppRoot: View {
     .task {
       guard !Self.isUnitTestHost else { return }
       await auth.restore()
+      capturePendingPushSelection()
       await connectIfNeeded()
-      if let selection = PushNotificationDelegate.shared.consumePendingSelection() {
-        selectFromPush(selection)
-      }
+      await openPendingPushSelectionIfReady()
     }
     .onChange(of: auth.phase) { _, phase in
       if phase == .signedIn {
-        Task { await connectIfNeeded() }
+        Task {
+          capturePendingPushSelection()
+          await connectIfNeeded()
+          await openPendingPushSelectionIfReady()
+        }
       } else if phase == .signedOut {
         connected = false
+        pendingPushSelection = nil
         model.resetSession()
       }
     }
@@ -119,15 +124,24 @@ private struct AppRoot: View {
     .onReceive(NotificationCenter.default.publisher(for: .froggyPushSelection)) { notification in
       guard let selection = notification.object as? PushSelection else { return }
       _ = PushNotificationDelegate.shared.consumePendingSelection(matching: selection)
-      selectFromPush(selection)
+      pendingPushSelection = selection
+      Task { await openPendingPushSelectionIfReady() }
     }
   }
 
-  private func selectFromPush(_ selection: PushSelection) {
+  private func capturePendingPushSelection() {
+    guard let selection = PushNotificationDelegate.shared.consumePendingSelection() else { return }
+    pendingPushSelection = selection
+  }
+
+  private func openPendingPushSelectionIfReady() async {
+    guard auth.phase == .signedIn, model.bootstrap != nil, let selection = pendingPushSelection
+    else { return }
+    pendingPushSelection = nil
     if let groupId = selection.groupId {
-      model.select(.init(kind: .group, id: groupId))
+      await model.openConversationFromNotification(.init(kind: .group, id: groupId))
     } else if let botId = selection.botId {
-      model.select(.init(kind: .bot, id: botId))
+      await model.openConversationFromNotification(.init(kind: .bot, id: botId))
     }
   }
 

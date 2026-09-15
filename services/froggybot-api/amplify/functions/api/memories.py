@@ -161,7 +161,9 @@ def _list_user_memories(user_id: str) -> dict:
     return {"records": records, "rawConversationRetentionDays": 30}
 
 
-def _create_user_memory(user_id: str, body: dict) -> dict:
+def _create_user_memory(
+    user_id: str, body: dict, *, request_identifier: str | None = None
+) -> dict:
     if not FROGBOT_MEMORY_ID:
         raise ApiError(503, "Memory is unavailable")
     kind = body.get("kind")
@@ -179,7 +181,7 @@ def _create_user_memory(user_id: str, body: dict) -> dict:
         memoryId=FROGBOT_MEMORY_ID,
         records=[
             {
-                "requestIdentifier": str(uuid.uuid4()),
+                "requestIdentifier": request_identifier or str(uuid.uuid4()),
                 "namespaces": [f"/{plural}/{memory_actor_id(user_id)}/"],
                 "content": {"text": content},
                 "timestamp": created_at,

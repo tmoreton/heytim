@@ -122,8 +122,13 @@ import UniformTypeIdentifiers
   func testMessageActivityPhasesUseAccurateProgressLabels() {
     XCTAssertTrue(MessageActivityPhase(status: "running").isIndeterminate)
     XCTAssertEqual(
-      MessageActivityPhase(status: "running").title(stepCount: 2), "Working · 2 updates")
-    XCTAssertEqual(MessageActivityPhase(status: "pending").title(stepCount: 0), "Queued")
+      MessageActivityPhase(status: "running").title(stepCount: 2), "Processing · 2 updates")
+    XCTAssertEqual(MessageActivityPhase(status: "pending").title(stepCount: 0), "Processing…")
+    XCTAssertTrue(MessageActivityPhase(status: "pending").isIndeterminate)
+    XCTAssertEqual(
+      MessageActivityPhase(status: "running").title(
+        steps: ["Reviewing files.", "Planning the implementation."]),
+      "Planning the implementation.")
     XCTAssertEqual(
       MessageActivityPhase(status: "waiting").title(stepCount: 0), "Waiting for its turn")
     XCTAssertEqual(
@@ -1209,6 +1214,104 @@ import UniformTypeIdentifiers
     XCTAssertEqual(selection.groupId, "group-one")
     XCTAssertNil(PushSelection(userInfo: ["botId": "", "groupId": 42]))
     XCTAssertNil(PushSelection(userInfo: ["messageId": "message-one"]))
+  }
+
+  func testNotificationOpensExactConversationAndRefreshesItsMessages() async throws {
+    var writer = try XCTUnwrap(DemoData.bootstrap.bots.first)
+    writer.id = "writer"
+    writer.name = "Writer"
+    var bootstrap = DemoData.bootstrap
+    bootstrap.bots.append(writer)
+    MockURLProtocol.handler = { request in
+      XCTAssertEqual(request.url?.path, "/bots/writer/messages")
+      return Self.response(
+        for: request,
+        body:
+          #"{"messages":[{"id":"notification-message","role":"assistant","text":"New reply","createdAt":"2026-09-15T12:00:00Z","status":"complete"}],"nextToken":null}"#)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let model = AppModel(api: api)
+    model.bootstrap = bootstrap
+    model.selection = .init(kind: .bot, id: "chief")
+    model.messages = DemoData.messages
+    model.sheet = .account
+
+    await model.openConversationFromNotification(.init(kind: .bot, id: "writer"))
+
+    XCTAssertEqual(model.selection, .init(kind: .bot, id: "writer"))
+    XCTAssertEqual(model.messages.map(\.id), ["notification-message"])
+    XCTAssertNil(model.sheet)
+    XCTAssertEqual(model.notificationFocusRevision, 1)
+  }
+
+  func testNotificationRefreshesBootstrapWhenConversationArrivesDuringLaunch() async throws {
+    var writer = try XCTUnwrap(DemoData.bootstrap.bots.first)
+    writer.id = "writer"
+    writer.name = "Writer"
+    var refreshedBootstrap = DemoData.bootstrap
+    refreshedBootstrap.bots.append(writer)
+    let bootstrapData = try JSONEncoder().encode(refreshedBootstrap)
+    var paths: [String] = []
+    MockURLProtocol.handler = { request in
+      paths.append(request.url?.path ?? "")
+      if request.url?.path == "/bootstrap" {
+        return (
+          HTTPURLResponse(
+            url: try XCTUnwrap(request.url), statusCode: 200, httpVersion: nil,
+            headerFields: nil)!,
+          bootstrapData
+        )
+      }
+      return Self.response(for: request, body: #"{"messages":[],"nextToken":null}"#)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let model = AppModel(api: api)
+    model.bootstrap = DemoData.bootstrap
+
+    await model.openConversationFromNotification(.init(kind: .bot, id: "writer"))
+
+    XCTAssertEqual(paths, ["/bootstrap", "/bots/writer/messages"])
+    XCTAssertEqual(model.selection, .init(kind: .bot, id: "writer"))
+    XCTAssertEqual(model.notificationFocusRevision, 1)
+  }
+
+  func testCompletedBotConfigurationChangeRefreshesVisibleBootstrap() async throws {
+    var renamedBot = try XCTUnwrap(DemoData.bootstrap.bots.first)
+    renamedBot.name = "Updated Chief"
+    var refreshedBootstrap = DemoData.bootstrap
+    refreshedBootstrap.bots = [renamedBot]
+    let bootstrapData = try JSONEncoder().encode(refreshedBootstrap)
+    var paths: [String] = []
+    MockURLProtocol.handler = { request in
+      paths.append(request.url?.path ?? "")
+      if request.url?.path == "/bootstrap" {
+        return (
+          HTTPURLResponse(
+            url: try XCTUnwrap(request.url), statusCode: 200, httpVersion: nil,
+            headerFields: nil)!,
+          bootstrapData
+        )
+      }
+      return Self.response(
+        for: request,
+        body:
+          #"{"messages":[{"id":"changed","role":"assistant","text":"Updated","createdAt":"2026-09-15T12:00:00Z","status":"complete","configurationChanged":true}],"nextToken":null}"#)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let model = AppModel(api: api)
+    model.bootstrap = DemoData.bootstrap
+    model.selection = .init(kind: .bot, id: "chief")
+
+    try await model.loadMessages()
+
+    XCTAssertEqual(paths, ["/bots/chief/messages", "/bootstrap"])
+    XCTAssertEqual(model.selectedBot?.name, "Updated Chief")
   }
 
   func testPushResponseCompletesAndPublishesNavigationOnMainThread() async throws {

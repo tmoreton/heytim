@@ -90,10 +90,15 @@ source attribution. Templates without published placement metadata receive a saf
 publishes `catalog.json` only after every selected image has uploaded and never deletes older objects.
 
 ```bash
+bucket="$(jq -r '.custom.filesBucketName' ../../apps/froggybot/amplify_outputs.json)"
 uv run --frozen python scripts/sync_meme_templates.py \
-  --bucket frogbot-user-files-188757775631-us-east-1 \
+  --bucket "$bucket" \
   --prefix meme-templates/v1
 ```
+
+The production release workflow performs this seed only when `catalog.json` is
+missing, then verifies the catalog and every referenced template image before a
+release can pass.
 
 The full Imgflip database is user-generated, changes continuously, and is not mirrored by this project. Add any
 other template only after confirming that FroggyBot has the right to store and use it.

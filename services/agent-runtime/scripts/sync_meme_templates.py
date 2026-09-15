@@ -135,19 +135,15 @@ def _optional_layout_feed(
 ) -> dict[str, dict[str, Any]]:
     try:
         return _layout_feed(fetch, template_id)
-    except (OSError, TypeError, UnicodeError, ValueError):
+    except OSError, TypeError, UnicodeError, ValueError:
         return {}
 
 
 def _position_label(box: dict[str, float]) -> str:
     center_x = box["x"] + (box["width"] / 2)
     center_y = box["y"] + (box["height"] / 2)
-    horizontal = (
-        "left" if center_x < 0.38 else "right" if center_x > 0.62 else "center"
-    )
-    vertical = (
-        "top" if center_y < 0.38 else "bottom" if center_y > 0.62 else "middle"
-    )
+    horizontal = "left" if center_x < 0.38 else "right" if center_x > 0.62 else "center"
+    vertical = "top" if center_y < 0.38 else "bottom" if center_y > 0.62 else "middle"
     return vertical if horizontal == "center" else f"{vertical} {horizontal}"
 
 
@@ -261,9 +257,7 @@ def _normalized_text_boxes(
             else 0.004
         )
         raw_rotation = raw.get("rotation") or 0
-        if not isinstance(raw_rotation, (int, float)) or isinstance(
-            raw_rotation, bool
-        ):
+        if not isinstance(raw_rotation, (int, float)) or isinstance(raw_rotation, bool):
             raw_rotation = 0
         rotation = ((float(raw_rotation) + 180) % 360) - 180
         horizontal = raw.get("text_align")
@@ -392,7 +386,7 @@ def sync_templates(
             width=template["width"],
             height=template["height"],
         )
-        key = f'{clean_prefix}/images/{template["id"]}.png'
+        key = f"{clean_prefix}/images/{template['id']}.png"
         image = _png(retrieve(template["sourceUrl"], MAX_SOURCE_BYTES))
         target.put_object(
             Bucket=bucket,
@@ -406,7 +400,6 @@ def sync_templates(
                 "template-id": template["id"],
                 "template-name": urllib.parse.quote(template["name"], safe=""),
             },
-            ServerSideEncryption="AES256",
         )
         templates.append(
             {
@@ -437,7 +430,6 @@ def sync_templates(
         ContentType="application/json",
         CacheControl="private, max-age=300",
         Metadata={"source": "imgflip"},
-        ServerSideEncryption="AES256",
     )
     return len(templates)
 

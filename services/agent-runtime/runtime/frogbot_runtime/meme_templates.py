@@ -21,7 +21,13 @@ MEME_CATALOG_KEY = f"{MEME_TEMPLATE_PREFIX}/catalog.json"
 
 
 def read_s3_object(target, key: str, maximum_bytes: int) -> bytes:
-    response = target.get_object(Bucket=artifacts.FILES_BUCKET_NAME, Key=key)
+    try:
+        response = target.get_object(Bucket=artifacts.FILES_BUCKET_NAME, Key=key)
+    except target.exceptions.NoSuchKey as exc:
+        raise ValueError(
+            "Stored meme templates are temporarily unavailable. "
+            "Try again later or attach an image to caption."
+        ) from exc
     stream = response["Body"]
     try:
         body = stream.read(maximum_bytes + 1)
@@ -81,14 +87,12 @@ def template_catalog(target) -> list[dict]:
         ):
             raise ValueError("The meme template catalog contains an invalid entry")
         if schema_version == 2:
-            if (
-                not isinstance(raw_text_boxes, list)
-                or len(raw_text_boxes) != box_count
-            ):
-                raise ValueError("The meme template catalog contains invalid text boxes")
+            if not isinstance(raw_text_boxes, list) or len(raw_text_boxes) != box_count:
+                raise ValueError(
+                    "The meme template catalog contains invalid text boxes"
+                )
             text_boxes = [
-                catalog_text_box(box, index)
-                for index, box in enumerate(raw_text_boxes)
+                catalog_text_box(box, index) for index, box in enumerate(raw_text_boxes)
             ]
         else:
             text_boxes = legacy_text_boxes(box_count)
@@ -232,9 +236,9 @@ def matching_templates(templates: list[dict], query: str, limit: int) -> list[di
         return (1, -overlap) if overlap else (0, len(name))
 
     matches = [template for template in templates if score(template)[0] > 0]
-    return sorted(matches, key=lambda template: (-score(template)[0], score(template)[1]))[
-        :limit
-    ]
+    return sorted(
+        matches, key=lambda template: (-score(template)[0], score(template)[1])
+    )[:limit]
 
 
 __all__ = [

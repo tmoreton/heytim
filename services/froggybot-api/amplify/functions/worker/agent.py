@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from shared.agent_stream import AgentTerminalError, ProgressCallback, read_agent_stream
 from shared.catalog import CatalogError
+from shared.client_contract import MEMORY_MAX_LENGTH
 from shared.group_chat import (
     MAX_HISTORY_BLOCK_CHARS,
     group_history_from_items,
@@ -309,7 +310,16 @@ def _bot_management_context(user_id: str, current_bot: dict) -> dict:
     return {
         "currentBot": {
             key: current_bot[key]
-            for key in ("id", "name", "toolIds", "skillIds", "systemRole")
+            for key in (
+                "id",
+                "name",
+                "tagline",
+                "prompt",
+                "color",
+                "toolIds",
+                "skillIds",
+                "systemRole",
+            )
             if key in current_bot
         },
         "canManageBots": can_manage_bots,
@@ -340,6 +350,7 @@ def _bot_management_context(user_id: str, current_bot: dict) -> dict:
             ("id", "name", "description", "category"),
         ),
         "selfToolIds": self_tool_ids,
+        "memoryMaxLength": MEMORY_MAX_LENGTH,
     }
 
 

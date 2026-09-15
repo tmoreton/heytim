@@ -10,7 +10,14 @@ from frogbot_runtime import artifacts, meme_templates
 from frogbot_runtime.memes import image_attachments_from_messages, meme_tools
 
 
+class FakeNoSuchKey(Exception):
+    pass
+
+
 class FakeS3:
+    class exceptions:
+        NoSuchKey = FakeNoSuchKey
+
     def __init__(self) -> None:
         self.requests: list[dict] = []
         self.objects: dict[str, bytes] = {}
@@ -19,7 +26,11 @@ class FakeS3:
         self.requests.append(request)
 
     def get_object(self, *, Bucket, Key) -> dict:
-        return {"Body": io.BytesIO(self.objects[Key])}
+        try:
+            body = self.objects[Key]
+        except KeyError as exc:
+            raise self.exceptions.NoSuchKey from exc
+        return {"Body": io.BytesIO(body)}
 
 
 def _image_bytes(width: int = 640, height: int = 480) -> bytes:
@@ -32,7 +43,9 @@ def _composer(monkeypatch, images: list[bytes]):
     prefix = f"users/{'a' * 64}/artifacts/12345678-1234-1234-1234-123456789012"
     storage = FakeS3()
     monkeypatch.setattr(artifacts, "FILES_BUCKET_NAME", "files")
-    tools = {item.tool_name: item for item in meme_tools(prefix, images, client=storage)}
+    tools = {
+        item.tool_name: item for item in meme_tools(prefix, images, client=storage)
+    }
     return tools, storage
 
 
@@ -139,6 +152,13 @@ def test_composer_requires_a_valid_latest_message_image(monkeypatch) -> None:
         tools["compose_meme"]("missing.png", top_text="NO TEMPLATE")
 
 
+def test_missing_stored_library_returns_an_actionable_error(monkeypatch) -> None:
+    tools, _ = _composer(monkeypatch, [])
+
+    with pytest.raises(ValueError, match="temporarily unavailable"):
+        tools["search_meme_templates"]("")
+
+
 def test_composer_rejects_invalid_layout_and_oversized_copy(monkeypatch) -> None:
     tools, _ = _composer(monkeypatch, [_image_bytes()])
     compose = tools["compose_meme"]
@@ -197,11 +217,9 @@ def test_catalog_cannot_redirect_reads_outside_the_template_prefix(monkeypatch) 
                     "key": "users/another-user/private.png",
                     "boxCount": 2,
                 }
-            ]
+            ],
         }
     ).encode()
 
     with pytest.raises(ValueError, match="invalid entry"):
-        tools["compose_meme"](
-            "unsafe.png", top_text="NO", template_id="181913649"
-        )
+        tools["compose_meme"]("unsafe.png", top_text="NO", template_id="181913649")

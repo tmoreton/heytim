@@ -33,6 +33,18 @@ public struct MainView: View {
     .onChange(of: model.sheet) { _, sheet in
       synchronizePresentedSheet(with: sheet)
     }
+    .onChange(of: model.notificationFocusRevision) { _, revision in
+      guard revision > 0 else { return }
+      #if os(iOS)
+        columns = .detailOnly
+      #endif
+    }
+    .onAppear {
+      guard model.notificationFocusRevision > 0 else { return }
+      #if os(iOS)
+        columns = .detailOnly
+      #endif
+    }
     .alert(
       "FroggyBot",
       isPresented: Binding(
@@ -1250,7 +1262,7 @@ enum MessageActivityPhase: Equatable {
     }
   }
 
-  var isIndeterminate: Bool { self == .running }
+  var isIndeterminate: Bool { self == .running || self == .queued }
 
   var systemImage: String {
     switch self {
@@ -1268,9 +1280,9 @@ enum MessageActivityPhase: Equatable {
     switch self {
     case .running:
       stepCount == 0
-        ? "Working…"
-        : "Working · \(stepCount) \(stepCount == 1 ? "update" : "updates")"
-    case .queued: "Queued"
+        ? "Processing…"
+        : "Processing · \(stepCount) \(stepCount == 1 ? "update" : "updates")"
+    case .queued: "Processing…"
     case .waiting: "Waiting for its turn"
     case .completed:
       "\(stepCount) \(stepCount == 1 ? "step" : "steps") completed"
@@ -1279,6 +1291,16 @@ enum MessageActivityPhase: Equatable {
     case .other(let status):
       status.replacingOccurrences(of: "_", with: " ").capitalized
     }
+  }
+
+  func title(steps: [String]) -> String {
+    if self == .running,
+      let latest = steps.last?.trimmingCharacters(in: .whitespacesAndNewlines),
+      !latest.isEmpty
+    {
+      return latest
+    }
+    return title(stepCount: steps.count)
   }
 }
 
@@ -1356,7 +1378,8 @@ private struct MessageActivityView: View {
       } else {
         Image(systemName: phase.systemImage)
       }
-      Text(phase.title(stepCount: steps.count)).froggyFont(.caption, weight: .semibold)
+      Text(formattedActivityStep(phase.title(steps: steps)))
+        .froggyFont(.caption, weight: .semibold)
       Spacer(minLength: 0)
       if let timestamp, !timestamp.isEmpty {
         Text(timestamp)
@@ -1375,7 +1398,7 @@ private struct MessageActivityView: View {
 
   private var headerColor: Color {
     switch phase {
-    case .running: FrogTheme.accent
+    case .running, .queued: FrogTheme.accent
     case .failed: FrogTheme.danger
     default: FrogTheme.statusText
     }

@@ -40,6 +40,9 @@ class InfrastructureContractTests(unittest.TestCase):
         cls.autofix_workflow = (
             Path(__file__).parents[5] / ".github" / "workflows" / "autofix.yml"
         ).read_text(encoding="utf-8")
+        cls.production_verifier = (
+            Path(__file__).parents[5] / "scripts" / "verify-production-deployment.sh"
+        ).read_text(encoding="utf-8")
 
     def test_worker_concurrency_protects_agentcore_and_is_observed(self) -> None:
         self.assertIn("reservedConcurrentExecutions: WORKER_CONCURRENCY", self.backend)
@@ -151,6 +154,15 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("auditTrail.addS3EventSelector", self.backend)
         self.assertIn("ReadWriteType.ALL", self.backend)
         self.assertIn("nativePushFeedbackRoleArn", self.backend)
+
+    def test_production_release_provisions_and_verifies_meme_templates(self) -> None:
+        self.assertIn("Ensure production meme template catalog", self.production_workflow)
+        self.assertIn("scripts/sync_meme_templates.py", self.production_workflow)
+        self.assertIn("/meme-templates/*", self.deployment_role)
+        self.assertIn("'s3:GetObject', 's3:PutObject'", self.deployment_role)
+        self.assertIn("alias/frogbot-production-user-files", self.deployment_role)
+        self.assertIn(".templates[].key", self.production_verifier)
+        self.assertIn("aws s3api head-object", self.production_verifier)
 
     def test_production_settings_fail_closed(self) -> None:
         self.assertIn(
