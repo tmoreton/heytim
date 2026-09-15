@@ -314,6 +314,9 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertNotIn("bedrock-agentcore:*", self.deployment_role)
         self.assertIn("bedrock-agentcore:GetTokenVault", self.deployment_role)
         self.assertIn("bedrock-agentcore:SetTokenVaultCMK", self.deployment_role)
+        self.assertIn(
+            ":/identities/set-token-vault-cmk`", self.deployment_role
+        )
         self.assertIn("actions: ['kms:CreateKey', 'kms:TagResource']", self.deployment_role)
         self.assertIn(
             "'aws:RequestTag/agentcore:project': 'FrogBot'", self.deployment_role
