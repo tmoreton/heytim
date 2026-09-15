@@ -35,6 +35,9 @@ dependencies = [
     "multidict==6.8.0",
     "openpyxl >= 3.1.5, < 4.0.0",
     "pillow == 12.3.0",
+    # CodeZip resolves this browser dependency afresh instead of using uv.lock.
+    # Keep the deployed driver identical to the version exercised by tests.
+    "playwright == 1.62.0",
     "python-docx >= 1.2.0, < 2.0.0",
     "python-pptx >= 1.0.2, < 2.0.0",
     "reportlab>=4.4.4,<6.0.0",

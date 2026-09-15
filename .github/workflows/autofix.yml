@@ -20,7 +20,7 @@ permissions:
 jobs:
   generate:
     name: Generate constrained patch
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
     timeout-minutes: 30
     environment: production
     permissions:
@@ -29,10 +29,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.14"
 
       - uses: astral-sh/setup-uv@v10.1.0
         with:
@@ -64,7 +60,7 @@ jobs:
   verify-server:
     name: Verify server and AgentCore
     needs: generate
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
     timeout-minutes: 45
     permissions:
       contents: read
@@ -85,9 +81,6 @@ jobs:
           cache-dependency-path: |
             services/froggybot-api/package-lock.json
             agentcore/cdk/package-lock.json
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.14"
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
@@ -103,7 +96,7 @@ jobs:
   verify-application:
     name: Verify browser and shared clients
     needs: generate
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
     timeout-minutes: 30
     permissions:
       contents: read
@@ -134,7 +127,7 @@ jobs:
   verify-apple:
     name: Verify iPhone and Mac
     needs: generate
-    runs-on: macos-26
+    runs-on: [self-hosted, macOS, ARM64, frogbot-apple]
     timeout-minutes: 45
     permissions:
       contents: read
@@ -159,7 +152,7 @@ jobs:
   analyze:
     name: Analyze ${{ matrix.language }}
     needs: generate
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
     timeout-minutes: 20
     permissions:
       actions: read
@@ -190,7 +183,7 @@ jobs:
   publish:
     name: Open pull request and apply merge policy
     needs: [generate, verify-server, verify-application, verify-apple, analyze]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
     timeout-minutes: 10
     permissions:
       contents: write

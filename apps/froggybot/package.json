@@ -13,18 +13,18 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "12.0.1",
     "aws-amplify": "^6.20.0",
-    "expo": "~57.0.22",
+    "expo": "~57.0.23",
     "expo-asset": "~57.0.16",
-    "expo-build-properties": "~57.0.17",
+    "expo-build-properties": "~57.0.18",
     "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.17",
     "expo-device": "~57.0.2",
     "expo-document-picker": "~57.0.2",
     "expo-file-system": "~57.0.7",
     "expo-image-manipulator": "~57.0.17",
-    "expo-image-picker": "~57.0.17",
+    "expo-image-picker": "~57.0.18",
     "expo-linking": "~57.0.10",
-    "expo-notifications": "~57.0.18",
+    "expo-notifications": "~57.0.19",
     "expo-router": "~57.0.21",
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
@@ -84,6 +84,13 @@
     "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test 'src/**/*.test.mjs'",
     "source:size": "../../scripts/check-source-size.sh",
     "verify": "npm run source:size && npm run view:boundary && npm test && npm run typecheck && npm run lint && npx expo-doctor"
+  },
+  "expo": {
+    "install": {
+      "exclude": [
+        "expo-image-manipulator"
+      ]
+    }
   },
   "engines": {
     "node": ">=22.13 <25"

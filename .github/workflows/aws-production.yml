@@ -316,7 +316,7 @@ jobs:
     name: Release SwiftUI apps to TestFlight
     needs: deploy
     if: ${{ inputs.release_scope == 'full' }}
-    runs-on: macos-26
+    runs-on: [self-hosted, macOS, ARM64, frogbot-apple]
     timeout-minutes: 120
     environment: production
     permissions:

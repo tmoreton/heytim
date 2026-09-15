@@ -3,7 +3,24 @@ name: Verify primary SwiftUI apps
 on:
   push:
     branches: [main]
+    paths:
+      - apps/froggybot-apple/**
+      - packages/frogbot-transcription/**
+      - services/froggybot-api/amplify/functions/api/api-contract.json
+      - services/froggybot-api/scripts/generate-api-contract.mjs
+      - scripts/apple-app.sh
+      - scripts/verify.sh
+      - .github/workflows/apple.yml
   pull_request:
+    paths:
+      - apps/froggybot-apple/**
+      - packages/frogbot-transcription/**
+      - services/froggybot-api/amplify/functions/api/api-contract.json
+      - services/froggybot-api/scripts/generate-api-contract.mjs
+      - scripts/apple-app.sh
+      - scripts/verify.sh
+      - .github/workflows/apple.yml
+  workflow_dispatch:
 
 concurrency:
   group: frogbot-apple-${{ github.event_name }}-${{ github.ref }}
@@ -14,7 +31,8 @@ permissions:
 
 jobs:
   apple:
-    runs-on: macos-26
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, macOS, ARM64, frogbot-apple]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7

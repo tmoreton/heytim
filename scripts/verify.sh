@@ -74,10 +74,6 @@ verify_application() {
     npm run verify
     npm run build:web
   )
-
-  if [[ "$(uname -s)" == "Darwin" ]]; then
-    verify_apple
-  fi
 }
 
 verify_apple() {
@@ -95,6 +91,9 @@ case "$component" in
   all)
     verify_server
     verify_application
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+      verify_apple
+    fi
     ;;
   server)
     verify_server

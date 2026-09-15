@@ -8,7 +8,7 @@ they validate source, build local artifacts, and run tests, but do not deploy in
 - Node.js `22.23.2` (the version used by CI)
 - Python 3.14
 - `uv`
-- AgentCore CLI `0.28.1`
+- AgentCore CLI `0.29.0`
 - npm dependencies installed in `apps/froggybot`, `apps/froggybot-browser-viewer`, `services/froggybot-api`, and `agentcore/cdk`
 
 ## Complete local verification
@@ -21,7 +21,9 @@ scripts/verify.sh
 
 The script validates the declarative AgentCore configuration, checks and tests the locked runtime environment,
 checks the runtime deployment-package manifest, verifies the shared clients, isolated browser viewer, Expo view layer, and Amplify backend,
-exports the web application, audits backend Python, and builds/tests the generated AgentCore CDK wrapper.
+exports the web application, audits backend Python, and builds/tests the generated AgentCore CDK wrapper. On macOS,
+the complete command also runs the SwiftUI application suites; focused `application` verification remains limited to
+the browser and shared clients.
 
 ## Focused checks
 
@@ -45,8 +47,11 @@ scripts/clean-generated.sh
 
 ## Continuous integration
 
-Pull requests run application, backend, runtime, and AgentCore jobs independently. A push to `main` can publish only after all
-four jobs pass. The application job exports web output; the backend job checks Amplify TypeScript and audits backend Python.
+Trusted pull requests and pushes to `main` classify changed paths, then run only the affected application, backend,
+runtime, AgentCore, and dependency jobs on the repository-scoped Mac mini. Native Apple changes run the separate
+iPhone and Mac workflow. Unrecognized source areas fail open to every non-Apple suite; documentation-only changes can
+skip product verification. The application job exports web output, and the backend job checks Amplify TypeScript and
+audits backend Python.
 
 ## Deployed verification
 
