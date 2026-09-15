@@ -812,7 +812,7 @@ public enum DemoData {
       category: "Files", actions: ["Analyze files", "Create documents"],
       source: "official"),
   ]
-  public static let connectionProviders = [
+  private static let demoConnectionProviders = [
     ConnectionProvider(
       id: "gmail", name: "Gmail",
       description: "Search and summarize email, then create drafts for review.",
@@ -889,7 +889,7 @@ public enum DemoData {
         lastMessage: "Your project brief is ready.", lastMessageAt: "2026-09-12T12:01:00.000Z",
         allowedActions: ["schedule", "share", "documents", "browser", "edit", "clear", "delete"])
     ],
-    botTemplates: botTemplates, connectionProviders: connectionProviders,
+    botTemplates: botTemplates, connectionProviders: demoConnectionProviders,
     needsBotOnboarding: false, groups: [], tools: tools,
     retiredToolIds: [], skills: skills, constraints: constraints
   )
