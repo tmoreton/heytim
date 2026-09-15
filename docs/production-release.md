@@ -78,6 +78,11 @@ deferred and absent from the registry for this release.
    referenced template image along with storage/PITR/alerts/public API, and preserves the exact production client
    configuration. A dependent macOS job then verifies the native suites once and uploads matching iPhone and Mac
    builds to TestFlight. Expo is neither built nor published by this release.
+   The default `full` scope requires the protected Apple API key and Distribution certificate. When an authorized
+   release operator must use the Apple account already signed into Xcode, select `backend-only`; every AWS, provider,
+   compliance, and device approval remains enforced, but the TestFlight job is skipped. Download the preserved
+   production client-configuration artifact, place its two files at their recorded repository paths, then run
+   `APPLE_TEAM_ID=GVXC5FQ2RP ./scripts/apple-app.sh testflight all` from a clean checkout of the same commit.
 3. Confirm both builds complete App Store Connect processing and complete the App Store/TestFlight compliance forms.
    The preserved configuration artifact remains available for local reproduction and incident review.
 4. Run an authenticated disposable-user workflow and the agreed concurrency test against production. Verify OAuth
