@@ -21,10 +21,6 @@ export function addGithubDeploymentRole({
     arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
   });
   const tokenVaultArn = agentCoreArn('token-vault', 'default');
-  // AgentCore currently evaluates SetTokenVaultCMK against this control-plane
-  // route ARN even though its service-authorization reference lists token-vault.
-  const tokenVaultCmkActionArn =
-    `arn:${stack.partition}:bedrock-agentcore:${stack.region}:${stack.account}:/identities/set-token-vault-cmk`;
   const credentialProviderArns = [
     'FrogBot_OpenRouter',
     'FrogBotXApi',
@@ -91,8 +87,10 @@ export function addGithubDeploymentRole({
     resources: [tokenVaultArn],
   }));
   role.addToPolicy(new PolicyStatement({
+    // AgentCore currently authorizes this API against its non-resource control
+    // route ARN, so the action cannot be constrained to the documented vault ARN.
     actions: ['bedrock-agentcore:SetTokenVaultCMK'],
-    resources: [tokenVaultArn, tokenVaultCmkActionArn],
+    resources: ['*'],
   }));
   role.addToPolicy(new PolicyStatement({
     // AgentCore CLI creates the token-vault encryption key with this project tag.
