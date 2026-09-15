@@ -82,8 +82,8 @@ permissions from protected environment secrets immediately before deployment and
    audits dependencies, deploys AgentCore then Amplify, generates the client outputs, hardens runtime logs, configures
    AgentCore alarms and APNs delivery feedback, seeds the private meme-template catalog when absent, verifies every
    referenced template image along with storage/PITR/alerts/public API, and preserves the exact production client
-   configuration. A dependent macOS job then verifies the native suites once and uploads matching iPhone and Mac
-   builds to TestFlight. Expo is neither built nor published by this release.
+   configuration. A dependent job on the repository-scoped `frogbot-macmini` runner then verifies the native suites
+   once and uploads matching iPhone and Mac builds to TestFlight. Expo is neither built nor published by this release.
    The default `full` scope requires the protected Apple API key and Distribution certificate. When an authorized
    release operator must use the Apple account already signed into Xcode, select `backend-only`; every AWS, provider,
    compliance, and device approval remains enforced, but the TestFlight job is skipped. Download the preserved

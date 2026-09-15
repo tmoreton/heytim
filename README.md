@@ -267,6 +267,9 @@ repository.
 The workflow at `.github/workflows/eas-update.yml` keeps the preserved Expo browser client verified as a supporting
 surface, but it does not publish it and it is not part of the production release gate. Browser deployment is a
 separate, explicitly authorized operation. No Expo credential is required for an Apple production release.
+Apple verification and TestFlight builds run on the repository-scoped Mac mini runner; Linux suites are selected by
+changed path so an unrelated edit does not start every job. The maintained CI and repository-boundary rationale is in
+[`docs/deployment-architecture.md`](docs/deployment-architecture.md).
 
 The separate [FroggyBot Skills](https://github.com/tmoreton/frogbot-skills) repository owns the public homepage,
 library, contribution guide, and legal pages at `https://froggybot.com`. Its GitHub Pages workflow publishes on
