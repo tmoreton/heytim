@@ -97,6 +97,7 @@ if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/.test(runtimeQualifier)) {
   throw new Error('FROGBOT_AGENT_RUNTIME_QUALIFIER is invalid.');
 }
 export const memoryId = requiredSetting('FROGBOT_MEMORY_ID');
+export const memoryKmsKeyArn = requiredSetting('FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN');
 export const googleOAuthSecretArn = requiredSetting('FROGBOT_GOOGLE_OAUTH_SECRET_ARN');
 export const githubAppSecretArn = requiredSetting('FROGBOT_GITHUB_APP_SECRET_ARN');
 export const xOAuthSecretArn = requiredSetting('FROGBOT_X_OAUTH_SECRET_ARN');

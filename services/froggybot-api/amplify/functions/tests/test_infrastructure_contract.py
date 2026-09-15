@@ -221,6 +221,27 @@ class InfrastructureContractTests(unittest.TestCase):
             self.assertIn(setting, api)
         self.assertGreaterEqual(self.backend.count("dynamodb:TransactWriteItems"), 2)
 
+    def test_memory_clients_can_use_the_configured_encryption_key(self) -> None:
+        self.assertIn(
+            "memoryKmsKeyArn = requiredSetting('FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN')",
+            self.settings,
+        )
+        self.assertIn("policyName: 'FrogBotMemoryKeyAccess'", self.backend)
+        self.assertIn("memoryKeyAccess.attachToRole(apiFunction.role!)", self.backend)
+        self.assertIn("memoryKeyAccess.attachToRole(workerFunction.role!)", self.backend)
+        for action in (
+            "kms:Decrypt",
+            "kms:DescribeKey",
+            "kms:Encrypt",
+            "kms:GenerateDataKey",
+        ):
+            self.assertIn(action, self.backend)
+        self.assertIn("resources: [memoryKmsKeyArn]", self.backend)
+        self.assertIn(
+            "FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN }}",
+            self.production_workflow,
+        )
+
     def test_cleanup_roles_can_read_only_scoped_connection_secrets(self) -> None:
         connection_policies = self.backend.split("const connectionSecretsArn =", 1)[
             1

@@ -4,7 +4,7 @@ import { ReadWriteType, Trail } from 'aws-cdk-lib/aws-cloudtrail';
 import { AttributeType, BillingMode, Table, TableEncryption } from 'aws-cdk-lib/aws-dynamodb';
 import { Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
 import { SqsQueue } from 'aws-cdk-lib/aws-events-targets';
-import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+import { Effect, Policy, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { Key } from 'aws-cdk-lib/aws-kms';
 import { Code, Function as LambdaFunction, RecursiveLoop, Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
@@ -22,7 +22,7 @@ import {
   WORKER_CONCURRENCY, deploymentEnvironment,
   apnsApplicationArn, apnsSandboxApplicationArn,
   githubAppSecretArn, globalWindowRunUnitLimit, googleOAuthSecretArn,
-  memoryId, microsoftOAuthSecretArn, monthlyBudgetUsd, monthlyRunUnitLimit,
+  memoryId, memoryKmsKeyArn, microsoftOAuthSecretArn, monthlyBudgetUsd, monthlyRunUnitLimit,
   notionOAuthSecretArn,
   runtimeArn, runtimeQualifier, usageWindowSeconds, userWindowRunUnitLimit,
   slackOAuthSecretArn, xOAuthSecretArn, youtubeSearchDailyLimit,
@@ -542,6 +542,18 @@ workerFunction.addToRolePolicy(
     resources: [memoryArn],
   }),
 );
+const memoryKeyAccess = new Policy(stack, 'MemoryKeyAccess', {
+  policyName: 'FrogBotMemoryKeyAccess',
+  statements: [
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['kms:Decrypt', 'kms:DescribeKey', 'kms:Encrypt', 'kms:GenerateDataKey'],
+      resources: [memoryKmsKeyArn],
+    }),
+  ],
+});
+memoryKeyAccess.attachToRole(apiFunction.role!);
+memoryKeyAccess.attachToRole(workerFunction.role!);
 
 const httpApi = addHttpApi({
   stack,
