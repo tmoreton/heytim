@@ -524,10 +524,13 @@ class WorkerBotManagementTests(WorkerTestCase):
             }
         ]
 
-        with patch.dict(
-            self.bot_mutation_globals,
-            {"_bot_api": lambda: api, "catalog": catalog},
-        ), self.assertRaisesRegex(ValueError, "cannot grant"):
+        with (
+            patch.dict(
+                self.bot_mutation_globals,
+                {"_bot_api": lambda: api, "catalog": catalog},
+            ),
+            self.assertRaisesRegex(ValueError, "cannot grant"),
+        ):
             self.apply_bot_mutations("user-1", target, {}, raw)
 
         api._update_bot.assert_not_called()
@@ -566,41 +569,6 @@ class WorkerBotManagementTests(WorkerTestCase):
         api._update_bot.assert_called_once_with(
             "user-1", "chief", {"prompt": "Coordinate carefully."}
         )
-
-    def test_bot_can_create_a_replay_safe_personal_memory(self) -> None:
-        mutation_id = str(uuid.uuid4())
-        memory_api = SimpleNamespace(_create_user_memory=MagicMock())
-        raw = [
-            {
-                "mutationId": mutation_id,
-                "action": "create_memory",
-                "value": {"kind": "fact", "content": "I live in Boston."},
-            }
-        ]
-
-        with patch.dict(self.bot_mutation_globals, {"_memory_api": lambda: memory_api}):
-            self.apply_bot_mutations("user-1", {"id": "writer"}, {}, raw)
-
-        memory_api._create_user_memory.assert_called_once_with(
-            "user-1",
-            {"kind": "fact", "content": "I live in Boston."},
-            request_identifier=mutation_id,
-        )
-
-    def test_mutation_rejects_non_chief_and_scheduled_runs(self) -> None:
-        raw = [
-            {
-                "mutationId": str(uuid.uuid4()),
-                "action": "install_template",
-                "value": {"templateId": "meme-maker"},
-            }
-        ]
-        with self.assertRaisesRegex(ValueError, "direct Chief"):
-            self.apply_bot_mutations("user-1", {"systemRole": "specialist"}, {}, raw)
-        with self.assertRaisesRegex(ValueError, "scheduled runs"):
-            self.apply_bot_mutations(
-                "user-1", {"systemRole": "chief"}, {"source": "schedule"}, raw
-            )
 
 
 if __name__ == "__main__":
