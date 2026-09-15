@@ -193,7 +193,7 @@ import XCTest
     XCTAssertTrue(app.buttons["Choose Files"].exists)
   }
 
-  func testConversationDetailsUsesTheSharedSheetNavigation() {
+  func testConversationDetailsUsesTheSharedSheetNavigationAndCanClose() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]
     app.launch()
@@ -205,23 +205,32 @@ import XCTest
       XCTAssertFalse(app.toolbars.staticTexts["Details"].exists)
     #endif
     details.tap()
+    let inspectorBack = app.buttons["inspector.back"]
 
     #if os(iOS)
       XCTAssertTrue(app.navigationBars["Details"].waitForExistence(timeout: 5))
-      XCTAssertTrue(app.buttons["inspector.back"].exists)
+      XCTAssertTrue(inspectorBack.exists)
       XCTAssertFalse(app.buttons["Done"].exists)
     #else
       let sheet = app.sheets.firstMatch
       XCTAssertTrue(sheet.waitForExistence(timeout: 5))
       XCTAssertTrue(app.staticTexts["Details"].waitForExistence(timeout: 5))
       XCTAssertFalse(app.buttons["chat.details"].exists)
-      let inspectorBack = app.buttons["inspector.back"]
       XCTAssertTrue(inspectorBack.exists)
       XCTAssertFalse(app.buttons["Done"].exists)
       XCTAssertLessThan(inspectorBack.frame.midX, sheet.frame.midX)
     #endif
+
+    inspectorBack.tap()
+    XCTAssertTrue(inspectorBack.waitForNonExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["chat.details"].waitForExistence(timeout: 5))
+    app.buttons["chat.details"].tap()
+    XCTAssertTrue(app.buttons["inspector.back"].waitForExistence(timeout: 5))
+
     XCTAssertTrue(app.textFields["Name"].exists)
-    XCTAssertTrue(app.buttons["bot.prompt.editor"].exists)
+    let promptEditor = app.buttons["bot.prompt.editor"]
+    for _ in 0..<2 where !promptEditor.exists { app.swipeUp() }
+    XCTAssertTrue(promptEditor.exists)
     XCTAssertTrue(app.buttons["inspector.save"].exists)
     XCTAssertFalse(app.buttons["Edit Bot"].exists)
     let toolsAndSkills = app.buttons["bot.tools-and-skills"]
