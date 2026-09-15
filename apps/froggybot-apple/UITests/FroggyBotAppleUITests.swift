@@ -193,7 +193,7 @@ import XCTest
     XCTAssertTrue(app.buttons["Choose Files"].exists)
   }
 
-  func testConversationDetailsUsesTheNativeInspector() {
+  func testConversationDetailsUsesTheSharedSheetNavigation() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]
     app.launch()
@@ -208,20 +208,17 @@ import XCTest
 
     #if os(iOS)
       XCTAssertTrue(app.navigationBars["Details"].waitForExistence(timeout: 5))
-      XCTAssertTrue(app.buttons["Close"].exists)
+      XCTAssertTrue(app.buttons["inspector.back"].exists)
       XCTAssertFalse(app.buttons["Done"].exists)
     #else
-      XCTAssertTrue(app.toolbars.staticTexts["Details"].waitForExistence(timeout: 5))
-      XCTAssertFalse(app.toolbars.staticTexts["Chief"].exists)
+      let sheet = app.sheets.firstMatch
+      XCTAssertTrue(sheet.waitForExistence(timeout: 5))
+      XCTAssertTrue(app.staticTexts["Details"].waitForExistence(timeout: 5))
+      XCTAssertFalse(app.buttons["chat.details"].exists)
+      let inspectorBack = app.buttons["inspector.back"]
+      XCTAssertTrue(inspectorBack.exists)
       XCTAssertFalse(app.buttons["Done"].exists)
-      let window = app.windows.firstMatch
-      let settings = app.buttons["sidebar.settings"]
-      let create = app.buttons["sidebar.create"]
-      XCTAssertTrue(settings.isHittable)
-      XCTAssertTrue(create.isHittable)
-      XCTAssertGreaterThanOrEqual(settings.frame.minX, window.frame.minX)
-      XCTAssertLessThanOrEqual(create.frame.maxX, window.frame.maxX)
-      XCTAssertLessThan(settings.frame.maxX, create.frame.minX)
+      XCTAssertLessThan(inspectorBack.frame.midX, sheet.frame.midX)
     #endif
     XCTAssertTrue(app.textFields["Name"].exists)
     XCTAssertTrue(app.buttons["bot.prompt.editor"].exists)
@@ -283,9 +280,11 @@ import XCTest
       let sheet = app.sheets.firstMatch
       XCTAssertTrue(sheet.waitForExistence(timeout: 5))
       let close = app.buttons["sheet.close"]
+      let title = app.staticTexts["Settings"]
       XCTAssertTrue(close.exists)
       XCTAssertLessThan(close.frame.midY, sheet.frame.midY)
-      XCTAssertGreaterThan(close.frame.midX, app.staticTexts["Settings"].frame.midX)
+      XCTAssertGreaterThan(close.frame.midX, title.frame.midX)
+      XCTAssertLessThan(title.frame.minY - sheet.frame.minY, 50)
       XCTAssertFalse(app.buttons["Done"].exists)
       XCTAssertEqual(app.windows.count, 1)
     #endif
@@ -502,6 +501,42 @@ import XCTest
     XCTAssertTrue(app.buttons["Close"].exists)
   }
 
+  func testScrollToLatestControlAndSendingReturnToTheBottom() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing", "--ui-testing-scroll"]
+    app.launch()
+
+    let transcript = app.scrollViews["chat.transcript"]
+    let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
+    let latestBeforeSend = app.staticTexts["Latest message before send."]
+    let scrollToLatest = app.buttons["chat.scroll-to-latest"]
+    XCTAssertTrue(transcript.waitForExistence(timeout: 10))
+    XCTAssertTrue(composer.waitForExistence(timeout: 5))
+    XCTAssertTrue(latestBeforeSend.waitForExistence(timeout: 5))
+    XCTAssertTrue(latestBeforeSend.isHittable)
+
+    transcript.swipeDown(velocity: .fast)
+    transcript.swipeDown(velocity: .fast)
+    XCTAssertTrue(scrollToLatest.waitForExistence(timeout: 5))
+    XCTAssertTrue(scrollToLatest.isHittable)
+    scrollToLatest.tap()
+    XCTAssertTrue(latestBeforeSend.waitForExistence(timeout: 5))
+    XCTAssertTrue(latestBeforeSend.isHittable)
+
+    transcript.swipeDown(velocity: .fast)
+    transcript.swipeDown(velocity: .fast)
+    XCTAssertTrue(scrollToLatest.waitForExistence(timeout: 5))
+    composer.tap()
+    composer.typeText("Return to the latest message")
+    app.buttons["chat.send"].tap()
+
+    let reply = app.staticTexts["This is the native app’s offline test reply."]
+    XCTAssertTrue(reply.waitForExistence(timeout: 5))
+    XCTAssertTrue(reply.isHittable)
+    XCTAssertLessThan(reply.frame.maxY, composer.frame.minY)
+    XCTAssertFalse(scrollToLatest.exists)
+  }
+
   #if os(macOS)
     func testMacComposerAndToolbarStayInsideTheNativeWindowLayout() {
       let app = XCUIApplication()
@@ -546,32 +581,6 @@ import XCTest
           timeout: 5))
     }
 
-    func testMacSendReturnsToAndFollowsTheLatestMessage() {
-      let app = XCUIApplication()
-      app.launchArguments = ["--ui-testing", "--ui-testing-scroll"]
-      app.launch()
-
-      let transcript = app.scrollViews["chat.transcript"]
-      let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
-      let latestBeforeSend = app.staticTexts["Latest message before send."]
-      XCTAssertTrue(transcript.waitForExistence(timeout: 10))
-      XCTAssertTrue(composer.waitForExistence(timeout: 5))
-      XCTAssertTrue(latestBeforeSend.waitForExistence(timeout: 5))
-      XCTAssertTrue(latestBeforeSend.isHittable)
-
-      transcript.swipeDown(velocity: .fast)
-      transcript.swipeDown(velocity: .fast)
-      composer.click()
-      composer.typeText("Return to the latest message")
-      app.buttons["chat.send"].click()
-
-      let reply = app.staticTexts["This is the native app’s offline test reply."]
-      XCTAssertTrue(reply.waitForExistence(timeout: 5))
-      XCTAssertTrue(reply.isHittable)
-      XCTAssertLessThan(reply.frame.maxY, composer.frame.minY)
-      XCTAssertFalse(app.buttons["Jump to Latest"].exists)
-    }
-
     func testMacEditorUsesAReadableNativeSheet() {
       let app = XCUIApplication()
       app.launchArguments = ["--ui-testing"]
@@ -604,6 +613,21 @@ import XCTest
       XCTAssertTrue(app.textViews["Bot prompt"].exists)
       app.buttons["Done"].click()
       XCTAssertTrue(app.descendants(matching: .any)["bot.tools-and-skills"].firstMatch.exists)
+
+      app.descendants(matching: .any)["bot.tools-and-skills"].firstMatch.click()
+      let providerConnections = ["gmail", "youtube", "google_workspace", "x"].map {
+        app.descendants(matching: .any)["bot.connection.\($0)"].firstMatch
+      }
+      for _ in 0..<4 where providerConnections.contains(where: { !$0.exists }) {
+        app.swipeUp()
+      }
+      for connection in providerConnections {
+        XCTAssertTrue(connection.exists)
+      }
+      XCTAssertTrue(app.staticTexts["Google Workspace"].exists)
+      let back = app.buttons["chevron.backward"]
+      XCTAssertTrue(back.waitForExistence(timeout: 5))
+      back.click()
 
       let close = app.buttons["Close"]
       XCTAssertTrue(close.isHittable)

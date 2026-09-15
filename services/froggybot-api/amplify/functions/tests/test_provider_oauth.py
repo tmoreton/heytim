@@ -7,6 +7,8 @@ from unittest.mock import ANY, patch
 import test_api_safety
 from provider_oauth_test_support import ExternalProviderOAuthCases, ModuleGlobals
 
+GITHUB_REDIRECT_URI = "https://api.example.com/public/oauth/github/callback"
+
 
 class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
     @classmethod
@@ -39,6 +41,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
                 "provider": "github",
                 "returnUrl": "froggybot://app?connection=github",
                 "appSecretArn": app_secret_arn,
+                "redirectUri": GITHUB_REDIRECT_URI,
                 "verifier": "github-pkce-verifier-with-enough-entropy-1234567890",
                 "expiresAt": 2_000,
             }
@@ -106,6 +109,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             "authorization-code",
             "github-pkce-verifier-with-enough-entropy-1234567890",
             config,
+            GITHUB_REDIRECT_URI,
             ANY,
         )
         self.assertEqual(
@@ -131,6 +135,10 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             "slug": "froggybot",
         }
         with (
+            patch.dict(
+                os.environ,
+                {"GITHUB_OAUTH_REDIRECT_URI": GITHUB_REDIRECT_URI},
+            ),
             patch.object(
                 self.github, "_app_config", return_value=(config, app_secret_arn)
             ),
@@ -153,12 +161,14 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
         )
         query = dict(self.github.urllib.parse.parse_qsl(location.split("?", 1)[1]))
         self.assertEqual(query["client_id"], "client-id")
+        self.assertEqual(query["redirect_uri"], GITHUB_REDIRECT_URI)
         self.assertEqual(query["state"], oauth_state)
         self.assertEqual(query["code_challenge"], "challenge")
         saved_state = self.data_table.items[
             (self.github._state_key(oauth_state)["pk"], "STATE")
         ]
         self.assertEqual(saved_state["verifier"], verifier)
+        self.assertEqual(saved_state["redirectUri"], GITHUB_REDIRECT_URI)
         self.assertNotIn("installationId", saved_state)
 
     def test_github_authorization_continues_to_install_when_none_exists(
@@ -177,6 +187,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
                 "provider": "github",
                 "returnUrl": "froggybot://app?connection=github",
                 "appSecretArn": app_secret_arn,
+                "redirectUri": GITHUB_REDIRECT_URI,
                 "verifier": "github-pkce-verifier-with-enough-entropy-1234567890",
                 "expiresAt": 2_000,
             }
@@ -247,6 +258,10 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             "slug": "froggybot",
         }
         with (
+            patch.dict(
+                os.environ,
+                {"GITHUB_OAUTH_REDIRECT_URI": GITHUB_REDIRECT_URI},
+            ),
             patch.object(self.github.time, "time", return_value=1_000),
             patch.object(
                 self.github, "_app_config", return_value=(config, app_secret_arn)
@@ -274,6 +289,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
         )
         query = dict(self.github.urllib.parse.parse_qsl(location.split("?", 1)[1]))
         self.assertEqual(query["client_id"], "client-id")
+        self.assertEqual(query["redirect_uri"], GITHUB_REDIRECT_URI)
         self.assertEqual(query["state"], oauth_state)
         self.assertEqual(query["code_challenge"], "challenge")
         self.assertEqual(query["code_challenge_method"], "S256")
@@ -281,6 +297,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             (self.github._state_key(oauth_state)["pk"], "STATE")
         ]
         self.assertEqual(saved_state["installationId"], "12345")
+        self.assertEqual(saved_state["redirectUri"], GITHUB_REDIRECT_URI)
         self.assertEqual(saved_state["verifier"], verifier)
 
     def test_youtube_oauth_uses_only_readonly_scope_and_saves_channel(self) -> None:

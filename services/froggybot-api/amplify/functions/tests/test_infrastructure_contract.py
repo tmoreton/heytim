@@ -188,6 +188,8 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertNotIn("FROGBOT_MICROSOFT_OAUTH_SECRET_ARN", self.production_workflow)
         self.assertIn("addProviderConnectionAccess(apiFunction", self.backend)
         self.assertIn("DISABLED_CONNECTION_PROVIDER_IDS", self.provider_connections)
+        self.assertIn("GITHUB_OAUTH_REDIRECT_URI", self.provider_connections)
+        self.assertIn("/public/oauth/github/callback", self.provider_connections)
         self.assertIn(
             "resources: configuredSecrets",
             self.provider_connections,
@@ -218,6 +220,27 @@ class InfrastructureContractTests(unittest.TestCase):
         ):
             self.assertIn(setting, api)
         self.assertGreaterEqual(self.backend.count("dynamodb:TransactWriteItems"), 2)
+
+    def test_memory_clients_can_use_the_configured_encryption_key(self) -> None:
+        self.assertIn(
+            "memoryKmsKeyArn = requiredSetting('FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN')",
+            self.settings,
+        )
+        self.assertIn("policyName: 'FrogBotMemoryKeyAccess'", self.backend)
+        self.assertIn("memoryKeyAccess.attachToRole(apiFunction.role!)", self.backend)
+        self.assertIn("memoryKeyAccess.attachToRole(workerFunction.role!)", self.backend)
+        for action in (
+            "kms:Decrypt",
+            "kms:DescribeKey",
+            "kms:Encrypt",
+            "kms:GenerateDataKey",
+        ):
+            self.assertIn(action, self.backend)
+        self.assertIn("resources: [memoryKmsKeyArn]", self.backend)
+        self.assertIn(
+            "FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN }}",
+            self.production_workflow,
+        )
 
     def test_cleanup_roles_can_read_only_scoped_connection_secrets(self) -> None:
         connection_policies = self.backend.split("const connectionSecretsArn =", 1)[

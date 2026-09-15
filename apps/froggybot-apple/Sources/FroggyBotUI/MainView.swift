@@ -349,6 +349,20 @@ private extension View {
       simultaneousGesture(DragGesture(minimumDistance: 8).onChanged { _ in action() })
     }
   }
+
+  @ViewBuilder func froggyScrollBottomTracking(_ action: @escaping (Bool) -> Void) -> some View {
+    if #available(iOS 18.0, macOS 15.0, *) {
+      onScrollGeometryChange(for: Bool.self) { geometry in
+        let visibleBottom = geometry.contentOffset.y + geometry.containerSize.height
+        let contentBottom = geometry.contentSize.height + geometry.contentInsets.bottom
+        return visibleBottom >= contentBottom - 80
+      } action: { _, isAtBottom in
+        action(isAtBottom)
+      }
+    } else {
+      self
+    }
+  }
 }
 
 private struct ConversationView: View {
@@ -362,8 +376,9 @@ private struct ConversationView: View {
   @State private var previewTask: Task<Void, Never>?
   @State private var previewRequestID = UUID()
   @State private var pendingInspectorAction: InspectorAction?
-  @State private var hasNewerMessages = false
+  @State private var showsScrollToLatest = false
   @State private var isFollowingLatest = true
+  @State private var bottomIsVisible = true
   @State private var transcriptHeight: CGFloat = 0
   @State private var pendingScroll: Task<Void, Never>?
   @FocusState private var composerFocused: Bool
@@ -428,13 +443,12 @@ private struct ConversationView: View {
           Color.clear
             .frame(height: 1)
             .id(bottomID)
+            .onAppear { updateBottomVisibility(true) }
+            .onDisappear { updateBottomVisibility(false) }
             .onGeometryChange(for: CGFloat.self) { geometry in
               geometry.frame(in: .named(scrollSpace)).minY
             } action: { bottomY in
-              if bottomY >= 0, bottomY <= transcriptHeight + 80 {
-                isFollowingLatest = true
-                hasNewerMessages = false
-              }
+              updateBottomVisibility(bottomY >= 0 && bottomY <= transcriptHeight + 80)
             }
         }
         .padding(.horizontal, 14)
@@ -456,10 +470,11 @@ private struct ConversationView: View {
           composerFocused = false
         })
       .froggyUserScrollInteraction(stopFollowingLatest)
+      .froggyScrollBottomTracking(updateBottomVisibility)
       .onAppear { scheduleScrollToBottom(using: proxy, animated: false) }
       .onChange(of: model.selection) { _, _ in
         cancelPreview()
-        hasNewerMessages = false
+        showsScrollToLatest = false
         isFollowingLatest = true
         composerFocused = false
         scheduleScrollToBottom(using: proxy, animated: false)
@@ -467,22 +482,26 @@ private struct ConversationView: View {
       .onChange(of: messageRevisions) { previous, current in
         let update = ConversationTranscriptUpdate.classify(previous: previous, current: current)
         guard update != .none else { return }
-        if isFollowingLatest || update == .initial {
+        let userSentMessage = update == .newLatest && model.messages.last?.isUser == true
+        if isFollowingLatest || update == .initial || userSentMessage {
           isFollowingLatest = true
           scheduleScrollToBottom(using: proxy, animated: update == .newLatest)
         } else {
-          hasNewerMessages = true
+          showsScrollToLatest = true
         }
       }
-      .overlay(alignment: .bottomTrailing) {
-        if hasNewerMessages {
+      .overlay(alignment: .bottom) {
+        if showsScrollToLatest {
           Button("Jump to Latest", systemImage: "arrow.down") {
             scheduleScrollToBottom(using: proxy, animated: true)
           }
           .labelStyle(.iconOnly)
           .froggyGlassButton(tint: FrogTheme.accent)
           .buttonBorderShape(.circle)
-          .padding(16)
+          .controlSize(.large)
+          .accessibilityIdentifier("chat.scroll-to-latest")
+          .padding(.bottom, 16)
+          .transition(.scale.combined(with: .opacity))
         }
       }
       .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -496,8 +515,7 @@ private struct ConversationView: View {
       }
     }
     .id(transcriptIdentity)
-    .froggyNavigationTitle(
-      model.title, isPresented: !showInspector, horizontalPadding: 8)
+    .froggyNavigationTitle(model.title, horizontalPadding: 8)
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       #if os(iOS)
@@ -505,38 +523,28 @@ private struct ConversationView: View {
           conversationIdentity
         }
       #endif
-      ToolbarItem(placement: .primaryAction) {
-        Button {
-          showInspector.toggle()
-        } label: {
-          Label(
-            showInspector ? "Close Details" : "Details",
-            systemImage: showInspector ? "xmark" : "info.circle")
+      #if os(macOS)
+        if !showInspector {
+          ToolbarItem(placement: .primaryAction) { detailsButton }
         }
-        #if os(iOS)
-          .labelStyle(.iconOnly)
-        #endif
-        .accessibilityLabel(showInspector ? "Close Details" : "Conversation Details")
-        .accessibilityHint(
-          showInspector
-            ? "Hides conversation details"
-            : "Shows tasks, history, sharing, memory, and editing options")
-        .accessibilityIdentifier("chat.details")
-        .help("Details, tasks, history, sharing, memory, and editing")
-      }
+      #else
+        ToolbarItem(placement: .primaryAction) { detailsButton }
+      #endif
     }
     .background(FrogTheme.appBackground)
-    .froggyInspector(isPresented: $showInspector, onDismiss: finishInspectorAction) {
+    .sheet(isPresented: $showInspector, onDismiss: finishInspectorAction) {
       ConversationInspector(
         model: model,
-        isPresented: showInspector,
+        close: { showInspector = false },
         clear: {
           confirmClearFromInspector()
         },
         delete: {
           confirmDeleteFromInspector()
         })
-        .inspectorColumnWidth(min: 260, ideal: 300, max: 360)
+        .froggySheetNavigation()
+        .froggySheetSize()
+        .tint(FrogTheme.accent)
     }
     .quickLookPreview($previewURL)
     .onChange(of: previewURL) { previous, current in
@@ -572,13 +580,18 @@ private struct ConversationView: View {
   private func scheduleScrollToBottom(using proxy: ScrollViewProxy, animated: Bool) {
     pendingScroll?.cancel()
     isFollowingLatest = true
-    hasNewerMessages = false
     let requestedTranscript = transcriptIdentity
     pendingScroll = Task { @MainActor in
       // Let SwiftUI finish measuring newly loaded or expanded message content first.
       await Task.yield()
       guard !Task.isCancelled, transcriptIdentity == requestedTranscript else { return }
-      let scroll = { proxy.scrollTo(bottomID, anchor: .bottom) }
+      let scroll = {
+        if let latestMessageID = model.messages.last?.id {
+          proxy.scrollTo(latestMessageID, anchor: .bottom)
+        } else {
+          proxy.scrollTo(bottomID, anchor: .bottom)
+        }
+      }
       if animated {
         withAnimation(.easeOut(duration: 0.18)) { scroll() }
       } else {
@@ -597,6 +610,17 @@ private struct ConversationView: View {
   private func stopFollowingLatest() {
     pendingScroll?.cancel()
     isFollowingLatest = false
+    showsScrollToLatest = !bottomIsVisible
+  }
+
+  private func updateBottomVisibility(_ isAtBottom: Bool) {
+    bottomIsVisible = isAtBottom
+    if isAtBottom {
+      isFollowingLatest = true
+      showsScrollToLatest = false
+    } else if !isFollowingLatest {
+      showsScrollToLatest = true
+    }
   }
 
   private var conversationIdentity: some View {
@@ -611,6 +635,21 @@ private struct ConversationView: View {
         Text(model.subtitle).froggyFont(.caption).foregroundStyle(FrogTheme.accent).lineLimit(1)
       }
     }
+  }
+
+  private var detailsButton: some View {
+    Button {
+      showInspector = true
+    } label: {
+      Label("Details", systemImage: "info.circle")
+    }
+    #if os(iOS)
+      .labelStyle(.iconOnly)
+    #endif
+    .accessibilityLabel("Conversation Details")
+    .accessibilityHint("Shows tasks, history, sharing, memory, and editing options")
+    .accessibilityIdentifier("chat.details")
+    .help("Details, tasks, history, sharing, memory, and editing")
   }
 
   private func confirmClearFromInspector() {
@@ -686,9 +725,8 @@ private struct ConversationView: View {
 }
 
 private struct ConversationInspector: View {
-  @Environment(\.dismiss) private var dismiss
   @Bindable var model: AppModel
-  let isPresented: Bool
+  let close: () -> Void
   let clear: () -> Void
   let delete: () -> Void
   @State private var botDraft = BotDraft()
@@ -751,16 +789,20 @@ private struct ConversationInspector: View {
         }
       }
       .formStyle(.grouped)
-      .froggyNavigationTitle("Details", isPresented: isPresented)
+      .froggyListSurface()
+      .froggyNavigationTitle("Details")
       .toolbarTitleDisplayMode(.inline)
       .toolbar {
-        #if os(iOS)
+        #if os(macOS)
+          ToolbarItem(placement: .navigation) {
+            detailsBackButton
+          }
+        #else
           ToolbarItem(placement: .cancellationAction) {
-            Button("Close", systemImage: "xmark") { dismiss() }
-              .labelStyle(.iconOnly)
+            detailsBackButton
           }
         #endif
-        if isPresented, let bot = editingBot, actions.contains("edit") {
+        if let bot = editingBot, actions.contains("edit") {
           ToolbarItem(placement: .confirmationAction) {
             Button("Save") { save(bot) }
               .disabled(!canSaveBot)
@@ -771,6 +813,13 @@ private struct ConversationInspector: View {
       .onAppear { loadBotDraftIfNeeded() }
       .onChange(of: model.selectedBot?.id) { _, _ in loadBotDraftIfNeeded(force: true) }
     }
+  }
+
+  private var detailsBackButton: some View {
+    Button("Back", systemImage: "chevron.backward", action: close)
+      .labelStyle(.iconOnly)
+      .accessibilityIdentifier("inspector.back")
+      .help("Back to chat")
   }
 
   @ViewBuilder private var botEditorSections: some View {
@@ -883,7 +932,7 @@ private struct ConversationInspector: View {
       if actions.contains("edit") {
         NavigationLink {
           BotToolsAndSkillsEditor(
-            draft: $botDraft,
+            model: model, draft: $botDraft,
             skills: model.bootstrap?.skills ?? [],
             tools: model.bootstrap?.tools ?? [],
             providers: model.bootstrap?.connectionProviders ?? [])
@@ -1819,18 +1868,5 @@ private struct Composer: View {
         return
       }
     }
-  }
-}
-
-private extension View {
-  @ViewBuilder func froggyInspector<Content: View>(
-    isPresented: Binding<Bool>, onDismiss: @escaping () -> Void,
-    @ViewBuilder content: @escaping () -> Content
-  ) -> some View {
-    #if os(iOS)
-      sheet(isPresented: isPresented, onDismiss: onDismiss, content: content)
-    #else
-      inspector(isPresented: isPresented, content: content)
-    #endif
   }
 }

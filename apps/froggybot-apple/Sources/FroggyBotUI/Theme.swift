@@ -178,7 +178,7 @@ private struct FroggyNavigationTitleModifier: ViewModifier {
             .toolbar(removing: .title)
             .toolbar {
               if isPresented {
-                ToolbarItem(placement: .navigation) {
+                ToolbarItem(placement: .principal) {
                   Text(title)
                     .froggyFont(.title3, weight: .semibold)
                     .padding(.horizontal, horizontalPadding)

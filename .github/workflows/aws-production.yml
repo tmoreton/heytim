@@ -198,6 +198,7 @@ jobs:
         working-directory: services/froggybot-api
         env:
           FROGBOT_ENVIRONMENT: production
+          FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN }}
           FROGBOT_GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_GOOGLE_OAUTH_SECRET_ARN }}
           FROGBOT_GITHUB_APP_SECRET_ARN: ${{ secrets.FROGBOT_GITHUB_APP_SECRET_ARN }}
           FROGBOT_X_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_X_OAUTH_SECRET_ARN }}

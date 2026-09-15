@@ -27,6 +27,10 @@
           "value": "frogbot-user-files-188757775631-us-east-1"
         },
         {
+          "name": "FROGBOT_POINTS_SCREENSHOT_DOMAINS",
+          "value": "aa.com,aeroplan.com,aircanada.com,airfrance.com,alaskaair.com,all.accor.com,britishairways.com,choicehotels.com,delta.com,emirates.com,flyingblue.com,hilton.com,hyatt.com,ihg.com,jetblue.com,klm.com,marriott.com,qantas.com,qatarairways.com,singaporeair.com,southwest.com,united.com,virginatlantic.com,wyndhamhotels.com"
+        },
+        {
           "name": "FROGBOT_MEME_TEMPLATE_PREFIX",
           "value": "meme-templates/v1"
         },

@@ -13,12 +13,65 @@ from typing import Any
 
 from strands import tool
 
+from . import artifacts
 from .mcp_connections import _bounded_tool_name, _google_access_token
 
 GMAIL_API_URL = "https://gmail.googleapis.com/gmail/v1/users/me"
 MAX_BODY_CHARS = 50_000
 MAX_THREAD_CHARS = 120_000
 RESOURCE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,256}$")
+ALLOWED_NEWSLETTER_TAGS = {
+    "html",
+    "head",
+    "title",
+    "body",
+    "table",
+    "thead",
+    "tbody",
+    "tfoot",
+    "tr",
+    "td",
+    "th",
+    "div",
+    "p",
+    "span",
+    "br",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "ul",
+    "ol",
+    "li",
+    "a",
+    "img",
+    "strong",
+    "b",
+    "em",
+    "i",
+    "u",
+    "small",
+    "hr",
+}
+FORBIDDEN_NEWSLETTER_TAGS = {
+    "script",
+    "style",
+    "iframe",
+    "object",
+    "embed",
+    "form",
+    "input",
+    "button",
+    "video",
+    "audio",
+    "meta",
+    "link",
+}
+CID_PATTERN = re.compile(
+    r"^cid:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+)
 
 
 class _VisibleTextParser(HTMLParser):
@@ -42,6 +95,85 @@ class _VisibleTextParser(HTMLParser):
     def handle_data(self, data: str) -> None:
         if not self.hidden_depth:
             self.parts.append(data)
+
+
+class _NewsletterHTMLValidator(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.image_ids: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        normalized_tag = tag.casefold()
+        if normalized_tag in FORBIDDEN_NEWSLETTER_TAGS:
+            raise ValueError(
+                f"htmlBody contains unsupported <{normalized_tag}> content"
+            )
+        if normalized_tag not in ALLOWED_NEWSLETTER_TAGS:
+            raise ValueError(
+                f"htmlBody contains unsupported <{normalized_tag}> content"
+            )
+        for raw_name, raw_value in attrs:
+            name = raw_name.casefold()
+            value = (raw_value or "").strip()
+            lowered = value.casefold()
+            if name.startswith("on"):
+                raise ValueError("htmlBody contains event-handler attributes")
+            if name in {"srcset", "background", "poster", "action", "formaction"}:
+                raise ValueError("htmlBody contains external-resource attributes")
+            if name == "style" and any(
+                marker in lowered for marker in ("url(", "expression(", "javascript:")
+            ):
+                raise ValueError("htmlBody contains unsafe CSS")
+            if name == "href" and value:
+                if normalized_tag != "a":
+                    raise ValueError("htmlBody links are only allowed on anchors")
+                parsed = urllib.parse.urlsplit(value)
+                if parsed.scheme not in {"https", "mailto"}:
+                    raise ValueError("htmlBody links must use HTTPS or mailto")
+            if name == "src":
+                if normalized_tag != "img":
+                    raise ValueError(
+                        "htmlBody contains an unsupported source attribute"
+                    )
+                match = CID_PATTERN.fullmatch(lowered)
+                if not match:
+                    raise ValueError("htmlBody images must use cid:<artifactId>")
+                self.image_ids.append(match.group(1))
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.handle_starttag(tag, attrs)
+
+
+def _newsletter_image_ids(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if (
+        not isinstance(value, list)
+        or len(value) > 10
+        or any(not isinstance(item, str) for item in value)
+    ):
+        raise ValueError("inlineImageIds must be a list of at most 10 artifact IDs")
+    if len(set(value)) != len(value):
+        raise ValueError("inlineImageIds must not contain duplicates")
+    return value
+
+
+def _validated_newsletter_html(value: Any, image_ids: list[str]) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value) > 200_000:
+        raise ValueError("htmlBody is invalid")
+    parser = _NewsletterHTMLValidator()
+    try:
+        parser.feed(value)
+        parser.close()
+    except (ValueError, AssertionError) as exc:
+        if isinstance(exc, ValueError):
+            raise
+        raise ValueError("htmlBody is invalid") from exc
+    if parser.image_ids != image_ids:
+        raise ValueError(
+            "Every inlineImageId must appear exactly once in htmlBody as cid:<artifactId>"
+        )
+    return value.strip()
 
 
 def _html_to_text(value: str) -> str:
@@ -199,7 +331,9 @@ def _thread(value: dict, *, include_body: bool) -> dict:
     return result
 
 
-def gmail_api_tools(binding: dict) -> list[Any]:
+def gmail_api_tools(
+    binding: dict, artifact_prefix: str | None = None, *, storage_client=None
+) -> list[Any]:
     """Expose the reviewed Gmail surface through the generally available REST API."""
 
     name = lambda remote: _bounded_tool_name(binding["id"], remote)
@@ -337,8 +471,16 @@ def gmail_api_tools(binding: dict) -> list[Any]:
         to: str = "",
         cc: str = "",
         bcc: str = "",
+        htmlBody: str = "",
+        inlineImageIds: list[str] | None = None,
     ) -> str:
-        """Create a plain-text Gmail draft. This tool cannot send email."""
+        """Create a Gmail draft for review; this tool cannot send email.
+
+        For a rich newsletter, supply htmlBody plus inlineImageIds returned by the
+        first-party points screenshot tool. Reference each image exactly once as
+        cid:<artifactId> in an img src. External images, scripts, forms, trackers,
+        and unsafe links are rejected. `body` is the required plain-text fallback.
+        """
         clean_subject = _bounded_text(subject, "subject", 998, required=True)
         if not isinstance(body, str) or not body.strip() or len(body) > 100_000:
             raise ValueError("body is invalid")
@@ -353,6 +495,28 @@ def gmail_api_tools(binding: dict) -> list[Any]:
             if value:
                 message[header] = value
         message.set_content(body)
+        image_ids = _newsletter_image_ids(inlineImageIds)
+        if htmlBody or image_ids:
+            rich_body = _validated_newsletter_html(htmlBody, image_ids)
+            if image_ids and not artifact_prefix:
+                raise ValueError("Inline image artifacts are unavailable")
+            inline_images = [
+                artifacts.load_png_artifact(
+                    artifact_prefix or "", image_id, client=storage_client
+                )
+                for image_id in image_ids
+            ]
+            message.add_alternative(rich_body, subtype="html")
+            html_part = message.get_payload()[-1]
+            for image in inline_images:
+                html_part.add_related(
+                    image["body"],
+                    maintype="image",
+                    subtype="png",
+                    cid=f"<{image['artifactId']}>",
+                    filename=image["filename"],
+                    disposition="inline",
+                )
         raw = base64.urlsafe_b64encode(message.as_bytes()).decode().rstrip("=")
         value = _api_json(
             _google_access_token(binding),

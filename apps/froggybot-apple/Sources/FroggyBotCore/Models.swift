@@ -391,6 +391,35 @@ public struct ConnectionProvider: Codable, Identifiable, Hashable, Sendable {
     case familyIncludedSummary, familyIncludedToolIds, serviceName
   }
 
+  public init(
+    id: String, name: String, description: String, category: String, iconText: String,
+    permissionsSummary: String, privacyTitle: String, privacyDescription: String,
+    connectLabel: String = "Connect account", reconnectLabel: String = "Reconnect account",
+    familyId: String? = nil, familyName: String? = nil, familyDescription: String? = nil,
+    familyIconText: String? = nil, familyLogoProviderId: String? = nil,
+    familyIncludedSummary: String? = nil, familyIncludedToolIds: [String]? = nil,
+    serviceName: String? = nil
+  ) {
+    self.id = id
+    self.name = name
+    self.description = description
+    self.category = category
+    self.iconText = iconText
+    self.permissionsSummary = permissionsSummary
+    self.privacyTitle = privacyTitle
+    self.privacyDescription = privacyDescription
+    self.connectLabel = connectLabel
+    self.reconnectLabel = reconnectLabel
+    self.familyId = familyId
+    self.familyName = familyName
+    self.familyDescription = familyDescription
+    self.familyIconText = familyIconText
+    self.familyLogoProviderId = familyLogoProviderId
+    self.familyIncludedSummary = familyIncludedSummary
+    self.familyIncludedToolIds = familyIncludedToolIds
+    self.serviceName = serviceName
+  }
+
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     id = try container.decode(String.self, forKey: .id)

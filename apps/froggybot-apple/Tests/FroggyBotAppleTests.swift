@@ -78,6 +78,21 @@ import UniformTypeIdentifiers
       FroggyTextSizePreference.extraLarge.macScale, FroggyTextSizePreference.large.macScale)
   }
 
+  func testWebAuthenticationCompletionMayArriveOffMainActor() async throws {
+    let controller = WebAuthenticationController()
+    let callbackURL = try XCTUnwrap(URL(string: "froggybot://app?connection=gmail&status=connected"))
+
+    await Task.detached {
+      controller.finish(callbackURL: callbackURL, error: nil)
+    }.value
+    for _ in 0..<100 where controller.outcome == nil {
+      await Task.yield()
+    }
+
+    XCTAssertEqual(controller.outcome, .callback(callbackURL))
+    XCTAssertFalse(controller.isRunning)
+  }
+
   #if os(macOS)
     func testMacTextSizePreferenceChangesRenderedSemanticText() throws {
       let standard = ImageRenderer(
@@ -945,14 +960,14 @@ import UniformTypeIdentifiers
 
   func testConnectionProviderFamiliesGroupServicesWithoutMergingProviders() throws {
     let data = try XCTUnwrap(
-      #"[{"id":"gmail","name":"Gmail","description":"Email.","category":"Email","iconText":"G","permissionsSummary":"Read and draft","privacyTitle":"Private","privacyDescription":"Email access.","connectLabel":"Connect","reconnectLabel":"Reconnect","familyId":"google","familyName":"Google","familyDescription":"Choose services.","familyIconText":"G","familyLogoProviderId":"google_workspace","familyIncludedSummary":"Public YouTube research included","familyIncludedToolIds":["youtube_search"],"serviceName":"Gmail"},{"id":"youtube","name":"YouTube Studio","description":"Channel.","category":"Video","iconText":"YT","permissionsSummary":"Read channel","privacyTitle":"Private","privacyDescription":"Channel access.","connectLabel":"Connect","reconnectLabel":"Reconnect","familyId":"google","familyName":"Google","familyDescription":"Choose services.","familyIconText":"G","familyLogoProviderId":"google_workspace","familyIncludedSummary":"Public YouTube research included","familyIncludedToolIds":["youtube_search"],"serviceName":"YouTube Studio"}]"#
+      #"[{"id":"gmail","name":"Gmail","description":"Email.","category":"Email","iconText":"G","permissionsSummary":"Read and draft","privacyTitle":"Private","privacyDescription":"Email access.","connectLabel":"Connect","reconnectLabel":"Reconnect","familyId":"google","familyName":"Google","familyDescription":"Choose services.","familyIconText":"G","familyLogoProviderId":"google_workspace","familyIncludedSummary":"Public YouTube research included","familyIncludedToolIds":["youtube_search"],"serviceName":"Gmail"},{"id":"youtube","name":"YouTube Studio","description":"Channel.","category":"Video","iconText":"YT","permissionsSummary":"Read channel","privacyTitle":"Private","privacyDescription":"Channel access.","connectLabel":"Connect","reconnectLabel":"Reconnect","familyId":"google","familyName":"Google","familyDescription":"Choose services.","familyIconText":"G","familyLogoProviderId":"google_workspace","familyIncludedSummary":"Public YouTube research included","familyIncludedToolIds":["youtube_search"],"serviceName":"YouTube Studio"},{"id":"google_workspace","name":"Google Workspace","description":"Drive, Docs, and Calendar.","category":"Productivity","iconText":"GW","permissionsSummary":"Read workspace","privacyTitle":"Private","privacyDescription":"Workspace access.","connectLabel":"Connect","reconnectLabel":"Reconnect","familyId":"google","familyName":"Google","familyDescription":"Choose services.","familyIconText":"G","familyLogoProviderId":"google_workspace","familyIncludedSummary":"Public YouTube research included","familyIncludedToolIds":["youtube_search"],"serviceName":"Workspace"}]"#
         .data(using: .utf8))
     let providers = try JSONDecoder().decode([ConnectionProvider].self, from: data)
 
     let families = connectionProviderFamilies(providers)
 
     XCTAssertEqual(families.map(\.id), ["google"])
-    XCTAssertEqual(families[0].providers.map(\.id), ["gmail", "youtube"])
+    XCTAssertEqual(families[0].providers.map(\.id), ["gmail", "youtube", "google_workspace"])
     XCTAssertEqual(families[0].includedSummary, "Public YouTube research included")
     XCTAssertEqual(families[0].includedToolIDs, ["youtube_search"])
 

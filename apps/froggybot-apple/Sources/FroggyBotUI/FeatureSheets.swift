@@ -489,7 +489,7 @@ private struct BotEditor: View {
       Section {
         NavigationLink {
           BotToolsAndSkillsEditor(
-            draft: $draft,
+            model: model, draft: $draft,
             skills: model.bootstrap?.skills ?? [],
             tools: model.bootstrap?.tools ?? [],
             providers: model.bootstrap?.connectionProviders ?? [])
@@ -589,6 +589,7 @@ struct BotPromptEditor: View {
 }
 
 struct BotToolsAndSkillsEditor: View {
+  @Bindable var model: AppModel
   @Binding var draft: BotDraft
   let skills: [Skill]
   let tools: [Capability]
@@ -637,40 +638,26 @@ struct BotToolsAndSkillsEditor: View {
         }
       }
 
-      ForEach(providerToolGroups.groups) { group in
-        Section {
-          ForEach(group.tools) { tool in
-            toolToggle(tool, name: toolName(tool, in: group.family))
+      Section("Tools") {
+        ForEach(providerToolGroups.groups) { group in
+          ForEach(includedTools(in: group)) { tool in
+            toolToggle(tool)
           }
-        } header: {
-          HStack(spacing: 10) {
-            ProviderLogoView(
-              providerID: group.family.logoProviderId,
-              iconText: group.family.iconText,
-              size: 30)
-            VStack(alignment: .leading, spacing: 2) {
-              Text(group.family.name)
-              if let includedSummary = group.family.includedSummary {
-                Text(includedSummary)
-                  .froggyFont(.caption2)
-                  .foregroundStyle(FrogTheme.accent)
-                  .textCase(nil)
+          ForEach(group.family.providers) { provider in
+            let providerTools = connectedTools(for: provider, in: group)
+            if providerTools.isEmpty {
+              connectionLink(provider)
+            } else {
+              ForEach(providerTools) { tool in
+                toolToggle(tool, name: provider.name)
               }
             }
           }
-        } footer: {
-          Text(group.family.description)
         }
-      }
-
-      if !providerToolGroups.ungrouped.isEmpty {
-        Section(providerToolGroups.groups.isEmpty ? "Tools" : "Other Tools") {
-          ForEach(providerToolGroups.ungrouped) { tool in
-            toolToggle(tool)
-          }
+        ForEach(providerToolGroups.ungrouped) { tool in
+          toolToggle(tool)
         }
-      } else if tools.isEmpty {
-        Section("Tools") {
+        if tools.isEmpty && providerToolGroups.groups.isEmpty {
           ContentUnavailableView("No Tools", systemImage: "wrench.and.screwdriver")
         }
       }
@@ -722,21 +709,111 @@ struct BotToolsAndSkillsEditor: View {
           set(enabled, id: tool.id, in: &draft.toolIds)
         })
     ) {
-      VStack(alignment: .leading, spacing: 3) {
-        Text(name ?? tool.name)
-        Text(tool.description).froggyFont(.caption).foregroundStyle(.secondary)
-        if !requiredBy.isEmpty {
-          Text("Required by \(requiredBy.joined(separator: ", "))")
-            .froggyFont(.caption2, weight: .semibold)
-            .foregroundStyle(FrogTheme.accent)
+      HStack(spacing: 10) {
+        toolIcon(tool)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(name ?? tool.name)
+          Text(tool.description).froggyFont(.caption).foregroundStyle(.secondary)
+          if !requiredBy.isEmpty {
+            Text("Required by \(requiredBy.joined(separator: ", "))")
+              .froggyFont(.caption2, weight: .semibold)
+              .foregroundStyle(FrogTheme.accent)
+          }
         }
       }
     }
     .disabled(!requiredBy.isEmpty)
   }
 
-  private func toolName(_ tool: Capability, in family: ConnectionProviderFamily) -> String {
-    family.providers.first { $0.id == tool.provider }?.serviceName ?? tool.name
+  private func includedTools(in group: ConnectionProviderToolGroup) -> [Capability] {
+    let providerIDs = Set(group.family.providers.map(\.id))
+    return group.tools.filter { tool in
+      tool.provider.map(providerIDs.contains) != true
+    }
+  }
+
+  private func connectedTools(
+    for provider: ConnectionProvider, in group: ConnectionProviderToolGroup
+  ) -> [Capability] {
+    group.tools.filter { $0.provider == provider.id }
+  }
+
+  private func connectionLink(_ provider: ConnectionProvider) -> some View {
+    NavigationLink {
+      ConnectionsView(model: model, showsDismissButton: false)
+    } label: {
+      HStack(spacing: 10) {
+        connectionIcon(provider)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(provider.name)
+          Text(provider.description)
+            .froggyFont(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Spacer(minLength: 8)
+        Text("Connect")
+          .froggyFont(.caption, weight: .semibold)
+          .foregroundStyle(FrogTheme.accent)
+      }
+    }
+    .accessibilityIdentifier("bot.connection.\(provider.id)")
+    .accessibilityHint("Opens Connected Accounts")
+  }
+
+  @ViewBuilder private func connectionIcon(_ provider: ConnectionProvider) -> some View {
+    if let family = providerFamily(for: provider) {
+      ProviderLogoView(
+        providerID: family.logoProviderId, iconText: family.iconText, size: 30)
+    } else {
+      ProviderLogoView(provider: provider, size: 30)
+    }
+  }
+
+  @ViewBuilder private func toolIcon(_ tool: Capability) -> some View {
+    if let family = providerFamily(for: tool) {
+      ProviderLogoView(
+        providerID: family.logoProviderId, iconText: family.iconText, size: 30)
+    } else if let provider = providers.first(where: { $0.id == tool.provider }) {
+      ProviderLogoView(provider: provider, size: 30)
+    } else {
+      Image(systemName: toolSymbol(tool))
+        .froggyFont(.body, weight: .semibold)
+        .foregroundStyle(FrogTheme.accent)
+        .frame(width: 30, height: 30)
+        .background(
+          FrogTheme.accent.opacity(0.10),
+          in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityHidden(true)
+    }
+  }
+
+  private func providerFamily(for tool: Capability) -> ConnectionProviderFamily? {
+    connectionProviderFamilies(providers).first { family in
+      family.includedToolIDs.contains(tool.id)
+        || tool.provider.map(Set(family.providers.map(\.id)).contains) == true
+    }
+  }
+
+  private func providerFamily(for provider: ConnectionProvider) -> ConnectionProviderFamily? {
+    guard let familyID = provider.familyId else { return nil }
+    return connectionProviderFamilies(providers).first { $0.id == familyID }
+  }
+
+  private func toolSymbol(_ tool: Capability) -> String {
+    let identity = "\(tool.id) \(tool.name)".lowercased()
+    if identity.contains("image") || identity.contains("thumbnail") { return "photo" }
+    if identity.contains("browser") { return "globe" }
+    if identity.contains("list") || identity.contains("task") { return "checklist" }
+    if identity.contains("web") || identity.contains("search") { return "magnifyingglass" }
+    if identity.contains("file") || identity.contains("data")
+      || identity.contains("code_interpreter")
+    {
+      return "doc.text"
+    }
+    if identity.contains("time") || identity.contains("clock") { return "clock" }
+    if identity.contains("calculator") { return "function" }
+    if identity.contains("memory") { return "brain.head.profile" }
+    return "wrench.and.screwdriver"
   }
 
   private func set(_ enabled: Bool, id: String, in values: inout [String]) {

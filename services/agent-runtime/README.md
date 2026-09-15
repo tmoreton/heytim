@@ -20,7 +20,10 @@ The latest user turn may contain reviewed image or document blocks stored in Fro
 bucket. Image tools also receive a bounded list of the five most recent images from that same private bot
 conversation, without adding old binary attachments to the model's message history. Both uploads and generated artifacts are bound to the invoking user's hashed identity. When
 requested, the runtime can save downloadable text, Markdown, CSV, JSON, HTML, PDF, Word, Excel, and
-PowerPoint artifacts. Meme Lord bots can search a private S3-backed catalog of popular Imgflip templates and
+PowerPoint artifacts. Browser-enabled bots can also capture a tightly selected, verified points-price card
+from an allowlisted official airline or hotel page as a private PNG artifact. Gmail drafts support safe HTML
+with those generated PNGs embedded inline by scoped artifact ID; external images, trackers, scripts, and
+forms are rejected. Meme Lord bots can search a private S3-backed catalog of popular Imgflip templates and
 overlay captions locally in each template's native text regions; they can also caption a recent user image.
 That path does not invoke an image model. A separately selected Image generator tool creates original images with
 the configured OpenRouter image model. It can also send the complete composition, requested copy, and selected recent
@@ -38,7 +41,8 @@ Tools:
 - `task_list` - Stan todos
 - `delegate` - Stan generalist subagent
 - `code_interpreter` - persistent AgentCore sandbox
-- `browser` - persistent AgentCore browser; the application requires per-turn user approval
+- `browser` - persistent AgentCore browser; the application requires per-turn user approval. With artifact
+  storage, it also exposes first-party airline/hotel points-card screenshots for rich newsletter drafts
 - `meme_lord` - private stored-template search and deterministic local caption rendering
 - `image_generator` - OpenRouter image generation plus reference-aware exact 1280x720 thumbnails from recent user images
 - `bot_manager` - direct-chat, replay-safe bot changes for Chief plus private self-skill creation for every bot;

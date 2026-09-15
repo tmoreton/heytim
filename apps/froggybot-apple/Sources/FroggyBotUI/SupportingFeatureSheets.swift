@@ -11,14 +11,14 @@ import UserNotifications
   import AppKit
 #endif
 
-private enum WebAuthenticationOutcome: Equatable {
+enum WebAuthenticationOutcome: Equatable, Sendable {
   case callback(URL)
   case cancelled
   case failed(String)
 }
 
 @MainActor @Observable
-private final class WebAuthenticationController: NSObject,
+final class WebAuthenticationController: NSObject,
   ASWebAuthenticationPresentationContextProviding
 {
   private var session: ASWebAuthenticationSession?
@@ -30,22 +30,8 @@ private final class WebAuthenticationController: NSObject,
     isRunning = true
     let session = ASWebAuthenticationSession(
       url: url, callbackURLScheme: "froggybot"
-    ) { [weak self] callbackURL, error in
-      let nextOutcome: WebAuthenticationOutcome
-      if let callbackURL {
-        nextOutcome = .callback(callbackURL)
-      } else if let authenticationError = error as? ASWebAuthenticationSessionError,
-        authenticationError.code == .canceledLogin
-      {
-        nextOutcome = .cancelled
-      } else {
-        nextOutcome = .failed(error?.localizedDescription ?? "The sign-in window could not be opened.")
-      }
-      Task { @MainActor [weak self] in
-        self?.session = nil
-        self?.isRunning = false
-        self?.outcome = nextOutcome
-      }
+    ) { @Sendable [weak self] callbackURL, error in
+      self?.finish(callbackURL: callbackURL, error: error)
     }
     session.presentationContextProvider = self
     session.prefersEphemeralWebBrowserSession = false
@@ -54,6 +40,26 @@ private final class WebAuthenticationController: NSObject,
       self.session = nil
       isRunning = false
       outcome = .failed("The sign-in window could not be opened.")
+    }
+  }
+
+  // AuthenticationServices completes on a SafariLaunchAgent XPC queue on macOS.
+  // Keep this boundary nonisolated, then cross to the main actor for UI state.
+  nonisolated func finish(callbackURL: URL?, error: Error?) {
+    let nextOutcome: WebAuthenticationOutcome
+    if let callbackURL {
+      nextOutcome = .callback(callbackURL)
+    } else if let authenticationError = error as? ASWebAuthenticationSessionError,
+      authenticationError.code == .canceledLogin
+    {
+      nextOutcome = .cancelled
+    } else {
+      nextOutcome = .failed(error?.localizedDescription ?? "The sign-in window could not be opened.")
+    }
+    Task { @MainActor [weak self] in
+      self?.session = nil
+      self?.isRunning = false
+      self?.outcome = nextOutcome
     }
   }
 
@@ -295,7 +301,11 @@ struct ConnectionsView: View {
       }
     }
     .froggyListSurface()
-    .navigationTitle("")
+    #if os(macOS)
+      .froggyNavigationTitle("Connected Accounts")
+    #else
+      .navigationTitle("")
+    #endif
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       if showsDismissButton {
@@ -410,13 +420,13 @@ struct ConnectionsView: View {
       } label: {
         connectionRow(
           connection, provider: provider,
-          displayName: nested ? (provider.serviceName ?? provider.name) : nil)
+          displayName: nested ? provider.name : nil)
       }
     } else {
       HStack(spacing: 12) {
         ProviderLogoView(provider: provider)
         VStack(alignment: .leading, spacing: 3) {
-          Text(nested ? (provider.serviceName ?? provider.name) : provider.name).froggyFont(.headline)
+          Text(provider.name).froggyFont(.headline)
           Text(provider.description).froggyFont(.caption).foregroundStyle(.secondary)
           Text(provider.permissionsSummary).froggyFont(.caption2).foregroundStyle(.tertiary)
         }
@@ -913,16 +923,18 @@ struct AccountView: View {
     }
     .formStyle(.grouped)
     #if os(macOS)
-      .safeAreaInset(edge: .top, spacing: 0) {
-        if showsDismissButton { settingsHeader }
-      }
       .froggyNavigationTitle("Settings", isPresented: !showsDismissButton)
+      .safeAreaInset(edge: .top, spacing: 0) {
+        if showsDismissButton {
+          settingsHeader
+        }
+      }
     #else
       .froggyNavigationTitle("Settings")
     #endif
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
-      #if os(iOS)
+      #if !os(macOS)
         if showsDismissButton {
           CloseButton()
         }
@@ -972,29 +984,24 @@ struct AccountView: View {
 
   #if os(macOS)
     private var settingsHeader: some View {
-      HStack(spacing: 12) {
+      HStack(spacing: 10) {
         Text("Settings")
-          .froggyFont(.title3, weight: .semibold)
+          .froggyFont(.headline, weight: .semibold)
           .accessibilityAddTraits(.isHeader)
-        Spacer()
+        Spacer(minLength: 8)
         Button("Close", systemImage: "xmark") { dismiss() }
           .labelStyle(.iconOnly)
           .buttonStyle(.plain)
           .foregroundStyle(FrogTheme.accent)
-          .frame(width: 44, height: 44)
+          .frame(width: 36, height: 36)
           .background(FrogTheme.accent.opacity(0.10), in: Circle())
-          .overlay {
-            Circle()
-              .stroke(FrogTheme.border.opacity(0.7), lineWidth: 0.5)
-          }
           .contentShape(Circle())
           .accessibilityIdentifier("sheet.close")
           .help("Close Settings")
       }
-      .padding(.leading, 20)
-      .padding(.trailing, 12)
-      .padding(.vertical, 7)
-      .background(FrogTheme.appBackground)
+      .padding(.horizontal, 24)
+      .padding(.vertical, 12)
+      .background(.bar)
       .overlay(alignment: .bottom) { Divider() }
     }
   #endif

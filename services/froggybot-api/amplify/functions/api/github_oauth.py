@@ -33,6 +33,7 @@ OAUTH_STATE_SECONDS = 10 * 60
 CALLBACK_BUDGET_SECONDS = 24.0
 REQUEST_MAX_SECONDS = 5.0
 DEFAULT_RETURN_URL = "https://app.froggybot.com/app?oauth=github"
+REDIRECT_ENV = "GITHUB_OAUTH_REDIRECT_URI"
 
 _secrets_manager = None
 logger = logging.getLogger(__name__)
@@ -70,6 +71,21 @@ def _remaining_timeout(deadline: float) -> float:
     if remaining < 0.5:
         raise ApiError(400, "The GitHub connection took too long. Please try again.")
     return min(REQUEST_MAX_SECONDS, remaining)
+
+
+def _oauth_redirect_uri() -> str:
+    redirect_uri = os.environ.get(REDIRECT_ENV)
+    if not isinstance(redirect_uri, str) or not redirect_uri:
+        raise ApiError(503, "GitHub connections are not configured")
+    parsed = urllib.parse.urlsplit(redirect_uri)
+    if (
+        parsed.scheme != "https"
+        or not parsed.netloc
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ApiError(503, "GitHub connections are not configured")
+    return redirect_uri
 
 
 def _github_json(
@@ -115,7 +131,11 @@ def _github_json(
 
 
 def _exchange_user_code(
-    code: str, verifier: str, config: dict[str, str], deadline: float
+    code: str,
+    verifier: str,
+    config: dict[str, str],
+    redirect_uri: str,
+    deadline: float,
 ) -> dict:
     request = urllib.request.Request(
         GITHUB_OAUTH_URL,
@@ -125,6 +145,7 @@ def _exchange_user_code(
                 "client_secret": config["clientSecret"],
                 "code": code,
                 "code_verifier": verifier,
+                "redirect_uri": redirect_uri,
             }
         ).encode(),
         headers={
@@ -223,6 +244,7 @@ def _revoke_user_token(token: str, config: dict[str, str], deadline: float) -> N
 def _begin_github_authorization(user_id: str, value: dict) -> dict:
     return_url = _return_url(value.get("returnUrl"))
     config, app_secret_arn = _app_config()
+    redirect_uri = _oauth_redirect_uri()
     state = secrets.token_urlsafe(32)
     verifier, challenge = _pkce_pair()
     table.put_item(
@@ -233,6 +255,7 @@ def _begin_github_authorization(user_id: str, value: dict) -> dict:
             "provider": "github",
             "returnUrl": return_url,
             "appSecretArn": app_secret_arn,
+            "redirectUri": redirect_uri,
             "verifier": verifier,
             "expiresAt": int(time.time()) + OAUTH_STATE_SECONDS,
         }
@@ -242,6 +265,7 @@ def _begin_github_authorization(user_id: str, value: dict) -> dict:
         + urllib.parse.urlencode(
             {
                 "client_id": config["clientId"],
+                "redirect_uri": redirect_uri,
                 "state": state,
                 "code_challenge": challenge,
                 "code_challenge_method": "S256",
@@ -289,6 +313,7 @@ def _begin_github_user_authorization(query: dict) -> dict:
             raise ApiError(
                 400, "The GitHub App configuration changed. Please try again."
             )
+        redirect_uri = _oauth_redirect_uri()
 
         oauth_state = secrets.token_urlsafe(32)
         verifier, challenge = _pkce_pair()
@@ -301,6 +326,7 @@ def _begin_github_user_authorization(query: dict) -> dict:
                 "returnUrl": return_url,
                 "appSecretArn": app_secret_arn,
                 "installationId": installation_id,
+                "redirectUri": redirect_uri,
                 "verifier": verifier,
                 "expiresAt": int(time.time()) + OAUTH_STATE_SECONDS,
             }
@@ -309,6 +335,7 @@ def _begin_github_user_authorization(query: dict) -> dict:
             urllib.parse.urlencode(
                 {
                     "client_id": config["clientId"],
+                    "redirect_uri": redirect_uri,
                     "state": oauth_state,
                     "code_challenge": challenge,
                     "code_challenge_method": "S256",
@@ -348,13 +375,18 @@ def _github_callback(query: dict) -> dict:
             raise ApiError(400, "GitHub did not return an installation")
         if not isinstance(verifier, str) or not 43 <= len(verifier) <= 200:
             raise ApiError(400, "The GitHub connection expired. Please try again.")
+        redirect_uri = state.get("redirectUri")
+        if not isinstance(redirect_uri, str) or not redirect_uri:
+            redirect_uri = _oauth_redirect_uri()
 
         config, app_secret_arn = _app_config()
         if app_secret_arn != state.get("appSecretArn"):
             raise ApiError(
                 400, "The GitHub App configuration changed. Please try again."
             )
-        exchanged = _exchange_user_code(code, verifier, config, deadline)
+        exchanged = _exchange_user_code(
+            code, verifier, config, redirect_uri, deadline
+        )
         user_token = exchanged["access_token"]
         user_installations = _github_json(
             f"{GITHUB_API_URL}/user/installations?per_page=100",

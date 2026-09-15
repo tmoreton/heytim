@@ -14,6 +14,21 @@
       ]
     },
     {
+      "Sid": "ListScopedFrogBotArtifacts",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::frogbot-user-files-188757775631-us-east-1",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "users/*/artifacts/*",
+            "users/*/bots/*/artifacts/*",
+            "groups/*/artifacts/*"
+          ]
+        }
+      }
+    },
+    {
       "Sid": "ReadFrogBotMemeTemplates",
       "Effect": "Allow",
       "Action": "s3:GetObject",

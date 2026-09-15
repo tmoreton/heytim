@@ -42,6 +42,10 @@ export function addProviderConnectionAccess(
     `${apiEndpoint}/public/oauth/google/callback`,
   );
   apiFunction.addEnvironment(
+    'GITHUB_OAUTH_REDIRECT_URI',
+    `${apiEndpoint}/public/oauth/github/callback`,
+  );
+  apiFunction.addEnvironment(
     'X_OAUTH_REDIRECT_URI',
     `${apiEndpoint}/public/oauth/x/callback`,
   );
