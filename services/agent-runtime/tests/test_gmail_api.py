@@ -31,8 +31,13 @@ BINDING = {
 }
 
 
-def _tools() -> dict:
-    return {tool.tool_name: tool for tool in gmail_api.gmail_api_tools(BINDING)}
+def _tools(artifact_prefix: str | None = None, storage_client=None) -> dict:
+    return {
+        tool.tool_name: tool
+        for tool in gmail_api.gmail_api_tools(
+            BINDING, artifact_prefix, storage_client=storage_client
+        )
+    }
 
 
 def _encoded(value: str) -> str:
@@ -167,9 +172,108 @@ def test_create_draft_builds_mime_but_never_sends(monkeypatch) -> None:
     }
 
 
+def test_create_draft_embeds_a_scoped_png_in_safe_html(monkeypatch) -> None:
+    captured = {}
+    image_id = "12345678-1234-4234-8234-123456789012"
+    prefix = f"users/{'a' * 64}/artifacts/12345678-1234-1234-1234-123456789012"
+    monkeypatch.setattr(gmail_api, "_google_access_token", lambda _binding: "token")
+    monkeypatch.setattr(
+        gmail_api.artifacts,
+        "load_png_artifact",
+        lambda scoped_prefix, artifact_id, client=None: (
+            {
+                "artifactId": artifact_id,
+                "filename": "Delta award.png",
+                "contentType": "image/png",
+                "body": gmail_api.artifacts.PNG_SIGNATURE + b"image",
+            }
+            if scoped_prefix == prefix and artifact_id == image_id
+            else (_ for _ in ()).throw(ValueError("inline image is unavailable"))
+        ),
+    )
+
+    def fake_api(_token, path, **kwargs):
+        captured["path"] = path
+        captured.update(kwargs)
+        return {
+            "id": "draft-1",
+            "message": {"id": "message-1", "threadId": "thread-1"},
+        }
+
+    monkeypatch.setattr(gmail_api, "_api_json", fake_api)
+    create = _tools(prefix)[_bounded_tool_name(CONNECTION_ID, "create_draft")]
+    html_body = (
+        "<html><body><h2>Delta award deal</h2>"
+        f'<img src="cid:{image_id}" alt="42,000 SkyMiles award">'
+        '<p><a href="https://www.delta.com/">Check current availability</a></p>'
+        "</body></html>"
+    )
+
+    result = json.loads(
+        create(
+            "Weekly points",
+            "Delta award deal: 42,000 SkyMiles.",
+            htmlBody=html_body,
+            inlineImageIds=[image_id],
+        )
+    )
+    raw = captured["payload"]["message"]["raw"]
+    raw += "=" * (-len(raw) % 4)
+    message = BytesParser(policy=policy.default).parsebytes(
+        base64.urlsafe_b64decode(raw)
+    )
+    parts = list(message.walk())
+
+    assert captured["path"] == "drafts"
+    assert any(part.get_content_type() == "text/plain" for part in parts)
+    html_part = next(part for part in parts if part.get_content_type() == "text/html")
+    assert f"cid:{image_id}" in html_part.get_content()
+    image_part = next(part for part in parts if part.get_content_type() == "image/png")
+    assert image_part["Content-ID"] == f"<{image_id}>"
+    assert image_part.get_content_disposition() == "inline"
+    assert image_part.get_filename() == "Delta award.png"
+    assert result["status"] == "draft_created_not_sent"
+
+
+@pytest.mark.parametrize(
+    ("html_body", "image_ids", "message"),
+    [
+        (
+            '<img src="https://publisher.example/deal.png">',
+            [],
+            "cid:<artifactId>",
+        ),
+        ("<script>alert(1)</script>", [], "unsupported <script>"),
+        ("<svg></svg>", [], "unsupported <svg>"),
+        (
+            '<a href="javascript:alert(1)">deal</a>',
+            [],
+            "HTTPS or mailto",
+        ),
+        (
+            '<img src="cid:12345678-1234-4234-8234-123456789012">',
+            [],
+            "Every inlineImageId",
+        ),
+    ],
+)
+def test_create_draft_rejects_unsafe_or_unscoped_html(
+    monkeypatch, html_body, image_ids, message
+) -> None:
+    monkeypatch.setattr(gmail_api, "_google_access_token", lambda _binding: "token")
+    create = _tools()[_bounded_tool_name(CONNECTION_ID, "create_draft")]
+
+    with pytest.raises(ValueError, match=message):
+        create(
+            "Weekly points", "Fallback", htmlBody=html_body, inlineImageIds=image_ids
+        )
+
+
 def test_capabilities_use_general_availability_gmail_tools(monkeypatch) -> None:
     gmail_tools = [type("Tool", (), {"tool_name": "gmail-search"})()]
-    monkeypatch.setattr(capabilities, "gmail_api_tools", lambda _binding: gmail_tools)
+    monkeypatch.setattr(
+        capabilities, "gmail_api_tools", lambda _binding, _prefix: gmail_tools
+    )
     monkeypatch.setattr(
         capabilities,
         "connection_clients",

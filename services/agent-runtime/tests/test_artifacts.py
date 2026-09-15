@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import io
+import uuid
 import zipfile
 from types import SimpleNamespace
 
 import pytest
 from openpyxl import load_workbook
+from PIL import Image, ImageDraw
 
 from frogbot_runtime import artifacts
 
@@ -17,6 +19,34 @@ class FakeS3:
 
     def put_object(self, **request) -> None:
         self.requests.append(request)
+
+
+class ReadableFakeS3(FakeS3):
+    def list_objects_v2(self, **request) -> dict:
+        matches = [
+            {"Key": item["Key"]}
+            for item in self.requests
+            if item["Key"].startswith(request["Prefix"])
+        ]
+        return {"Contents": matches[: request["MaxKeys"]]}
+
+    def get_object(self, **request) -> dict:
+        stored = next(item for item in self.requests if item["Key"] == request["Key"])
+        return {
+            "Body": io.BytesIO(stored["Body"]),
+            "ContentType": stored["ContentType"],
+            "Metadata": stored.get("Metadata", {}),
+        }
+
+
+def _points_png(size: tuple[int, int] = (320, 180)) -> bytes:
+    image = Image.new("RGB", size, "white")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((10, 10, size[0] - 10, size[1] - 10), outline="black", width=2)
+    draw.text((25, 50), "12,000 points", fill="black")
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
 
 
 def test_artifact_tool_writes_only_to_the_scoped_user_prefix(monkeypatch) -> None:
@@ -34,6 +64,62 @@ def test_artifact_tool_writes_only_to_the_scoped_user_prefix(monkeypatch) -> Non
     assert request["Key"].startswith(f"{prefix}/")
     assert request["Key"].endswith("Quarterly.md")
     assert request["ServerSideEncryption"] == "AES256"
+
+
+def test_png_artifact_round_trips_only_inside_its_scoped_prefix(monkeypatch) -> None:
+    prefix = f"users/{'a' * 64}/artifacts/12345678-1234-1234-1234-123456789012"
+    target = ReadableFakeS3()
+    monkeypatch.setattr(artifacts, "FILES_BUCKET_NAME", "files")
+    png = _points_png()
+
+    stored = artifacts.put_png_artifact(
+        prefix,
+        "../Award deal ✈.png",
+        png,
+        client=target,
+        metadata={"source-url": "https://www.delta.com/deals"},
+    )
+    loaded = artifacts.load_png_artifact(prefix, stored["artifactId"], client=target)
+
+    assert uuid.UUID(stored["artifactId"])
+    assert stored["filename"] == "Award deal.png"
+    assert loaded["body"] == png
+    assert loaded["filename"] == "Award deal.png"
+    assert loaded["metadata"]["source-url"] == "https://www.delta.com/deals"
+    assert target.requests[0]["ServerSideEncryption"] == "AES256"
+    with pytest.raises(ValueError, match="unavailable"):
+        artifacts.load_png_artifact(
+            f"users/{'b' * 64}/artifacts/12345678-1234-1234-1234-123456789012",
+            stored["artifactId"],
+            client=target,
+        )
+
+
+def test_png_artifact_rejects_non_png_content(monkeypatch) -> None:
+    prefix = f"users/{'a' * 64}/artifacts/12345678-1234-1234-1234-123456789012"
+    monkeypatch.setattr(artifacts, "FILES_BUCKET_NAME", "files")
+
+    with pytest.raises(ValueError, match="PNG"):
+        artifacts.put_png_artifact(
+            prefix, "award.png", b"not an image", client=FakeS3()
+        )
+
+
+def test_points_screenshot_crops_viewport_and_rejects_blank_png() -> None:
+    cropped = artifacts.crop_points_screenshot(
+        _points_png((500, 300)), {"x": 5, "y": 5, "width": 330, "height": 190}
+    )
+
+    with Image.open(io.BytesIO(cropped)) as image:
+        assert image.size == (330, 190)
+
+    blank = Image.new("RGB", (320, 180), "white")
+    output = io.BytesIO()
+    blank.save(output, format="PNG")
+    with pytest.raises(ValueError, match="blank or uniform"):
+        artifacts.crop_points_screenshot(
+            output.getvalue(), {"x": 0, "y": 0, "width": 320, "height": 180}
+        )
 
 
 def test_artifact_context_rejects_an_unscoped_prefix() -> None:
@@ -100,7 +186,8 @@ def test_group_artifacts_reject_a_different_groups_or_personal_actor(scope) -> N
     with pytest.raises(ValueError, match="group artifact scope"):
         artifacts.artifact_prefix_from_payload(
             {
-                "group": {}, "artifacts": {"prefix": prefix},
+                "group": {},
+                "artifacts": {"prefix": prefix},
                 "memory": {"scope": scope, "actorId": actor_id},
             },
             actor_id,

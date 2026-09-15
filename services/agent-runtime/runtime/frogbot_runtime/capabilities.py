@@ -88,6 +88,7 @@ def resolve_capabilities(
         background_work,
         allow_background_work=allow_background_work,
         managed_browser=managed_browser,
+        artifact_prefix=artifact_prefix,
     )
     tools.extend(managed_tools)
     github_binding = next(
@@ -118,7 +119,7 @@ def resolve_capabilities(
             if item["kind"] == "mcp" and item["endpoint"].rstrip(
                 "/"
             ) == GMAIL_MCP_ENDPOINT.rstrip("/"):
-                tools.extend(gmail_api_tools(item))
+                tools.extend(gmail_api_tools(item, artifact_prefix))
             else:
                 tools.extend(connection_clients(item))
     for item in bindings:
