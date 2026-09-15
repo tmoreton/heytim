@@ -21,6 +21,18 @@ export function addGithubDeploymentRole({
     arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
   });
   const tokenVaultArn = agentCoreArn('token-vault', 'default');
+  const tokenVaultKmsKeyArn = stack.formatArn({
+    service: 'kms',
+    resource: 'key',
+    resourceName: '*',
+    arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+  });
+  const tokenVaultKmsResourceConditions = {
+    StringEquals: {
+      'aws:ResourceAccount': stack.account,
+      'aws:ResourceTag/agentcore:project': 'FrogBot',
+    },
+  };
   const credentialProviderArns = [
     'FrogBot_OpenRouter',
     'FrogBotXApi',
@@ -103,6 +115,27 @@ export function addGithubDeploymentRole({
       },
       'ForAllValues:StringEquals': {
         'aws:TagKeys': ['agentcore:project'],
+      },
+    },
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['kms:DescribeKey'],
+    resources: [tokenVaultKmsKeyArn],
+    conditions: tokenVaultKmsResourceConditions,
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: [
+      'kms:Decrypt',
+      'kms:Encrypt',
+      'kms:GenerateDataKeyWithoutPlaintext',
+    ],
+    resources: [tokenVaultKmsKeyArn],
+    conditions: {
+      StringEquals: {
+        ...tokenVaultKmsResourceConditions.StringEquals,
+        'kms:ViaService': `bedrock-agentcore-identity.${stack.region}.amazonaws.com`,
+        'kms:EncryptionContext:aws-crypto-ec:aws:bedrock-agentcore-identity:token-vault-arn':
+          tokenVaultArn,
       },
     },
   }));
