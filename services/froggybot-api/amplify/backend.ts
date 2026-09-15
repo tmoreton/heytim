@@ -4,7 +4,7 @@ import { ReadWriteType, Trail } from 'aws-cdk-lib/aws-cloudtrail';
 import { AttributeType, BillingMode, Table, TableEncryption } from 'aws-cdk-lib/aws-dynamodb';
 import { Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
 import { SqsQueue } from 'aws-cdk-lib/aws-events-targets';
-import { Effect, Policy, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { Key } from 'aws-cdk-lib/aws-kms';
 import { Code, Function as LambdaFunction, RecursiveLoop, Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
@@ -31,6 +31,7 @@ import { addBrowserAccess } from './infrastructure/browser-access';
 import { addProductionAutofix } from './infrastructure/autofix';
 import { addGithubDeploymentRole } from './infrastructure/deployment-role';
 import { addHttpApi } from './infrastructure/http-api';
+import { addMemoryAccess } from './infrastructure/memory-access';
 import {
   addNativePushAccess,
   addNativePushFeedbackRole,
@@ -510,50 +511,9 @@ workerFunction.addToRolePolicy(
     resources: ['*'],
   }),
 );
-const memoryArn = stack.formatArn({
-  service: 'bedrock-agentcore',
-  resource: 'memory',
-  resourceName: memoryId,
-  arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+addMemoryAccess({
+  stack, apiFunction, workerFunction, memoryId, memoryKmsKeyArn,
 });
-apiFunction.addToRolePolicy(
-  new PolicyStatement({
-    effect: Effect.ALLOW,
-    actions: [
-      'bedrock-agentcore:ListMemoryRecords',
-      'bedrock-agentcore:GetMemoryRecord',
-      'bedrock-agentcore:BatchCreateMemoryRecords',
-      'bedrock-agentcore:BatchUpdateMemoryRecords',
-      'bedrock-agentcore:BatchDeleteMemoryRecords',
-    ],
-    resources: [memoryArn],
-  }),
-);
-workerFunction.addToRolePolicy(
-  new PolicyStatement({
-    effect: Effect.ALLOW,
-    actions: [
-      'bedrock-agentcore:ListSessions',
-      'bedrock-agentcore:ListEvents',
-      'bedrock-agentcore:DeleteEvent',
-      'bedrock-agentcore:ListMemoryRecords',
-      'bedrock-agentcore:BatchDeleteMemoryRecords',
-    ],
-    resources: [memoryArn],
-  }),
-);
-const memoryKeyAccess = new Policy(stack, 'MemoryKeyAccess', {
-  policyName: 'FrogBotMemoryKeyAccess',
-  statements: [
-    new PolicyStatement({
-      effect: Effect.ALLOW,
-      actions: ['kms:Decrypt', 'kms:DescribeKey', 'kms:Encrypt', 'kms:GenerateDataKey'],
-      resources: [memoryKmsKeyArn],
-    }),
-  ],
-});
-memoryKeyAccess.attachToRole(apiFunction.role!);
-memoryKeyAccess.attachToRole(workerFunction.role!);
 
 const httpApi = addHttpApi({
   stack,
