@@ -2,6 +2,15 @@ name: Deploy FroggyBot production release
 
 on:
   workflow_dispatch:
+    inputs:
+      release_scope:
+        description: Upload TestFlight builds in CI or deploy the backend for a signed local upload
+        required: true
+        default: full
+        type: choice
+        options:
+          - full
+          - backend-only
 
 concurrency:
   group: frogbot-production-release
@@ -49,9 +58,14 @@ jobs:
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY }}
           APPLE_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64 }}
           APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          RELEASE_SCOPE: ${{ inputs.release_scope }}
         run: |
           if [[ "$GITHUB_REF" != refs/heads/main ]]; then
             echo 'Production releases must run from main.' >&2
+            exit 1
+          fi
+          if [[ "$RELEASE_SCOPE" != full && "$RELEASE_SCOPE" != backend-only ]]; then
+            echo 'release_scope must be full or backend-only.' >&2
             exit 1
           fi
           required_values=(
@@ -62,10 +76,14 @@ jobs:
             AGENTCORE_CREDENTIAL_FROGBOTXAPI AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI
             GOOGLE_OAUTH_SECRET_ARN GITHUB_APP_SECRET_ARN X_OAUTH_SECRET_ARN
             SLACK_OAUTH_SECRET_ARN NOTION_OAUTH_SECRET_ARN APNS_APPLICATION_ARN
-            APPLE_TEAM_ID APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID
-            APP_STORE_CONNECT_PRIVATE_KEY APPLE_DISTRIBUTION_CERTIFICATE_BASE64
-            APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD
           )
+          if [[ "$RELEASE_SCOPE" == full ]]; then
+            required_values+=(
+              APPLE_TEAM_ID APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID
+              APP_STORE_CONNECT_PRIVATE_KEY APPLE_DISTRIBUTION_CERTIFICATE_BASE64
+              APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD
+            )
+          fi
           missing=()
           for name in "${required_values[@]}"; do
             [[ -n "${!name}" ]] || missing+=("$name")
@@ -84,38 +102,40 @@ jobs:
               exit 1
             fi
           done
-          if ! printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" \
-            | openssl pkey -check -noout >/dev/null 2>&1; then
-            echo 'FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY is not a valid private key.' >&2
-            exit 1
+          if [[ "$RELEASE_SCOPE" == full ]]; then
+            if ! printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" \
+              | openssl pkey -check -noout >/dev/null 2>&1; then
+              echo 'FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY is not a valid private key.' >&2
+              exit 1
+            fi
+            certificate_bundle="$RUNNER_TEMP/froggybot-distribution.p12"
+            trap 'find "$certificate_bundle" -delete 2>/dev/null || true' EXIT
+            if ! printf '%s' "$APPLE_DISTRIBUTION_CERTIFICATE_BASE64" \
+              | base64 --decode > "$certificate_bundle"; then
+              echo 'FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64 is not valid base64.' >&2
+              exit 1
+            fi
+            if ! openssl pkcs12 -in "$certificate_bundle" \
+              -passin env:APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD -clcerts -nokeys 2>/dev/null \
+              | openssl x509 -checkend 86400 -noout >/dev/null 2>&1; then
+              echo 'The Apple Distribution certificate is invalid, expired, or expires within 24 hours.' >&2
+              exit 1
+            fi
+            if ! openssl pkcs12 -in "$certificate_bundle" \
+              -passin env:APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD -nocerts -nodes 2>/dev/null \
+              | openssl pkey -check -noout >/dev/null 2>&1; then
+              echo 'The Apple Distribution certificate bundle does not contain its private key.' >&2
+              exit 1
+            fi
+            if ! openssl pkcs12 -in "$certificate_bundle" \
+              -passin env:APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD -clcerts -nokeys 2>/dev/null \
+              | openssl x509 -subject -noout 2>/dev/null | grep -q 'Apple Distribution'; then
+              echo 'The supplied certificate is not an Apple Distribution certificate.' >&2
+              exit 1
+            fi
+            find "$certificate_bundle" -delete
+            trap - EXIT
           fi
-          certificate_bundle="$RUNNER_TEMP/froggybot-distribution.p12"
-          trap 'find "$certificate_bundle" -delete 2>/dev/null || true' EXIT
-          if ! printf '%s' "$APPLE_DISTRIBUTION_CERTIFICATE_BASE64" \
-            | base64 --decode > "$certificate_bundle"; then
-            echo 'FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64 is not valid base64.' >&2
-            exit 1
-          fi
-          if ! openssl pkcs12 -in "$certificate_bundle" \
-            -passin env:APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD -clcerts -nokeys 2>/dev/null \
-            | openssl x509 -checkend 86400 -noout >/dev/null 2>&1; then
-            echo 'The Apple Distribution certificate is invalid, expired, or expires within 24 hours.' >&2
-            exit 1
-          fi
-          if ! openssl pkcs12 -in "$certificate_bundle" \
-            -passin env:APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD -nocerts -nodes 2>/dev/null \
-            | openssl pkey -check -noout >/dev/null 2>&1; then
-            echo 'The Apple Distribution certificate bundle does not contain its private key.' >&2
-            exit 1
-          fi
-          if ! openssl pkcs12 -in "$certificate_bundle" \
-            -passin env:APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD -clcerts -nokeys 2>/dev/null \
-            | openssl x509 -subject -noout 2>/dev/null | grep -q 'Apple Distribution'; then
-            echo 'The supplied certificate is not an Apple Distribution certificate.' >&2
-            exit 1
-          fi
-          find "$certificate_bundle" -delete
-          trap - EXIT
           node scripts/check-production-config.mjs
 
       - name: Resolve production AWS target
@@ -284,6 +304,7 @@ jobs:
   apple:
     name: Release SwiftUI apps to TestFlight
     needs: deploy
+    if: ${{ inputs.release_scope == 'full' }}
     runs-on: macos-26
     timeout-minutes: 120
     environment: production

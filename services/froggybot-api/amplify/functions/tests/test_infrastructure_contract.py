@@ -164,6 +164,16 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn(".templates[].key", self.production_verifier)
         self.assertIn("aws s3api head-object", self.production_verifier)
 
+    def test_production_release_supports_a_local_xcode_upload(self) -> None:
+        self.assertIn("release_scope:", self.production_workflow)
+        self.assertIn("- backend-only", self.production_workflow)
+        self.assertIn(
+            "if: ${{ inputs.release_scope == 'full' }}", self.production_workflow
+        )
+        self.assertIn(
+            'if [[ "$RELEASE_SCOPE" == full ]]; then', self.production_workflow
+        )
+
     def test_production_settings_fail_closed(self) -> None:
         self.assertIn(
             "requiredInProduction && deploymentEnvironment === 'production'",
