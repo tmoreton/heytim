@@ -82,7 +82,7 @@ if [[ -z "$simulator_id" ]]; then
   exit 1
 fi
 xcrun simctl boot "$simulator_id" 2>/dev/null || true
-run_with_timeout 300 'iOS simulator boot' xcrun simctl bootstatus "$simulator_id" -b
+run_with_timeout 600 'iOS simulator boot' xcrun simctl bootstatus "$simulator_id" -b
 run_with_timeout 1200 'iOS UI tests' xcodebuild test -quiet \
   -project "$project" \
   -scheme FroggyBotAppleUI \

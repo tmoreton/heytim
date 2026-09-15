@@ -19,6 +19,9 @@ class InfrastructureContractTests(unittest.TestCase):
         cls.native_push = (
             Path(__file__).parents[2] / "infrastructure" / "native-push.ts"
         ).read_text(encoding="utf-8")
+        cls.memory_access = (
+            Path(__file__).parents[2] / "infrastructure" / "memory-access.ts"
+        ).read_text(encoding="utf-8")
         cls.production_readiness = (
             Path(__file__).parents[2] / "infrastructure" / "production-readiness.ts"
         ).read_text(encoding="utf-8")
@@ -226,17 +229,22 @@ class InfrastructureContractTests(unittest.TestCase):
             "memoryKmsKeyArn = requiredSetting('FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN')",
             self.settings,
         )
-        self.assertIn("policyName: 'FrogBotMemoryKeyAccess'", self.backend)
-        self.assertIn("memoryKeyAccess.attachToRole(apiFunction.role!)", self.backend)
-        self.assertIn("memoryKeyAccess.attachToRole(workerFunction.role!)", self.backend)
+        self.assertIn("addMemoryAccess({", self.backend)
+        self.assertIn("policyName: 'FrogBotMemoryKeyAccess'", self.memory_access)
+        self.assertIn(
+            "memoryKeyAccess.attachToRole(apiFunction.role!)", self.memory_access
+        )
+        self.assertIn(
+            "memoryKeyAccess.attachToRole(workerFunction.role!)", self.memory_access
+        )
         for action in (
             "kms:Decrypt",
             "kms:DescribeKey",
             "kms:Encrypt",
             "kms:GenerateDataKey",
         ):
-            self.assertIn(action, self.backend)
-        self.assertIn("resources: [memoryKmsKeyArn]", self.backend)
+            self.assertIn(action, self.memory_access)
+        self.assertIn("resources: [memoryKmsKeyArn]", self.memory_access)
         self.assertIn(
             "FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN }}",
             self.production_workflow,
