@@ -346,6 +346,17 @@ class InfrastructureContractTests(unittest.TestCase):
             "FrogBotYouTubeApi",
         ):
             self.assertIn(provider, self.deployment_role)
+        for action in (
+            "secretsmanager:CreateSecret",
+            "secretsmanager:GetSecretValue",
+            "secretsmanager:PutSecretValue",
+        ):
+            self.assertIn(action, self.deployment_role)
+        self.assertIn(
+            "bedrock-agentcore-identity!default/apikey/${name}-*",
+            self.deployment_role,
+        )
+        self.assertNotIn("secretsmanager:DeleteSecret", self.deployment_role)
         self.assertIn(
             "'aws:ResourceTag/agentcore:project-name': 'FrogBot'",
             self.deployment_role,
