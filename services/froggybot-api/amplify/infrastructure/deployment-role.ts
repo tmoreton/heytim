@@ -61,7 +61,10 @@ export function addGithubDeploymentRole({
       {
         StringEquals: {
           'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-          'token.actions.githubusercontent.com:sub': 'repo:tmoreton/frogbot:environment:production',
+          // GitHub's customized OIDC subject binds the owner and repository names to
+          // their immutable IDs, so a rename or name reuse cannot inherit production access.
+          'token.actions.githubusercontent.com:sub':
+            'repo:tmoreton@5090418/frogbot@1356546597:environment:production',
         },
       },
       'sts:AssumeRoleWithWebIdentity',

@@ -155,6 +155,15 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("ReadWriteType.ALL", self.backend)
         self.assertIn("nativePushFeedbackRoleArn", self.backend)
 
+    def test_github_deployment_trust_uses_immutable_repository_ids(self) -> None:
+        self.assertIn(
+            "repo:tmoreton@5090418/frogbot@1356546597:environment:production",
+            self.deployment_role,
+        )
+        self.assertNotIn(
+            "repo:tmoreton/frogbot:environment:production", self.deployment_role
+        )
+
     def test_production_release_provisions_and_verifies_meme_templates(self) -> None:
         self.assertIn("Ensure production meme template catalog", self.production_workflow)
         self.assertIn("scripts/sync_meme_templates.py", self.production_workflow)
