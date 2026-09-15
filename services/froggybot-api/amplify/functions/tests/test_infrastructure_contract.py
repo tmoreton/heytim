@@ -190,6 +190,13 @@ class InfrastructureContractTests(unittest.TestCase):
         )
         self.assertIn("npm ci --prefix agentcore/cdk", self.production_workflow)
 
+    def test_production_release_stages_and_removes_agentcore_credentials(self) -> None:
+        self.assertIn("umask 077", self.production_workflow)
+        self.assertIn("> agentcore/.env.local", self.production_workflow)
+        self.assertIn(
+            "trap 'rm -f agentcore/.env.local' EXIT", self.production_workflow
+        )
+
     def test_production_settings_fail_closed(self) -> None:
         self.assertIn(
             "requiredInProduction && deploymentEnvironment === 'production'",

@@ -198,7 +198,15 @@ jobs:
           AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
           AGENTCORE_CREDENTIAL_FROGBOTXAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTXAPI }}
           AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI }}
-        run: agentcore deploy --target production --yes
+        run: |
+          umask 077
+          {
+            printf 'AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER=%s\n' "$AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER"
+            printf 'AGENTCORE_CREDENTIAL_FROGBOTXAPI=%s\n' "$AGENTCORE_CREDENTIAL_FROGBOTXAPI"
+            printf 'AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI=%s\n' "$AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI"
+          } > agentcore/.env.local
+          trap 'rm -f agentcore/.env.local' EXIT
+          agentcore deploy --target production --yes
 
       - name: Resolve deployed AgentCore resources
         run: |

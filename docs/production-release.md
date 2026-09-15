@@ -72,7 +72,9 @@ deferred and absent from the registry for this release.
 ## Release and evidence
 
 The workflow installs the checked-in `agentcore/cdk/package-lock.json` and disables the AgentCore CLI's automatic CDK
-dependency rewriting. This keeps the audited repository lockfile authoritative during deployment.
+dependency rewriting. This keeps the audited repository lockfile authoritative during deployment. Because the CLI
+requires its ignored `.env.local` file during credential provisioning, the workflow creates that file with owner-only
+permissions from protected environment secrets immediately before deployment and deletes it when the step exits.
 
 1. Merge a clean, reviewed commit to `main`; confirm application, backend, runtime, AgentCore, Apple, dependency,
    provider-contract, and security workflows pass.
