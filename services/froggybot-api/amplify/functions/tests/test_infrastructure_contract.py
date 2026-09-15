@@ -323,6 +323,18 @@ class InfrastructureContractTests(unittest.TestCase):
         )
         self.assertIn("'aws:TagKeys': ['agentcore:project']", self.deployment_role)
         self.assertIn(
+            "'aws:ResourceTag/agentcore:project': 'FrogBot'", self.deployment_role
+        )
+        self.assertIn(
+            "`bedrock-agentcore-identity.${stack.region}.amazonaws.com`",
+            self.deployment_role,
+        )
+        self.assertIn("'kms:GenerateDataKeyWithoutPlaintext'", self.deployment_role)
+        self.assertIn(
+            "kms:EncryptionContext:aws-crypto-ec:aws:bedrock-agentcore-identity:token-vault-arn",
+            self.deployment_role,
+        )
+        self.assertIn(
             "bedrock-agentcore:CreateApiKeyCredentialProvider", self.deployment_role
         )
         self.assertIn(
