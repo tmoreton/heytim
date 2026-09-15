@@ -33,11 +33,19 @@ export function addGithubDeploymentRole({
       'aws:ResourceTag/agentcore:project': 'FrogBot',
     },
   };
-  const credentialProviderArns = [
+  const credentialProviderNames = [
     'FrogBot_OpenRouter',
     'FrogBotXApi',
     'FrogBotYouTubeApi',
-  ].map(name => agentCoreArn('token-vault', `default/apikeycredentialprovider/${name}`));
+  ];
+  const credentialProviderArns = credentialProviderNames
+    .map(name => agentCoreArn('token-vault', `default/apikeycredentialprovider/${name}`));
+  const credentialSecretArns = credentialProviderNames.map(name => stack.formatArn({
+    service: 'secretsmanager',
+    resource: 'secret',
+    resourceName: `bedrock-agentcore-identity!default/apikey/${name}-*`,
+    arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+  }));
   const productionOnlineEvaluationRoleArn = stack.formatArn({
     service: 'iam',
     region: '',
@@ -150,6 +158,14 @@ export function addGithubDeploymentRole({
   role.addToPolicy(new PolicyStatement({
     actions: ['bedrock-agentcore:TagResource'],
     resources: credentialProviderArns,
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: [
+      'secretsmanager:CreateSecret',
+      'secretsmanager:GetSecretValue',
+      'secretsmanager:PutSecretValue',
+    ],
+    resources: credentialSecretArns,
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['bedrock-agentcore:ListGatewayTargets'],
