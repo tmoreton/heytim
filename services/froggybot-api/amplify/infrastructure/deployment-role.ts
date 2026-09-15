@@ -83,8 +83,25 @@ export function addGithubDeploymentRole({
     })],
   }));
   role.addToPolicy(new PolicyStatement({
-    actions: ['bedrock-agentcore:GetTokenVault'],
+    actions: [
+      'bedrock-agentcore:GetTokenVault',
+      'bedrock-agentcore:SetTokenVaultCMK',
+    ],
     resources: [tokenVaultArn],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    // AgentCore CLI creates the token-vault encryption key with this project tag.
+    // CreateKey requires "*" because the key ARN does not exist until the call succeeds.
+    actions: ['kms:CreateKey', 'kms:TagResource'],
+    resources: ['*'],
+    conditions: {
+      StringEquals: {
+        'aws:RequestTag/agentcore:project': 'FrogBot',
+      },
+      'ForAllValues:StringEquals': {
+        'aws:TagKeys': ['agentcore:project'],
+      },
+    },
   }));
   role.addToPolicy(new PolicyStatement({
     actions: [
