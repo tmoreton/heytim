@@ -83,11 +83,14 @@ export function addGithubDeploymentRole({
     })],
   }));
   role.addToPolicy(new PolicyStatement({
-    actions: [
-      'bedrock-agentcore:GetTokenVault',
-      'bedrock-agentcore:SetTokenVaultCMK',
-    ],
+    actions: ['bedrock-agentcore:GetTokenVault'],
     resources: [tokenVaultArn],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    // AgentCore currently authorizes this API against its non-resource control
+    // route ARN, so the action cannot be constrained to the documented vault ARN.
+    actions: ['bedrock-agentcore:SetTokenVaultCMK'],
+    resources: ['*'],
   }));
   role.addToPolicy(new PolicyStatement({
     // AgentCore CLI creates the token-vault encryption key with this project tag.

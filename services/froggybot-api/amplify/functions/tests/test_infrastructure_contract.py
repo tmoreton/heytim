@@ -313,7 +313,10 @@ class InfrastructureContractTests(unittest.TestCase):
     def test_production_deploy_role_scopes_company_credentials(self) -> None:
         self.assertNotIn("bedrock-agentcore:*", self.deployment_role)
         self.assertIn("bedrock-agentcore:GetTokenVault", self.deployment_role)
-        self.assertIn("bedrock-agentcore:SetTokenVaultCMK", self.deployment_role)
+        self.assertIn(
+            "actions: ['bedrock-agentcore:SetTokenVaultCMK'],\n    resources: ['*'],",
+            self.deployment_role,
+        )
         self.assertIn("actions: ['kms:CreateKey', 'kms:TagResource']", self.deployment_role)
         self.assertIn(
             "'aws:RequestTag/agentcore:project': 'FrogBot'", self.deployment_role
