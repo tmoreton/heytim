@@ -295,6 +295,15 @@ class InfrastructureContractTests(unittest.TestCase):
             self.production_workflow,
         )
 
+    def test_release_role_can_read_generated_amplify_outputs(self) -> None:
+        for action in (
+            "amplify:GetApp",
+            "amplify:GetBranch",
+            "cloudformation:DescribeStacks",
+            "cloudformation:GetTemplateSummary",
+        ):
+            self.assertIn(action, self.deployment_role)
+
     def test_cleanup_roles_can_read_only_scoped_connection_secrets(self) -> None:
         connection_policies = self.backend.split("const connectionSecretsArn =", 1)[
             1
