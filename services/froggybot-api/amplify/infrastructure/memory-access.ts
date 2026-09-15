@@ -47,7 +47,10 @@ export function addMemoryAccess({
   );
 
   const memoryKeyAccess = new Policy(stack, 'MemoryKeyAccess', {
-    policyName: 'FrogBotMemoryKeyAccess',
+    // The original name was created out-of-band during the first production
+    // bootstrap. Use a distinct name so CloudFormation can own this policy
+    // without colliding with that legacy inline policy.
+    policyName: 'FrogBotManagedMemoryKeyAccess',
     statements: [
       new PolicyStatement({
         effect: Effect.ALLOW,
