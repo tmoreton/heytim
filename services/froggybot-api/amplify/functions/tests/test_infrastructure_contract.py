@@ -275,7 +275,7 @@ class InfrastructureContractTests(unittest.TestCase):
             self.settings,
         )
         self.assertIn("addMemoryAccess({", self.backend)
-        self.assertIn("policyName: 'FrogBotMemoryKeyAccess'", self.memory_access)
+        self.assertIn("policyName: 'FrogBotManagedMemoryKeyAccess'", self.memory_access)
         self.assertIn(
             "memoryKeyAccess.attachToRole(apiFunction.role!)", self.memory_access
         )
