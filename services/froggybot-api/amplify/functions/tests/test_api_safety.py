@@ -80,6 +80,7 @@ class ApiSafetyTests(ApiTestCase):
                     "id": "turn-1",
                     "userText": "Ship it",
                     "assistantText": "Done",
+                    "configurationChanged": True,
                     "createdAt": "2026-09-09T18:00:00Z",
                     "startedAt": "2026-09-09T18:00:02Z",
                     "activityUpdatedAt": "2026-09-09T18:00:45Z",
@@ -92,6 +93,7 @@ class ApiSafetyTests(ApiTestCase):
         self.assertEqual(messages[1]["startedAt"], "2026-09-09T18:00:02Z")
         self.assertEqual(messages[1]["activityUpdatedAt"], "2026-09-09T18:00:45Z")
         self.assertEqual(messages[1]["completedAt"], "2026-09-09T18:01:05Z")
+        self.assertTrue(messages[1]["configurationChanged"])
 
     def test_direct_message_actions_are_issued_by_the_server(self) -> None:
         running = self.bots._messages_from_turns(

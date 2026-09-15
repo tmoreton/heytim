@@ -1,6 +1,6 @@
 import Foundation
-import Observation
 import OSLog
+import Observation
 
 public enum AppSheet: Identifiable, Hashable, Sendable {
   case botLibrary
@@ -65,6 +65,7 @@ public final class AppModel {
   public private(set) var uploadsInProgress = 0
   public var deepLinkInvite: (kind: String, token: String)?
   public private(set) var pushRegistrationState: PushRegistrationState = .idle
+  public private(set) var notificationFocusRevision: UInt = 0
 
   @ObservationIgnored var api: FrogBotAPI?
   @ObservationIgnored private var pollTask: Task<Void, Never>?
@@ -73,6 +74,7 @@ public final class AppModel {
   @ObservationIgnored private var composerDrafts: [ConversationSelection: ComposerDraft] = [:]
   @ObservationIgnored private var selectionGeneration: UInt = 0
   @ObservationIgnored private var sessionGeneration: UInt = 0
+  @ObservationIgnored private var refreshedConfigurationMessageIDs: Set<String> = []
 
   public init(api: FrogBotAPI? = nil, demoMode: Bool = false) {
     self.api = api
@@ -160,7 +162,9 @@ public final class AppModel {
     deepLinkInvite = nil
     pushToken = nil
     pushRegistrationState = .idle
+    notificationFocusRevision = 0
     composerDrafts = [:]
+    refreshedConfigurationMessageIDs = []
   }
 
   func requireAPI() throws -> FrogBotAPI {
@@ -223,22 +227,52 @@ public final class AppModel {
     }
   }
 
-  public func refreshBootstrap() async {
-    guard !demoMode, let api else { return }
+  @discardableResult public func refreshBootstrap() async -> Bool {
+    guard !demoMode, let api else { return false }
     let requestedSession = sessionGeneration
     do {
       let value = try await api.bootstrap()
-      guard sessionIsCurrent(requestedSession, api: api) else { return }
+      guard sessionIsCurrent(requestedSession, api: api) else { return false }
       bootstrap = value
       if chooseAvailableSelection() { try await loadMessages() }
+      return true
     } catch {
       if sessionIsCurrent(requestedSession, api: api) { present(error) }
+      return false
     }
   }
 
   public func select(_ value: ConversationSelection) {
     guard transitionSelection(to: value) else { return }
     Task { try? await loadMessages() }
+  }
+
+  /// Opens the exact conversation represented by a notification, including when
+  /// the tap arrives during a cold launch or while that conversation is already selected.
+  public func openConversationFromNotification(_ value: ConversationSelection) async {
+    if demoMode {
+      guard conversationExists(value) else { return }
+      sheet = nil
+      _ = transitionSelection(to: value)
+      notificationFocusRevision &+= 1
+      return
+    }
+    guard let api else { return }
+    let requestedSession = sessionGeneration
+    do {
+      if !conversationExists(value) {
+        let value = try await api.bootstrap()
+        guard sessionIsCurrent(requestedSession, api: api) else { return }
+        bootstrap = value
+      }
+      guard conversationExists(value) else { return }
+      sheet = nil
+      _ = transitionSelection(to: value)
+      notificationFocusRevision &+= 1
+      try await loadMessages()
+    } catch {
+      if sessionIsCurrent(requestedSession, api: api) { present(error) }
+    }
   }
 
   public func loadMessages() async throws {
@@ -273,6 +307,15 @@ public final class AppModel {
     messages = Self.mergeLatest(current: messages, latest: page.messages)
     nextToken = page.nextToken
     configurePolling()
+    let changedMessageIDs = Set(
+      page.messages.lazy.filter { $0.configurationChanged == true }.map(\.id)
+    )
+    let unrefreshedMessageIDs = changedMessageIDs.subtracting(refreshedConfigurationMessageIDs)
+    if !unrefreshedMessageIDs.isEmpty {
+      if await refreshBootstrap() {
+        refreshedConfigurationMessageIDs.formUnion(unrefreshedMessageIDs)
+      }
+    }
   }
 
   public func loadEarlier() async {
@@ -631,6 +674,13 @@ public final class AppModel {
     sessionGeneration == generation && self.api === api
   }
 
+  private func conversationExists(_ value: ConversationSelection) -> Bool {
+    switch value.kind {
+    case .bot: bootstrap?.bots.contains(where: { $0.id == value.id }) == true
+    case .group: bootstrap?.groups.contains(where: { $0.id == value.id }) == true
+    }
+  }
+
   private func saveVisibleDraft() {
     guard let selection else { return }
     let draft = ComposerDraft(text: composerText, attachments: pendingAttachments)
@@ -690,7 +740,8 @@ public final class AppModel {
       0, constraints.maxAttachmentsPerMessage - attachmentCount - uploadsInProgress)
   }
 
-  private func restoreSubmittedDraft(_ submitted: ComposerDraft, for target: ConversationSelection) {
+  private func restoreSubmittedDraft(_ submitted: ComposerDraft, for target: ConversationSelection)
+  {
     if selection == target {
       let current = ComposerDraft(text: composerText, attachments: pendingAttachments)
       let restored = mergedDraft(submitted, with: current)
@@ -702,7 +753,8 @@ public final class AppModel {
     }
   }
 
-  private func mergedDraft(_ submitted: ComposerDraft, with current: ComposerDraft) -> ComposerDraft {
+  private func mergedDraft(_ submitted: ComposerDraft, with current: ComposerDraft) -> ComposerDraft
+  {
     let text: String
     if submitted.text.isEmpty || submitted.text == current.text {
       text = current.text
@@ -874,7 +926,8 @@ public enum DemoData {
     BotTemplate(
       id: "research-reports", version: 1, name: "Research & Reports",
       tagline: "Finds reliable answers and turns them into useful files.",
-      prompt: "Research broad questions with current, high-quality sources and lead with the conclusion. Distinguish evidence from interpretation and create a polished report when it helps.",
+      prompt:
+        "Research broad questions with current, high-quality sources and lead with the conclusion. Distinguish evidence from interpretation and create a polished report when it helps.",
       color: "#5C6BC0", skillIds: ["deep-research"], toolIds: [],
       category: "Research", author: "FroggyBot", tags: ["research", "reports"],
       featured: true)

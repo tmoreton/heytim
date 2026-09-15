@@ -74,9 +74,10 @@ deferred and absent from the registry for this release.
    provider-contract, and security workflows pass.
 2. Run **Deploy FroggyBot production release** from `main`. It validates the target/account and approvals, verifies and
    audits dependencies, deploys AgentCore then Amplify, generates the client outputs, hardens runtime logs, configures
-   AgentCore alarms and APNs delivery feedback, verifies storage/PITR/alerts/public API, and preserves the exact
-   production client configuration. A dependent macOS job then verifies the native suites once and uploads matching
-   iPhone and Mac builds to TestFlight. Expo is neither built nor published by this release.
+   AgentCore alarms and APNs delivery feedback, seeds the private meme-template catalog when absent, verifies every
+   referenced template image along with storage/PITR/alerts/public API, and preserves the exact production client
+   configuration. A dependent macOS job then verifies the native suites once and uploads matching iPhone and Mac
+   builds to TestFlight. Expo is neither built nor published by this release.
 3. Confirm both builds complete App Store Connect processing and complete the App Store/TestFlight compliance forms.
    The preserved configuration artifact remains available for local reproduction and incident review.
 4. Run an authenticated disposable-user workflow and the agreed concurrency test against production. Verify OAuth

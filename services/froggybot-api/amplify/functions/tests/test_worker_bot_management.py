@@ -88,6 +88,10 @@ class WorkerBotManagementTests(WorkerTestCase):
         )
         self.assertEqual(payload["bot"]["systemRole"], "chief")
         self.assertEqual(payload["botManagement"]["currentBot"]["id"], "chief")
+        self.assertEqual(
+            payload["botManagement"]["currentBot"]["prompt"], "Coordinate."
+        )
+        self.assertEqual(payload["botManagement"]["memoryMaxLength"], 16_000)
         self.assertEqual(payload["botManagement"]["templates"][0]["id"], "meme-maker")
         self.assertEqual(payload["botManagement"]["selfTools"][0]["id"], "current_time")
 
@@ -181,9 +185,7 @@ class WorkerBotManagementTests(WorkerTestCase):
             patch.object(self.agent, "_team_roster", return_value=[]),
             patch.object(self.agent, "read_agent_stream", return_value="Done"),
         ):
-            self.agent._invoke(
-                "user-1", "chief", bot, history=[], event_id="turn-1"
-            )
+            self.agent._invoke("user-1", "chief", bot, history=[], event_id="turn-1")
 
         self.assertNotIn("bot_manager", resolve_tools.call_args.args[1])
         payload = json.loads(
@@ -265,9 +267,7 @@ class WorkerBotManagementTests(WorkerTestCase):
         )
         with (
             patch.object(self.direct_job, "_account_is_active", return_value=True),
-            patch.object(
-                self.direct_job.catalog, "unapproved_tools", return_value=[]
-            ),
+            patch.object(self.direct_job.catalog, "unapproved_tools", return_value=[]),
             patch.object(self.direct_job, "_claim_work", return_value="lease-1"),
             patch.object(self.direct_job, "_invoke", return_value=result),
             patch.object(self.direct_job, "record_invocation_usage"),
@@ -277,7 +277,7 @@ class WorkerBotManagementTests(WorkerTestCase):
             ),
             patch.object(
                 self.direct_job, "_finish_work", return_value="finished-at"
-            ),
+            ) as finish,
             patch.object(self.direct_job, "_update_schedule_result"),
             patch.object(self.direct_job, "_queue_reply_notification"),
         ):
@@ -287,6 +287,7 @@ class WorkerBotManagementTests(WorkerTestCase):
             )
 
         apply.assert_called_once_with("user-1", bot, turn, [mutation])
+        self.assertTrue(finish.call_args.kwargs["configuration_changed"])
 
     def test_create_mutation_uses_a_replay_safe_bot_id(self) -> None:
         mutation_id = str(uuid.uuid4())
@@ -318,12 +319,8 @@ class WorkerBotManagementTests(WorkerTestCase):
             }
         ]
         with patch.dict(self.bot_mutation_globals, {"_bot_api": lambda: api}):
-            self.apply_bot_mutations(
-                "user-1", {"systemRole": "chief"}, {}, raw
-            )
-            self.apply_bot_mutations(
-                "user-1", {"systemRole": "chief"}, {}, raw
-            )
+            self.apply_bot_mutations("user-1", {"systemRole": "chief"}, {}, raw)
+            self.apply_bot_mutations("user-1", {"systemRole": "chief"}, {}, raw)
 
         api._put_bot.assert_called_once()
         self.assertEqual(api._put_bot.call_args.kwargs["bot_id"], f"ai-{mutation_id}")
@@ -337,7 +334,9 @@ class WorkerBotManagementTests(WorkerTestCase):
             "toolIds": ["current_time"],
             "skillIds": [],
         }
-        api = SimpleNamespace(_get_bot=MagicMock(return_value=target), _update_bot=MagicMock())
+        api = SimpleNamespace(
+            _get_bot=MagicMock(return_value=target), _update_bot=MagicMock()
+        )
         saved: dict[str, dict] = {}
         catalog = SimpleNamespace(
             get_skill=MagicMock(),
@@ -381,16 +380,12 @@ class WorkerBotManagementTests(WorkerTestCase):
             self.apply_bot_mutations("user-1", target, {}, raw)
 
         catalog.save_skill.assert_called_once()
-        self.assertEqual(
-            catalog.save_skill.call_args.args[1]["visibility"], "private"
-        )
+        self.assertEqual(catalog.save_skill.call_args.args[1]["visibility"], "private")
         self.assertEqual(
             catalog.save_skill.call_args.args[1]["requiredToolIds"],
             ["current_time"],
         )
-        self.assertEqual(
-            catalog.save_skill.call_args.kwargs["new_skill_id"], skill_id
-        )
+        self.assertEqual(catalog.save_skill.call_args.kwargs["new_skill_id"], skill_id)
         api._update_bot.assert_called_once_with(
             "user-1", "writer", {"skillIds": [skill_id]}
         )
@@ -466,26 +461,114 @@ class WorkerBotManagementTests(WorkerTestCase):
         ):
             self.apply_bot_mutations("user-1", {"id": "writer"}, {}, raw)
 
-        self.assertEqual(
-            catalog.save_skill.call_args.args[1]["requiredToolIds"], []
-        )
+        self.assertEqual(catalog.save_skill.call_args.args[1]["requiredToolIds"], [])
 
-    def test_mutation_rejects_non_chief_and_scheduled_runs(self) -> None:
+    def test_specialist_can_update_only_its_own_profile_and_prompt(self) -> None:
+        target = {
+            "id": "writer",
+            "name": "Writer",
+            "prompt": "Write clearly.",
+            "toolIds": ["current_time"],
+            "skillIds": [],
+        }
+        api = SimpleNamespace(
+            _get_bot=MagicMock(return_value=target),
+            _update_bot=MagicMock(),
+        )
         raw = [
             {
                 "mutationId": str(uuid.uuid4()),
-                "action": "install_template",
-                "value": {"templateId": "meme-maker"},
+                "action": "update_self",
+                "value": {
+                    "changes": {
+                        "tagline": "Drafts concise copy.",
+                        "prompt": "Write clear, concise copy.",
+                    }
+                },
             }
         ]
-        with self.assertRaisesRegex(ValueError, "direct Chief"):
-            self.apply_bot_mutations(
-                "user-1", {"systemRole": "specialist"}, {}, raw
+
+        with patch.dict(self.bot_mutation_globals, {"_bot_api": lambda: api}):
+            self.apply_bot_mutations("user-1", target, {}, raw)
+
+        api._get_bot.assert_called_once_with("user-1", "writer")
+        api._update_bot.assert_called_once_with(
+            "user-1",
+            "writer",
+            {
+                "tagline": "Drafts concise copy.",
+                "prompt": "Write clear, concise copy.",
+            },
+        )
+
+    def test_self_update_cannot_attach_a_skill_that_grants_a_new_tool(self) -> None:
+        target = {
+            "id": "writer",
+            "toolIds": ["current_time"],
+            "skillIds": [],
+        }
+        api = SimpleNamespace(
+            _get_bot=MagicMock(return_value=target),
+            _update_bot=MagicMock(),
+        )
+        catalog = SimpleNamespace(
+            get_skill=MagicMock(
+                return_value={"id": "web-research", "requiredToolIds": ["web"]}
             )
-        with self.assertRaisesRegex(ValueError, "scheduled runs"):
-            self.apply_bot_mutations(
-                "user-1", {"systemRole": "chief"}, {"source": "schedule"}, raw
-            )
+        )
+        raw = [
+            {
+                "mutationId": str(uuid.uuid4()),
+                "action": "update_self",
+                "value": {"changes": {"skillIds": ["web-research"]}},
+            }
+        ]
+
+        with (
+            patch.dict(
+                self.bot_mutation_globals,
+                {"_bot_api": lambda: api, "catalog": catalog},
+            ),
+            self.assertRaisesRegex(ValueError, "cannot grant"),
+        ):
+            self.apply_bot_mutations("user-1", target, {}, raw)
+
+        api._update_bot.assert_not_called()
+
+    def test_chief_can_update_its_prompt_but_not_its_protected_color(self) -> None:
+        target = {
+            "id": "chief",
+            "systemRole": "chief",
+            "toolIds": [],
+            "skillIds": [],
+        }
+        api = SimpleNamespace(
+            _get_bot=MagicMock(return_value=target),
+            _update_bot=MagicMock(),
+        )
+        prompt_change = [
+            {
+                "mutationId": str(uuid.uuid4()),
+                "action": "update_self",
+                "value": {"changes": {"prompt": "Coordinate carefully."}},
+            }
+        ]
+        color_change = [
+            {
+                "mutationId": str(uuid.uuid4()),
+                "action": "update_self",
+                "value": {"changes": {"color": "#58BEAA"}},
+            }
+        ]
+
+        with patch.dict(self.bot_mutation_globals, {"_bot_api": lambda: api}):
+            self.apply_bot_mutations("user-1", target, {}, prompt_change)
+            with self.assertRaisesRegex(ValueError, "protected color"):
+                self.apply_bot_mutations("user-1", target, {}, color_change)
+
+        api._update_bot.assert_called_once_with(
+            "user-1", "chief", {"prompt": "Coordinate carefully."}
+        )
 
 
 if __name__ == "__main__":

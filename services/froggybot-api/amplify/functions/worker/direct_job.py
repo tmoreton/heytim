@@ -132,6 +132,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
         return
 
     attempt = begin_attempt(record, lambda: None)
+    configuration_changed = False
     try:
         result = _invoke(
             user_id,
@@ -154,7 +155,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
         )
         if result.bot_mutations and (result.pending_work or result.terminal_error):
             raise ValueError(
-                "A bot change cannot be combined with unfinished or failed work"
+                "A bot, skill, or memory change cannot be combined with unfinished or failed work"
             )
         if result.pending_work:
             if _pause_work(turn_key, lease_owner, result.pending_work):
@@ -180,6 +181,11 @@ def _process_agent_reply(record: dict, request: dict) -> None:
         answer = result.text
         if result.bot_mutations:
             apply_bot_mutations(user_id, bot, turn, result.bot_mutations)
+            configuration_changed = any(
+                mutation.get("action") != "create_memory"
+                for mutation in result.bot_mutations
+                if isinstance(mutation, dict)
+            )
         artifacts = _collect_generated_artifacts(user_id, bot_id, turn["id"])
     except Exception as error:
         record_terminal_error(error)
@@ -208,6 +214,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
         "assistantText",
         answer,
         artifacts=artifacts,
+        configuration_changed=configuration_changed,
     )
     if not completed_at:
         cleanup_artifacts()

@@ -54,6 +54,11 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
                     ),
                     "activity": turn.get("activity", []),
                     **(
+                        {"configurationChanged": True}
+                        if turn.get("configurationChanged") is True
+                        else {}
+                    ),
+                    **(
                         {"activityUpdatedAt": turn["activityUpdatedAt"]}
                         if isinstance(turn.get("activityUpdatedAt"), str)
                         else {}

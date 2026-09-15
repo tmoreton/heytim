@@ -18,6 +18,9 @@ def _context() -> dict:
         "currentBot": {
             "id": "chief",
             "name": "Chief",
+            "tagline": "Coordinates the team.",
+            "prompt": "Coordinate.",
+            "color": "#007A3D",
             "toolIds": ["meme_lord"],
             "skillIds": [],
             "systemRole": "chief",
@@ -48,9 +51,7 @@ def _context() -> dict:
 
 def _tools():
     tracker = BotMutationTracker()
-    tools = {
-        item.tool_name: item for item in bot_management_tools(_context(), tracker)
-    }
+    tools = {item.tool_name: item for item in bot_management_tools(_context(), tracker)}
     return tracker, tools
 
 
@@ -116,6 +117,57 @@ def test_self_authored_skill_cannot_grant_a_new_tool() -> None:
         tools["create_skill_for_self"](
             "Unsafe Skill", "Requests a new tool.", "Use shell access.", ["shell"]
         )
+
+
+def test_any_bot_can_update_its_own_prompt_without_changing_tools() -> None:
+    tracker, tools = _tools()
+
+    result = tools["update_self"](
+        tagline="Keeps the team moving.", prompt="Coordinate clearly and concisely."
+    )
+
+    assert "own settings" in result
+    assert tracker.pending[0]["action"] == "update_self"
+    assert tracker.pending[0]["value"] == {
+        "changes": {
+            "tagline": "Keeps the team moving.",
+            "prompt": "Coordinate clearly and concisely.",
+        }
+    }
+    assert "toolIds" not in tracker.pending[0]["value"]["changes"]
+
+
+def test_any_bot_can_stage_an_explicit_personal_memory() -> None:
+    tracker, tools = _tools()
+
+    result = tools["remember_for_user"]("preference", "Keep status updates concise.")
+
+    assert "ready to be saved" in result
+    assert tracker.pending[0]["action"] == "create_memory"
+    assert tracker.pending[0]["value"] == {
+        "kind": "preference",
+        "content": "Keep status updates concise.",
+    }
+
+
+def test_self_update_cannot_attach_a_skill_that_grants_a_new_tool() -> None:
+    context = {
+        **_context(),
+        "skills": [
+            {
+                "id": "web-research",
+                "name": "Web Research",
+                "requiredToolIds": ["web"],
+            }
+        ],
+    }
+    tools = {
+        item.tool_name: item
+        for item in bot_management_tools(context, BotMutationTracker())
+    }
+
+    with pytest.raises(ValueError, match="Unknown skill_ids"):
+        tools["update_self"](skill_ids=["web-research"])
 
 
 def test_bot_manager_rejects_unknown_capabilities_and_multiple_changes() -> None:
@@ -197,12 +249,10 @@ def test_unlisted_self_tools_do_not_expand_chief_management_options() -> None:
         "web",
     ]
     with pytest.raises(ValueError, match="Unknown tool_ids"):
-        tools["create_bot"](
-            "Calculator bot", "", "Calculate.", tool_ids=["calculator"]
-        )
+        tools["create_bot"]("Calculator bot", "", "Calculate.", tool_ids=["calculator"])
 
 
-def test_non_chief_receives_only_self_skill_authoring_tools() -> None:
+def test_non_chief_receives_only_safe_self_management_tools() -> None:
     context = {
         **_context(),
         "currentBot": {
@@ -224,10 +274,14 @@ def test_non_chief_receives_only_self_skill_authoring_tools() -> None:
     )
     assert parsed is not None
     tools = {
-        item.tool_name
-        for item in bot_management_tools(parsed, BotMutationTracker())
+        item.tool_name for item in bot_management_tools(parsed, BotMutationTracker())
     }
-    assert tools == {"create_skill_for_self", "list_skill_authoring_options"}
+    assert tools == {
+        "create_skill_for_self",
+        "list_skill_authoring_options",
+        "remember_for_user",
+        "update_self",
+    }
 
 
 def test_catalog_bindings_expose_chief_and_meme_tools(monkeypatch) -> None:
@@ -278,9 +332,11 @@ def test_catalog_bindings_expose_chief_and_meme_tools(monkeypatch) -> None:
         "install_bot_template",
         "list_bot_options",
         "list_skill_authoring_options",
+        "remember_for_user",
         "save_artifact",
         "search_meme_templates",
         "update_bot",
+        "update_self",
     }
     descriptions = {
         item.tool_name: item.tool_spec["description"] for item in config.tools

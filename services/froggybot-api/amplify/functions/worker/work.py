@@ -44,6 +44,7 @@ def _finish_work(
     answer_field: str,
     answer: str,
     artifacts: list[dict] | None = None,
+    configuration_changed: bool = False,
 ) -> str | None:
     completed_at = utc_now_iso()
     update_expression = "SET #status = :status, #answer = :answer, completedAt = :now"
@@ -57,6 +58,9 @@ def _finish_work(
     if artifacts:
         update_expression += ", artifacts = :artifacts"
         values[":artifacts"] = artifacts
+    if configuration_changed:
+        update_expression += ", configurationChanged = :configurationChanged"
+        values[":configurationChanged"] = True
     update_expression += (
         " REMOVE leaseOwner, leaseExpiresAt, pendingWork, backgroundResults, runtimeResult"
     )

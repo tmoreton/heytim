@@ -117,6 +117,7 @@ public struct ChatMessage: Codable, Identifiable, Hashable, Sendable {
   public var activityUpdatedAt: String?
   public var status: String
   public var allowedActions: [String]?
+  public var configurationChanged: Bool? = nil
 
   public var isUser: Bool { role == "user" }
   public var isActive: Bool { ["waiting", "pending", "running"].contains(status) }
