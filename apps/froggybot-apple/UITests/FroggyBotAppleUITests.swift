@@ -193,7 +193,7 @@ import XCTest
     XCTAssertTrue(app.buttons["Choose Files"].exists)
   }
 
-  func testConversationDetailsUsesTheNativeInspector() {
+  func testConversationDetailsUsesTheSharedSheetNavigation() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]
     app.launch()
@@ -208,25 +208,17 @@ import XCTest
 
     #if os(iOS)
       XCTAssertTrue(app.navigationBars["Details"].waitForExistence(timeout: 5))
-      XCTAssertTrue(app.buttons["Close"].exists)
+      XCTAssertTrue(app.buttons["inspector.back"].exists)
       XCTAssertFalse(app.buttons["Done"].exists)
     #else
+      let sheet = app.sheets.firstMatch
+      XCTAssertTrue(sheet.waitForExistence(timeout: 5))
       XCTAssertTrue(app.staticTexts["Details"].waitForExistence(timeout: 5))
-      XCTAssertFalse(app.toolbars.staticTexts["Details"].exists)
-      XCTAssertTrue(app.toolbars.staticTexts["Chief"].exists)
       XCTAssertFalse(app.buttons["chat.details"].exists)
-      let inspectorClose = app.buttons["inspector.close"]
-      XCTAssertTrue(inspectorClose.exists)
+      let inspectorBack = app.buttons["inspector.back"]
+      XCTAssertTrue(inspectorBack.exists)
       XCTAssertFalse(app.buttons["Done"].exists)
-      let window = app.windows.firstMatch
-      let settings = app.buttons["sidebar.settings"]
-      let create = app.buttons["sidebar.create"]
-      XCTAssertTrue(settings.isHittable)
-      XCTAssertTrue(create.isHittable)
-      XCTAssertGreaterThanOrEqual(settings.frame.minX, window.frame.minX)
-      XCTAssertLessThanOrEqual(create.frame.maxX, window.frame.maxX)
-      XCTAssertLessThan(settings.frame.maxX, create.frame.minX)
-      XCTAssertGreaterThan(inspectorClose.frame.midX, window.frame.midX)
+      XCTAssertLessThan(inspectorBack.frame.midX, sheet.frame.midX)
     #endif
     XCTAssertTrue(app.textFields["Name"].exists)
     XCTAssertTrue(app.buttons["bot.prompt.editor"].exists)
@@ -509,6 +501,42 @@ import XCTest
     XCTAssertTrue(app.buttons["Close"].exists)
   }
 
+  func testScrollToLatestControlAndSendingReturnToTheBottom() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing", "--ui-testing-scroll"]
+    app.launch()
+
+    let transcript = app.scrollViews["chat.transcript"]
+    let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
+    let latestBeforeSend = app.staticTexts["Latest message before send."]
+    let scrollToLatest = app.buttons["chat.scroll-to-latest"]
+    XCTAssertTrue(transcript.waitForExistence(timeout: 10))
+    XCTAssertTrue(composer.waitForExistence(timeout: 5))
+    XCTAssertTrue(latestBeforeSend.waitForExistence(timeout: 5))
+    XCTAssertTrue(latestBeforeSend.isHittable)
+
+    transcript.swipeDown(velocity: .fast)
+    transcript.swipeDown(velocity: .fast)
+    XCTAssertTrue(scrollToLatest.waitForExistence(timeout: 5))
+    XCTAssertTrue(scrollToLatest.isHittable)
+    scrollToLatest.tap()
+    XCTAssertTrue(latestBeforeSend.waitForExistence(timeout: 5))
+    XCTAssertTrue(latestBeforeSend.isHittable)
+
+    transcript.swipeDown(velocity: .fast)
+    transcript.swipeDown(velocity: .fast)
+    XCTAssertTrue(scrollToLatest.waitForExistence(timeout: 5))
+    composer.tap()
+    composer.typeText("Return to the latest message")
+    app.buttons["chat.send"].tap()
+
+    let reply = app.staticTexts["This is the native app’s offline test reply."]
+    XCTAssertTrue(reply.waitForExistence(timeout: 5))
+    XCTAssertTrue(reply.isHittable)
+    XCTAssertLessThan(reply.frame.maxY, composer.frame.minY)
+    XCTAssertFalse(scrollToLatest.exists)
+  }
+
   #if os(macOS)
     func testMacComposerAndToolbarStayInsideTheNativeWindowLayout() {
       let app = XCUIApplication()
@@ -551,32 +579,6 @@ import XCTest
       XCTAssertTrue(
         app.staticTexts["This is the native app’s offline test reply."].waitForExistence(
           timeout: 5))
-    }
-
-    func testMacSendReturnsToAndFollowsTheLatestMessage() {
-      let app = XCUIApplication()
-      app.launchArguments = ["--ui-testing", "--ui-testing-scroll"]
-      app.launch()
-
-      let transcript = app.scrollViews["chat.transcript"]
-      let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
-      let latestBeforeSend = app.staticTexts["Latest message before send."]
-      XCTAssertTrue(transcript.waitForExistence(timeout: 10))
-      XCTAssertTrue(composer.waitForExistence(timeout: 5))
-      XCTAssertTrue(latestBeforeSend.waitForExistence(timeout: 5))
-      XCTAssertTrue(latestBeforeSend.isHittable)
-
-      transcript.swipeDown(velocity: .fast)
-      transcript.swipeDown(velocity: .fast)
-      composer.click()
-      composer.typeText("Return to the latest message")
-      app.buttons["chat.send"].click()
-
-      let reply = app.staticTexts["This is the native app’s offline test reply."]
-      XCTAssertTrue(reply.waitForExistence(timeout: 5))
-      XCTAssertTrue(reply.isHittable)
-      XCTAssertLessThan(reply.frame.maxY, composer.frame.minY)
-      XCTAssertFalse(app.buttons["Jump to Latest"].exists)
     }
 
     func testMacEditorUsesAReadableNativeSheet() {
