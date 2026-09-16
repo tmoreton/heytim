@@ -213,7 +213,8 @@ import XCTest
       XCTAssertTrue(inspectorBack.isHittable)
       XCTAssertFalse(app.buttons["Done"].exists)
     #else
-      XCTAssertTrue(app.staticTexts["Details"].waitForExistence(timeout: 5))
+      let title = app.toolbars.staticTexts["Details"]
+      XCTAssertTrue(title.waitForExistence(timeout: 5))
       XCTAssertFalse(app.sheets.firstMatch.exists)
       XCTAssertFalse(app.buttons["chat.details"].exists)
       XCTAssertTrue(inspectorBack.exists)
@@ -221,7 +222,12 @@ import XCTest
       XCTAssertFalse(app.buttons["Done"].exists)
       XCTAssertGreaterThan(inspectorBack.frame.minX, app.splitters.firstMatch.frame.maxX)
       XCTAssertLessThan(inspectorBack.frame.midX, app.windows.firstMatch.frame.midX)
+      XCTAssertLessThan(abs(title.frame.midY - inspectorBack.frame.midY), 20)
       XCTAssertEqual(app.splitters.count, 1)
+      let headerScreenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+      headerScreenshot.name = "Details uses the shared navigation header"
+      headerScreenshot.lifetime = .keepAlways
+      add(headerScreenshot)
     #endif
 
     inspectorBack.tap()
@@ -629,6 +635,14 @@ import XCTest
       app.buttons["sidebar.settings"].click()
       let back = app.buttons["sheet.close"]
       XCTAssertTrue(back.waitForExistence(timeout: 5))
+      let settingsTitle = app.toolbars.staticTexts["Settings"]
+      XCTAssertTrue(settingsTitle.exists)
+      XCTAssertLessThan(abs(settingsTitle.frame.midY - back.frame.midY), 20)
+      XCTAssertLessThan(settingsTitle.frame.minX - back.frame.maxX, 40)
+      let settingsScreenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+      settingsScreenshot.name = "Settings uses the shared navigation header"
+      settingsScreenshot.lifetime = .keepAlways
+      add(settingsScreenshot)
       XCTAssertEqual(search.frame.minX, sidebarFrame.minX, accuracy: 2)
       XCTAssertEqual(search.frame.width, sidebarFrame.width, accuracy: 2)
       XCTAssertEqual(app.splitters.count, 1)
@@ -641,6 +655,10 @@ import XCTest
       app.buttons["sidebar.settings"].click()
       app.buttons["Tools & Skills"].click()
       XCTAssertTrue(app.staticTexts["Tools & Skills"].waitForExistence(timeout: 5))
+      let toolsScreenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+      toolsScreenshot.name = "Tools and Skills shares the navigation header"
+      toolsScreenshot.lifetime = .keepAlways
+      add(toolsScreenshot)
       app.buttons["sidebar.title.bot.chief"].click()
       XCTAssertTrue(app.buttons["chat.details"].waitForExistence(timeout: 5))
       XCTAssertFalse(app.buttons["sheet.close"].exists)

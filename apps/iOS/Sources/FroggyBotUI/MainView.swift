@@ -918,62 +918,41 @@ private struct ConversationInspector: View {
       }
       .formStyle(.grouped)
       .froggyListSurface()
-      #if os(macOS)
-        .safeAreaInset(edge: .top, spacing: 0) {
-          inspectorHeader
+      .froggyNavigationTitle("Details")
+      .toolbarTitleDisplayMode(.inline)
+      .toolbar {
+        #if os(macOS)
+          ToolbarItem(placement: .navigation) { detailsBackButton }
+        #else
+          ToolbarItem(placement: .cancellationAction) { detailsBackButton }
+        #endif
+        if let bot = editingBot, actions.contains("edit") {
+          #if os(macOS)
+            ToolbarItem(placement: .primaryAction) { detailsSaveButton(for: bot) }
+          #else
+            ToolbarItem(placement: .confirmationAction) { detailsSaveButton(for: bot) }
+          #endif
         }
-      #else
-        .froggyNavigationTitle("Details")
-        .toolbarTitleDisplayMode(.inline)
-        .toolbar {
-          ToolbarItem(placement: .cancellationAction) {
-            detailsBackButton
-          }
-          if let bot = editingBot, actions.contains("edit") {
-            ToolbarItem(placement: .confirmationAction) {
-              Button("Save") { save(bot) }
-                .disabled(!canSaveBot)
-                .accessibilityIdentifier("inspector.save")
-            }
-          }
-        }
-      #endif
+      }
       .onAppear { loadBotDraftIfNeeded() }
       .onChange(of: model.selectedBot?.id) { _, _ in loadBotDraftIfNeeded(force: true) }
     }
   }
-
-  #if os(macOS)
-    private var inspectorHeader: some View {
-      HStack(spacing: 10) {
-        detailsBackButton
-          .buttonStyle(.plain)
-          .foregroundStyle(FrogTheme.accent)
-          .frame(width: 32, height: 32)
-          .contentShape(Rectangle())
-        Text("Details")
-          .froggyFont(.headline, weight: .semibold)
-          .accessibilityAddTraits(.isHeader)
-        Spacer(minLength: 8)
-        if let bot = editingBot, actions.contains("edit") {
-          Button("Save") { save(bot) }
-            .froggyGlassButton(tint: FrogTheme.accent)
-            .disabled(!canSaveBot)
-            .accessibilityIdentifier("inspector.save")
-        }
-      }
-      .padding(.horizontal, 12)
-      .padding(.vertical, 8)
-      .background(FrogTheme.appBackground)
-      .overlay(alignment: .bottom) { Divider() }
-    }
-  #endif
 
   private var detailsBackButton: some View {
     Button("Back", systemImage: "chevron.backward", action: close)
       .labelStyle(.iconOnly)
       .accessibilityIdentifier("inspector.back")
       .help("Back to chat")
+  }
+
+  private func detailsSaveButton(for bot: Bot) -> some View {
+    Button("Save") { save(bot) }
+      #if os(macOS)
+        .froggyGlassButton(tint: FrogTheme.accent)
+      #endif
+      .disabled(!canSaveBot)
+      .accessibilityIdentifier("inspector.save")
   }
 
   @ViewBuilder private var botEditorSections: some View {
