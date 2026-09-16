@@ -6,21 +6,20 @@ export function Contribute() {
 
     <h2>Before you start</h2>
     <ul>
-      <li>Search the <a href="/library/">bot directory</a> and existing pull requests so you do not duplicate a bot.</li>
+      <li>Search the <a href="/library/">bot directory</a> and existing requests so you do not duplicate a bot.</li>
       <li>Choose one clear user outcome. “Plan a group trip” is stronger than “be helpful.”</li>
       <li>Never put API tokens, passwords, or other secrets in the catalog. FroggyBot supplies any shared-service credentials; private account data uses provider OAuth.</li>
     </ul>
 
     <h2>Submit a bot</h2>
     <ol>
-      <li><a href="https://github.com/tmoreton/frog-bots/fork">Fork Frog Bots</a> on GitHub.</li>
-      <li>Add one bot entry to <code>catalog.json</code>, following the closest existing example.</li>
+      <li><a href="https://github.com/tmoreton/frog-bots/issues/new">Open a public contribution request</a> with the bot’s name, purpose, and proposed instructions.</li>
       <li>Write a focused prompt, reference existing skill IDs, and list only tools the bot directly requires. The app decides model and speed settings.</li>
-      <li>Add realistic scenarios and expected behavior in <code>bots/&lt;bot-id&gt;/evals.json</code>.</li>
-      <li>Run <code>python3 scripts/validate_catalog.py</code>.</li>
-      <li>Open a pull request. The checklist will guide the usefulness, clarity, safety, and least-privilege review.</li>
+      <li>Include realistic scenarios and expected behavior so reviewers can test the result.</li>
+      <li>Maintainers review usefulness, clarity, safety, and least privilege, then integrate accepted contributions into the central FroggyBot catalog.</li>
     </ol>
-    <p><a className="button" href="https://github.com/tmoreton/frog-bots">View the bot repository</a></p>
+    <p>The public repository is a publishing mirror and contribution inbox. The website and catalog are maintained together with the app, so edits to the old public source do not publish automatically.</p>
+    <p><a className="button" href="https://github.com/tmoreton/frog-bots/issues">View contribution requests</a></p>
 
     <h2>Contribute a supporting skill</h2>
     <p>Skills stay in the codebase as reusable, readable instructions that multiple bots can share. If a bot needs a new way of working, add a focused <code>SKILL.md</code>, register it in <code>catalog.json</code>, and reference it from the bot.</p>

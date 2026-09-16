@@ -2,12 +2,17 @@
 
 Frog Bots accepts small, reviewable additions that help a person or group reach a concrete outcome.
 
+These instructions are relative to `catalog/` in the FroggyBot monorepo.
+Maintainers make changes here; public contributors can submit proposals through
+the [public issue tracker](https://github.com/tmoreton/frog-bots/issues). That
+repository is a publishing mirror and contribution inbox, not a second source.
+
 ## Choose the right contribution
 
 - **Skill:** readable instructions that shape how a FroggyBot approaches work.
 - **Bot:** a small configuration that combines a prompt with existing skills and required tools.
 - **Tool or connector:** a public definition for reading from or acting in another service.
-- **Website or documentation:** a focused improvement to `site/`, `README.md`, or `docs/`.
+- **Website or documentation:** a focused improvement to `../apps/website/`, `README.md`, or `docs/`.
 
 Do not put executable integrations inside a skill. Remote integrations stay hosted outside this repository. FroggyBot supplies any credentials required by shared public services, while private account data uses a reviewed provider OAuth flow.
 
@@ -122,14 +127,14 @@ Community pull requests never add secrets or hosted executable code. Public buil
 
 ```bash
 python3 scripts/validate_catalog.py
-python3 scripts/build_site.py
+npm --prefix ../apps/website run build
 python3 -m unittest discover -s tests
 ```
 
-Open `dist/index.html` through a local HTTP server when changing the site:
+Preview the Vite production build when changing the site:
 
 ```bash
-python3 -m http.server 8000 --directory dist
+npm --prefix ../apps/website run preview
 ```
 
 Then check the homepage, bot-directory search and filters, mobile layout, contribution links, legal pages, and invite forwarding.

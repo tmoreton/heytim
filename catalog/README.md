@@ -29,7 +29,7 @@ docs/                        Catalog decisions and maintainer notes
 ## Contribute a skill
 
 1. Search `catalog.json` and existing pull requests.
-2. Fork this repository and copy the closest folder under `skills/`.
+2. In the monorepo's `catalog/` directory, copy the closest folder under `skills/`.
 3. Give the folder a lowercase, hyphenated ID such as `trip-planner`.
 4. Write a concise `SKILL.md` with only `name` and `description` in its frontmatter.
 5. Add an `evals.json` file with realistic matches, near-misses, and outcome expectations.
