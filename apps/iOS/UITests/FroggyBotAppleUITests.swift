@@ -274,7 +274,7 @@ import XCTest
     }
 
     memory.tap()
-    XCTAssertTrue(app.staticTexts["Memory"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["Chief Memory"].waitForExistence(timeout: 5))
     let rootLinksDisappear = XCTNSPredicateExpectation(
       predicate: NSPredicate(format: "exists == false"),
       object: app.buttons["conversation.schedules"])

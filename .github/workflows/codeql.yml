@@ -51,6 +51,8 @@ jobs:
         language: [javascript-typescript, python]
     steps:
       - uses: actions/checkout@v7
+      - name: Add Homebrew build tools to PATH
+        run: echo /opt/homebrew/bin >> "$GITHUB_PATH"
       - uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
