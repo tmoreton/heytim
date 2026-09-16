@@ -53,7 +53,7 @@ remove that bootstrap access before enabling routine deployments.
 
 ## Package boundary
 
-The CodeZip source is `services/agent-runtime/runtime/`. The toolkit locates the parent
-`services/agent-runtime/pyproject.toml` for dependency installation, while only the production source
+The CodeZip source is `services/runtime/runtime/`. The toolkit locates the parent
+`services/runtime/pyproject.toml` for dependency installation, while only the production source
 directory is copied into the archive. Run the source and archive checks documented in the runtime
 README before deployment.

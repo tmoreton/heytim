@@ -1,0 +1,26 @@
+{
+  "name": "@froggybot/website",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm run assets && vite --host 127.0.0.1",
+    "assets": "node scripts/prepare-assets.mjs",
+    "build": "npm run assets && tsc --noEmit && vite build && tsx scripts/prerender.tsx && node scripts/check-build.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test 'src/**/*.test.mjs'",
+    "verify": "../../scripts/check-source-size.sh && npm test && npm run typecheck"
+  },
+  "dependencies": { "react": "19.2.3", "react-dom": "19.2.3" },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "~19.2.2",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.1.1",
+    "tsx": "^4.21.0",
+    "typescript": "~6.0.3",
+    "vite": "8.3.0"
+  },
+  "engines": { "node": ">=22.13 <25" }
+}

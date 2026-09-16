@@ -1,0 +1,17 @@
+{
+  "shouldTrigger": [
+    "Build a shared vacation budget and split different expenses fairly among five people.",
+    "Compare low and high budget scenarios for our community event.",
+    "Create an editable spreadsheet showing who paid and what everyone owes."
+  ],
+  "shouldNotTrigger": [
+    "Choose the best destination before we know the costs.",
+    "Research current hotel prices but do not build a budget yet.",
+    "Pay everyone back from my bank account."
+  ],
+  "expectations": [
+    "Confirmed costs remain separate from estimates and assumptions.",
+    "The budget includes totals, contingency, split rules, and consistent rounding.",
+    "The result includes an editable spreadsheet and does not move money."
+  ]
+}

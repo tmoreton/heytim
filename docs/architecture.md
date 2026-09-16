@@ -3,43 +3,38 @@
 This repository deliberately separates deployment units from reusable client packages:
 
 ```text
-apps/froggybot-apple/           Primary SwiftUI composition root for iPhone and Mac
-apps/froggybot/                 Preserved Expo browser view layer and legacy native reference
-apps/froggybot-browser-viewer/  Disposable browser viewer application
-packages/                       Contracts, clients, preview, and native transcription
-services/froggybot-api/         Serverless application backend
-services/agent-runtime/         AgentCore runtime shared by every FroggyBot personality
-agentcore/                      Declarative AgentCore infrastructure and gateway schemas
+apps/iOS/             Shared SwiftUI composition root for iPhone and Mac
+apps/website/         Vite + React public website and skills directory
+catalog/              Reviewed bot, skill, and tool definitions
+packages/             API contract and native transcription
+services/API/         Serverless application backend
+services/runtime/     AgentCore runtime shared by every FroggyBot personality
+agentcore/            Declarative AgentCore infrastructure
 ```
 
 ## Client applications
 
-`apps/froggybot-apple` is the supported iPhone and Mac application. One multiplatform SwiftUI target shares its
+`apps/iOS` is the supported iPhone and Mac application. One multiplatform SwiftUI target shares its
 models, API client, state, screens, and tests, with a small platform adapter for Keychain, APNs, dictation, files,
 windows, and web views. It is the only source for local Apple builds, archives, and TestFlight releases.
 
-`apps/froggybot/src/app` contains the preserved Expo Router browser shells. `src/features` and `src/components`
-contain screens and visual primitives; `src/lib` is limited to composition, cloud configuration, theme values,
-and the production-disabled preview switch. A boundary check rejects new non-view TypeScript modules in the app.
-Native Expo builds and updates are disabled, but the source stays available for the web client and migration history.
+`apps/website` is a simple Vite + React marketing site. Its library is built from
+`catalog/catalog.json`, and its output publishes the same reviewed skill documents
+consumed by the API. All public pages are prerendered; search and filtering hydrate
+in React. No chat, Cognito, Expo, or native dependencies are included.
 
-`packages/froggybot-contract` owns shared types and generated routes. `packages/froggybot-client` owns the
-headless transport, response validation, reconciliation, policy-derived presentation models, and API domains.
-`packages/froggybot-expo-client` owns the preserved browser/Expo controller hooks for auth, notifications, links,
-polling, attachments, dictation, and mutations. `packages/froggybot-preview` owns one explicit in-memory development
-state and API implementation. `packages/frogbot-transcription` owns the reusable transcription core.
-The separately built browser viewer keeps the AgentCore SDK and Cloudscape dependency tree out of Expo.
+`packages/froggybot-contract` owns shared types and generated routes.
+`packages/frogbot-transcription` owns the reusable native Swift transcription core.
+The Expo app, its browser viewer, controller hooks, and preview/API clients have
+been archived outside the monorepo. See [migration notes](monorepo-migration.md).
 
 The backend returns `allowedActions` and input `constraints` in its public models. Views render those values
 and fail closed when actions are absent; they do not infer authorization from ownership, roles, or status.
 
-The public website uses `/` for positioning and `/library` for the searchable bot, skill, tool, and action directory.
-The directory reads sanitized catalog metadata from `/public/catalog` and falls back to the same reviewed GitHub
-source if the API is temporarily unavailable. `/invite` previews a share link before opening the app or sign-up
-experience. `/app` hosts the authenticated product. Catalog links use `/app?bot=…` to open the bot library, or
-`/app?skill=…` and `/app?tool=…` to preselect a capability in a review-before-save bot editor. Development builds may use
-`/app?preview=1` to exercise the complete UI without calling AWS; production builds ignore that
-flag.
+The public website uses `/` for positioning, `/library` for ready-made bots and
+`/skills` for searchable instructions. `/invite` preserves native invitation
+parameters and `/app` points visitors to the Apple app. Neither route signs in
+or hosts a conversation. Existing catalog identity/version fields remain stable.
 
 The app contains no official tool-name or tool-description registry. Its Tools screen renders the sanitized tools in
 the current backend catalog snapshot; preview mode parses the same public catalog. User OAuth and GitHub App
@@ -50,12 +45,12 @@ connection-provider manifest rather than branching on provider IDs. Browser-spec
 ## Application backend
 
 Amplify owns Cognito and the application-facing AWS resources. One HTTP API Lambda keeps deployment
-and permissions simple, while focused modules under `services/froggybot-api/amplify/functions/api` own each application
-domain. The API handler only routes requests. Shared rules live under `services/froggybot-api/amplify/functions/shared`.
+and permissions simple, while focused modules under `services/API/amplify/functions/api` own each application
+domain. The API handler only routes requests. Shared rules live under `services/API/amplify/functions/shared`.
 The SQS worker uses the same pattern: its handler routes jobs, and focused worker modules claim work,
 invoke AgentCore, persist results, and send final-response notifications.
 
-`services/froggybot-api/amplify/functions/api/api-contract.json` is the single authored HTTP route contract. Amplify CDK and the
+`services/API/amplify/functions/api/api-contract.json` is the single authored HTTP route contract. Amplify CDK and the
 Python dispatcher load it directly; a checked-in generated TypeScript map in `packages/froggybot-contract` gives clients typed URL construction.
 The contract check prevents those consumers from drifting. Expected API failures carry stable codes independently
 of their human-readable messages, so clients can choose safe UI behavior without matching English text.
@@ -101,7 +96,7 @@ expire after 400 days.
 
 ## Agent runtime
 
-`services/agent-runtime/runtime/main.py` is only the AgentCore transport adapter. The production-only `runtime/`
+`services/runtime/runtime/main.py` is only the AgentCore transport adapter. The production-only `runtime/`
 directory is the CodeZip source boundary: `frogbot_runtime/request.py` normalizes untrusted invocation payloads,
 `configuration.py` builds per-bot and per-group instructions, `capability_contract.py` validates the reviewed
 allowlist, and the local, AgentCore, and gateway adapter modules assemble only the tools and skills enabled for that bot.
@@ -142,14 +137,14 @@ Provider identity, display metadata, and stored connection metadata are register
 Clients render the server-supplied labels and treat authentication details as opaque; connection responses omit auth
 types, endpoints, and credential-state internals. A new reviewed provider therefore reuses the generic client UI and
 authorization route, while its secret-bearing adapter and runtime permissions remain an explicit server change.
-The separate `frogbot-skills` repository is the public website and capability publishing boundary. Pull requests are validated there;
+The monorepo's `catalog/` is the capability source; the Vite website publishes its public allowlist. Changes are validated here;
 the backend then validates and caches releases before exposing only public metadata to signed-out visitors. Chief is a required public
 template: first-time setup installs it and applies the protected coordinator role without duplicating its prompt or capabilities in app code.
 
 ## Invariants
 
 - `agentcore/agentcore.json` is the source of truth for AgentCore resources; generated CDK is not.
-- `services/froggybot-api/amplify/functions/api/api-contract.json` is the source of truth for application HTTP routes; its generated client map must be current.
+- `services/API/amplify/functions/api/api-contract.json` is the source of truth for application HTTP routes; its generated client map must be current.
 - Existing CDK construct IDs and resource names are stable because renaming them can replace data.
 - Every authenticated read/write verifies ownership or group membership server-side.
 - Invitation tokens are random, time-limited, and stored as hashes for sign-up validation.

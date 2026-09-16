@@ -1,0 +1,16 @@
+{
+  "scenarios": [
+    {
+      "prompt": "Tell me why churn increased last quarter.",
+      "expectations": ["Requests the dataset and churn definition before calculating.", "Does not invent metrics or causal explanations."]
+    },
+    {
+      "prompt": "The table has 120 starting customers and 18 churned customers. Calculate churn.",
+      "expectations": ["Calculates a 15 percent churn rate.", "Shows the definition or formula used."]
+    },
+    {
+      "prompt": "Analyze this uploaded CSV and summarize the decision-relevant findings.",
+      "expectations": ["Uses executable analysis and checks missing or misleading fields.", "Separates observed findings from possible explanations and offers a useful output file."]
+    }
+  ]
+}

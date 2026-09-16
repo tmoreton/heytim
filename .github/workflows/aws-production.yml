@@ -163,7 +163,7 @@ jobs:
           node-version: 22.23.2
           cache: npm
           cache-dependency-path: |
-            services/froggybot-api/package-lock.json
+            services/API/package-lock.json
             agentcore/cdk/package-lock.json
 
       - uses: actions/setup-python@v7
@@ -173,11 +173,11 @@ jobs:
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
-          cache-dependency-glob: services/agent-runtime/uv.lock
+          cache-dependency-glob: services/runtime/uv.lock
 
       - name: Install production dependencies
         run: |
-          npm ci --prefix services/froggybot-api
+          npm ci --prefix services/API
           npm ci --prefix agentcore/cdk
           npm install --global @aws/agentcore@0.29.0
 
@@ -226,7 +226,7 @@ jobs:
           echo "FROGBOT_AGENT_GATEWAY_ARN=$gateway_arn" >> "$GITHUB_ENV"
 
       - name: Deploy Amplify production backend
-        working-directory: services/froggybot-api
+        working-directory: services/API
         env:
           FROGBOT_ENVIRONMENT: production
           FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN }}
@@ -239,16 +239,16 @@ jobs:
           FROGBOT_MONTHLY_BUDGET_USD: ${{ vars.FROGBOT_MONTHLY_BUDGET_USD }}
           FROGBOT_APNS_APPLICATION_ARN: ${{ vars.FROGBOT_APNS_APPLICATION_ARN }}
           FROGBOT_APNS_SANDBOX_APPLICATION_ARN: ${{ vars.FROGBOT_APNS_SANDBOX_APPLICATION_ARN }}
-        run: npx ampx pipeline-deploy --branch main --app-id "${{ vars.AMPLIFY_APP_ID }}" --outputs-out-dir ../../apps/froggybot
+        run: npx ampx pipeline-deploy --branch main --app-id "${{ vars.AMPLIFY_APP_ID }}" --outputs-out-dir .
 
       - name: Generate release client configuration
-        working-directory: services/froggybot-api
+        working-directory: services/API
         run: npm run outputs:apple
 
       - name: Ensure production meme template catalog
-        working-directory: services/agent-runtime
+        working-directory: services/runtime
         run: |
-          outputs='../../apps/froggybot/amplify_outputs.json'
+          outputs='../API/amplify_outputs.json'
           config='../../agentcore/agentcore.json'
           bucket="$(jq -r '.custom.filesBucketName // empty' "$outputs")"
           prefix="$(jq -r '.runtimes[] | select(.name == "FrogBot") | .envVars[] | select(.name == "FROGBOT_MEME_TEMPLATE_PREFIX") | .value' "$config")"
@@ -267,7 +267,7 @@ jobs:
 
       - name: Resolve production observability outputs
         run: |
-          output() { jq -r ".custom.$1 // empty" apps/froggybot/amplify_outputs.json; }
+          output() { jq -r ".custom.$1 // empty" services/API/amplify_outputs.json; }
           logs_key_arn="$(output logsKeyArn)"
           alarm_topic_arn="$(output alarmTopicArn)"
           feedback_role_arn="$(output nativePushFeedbackRoleArn)"
@@ -299,10 +299,10 @@ jobs:
       - name: Stage production client configuration
         run: |
           staging="$RUNNER_TEMP/frogbot-production-client-configuration"
-          install -d "$staging/apps/froggybot" "$staging/apps/froggybot-apple/Resources"
-          install -m 0600 apps/froggybot/amplify_outputs.json "$staging/apps/froggybot/amplify_outputs.json"
-          install -m 0600 apps/froggybot-apple/Resources/amplify_outputs.json \
-            "$staging/apps/froggybot-apple/Resources/amplify_outputs.json"
+          install -d "$staging/services/API" "$staging/apps/iOS/Resources"
+          install -m 0600 services/API/amplify_outputs.json "$staging/services/API/amplify_outputs.json"
+          install -m 0600 apps/iOS/Resources/amplify_outputs.json \
+            "$staging/apps/iOS/Resources/amplify_outputs.json"
 
       - name: Preserve production client configuration
         uses: actions/upload-artifact@v7
@@ -350,4 +350,4 @@ jobs:
           APPLE_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64 }}
           APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
           FROGGYBOT_BUILD_NUMBER: ${{ steps.apple-build.outputs.number }}
-        run: ./apps/froggybot-apple/scripts/testflight-ci.sh
+        run: ./apps/iOS/scripts/testflight-ci.sh

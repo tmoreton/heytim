@@ -145,7 +145,7 @@ source URLs and stage discipline remain work for the evidence-contract checkpoin
   tables scroll without page overflow. These are local sample-bot tests and
   browser viewport checks, not an on-device iOS gesture or live-bot validation.
 - Re-run with an Expo dev server on port 8082 and
-  `node apps/froggybot/scripts/chat-layout-browser-test.mjs http://localhost:8082`.
+  `node apps/website/scripts/chat-layout-browser-test.mjs http://localhost:8082`.
   The runner only accepts localhost preview URLs and creates an isolated browser
   session. It saves screenshots in a temporary directory and closes its session.
 - Released commit `a02c2ca` in successful [run 34374392873](https://github.com/tmoreton/frogbot/actions/runs/34374392873):

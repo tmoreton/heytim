@@ -9,7 +9,7 @@ they validate source, build local artifacts, and run tests, but do not deploy in
 - Python 3.14
 - `uv`
 - AgentCore CLI `0.29.0`
-- npm dependencies installed in `apps/froggybot`, `apps/froggybot-browser-viewer`, `services/froggybot-api`, and `agentcore/cdk`
+- npm dependencies installed in `apps/website`, `services/API`, and `agentcore/cdk`
 
 ## Complete local verification
 
@@ -20,10 +20,10 @@ scripts/verify.sh
 ```
 
 The script validates the declarative AgentCore configuration, checks and tests the locked runtime environment,
-checks the runtime deployment-package manifest, verifies the shared clients, isolated browser viewer, Expo view layer, and Amplify backend,
-exports the web application, audits backend Python, and builds/tests the generated AgentCore CDK wrapper. On macOS,
+checks the runtime deployment-package manifest, verifies the public catalog, Vite website and Amplify backend,
+prerenders the public pages, audits backend Python, and builds/tests the generated AgentCore CDK wrapper. On macOS,
 the complete command also runs the SwiftUI application suites; focused `application` verification remains limited to
-the browser and shared clients.
+the website, catalog and API contract.
 
 ## Focused checks
 

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 drill_region="${AWS_REGION:-us-east-1}"
-outputs_file="${FROGBOT_OUTPUTS_FILE:-services/froggybot-api/amplify_outputs.json}"
+outputs_file="${FROGBOT_OUTPUTS_FILE:-services/API/amplify_outputs.json}"
 
 if ! command -v aws >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
   echo "The recovery drill requires the AWS CLI and jq." >&2

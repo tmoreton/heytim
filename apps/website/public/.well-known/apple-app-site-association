@@ -1,0 +1,28 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": [
+          "GVXC5FQ2RP.com.frogbot.app"
+        ],
+        "components": [
+          {
+            "/": "/invite",
+            "comment": "Open FroggyBot invitation links in the installed iOS app."
+          }
+        ]
+      }
+    ]
+  },
+  "activitycontinuation": {
+    "apps": [
+      "GVXC5FQ2RP.com.frogbot.app"
+    ]
+  },
+  "webcredentials": {
+    "apps": [
+      "GVXC5FQ2RP.com.frogbot.app"
+    ]
+  }
+}

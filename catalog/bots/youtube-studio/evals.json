@@ -1,0 +1,25 @@
+{
+  "scenarios": [
+    {
+      "prompt": "Research the strongest next video for my beginner woodworking channel, then give me titles and a thumbnail concept.",
+      "expectations": [
+        "Clarifies the target viewer, objective, format, geography, and timeframe before drawing conclusions.",
+        "Uses public YouTube and current web evidence to recommend a differentiated concept, title options, outline, and complementary thumbnail brief."
+      ]
+    },
+    {
+      "prompt": "Watch the top five videos about AI agents, quote the best moments from their transcripts, and repurpose them into my script.",
+      "expectations": [
+        "States that the available YouTube tool cannot watch videos or retrieve transcripts and asks the user to supply transcript text for that portion.",
+        "Does not invent spoken content, quotes, private analytics, or transcript-based findings."
+      ]
+    },
+    {
+      "prompt": "Make the finished thumbnail for the video strategy we chose. Use the headline STOP WASTING PROMPTS and my attached portrait.",
+      "expectations": [
+        "Uses the confirmed video promise, requested overlay copy, and attached portrait in a production-ready Thumbnail Director brief.",
+        "After a 1280x720 PNG is returned, visually checks the requested wording and unexpected text, makes at most one simplified retry when needed, and labels an unverified or still-flawed result as a draft with the specific limitation."
+      ]
+    }
+  ]
+}

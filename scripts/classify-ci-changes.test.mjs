@@ -14,7 +14,7 @@ test('documentation-only changes skip product verification suites', () => {
 });
 
 test('Apple-only changes stay out of non-Apple suites', () => {
-  assert.deepEqual(classifyPaths(['apps/froggybot-apple/Sources/FroggyBotUI/MainView.swift']), {
+  assert.deepEqual(classifyPaths(['apps/iOS/Sources/FroggyBotUI/MainView.swift']), {
     dependencies: false,
     application: false,
     backend: false,
@@ -23,8 +23,8 @@ test('Apple-only changes stay out of non-Apple suites', () => {
   });
 });
 
-test('browser client changes run the application suite', () => {
-  assert.deepEqual(classifyPaths(['apps/froggybot/src/lib/api.ts']), {
+test('website changes run the application suite', () => {
+  assert.deepEqual(classifyPaths(['apps/website/src/lib/api.ts']), {
     dependencies: false,
     application: true,
     backend: false,
@@ -33,9 +33,16 @@ test('browser client changes run the application suite', () => {
   });
 });
 
+test('skill instruction changes verify the catalog and its published website', () => {
+  const result = classifyPaths(['catalog/skills/trip-planner/SKILL.md']);
+  assert.equal(result.application, true);
+  assert.equal(result.backend, false);
+  assert.equal(result.runtime, false);
+});
+
 test('backend contracts verify both the backend and clients', () => {
   assert.deepEqual(classifyPaths([
-    'services/froggybot-api/amplify/functions/api/api-contract.json',
+    'services/API/amplify/functions/api/api-contract.json',
   ]), {
     dependencies: false,
     application: true,
@@ -46,7 +53,7 @@ test('backend contracts verify both the backend and clients', () => {
 });
 
 test('runtime changes verify runtime and AgentCore packaging', () => {
-  assert.deepEqual(classifyPaths(['services/agent-runtime/runtime/main.py']), {
+  assert.deepEqual(classifyPaths(['services/runtime/runtime/main.py']), {
     dependencies: false,
     application: false,
     backend: false,
@@ -56,7 +63,7 @@ test('runtime changes verify runtime and AgentCore packaging', () => {
 });
 
 test('dependency definitions add the dependency audit to their owning suite', () => {
-  assert.deepEqual(classifyPaths(['services/froggybot-api/package-lock.json']), {
+  assert.deepEqual(classifyPaths(['services/API/package-lock.json']), {
     dependencies: true,
     application: false,
     backend: true,

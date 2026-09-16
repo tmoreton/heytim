@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-outputs_file="$repository_root/apps/froggybot/amplify_outputs.json"
+outputs_file="$repository_root/services/API/amplify_outputs.json"
 target_file="$repository_root/agentcore/aws-targets.json"
 runtime_arn="${FROGBOT_AGENT_RUNTIME_ARN:-}"
 gateway_arn="${FROGBOT_AGENT_GATEWAY_ARN:-}"

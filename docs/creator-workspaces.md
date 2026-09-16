@@ -65,7 +65,7 @@ coworkers.
 Operators can provision the same profile through the account-verified application utility:
 
 ```bash
-services/agent-runtime/.venv/bin/python scripts/configure-creator-workspaces.py \
+services/runtime/.venv/bin/python scripts/configure-creator-workspaces.py \
   --email YOUR_EXACT_ACCOUNT_EMAIL \
   --profile YOUR_IAM_OR_SSO_PROFILE \
   --user-pool-id YOUR_USER_POOL_ID \

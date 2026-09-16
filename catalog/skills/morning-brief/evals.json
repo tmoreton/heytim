@@ -1,0 +1,18 @@
+{
+  "shouldTrigger": [
+    "Give me a concise morning brief on AI infrastructure and the three issues I should watch today.",
+    "Create a source-backed weekday briefing for a Boston small-business owner.",
+    "Catch me up on what changed since yesterday in these four topics."
+  ],
+  "shouldNotTrigger": [
+    "Investigate the full history of this market and write a long research report.",
+    "Summarize the unread messages in my Gmail inbox.",
+    "Find cross-platform trends for my next YouTube video."
+  ],
+  "expectations": [
+    "The briefing anchors relative dates to the user's timezone, geography, and explicit lookback window.",
+    "Fresh developments are deduplicated, dated, sourced to original or authoritative pages, and separated from background or speculation.",
+    "Each included item explains why it matters to this reader and ends with an action, question, or watch condition instead of generic summary.",
+    "The result reports material coverage gaps and does not claim calendar, inbox, private-feed, continuous-monitoring, or schedule-creation access."
+  ]
+}

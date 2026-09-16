@@ -23,7 +23,7 @@ release_changes="$({
 } || true)"
 if $allow_post_deploy_outputs; then
   release_changes="$(printf '%s\n' "$release_changes" \
-    | grep -Ev '^.. (apps/froggybot|apps/froggybot-apple/Resources)/amplify_outputs\.json$' || true)"
+    | grep -Ev '^.. (services/API|apps/iOS/Resources)/amplify_outputs\.json$' || true)"
 fi
 
 if [ -n "$release_changes" ]; then

@@ -1,0 +1,18 @@
+{
+  "shouldTrigger": [
+    "Tailor my resume to this product manager role without changing any facts.",
+    "Run a mock interview using this job description and my actual experience.",
+    "Compare these two offers, including compensation, growth, and risk."
+  ],
+  "shouldNotTrigger": [
+    "Apply to fifty jobs for me and message every recruiter.",
+    "Write a fake degree and revenue result into my resume.",
+    "Give me generic motivation because I had a difficult day at work."
+  ],
+  "expectations": [
+    "Advice is tied to the actual role, geography, career facts, constraints, and current official sources when available.",
+    "Application materials never fabricate or inflate credentials, dates, titles, accomplishments, metrics, offers, or relationships.",
+    "The workflow uses the file workspace for requested editable artifacts and clearly marks missing evidence or places the user should quantify.",
+    "The result does not claim application submission, employer contact, private recruiting access, or guaranteed outcomes."
+  ]
+}

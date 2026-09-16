@@ -1,0 +1,19 @@
+{
+  "shouldTrigger": [
+    "Find the emerging AI coding topics showing up across YouTube, X, and the web this week.",
+    "Which trends in home espresso are worth testing with my audience, and which are already saturated?",
+    "Compare current conversation around these three product ideas and give me a ranked opportunity watchlist."
+  ],
+  "shouldNotTrigger": [
+    "Find the current documentation for this one API error.",
+    "Schedule a post to X every morning.",
+    "Summarize this spreadsheet of our private campaign results."
+  ],
+  "expectations": [
+    "The research defines the audience, geography, platforms, decision, and time horizon and uses dated evidence from independent source types.",
+    "The report labels platform-only spikes and weak signals instead of presenting every popular result as a cross-platform trend.",
+    "The ranking separates recency, corroboration, audience fit, saturation, confidence, and counter-evidence without inventing growth rates or forecasts.",
+    "The result names searched, failed, and unavailable sources, states the resulting coverage gaps, and does not call the observed signals comprehensive.",
+    "The result ends with concrete tests or watch conditions and does not claim continuous monitoring or publishing access."
+  ]
+}

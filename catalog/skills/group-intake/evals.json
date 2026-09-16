@@ -1,0 +1,17 @@
+{
+  "shouldTrigger": [
+    "Ask everyone what dates and constraints work before we choose a cabin.",
+    "We need a short set of questions for the parents before planning the school event.",
+    "Collect each teammate's requirements and show what information is still missing."
+  ],
+  "shouldNotTrigger": [
+    "Everyone already answered; compare the three cabin options and help us vote.",
+    "Create the final itinerary for our confirmed dates and destination.",
+    "Split this confirmed dinner bill evenly among six people."
+  ],
+  "expectations": [
+    "The response keeps each participant's inputs distinct.",
+    "The response separates confirmed constraints from assumptions and missing answers.",
+    "The response identifies the next appropriate group workflow without making commitments."
+  ]
+}

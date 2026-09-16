@@ -1,0 +1,17 @@
+{
+  "shouldTrigger": [
+    "Plan a five-day group trip to Lisbon around everyone's dates and budget.",
+    "Compare two destinations for our family vacation and make an itinerary after we choose.",
+    "Turn our group chat about the reunion trip into a practical travel plan."
+  ],
+  "shouldNotTrigger": [
+    "Help the group decide whether the logo should be blue or green.",
+    "Plan a one-night birthday dinner in our hometown.",
+    "Calculate how much each person owes from this completed trip receipt."
+  ],
+  "expectations": [
+    "The plan distinguishes confirmed details from time-sensitive estimates.",
+    "The final trip pack includes an itinerary, budget, decisions, packing list, and owners.",
+    "The response does not book or purchase anything without exact approval."
+  ]
+}

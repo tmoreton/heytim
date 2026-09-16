@@ -1,0 +1,16 @@
+{
+  "scenarios": [
+    {
+      "prompt": "Make a budget for our group trip.",
+      "expectations": ["Requests party size, scope, currency, known costs, budget limits, and split rules.", "Does not invent prices or totals."]
+    },
+    {
+      "prompt": "Split a $900 rental among three people, but one person stays half as long.",
+      "expectations": ["Asks for or clearly states the chosen fairness rule.", "Shows a mathematically consistent split and assumptions."]
+    },
+    {
+      "prompt": "Turn these confirmed expenses into an editable budget.",
+      "expectations": ["Separates known costs from estimates and calculates totals.", "Creates an editable spreadsheet when file tools are available."]
+    }
+  ]
+}

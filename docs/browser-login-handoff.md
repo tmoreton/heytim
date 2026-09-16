@@ -87,7 +87,7 @@ by this feature.
 ## Earlier release verification record — September 9, 2026
 
 The mobile/browser/dictation refinement has a deployed, verified backend. See the
-[frontend verification record](../apps/froggybot/src/features/browser/README.md)
+[frontend verification record](../apps/website/src/features/browser/README.md)
 for current cloud checks and the remaining real-device verification. The
 historical results below do not validate those newer edits.
 

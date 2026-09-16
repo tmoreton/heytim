@@ -1,0 +1,17 @@
+{
+  "shouldTrigger": [
+    "Plan our 40-person launch party with a budget, owners, and run of show.",
+    "Coordinate the neighborhood fundraiser and keep a live checklist.",
+    "Turn our wedding shower discussion into a complete event plan."
+  ],
+  "shouldNotTrigger": [
+    "Plan a week-long group trip to Japan.",
+    "We only need to choose between two meeting times.",
+    "Summarize this article about event marketing."
+  ],
+  "expectations": [
+    "The response orders event decisions by their dependencies.",
+    "Committed tasks have a clear owner and useful due date.",
+    "The final event pack includes a run of show, checklist, budget, contacts, and open decisions."
+  ]
+}

@@ -1,1 +1,0 @@
-FroggyBot authenticated attachment upload verification.

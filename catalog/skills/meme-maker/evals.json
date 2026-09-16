@@ -1,0 +1,17 @@
+{
+  "shouldTrigger": [
+    "Put 'ME OPENING ONE QUICK EMAIL' on top and 'THREE HOURS LATER' on the bottom of this image.",
+    "Turn the attached reaction image into a meme about deployment day.",
+    "Make a Drake meme where the first panel rejects flaky tests and the second celebrates deterministic tests."
+  ],
+  "shouldNotTrigger": [
+    "Write five funny caption ideas but do not edit an image yet.",
+    "Generate an original illustration of a frog shipping code.",
+    "Crop this product photo and remove its background."
+  ],
+  "expectations": [
+    "A named or implied popular format is searched in the stored template library before asking for an upload.",
+    "Stored-template captions follow the order returned by the search, while attached images remain the source of truth.",
+    "The bot calls the meme compositor and claims a finished PNG only after the tool succeeds."
+  ]
+}

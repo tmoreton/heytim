@@ -415,12 +415,12 @@ The product does not need another broad feature wave before those gates. It need
 
 ### Internal evidence
 
-- `README.md` and `apps/froggybot/README.md`, product model and implemented capabilities.
+- `README.md` and `apps/website/README.md`, product model and implemented capabilities.
 - `docs/architecture.md`, authorization, memory, scheduling, artifact, and group-boundary design.
 - `docs/grokbot-parity-roadmap.md`, implemented-versus-live status, intended differentiation, known gaps, and deferral decisions.
 - `docs/verification-history.md`, dated live-development performance, workflow, recovery, redaction, and alarm evidence.
 - `agentcore/aws-targets.json`, development target status.
-- `apps/froggybot/src/features/chat/conversation-panel.tsx`, group attachment exclusion at line 203.
-- `apps/froggybot/src/features/chat/chat-app.tsx`, mobile drawer implementation at lines 396–400.
-- `apps/froggybot/src/features/chat/message-composer.tsx`, group reply-chip semantics at lines 185–205.
+- `apps/website/src/features/chat/conversation-panel.tsx`, group attachment exclusion at line 203.
+- `apps/website/src/features/chat/chat-app.tsx`, mobile drawer implementation at lines 396–400.
+- `apps/website/src/features/chat/message-composer.tsx`, group reply-chip semantics at lines 185–205.
 - Hands-on local preview and read-only live application evaluation, September 8, 2026.

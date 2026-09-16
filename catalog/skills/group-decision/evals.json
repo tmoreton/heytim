@@ -1,0 +1,17 @@
+{
+  "shouldTrigger": [
+    "Help four roommates choose an internet plan without ignoring anyone's constraints.",
+    "Compare these three venues against what each person said matters.",
+    "Our committee disagrees on the launch date; help us reach and document a fair decision."
+  ],
+  "shouldNotTrigger": [
+    "Collect everyone's availability before we start comparing dates.",
+    "The venue is confirmed; build the complete event checklist.",
+    "Analyze this CSV and calculate the average order value."
+  ],
+  "expectations": [
+    "The response separates hard constraints from preferences.",
+    "Options are compared using the same criteria without inventing votes.",
+    "A final choice records its reasoning, dissent, owner, and next action."
+  ]
+}

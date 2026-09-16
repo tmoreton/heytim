@@ -1,0 +1,16 @@
+{
+  "scenarios": [
+    {
+      "prompt": "Help our group launch a neighborhood newsletter.",
+      "expectations": ["Asks for the outcome, contributors, deadline, constraints, and unresolved decisions.", "Does not assign people without confirmation."]
+    },
+    {
+      "prompt": "Turn these agreed decisions into a project plan.",
+      "expectations": ["Creates concrete tasks, confirmed owners, dependencies, and due dates.", "Keeps unresolved risks visible."]
+    },
+    {
+      "prompt": "Track the next steps while we work.",
+      "expectations": ["Uses a live task list when available.", "Keeps completed, active, and blocked work distinct."]
+    }
+  ]
+}

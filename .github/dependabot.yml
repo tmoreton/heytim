@@ -12,11 +12,8 @@ updates:
 
   - package-ecosystem: npm
     directories:
-      - /apps/froggybot
-      - /apps/froggybot-browser-viewer
-      - /packages/froggybot-client
-      - /packages/froggybot-preview
-      - /services/froggybot-api
+      - /apps/website
+      - /services/API
       - /agentcore/cdk
     schedule:
       interval: weekly
@@ -31,7 +28,7 @@ updates:
         patterns: ['*']
 
   - package-ecosystem: uv
-    directory: /services/agent-runtime
+    directory: /services/runtime
     schedule:
       interval: weekly
       day: monday
@@ -42,7 +39,7 @@ updates:
 
   - package-ecosystem: swift
     directories:
-      - /apps/froggybot-apple
+      - /apps/iOS
       - /packages/frogbot-transcription
     schedule:
       interval: weekly

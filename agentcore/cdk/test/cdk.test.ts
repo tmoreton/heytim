@@ -15,9 +15,9 @@ import {
 test('deployment preflight rejects source changes but ignores generated deploy state', () => {
   expect(
     dirtySourceEntries(
-      ' M services/agent-runtime/runtime/main.py\n' + ' M agentcore/.cli/deployed-state.json\n' + '?? scratch.txt\n'
+      ' M services/runtime/runtime/main.py\n' + ' M agentcore/.cli/deployed-state.json\n' + '?? scratch.txt\n'
     )
-  ).toEqual([' M services/agent-runtime/runtime/main.py', '?? scratch.txt']);
+  ).toEqual([' M services/runtime/runtime/main.py', '?? scratch.txt']);
 });
 
 test('AgentCoreStack synthesizes with a minimal resource spec', () => {
@@ -255,7 +255,7 @@ test('authoritative AgentCore config preserves the runtime wiring contract', asy
 
   expect(runtime).toMatchObject({
     build: 'CodeZip',
-    codeLocation: 'services/agent-runtime/runtime/',
+    codeLocation: 'services/runtime/runtime/',
     runtimeVersion: 'PYTHON_3_14',
     networkMode: 'PUBLIC',
     authorizerType: 'AWS_IAM',

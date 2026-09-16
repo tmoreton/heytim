@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: FroggyBot external research targets whose API-key placement is not expressible in AgentCore project schema v1.
+
+Parameters:
+  GatewayIdentifier:
+    Type: String
+    AllowedPattern: '^([0-9a-z][-]?){1,100}-[0-9a-z]{10}$'
+    Description: Existing FroggyBot AgentCore Gateway ID.
+  GatewayRoleName:
+    Type: String
+    AllowedPattern: '[\w+=,.@-]+'
+    MinLength: 1
+    MaxLength: 64
+    Description: Existing FroggyBot AgentCore Gateway execution role name.
+  SchemaBucketName:
+    Type: String
+    Default: bedrock-agentcore-gateway-frogbot-188757775631-use1
+    AllowedPattern: '[a-z0-9.-]{3,63}'
+    Description: Private bucket containing immutable schema release objects.
+  Release:
+    Type: String
+    Default: skills-v26
+    AllowedPattern: 'skills-v[1-9][0-9]*'
+    Description: FroggyBot Skills release containing the deployed schemas.
+  XCredentialProviderName:
+    Type: String
+    Default: FrogBotXApi
+    AllowedPattern: '[a-zA-Z0-9\-_]+'
+  YouTubeCredentialProviderName:
+    Type: String
+    Default: FrogBotYouTubeApi
+    AllowedPattern: '[a-zA-Z0-9\-_]+'
+  XCredentialSecretArn:
+    Type: String
+    AllowedPattern: '^arn:[^:]+:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:bedrock-agentcore-identity![A-Za-z0-9/_+=.@-]+$'
+    Description: Exact managed Secrets Manager ARN returned for FrogBotXApi.
+  YouTubeCredentialSecretArn:
+    Type: String
+    AllowedPattern: '^arn:[^:]+:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:bedrock-agentcore-identity![A-Za-z0-9/_+=.@-]+$'
+    Description: Exact managed Secrets Manager ARN returned for FrogBotYouTubeApi.
+
+Resources:
+  GatewaySchemaAccessPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub '${AWS::StackName}-schema-read'
+      Roles:
+        - !Ref GatewayRoleName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: ReadReviewedSchemas
+            Effect: Allow
+            Action: s3:GetObject
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:s3:::${SchemaBucketName}/releases/${Release}/x/openapi.yaml'
+              - !Sub 'arn:${AWS::Partition}:s3:::${SchemaBucketName}/releases/${Release}/youtube/openapi.yaml'
+          - Sid: GetGatewayWorkloadToken
+            Effect: Allow
+            Action: bedrock-agentcore:GetWorkloadAccessToken
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default'
+              - !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default/workload-identity/${GatewayIdentifier}'
+          - Sid: UseReviewedApiKeys
+            Effect: Allow
+            Action: bedrock-agentcore:GetResourceApiKey
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default'
+              - !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default/workload-identity/${GatewayIdentifier}'
+              - !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:token-vault/default'
+              - !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:token-vault/default/apikeycredentialprovider/${XCredentialProviderName}'
+              - !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:token-vault/default/apikeycredentialprovider/${YouTubeCredentialProviderName}'
+          - Sid: ReadReviewedAgentCoreSecrets
+            Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource:
+              - !Ref XCredentialSecretArn
+              - !Ref YouTubeCredentialSecretArn
+
+  XResearchTarget:
+    Type: AWS::BedrockAgentCore::GatewayTarget
+    DependsOn: GatewaySchemaAccessPolicy
+    Properties:
+      GatewayIdentifier: !Ref GatewayIdentifier
+      Name: FrogBotXSearch
+      Description: Read-only search of recent public X posts.
+      TargetConfiguration:
+        Mcp:
+          OpenApiSchema:
+            S3:
+              Uri: !Sub 's3://${SchemaBucketName}/releases/${Release}/x/openapi.yaml'
+      CredentialProviderConfigurations:
+        - CredentialProviderType: API_KEY
+          CredentialProvider:
+            ApiKeyCredentialProvider:
+              ProviderArn: !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:token-vault/default/apikeycredentialprovider/${XCredentialProviderName}'
+              CredentialLocation: HEADER
+              CredentialParameterName: Authorization
+              # AgentCore adds the separator; a trailing space here makes X return 401.
+              CredentialPrefix: Bearer
+
+  YouTubeResearchTarget:
+    Type: AWS::BedrockAgentCore::GatewayTarget
+    DependsOn: GatewaySchemaAccessPolicy
+    Properties:
+      GatewayIdentifier: !Ref GatewayIdentifier
+      Name: FrogBotYouTube
+      Description: Read-only YouTube search, public metadata, and comments.
+      TargetConfiguration:
+        Mcp:
+          OpenApiSchema:
+            S3:
+              Uri: !Sub 's3://${SchemaBucketName}/releases/${Release}/youtube/openapi.yaml'
+      CredentialProviderConfigurations:
+        - CredentialProviderType: API_KEY
+          CredentialProvider:
+            ApiKeyCredentialProvider:
+              ProviderArn: !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:token-vault/default/apikeycredentialprovider/${YouTubeCredentialProviderName}'
+              CredentialLocation: QUERY_PARAMETER
+              CredentialParameterName: key
+
+Outputs:
+  XResearchTargetId:
+    Description: AgentCore target ID for X research.
+    Value: !GetAtt XResearchTarget.TargetId
+  YouTubeResearchTargetId:
+    Description: AgentCore target ID for YouTube research.
+    Value: !GetAtt YouTubeResearchTarget.TargetId

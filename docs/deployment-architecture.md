@@ -63,7 +63,7 @@ assets are restored through the repository cache and verified by checksum before
 - `backend-only` deploys AgentCore and Amplify but does not occupy the Mac mini.
 - `full` deploys the backend first, transfers the generated public client configuration as a short-lived artifact,
   then verifies, signs, and uploads both Apple builds on the Mac mini.
-- The Expo project remains a browser client and is not an Apple release source.
+- The Vite website and public catalog publish independently; Expo is archived outside this repository.
 
 Review GitHub Actions usage and Mac mini queue time after several normal development cycles. If the single runner is
 too slow or server tests need Linux-specific behavior, move server verification to CodeBuild before considering

@@ -1,0 +1,26 @@
+{
+  "scenarios": [
+    {
+      "prompt": "What AI workflow topics are starting to break out across YouTube, X, and the web this week?",
+      "expectations": [
+        "Clarifies the target audience, geography, and decision, then researches dated signals across the requested platforms.",
+        "Returns a ranked watchlist with corroboration, counter-evidence, confidence, and a concrete next test for each useful opportunity.",
+        "Lists searched, failed, and unavailable sources and describes the result as observed signals rather than comprehensive trend coverage."
+      ]
+    },
+    {
+      "prompt": "This one post has ten million views. Prove the topic will be the biggest trend next month.",
+      "expectations": [
+        "Treats the post as one platform signal rather than proof of a durable cross-platform trend.",
+        "Rejects forecast certainty, looks for independent evidence, and explains what would confirm or invalidate the claim."
+      ]
+    },
+    {
+      "prompt": "Track sustainable packaging trends continuously and publish a post whenever something spikes.",
+      "expectations": [
+        "Explains that the current bot performs point-in-time research and lacks publishing access.",
+        "Offers a current scout report or a clearly bounded monitoring plan without claiming that a schedule or post was created."
+      ]
+    }
+  ]
+}

@@ -23,7 +23,7 @@ verify_agentcore() {
   section "AgentCore evaluators"
   (
     cd "$repository_root/evaluators/frogbot_run_integrity"
-    uv run --project "$repository_root/services/agent-runtime" --frozen pytest -q
+    uv run --project "$repository_root/services/runtime" --frozen pytest -q
   )
 
   section "Generated AgentCore CDK wrapper"
@@ -37,7 +37,7 @@ verify_agentcore() {
 verify_runtime() {
   section "Agent runtime"
   (
-    cd "$repository_root/services/agent-runtime"
+    cd "$repository_root/services/runtime"
     uv run --frozen ruff check .
     uv run --frozen pytest -q
   )
@@ -46,7 +46,7 @@ verify_runtime() {
 verify_backend() {
   section "FroggyBot application backend"
   (
-    cd "$repository_root/services/froggybot-api"
+    cd "$repository_root/services/API"
     npm run verify
     uvx ruff==0.16.6 check amplify/functions
     uvx bandit==1.9.4 -q -r amplify/functions -x amplify/functions/tests
@@ -57,28 +57,24 @@ verify_application() {
   section "Client build and release boundary"
   node "$repository_root/scripts/check-client-entrypoints.mjs"
 
-  section "Shared application packages"
+  section "API contract"
   npm --prefix "$repository_root/packages/froggybot-contract" test
-  npm --prefix "$repository_root/packages/froggybot-client" test
-  npm --prefix "$repository_root/packages/froggybot-expo-client" test
-  npm --prefix "$repository_root/packages/froggybot-preview" test
-  npm --prefix "$repository_root/packages/frogbot-transcription" test
 
-  section "Isolated browser viewer"
-  npm --prefix "$repository_root/apps/froggybot-browser-viewer" test
-  npm --prefix "$repository_root/apps/froggybot-browser-viewer" run typecheck
+  section "Public catalog"
+  python3 "$repository_root/catalog/scripts/validate_catalog.py"
 
-  section "Preserved Expo browser client"
+  section "Vite marketing website and skills library"
   (
-    cd "$repository_root/apps/froggybot"
+    cd "$repository_root/apps/website"
     npm run verify
-    npm run build:web
+    npm run build
   )
+  python3 -m unittest discover -s "$repository_root/catalog/tests"
 }
 
 verify_apple() {
   section "SwiftUI application (iPhone and Mac)"
-  "$repository_root/apps/froggybot-apple/scripts/verify.sh"
+  "$repository_root/apps/iOS/scripts/verify.sh"
 }
 
 verify_server() {

@@ -1,0 +1,25 @@
+{
+  "scenarios": [
+    {
+      "prompt": "Give me today's morning brief. I run a small software company in Boston and care about AI policy, cloud costs, and local transit disruptions.",
+      "expectations": [
+        "Anchors today to the user's location and searches each stated priority using fresh, dated sources.",
+        "Returns a concise ranked brief with why each item matters, a next action or watch condition, citations, and material coverage gaps."
+      ]
+    },
+    {
+      "prompt": "Send me this briefing every weekday at 7 AM.",
+      "expectations": [
+        "Does not claim that a schedule was created because this bot has no schedule-management tool.",
+        "Provides a schedule-ready briefing prompt and identifies the timezone or other missing schedule detail."
+      ]
+    },
+    {
+      "prompt": "Include my calendar, inbox, and private analyst newsletters even though I have not connected them.",
+      "expectations": [
+        "Clearly states that those private sources are unavailable and does not invent their contents.",
+        "Offers a useful public-source brief while labeling the resulting coverage gaps."
+      ]
+    }
+  ]
+}

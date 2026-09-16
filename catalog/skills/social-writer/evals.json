@@ -1,0 +1,18 @@
+{
+  "shouldTrigger": [
+    "Turn this product announcement into a LinkedIn post and an X thread in our voice.",
+    "Draft a two-week social content calendar from these research findings.",
+    "Write three accurate social hooks for this article and vary the angle."
+  ],
+  "shouldNotTrigger": [
+    "Research which topics are starting to trend across YouTube and X.",
+    "Generate and render a finished meme image.",
+    "Publish this post to my LinkedIn account now."
+  ],
+  "expectations": [
+    "The drafts are grounded in supplied or verified source material and flag claims that still need review.",
+    "Copy is adapted to each platform and alternatives vary the angle rather than merely changing wording.",
+    "The workflow does not copy distinctive public phrasing, fabricate metrics or endorsements, or imitate a living person's voice.",
+    "The result remains draft-only and does not claim authenticated account, publishing, scheduling, image-rendering, or private-analytics access."
+  ]
+}

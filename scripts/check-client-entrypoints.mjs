@@ -1,43 +1,37 @@
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const expoRoot = path.join(root, 'apps/froggybot');
-const packageJson = JSON.parse(await readFile(path.join(expoRoot, 'package.json'), 'utf8'));
-const eas = JSON.parse(await readFile(path.join(expoRoot, 'eas.json'), 'utf8'));
-const workflow = await readFile(path.join(root, '.github/workflows/eas-update.yml'), 'utf8');
-
-const expectedScripts = {
-  ios: '../../scripts/apple-app.sh run ios',
-  'ios:build': '../../scripts/apple-app.sh build ios',
-  'ios:mac': '../../scripts/apple-app.sh run macos',
-  'ios:mac:build': '../../scripts/apple-app.sh build macos',
-  'eas-build-pre-install': 'node scripts/reject-deprecated-native-build.mjs',
-};
-
-for (const [name, command] of Object.entries(expectedScripts)) {
-  if (packageJson.scripts?.[name] !== command) {
-    throw new Error(`Expo script ${name} must route through the supported SwiftUI/deprecation entry point.`);
+const website = JSON.parse(await readFile(path.join(root, 'apps/website/package.json'), 'utf8'));
+const dependencies = { ...website.dependencies, ...website.devDependencies };
+if (Object.keys(dependencies).some((name) => /expo|react-native|amplify|froggybot\/(client|preview)/.test(name))) {
+  throw new Error('The public website must not depend on the retired chat/native/auth stack.');
+}
+if (!dependencies.vite || !dependencies.react || !website.scripts.build.includes('vite build')) {
+  throw new Error('The public website must use Vite and React.');
+}
+const apps = (await readdir(path.join(root, 'apps'), { withFileTypes: true }))
+  .filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+if (JSON.stringify(apps) !== JSON.stringify(['iOS', 'website'])) {
+  throw new Error(`Unexpected app directories: ${apps.join(', ')}. Expo belongs in the local reference archive.`);
+}
+for (const retired of ['apps/website/amplify_outputs.json', 'apps/website/eas.json', '.easignore']) {
+  try { await access(path.join(root, retired)); } catch (error) {
+    if (error.code === 'ENOENT') continue;
+    throw error;
   }
-}
-
-const buildProfiles = Object.keys(eas.build ?? {});
-if (buildProfiles.length === 0 || buildProfiles.some((profile) => !profile.startsWith('archived-'))) {
-  throw new Error('Every retained Expo native build profile must be explicitly archived.');
-}
-if (eas.submit !== undefined) {
-  throw new Error('The deprecated Expo client must not define an EAS submit profile.');
-}
-if (/\beas\s+update\b/.test(workflow)) {
-  throw new Error('The browser deployment workflow must not publish a native Expo update.');
+  throw new Error(`Retired or private client configuration found at ${retired}`);
 }
 
 await Promise.all([
   access(path.join(root, 'scripts/apple-app.sh')),
-  access(path.join(root, 'apps/froggybot-apple/scripts/run.sh')),
-  access(path.join(root, 'apps/froggybot-apple/scripts/archive.sh')),
-  access(path.join(root, 'apps/froggybot-apple/scripts/testflight.sh')),
+  access(path.join(root, 'apps/iOS/scripts/run.sh')),
+  access(path.join(root, 'apps/iOS/scripts/archive.sh')),
+  access(path.join(root, 'apps/iOS/scripts/testflight.sh')),
+  access(path.join(root, 'services/API/amplify_outputs.json')),
+  access(path.join(root, 'services/runtime/runtime/main.py')),
+  access(path.join(root, 'catalog/catalog.json')),
 ]);
 
-console.log('Verified SwiftUI is the primary Apple build and TestFlight entry point.');
+console.log('Verified Vite public site, SwiftUI releases, API, runtime, and local catalog boundaries.');

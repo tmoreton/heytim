@@ -32,9 +32,12 @@ Tags defined in `agentcore.json` flow through to deployed CloudFormation resourc
 myProject/
 ├── AGENTS.md               # This file — AI coding assistant context
 ├── apps/
-│   └── froggybot/          # Expo iOS/web product and Amplify application backend
+│   ├── iOS/               # Shared SwiftUI iPhone and macOS app
+│   └── website/           # Vite + React marketing site and skills library
 ├── services/
-│   └── agent-runtime/      # AgentCore runtime source
+│   ├── API/               # Amplify application backend
+│   └── runtime/           # AgentCore runtime source
+├── catalog/               # Reviewed bots, skills, tool definitions and validation
 ├── agentcore/
 │   ├── agentcore.json      # Main project config (AgentCoreProjectSpec)
 │   ├── aws-targets.json    # Deployment targets (account + region)
@@ -139,7 +142,7 @@ When modifying JSON config files:
 ## Harness Export
 
 `agentcore export harness` writes generated Strands code under `app/<agentName>/`. This repository keeps its
-maintained runtime under `services/agent-runtime/`, so treat the generated folder as staging output and merge it only
+maintained runtime under `services/runtime/`, so treat the generated folder as staging output and merge it only
 after completing its export notes.
 
 **After every export, you MUST read `app/<agentName>/EXPORT_NOTES.md` before proceeding.**

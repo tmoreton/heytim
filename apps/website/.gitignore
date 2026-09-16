@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+public/catalog.json
+public/skills/
+public/tools/
+public/bots/
+.env*.local

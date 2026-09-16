@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-apple_root="$repository_root/apps/froggybot-apple"
+apple_root="$repository_root/apps/iOS"
 
 usage() {
   cat <<'EOF'
@@ -17,8 +17,8 @@ Usage:
   APPLE_TEAM_ID=TEAMID ./scripts/apple-app.sh testflight [--dry-run] <ios|macos|all>
 
 The SwiftUI project is the only supported local or TestFlight build source for
-iPhone and Mac. The preserved Expo project is the browser client and legacy
-reference implementation; it cannot create a native release.
+iPhone and Mac. apps/website is the public Vite marketing site, not a chat or
+native release target. The Expo source is archived outside this repository.
 EOF
 }
 

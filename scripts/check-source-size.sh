@@ -10,10 +10,10 @@ cd "$repository_root"
 while IFS= read -r file; do
   [[ -f "$file" ]] || continue
   case "$file" in
-    services/agent-runtime/vendor/*|*/node_modules/*|*/.amplify/*|*/dist/*|agentcore/cdk/*)
+    services/runtime/vendor/*|*/node_modules/*|*/.amplify/*|*/dist/*|agentcore/cdk/*)
       continue
       ;;
-    services/agent-runtime/*|services/froggybot-api/amplify/functions/*|services/froggybot-api/amplify/infrastructure/*|services/froggybot-api/amplify/backend.ts|services/froggybot-api/scripts/*|apps/froggybot/src/*|apps/froggybot/scripts/*|apps/froggybot-browser-viewer/src/*|packages/*/src/*|scripts/*)
+    services/runtime/*|services/API/amplify/functions/*|services/API/amplify/infrastructure/*|services/API/amplify/backend.ts|services/API/scripts/*|apps/website/src/*|apps/website/scripts/*|catalog/scripts/*|packages/*/src/*|scripts/*)
       ;;
     *)
       continue

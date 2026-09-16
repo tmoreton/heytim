@@ -13,7 +13,7 @@
       "description": "Stan-powered multi-personality chat runtime for the FroggyBot mobile app",
       "build": "CodeZip",
       "entrypoint": "main.py",
-      "codeLocation": "services/agent-runtime/runtime/",
+      "codeLocation": "services/runtime/runtime/",
       "runtimeVersion": "PYTHON_3_14",
       "networkMode": "PUBLIC",
       "protocol": "HTTP",

@@ -1,0 +1,17 @@
+{
+  "shouldTrigger": [
+    "Inspect this sales CSV, calculate retention by cohort, and create a spreadsheet with the results.",
+    "Check this dataset for missing values and outliers before answering the business question.",
+    "Use executable analysis to compare these scenarios and verify the conclusion."
+  ],
+  "shouldNotTrigger": [
+    "Split this known group dinner total evenly among four people.",
+    "Summarize the main argument in this PDF without analyzing its data.",
+    "Search the web for current market-size estimates."
+  ],
+  "expectations": [
+    "The analysis checks data shape and quality before drawing conclusions.",
+    "Important calculations are verified with a second calculation or sanity check.",
+    "The result distinguishes evidence from interpretation and does not invent missing data."
+  ]
+}

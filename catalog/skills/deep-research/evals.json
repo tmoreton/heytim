@@ -1,0 +1,17 @@
+{
+  "shouldTrigger": [
+    "Research the strongest evidence for and against this market and give me a sourced recommendation.",
+    "Compare the current approaches to long-term agent memory using primary sources.",
+    "Investigate whether we should enter this market and identify the uncertainties that could change the decision."
+  ],
+  "shouldNotTrigger": [
+    "Open this one URL and tell me its headline.",
+    "Calculate 18 percent of 420.",
+    "Rewrite this paragraph to sound friendlier."
+  ],
+  "expectations": [
+    "The response leads with a decision-ready conclusion rather than a research diary.",
+    "Consequential claims are cited near the claim and favor primary sources.",
+    "Facts, synthesis, uncertainty, and remaining gaps are distinguishable."
+  ]
+}

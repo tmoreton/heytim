@@ -35,8 +35,6 @@ let package = Package(
             ],
             path: "ios",
             exclude: [
-                "Expo",
-                "FroggyBotTranscription.podspec",
                 "Generated/Frameworks",
                 "Generated/Notices",
                 "Notices",

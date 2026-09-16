@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 const suiteNames = ['dependencies', 'application', 'backend', 'runtime', 'agentcore'];
 
 const sharedVerificationPaths = new Set([
-  '.github/workflows/eas-update.yml',
+  '.github/workflows/verify.yml',
   'scripts/classify-ci-changes.mjs',
   'scripts/classify-ci-changes.test.mjs',
   'scripts/verify.sh',
@@ -21,7 +21,7 @@ const knownNonCodePrefixes = [
 ];
 
 const separatelyVerifiedPrefixes = [
-  'apps/froggybot-apple/',
+  'apps/iOS/',
 ];
 
 const knownNonCodeFiles = new Set([
@@ -64,19 +64,19 @@ export function classifyPaths(paths) {
     const matched = {
       dependencies: isDependencyDefinition(path),
       application: startsWithAny(path, [
-        'apps/froggybot/',
-        'apps/froggybot-browser-viewer/',
+        'apps/website/',
+        'catalog/',
         'packages/',
       ]) || path === 'scripts/check-client-entrypoints.mjs'
-        || path === 'services/froggybot-api/amplify/functions/api/api-contract.json'
-        || path === 'services/froggybot-api/scripts/generate-api-contract.mjs',
-      backend: path.startsWith('services/froggybot-api/')
+        || path === 'services/API/amplify/functions/api/api-contract.json'
+        || path === 'services/API/scripts/generate-api-contract.mjs',
+      backend: path.startsWith('services/API/')
         || path.startsWith('packages/froggybot-contract/'),
-      runtime: path.startsWith('services/agent-runtime/')
+      runtime: path.startsWith('services/runtime/')
         || path.startsWith('evaluators/')
         || path === 'agentcore/agentcore.json',
       agentcore: path.startsWith('agentcore/')
-        || path.startsWith('services/agent-runtime/')
+        || path.startsWith('services/runtime/')
         || path.startsWith('evaluators/'),
     };
 

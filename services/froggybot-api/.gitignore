@@ -1,7 +1,0 @@
-node_modules/
-.amplify/
-amplify_outputs.json
-__pycache__/
-*.py[cod]
-*.tsbuildinfo
-.env*.local

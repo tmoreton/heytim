@@ -17,7 +17,7 @@ Separately, the former Anthropic submission URL now redirects
 to documentation, so repairing the browser does not itself complete submission.
 
 The app validates bot creation and editing in
-`services/froggybot-api/amplify/functions/api/bots.py`, including catalog access, pinned
+`services/API/amplify/functions/api/bots.py`, including catalog access, pinned
 skills, and interactive-tool scheduling restrictions. The runtime resolves
 capabilities through `capability_contract.py` and `capabilities.py`. Its scoped
 `bot_manager` capability returns typed mutations for server-side validation instead

@@ -3,5 +3,9 @@
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
-services/agent-runtime/.agentcore.json
-services/agent-runtime/evals/results/
+services/runtime/.agentcore.json
+services/runtime/evals/results/
+
+# Generated local verification evidence. Keep intentional media in output/.
+output/e2e-*/
+output/*.xcresult/

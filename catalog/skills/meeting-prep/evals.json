@@ -1,0 +1,18 @@
+{
+  "shouldTrigger": [
+    "Prepare me for tomorrow's partnership meeting with this company and give me an agenda and questions.",
+    "Research these attendees and build a decision-focused prep brief for our sales call.",
+    "Turn this agenda and account history into a checklist for my executive meeting."
+  ],
+  "shouldNotTrigger": [
+    "Summarize the decisions from this completed meeting transcript.",
+    "Send a calendar invite to everyone for Tuesday.",
+    "Research this company generally with no upcoming conversation."
+  ],
+  "expectations": [
+    "The prep confirms the meeting objective, timing, attendees, desired decisions, relationship context, and material sensitivities.",
+    "Public professional research resolves identity ambiguity, cites current sources, and avoids irrelevant personal information or unsupported motive claims.",
+    "The output includes a usable agenda, prioritized questions, proof points, risks, decision targets, and preparation checklist without inventing commitments.",
+    "The result does not claim calendar, invitation, email, attendance, recording, transcript, or post-meeting access."
+  ]
+}

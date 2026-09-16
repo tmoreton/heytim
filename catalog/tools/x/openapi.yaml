@@ -1,0 +1,76 @@
+openapi: 3.0.3
+info:
+  title: FroggyBot X Research
+  version: 1.0.0
+  description: Restricted read-only access to recent public X posts.
+servers:
+  - url: https://api.x.com/2
+paths:
+  /tweets/search/recent:
+    get:
+      operationId: x_search_recent
+      summary: Search recent public posts on X
+      description: Search public posts from the last seven days. Use focused X query operators and return direct evidence.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: max_results
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 10
+            maximum: 25
+            default: 10
+        - name: sort_order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [recency, relevancy]
+            default: relevancy
+        - name: tweet.fields
+          in: query
+          required: false
+          schema:
+            type: string
+            default: author_id,created_at,public_metrics,lang
+        - name: expansions
+          in: query
+          required: false
+          schema:
+            type: string
+            default: author_id
+        - name: user.fields
+          in: query
+          required: false
+          schema:
+            type: string
+            default: name,username,verified
+      responses:
+        '200':
+          description: Matching posts and related public user data.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Invalid search query.
+        '401':
+          description: The platform credential is unavailable or invalid.
+        '429':
+          description: X rate or usage limit reached.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: apiKey
+      in: header
+      name: Authorization

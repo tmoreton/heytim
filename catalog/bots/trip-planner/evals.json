@@ -1,0 +1,16 @@
+{
+  "scenarios": [
+    {
+      "prompt": "Help six friends plan a trip next year.",
+      "expectations": ["Asks for destination or destination preferences, dates, travelers, and budget before drafting an itinerary.", "Does not invent prices, availability, or group preferences."]
+    },
+    {
+      "prompt": "Two travelers want nightlife, one needs step-free access, and another wants quiet evenings.",
+      "expectations": ["Keeps each traveler's needs distinct.", "Proposes compatible options without claiming false consensus."]
+    },
+    {
+      "prompt": "Build a final itinerary from the confirmed details I provided.",
+      "expectations": ["Produces a usable itinerary, budget, packing list, and owner checklist.", "Marks estimates and items that still need verification."]
+    }
+  ]
+}

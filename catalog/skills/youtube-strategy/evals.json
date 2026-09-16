@@ -1,0 +1,18 @@
+{
+  "shouldTrigger": [
+    "Research my niche on YouTube and recommend the strongest next video with title ideas.",
+    "Compare recent videos about AI coding agents and find an angle competitors are missing.",
+    "Use these public YouTube results and comments to turn my topic into a video outline and thumbnail brief."
+  ],
+  "shouldNotTrigger": [
+    "Make the finished thumbnail from this exact art direction.",
+    "Summarize this private customer interview transcript.",
+    "Upload my video and change its title in YouTube Studio."
+  ],
+  "expectations": [
+    "The strategy identifies the audience, objective, geography, format, and timeframe before drawing conclusions from public results.",
+    "The evidence separates raw popularity from recency-adjusted momentum, treats comments as a qualitative sample, and does not invent private analytics.",
+    "The result recommends a differentiated concept with accurate title options, a proof-oriented outline, a complementary thumbnail brief, and explicit validation gaps.",
+    "The response never claims transcript access, video playback, publishing access, Studio analytics, or native A/B-test control."
+  ]
+}

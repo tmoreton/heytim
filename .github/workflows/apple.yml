@@ -4,19 +4,19 @@ on:
   push:
     branches: [main]
     paths:
-      - apps/froggybot-apple/**
+      - apps/iOS/**
       - packages/frogbot-transcription/**
-      - services/froggybot-api/amplify/functions/api/api-contract.json
-      - services/froggybot-api/scripts/generate-api-contract.mjs
+      - services/API/amplify/functions/api/api-contract.json
+      - services/API/scripts/generate-api-contract.mjs
       - scripts/apple-app.sh
       - scripts/verify.sh
       - .github/workflows/apple.yml
   pull_request:
     paths:
-      - apps/froggybot-apple/**
+      - apps/iOS/**
       - packages/frogbot-transcription/**
-      - services/froggybot-api/amplify/functions/api/api-contract.json
-      - services/froggybot-api/scripts/generate-api-contract.mjs
+      - services/API/amplify/functions/api/api-contract.json
+      - services/API/scripts/generate-api-contract.mjs
       - scripts/apple-app.sh
       - scripts/verify.sh
       - .github/workflows/apple.yml

@@ -33,7 +33,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
-          cache-dependency-glob: services/agent-runtime/uv.lock
+          cache-dependency-glob: services/runtime/uv.lock
 
       - name: Ask FroggyBot's DeepSeek agent for a bounded repair
         env:
@@ -41,8 +41,8 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
         run: |
           install -d "$RUNNER_TEMP/froggybot-autofix"
-          uv run --project services/agent-runtime --frozen \
-            python services/agent-runtime/autofix_agent.py \
+          uv run --project services/runtime --frozen \
+            python services/runtime/autofix_agent.py \
             --root . \
             --patch-out "$RUNNER_TEMP/froggybot-autofix/proposed.patch" \
             --metadata-out "$RUNNER_TEMP/froggybot-autofix/metadata.json"
@@ -79,22 +79,22 @@ jobs:
           node-version: 22.23.2
           cache: npm
           cache-dependency-path: |
-            services/froggybot-api/package-lock.json
+            services/API/package-lock.json
             agentcore/cdk/package-lock.json
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
-          cache-dependency-glob: services/agent-runtime/uv.lock
+          cache-dependency-glob: services/runtime/uv.lock
       - name: Install locked server dependencies
         run: |
-          npm ci --prefix services/froggybot-api
+          npm ci --prefix services/API
           npm ci --prefix agentcore/cdk
           npm install --global @aws/agentcore@0.29.0
       - name: Run the complete server verification
         run: ./scripts/verify.sh server
 
   verify-application:
-    name: Verify browser and shared clients
+    name: Verify website and catalog
     needs: generate
     runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
     timeout-minutes: 30
@@ -115,12 +115,10 @@ jobs:
           node-version: 22.23.2
           cache: npm
           cache-dependency-path: |
-            apps/froggybot/package-lock.json
-            apps/froggybot-browser-viewer/package-lock.json
+            apps/website/package-lock.json
       - name: Install locked client dependencies
         run: |
-          npm ci --prefix apps/froggybot
-          npm ci --prefix apps/froggybot-browser-viewer
+          npm ci --prefix apps/website
       - name: Run browser and shared-client verification
         run: ./scripts/verify.sh application
 

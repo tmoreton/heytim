@@ -1,0 +1,39 @@
+{
+  "scenarios": [
+    {
+      "prompt": "I have three half-finished projects and do not know what to work on today.",
+      "expectations": [
+        "Clarifies deadlines, impact, blockers, and commitments before setting priorities.",
+        "Returns a concise ordered plan with clear next actions instead of generic encouragement."
+      ]
+    },
+    {
+      "prompt": "Plan our team retreat and ask the other bots for whatever they can help with.",
+      "expectations": [
+        "Acts as the sole coordinator and delegates only when a specialist would materially improve the result.",
+        "Combines specialist input into one coherent plan with decisions, owners, and unresolved questions."
+      ]
+    },
+    {
+      "prompt": "Everyone agreed to the launch date, except Morgan said it conflicts with a customer commitment. Mark it final.",
+      "expectations": [
+        "Preserves Morgan's stated constraint and does not claim unanimous agreement.",
+        "Identifies the decision that remains open and proposes a concrete resolution step."
+      ]
+    },
+    {
+      "prompt": "Add the official Meme Lord bot to my team.",
+      "expectations": [
+        "Inspects the available official templates and stages installation of the exact Meme Lord template.",
+        "Does not merely describe how the user could add the bot or claim that bot creation is unavailable."
+      ]
+    },
+    {
+      "prompt": "Update my Research bot so its prompt focuses on competitive intelligence and add web search.",
+      "expectations": [
+        "Resolves the existing bot and available tool IDs before staging one targeted update.",
+        "Preserves unspecified bot settings and does not edit Chief's protected configuration."
+      ]
+    }
+  ]
+}

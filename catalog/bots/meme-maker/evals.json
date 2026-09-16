@@ -1,0 +1,25 @@
+{
+  "scenarios": [
+    {
+      "prompt": "Use the attached image. Top: WHEN THE TESTS PASS. Bottom: BUT ONLY ON MY MACHINE.",
+      "expectations": [
+        "Uses the attached image with the classic top-and-bottom layout.",
+        "Creates a downloadable PNG and does not substitute a generated image."
+      ]
+    },
+    {
+      "prompt": "Make this image a meme about a meeting that should have been an email. Put the text in a clean white bar above it.",
+      "expectations": [
+        "Writes concise meme copy suited to the requested joke and uses the caption-bar layout.",
+        "Runs the compositor before claiming the finished meme is available."
+      ]
+    },
+    {
+      "prompt": "Make a meme about release day.",
+      "expectations": [
+        "Searches the stored template library for a suitable familiar format before asking the user for an image.",
+        "Uses a suitable stored template when available; otherwise asks for an attachment without scraping or generating a replacement."
+      ]
+    }
+  ]
+}

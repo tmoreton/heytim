@@ -8,13 +8,12 @@ requirements_file="$audit_directory/runtime-requirements.txt"
 
 trap 'rm -rf "$audit_directory"' EXIT
 
-npm audit --prefix "$repository_root/apps/froggybot" --omit=dev --audit-level=high
-npm audit --prefix "$repository_root/apps/froggybot-browser-viewer" --omit=dev --audit-level=high
-npm audit --prefix "$repository_root/services/froggybot-api" --omit=dev --audit-level=high
+npm audit --prefix "$repository_root/apps/website" --omit=dev --audit-level=high
+npm audit --prefix "$repository_root/services/API" --omit=dev --audit-level=high
 npm audit --prefix "$repository_root/agentcore/cdk" --omit=dev --audit-level=high
 
 uv export \
-  --project "$repository_root/services/agent-runtime" \
+  --project "$repository_root/services/runtime" \
   --frozen \
   --no-dev \
   --no-emit-project \
