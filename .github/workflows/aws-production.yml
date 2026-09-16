@@ -310,7 +310,7 @@ jobs:
           name: frogbot-production-client-configuration-${{ github.sha }}
           if-no-files-found: error
           retention-days: 30
-          path: ${{ runner.temp }}/froggybot-production-client-configuration
+          path: ${{ runner.temp }}/frogbot-production-client-configuration
 
   apple:
     name: Release SwiftUI apps to TestFlight
