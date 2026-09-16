@@ -24,7 +24,11 @@ api_key="$temporary_root/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
 keychain_password="$(uuidgen | tr -d '-')"
 original_keychains=()
 while IFS= read -r existing_keychain; do
-  original_keychains+=("${existing_keychain//\"/}")
+  existing_keychain="$(printf '%s' "$existing_keychain" \
+    | sed -E 's/^[[:space:]]*"//; s/"[[:space:]]*$//')"
+  if [[ -n "$existing_keychain" ]]; then
+    original_keychains+=("$existing_keychain")
+  fi
 done < <(security list-keychains -d user)
 
 cleanup() {
