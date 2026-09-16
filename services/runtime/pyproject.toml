@@ -15,7 +15,7 @@ dependencies = [
     # patch releases are frequent, so pin both halves to keep deployed bundles
     # identical to the version verified in uv.lock.
     "boto3 == 1.43.90",
-    "botocore==1.43.92",
+    "botocore==1.43.93",
     # The toolkit resolves its first supported AgentCore target as manylinux2014.
     # Pin compiled transitive packages to versions that publish that ARM64 wheel.
     "greenlet==3.5.5",
@@ -26,7 +26,7 @@ dependencies = [
     "grpcio == 1.83.1",
     # CodeZip resolves OpenAI transitives afresh; keep the packaged parser on
     # the exact version exercised by the locked runtime environment.
-    "jiter == 0.16.0",
+    "jiter==0.17.0",
     # Direct dependency: the hardened remote transport uses MCP's streamable HTTP API.
     "mcp >= 1.29.1, < 2.0.0",
     "mcp-proxy-for-aws >= 1.6.0, < 2.0.0",
