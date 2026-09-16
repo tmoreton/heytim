@@ -61,10 +61,16 @@ security import "$certificate" -k "$keychain" -P "$APPLE_DISTRIBUTION_CERTIFICAT
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
   -k "$keychain_password" "$keychain" >/dev/null
 security list-keychains -d user -s "$keychain" "${original_keychains[@]}"
-if ! security find-identity -v -p codesigning "$keychain" | grep -q 'Apple Distribution'; then
+signing_identity="$(security find-identity -v -p codesigning "$keychain" \
+  | awk '/"Apple Distribution:/ { print $2; exit }')"
+if [[ -z "$signing_identity" ]]; then
   echo 'The imported Apple Distribution signing identity is not valid in the CI keychain.' >&2
   exit 1
 fi
+cp /usr/bin/true "$temporary_root/signing-probe"
+codesign --force --sign "$signing_identity" --keychain "$keychain" \
+  "$temporary_root/signing-probe"
 
 APP_STORE_CONNECT_KEY_PATH="$api_key" \
+  FROGGYBOT_SIGNING_KEYCHAIN="$keychain" \
   "$apple_root/scripts/testflight.sh" all
