@@ -17,6 +17,7 @@ public struct MainView: View {
   @State private var columns: NavigationSplitViewVisibility = .all
   @State private var presentedSheet: AppSheet?
   @State private var pendingSheet: AppSheet?
+  @State private var showConversationInspector = false
 
   public init(model: AppModel, auth: AuthSession) {
     self.model = model
@@ -27,10 +28,8 @@ public struct MainView: View {
   public var body: some View {
     layout
     .tint(FrogTheme.accent)
-    .sheet(item: $presentedSheet, onDismiss: sheetDidDismiss) { sheet in
-      FeatureSheet(sheet: sheet, model: model, auth: auth)
-    }
     .onChange(of: model.sheet) { _, sheet in
+      if sheet != nil { showConversationInspector = false }
       synchronizePresentedSheet(with: sheet)
     }
     .onChange(of: model.notificationFocusRevision) { _, revision in
@@ -71,18 +70,28 @@ public struct MainView: View {
     NavigationSplitView(columnVisibility: $columns) {
       ConversationSidebar(model: model, auth: auth) { selection in
         dictation.cancel()
+        showConversationInspector = false
         model.select(selection)
       } present: { sheet in
+        showConversationInspector = false
         model.sheet = sheet
       }
       .navigationSplitViewColumnWidth(min: 270, ideal: 290, max: 320)
     } detail: {
-      if model.selection != nil {
-        ConversationView(model: model, dictation: dictation)
-      } else {
-        EmptyPanel(
-          icon: "bubble.left.and.bubble.right", title: "Choose a chat",
-          detail: "Select a person, group, or FroggyBot from the chat list.")
+      Group {
+        if model.selection != nil {
+          ConversationView(
+            model: model, dictation: dictation,
+            showInspector: $showConversationInspector)
+        } else {
+          EmptyPanel(
+            icon: "bubble.left.and.bubble.right", title: "Choose a chat",
+            detail: "Select a person, group, or FroggyBot from the chat list.")
+        }
+      }
+      .froggyFeaturePresentation(item: $presentedSheet, onDismiss: sheetDidDismiss) { sheet in
+        FeatureSheet(sheet: sheet, model: model, auth: auth)
+          .froggyFeatureColumnWidth()
       }
     }
     .navigationSplitViewStyle(.balanced)
@@ -90,19 +99,24 @@ public struct MainView: View {
 
   private func synchronizePresentedSheet(with requestedSheet: AppSheet?) {
     guard presentedSheet != requestedSheet else { return }
-    guard let requestedSheet else {
+    #if os(macOS)
       pendingSheet = nil
-      presentedSheet = nil
-      return
-    }
-    if presentedSheet == nil {
       presentedSheet = requestedSheet
-    } else {
-      // Replacing an active sheet's item in place can make SwiftUI dismiss both views.
-      // Finish the current dismissal before presenting the requested destination.
-      pendingSheet = requestedSheet
-      presentedSheet = nil
-    }
+    #else
+      guard let requestedSheet else {
+        pendingSheet = nil
+        presentedSheet = nil
+        return
+      }
+      if presentedSheet == nil {
+        presentedSheet = requestedSheet
+      } else {
+        // Replacing an active sheet's item in place can make SwiftUI dismiss both views.
+        // Finish the current dismissal before presenting the requested destination.
+        pendingSheet = requestedSheet
+        presentedSheet = nil
+      }
+    #endif
   }
 
   private func sheetDidDismiss() {
@@ -352,6 +366,36 @@ enum ConversationTranscriptUpdate: Equatable {
 }
 
 private extension View {
+  @ViewBuilder func froggyFeatureColumnWidth() -> some View {
+    #if os(macOS)
+      frame(minWidth: 500, idealWidth: 620, maxWidth: 820)
+        .inspectorColumnWidth(min: 500, ideal: 620, max: 820)
+    #else
+      self
+    #endif
+  }
+
+  @ViewBuilder func froggyFeaturePresentation<Item: Identifiable, Content: View>(
+    item: Binding<Item?>, onDismiss: @escaping () -> Void,
+    @ViewBuilder content: @escaping (Item) -> Content
+  ) -> some View {
+    #if os(iOS)
+      sheet(item: item, onDismiss: onDismiss, content: content)
+    #else
+      inspector(
+        isPresented: Binding(
+          get: { item.wrappedValue != nil },
+          set: { isPresented in
+            guard !isPresented, item.wrappedValue != nil else { return }
+            item.wrappedValue = nil
+            onDismiss()
+          })
+      ) {
+        if let value = item.wrappedValue { content(value) }
+      }
+    #endif
+  }
+
   @ViewBuilder func froggyUserScrollInteraction(_ action: @escaping () -> Void) -> some View {
     if #available(iOS 18.0, macOS 15.0, *) {
       onScrollPhaseChange { _, phase in
@@ -375,15 +419,26 @@ private extension View {
       self
     }
   }
+
+  @ViewBuilder func froggyInspector<Content: View>(
+    isPresented: Binding<Bool>, onDismiss: @escaping () -> Void,
+    @ViewBuilder content: @escaping () -> Content
+  ) -> some View {
+    #if os(iOS)
+      sheet(isPresented: isPresented, onDismiss: onDismiss, content: content)
+    #else
+      inspector(isPresented: isPresented, content: content)
+    #endif
+  }
 }
 
 private struct ConversationView: View {
   @Bindable var model: AppModel
   @Bindable var dictation: DictationModel
+  @Binding var showInspector: Bool
   @State private var importing = false
   @State private var showDelete = false
   @State private var showClear = false
-  @State private var showInspector = false
   @State private var previewURL: URL?
   @State private var previewTask: Task<Void, Never>?
   @State private var previewRequestID = UUID()
@@ -544,7 +599,7 @@ private struct ConversationView: View {
       #endif
     }
     .background(FrogTheme.appBackground)
-    .sheet(isPresented: $showInspector, onDismiss: finishInspectorAction) {
+    .froggyInspector(isPresented: $showInspector, onDismiss: finishInspectorAction) {
       ConversationInspector(
         model: model,
         close: { showInspector = false },
@@ -554,9 +609,7 @@ private struct ConversationView: View {
         delete: {
           confirmDeleteFromInspector()
         })
-        .froggySheetNavigation()
-        .froggySheetSize()
-        .tint(FrogTheme.accent)
+        .inspectorColumnWidth(min: 360, ideal: 420, max: 520)
     }
     .quickLookPreview($previewURL)
     .onChange(of: previewURL) { previous, current in
@@ -802,30 +855,57 @@ private struct ConversationInspector: View {
       }
       .formStyle(.grouped)
       .froggyListSurface()
-      .froggyNavigationTitle("Details")
-      .toolbarTitleDisplayMode(.inline)
-      .toolbar {
-        #if os(macOS)
-          ToolbarItem(placement: .navigation) {
-            detailsBackButton
-          }
-        #else
+      #if os(macOS)
+        .safeAreaInset(edge: .top, spacing: 0) {
+          inspectorHeader
+        }
+        .ignoresSafeArea(.container, edges: .top)
+      #else
+        .froggyNavigationTitle("Details")
+        .toolbarTitleDisplayMode(.inline)
+        .toolbar {
           ToolbarItem(placement: .cancellationAction) {
             detailsBackButton
           }
-        #endif
-        if let bot = editingBot, actions.contains("edit") {
-          ToolbarItem(placement: .confirmationAction) {
-            Button("Save") { save(bot) }
-              .disabled(!canSaveBot)
-              .accessibilityIdentifier("inspector.save")
+          if let bot = editingBot, actions.contains("edit") {
+            ToolbarItem(placement: .confirmationAction) {
+              Button("Save") { save(bot) }
+                .disabled(!canSaveBot)
+                .accessibilityIdentifier("inspector.save")
+            }
           }
         }
-      }
+      #endif
       .onAppear { loadBotDraftIfNeeded() }
       .onChange(of: model.selectedBot?.id) { _, _ in loadBotDraftIfNeeded(force: true) }
     }
   }
+
+  #if os(macOS)
+    private var inspectorHeader: some View {
+      HStack(spacing: 10) {
+        detailsBackButton
+          .buttonStyle(.plain)
+          .foregroundStyle(FrogTheme.accent)
+          .frame(width: 32, height: 32)
+          .contentShape(Rectangle())
+        Text("Details")
+          .froggyFont(.headline, weight: .semibold)
+          .accessibilityAddTraits(.isHeader)
+        Spacer(minLength: 8)
+        if let bot = editingBot, actions.contains("edit") {
+          Button("Save") { save(bot) }
+            .froggyGlassButton(tint: FrogTheme.accent)
+            .disabled(!canSaveBot)
+            .accessibilityIdentifier("inspector.save")
+        }
+      }
+      .padding(.horizontal, 12)
+      .padding(.vertical, 8)
+      .background(FrogTheme.appBackground)
+      .overlay(alignment: .bottom) { Divider() }
+    }
+  #endif
 
   private var detailsBackButton: some View {
     Button("Back", systemImage: "chevron.backward", action: close)

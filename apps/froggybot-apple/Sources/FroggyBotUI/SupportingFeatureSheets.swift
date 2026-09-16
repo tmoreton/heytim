@@ -78,6 +78,7 @@ final class WebAuthenticationController: NSObject,
 struct SkillEditor: View {
   @Bindable var model: AppModel
   let id: String?
+  var showsDismissButton = true
   @State private var draft = SkillDraft()
   @State private var loading = false
   @State private var saving = false
@@ -214,7 +215,9 @@ struct SkillEditor: View {
     .froggyNavigationTitle(id == nil ? "New skill" : "Edit skill")
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
-      CloseButton()
+      if showsDismissButton {
+        CloseButton()
+      }
       if loadError == nil && !loading {
         ToolbarItem(placement: .confirmationAction) {
           Button {
@@ -745,7 +748,6 @@ struct AccountView: View {
   @Bindable var model: AppModel
   let auth: AuthSession
   var showsDismissButton = true
-  @Environment(\.dismiss) private var dismiss
   @AppStorage(FroggyPreferenceKeys.appearance) private var appearance =
     FroggyAppearancePreference.system.rawValue
   @AppStorage(FroggyPreferenceKeys.textSize) private var textSize =
@@ -985,19 +987,18 @@ struct AccountView: View {
   #if os(macOS)
     private var settingsHeader: some View {
       HStack(spacing: 10) {
-        Text("Settings")
-          .froggyFont(.headline, weight: .semibold)
-          .accessibilityAddTraits(.isHeader)
-        Spacer(minLength: 8)
-        Button("Close", systemImage: "xmark") { dismiss() }
+        Button("Back", systemImage: "chevron.backward") { model.sheet = nil }
           .labelStyle(.iconOnly)
           .buttonStyle(.plain)
           .foregroundStyle(FrogTheme.accent)
           .frame(width: 36, height: 36)
-          .background(FrogTheme.accent.opacity(0.10), in: Circle())
-          .contentShape(Circle())
+          .contentShape(Rectangle())
           .accessibilityIdentifier("sheet.close")
-          .help("Close Settings")
+          .help("Back to chat")
+        Text("Settings")
+          .froggyFont(.headline, weight: .semibold)
+          .accessibilityAddTraits(.isHeader)
+        Spacer(minLength: 8)
       }
       .padding(.horizontal, 24)
       .padding(.vertical, 12)

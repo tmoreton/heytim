@@ -30,7 +30,7 @@ import XCTest
         XCTAssertTrue(
           marker.waitForExistence(timeout: 10),
           "The \(featureSheet.argument) sheet did not remain presented.")
-        let close = app.buttons["Close"]
+        let close = app.buttons["sheet.close"]
         XCTAssertTrue(
           close.waitForExistence(timeout: 5),
           "The \(featureSheet.argument) sheet did not expose its dismissal control.")
@@ -193,7 +193,7 @@ import XCTest
     XCTAssertTrue(app.buttons["Choose Files"].exists)
   }
 
-  func testConversationDetailsUsesTheSharedSheetNavigationAndCanClose() {
+  func testConversationDetailsUsesPlatformNavigationAndCanClose() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]
     app.launch()
@@ -210,15 +210,16 @@ import XCTest
     #if os(iOS)
       XCTAssertTrue(app.navigationBars["Details"].waitForExistence(timeout: 5))
       XCTAssertTrue(inspectorBack.exists)
+      XCTAssertTrue(inspectorBack.isHittable)
       XCTAssertFalse(app.buttons["Done"].exists)
     #else
-      let sheet = app.sheets.firstMatch
-      XCTAssertTrue(sheet.waitForExistence(timeout: 5))
       XCTAssertTrue(app.staticTexts["Details"].waitForExistence(timeout: 5))
+      XCTAssertFalse(app.sheets.firstMatch.exists)
       XCTAssertFalse(app.buttons["chat.details"].exists)
       XCTAssertTrue(inspectorBack.exists)
+      XCTAssertTrue(inspectorBack.isHittable)
       XCTAssertFalse(app.buttons["Done"].exists)
-      XCTAssertLessThan(inspectorBack.frame.midX, sheet.frame.midX)
+      XCTAssertGreaterThan(inspectorBack.frame.midX, app.windows.firstMatch.frame.midX)
     #endif
 
     inspectorBack.tap()
@@ -286,14 +287,13 @@ import XCTest
       XCTAssertTrue(app.buttons["Close"].exists)
       XCTAssertFalse(app.buttons["Done"].exists)
     #else
-      let sheet = app.sheets.firstMatch
-      XCTAssertTrue(sheet.waitForExistence(timeout: 5))
       let close = app.buttons["sheet.close"]
       let title = app.staticTexts["Settings"]
       XCTAssertTrue(close.exists)
-      XCTAssertLessThan(close.frame.midY, sheet.frame.midY)
-      XCTAssertGreaterThan(close.frame.midX, title.frame.midX)
-      XCTAssertLessThan(title.frame.minY - sheet.frame.minY, 50)
+      XCTAssertTrue(close.isHittable)
+      XCTAssertLessThan(close.frame.midX, title.frame.midX)
+      XCTAssertGreaterThan(close.frame.midX, app.windows.firstMatch.frame.midX)
+      XCTAssertFalse(app.sheets.firstMatch.exists)
       XCTAssertFalse(app.buttons["Done"].exists)
       XCTAssertEqual(app.windows.count, 1)
     #endif
@@ -437,7 +437,7 @@ import XCTest
     name.tap()
     name.typeText("Trip planner")
     XCTAssertEqual(name.value as? String, "Trip planner")
-    XCTAssertTrue(app.buttons["Close"].exists)
+    XCTAssertFalse(app.buttons["Close"].exists)
   }
 
   func testToolsAndSkillsShowsBothSkillsAndBuiltInTools() {
@@ -488,7 +488,7 @@ import XCTest
     name.tap()
     name.typeText("Research helper")
     XCTAssertEqual(name.value as? String, "Research helper")
-    XCTAssertTrue(app.buttons["Close"].exists)
+    XCTAssertFalse(app.buttons["Close"].exists)
   }
 
   func testCreatingScheduledTaskKeepsTheEditorPresented() {
@@ -507,7 +507,7 @@ import XCTest
     name.tap()
     name.typeText("Daily summary")
     XCTAssertEqual(name.value as? String, "Daily summary")
-    XCTAssertTrue(app.buttons["Close"].exists)
+    XCTAssertFalse(app.buttons["Close"].exists)
   }
 
   func testScrollToLatestControlAndSendingReturnToTheBottom() {
@@ -590,7 +590,7 @@ import XCTest
           timeout: 5))
     }
 
-    func testMacEditorUsesAReadableNativeSheet() {
+    func testMacEditorUsesAReadableSlideOut() {
       let app = XCUIApplication()
       app.launchArguments = ["--ui-testing"]
       app.launch()
@@ -602,17 +602,16 @@ import XCTest
       XCTAssertTrue(customBot.waitForExistence(timeout: 5))
       customBot.click()
 
-      let sheet = app.sheets.firstMatch
+      let window = app.windows.firstMatch
       let name = app.textFields["Name"]
       let tagline = app.textFields["What this bot does"]
-      XCTAssertTrue(sheet.waitForExistence(timeout: 5))
       XCTAssertTrue(name.waitForExistence(timeout: 5))
       XCTAssertTrue(tagline.waitForExistence(timeout: 5))
-      XCTAssertGreaterThanOrEqual(sheet.frame.width, 670)
-      XCTAssertGreaterThan(name.frame.minX, sheet.frame.minX + 20)
-      XCTAssertLessThan(name.frame.maxX, sheet.frame.maxX - 20)
-      XCTAssertGreaterThan(tagline.frame.minX, sheet.frame.minX + 20)
-      XCTAssertLessThan(tagline.frame.maxX, sheet.frame.maxX - 20)
+      XCTAssertFalse(app.sheets.firstMatch.exists)
+      XCTAssertGreaterThan(name.frame.minX, window.frame.midX)
+      XCTAssertLessThan(name.frame.maxX, window.frame.maxX - 20)
+      XCTAssertGreaterThan(tagline.frame.minX, window.frame.midX)
+      XCTAssertLessThan(tagline.frame.maxX, window.frame.maxX - 20)
       XCTAssertTrue(app.staticTexts["Color"].exists)
       XCTAssertTrue(app.descendants(matching: .any)["bot.prompt.editor"].firstMatch.exists)
       XCTAssertTrue(app.descendants(matching: .any)["bot.tools-and-skills"].firstMatch.exists)
@@ -638,10 +637,11 @@ import XCTest
       XCTAssertTrue(back.waitForExistence(timeout: 5))
       back.click()
 
-      let close = app.buttons["Close"]
+      let close = app.buttons["sheet.close"]
       XCTAssertTrue(close.isHittable)
       close.click()
-      XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))
+      XCTAssertTrue(close.waitForNonExistence(timeout: 5))
+      XCTAssertTrue(app.buttons["chat.details"].waitForExistence(timeout: 5))
     }
   #endif
 }

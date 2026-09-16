@@ -24,7 +24,9 @@ public struct FeatureSheet: View {
       }
     }
     .froggySheetNavigation()
-    .froggySheetSize()
+    #if os(iOS)
+      .froggySheetSize()
+    #endif
     .tint(FrogTheme.accent)
   }
 }
@@ -50,16 +52,31 @@ struct CloseButton: ToolbarContent {
     #endif
   }
 
-  private var button: some View {
-    Button("Close", systemImage: "xmark") {
-      if let action {
-        action()
+  @ViewBuilder private var button: some View {
+    #if os(macOS)
+      if usesSheetNavigation {
+        Button("Back", systemImage: "chevron.backward", action: close)
+          .labelStyle(.iconOnly)
+          .accessibilityIdentifier("sheet.close")
+          .help("Back to chat")
       } else {
-        dismiss()
+        Button("Close", systemImage: "xmark", action: close)
+          .labelStyle(.iconOnly)
+          .accessibilityIdentifier("sheet.close")
       }
+    #else
+      Button("Close", systemImage: "xmark", action: close)
+        .labelStyle(.iconOnly)
+        .accessibilityIdentifier("sheet.close")
+    #endif
+  }
+
+  private func close() {
+    if let action {
+      action()
+    } else {
+      dismiss()
     }
-    .labelStyle(.iconOnly)
-    .accessibilityIdentifier("sheet.close")
   }
 }
 
@@ -145,7 +162,6 @@ struct BotLibrary: View {
   @Bindable var model: AppModel
   var showsDismissButton = true
   @State private var search = ""
-  @State private var showingCustomBotEditor = false
 
   private var templates: [BotTemplate] {
     (model.bootstrap?.botTemplates ?? []).filter {
@@ -162,8 +178,8 @@ struct BotLibrary: View {
   var body: some View {
     List {
       Section {
-        Button {
-          showingCustomBotEditor = true
+        NavigationLink {
+          BotEditor(model: model, id: nil, showsDismissButton: false)
         } label: {
           Label("Create a Custom Bot", systemImage: "slider.horizontal.3")
         }
@@ -200,13 +216,6 @@ struct BotLibrary: View {
       if showsDismissButton {
         CloseButton { model.sheet = nil }
       }
-    }
-    .sheet(isPresented: $showingCustomBotEditor) {
-      NavigationStack {
-        BotEditor(model: model, id: nil)
-      }
-      .froggySheetSize()
-      .tint(FrogTheme.accent)
     }
   }
 
@@ -376,6 +385,7 @@ private struct BotTemplateDetailView: View {
 private struct BotEditor: View {
   @Bindable var model: AppModel
   let id: String?
+  var showsDismissButton = true
   @State private var draft = BotDraft()
   @State private var saving = false
   @State private var loadedDraft = false
@@ -517,7 +527,9 @@ private struct BotEditor: View {
     .froggyNavigationTitle(id == nil ? "New bot" : "Edit bot")
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
-      CloseButton()
+      if showsDismissButton {
+        CloseButton()
+      }
       ToolbarItem(placement: .confirmationAction) {
         Button("Save") { save() }.disabled(!canSave)
       }
@@ -1113,17 +1125,11 @@ struct SchedulesView: View {
     }
     .refreshable { await load() }
     .task { await load() }
-    .sheet(isPresented: $creating) {
-      NavigationStack {
-        ScheduleEditor(model: model, selection: selection, existing: nil) { await load() }
-      }
-      .froggySheetSize()
+    .navigationDestination(isPresented: $creating) {
+      ScheduleEditor(model: model, selection: selection, existing: nil) { await load() }
     }
-    .sheet(item: $editing) { task in
-      NavigationStack {
-        ScheduleEditor(model: model, selection: selection, existing: task) { await load() }
-      }
-      .froggySheetSize()
+    .navigationDestination(item: $editing) { task in
+      ScheduleEditor(model: model, selection: selection, existing: task) { await load() }
     }
     .confirmationDialog(
       "Delete this scheduled task?",
@@ -1305,7 +1311,6 @@ private struct ScheduleEditor: View {
     .froggyNavigationTitle(existing == nil ? "New task" : "Edit task")
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
-      CloseButton { dismiss() }
       ToolbarItem(placement: .confirmationAction) {
         Button("Save") { save() }
           .disabled(!canSave)
@@ -2058,7 +2063,7 @@ struct MemoriesView: View {
   }
 }
 
-private struct SkillEditorDestination: Identifiable {
+private struct SkillEditorDestination: Identifiable, Hashable {
   let skillID: String?
   var id: String { skillID ?? "new" }
 }
@@ -2148,12 +2153,8 @@ struct SkillsView: View {
         }
       }
     }
-    .sheet(item: $editor) { destination in
-      NavigationStack {
-        SkillEditor(model: model, id: destination.skillID)
-      }
-      .froggySheetSize()
-      .tint(FrogTheme.accent)
+    .navigationDestination(item: $editor) { destination in
+      SkillEditor(model: model, id: destination.skillID, showsDismissButton: false)
     }
   }
 
