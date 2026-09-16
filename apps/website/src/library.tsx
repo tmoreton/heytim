@@ -31,7 +31,7 @@ export function Library({ kind = 'skills' }: { kind?: 'bots' | 'skills' }) {
         {categories.map((name) => <button className="category" key={name} aria-pressed={name === category}
           onClick={() => setCategory(name)}>{name}</button>)}
       </div>
-      <p className="directory-count" role="status">{visible.length} {kind}</p>
+      <p className="directory-count" role="status">{visible.length} {visible.length === 1 ? kind.slice(0, -1) : kind}</p>
       <div className="catalog-grid">
         {visible.map((item) => <article key={item.id} className="catalog-card">
           <div className="card-top">
