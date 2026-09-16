@@ -126,5 +126,15 @@ if [[ -n "$key_path" ]]; then
 fi
 xcodebuild "${archive_args[@]}"
 
+application_root="$archive_path/Products/Applications"
+unreadable_file="$(find "$application_root" -type f ! -perm -004 -print -quit)"
+unsearchable_directory="$(find "$application_root" -type d ! -perm -001 -print -quit)"
+if [[ -n "$unreadable_file" || -n "$unsearchable_directory" ]]; then
+  echo 'Archive contains app files that non-root users cannot read.' >&2
+  [[ -z "$unreadable_file" ]] || echo "Unreadable file: $unreadable_file" >&2
+  [[ -z "$unsearchable_directory" ]] || echo "Unsearchable directory: $unsearchable_directory" >&2
+  exit 1
+fi
+
 echo "Archive created at $archive_path"
 echo "This script does not upload it. Review and distribute the archive with Xcode Organizer."

@@ -81,6 +81,10 @@ codesign --force --sign "$development_identity" --keychain "$keychain" \
 codesign --force --sign "$signing_identity" --keychain "$keychain" \
   "$temporary_root/signing-probe"
 
+# Secrets were written under the private umask above. Release artifacts must
+# remain readable by the non-root user who installs and runs the Mac app.
+umask 022
+
 APP_STORE_CONNECT_KEY_PATH="$api_key" \
   FROGGYBOT_SIGNING_KEYCHAIN="$keychain" \
   "$apple_root/scripts/testflight.sh" all
