@@ -76,6 +76,12 @@ fi
 )
 "$repository_root/scripts/verify.sh" apple
 
+# The model/framework cache and downloaded client configuration become app
+# resources. A cache saved under a restrictive umask must not make Mac package
+# contents unreadable after App Store installation.
+chmod -R a+rX "$repository_root/packages/frogbot-transcription/ios/Generated"
+chmod a+r "$apple_root/Resources/amplify_outputs.json"
+
 if [[ -n "${FROGGYBOT_SIGNING_KEYCHAIN:-}" ]]; then
   if [[ ! -f "$FROGGYBOT_SIGNING_KEYCHAIN" ]]; then
     echo "CI signing keychain not found: $FROGGYBOT_SIGNING_KEYCHAIN" >&2
