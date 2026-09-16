@@ -99,7 +99,13 @@ public final class AppModel {
         messages = DemoData.messages
       }
       #if DEBUG
-        if let flag = arguments.firstIndex(of: "--ui-testing-sheet"),
+        // Keep the destination in the option itself: macOS can interpret a
+        // standalone value as a document to open and suppress the main window.
+        let sheetPrefix = "--ui-testing-sheet="
+        if let argument = arguments.first(where: { $0.hasPrefix(sheetPrefix) }) {
+          sheet = Self.uiTestingSheet(
+            named: String(argument.dropFirst(sheetPrefix.count)), bootstrap: DemoData.bootstrap)
+        } else if let flag = arguments.firstIndex(of: "--ui-testing-sheet"),
           arguments.indices.contains(flag + 1)
         {
           sheet = Self.uiTestingSheet(named: arguments[flag + 1], bootstrap: DemoData.bootstrap)

@@ -5,7 +5,7 @@ public struct FeatureSheet: View {
   @Bindable var model: AppModel
   let auth: AuthSession
   public var body: some View {
-    NavigationStack {
+    FeatureNavigation {
       switch sheet {
       case .botLibrary: BotLibrary(model: model)
       case .botEditor(let id): BotEditor(model: model, id: id)
@@ -31,6 +31,45 @@ public struct FeatureSheet: View {
   }
 }
 
+/// Use one stack per Mac column to preserve editor state when popping a page.
+/// Separately presented sheets on iPhone need their own stack.
+struct FeatureNavigation<Content: View>: View {
+  @ViewBuilder let content: () -> Content
+
+  var body: some View {
+    #if os(macOS)
+      content()
+    #else
+      NavigationStack { content() }
+    #endif
+  }
+}
+
+/// Transient, value-based routes let the Mac sidebar clear nested pages as
+/// well as the feature root. Destination-based links aren't in NavigationPath.
+struct FeatureDestination: Hashable {
+  let id: UUID
+  let content: @MainActor () -> AnyView
+
+  static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+  func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+struct FeatureLink<Destination: View, Label: View>: View {
+  @ViewBuilder let destination: () -> Destination
+  @ViewBuilder let label: () -> Label
+  @State private var id = UUID()
+
+  var body: some View {
+    #if os(macOS)
+      NavigationLink(
+        value: FeatureDestination(id: id, content: { AnyView(destination()) }), label: label)
+    #else
+      NavigationLink(destination: destination, label: label)
+    #endif
+  }
+}
+
 struct CloseButton: ToolbarContent {
   @Environment(\.dismiss) private var dismiss
   @Environment(\.froggyUsesSheetNavigation) private var usesSheetNavigation
@@ -43,7 +82,7 @@ struct CloseButton: ToolbarContent {
   var body: some ToolbarContent {
     #if os(macOS)
       if usesSheetNavigation {
-        ToolbarItem(placement: .cancellationAction) { button }
+        ToolbarItem(placement: .navigation) { button }
       } else {
         ToolbarItem(placement: .primaryAction) { button }
       }
@@ -178,7 +217,7 @@ struct BotLibrary: View {
   var body: some View {
     List {
       Section {
-        NavigationLink {
+        FeatureLink {
           BotEditor(model: model, id: nil, showsDismissButton: false)
         } label: {
           Label("Create a Custom Bot", systemImage: "slider.horizontal.3")
@@ -220,7 +259,7 @@ struct BotLibrary: View {
   }
 
   private func templateLink(_ template: BotTemplate) -> some View {
-    NavigationLink {
+    FeatureLink {
       BotTemplateDetailView(model: model, template: template)
     } label: {
       HStack(spacing: 12) {
@@ -441,6 +480,7 @@ private struct BotEditor: View {
     Form {
       Section {
         TextField("Name", text: $draft.name)
+          .accessibilityLabel("Name")
         TextField("Description", text: $draft.tagline)
           .accessibilityLabel("What this bot does")
         VStack(alignment: .leading, spacing: 4) {
@@ -458,7 +498,7 @@ private struct BotEditor: View {
               ? Color.secondary : Color.red)
       }
       Section {
-        NavigationLink {
+        FeatureLink {
           BotPromptEditor(
             prompt: $draft.prompt,
             maximumLength: model.constraints.botPromptMaxLength)
@@ -497,7 +537,7 @@ private struct BotEditor: View {
       }
 
       Section {
-        NavigationLink {
+        FeatureLink {
           BotToolsAndSkillsEditor(
             model: model, draft: $draft,
             skills: model.bootstrap?.skills ?? [],
@@ -528,7 +568,7 @@ private struct BotEditor: View {
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       if showsDismissButton {
-        CloseButton()
+        CloseButton { model.sheet = nil }
       }
       ToolbarItem(placement: .confirmationAction) {
         Button("Save") { save() }.disabled(!canSave)
@@ -546,7 +586,9 @@ private struct BotEditor: View {
   private func save() {
     saving = true
     Task {
-      if await model.saveBot(draft, id: id) { dismiss() }
+      if await model.saveBot(draft, id: id) {
+        if showsDismissButton { model.sheet = nil } else { dismiss() }
+      }
       saving = false
     }
   }
@@ -751,7 +793,7 @@ struct BotToolsAndSkillsEditor: View {
   }
 
   private func connectionLink(_ provider: ConnectionProvider) -> some View {
-    NavigationLink {
+    FeatureLink {
       ConnectionsView(model: model, showsDismissButton: false)
     } label: {
       HStack(spacing: 10) {
@@ -1008,7 +1050,9 @@ struct GroupEditor: View {
   private func save() {
     saving = true
     Task {
-      if await model.saveGroup(draft, id: id) { dismiss() }
+      if await model.saveGroup(draft, id: id) {
+        if showsDismissButton { model.sheet = nil } else { dismiss() }
+      }
       saving = false
     }
   }
@@ -2096,7 +2140,7 @@ struct SkillsView: View {
       case .skills:
         Section("Skills") {
           ForEach(model.bootstrap?.skills ?? []) { skill in
-            NavigationLink {
+            FeatureLink {
               SkillDetailView(
                 model: model, id: skill.id,
                 edit: { editor = SkillEditorDestination(skillID: skill.id) })
@@ -2119,7 +2163,7 @@ struct SkillsView: View {
       case .tools:
         Section("Built-in Tools") {
           ForEach(model.bootstrap?.tools.filter { $0.source != "user" } ?? []) { tool in
-            NavigationLink {
+            FeatureLink {
               CapabilityDetailView(capability: tool)
             } label: {
               Label {

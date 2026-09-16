@@ -216,7 +216,7 @@ struct SkillEditor: View {
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       if showsDismissButton {
-        CloseButton()
+        CloseButton { model.sheet = nil }
       }
       if loadError == nil && !loading {
         ToolbarItem(placement: .confirmationAction) {
@@ -255,7 +255,7 @@ struct SkillEditor: View {
       do {
         _ = try await model.requireAPI().saveSkill(draft, id: id)
         await model.refreshBootstrap()
-        dismiss()
+        if showsDismissButton { model.sheet = nil } else { dismiss() }
       } catch {
         model.present(error)
       }
@@ -415,7 +415,7 @@ struct ConnectionsView: View {
   @ViewBuilder
   private func providerAccessRow(_ provider: ConnectionProvider, nested: Bool = false) -> some View {
     if let connection = connection(for: provider.id) {
-      NavigationLink {
+      FeatureLink {
         ConnectionDetailView(
           connection: connection, provider: provider,
           reconnect: { connect(provider.id) },
@@ -767,7 +767,7 @@ struct AccountView: View {
   var body: some View {
     Form {
       Section("Build Your Team") {
-        NavigationLink {
+        FeatureLink {
           BotLibrary(model: model, showsDismissButton: false)
         } label: {
           Label("Add a Bot", systemImage: "plus.circle.fill")
@@ -775,17 +775,17 @@ struct AccountView: View {
       }
 
       Section("Manage") {
-        NavigationLink {
+        FeatureLink {
           MemoriesView(model: model, groupId: nil, showsDismissButton: false)
         } label: {
           Label("Memory", systemImage: "brain.head.profile")
         }
-        NavigationLink {
+        FeatureLink {
           SkillsView(model: model, showsDismissButton: false)
         } label: {
           Label("Tools & Skills", systemImage: "wrench.and.screwdriver")
         }
-        NavigationLink {
+        FeatureLink {
           ConnectionsView(model: model, showsDismissButton: false)
         } label: {
           Label("Connected Accounts", systemImage: "link")
