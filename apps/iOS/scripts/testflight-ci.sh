@@ -4,7 +4,8 @@ set -euo pipefail
 required_values=(
   APPLE_TEAM_ID APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID
   APP_STORE_CONNECT_PRIVATE_KEY APPLE_DISTRIBUTION_CERTIFICATE_BASE64
-  APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD FROGGYBOT_BUILD_NUMBER
+  APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD APPLE_DEVELOPMENT_CERTIFICATE_BASE64
+  APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD FROGGYBOT_BUILD_NUMBER
 )
 missing=()
 for name in "${required_values[@]}"; do
@@ -19,6 +20,7 @@ apple_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 temporary_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/FroggyBotSigning.XXXXXX")"
 keychain="$temporary_root/froggybot-signing.keychain-db"
 certificate="$temporary_root/distribution.p12"
+development_certificate="$temporary_root/development.p12"
 signing_intermediate="$temporary_root/AppleWWDRCAG3.cer"
 api_key="$temporary_root/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
 keychain_password="$(uuidgen | tr -d '-')"
@@ -42,6 +44,7 @@ trap cleanup EXIT
 
 umask 077
 printf '%s' "$APPLE_DISTRIBUTION_CERTIFICATE_BASE64" | base64 -D > "$certificate"
+printf '%s' "$APPLE_DEVELOPMENT_CERTIFICATE_BASE64" | base64 -D > "$development_certificate"
 printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$api_key"
 curl --fail --location --silent --show-error \
   https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer \
@@ -58,16 +61,23 @@ security unlock-keychain -p "$keychain_password" "$keychain"
 security add-certificates -k "$keychain" "$signing_intermediate"
 security import "$certificate" -k "$keychain" -P "$APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD" \
   -T /usr/bin/codesign -T /usr/bin/security
+security import "$development_certificate" -k "$keychain" \
+  -P "$APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD" \
+  -T /usr/bin/codesign -T /usr/bin/security
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
   -k "$keychain_password" "$keychain" >/dev/null
 security list-keychains -d user -s "$keychain" "${original_keychains[@]}"
 signing_identity="$(security find-identity -v -p codesigning "$keychain" \
   | awk '/"Apple Distribution:/ { print $2; exit }')"
-if [[ -z "$signing_identity" ]]; then
-  echo 'The imported Apple Distribution signing identity is not valid in the CI keychain.' >&2
+development_identity="$(security find-identity -v -p codesigning "$keychain" \
+  | awk '/"Apple Development:/ { print $2; exit }')"
+if [[ -z "$signing_identity" || -z "$development_identity" ]]; then
+  echo 'The CI development or distribution signing identity is not valid.' >&2
   exit 1
 fi
 cp /usr/bin/true "$temporary_root/signing-probe"
+codesign --force --sign "$development_identity" --keychain "$keychain" \
+  "$temporary_root/signing-probe"
 codesign --force --sign "$signing_identity" --keychain "$keychain" \
   "$temporary_root/signing-probe"
 

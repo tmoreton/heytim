@@ -94,6 +94,8 @@ jobs:
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY }}
           APPLE_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64 }}
           APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          APPLE_DEVELOPMENT_CERTIFICATE_BASE64: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_BASE64 }}
+          APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD }}
           RELEASE_SCOPE: ${{ github.event_name == 'release' && 'full' || inputs.release_scope }}
         run: |
           if [[ "$RELEASE_SCOPE" != full && "$RELEASE_SCOPE" != backend-only ]]; then
@@ -114,6 +116,7 @@ jobs:
               APPLE_TEAM_ID APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID
               APP_STORE_CONNECT_PRIVATE_KEY APPLE_DISTRIBUTION_CERTIFICATE_BASE64
               APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD
+              APPLE_DEVELOPMENT_CERTIFICATE_BASE64 APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD
             )
           fi
           missing=()
@@ -141,7 +144,8 @@ jobs:
               exit 1
             fi
             certificate_bundle="$RUNNER_TEMP/froggybot-distribution.p12"
-            trap 'find "$certificate_bundle" -delete 2>/dev/null || true' EXIT
+            development_bundle="$RUNNER_TEMP/froggybot-development.p12"
+            trap 'find "$certificate_bundle" "$development_bundle" -delete 2>/dev/null || true' EXIT
             if ! printf '%s' "$APPLE_DISTRIBUTION_CERTIFICATE_BASE64" \
               | base64 --decode > "$certificate_bundle"; then
               echo 'FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64 is not valid base64.' >&2
@@ -165,7 +169,30 @@ jobs:
               echo 'The supplied certificate is not an Apple Distribution certificate.' >&2
               exit 1
             fi
-            find "$certificate_bundle" -delete
+            if ! printf '%s' "$APPLE_DEVELOPMENT_CERTIFICATE_BASE64" \
+              | base64 --decode > "$development_bundle"; then
+              echo 'FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_BASE64 is not valid base64.' >&2
+              exit 1
+            fi
+            if ! openssl pkcs12 -in "$development_bundle" \
+              -passin env:APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD -clcerts -nokeys 2>/dev/null \
+              | openssl x509 -checkend 86400 -noout >/dev/null 2>&1; then
+              echo 'The Apple Development certificate is invalid or expires within 24 hours.' >&2
+              exit 1
+            fi
+            if ! openssl pkcs12 -in "$development_bundle" \
+              -passin env:APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD -nocerts -nodes 2>/dev/null \
+              | openssl pkey -check -noout >/dev/null 2>&1; then
+              echo 'The Apple Development certificate bundle does not contain its private key.' >&2
+              exit 1
+            fi
+            if ! openssl pkcs12 -in "$development_bundle" \
+              -passin env:APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD -clcerts -nokeys 2>/dev/null \
+              | openssl x509 -subject -noout 2>/dev/null | grep -q 'Apple Development'; then
+              echo 'The supplied certificate is not an Apple Development certificate.' >&2
+              exit 1
+            fi
+            find "$certificate_bundle" "$development_bundle" -delete
             trap - EXIT
           fi
           node scripts/check-production-config.mjs
@@ -384,6 +411,8 @@ jobs:
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY }}
           APPLE_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64 }}
           APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          APPLE_DEVELOPMENT_CERTIFICATE_BASE64: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_BASE64 }}
+          APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD }}
           FROGGYBOT_BUILD_NUMBER: ${{ steps.apple-build.outputs.number }}
           FROGGYBOT_MARKETING_VERSION: ${{ needs.deploy.outputs.release_version }}
         run: ./apps/iOS/scripts/testflight-ci.sh
