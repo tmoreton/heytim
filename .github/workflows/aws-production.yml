@@ -357,6 +357,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Add Homebrew build tools to PATH
+        run: echo /opt/homebrew/bin >> "$GITHUB_PATH"
+
       - name: Restore production client configuration
         uses: actions/download-artifact@v8
         with:

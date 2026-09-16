@@ -133,6 +133,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - name: Add Homebrew build tools to PATH
+        run: echo /opt/homebrew/bin >> "$GITHUB_PATH"
       - uses: actions/download-artifact@v8
         with:
           name: froggybot-autofix-${{ github.run_id }}
