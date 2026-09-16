@@ -78,7 +78,9 @@ the bundled public backend configuration, and runs the shared iPhone/Mac verific
 `all` form verifies once and uploads matching iPhone and Mac builds with the same build number. The manual production
 workflow uses this path after its backend deployment succeeds; its signing material is injected from the protected
 GitHub production environment and removed from the runner afterward. Local runs use the developer account signed
-into Xcode by default.
+into Xcode by default. Publishing a stable GitHub Release tagged `vMAJOR.MINOR.PATCH` deploys the backend and runs
+this same TestFlight path automatically. The tag sets `MARKETING_VERSION` for both archives, while a single numeric
+build number is shared by the iPhone and Mac builds. The tag must point to a commit on `main`.
 For unattended uploads, set `APP_STORE_CONNECT_KEY_PATH`, `APP_STORE_CONNECT_KEY_ID`, and
 `APP_STORE_CONNECT_ISSUER_ID` together; never commit the `.p8` key. Add `--dry-run` before the platform to inspect
 the selected archive path and build number without signing or uploading.
@@ -94,3 +96,28 @@ From the repository root:
 Verification builds the same target for Mac and iPhone, runs unit and iPhone UI tests serially on an isolated temporary
 simulator, and runs the on-device transcription package tests. UI tests use `--ui-testing`, which never contacts AWS,
 alters real user data, or reuses a developer's simulator.
+
+For Mac navigation and resize changes, also run the `FroggyBotAppleUI` scheme on
+My Mac with development signing enabled. The Mac tests cover bot/group Details
+over the full chat area, a stationary sidebar, actual window and divider drags,
+draft preservation, and feature-page dismissal. Do not run Mac UI tests with
+`CODE_SIGNING_ALLOWED=NO`: the test runner must be re-signed after Xcode embeds
+the test bundle, otherwise macOS rejects it as damaged. The unsigned Mac unit
+test host used by the standard verification script is a separate case.
+
+Use an isolated fixture-only bundle identifier while TestFlight is open. This
+keeps test launches separate from the installed app. These offline UI builds do
+not need push, microphone, or file-access entitlements; the overrides below are
+only for UI testing and must not be used for release archives.
+
+```bash
+xcodebuild test -project apps/iOS/FroggyBotApple.xcodeproj \
+  -scheme FroggyBotAppleUI -destination 'platform=macOS' \
+  -parallel-testing-enabled NO \
+  -only-testing:FroggyBotAppleUITests/FroggyBotAppleUITests/testMacDetailsCoverChatAndRemainStableWhenResizing \
+  -only-testing:FroggyBotAppleUITests/FroggyBotAppleUITests/testMacFeaturePagesCoverChatWithoutMovingSidebar \
+  -only-testing:FroggyBotAppleUITests/FroggyBotAppleUITests/testMacSavingRootBotEditorReturnsToChat \
+  DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic \
+  CODE_SIGN_IDENTITY='Apple Development' \
+  PRODUCT_BUNDLE_IDENTIFIER=com.frogbot.app.uitesting CODE_SIGN_ENTITLEMENTS=
+```

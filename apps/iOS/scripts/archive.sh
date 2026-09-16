@@ -8,6 +8,7 @@ Usage: APPLE_TEAM_ID=TEAMID ./scripts/archive.sh [--dry-run] <ios|macos>
 Environment:
   APPLE_TEAM_ID             Required Apple Developer team identifier.
   FROGGYBOT_BUILD_NUMBER    Optional numeric override. Defaults to a UTC timestamp.
+  FROGGYBOT_MARKETING_VERSION  Optional MAJOR.MINOR.PATCH app version override.
   APP_STORE_CONNECT_KEY_PATH, APP_STORE_CONNECT_KEY_ID, and
   APP_STORE_CONNECT_ISSUER_ID may be supplied together for API-key signing.
 EOF
@@ -38,6 +39,12 @@ fi
 build_number="${FROGGYBOT_BUILD_NUMBER:-$(date -u +%Y%m%d%H%M%S)}"
 if [[ ! "$build_number" =~ ^[0-9]+$ ]]; then
   echo "FROGGYBOT_BUILD_NUMBER must contain only digits." >&2
+  exit 2
+fi
+
+marketing_version="${FROGGYBOT_MARKETING_VERSION:-}"
+if [[ -n "$marketing_version" && ! "$marketing_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "FROGGYBOT_MARKETING_VERSION must be MAJOR.MINOR.PATCH." >&2
   exit 2
 fi
 
@@ -77,6 +84,9 @@ archive_path="$archives_root/FroggyBot-$platform_label-$build_number.xcarchive"
 
 echo "Platform: $platform_label"
 echo "Build number: $build_number"
+if [[ -n "$marketing_version" ]]; then
+  echo "App version: $marketing_version"
+fi
 echo "Archive: $archive_path"
 
 if [[ "$dry_run" == true ]]; then
@@ -104,6 +114,9 @@ archive_args=(
   CURRENT_PROJECT_VERSION="$build_number"
   -allowProvisioningUpdates
 )
+if [[ -n "$marketing_version" ]]; then
+  archive_args+=(MARKETING_VERSION="$marketing_version")
+fi
 if [[ -n "$key_path" ]]; then
   archive_args+=(
     -authenticationKeyPath "$key_path"

@@ -22,7 +22,7 @@ import XCTest
       XCTContext.runActivity(named: featureSheet.argument) { _ in
         let app = XCUIApplication()
         app.launchArguments = [
-          "--ui-testing", "--ui-testing-sheet", featureSheet.argument,
+          "--ui-testing", "--ui-testing-sheet=\(featureSheet.argument)",
         ]
         app.launch()
 
@@ -125,6 +125,25 @@ import XCTest
     XCTAssertFalse(app.staticTexts["Checking `README.md` for the intended release workflow."].exists)
   }
 
+  func testConversationAppearsAfterLoadingAndClearsStaleWorkingStatus() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing", "--ui-testing-delayed-conversation"]
+    app.launch()
+
+    let latestMessage = app.staticTexts["Latest message before send."]
+    let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
+    let sidebarChief = app.descendants(matching: .any)["sidebar.title.bot.chief"].firstMatch
+    XCTAssertTrue(latestMessage.waitForExistence(timeout: 10))
+    XCTAssertTrue(composer.waitForExistence(timeout: 5))
+    XCTAssertTrue(latestMessage.isHittable)
+    XCTAssertLessThan(latestMessage.frame.maxY, composer.frame.minY)
+    #if os(iOS)
+      app.buttons["FroggyBot"].tap()
+    #endif
+    XCTAssertTrue(sidebarChief.waitForExistence(timeout: 5))
+    XCTAssertFalse(sidebarChief.label.localizedCaseInsensitiveContains("working"))
+  }
+
   func testGroupProgressUsesCompactStatusRowsWithoutEmptyReplyBubbles() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing", "--ui-testing-group-progress"]
@@ -151,10 +170,10 @@ import XCTest
       XCTAssertLessThan(queued.frame.height, 80)
       XCTAssertLessThan(waiting.frame.height, 80)
     #else
-      XCTAssertTrue(
-        app.descendants(matching: .any)["sidebar.processing.group.research-team"]
-          .waitForExistence(timeout: 5))
-      XCTAssertTrue(app.staticTexts["Working"].exists)
+      let sidebarGroup =
+        app.descendants(matching: .any)["sidebar.title.group.research-team"].firstMatch
+      XCTAssertTrue(sidebarGroup.waitForExistence(timeout: 5))
+      XCTAssertTrue(sidebarGroup.label.localizedCaseInsensitiveContains("working"))
       let replyPicker = app.descendants(matching: .any)["chat.replyPicker"]
       XCTAssertTrue(replyPicker.waitForExistence(timeout: 5))
       XCTAssertTrue(replyPicker.isHittable)
@@ -182,15 +201,15 @@ import XCTest
     app.launchArguments = ["--ui-testing"]
     app.launch()
 
-    let attachmentMenu = app.buttons["chat.attachments"]
+    let attachmentMenu = app.descendants(matching: .any)["chat.attachments"].firstMatch
     XCTAssertTrue(attachmentMenu.waitForExistence(timeout: 10))
     let microphone = app.buttons["chat.microphone"]
     XCTAssertTrue(microphone.waitForExistence(timeout: 5))
     XCTAssertTrue(microphone.isHittable)
     attachmentMenu.tap()
 
-    XCTAssertTrue(app.buttons["Photo Library"].waitForExistence(timeout: 5))
-    XCTAssertTrue(app.buttons["Choose Files"].exists)
+    XCTAssertTrue(app.descendants(matching: .any)["Photo Library"].firstMatch.waitForExistence(timeout: 5))
+    XCTAssertTrue(app.descendants(matching: .any)["Choose Files"].firstMatch.exists)
   }
 
   func testConversationDetailsUsesPlatformNavigationAndCanClose() {
@@ -213,13 +232,21 @@ import XCTest
       XCTAssertTrue(inspectorBack.isHittable)
       XCTAssertFalse(app.buttons["Done"].exists)
     #else
-      XCTAssertTrue(app.staticTexts["Details"].waitForExistence(timeout: 5))
+      let title = app.toolbars.staticTexts["Details"]
+      XCTAssertTrue(title.waitForExistence(timeout: 5))
       XCTAssertFalse(app.sheets.firstMatch.exists)
       XCTAssertFalse(app.buttons["chat.details"].exists)
       XCTAssertTrue(inspectorBack.exists)
       XCTAssertTrue(inspectorBack.isHittable)
       XCTAssertFalse(app.buttons["Done"].exists)
-      XCTAssertGreaterThan(inspectorBack.frame.midX, app.windows.firstMatch.frame.midX)
+      XCTAssertGreaterThan(inspectorBack.frame.minX, app.splitters.firstMatch.frame.maxX)
+      XCTAssertLessThan(inspectorBack.frame.midX, app.windows.firstMatch.frame.midX)
+      XCTAssertLessThan(abs(title.frame.midY - inspectorBack.frame.midY), 20)
+      XCTAssertEqual(app.splitters.count, 1)
+      let headerScreenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+      headerScreenshot.name = "Details uses the shared navigation header"
+      headerScreenshot.lifetime = .keepAlways
+      add(headerScreenshot)
     #endif
 
     inspectorBack.tap()
@@ -247,7 +274,7 @@ import XCTest
     }
 
     memory.tap()
-    XCTAssertTrue(app.staticTexts["Memory"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["Chief Memory"].waitForExistence(timeout: 5))
     let rootLinksDisappear = XCTNSPredicateExpectation(
       predicate: NSPredicate(format: "exists == false"),
       object: app.buttons["conversation.schedules"])
@@ -264,7 +291,7 @@ import XCTest
       XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
       sidebar.tap()
     #endif
-    let create = app.buttons["sidebar.create"]
+    let create = app.descendants(matching: .any)["sidebar.create"].firstMatch
     XCTAssertTrue(create.waitForExistence(timeout: 10))
     XCTAssertTrue(create.isHittable)
     let settings = app.buttons["sidebar.settings"]
@@ -277,10 +304,9 @@ import XCTest
     settings.tap()
 
     XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 5))
-    XCTAssertTrue(app.staticTexts["Memory"].exists)
-    XCTAssertTrue(app.staticTexts["Add a Bot"].exists)
-    XCTAssertTrue(app.staticTexts["Tools & Skills"].exists)
-    XCTAssertTrue(app.staticTexts["Connected Accounts"].exists)
+    for title in ["Memory", "Add a Bot", "Tools & Skills", "Connected Accounts"] {
+      XCTAssertTrue(app.descendants(matching: .any)[title].firstMatch.exists)
+    }
     XCTAssertTrue(app.descendants(matching: .any)["settings.appearance"].exists)
     XCTAssertTrue(app.descendants(matching: .any)["settings.text-size"].exists)
     #if os(iOS)
@@ -292,7 +318,8 @@ import XCTest
       XCTAssertTrue(close.exists)
       XCTAssertTrue(close.isHittable)
       XCTAssertLessThan(close.frame.midX, title.frame.midX)
-      XCTAssertGreaterThan(close.frame.midX, app.windows.firstMatch.frame.midX)
+      XCTAssertGreaterThan(close.frame.minX, app.splitters.firstMatch.frame.maxX)
+      XCTAssertLessThan(close.frame.midX, app.windows.firstMatch.frame.midX)
       XCTAssertFalse(app.sheets.firstMatch.exists)
       XCTAssertFalse(app.buttons["Done"].exists)
       XCTAssertEqual(app.windows.count, 1)
@@ -302,10 +329,18 @@ import XCTest
     for _ in 0..<4 where !exportMemory.exists { app.swipeUp() }
     XCTAssertTrue(exportMemory.waitForExistence(timeout: 5))
 
-    let aboutValue = app.staticTexts["App, FroggyBot for Apple"]
+    #if os(macOS)
+      let aboutValue = app.staticTexts["FroggyBot for Apple"]
+    #else
+      let aboutValue = app.staticTexts["App, FroggyBot for Apple"]
+    #endif
     for _ in 0..<4 where !aboutValue.exists { app.swipeUp() }
     XCTAssertTrue(aboutValue.waitForExistence(timeout: 5))
-    XCTAssertTrue(app.staticTexts["Platforms, iPhone + Mac"].exists)
+    #if os(macOS)
+      XCTAssertTrue(app.staticTexts["iPhone + Mac"].exists)
+    #else
+      XCTAssertTrue(app.staticTexts["Platforms, iPhone + Mac"].exists)
+    #endif
     let version = app.descendants(matching: .any)["settings.version"]
     for _ in 0..<4 where !version.exists { app.swipeUp() }
     XCTAssertTrue(version.waitForExistence(timeout: 5))
@@ -493,7 +528,7 @@ import XCTest
 
   func testCreatingScheduledTaskKeepsTheEditorPresented() {
     let app = XCUIApplication()
-    app.launchArguments = ["--ui-testing", "--ui-testing-sheet", "schedules"]
+    app.launchArguments = ["--ui-testing", "--ui-testing-sheet=schedules"]
     app.launch()
 
     XCTAssertTrue(app.staticTexts["Scheduled tasks"].waitForExistence(timeout: 10))
@@ -547,6 +582,139 @@ import XCTest
   }
 
   #if os(macOS)
+    func testMacDetailsCoverChatAndRemainStableWhenResizing() {
+      for group in [false, true] {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"] + (group ? ["--ui-testing-group-progress"] : [])
+        app.launch()
+
+        let window = app.windows.firstMatch
+        let details = app.buttons["chat.details"]
+        let search = app.searchFields["Search chats"]
+        let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
+        XCTAssertTrue(details.waitForExistence(timeout: 10))
+        XCTAssertTrue(search.exists)
+        let sidebarFrame = search.frame
+        let splitterX = app.splitters.firstMatch.frame.minX
+        composer.click()
+        composer.typeText("Keep this draft while inspecting")
+
+        details.click()
+        let back = app.buttons["inspector.back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.splitters.count, 1, "Details must not add a resizable inspector column.")
+        XCTAssertEqual(search.frame.minX, sidebarFrame.minX, accuracy: 2)
+        XCTAssertEqual(search.frame.width, sidebarFrame.width, accuracy: 2)
+        XCTAssertEqual(app.splitters.firstMatch.frame.minX, splitterX, accuracy: 2)
+        XCTAssertFalse(composer.exists, "The covered chat must not remain accessible.")
+        XCTAssertFalse(app.sheets.firstMatch.exists)
+
+        for offset in [CGVector(dx: -40, dy: -60), CGVector(dx: 100, dy: 60)] {
+          let previousSize = window.frame.size
+          let corner = window.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 1))
+            .withOffset(CGVector(dx: -2, dy: -2))
+          corner.click(forDuration: 0.2, thenDragTo: corner.withOffset(offset))
+          XCTAssertNotEqual(window.frame.size, previousSize, "The test must actually resize the window.")
+          XCTAssertTrue(back.isHittable)
+          XCTAssertEqual(app.splitters.count, 1)
+          XCTAssertEqual(search.frame.width, sidebarFrame.width, accuracy: 2)
+          XCTAssertGreaterThan(back.frame.minX, app.splitters.firstMatch.frame.maxX)
+          XCTAssertLessThan(back.frame.midX, window.frame.midX)
+        }
+
+        // The remaining divider belongs only to the original chat list. Drag it
+        // with Details open too, covering the NSSplitView interaction in the crash.
+        let divider = app.splitters.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        divider.click(forDuration: 0.2, thenDragTo: divider.withOffset(CGVector(dx: 20, dy: 0)))
+        XCTAssertTrue(back.isHittable)
+        XCTAssertEqual(app.splitters.count, 1)
+        let screenshot = XCTAttachment(screenshot: window.screenshot())
+        screenshot.name = group ? "Group Details after resizing" : "Bot Details after resizing"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+
+        back.click()
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        XCTAssertEqual(composer.value as? String, "Keep this draft while inspecting")
+        XCTAssertTrue(details.isHittable)
+        app.terminate()
+      }
+    }
+
+    func testMacFeaturePagesCoverChatWithoutMovingSidebar() {
+      let app = XCUIApplication()
+      app.launchArguments = ["--ui-testing"]
+      app.launch()
+      let search = app.searchFields["Search chats"]
+      XCTAssertTrue(search.waitForExistence(timeout: 10))
+      let sidebarFrame = search.frame
+      let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
+      composer.click()
+      composer.typeText("Keep this draft behind Settings")
+      app.buttons["sidebar.settings"].click()
+      let back = app.buttons["sheet.close"]
+      XCTAssertTrue(back.waitForExistence(timeout: 5))
+      let settingsTitle = app.toolbars.staticTexts["Settings"]
+      XCTAssertTrue(settingsTitle.exists)
+      XCTAssertLessThan(abs(settingsTitle.frame.midY - back.frame.midY), 20)
+      XCTAssertLessThan(settingsTitle.frame.minX - back.frame.maxX, 40)
+      let settingsScreenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+      settingsScreenshot.name = "Settings uses the shared navigation header"
+      settingsScreenshot.lifetime = .keepAlways
+      add(settingsScreenshot)
+      XCTAssertEqual(search.frame.minX, sidebarFrame.minX, accuracy: 2)
+      XCTAssertEqual(search.frame.width, sidebarFrame.width, accuracy: 2)
+      XCTAssertEqual(app.splitters.count, 1)
+      XCTAssertFalse(app.descendants(matching: .any)["chat.composer"].firstMatch.exists)
+      XCTAssertFalse(app.buttons["chat.details"].exists)
+      back.click()
+      XCTAssertTrue(app.buttons["chat.details"].waitForExistence(timeout: 5))
+      XCTAssertEqual(composer.value as? String, "Keep this draft behind Settings")
+
+      app.buttons["sidebar.settings"].click()
+      app.buttons["Tools & Skills"].click()
+      XCTAssertTrue(app.staticTexts["Tools & Skills"].waitForExistence(timeout: 5))
+      let toolsScreenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+      toolsScreenshot.name = "Tools and Skills shares the navigation header"
+      toolsScreenshot.lifetime = .keepAlways
+      add(toolsScreenshot)
+      app.buttons["sidebar.title.bot.chief"].click()
+      XCTAssertTrue(app.buttons["chat.details"].waitForExistence(timeout: 5))
+      XCTAssertFalse(app.buttons["sheet.close"].exists)
+      XCTAssertEqual(composer.value as? String, "Keep this draft behind Settings")
+    }
+
+    func testMacSavingRootBotEditorReturnsToChat() {
+      let app = XCUIApplication()
+      app.launchArguments = ["--ui-testing"]
+      app.launch()
+      let create = app.menuButtons["sidebar.create"]
+      XCTAssertTrue(create.waitForExistence(timeout: 10))
+      create.click()
+      app.menuItems["Create a custom bot"].click()
+      let name = app.textFields["Name"]
+      XCTAssertTrue(name.waitForExistence(timeout: 10))
+      let back = app.buttons["sheet.close"]
+      XCTAssertGreaterThan(back.frame.minX, app.splitters.firstMatch.frame.maxX)
+      XCTAssertLessThan(back.frame.midX, app.windows.firstMatch.frame.midX)
+      name.click()
+      name.typeText("Local resize test bot")
+      XCTAssertEqual(name.value as? String, "Local resize test bot")
+      app.buttons["bot.prompt.editor"].click()
+      let prompt = app.textViews["Bot prompt"]
+      XCTAssertTrue(prompt.waitForExistence(timeout: 5))
+      prompt.click()
+      prompt.typeText("Help with local user interface testing.")
+      XCTAssertEqual(prompt.value as? String, "Help with local user interface testing.")
+      app.buttons["Done"].click()
+      XCTAssertEqual(name.value as? String, "Local resize test bot")
+      let save = app.buttons["Save"]
+      XCTAssertTrue(save.isEnabled)
+      save.click()
+      XCTAssertTrue(app.buttons["chat.details"].waitForExistence(timeout: 5))
+      XCTAssertFalse(app.buttons["sheet.close"].exists)
+    }
+
     func testMacComposerAndToolbarStayInsideTheNativeWindowLayout() {
       let app = XCUIApplication()
       app.launchArguments = ["--ui-testing"]
@@ -595,7 +763,7 @@ import XCTest
       app.launchArguments = ["--ui-testing"]
       app.launch()
 
-      let create = app.buttons["sidebar.create"]
+      let create = app.menuButtons["sidebar.create"]
       XCTAssertTrue(create.waitForExistence(timeout: 10))
       create.click()
       let customBot = app.menuItems["Create a custom bot"]
@@ -608,9 +776,9 @@ import XCTest
       XCTAssertTrue(name.waitForExistence(timeout: 5))
       XCTAssertTrue(tagline.waitForExistence(timeout: 5))
       XCTAssertFalse(app.sheets.firstMatch.exists)
-      XCTAssertGreaterThan(name.frame.minX, window.frame.midX)
+      XCTAssertGreaterThan(name.frame.minX, app.splitters.firstMatch.frame.maxX)
       XCTAssertLessThan(name.frame.maxX, window.frame.maxX - 20)
-      XCTAssertGreaterThan(tagline.frame.minX, window.frame.midX)
+      XCTAssertGreaterThan(tagline.frame.minX, app.splitters.firstMatch.frame.maxX)
       XCTAssertLessThan(tagline.frame.maxX, window.frame.maxX - 20)
       XCTAssertTrue(app.staticTexts["Color"].exists)
       XCTAssertTrue(app.descendants(matching: .any)["bot.prompt.editor"].firstMatch.exists)

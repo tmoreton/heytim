@@ -292,31 +292,52 @@ public final class FrogBotAPI: Sendable {
     return envelope.values
   }
 
-  public func memories(groupId: String? = nil) async throws -> MemorySnapshot {
-    groupId == nil
-      ? try await request(.memoryList)
-      : try await request(.groupMemoryList, parameters: ["groupId": groupId!])
+  public func memories(botId: String? = nil, groupId: String? = nil) async throws -> MemorySnapshot {
+    if let botId {
+      return try await request(.botMemoryList, parameters: ["botId": botId])
+    }
+    if let groupId {
+      return try await request(.groupMemoryList, parameters: ["groupId": groupId])
+    }
+    return try await request(.memoryList)
   }
-  public func createMemory(kind: String = "fact", content: String, groupId: String? = nil)
+  public func createMemory(
+    kind: String = "fact", content: String, botId: String? = nil, groupId: String? = nil)
     async throws -> MemoryRecord
   {
+    if let botId {
+      return try await request(
+        .botMemoryCreate, parameters: ["botId": botId], body: ["content": content])
+    }
     if let groupId {
       return try await request(
         .groupMemoryCreate, parameters: ["groupId": groupId], body: ["content": content])
     }
     return try await request(.memoryCreate, body: ["kind": kind, "content": content])
   }
-  public func updateMemory(id: String, content: String, groupId: String? = nil) async throws
+  public func updateMemory(
+    id: String, content: String, botId: String? = nil, groupId: String? = nil) async throws
     -> MemoryRecord
   {
+    if let botId {
+      return try await request(
+        .botMemoryUpdate,
+        parameters: ["botId": botId, "memoryRecordId": id], body: ["content": content])
+    }
     let route: APIRouteID = groupId == nil ? .memoryUpdate : .groupMemoryUpdate
     return try await request(
-      route, parameters: ["groupId": groupId ?? "", "recordId": id], body: ["content": content])
+      route, parameters: ["groupId": groupId ?? "", "memoryRecordId": id],
+      body: ["content": content])
   }
-  public func deleteMemory(id: String, groupId: String? = nil) async throws {
+  public func deleteMemory(id: String, botId: String? = nil, groupId: String? = nil) async throws {
+    if let botId {
+      let _: EmptyResponse = try await request(
+        .botMemoryDelete, parameters: ["botId": botId, "memoryRecordId": id])
+      return
+    }
     let route: APIRouteID = groupId == nil ? .memoryDelete : .groupMemoryDelete
     let _: EmptyResponse = try await request(
-      route, parameters: ["groupId": groupId ?? "", "recordId": id])
+      route, parameters: ["groupId": groupId ?? "", "memoryRecordId": id])
   }
   public func exportMemory() async throws -> URL {
     let value: StringEnvelope = try await request(.memoryExport, body: EmptyResponse())

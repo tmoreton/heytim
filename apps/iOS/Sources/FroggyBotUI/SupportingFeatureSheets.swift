@@ -216,7 +216,7 @@ struct SkillEditor: View {
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       if showsDismissButton {
-        CloseButton()
+        CloseButton { model.sheet = nil }
       }
       if loadError == nil && !loading {
         ToolbarItem(placement: .confirmationAction) {
@@ -255,7 +255,7 @@ struct SkillEditor: View {
       do {
         _ = try await model.requireAPI().saveSkill(draft, id: id)
         await model.refreshBootstrap()
-        dismiss()
+        if showsDismissButton { model.sheet = nil } else { dismiss() }
       } catch {
         model.present(error)
       }
@@ -415,7 +415,7 @@ struct ConnectionsView: View {
   @ViewBuilder
   private func providerAccessRow(_ provider: ConnectionProvider, nested: Bool = false) -> some View {
     if let connection = connection(for: provider.id) {
-      NavigationLink {
+      FeatureLink {
         ConnectionDetailView(
           connection: connection, provider: provider,
           reconnect: { connect(provider.id) },
@@ -767,7 +767,7 @@ struct AccountView: View {
   var body: some View {
     Form {
       Section("Build Your Team") {
-        NavigationLink {
+        FeatureLink {
           BotLibrary(model: model, showsDismissButton: false)
         } label: {
           Label("Add a Bot", systemImage: "plus.circle.fill")
@@ -775,17 +775,17 @@ struct AccountView: View {
       }
 
       Section("Manage") {
-        NavigationLink {
+        FeatureLink {
           MemoriesView(model: model, groupId: nil, showsDismissButton: false)
         } label: {
           Label("Memory", systemImage: "brain.head.profile")
         }
-        NavigationLink {
+        FeatureLink {
           SkillsView(model: model, showsDismissButton: false)
         } label: {
           Label("Tools & Skills", systemImage: "wrench.and.screwdriver")
         }
-        NavigationLink {
+        FeatureLink {
           ConnectionsView(model: model, showsDismissButton: false)
         } label: {
           Label("Connected Accounts", systemImage: "link")
@@ -924,23 +924,12 @@ struct AccountView: View {
       }
     }
     .formStyle(.grouped)
-    #if os(macOS)
-      .froggyNavigationTitle("Settings", isPresented: !showsDismissButton)
-      .safeAreaInset(edge: .top, spacing: 0) {
-        if showsDismissButton {
-          settingsHeader
-        }
-      }
-    #else
-      .froggyNavigationTitle("Settings")
-    #endif
+    .froggyNavigationTitle("Settings")
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
-      #if !os(macOS)
-        if showsDismissButton {
-          CloseButton()
-        }
-      #endif
+      if showsDismissButton {
+        CloseButton { model.sheet = nil }
+      }
     }
     .task { await load() }
     .refreshable { await loadLinks() }
@@ -983,29 +972,6 @@ struct AccountView: View {
       Text("This cannot be undone. Connected-account access will be revoked, shared links will stop working, and owned groups will be deleted for every member.")
     }
   }
-
-  #if os(macOS)
-    private var settingsHeader: some View {
-      HStack(spacing: 10) {
-        Button("Back", systemImage: "chevron.backward") { model.sheet = nil }
-          .labelStyle(.iconOnly)
-          .buttonStyle(.plain)
-          .foregroundStyle(FrogTheme.accent)
-          .frame(width: 36, height: 36)
-          .contentShape(Rectangle())
-          .accessibilityIdentifier("sheet.close")
-          .help("Back to chat")
-        Text("Settings")
-          .froggyFont(.headline, weight: .semibold)
-          .accessibilityAddTraits(.isHeader)
-        Spacer(minLength: 8)
-      }
-      .padding(.horizontal, 24)
-      .padding(.vertical, 12)
-      .background(.bar)
-      .overlay(alignment: .bottom) { Divider() }
-    }
-  #endif
 
   @ViewBuilder private var notificationAction: some View {
     switch notificationAuthorization {

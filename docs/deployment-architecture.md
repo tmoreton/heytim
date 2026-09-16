@@ -12,8 +12,8 @@ an independent owner and release cadence with a versioned contract between repos
 | Apple verification | Apple, transcription, or generated-route changes on a pull request or `main` | Repository-scoped `frogbot-macmini` runner |
 | Browser/backend/runtime/AgentCore verification | Trusted pull requests and `main`, classified by changed path | Repository-scoped `frogbot-macmini` runner |
 | CodeQL | Relevant JavaScript, TypeScript, or Python changes and the weekly schedule | Repository-scoped `frogbot-macmini` runner |
-| Production backend | Manual production workflow from `main` | GitHub-hosted Linux runner using GitHub OIDC, never stored AWS keys |
-| TestFlight | Dependent step of a successful full production release | Repository-scoped `frogbot-macmini` runner |
+| Production backend | Published stable GitHub Release tagged from `main`, or manual recovery workflow | GitHub-hosted Linux runner using GitHub OIDC, never stored AWS keys |
+| TestFlight | Dependent step of a successful release deployment | Repository-scoped `frogbot-macmini` runner |
 | Provider contract probe and constrained autofix | Scheduled or explicitly trusted events | Repository-scoped `frogbot-macmini` runner |
 
 The Mac mini is intentionally limited to this private repository and has the custom `frogbot-apple` and `frogbot-ci`
@@ -24,14 +24,14 @@ competing for Simulator state, memory, or disk.
 
 ## Why AWS deployment stays in GitHub for now
 
-The existing production job is manually invoked, assumes a narrowly scoped AWS role through OIDC, and runs only for
-a release. Moving that low-frequency control plane into CodePipeline and CodeBuild would add a persistent pipeline,
+The existing production job is release-triggered, assumes a narrowly scoped AWS role through OIDC, and runs only for
+a published stable release or manual recovery. Moving that low-frequency control plane into CodePipeline and CodeBuild would add a persistent pipeline,
 a CodeConnection, another IAM surface, and a second place to diagnose releases. The first optimization target is the
-frequent Apple verification job and unrelated test suites, not the manual backend deployment.
+frequent Apple verification job and unrelated test suites, not the release-gated backend deployment.
 
 If Linux runtime fidelity becomes necessary, the next step is an AWS CodeBuild project for server verification. Use a
 queued build, GitHub CodeConnection restricted to this repository and branch, no long-lived access token, and Secrets
-Manager or Parameter Store for any build secret. Keep the production deployment manual until CodeBuild verification
+Manager or Parameter Store for any build secret. Keep production deployment release-gated until CodeBuild verification
 has been stable long enough to replace the current gate.
 
 ## Mac mini operations
@@ -59,10 +59,13 @@ assets are restored through the repository cache and verified by checksum before
 ## Release boundaries
 
 - A push to `main` verifies code; it does not deploy production.
-- Production deployment remains a manual `workflow_dispatch` operation protected by the `production` environment.
-- `backend-only` deploys AgentCore and Amplify but does not occupy the Mac mini.
-- `full` deploys the backend first, transfers the generated public client configuration as a short-lived artifact,
-  then verifies, signs, and uploads both Apple builds on the Mac mini.
+- A published stable GitHub Release (`vMAJOR.MINOR.PATCH`) at a commit on `main` starts the protected production
+  deployment. The tag version becomes `CFBundleShortVersionString` for both Apple builds; both share one numeric build
+  number. Drafts and pre-releases do not deploy production.
+- Manual `workflow_dispatch` from `main` remains available for recovery. Its `backend-only` scope deploys AgentCore
+  and Amplify without occupying the Mac mini.
+- A release or manual `full` run deploys the backend first, transfers the generated public client configuration as a
+  short-lived artifact, then verifies, signs, and uploads both Apple builds on the Mac mini.
 - The Vite website and public catalog publish independently; Expo is archived outside this repository.
 
 Review GitHub Actions usage and Mac mini queue time after several normal development cycles. If the single runner is

@@ -36,6 +36,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
+      - name: Add Homebrew build tools to PATH
+        run: echo /opt/homebrew/bin >> "$GITHUB_PATH"
       - name: Cache native transcription assets
         uses: actions/cache@v6
         with:

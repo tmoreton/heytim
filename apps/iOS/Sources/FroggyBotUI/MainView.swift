@@ -18,6 +18,9 @@ public struct MainView: View {
   @State private var presentedSheet: AppSheet?
   @State private var pendingSheet: AppSheet?
   @State private var showConversationInspector = false
+  #if os(macOS)
+    @State private var detailPath = NavigationPath()
+  #endif
 
   public init(model: AppModel, auth: AuthSession) {
     self.model = model
@@ -29,11 +32,15 @@ public struct MainView: View {
     layout
     .tint(FrogTheme.accent)
     .onChange(of: model.sheet) { _, sheet in
+      if sheet != nil, presentedSheet != nil || showConversationInspector {
+        resetDetailNavigation()
+      }
       if sheet != nil { showConversationInspector = false }
       synchronizePresentedSheet(with: sheet)
     }
     .onChange(of: model.notificationFocusRevision) { _, revision in
       guard revision > 0 else { return }
+      resetDetailNavigation()
       #if os(iOS)
         columns = .detailOnly
       #endif
@@ -69,32 +76,53 @@ public struct MainView: View {
   private var layout: some View {
     NavigationSplitView(columnVisibility: $columns) {
       ConversationSidebar(model: model, auth: auth) { selection in
+        if presentedSheet != nil || showConversationInspector { resetDetailNavigation() }
         dictation.cancel()
         showConversationInspector = false
+        model.sheet = nil
         model.select(selection)
       } present: { sheet in
-        showConversationInspector = false
         model.sheet = sheet
       }
       .navigationSplitViewColumnWidth(min: 270, ideal: 290, max: 320)
     } detail: {
-      Group {
-        if model.selection != nil {
-          ConversationView(
-            model: model, dictation: dictation,
-            showInspector: $showConversationInspector)
-        } else {
-          EmptyPanel(
-            icon: "bubble.left.and.bubble.right", title: "Choose a chat",
-            detail: "Select a person, group, or FroggyBot from the chat list.")
+      #if os(macOS)
+        NavigationStack(path: $detailPath) {
+          conversationDetail
+            .navigationDestination(for: FeatureDestination.self) { $0.content() }
         }
-      }
-      .froggyFeaturePresentation(item: $presentedSheet, onDismiss: sheetDidDismiss) { sheet in
-        FeatureSheet(sheet: sheet, model: model, auth: auth)
-          .froggyFeatureColumnWidth()
-      }
+      #else
+        conversationDetail
+      #endif
     }
     .navigationSplitViewStyle(.balanced)
+  }
+
+  private var conversationDetail: some View {
+    Group {
+      if model.selection != nil {
+        ConversationView(
+          model: model, dictation: dictation,
+          showInspector: $showConversationInspector,
+          isCoveredByFeature: presentedSheet != nil)
+      } else {
+        EmptyPanel(
+          icon: "bubble.left.and.bubble.right", title: "Choose a chat",
+          detail: "Select a person, group, or FroggyBot from the chat list.")
+      }
+    }
+    .froggyFeaturePresentation(item: $presentedSheet, onDismiss: sheetDidDismiss) { sheet in
+      FeatureSheet(sheet: sheet, model: model, auth: auth)
+        .id(sheet.id)
+    }
+  }
+
+  private func resetDetailNavigation() {
+    #if os(macOS)
+      // Leave any nested page when the user explicitly changes context.
+      // Ordinary Back/close keeps the mounted chat and its position.
+      detailPath = NavigationPath()
+    #endif
   }
 
   private func synchronizePresentedSheet(with requestedSheet: AppSheet?) {
@@ -160,21 +188,16 @@ private struct ConversationSidebar: View {
         set: { value in if let value { select(value) } })
     ) {
       ForEach(conversations) { item in
-        let processing = isProcessing(item)
-        NavigationLink(value: item.selection) {
-          conversationRow(
-            selection: item.selection, name: item.name,
-            preview: latestPreview(for: item), date: latestActivityDate(for: item),
-            processing: processing, processingName: processingName(for: item)
-          ) {
-            switch item {
-            case .group(let group):
-              GroupAvatar(group: group, size: 42)
-            case .bot(let bot):
-              BotAvatar(name: bot.name, color: bot.color, size: 42)
-            }
-          }
-        }
+        #if os(macOS)
+          // An explicit action also runs when the already-selected chat is
+          // clicked, allowing it to leave a covered feature or nested page.
+          Button { select(item.selection) } label: { sidebarRow(item) }
+            .buttonStyle(.plain)
+            .tag(item.selection)
+            .accessibilityIdentifier("sidebar.title.\(item.selection.kind.rawValue).\(item.selection.id)")
+        #else
+          NavigationLink(value: item.selection) { sidebarRow(item) }
+        #endif
       }
       if conversations.isEmpty {
         ContentUnavailableView(
@@ -217,6 +240,19 @@ private struct ConversationSidebar: View {
       #endif
     }
     .overlay { if model.isLoading { ProgressView().tint(FrogTheme.accent) } }
+  }
+
+  private func sidebarRow(_ item: ConversationListItem) -> some View {
+    conversationRow(
+      selection: item.selection, name: item.name,
+      preview: latestPreview(for: item), date: latestActivityDate(for: item),
+      processing: isProcessing(item), processingName: processingName(for: item)
+    ) {
+      switch item {
+      case .group(let group): GroupAvatar(group: group, size: 42)
+      case .bot(let bot): BotAvatar(name: bot.name, color: bot.color, size: 42)
+      }
+    }
   }
 
   private var createMenu: some View {
@@ -287,6 +323,7 @@ private struct ConversationSidebar: View {
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .frame(minHeight: 48)
+    .contentShape(Rectangle())
     .accessibilityAddTraits(model.selection == selection ? .isSelected : [])
   }
 
@@ -295,8 +332,11 @@ private struct ConversationSidebar: View {
   }
 
   private func isProcessing(_ item: ConversationListItem) -> Bool {
-    if item.processing || model.sendingSelection == item.selection { return true }
-    return model.selection == item.selection && model.messages.contains(where: \.isActive)
+    if model.sendingSelection == item.selection { return true }
+    if model.selection == item.selection && model.loadedMessagesSelection == item.selection {
+      return model.messages.contains(where: \.isActive)
+    }
+    return item.processing
   }
 
   private func processingName(for item: ConversationListItem) -> String? {
@@ -365,16 +405,36 @@ enum ConversationTranscriptUpdate: Equatable {
   }
 }
 
-private extension View {
-  @ViewBuilder func froggyFeatureColumnWidth() -> some View {
-    #if os(macOS)
-      frame(minWidth: 500, idealWidth: 620, maxWidth: 820)
-        .inspectorColumnWidth(min: 500, ideal: 620, max: 820)
-    #else
-      self
-    #endif
-  }
+#if os(macOS)
+  /// Covers the detail column without adding a resizable NSSplitView inspector.
+  /// An overlay does not participate in the sidebar's width negotiation, and the
+  /// mounted conversation retains its draft and scroll position behind the page.
+  private struct ChatCoverModifier<Cover: View>: ViewModifier {
+    let isPresented: Bool
+    @ViewBuilder let cover: () -> Cover
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    func body(content: Content) -> some View {
+      content
+        .opacity(isPresented ? 0 : 1)
+        .allowsHitTesting(!isPresented)
+        .accessibilityElement(children: .contain)
+        .accessibilityHidden(isPresented)
+        .overlay {
+          if isPresented {
+            cover()
+              .frame(maxWidth: .infinity, maxHeight: .infinity)
+              .background(FrogTheme.appBackground)
+              .transition(reduceMotion ? .opacity : .move(edge: .trailing))
+          }
+        }
+        .clipped()
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: isPresented)
+    }
+  }
+#endif
+
+private extension View {
   @ViewBuilder func froggyFeaturePresentation<Item: Identifiable, Content: View>(
     item: Binding<Item?>, onDismiss: @escaping () -> Void,
     @ViewBuilder content: @escaping (Item) -> Content
@@ -382,17 +442,9 @@ private extension View {
     #if os(iOS)
       sheet(item: item, onDismiss: onDismiss, content: content)
     #else
-      inspector(
-        isPresented: Binding(
-          get: { item.wrappedValue != nil },
-          set: { isPresented in
-            guard !isPresented, item.wrappedValue != nil else { return }
-            item.wrappedValue = nil
-            onDismiss()
-          })
-      ) {
+      modifier(ChatCoverModifier(isPresented: item.wrappedValue != nil) {
         if let value = item.wrappedValue { content(value) }
-      }
+      })
     #endif
   }
 
@@ -427,7 +479,7 @@ private extension View {
     #if os(iOS)
       sheet(isPresented: isPresented, onDismiss: onDismiss, content: content)
     #else
-      inspector(isPresented: isPresented, content: content)
+      modifier(ChatCoverModifier(isPresented: isPresented.wrappedValue, cover: content))
     #endif
   }
 }
@@ -436,6 +488,7 @@ private struct ConversationView: View {
   @Bindable var model: AppModel
   @Bindable var dictation: DictationModel
   @Binding var showInspector: Bool
+  var isCoveredByFeature = false
   @State private var importing = false
   @State private var showDelete = false
   @State private var showClear = false
@@ -452,16 +505,6 @@ private struct ConversationView: View {
 
   private let bottomID = "froggy-conversation-bottom"
   private let scrollSpace = "froggy-conversation-scroll"
-  private struct TranscriptIdentity: Hashable {
-    enum ContentState: Hashable {
-      case loading
-      case empty
-      case populated
-    }
-
-    let selection: ConversationSelection?
-    let contentState: ContentState
-  }
   private enum InspectorAction {
     case clear
     case delete
@@ -469,18 +512,6 @@ private struct ConversationView: View {
 
   private var messageRevisions: [ConversationMessageRevision] {
     model.messages.map(ConversationMessageRevision.init)
-  }
-
-  private var transcriptIdentity: TranscriptIdentity {
-    let contentState: TranscriptIdentity.ContentState
-    if !model.messages.isEmpty {
-      contentState = .populated
-    } else if model.isLoadingMessages {
-      contentState = .loading
-    } else {
-      contentState = .empty
-    }
-    return TranscriptIdentity(selection: model.selection, contentState: contentState)
   }
 
   var body: some View {
@@ -557,6 +588,11 @@ private struct ConversationView: View {
           showsScrollToLatest = true
         }
       }
+      .onChange(of: model.isLoadingMessages) { wasLoading, isLoading in
+        if wasLoading && !isLoading && !model.messages.isEmpty && isFollowingLatest {
+          scheduleScrollToBottom(using: proxy, animated: false, settleAfterLoad: true)
+        }
+      }
       .overlay(alignment: .bottom) {
         if showsScrollToLatest {
           Button("Jump to Latest", systemImage: "arrow.down") {
@@ -579,10 +615,12 @@ private struct ConversationView: View {
             scheduleScrollToBottom(using: proxy, animated: true)
             Task { await model.send() }
           })
+          .opacity(showsChatHeader ? 1 : 0)
+          .allowsHitTesting(showsChatHeader)
+          .accessibilityHidden(!showsChatHeader)
       }
     }
-    .id(transcriptIdentity)
-    .froggyNavigationTitle(model.title, horizontalPadding: 8)
+    .froggyNavigationTitle(model.title, isPresented: showsChatHeader, horizontalPadding: 8)
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       #if os(iOS)
@@ -591,7 +629,7 @@ private struct ConversationView: View {
         }
       #endif
       #if os(macOS)
-        if !showInspector {
+        if showsChatHeader {
           ToolbarItem(placement: .primaryAction) { detailsButton }
         }
       #else
@@ -599,6 +637,9 @@ private struct ConversationView: View {
       #endif
     }
     .background(FrogTheme.appBackground)
+    .onChange(of: showsChatHeader) { _, isVisible in
+      if !isVisible { composerFocused = false }
+    }
     .froggyInspector(isPresented: $showInspector, onDismiss: finishInspectorAction) {
       ConversationInspector(
         model: model,
@@ -609,7 +650,6 @@ private struct ConversationView: View {
         delete: {
           confirmDeleteFromInspector()
         })
-        .inspectorColumnWidth(min: 360, ideal: 420, max: 520)
     }
     .quickLookPreview($previewURL)
     .onChange(of: previewURL) { previous, current in
@@ -642,14 +682,16 @@ private struct ConversationView: View {
     }
   }
 
-  private func scheduleScrollToBottom(using proxy: ScrollViewProxy, animated: Bool) {
+  private func scheduleScrollToBottom(
+    using proxy: ScrollViewProxy, animated: Bool, settleAfterLoad: Bool = false
+  ) {
     pendingScroll?.cancel()
     isFollowingLatest = true
-    let requestedTranscript = transcriptIdentity
+    let requestedSelection = model.selection
     pendingScroll = Task { @MainActor in
       // Let SwiftUI finish measuring newly loaded or expanded message content first.
       await Task.yield()
-      guard !Task.isCancelled, transcriptIdentity == requestedTranscript else { return }
+      guard !Task.isCancelled, model.selection == requestedSelection else { return }
       let scroll = {
         if let latestMessageID = model.messages.last?.id {
           proxy.scrollTo(latestMessageID, anchor: .bottom)
@@ -666,9 +708,15 @@ private struct ConversationView: View {
       // first anchor. Settle once after that layout pass without animating every
       // incremental AI update.
       try? await Task.sleep(for: .milliseconds(animated ? 220 : 40))
-      guard !Task.isCancelled, transcriptIdentity == requestedTranscript, isFollowingLatest
+      guard !Task.isCancelled, model.selection == requestedSelection, isFollowingLatest
       else { return }
       scroll()
+      if settleAfterLoad {
+        try? await Task.sleep(for: .milliseconds(260))
+        guard !Task.isCancelled, model.selection == requestedSelection, isFollowingLatest
+        else { return }
+        scroll()
+      }
     }
   }
 
@@ -715,6 +763,14 @@ private struct ConversationView: View {
     .accessibilityHint("Shows tasks, history, sharing, memory, and editing options")
     .accessibilityIdentifier("chat.details")
     .help("Details, tasks, history, sharing, memory, and editing")
+  }
+
+  private var showsChatHeader: Bool {
+    #if os(macOS)
+      !showInspector && !isCoveredByFeature
+    #else
+      true
+    #endif
   }
 
   private func confirmClearFromInspector() {
@@ -799,7 +855,7 @@ private struct ConversationInspector: View {
   @State private var savingBot = false
 
   var body: some View {
-    NavigationStack {
+    FeatureNavigation {
       Form {
         Section {
           HStack(spacing: 12) {
@@ -855,57 +911,26 @@ private struct ConversationInspector: View {
       }
       .formStyle(.grouped)
       .froggyListSurface()
-      #if os(macOS)
-        .safeAreaInset(edge: .top, spacing: 0) {
-          inspectorHeader
+      .froggyNavigationTitle("Details")
+      .toolbarTitleDisplayMode(.inline)
+      .toolbar {
+        #if os(macOS)
+          ToolbarItem(placement: .navigation) { detailsBackButton }
+        #else
+          ToolbarItem(placement: .cancellationAction) { detailsBackButton }
+        #endif
+        if let bot = editingBot, actions.contains("edit") {
+          #if os(macOS)
+            ToolbarItem(placement: .primaryAction) { detailsSaveButton(for: bot) }
+          #else
+            ToolbarItem(placement: .confirmationAction) { detailsSaveButton(for: bot) }
+          #endif
         }
-        .ignoresSafeArea(.container, edges: .top)
-      #else
-        .froggyNavigationTitle("Details")
-        .toolbarTitleDisplayMode(.inline)
-        .toolbar {
-          ToolbarItem(placement: .cancellationAction) {
-            detailsBackButton
-          }
-          if let bot = editingBot, actions.contains("edit") {
-            ToolbarItem(placement: .confirmationAction) {
-              Button("Save") { save(bot) }
-                .disabled(!canSaveBot)
-                .accessibilityIdentifier("inspector.save")
-            }
-          }
-        }
-      #endif
+      }
       .onAppear { loadBotDraftIfNeeded() }
       .onChange(of: model.selectedBot?.id) { _, _ in loadBotDraftIfNeeded(force: true) }
     }
   }
-
-  #if os(macOS)
-    private var inspectorHeader: some View {
-      HStack(spacing: 10) {
-        detailsBackButton
-          .buttonStyle(.plain)
-          .foregroundStyle(FrogTheme.accent)
-          .frame(width: 32, height: 32)
-          .contentShape(Rectangle())
-        Text("Details")
-          .froggyFont(.headline, weight: .semibold)
-          .accessibilityAddTraits(.isHeader)
-        Spacer(minLength: 8)
-        if let bot = editingBot, actions.contains("edit") {
-          Button("Save") { save(bot) }
-            .froggyGlassButton(tint: FrogTheme.accent)
-            .disabled(!canSaveBot)
-            .accessibilityIdentifier("inspector.save")
-        }
-      }
-      .padding(.horizontal, 12)
-      .padding(.vertical, 8)
-      .background(FrogTheme.appBackground)
-      .overlay(alignment: .bottom) { Divider() }
-    }
-  #endif
 
   private var detailsBackButton: some View {
     Button("Back", systemImage: "chevron.backward", action: close)
@@ -914,9 +939,19 @@ private struct ConversationInspector: View {
       .help("Back to chat")
   }
 
+  private func detailsSaveButton(for bot: Bot) -> some View {
+    Button("Save") { save(bot) }
+      #if os(macOS)
+        .froggyGlassButton(tint: FrogTheme.accent)
+      #endif
+      .disabled(!canSaveBot)
+      .accessibilityIdentifier("inspector.save")
+  }
+
   @ViewBuilder private var botEditorSections: some View {
     Section {
       TextField("Name", text: $botDraft.name)
+        .accessibilityLabel("Name")
       TextField("Description", text: $botDraft.tagline)
         .accessibilityLabel("What this bot does")
       VStack(alignment: .leading, spacing: 4) {
@@ -936,7 +971,7 @@ private struct ConversationInspector: View {
     }
 
     Section {
-      NavigationLink {
+      FeatureLink {
         BotPromptEditor(
           prompt: $botDraft.prompt,
           maximumLength: model.constraints.botPromptMaxLength)
@@ -976,13 +1011,13 @@ private struct ConversationInspector: View {
 
   @ViewBuilder private var conversationActions: some View {
     if let selection = model.selection, actions.contains("schedule") {
-      NavigationLink {
+      FeatureLink {
         SchedulesView(model: model, selection: selection, showsDismissButton: false)
       } label: {
         Label("Scheduled Tasks", systemImage: "calendar")
       }
       .accessibilityIdentifier("conversation.schedules")
-      NavigationLink {
+      FeatureLink {
         ScheduleRunsView(model: model, selection: selection, showsDismissButton: false)
       } label: {
         Label("Run History", systemImage: "clock.arrow.circlepath")
@@ -990,7 +1025,7 @@ private struct ConversationInspector: View {
       .accessibilityIdentifier("conversation.runs")
     }
     if let selection = model.selection, actions.contains("share") {
-      NavigationLink {
+      FeatureLink {
         ShareView(model: model, selection: selection, showsDismissButton: false)
       } label: {
         Label("Share", systemImage: "square.and.arrow.up")
@@ -999,7 +1034,7 @@ private struct ConversationInspector: View {
     }
     if let bot = model.selectedBot {
       if actions.contains("documents") {
-        NavigationLink {
+        FeatureLink {
           DocumentsView(model: model, botId: bot.id, showsDismissButton: false)
         } label: {
           Label("Documents", systemImage: "doc")
@@ -1007,7 +1042,7 @@ private struct ConversationInspector: View {
         .accessibilityIdentifier("conversation.documents")
       }
       if actions.contains("browser") {
-        NavigationLink {
+        FeatureLink {
           BrowserHandoffView(
             model: model, botId: bot.id, groupId: nil, showsDismissButton: false)
         } label: {
@@ -1015,14 +1050,16 @@ private struct ConversationInspector: View {
         }
         .accessibilityIdentifier("conversation.browser")
       }
-      NavigationLink {
-        MemoriesView(model: model, groupId: nil, showsDismissButton: false)
+      FeatureLink {
+        MemoriesView(
+          model: model, botId: bot.id, botName: bot.name, groupId: nil,
+          showsDismissButton: false)
       } label: {
         Label("Memory", systemImage: "brain.head.profile")
       }
       .accessibilityIdentifier("conversation.memory")
       if actions.contains("edit") {
-        NavigationLink {
+        FeatureLink {
           BotToolsAndSkillsEditor(
             model: model, draft: $botDraft,
             skills: model.bootstrap?.skills ?? [],
@@ -1035,7 +1072,7 @@ private struct ConversationInspector: View {
       }
     } else if let group = model.selectedGroup {
       if actions.contains("viewMemory") || actions.contains("manageMemory") {
-        NavigationLink {
+        FeatureLink {
           MemoriesView(model: model, groupId: group.id, showsDismissButton: false)
         } label: {
           Label("Group Memory", systemImage: "brain.head.profile")
@@ -1043,7 +1080,7 @@ private struct ConversationInspector: View {
         .accessibilityIdentifier("conversation.group-memory")
       }
       if actions.contains("edit") {
-        NavigationLink {
+        FeatureLink {
           GroupEditor(model: model, id: group.id, showsDismissButton: false)
         } label: {
           Label("Edit Group", systemImage: "pencil")
@@ -1343,6 +1380,7 @@ enum MessageActivityPhase: Equatable {
   }
 
   var isIndeterminate: Bool { self == .running || self == .queued }
+  var isActive: Bool { self == .running || self == .queued || self == .waiting }
 
   var systemImage: String {
     switch self {
@@ -1394,7 +1432,7 @@ private struct MessageActivityView: View {
     self.steps = steps
     self.status = status
     self.timestamp = timestamp
-    _isExpanded = State(initialValue: MessageActivityPhase(status: status) == .running)
+    _isExpanded = State(initialValue: MessageActivityPhase(status: status).isActive)
   }
 
   private var phase: MessageActivityPhase { MessageActivityPhase(status: status) }
@@ -1442,11 +1480,14 @@ private struct MessageActivityView: View {
     )
     .padding(.horizontal, 6)
     .padding(.bottom, 4)
-    .onChange(of: phase) { previous, current in
-      if current == .running, !steps.isEmpty {
+    .onChange(of: phase) { _, current in
+      if current.isActive, !steps.isEmpty {
         withAnimation(.snappy) { isExpanded = true }
-      } else if previous == .running && current != .running {
-        withAnimation(.snappy) { isExpanded = false }
+      }
+    }
+    .onChange(of: steps.isEmpty) { wasEmpty, isEmpty in
+      if wasEmpty, !isEmpty, phase.isActive {
+        withAnimation(.snappy) { isExpanded = true }
       }
     }
   }
@@ -1568,13 +1609,12 @@ private struct Composer: View {
         photoImportTask = nil
       }
     }
-    .onChange(of: dictation.transcript) { _, value in
-      guard !value.isEmpty, dictationSelection == model.selection, !model.isSending else { return }
-      model.composerText = dictationPrefix + value
-    }
     .onChange(of: dictation.isRecording) { wasRecording, isRecording in
       guard wasRecording && !isRecording else { return }
-      _ = dictation.consumeTranscript()
+      let transcript = dictation.consumeTranscript()
+      if !transcript.isEmpty, dictationSelection == model.selection, !model.isSending {
+        model.composerText = dictationPrefix + transcript
+      }
       dictationSelection = nil
       dictationPrefix = model.composerText
     }
@@ -1607,7 +1647,7 @@ private struct Composer: View {
           .overlay(Circle().stroke(FrogTheme.border.opacity(0.7), lineWidth: 0.5))
           .frame(width: 44, height: 44)
 
-        composerTextField
+        composerInput
           .padding(.leading, 7)
           .padding(.vertical, 10)
 
@@ -1671,7 +1711,7 @@ private struct Composer: View {
           .controlSize(.large)
 
         HStack(alignment: .bottom, spacing: 2) {
-          composerTextField
+          composerInput
             .padding(.leading, 13)
             .padding(.vertical, 12)
 
@@ -1747,6 +1787,18 @@ private struct Composer: View {
       .onSubmit { if canSubmit { submitMessage() } }
   }
 
+  @ViewBuilder private var composerInput: some View {
+    if dictation.isRecording {
+      DictationWaveform(levels: dictation.audioLevels)
+        .frame(maxWidth: .infinity)
+        .frame(height: 24)
+        .accessibilityLabel("Listening to your voice")
+        .accessibilityIdentifier("chat.dictation.waveform")
+    } else {
+      composerTextField
+    }
+  }
+
   private var sendingProgress: some View {
     ProgressView()
       .controlSize(.small)
@@ -1792,6 +1844,7 @@ private struct Composer: View {
 
   private var canSubmit: Bool {
     canSend && !model.isSending && !model.isUploading
+      && !dictation.isRecording && !dictation.isStarting
   }
   private var attachmentPicker: some View {
     ScrollView(.horizontal) {
@@ -1969,6 +2022,31 @@ private struct Composer: View {
       } catch {
         if !Task.isCancelled, model.sessionIdentifier == session { model.present(error) }
         return
+      }
+    }
+  }
+}
+
+private struct DictationWaveform: View {
+  let levels: [Float]
+
+  var body: some View {
+    Canvas { context, size in
+      let barCount = max(1, Int(size.width / 7))
+      let barSpacing = size.width / CGFloat(barCount)
+      let recentLevels = Array(levels.suffix(barCount))
+      let firstRecordedBar = barCount - recentLevels.count
+
+      for index in 0..<barCount {
+        let level = index < firstRecordedBar ? 0 : recentLevels[index - firstRecordedBar]
+        let height = max(3, CGFloat(level) * size.height)
+        let bar = CGRect(
+          x: CGFloat(index) * barSpacing + (barSpacing - 3) / 2,
+          y: (size.height - height) / 2,
+          width: 3, height: height)
+        context.fill(
+          Path(roundedRect: bar, cornerRadius: 1.5),
+          with: .color(FrogTheme.statusText.opacity(level > 0.05 ? 0.95 : 0.6)))
       }
     }
   }

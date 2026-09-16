@@ -15,4 +15,4 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Verify Gmail API contract
-        run: python scripts/check-gmail-api-contract.py
+        run: python3 scripts/check-gmail-api-contract.py

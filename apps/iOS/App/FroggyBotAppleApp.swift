@@ -40,7 +40,6 @@ struct FroggyBotAppleApp: App {
             "n", modifiers: [.command, .shift])
           Button("New Group") { model.sheet = .groupEditor(nil) }
         }
-        InspectorCommands()
       }
     #else
       WindowGroup {

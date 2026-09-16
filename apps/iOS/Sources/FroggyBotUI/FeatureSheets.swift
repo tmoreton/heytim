@@ -5,7 +5,7 @@ public struct FeatureSheet: View {
   @Bindable var model: AppModel
   let auth: AuthSession
   public var body: some View {
-    NavigationStack {
+    FeatureNavigation {
       switch sheet {
       case .botLibrary: BotLibrary(model: model)
       case .botEditor(let id): BotEditor(model: model, id: id)
@@ -31,6 +31,45 @@ public struct FeatureSheet: View {
   }
 }
 
+/// Use one stack per Mac column to preserve editor state when popping a page.
+/// Separately presented sheets on iPhone need their own stack.
+struct FeatureNavigation<Content: View>: View {
+  @ViewBuilder let content: () -> Content
+
+  var body: some View {
+    #if os(macOS)
+      content()
+    #else
+      NavigationStack { content() }
+    #endif
+  }
+}
+
+/// Transient, value-based routes let the Mac sidebar clear nested pages as
+/// well as the feature root. Destination-based links aren't in NavigationPath.
+struct FeatureDestination: Hashable {
+  let id: UUID
+  let content: @MainActor () -> AnyView
+
+  static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+  func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+struct FeatureLink<Destination: View, Label: View>: View {
+  @ViewBuilder let destination: () -> Destination
+  @ViewBuilder let label: () -> Label
+  @State private var id = UUID()
+
+  var body: some View {
+    #if os(macOS)
+      NavigationLink(
+        value: FeatureDestination(id: id, content: { AnyView(destination()) }), label: label)
+    #else
+      NavigationLink(destination: destination, label: label)
+    #endif
+  }
+}
+
 struct CloseButton: ToolbarContent {
   @Environment(\.dismiss) private var dismiss
   @Environment(\.froggyUsesSheetNavigation) private var usesSheetNavigation
@@ -43,7 +82,7 @@ struct CloseButton: ToolbarContent {
   var body: some ToolbarContent {
     #if os(macOS)
       if usesSheetNavigation {
-        ToolbarItem(placement: .cancellationAction) { button }
+        ToolbarItem(placement: .navigation) { button }
       } else {
         ToolbarItem(placement: .primaryAction) { button }
       }
@@ -178,7 +217,7 @@ struct BotLibrary: View {
   var body: some View {
     List {
       Section {
-        NavigationLink {
+        FeatureLink {
           BotEditor(model: model, id: nil, showsDismissButton: false)
         } label: {
           Label("Create a Custom Bot", systemImage: "slider.horizontal.3")
@@ -220,7 +259,7 @@ struct BotLibrary: View {
   }
 
   private func templateLink(_ template: BotTemplate) -> some View {
-    NavigationLink {
+    FeatureLink {
       BotTemplateDetailView(model: model, template: template)
     } label: {
       HStack(spacing: 12) {
@@ -441,6 +480,7 @@ private struct BotEditor: View {
     Form {
       Section {
         TextField("Name", text: $draft.name)
+          .accessibilityLabel("Name")
         TextField("Description", text: $draft.tagline)
           .accessibilityLabel("What this bot does")
         VStack(alignment: .leading, spacing: 4) {
@@ -458,7 +498,7 @@ private struct BotEditor: View {
               ? Color.secondary : Color.red)
       }
       Section {
-        NavigationLink {
+        FeatureLink {
           BotPromptEditor(
             prompt: $draft.prompt,
             maximumLength: model.constraints.botPromptMaxLength)
@@ -497,7 +537,7 @@ private struct BotEditor: View {
       }
 
       Section {
-        NavigationLink {
+        FeatureLink {
           BotToolsAndSkillsEditor(
             model: model, draft: $draft,
             skills: model.bootstrap?.skills ?? [],
@@ -528,7 +568,7 @@ private struct BotEditor: View {
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       if showsDismissButton {
-        CloseButton()
+        CloseButton { model.sheet = nil }
       }
       ToolbarItem(placement: .confirmationAction) {
         Button("Save") { save() }.disabled(!canSave)
@@ -546,7 +586,9 @@ private struct BotEditor: View {
   private func save() {
     saving = true
     Task {
-      if await model.saveBot(draft, id: id) { dismiss() }
+      if await model.saveBot(draft, id: id) {
+        if showsDismissButton { model.sheet = nil } else { dismiss() }
+      }
       saving = false
     }
   }
@@ -751,7 +793,7 @@ struct BotToolsAndSkillsEditor: View {
   }
 
   private func connectionLink(_ provider: ConnectionProvider) -> some View {
-    NavigationLink {
+    FeatureLink {
       ConnectionsView(model: model, showsDismissButton: false)
     } label: {
       HStack(spacing: 10) {
@@ -1008,7 +1050,9 @@ struct GroupEditor: View {
   private func save() {
     saving = true
     Task {
-      if await model.saveGroup(draft, id: id) { dismiss() }
+      if await model.saveGroup(draft, id: id) {
+        if showsDismissButton { model.sheet = nil } else { dismiss() }
+      }
       saving = false
     }
   }
@@ -1559,6 +1603,8 @@ private struct MemoryListSection: Identifiable {
 
 struct MemoriesView: View {
   @Bindable var model: AppModel
+  var botId: String? = nil
+  var botName: String? = nil
   let groupId: String?
   var showsDismissButton = true
   @State private var snapshot: MemorySnapshot?
@@ -1583,7 +1629,10 @@ struct MemoriesView: View {
   }
 
   private var maximumLength: Int { model.bootstrap?.constraints.memoryMaxLength ?? 16_000 }
-  private var records: [MemoryRecord] { snapshot?.records ?? [] }
+  private var records: [MemoryRecord] {
+    guard let botId else { return snapshot?.records ?? [] }
+    return snapshot?.records.filter { $0.botId == botId } ?? []
+  }
   private var trimmedNewMemory: String {
     newMemory.trimmingCharacters(in: .whitespacesAndNewlines)
   }
@@ -1608,6 +1657,12 @@ struct MemoriesView: View {
   }
 
   private var sections: [MemoryListSection] {
+    if botId != nil {
+      return section(
+        id: "bot", title: "Only This Bot",
+        detail: "These memories are recalled only in this bot’s conversation.",
+        records: filteredRecords)
+    }
     if groupId != nil {
       return section(
         id: "group", title: "Available in This Group",
@@ -1627,8 +1682,8 @@ struct MemoriesView: View {
       detail: "Personal facts and preferences are searched when any bot might need them.",
       records: allBots)
       + section(
-        id: "bot-summaries", title: "Bot Conversation Summaries",
-        detail: "Each summary is available only to the bot named on it.",
+        id: "bot-summaries", title: "Bot-only Memories",
+        detail: "These notes and summaries are available only to the bot named on them.",
         records: botSummaries)
       + section(
         id: "cleanup", title: "Ready for Cleanup",
@@ -1669,7 +1724,9 @@ struct MemoriesView: View {
           ContentUnavailableView(
             "Nothing Remembered Yet", systemImage: "brain.head.profile",
             description: Text(
-              "Facts and preferences you add or ask FroggyBot to remember will appear here."))
+              botId == nil
+                ? "Facts and preferences you add or ask FroggyBot to remember will appear here."
+                : "This bot has no private memories yet. Add a note here to keep it just for this bot."))
         }
       } else if filteredRecords.isEmpty {
         Section {
@@ -1710,7 +1767,8 @@ struct MemoriesView: View {
       }
     }
     .froggyListSurface()
-    .froggyNavigationTitle(groupId == nil ? "Memory" : "Group Memory")
+    .froggyNavigationTitle(
+      botId != nil ? "\(botName ?? "Bot") Memory" : groupId == nil ? "Memory" : "Group Memory")
     .toolbarTitleDisplayMode(.inline)
     .searchable(text: $search, prompt: "Search memories")
     .toolbar {
@@ -1718,7 +1776,7 @@ struct MemoriesView: View {
         CloseButton { model.sheet = nil }
       }
       ToolbarItemGroup(placement: .confirmationAction) {
-        if !records.isEmpty {
+        if !records.isEmpty && botId == nil {
           Menu {
             Picker("Show", selection: $filter) {
               ForEach(MemoryFilter.allCases) { option in
@@ -1776,7 +1834,7 @@ struct MemoriesView: View {
   @ViewBuilder private func overview(_ snapshot: MemorySnapshot) -> some View {
     Section {
       LabeledContent("In use", value: inUseRecords.count.formatted())
-      if groupId == nil {
+      if groupId == nil && botId == nil {
         LabeledContent(
           "Available to every bot",
           value: records.filter { $0.kind != "summary" }.count.formatted())
@@ -1798,16 +1856,18 @@ struct MemoriesView: View {
       Text("At a Glance")
     } footer: {
       Text(
-        groupId == nil
-          ? "“In use” means the memory can be recalled when it is relevant, not that it is sent with every message."
-          : "Every listed record can be recalled by bots in this group when it is relevant."
+        botId != nil
+          ? "Only this bot can recall the memories listed here. Shared facts and preferences are managed in Settings."
+          : groupId == nil
+            ? "“In use” means the memory can be recalled when it is relevant, not that it is sent with every message."
+            : "Every listed record can be recalled by bots in this group when it is relevant."
       )
     }
   }
 
   @ViewBuilder private var addMemorySection: some View {
     Section {
-      if groupId == nil {
+      if groupId == nil && botId == nil {
         Picker("Kind", selection: $newKind) {
           Text("Fact").tag("fact")
           Text("Preference").tag("preference")
@@ -1816,7 +1876,8 @@ struct MemoriesView: View {
       }
       HStack {
         TextField(
-          groupId == nil ? "Add a fact or preference" : "Add group context",
+          botId != nil ? "Add a note for this bot"
+            : groupId == nil ? "Add a fact or preference" : "Add group context",
           text: $newMemory)
         Button("Add") { add() }
           .disabled(
@@ -1837,9 +1898,11 @@ struct MemoriesView: View {
       Text("Add Memory")
     } footer: {
       Text(
-        groupId == nil
-          ? "Facts and preferences are available to every bot."
-          : "New group memories are available to every bot in this group."
+        botId != nil
+          ? "Only this bot can recall notes added here."
+          : groupId == nil
+            ? "Facts and preferences are available to every bot."
+            : "New group memories are available to every bot in this group."
       )
     }
   }
@@ -1973,7 +2036,7 @@ struct MemoriesView: View {
     switch record.kind {
     case "fact": kind = "Fact"
     case "preference": kind = "Preference"
-    case "summary": kind = "Conversation summary"
+    case "summary": kind = record.source == "manual" ? "Bot note" : "Conversation summary"
     default: kind = record.kind.capitalized
     }
     let source = record.source == "manual" ? "Added by you" : "Learned from conversation"
@@ -1998,7 +2061,7 @@ struct MemoriesView: View {
     loading = true
     defer { loading = false }
     do {
-      snapshot = try await model.requireAPI().memories(groupId: groupId)
+      snapshot = try await model.requireAPI().memories(botId: botId, groupId: groupId)
       loadError = nil
       selectedIDs.formIntersection(Set(records.map(\.id)))
     } catch {
@@ -2017,7 +2080,7 @@ struct MemoriesView: View {
       defer { savingNewMemory = false }
       do {
         let created = try await model.requireAPI().createMemory(
-          kind: newKind, content: content, groupId: groupId)
+          kind: newKind, content: content, botId: botId, groupId: groupId)
         snapshot?.records.insert(created, at: 0)
         newMemory = ""
       } catch { model.present(error) }
@@ -2031,7 +2094,7 @@ struct MemoriesView: View {
       defer { busyMemoryIDs.remove(record.id) }
       do {
         let updated = try await model.requireAPI().updateMemory(
-          id: record.id, content: content, groupId: groupId)
+          id: record.id, content: content, botId: botId, groupId: groupId)
         if let index = snapshot?.records.firstIndex(where: { $0.id == record.id }) {
           snapshot?.records[index] = updated
         }
@@ -2049,7 +2112,7 @@ struct MemoriesView: View {
       var deletedIDs: Set<String> = []
       do {
         for id in ids {
-          try await model.requireAPI().deleteMemory(id: id, groupId: groupId)
+          try await model.requireAPI().deleteMemory(id: id, botId: botId, groupId: groupId)
           deletedIDs.insert(id)
         }
       } catch {
@@ -2096,7 +2159,7 @@ struct SkillsView: View {
       case .skills:
         Section("Skills") {
           ForEach(model.bootstrap?.skills ?? []) { skill in
-            NavigationLink {
+            FeatureLink {
               SkillDetailView(
                 model: model, id: skill.id,
                 edit: { editor = SkillEditorDestination(skillID: skill.id) })
@@ -2119,7 +2182,7 @@ struct SkillsView: View {
       case .tools:
         Section("Built-in Tools") {
           ForEach(model.bootstrap?.tools.filter { $0.source != "user" } ?? []) { tool in
-            NavigationLink {
+            FeatureLink {
               CapabilityDetailView(capability: tool)
             } label: {
               Label {

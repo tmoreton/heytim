@@ -164,49 +164,26 @@ private struct FroggyFixedFontModifier: ViewModifier {
 }
 
 private struct FroggyNavigationTitleModifier: ViewModifier {
-  @Environment(\.froggyUsesSheetNavigation) private var usesSheetNavigation
   let title: String
   let isPresented: Bool
   let horizontalPadding: CGFloat
 
   @ViewBuilder func body(content: Content) -> some View {
     #if os(macOS)
-      if usesSheetNavigation {
-        if #available(macOS 15.0, *) {
-          content
-            .navigationTitle(isPresented ? title : "")
-            .toolbar(removing: .title)
-            .toolbar {
-              if isPresented {
-                ToolbarItem(placement: .principal) {
-                  Text(title)
-                    .froggyFont(.title3, weight: .semibold)
-                    .padding(.horizontal, horizontalPadding)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(title)
-                    .accessibilityAddTraits(.isHeader)
-                }
-              }
-            }
-        } else {
-          content.navigationTitle(isPresented ? title : "")
-        }
-      } else {
-        content
-          .navigationTitle("")
-          .toolbar {
-            if isPresented {
-              ToolbarItem(placement: .navigation) {
-                Text(title)
-                  .froggyFont(.title3, weight: .semibold)
-                  .padding(.horizontal, horizontalPadding)
-                  .accessibilityElement(children: .ignore)
-                  .accessibilityLabel(title)
-                  .accessibilityAddTraits(.isHeader)
-              }
+      content
+        .navigationTitle("")
+        .toolbar {
+          if isPresented {
+            ToolbarItem(placement: .navigation) {
+              Text(title)
+                .froggyFont(.title3, weight: .semibold)
+                .padding(.horizontal, horizontalPadding)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(title)
+                .accessibilityAddTraits(.isHeader)
             }
           }
-      }
+        }
     #else
       content.navigationTitle(isPresented ? title : "")
     #endif

@@ -177,11 +177,22 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("release_scope:", self.production_workflow)
         self.assertIn("- backend-only", self.production_workflow)
         self.assertIn(
-            "if: ${{ inputs.release_scope == 'full' }}", self.production_workflow
+            "if: ${{ github.event_name == 'release' || inputs.release_scope == 'full' }}",
+            self.production_workflow,
         )
         self.assertIn(
             'if [[ "$RELEASE_SCOPE" == full ]]; then', self.production_workflow
         )
+
+    def test_published_release_deploys_both_apple_apps_with_the_tag_version(self) -> None:
+        self.assertIn("release:\n    types: [published]", self.production_workflow)
+        self.assertIn('git merge-base --is-ancestor "$GITHUB_SHA" origin/main', self.production_workflow)
+        self.assertIn("release_version: ${{ steps.release.outputs.version }}", self.production_workflow)
+        self.assertIn(
+            "FROGGYBOT_MARKETING_VERSION: ${{ needs.deploy.outputs.release_version }}",
+            self.production_workflow,
+        )
+        self.assertIn("run: ./apps/iOS/scripts/testflight-ci.sh", self.production_workflow)
 
     def test_production_release_uses_locked_agentcore_cdk_dependencies(self) -> None:
         self.assertIn(

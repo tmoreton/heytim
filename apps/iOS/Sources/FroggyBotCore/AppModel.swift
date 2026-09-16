@@ -52,6 +52,7 @@ public final class AppModel {
     }
   }
   public var messages: [ChatMessage] = []
+  public private(set) var loadedMessagesSelection: ConversationSelection?
   public var nextToken: String?
   public var isLoading = false
   public private(set) var isLoadingMessages = false
@@ -93,13 +94,33 @@ public final class AppModel {
         messages = DemoData.activityMessages
       } else if arguments.contains("--ui-testing-markdown") {
         messages = DemoData.markdownMessages
+      } else if arguments.contains("--ui-testing-delayed-conversation") {
+        var staleBootstrap = DemoData.bootstrap
+        staleBootstrap.bots[0].processing = true
+        bootstrap = staleBootstrap
+        isLoadingMessages = true
+        let delayedSelection = selection
+        Task { [weak self] in
+          try? await Task.sleep(for: .milliseconds(250))
+          guard let self, self.selection == delayedSelection else { return }
+          self.messages = DemoData.scrollMessages
+          self.loadedMessagesSelection = delayedSelection
+          self.isLoadingMessages = false
+        }
       } else if arguments.contains("--ui-testing-scroll") {
         messages = DemoData.scrollMessages
       } else {
         messages = DemoData.messages
       }
+      if !isLoadingMessages { loadedMessagesSelection = selection }
       #if DEBUG
-        if let flag = arguments.firstIndex(of: "--ui-testing-sheet"),
+        // Keep the destination in the option itself: macOS can interpret a
+        // standalone value as a document to open and suppress the main window.
+        let sheetPrefix = "--ui-testing-sheet="
+        if let argument = arguments.first(where: { $0.hasPrefix(sheetPrefix) }) {
+          sheet = Self.uiTestingSheet(
+            named: String(argument.dropFirst(sheetPrefix.count)), bootstrap: DemoData.bootstrap)
+        } else if let flag = arguments.firstIndex(of: "--ui-testing-sheet"),
           arguments.indices.contains(flag + 1)
         {
           sheet = Self.uiTestingSheet(named: arguments[flag + 1], bootstrap: DemoData.bootstrap)
@@ -148,6 +169,7 @@ public final class AppModel {
     bootstrap = nil
     selection = nil
     messages = []
+    loadedMessagesSelection = nil
     nextToken = nil
     isLoading = false
     isLoadingMessages = false
@@ -281,6 +303,7 @@ public final class AppModel {
     let requestedSession = sessionGeneration
     if demoMode {
       isLoadingMessages = false
+      loadedMessagesSelection = requestedSelection
       return
     }
     guard let api else {
@@ -304,8 +327,23 @@ public final class AppModel {
     else {
       return
     }
+    loadedMessagesSelection = requestedSelection
+    let wasProcessing = messages.contains(where: \.isActive)
+    let listedProcessing: Bool
+    switch requestedSelection.kind {
+    case .bot:
+      listedProcessing = bootstrap?.bots.first { $0.id == requestedSelection.id }?.processing == true
+    case .group:
+      listedProcessing = bootstrap?.groups.first { $0.id == requestedSelection.id }?.processing == true
+    }
     messages = Self.mergeLatest(current: messages, latest: page.messages)
     nextToken = page.nextToken
+    if !messages.contains(where: \.isActive), wasProcessing || listedProcessing {
+      _ = await refreshBootstrap()
+      guard selection == requestedSelection, selectionGeneration == requestedGeneration,
+        sessionIsCurrent(requestedSession, api: api)
+      else { return }
+    }
     configurePolling()
     let changedMessageIDs = Set(
       page.messages.lazy.filter { $0.configurationChanged == true }.map(\.id)
@@ -707,6 +745,7 @@ public final class AppModel {
     saveVisibleDraft()
     setSelection(value)
     messages = []
+    loadedMessagesSelection = nil
     nextToken = nil
     isLoadingMessages = value != nil && !demoMode
     pollTask?.cancel()
