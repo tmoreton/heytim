@@ -76,6 +76,15 @@ fi
 )
 "$repository_root/scripts/verify.sh" apple
 
+if [[ -n "${FROGGYBOT_SIGNING_KEYCHAIN:-}" ]]; then
+  if [[ ! -f "$FROGGYBOT_SIGNING_KEYCHAIN" ]]; then
+    echo "CI signing keychain not found: $FROGGYBOT_SIGNING_KEYCHAIN" >&2
+    exit 1
+  fi
+  # Keep local development identities out of the release archive's search path.
+  security list-keychains -d user -s "$FROGGYBOT_SIGNING_KEYCHAIN"
+fi
+
 key_path="${APP_STORE_CONNECT_KEY_PATH:-}"
 key_id="${APP_STORE_CONNECT_KEY_ID:-}"
 issuer_id="${APP_STORE_CONNECT_ISSUER_ID:-}"
