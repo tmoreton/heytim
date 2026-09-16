@@ -39,5 +39,8 @@ fi
 # Keep the existing domain and HTTPS settings; switch only the build source.
 gh api --method PUT "repos/$target_repository/pages" \
   -f build_type=legacy -f 'source[branch]=gh-pages' -f 'source[path]=/' >/dev/null
+# The first push can precede the source switch, so request the initial Pages
+# build explicitly. Later pushes also remain safe to redeploy idempotently.
+gh api --method POST "repos/$target_repository/pages/builds" >/dev/null
 echo "Published website source $source_revision to GitHub Pages. Check Pages completion before announcing it live."
 echo "Recoverable publication checkout: $checkout"
