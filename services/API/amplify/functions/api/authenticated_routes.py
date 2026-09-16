@@ -46,13 +46,17 @@ from .groups import (
     _update_group,
 )
 from .memories import (
+    _create_bot_memory,
     _create_group_memory,
     _create_user_memory,
+    _delete_bot_memory_record,
     _delete_group_memory_record,
     _delete_user_memory_record,
     _export_user_memories,
+    _list_bot_memories,
     _list_group_memories,
     _list_user_memories,
+    _update_bot_memory,
     _update_group_memory,
     _update_user_memory,
 )
@@ -295,6 +299,22 @@ def _bot_route(
         )
     if method == "POST" and path == "/bots":
         return _response(201, _create_bot(user_id, _body(event)))
+    if method == "GET" and path.endswith("/memory"):
+        return _response(200, _list_bot_memories(user_id, bot_id))
+    if method == "POST" and path.endswith("/memory"):
+        return _response(201, _create_bot_memory(user_id, bot_id, _body(event)))
+    if method == "PUT" and "/memory/" in path:
+        return _response(
+            200,
+            _update_bot_memory(
+                user_id, bot_id, params.get("memoryRecordId", ""), _body(event)
+            ),
+        )
+    if method == "DELETE" and "/memory/" in path:
+        return _response(
+            200,
+            _delete_bot_memory_record(user_id, bot_id, params.get("memoryRecordId", "")),
+        )
     if method == "PUT" and path.startswith("/bots/"):
         return _response(200, _update_bot(user_id, bot_id, _body(event)))
     if method == "DELETE" and path.startswith("/bots/"):

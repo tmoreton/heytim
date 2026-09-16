@@ -6,6 +6,7 @@ import Observation
 public final class DictationModel {
   public private(set) var isRecording = false
   public private(set) var isStarting = false
+  public private(set) var audioLevels: [Float] = []
   public var transcript = ""
   public var errorMessage: String?
   @ObservationIgnored private var transcriber: NemotronTranscriber?
@@ -25,6 +26,7 @@ public final class DictationModel {
     let requestedSessionID = UUID()
     sessionID = requestedSessionID
     isStarting = true
+    audioLevels = []
     errorMessage = nil
     AVCaptureDevice.requestAccess(for: .audio) { [weak self] allowed in
       Task { @MainActor in
@@ -55,6 +57,7 @@ public final class DictationModel {
     transcriber = nil
     isStarting = false
     isRecording = false
+    audioLevels = []
     transcript = ""
   }
 
@@ -66,11 +69,15 @@ public final class DictationModel {
     case .started:
       isStarting = false
       isRecording = true
+    case .audioLevel(let level):
+      audioLevels.append(level)
+      if audioLevels.count > 96 { audioLevels.removeFirst(audioLevels.count - 96) }
     case .result(let value, _): transcript = value
     case .failed(_, let message): errorMessage = message
     case .ended:
       isStarting = false
       isRecording = false
+      audioLevels = []
       self.sessionID = nil
       transcriber = nil
     }

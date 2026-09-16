@@ -332,8 +332,11 @@ private struct ConversationSidebar: View {
   }
 
   private func isProcessing(_ item: ConversationListItem) -> Bool {
-    if item.processing || model.sendingSelection == item.selection { return true }
-    return model.selection == item.selection && model.messages.contains(where: \.isActive)
+    if model.sendingSelection == item.selection { return true }
+    if model.selection == item.selection && model.loadedMessagesSelection == item.selection {
+      return model.messages.contains(where: \.isActive)
+    }
+    return item.processing
   }
 
   private func processingName(for item: ConversationListItem) -> String? {
@@ -502,16 +505,6 @@ private struct ConversationView: View {
 
   private let bottomID = "froggy-conversation-bottom"
   private let scrollSpace = "froggy-conversation-scroll"
-  private struct TranscriptIdentity: Hashable {
-    enum ContentState: Hashable {
-      case loading
-      case empty
-      case populated
-    }
-
-    let selection: ConversationSelection?
-    let contentState: ContentState
-  }
   private enum InspectorAction {
     case clear
     case delete
@@ -519,18 +512,6 @@ private struct ConversationView: View {
 
   private var messageRevisions: [ConversationMessageRevision] {
     model.messages.map(ConversationMessageRevision.init)
-  }
-
-  private var transcriptIdentity: TranscriptIdentity {
-    let contentState: TranscriptIdentity.ContentState
-    if !model.messages.isEmpty {
-      contentState = .populated
-    } else if model.isLoadingMessages {
-      contentState = .loading
-    } else {
-      contentState = .empty
-    }
-    return TranscriptIdentity(selection: model.selection, contentState: contentState)
   }
 
   var body: some View {
@@ -607,6 +588,11 @@ private struct ConversationView: View {
           showsScrollToLatest = true
         }
       }
+      .onChange(of: model.isLoadingMessages) { wasLoading, isLoading in
+        if wasLoading && !isLoading && !model.messages.isEmpty && isFollowingLatest {
+          scheduleScrollToBottom(using: proxy, animated: false, settleAfterLoad: true)
+        }
+      }
       .overlay(alignment: .bottom) {
         if showsScrollToLatest {
           Button("Jump to Latest", systemImage: "arrow.down") {
@@ -634,7 +620,6 @@ private struct ConversationView: View {
           .accessibilityHidden(!showsChatHeader)
       }
     }
-    .id(transcriptIdentity)
     .froggyNavigationTitle(model.title, isPresented: showsChatHeader, horizontalPadding: 8)
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
@@ -697,14 +682,16 @@ private struct ConversationView: View {
     }
   }
 
-  private func scheduleScrollToBottom(using proxy: ScrollViewProxy, animated: Bool) {
+  private func scheduleScrollToBottom(
+    using proxy: ScrollViewProxy, animated: Bool, settleAfterLoad: Bool = false
+  ) {
     pendingScroll?.cancel()
     isFollowingLatest = true
-    let requestedTranscript = transcriptIdentity
+    let requestedSelection = model.selection
     pendingScroll = Task { @MainActor in
       // Let SwiftUI finish measuring newly loaded or expanded message content first.
       await Task.yield()
-      guard !Task.isCancelled, transcriptIdentity == requestedTranscript else { return }
+      guard !Task.isCancelled, model.selection == requestedSelection else { return }
       let scroll = {
         if let latestMessageID = model.messages.last?.id {
           proxy.scrollTo(latestMessageID, anchor: .bottom)
@@ -721,9 +708,15 @@ private struct ConversationView: View {
       // first anchor. Settle once after that layout pass without animating every
       // incremental AI update.
       try? await Task.sleep(for: .milliseconds(animated ? 220 : 40))
-      guard !Task.isCancelled, transcriptIdentity == requestedTranscript, isFollowingLatest
+      guard !Task.isCancelled, model.selection == requestedSelection, isFollowingLatest
       else { return }
       scroll()
+      if settleAfterLoad {
+        try? await Task.sleep(for: .milliseconds(260))
+        guard !Task.isCancelled, model.selection == requestedSelection, isFollowingLatest
+        else { return }
+        scroll()
+      }
     }
   }
 
@@ -1058,7 +1051,9 @@ private struct ConversationInspector: View {
         .accessibilityIdentifier("conversation.browser")
       }
       FeatureLink {
-        MemoriesView(model: model, groupId: nil, showsDismissButton: false)
+        MemoriesView(
+          model: model, botId: bot.id, botName: bot.name, groupId: nil,
+          showsDismissButton: false)
       } label: {
         Label("Memory", systemImage: "brain.head.profile")
       }
@@ -1385,6 +1380,7 @@ enum MessageActivityPhase: Equatable {
   }
 
   var isIndeterminate: Bool { self == .running || self == .queued }
+  var isActive: Bool { self == .running || self == .queued || self == .waiting }
 
   var systemImage: String {
     switch self {
@@ -1436,7 +1432,7 @@ private struct MessageActivityView: View {
     self.steps = steps
     self.status = status
     self.timestamp = timestamp
-    _isExpanded = State(initialValue: MessageActivityPhase(status: status) == .running)
+    _isExpanded = State(initialValue: MessageActivityPhase(status: status).isActive)
   }
 
   private var phase: MessageActivityPhase { MessageActivityPhase(status: status) }
@@ -1484,11 +1480,14 @@ private struct MessageActivityView: View {
     )
     .padding(.horizontal, 6)
     .padding(.bottom, 4)
-    .onChange(of: phase) { previous, current in
-      if current == .running, !steps.isEmpty {
+    .onChange(of: phase) { _, current in
+      if current.isActive, !steps.isEmpty {
         withAnimation(.snappy) { isExpanded = true }
-      } else if previous == .running && current != .running {
-        withAnimation(.snappy) { isExpanded = false }
+      }
+    }
+    .onChange(of: steps.isEmpty) { wasEmpty, isEmpty in
+      if wasEmpty, !isEmpty, phase.isActive {
+        withAnimation(.snappy) { isExpanded = true }
       }
     }
   }
@@ -1610,13 +1609,12 @@ private struct Composer: View {
         photoImportTask = nil
       }
     }
-    .onChange(of: dictation.transcript) { _, value in
-      guard !value.isEmpty, dictationSelection == model.selection, !model.isSending else { return }
-      model.composerText = dictationPrefix + value
-    }
     .onChange(of: dictation.isRecording) { wasRecording, isRecording in
       guard wasRecording && !isRecording else { return }
-      _ = dictation.consumeTranscript()
+      let transcript = dictation.consumeTranscript()
+      if !transcript.isEmpty, dictationSelection == model.selection, !model.isSending {
+        model.composerText = dictationPrefix + transcript
+      }
       dictationSelection = nil
       dictationPrefix = model.composerText
     }
@@ -1649,7 +1647,7 @@ private struct Composer: View {
           .overlay(Circle().stroke(FrogTheme.border.opacity(0.7), lineWidth: 0.5))
           .frame(width: 44, height: 44)
 
-        composerTextField
+        composerInput
           .padding(.leading, 7)
           .padding(.vertical, 10)
 
@@ -1713,7 +1711,7 @@ private struct Composer: View {
           .controlSize(.large)
 
         HStack(alignment: .bottom, spacing: 2) {
-          composerTextField
+          composerInput
             .padding(.leading, 13)
             .padding(.vertical, 12)
 
@@ -1789,6 +1787,18 @@ private struct Composer: View {
       .onSubmit { if canSubmit { submitMessage() } }
   }
 
+  @ViewBuilder private var composerInput: some View {
+    if dictation.isRecording {
+      DictationWaveform(levels: dictation.audioLevels)
+        .frame(maxWidth: .infinity)
+        .frame(height: 24)
+        .accessibilityLabel("Listening to your voice")
+        .accessibilityIdentifier("chat.dictation.waveform")
+    } else {
+      composerTextField
+    }
+  }
+
   private var sendingProgress: some View {
     ProgressView()
       .controlSize(.small)
@@ -1834,6 +1844,7 @@ private struct Composer: View {
 
   private var canSubmit: Bool {
     canSend && !model.isSending && !model.isUploading
+      && !dictation.isRecording && !dictation.isStarting
   }
   private var attachmentPicker: some View {
     ScrollView(.horizontal) {
@@ -2011,6 +2022,31 @@ private struct Composer: View {
       } catch {
         if !Task.isCancelled, model.sessionIdentifier == session { model.present(error) }
         return
+      }
+    }
+  }
+}
+
+private struct DictationWaveform: View {
+  let levels: [Float]
+
+  var body: some View {
+    Canvas { context, size in
+      let barCount = max(1, Int(size.width / 7))
+      let barSpacing = size.width / CGFloat(barCount)
+      let recentLevels = Array(levels.suffix(barCount))
+      let firstRecordedBar = barCount - recentLevels.count
+
+      for index in 0..<barCount {
+        let level = index < firstRecordedBar ? 0 : recentLevels[index - firstRecordedBar]
+        let height = max(3, CGFloat(level) * size.height)
+        let bar = CGRect(
+          x: CGFloat(index) * barSpacing + (barSpacing - 3) / 2,
+          y: (size.height - height) / 2,
+          width: 3, height: height)
+        context.fill(
+          Path(roundedRect: bar, cornerRadius: 1.5),
+          with: .color(FrogTheme.statusText.opacity(level > 0.05 ? 0.95 : 0.6)))
       }
     }
   }

@@ -1,6 +1,9 @@
 name: Deploy FroggyBot production release
+run-name: Deploy FroggyBot ${{ github.event.release.tag_name || github.ref_name }}
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       release_scope:
@@ -26,8 +29,41 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     environment: production
+    outputs:
+      release_version: ${{ steps.release.outputs.version }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Verify release source and version
+        id: release
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_DRAFT: ${{ github.event.release.draft }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == release ]]; then
+            if [[ "$RELEASE_DRAFT" == true || "$RELEASE_PRERELEASE" == true ]]; then
+              echo 'Only published stable releases deploy production.' >&2
+              exit 1
+            fi
+            if [[ "$GITHUB_REF" != "refs/tags/$RELEASE_TAG" ]] \
+              || [[ ! "$RELEASE_TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+              echo 'Release tags must be vMAJOR.MINOR.PATCH.' >&2
+              exit 1
+            fi
+            version="${BASH_REMATCH[1]}"
+            if [[ "$(git rev-parse "$GITHUB_REF^{commit}")" != "$GITHUB_SHA" ]] \
+              || ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+              echo 'The release tag must point to a commit on main.' >&2
+              exit 1
+            fi
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF" != refs/heads/main ]]; then
+            echo 'Manual production releases must run from main.' >&2
+            exit 1
+          fi
 
       - name: Check release branch and production configuration
         env:
@@ -58,12 +94,8 @@ jobs:
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY }}
           APPLE_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64 }}
           APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
-          RELEASE_SCOPE: ${{ inputs.release_scope }}
+          RELEASE_SCOPE: ${{ github.event_name == 'release' && 'full' || inputs.release_scope }}
         run: |
-          if [[ "$GITHUB_REF" != refs/heads/main ]]; then
-            echo 'Production releases must run from main.' >&2
-            exit 1
-          fi
           if [[ "$RELEASE_SCOPE" != full && "$RELEASE_SCOPE" != backend-only ]]; then
             echo 'release_scope must be full or backend-only.' >&2
             exit 1
@@ -315,7 +347,7 @@ jobs:
   apple:
     name: Release SwiftUI apps to TestFlight
     needs: deploy
-    if: ${{ inputs.release_scope == 'full' }}
+    if: ${{ github.event_name == 'release' || inputs.release_scope == 'full' }}
     runs-on: [self-hosted, macOS, ARM64, frogbot-apple]
     timeout-minutes: 120
     environment: production
@@ -350,4 +382,5 @@ jobs:
           APPLE_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64 }}
           APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
           FROGGYBOT_BUILD_NUMBER: ${{ steps.apple-build.outputs.number }}
+          FROGGYBOT_MARKETING_VERSION: ${{ needs.deploy.outputs.release_version }}
         run: ./apps/iOS/scripts/testflight-ci.sh

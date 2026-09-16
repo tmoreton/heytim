@@ -37,6 +37,24 @@ class ApiRoutingTests(unittest.TestCase):
         self.assertEqual(response["statusCode"], 200)
         group_messages.assert_not_called()
 
+    def test_bot_memory_routes_to_bot_scope(self) -> None:
+        snapshot = {"records": [], "rawConversationRetentionDays": 30}
+        with patch.object(
+            self.routes, "_list_bot_memories", return_value=snapshot
+        ) as list_bot_memory:
+            response = self.routes.route_authenticated(
+                "user-1",
+                "Tim",
+                "GET",
+                "/bots/bot-1/memory",
+                {"botId": "bot-1"},
+                {},
+                route_key="GET /bots/{botId}/memory",
+            )
+
+        self.assertEqual(json.loads(response["body"]), snapshot)
+        list_bot_memory.assert_called_once_with("user-1", "bot-1")
+
     def test_connection_authorization_dispatches_from_the_provider_route(self) -> None:
         authorization = {"authorizationUrl": "https://accounts.example/authorize"}
         with patch.object(

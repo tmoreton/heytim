@@ -13,6 +13,10 @@
     { "id": "botCreate", "method": "POST", "path": "/bots", "access": "authenticated", "handler": "bot" },
     { "id": "botUpdate", "method": "PUT", "path": "/bots/{botId}", "access": "authenticated", "handler": "bot" },
     { "id": "botDelete", "method": "DELETE", "path": "/bots/{botId}", "access": "authenticated", "handler": "bot" },
+    { "id": "botMemoryList", "method": "GET", "path": "/bots/{botId}/memory", "access": "authenticated", "handler": "bot" },
+    { "id": "botMemoryCreate", "method": "POST", "path": "/bots/{botId}/memory", "access": "authenticated", "handler": "bot" },
+    { "id": "botMemoryUpdate", "method": "PUT", "path": "/bots/{botId}/memory/{memoryRecordId}", "access": "authenticated", "handler": "bot" },
+    { "id": "botMemoryDelete", "method": "DELETE", "path": "/bots/{botId}/memory/{memoryRecordId}", "access": "authenticated", "handler": "bot" },
 
     { "id": "botDocuments", "method": "GET", "path": "/bots/{botId}/documents", "access": "authenticated", "handler": "directChat" },
     { "id": "botMessagesList", "method": "GET", "path": "/bots/{botId}/messages", "access": "authenticated", "handler": "directChat" },

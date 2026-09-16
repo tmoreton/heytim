@@ -3,6 +3,7 @@ import Foundation
 
 public enum NemotronTranscriptionEvent: Sendable {
     case started
+    case audioLevel(Float)
     case result(transcript: String, isFinal: Bool)
     case failed(code: String, message: String)
     case ended
@@ -36,6 +37,7 @@ public final class NemotronTranscriber: @unchecked Sendable {
     private let converter = StreamingAudioConverter()
     private var transcriptAccumulator = ContinuousTranscriptAccumulator()
     private var previousTranscript = ""
+    private var lastAudioLevelEmission: TimeInterval = 0
 
     private lazy var capture = AppleAudioCapture(
         bufferHandler: { [weak self] buffer, generation in
@@ -127,6 +129,7 @@ public final class NemotronTranscriber: @unchecked Sendable {
             converter.reset()
             transcriptAccumulator.reset()
             previousTranscript = ""
+            lastAudioLevelEmission = 0
             resetIngressState()
             recognizer.begin()
 
@@ -153,6 +156,7 @@ public final class NemotronTranscriber: @unchecked Sendable {
         do {
             let samples = try converter.convert(buffer)
             guard !samples.isEmpty else { return }
+            emitAudioLevelIfDue(samples)
             let update = recognizer.accept(samples)
             let transcript = transcriptAccumulator.rendering(update.transcript)
             if transcript != previousTranscript {
@@ -172,6 +176,24 @@ public final class NemotronTranscriber: @unchecked Sendable {
         } catch {
             failActiveSession(generation: generation, error: error)
         }
+    }
+
+    private func emitAudioLevelIfDue(_ samples: [Float]) {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastAudioLevelEmission >= 0.07 else { return }
+        lastAudioLevelEmission = now
+
+        var energy: Double = 0
+        var sampleCount = 0
+        for index in stride(from: 0, to: samples.count, by: 16) {
+            let sample = Double(samples[index])
+            energy += sample * sample
+            sampleCount += 1
+        }
+        let rms = sqrt(energy / Double(max(1, sampleCount)))
+        let decibels = 20 * log10(max(rms, 0.000_001))
+        let level = Float(min(1, max(0, (decibels + 55) / 45)))
+        emit(.audioLevel(level))
     }
 
     private func enqueue(_ buffer: AVAudioPCMBuffer, generation: UInt) {

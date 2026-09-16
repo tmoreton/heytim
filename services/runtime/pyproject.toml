@@ -38,6 +38,9 @@ dependencies = [
     # CodeZip resolves this browser dependency afresh instead of using uv.lock.
     # Keep the deployed driver identical to the version exercised by tests.
     "playwright == 1.62.0",
+    # AgentCore CodeZip resolves transitives afresh; keep the packaged version
+    # aligned with the runtime lockfile and its integration test.
+    "platformdirs == 4.11.8",
     # Keep fresh CodeZip resolution on the already-tested lockfile versions.
     "propcache == 0.5.2",
     "python-docx >= 1.2.0, < 2.0.0",

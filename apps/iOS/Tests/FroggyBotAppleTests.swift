@@ -14,7 +14,7 @@ import UniformTypeIdentifiers
   }
 
   func testGeneratedContractIncludesEveryBackendRoute() throws {
-    XCTAssertEqual(APIRouteID.allCases.count, 72)
+    XCTAssertEqual(APIRouteID.allCases.count, 76)
     XCTAssertEqual(GeneratedAPIContract.routes.count, APIRouteID.allCases.count)
   }
 
@@ -121,6 +121,10 @@ import UniformTypeIdentifiers
 
   func testMessageActivityPhasesUseAccurateProgressLabels() {
     XCTAssertTrue(MessageActivityPhase(status: "running").isIndeterminate)
+    XCTAssertTrue(MessageActivityPhase(status: "running").isActive)
+    XCTAssertTrue(MessageActivityPhase(status: "queued").isActive)
+    XCTAssertTrue(MessageActivityPhase(status: "waiting").isActive)
+    XCTAssertFalse(MessageActivityPhase(status: "complete").isActive)
     XCTAssertEqual(
       MessageActivityPhase(status: "running").title(stepCount: 2), "Processing · 2 updates")
     XCTAssertEqual(MessageActivityPhase(status: "pending").title(stepCount: 0), "Processing…")
@@ -264,6 +268,65 @@ import UniformTypeIdentifiers
     XCTAssertEqual(memoryUsageState(for: activeSummary, groupID: nil), .bot("Travel Bot"))
     XCTAssertEqual(memoryUsageState(for: unusedSummary, groupID: nil), .unused)
     XCTAssertEqual(memoryUsageState(for: fact, groupID: "group"), .group)
+  }
+
+  func testBotMemoryUsesScopedRoutesInsteadOfAccountMemory() async throws {
+    let record = #"{"id":"mem-bot","kind":"summary","content":"Bot-only note","createdAt":"2026-09-16T12:00:00Z","scope":"bot","source":"manual","botId":"chief","botName":"Chief"}"#
+    var requests: [(String, String)] = []
+    MockURLProtocol.handler = { request in
+      let path = request.url?.path ?? ""
+      let method = request.httpMethod ?? ""
+      requests.append((method, path))
+      if method == "GET" {
+        return Self.response(
+          for: request, body: "{\"records\":[\(record)],\"rawConversationRetentionDays\":30}")
+      }
+      if method == "DELETE" {
+        return Self.response(for: request, body: #"{"deleted":true}"#)
+      }
+      return Self.response(for: request, body: record)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+
+    let snapshot = try await api.memories(botId: "chief")
+    XCTAssertEqual(snapshot.records.map(\.id), ["mem-bot"])
+    _ = try await api.createMemory(content: "Bot-only note", botId: "chief")
+    _ = try await api.updateMemory(id: "mem-bot", content: "Updated", botId: "chief")
+    try await api.deleteMemory(id: "mem-bot", botId: "chief")
+
+    XCTAssertEqual(requests.map { "\($0.0) \($0.1)" }, [
+      "GET /bots/chief/memory",
+      "POST /bots/chief/memory",
+      "PUT /bots/chief/memory/mem-bot",
+      "DELETE /bots/chief/memory/mem-bot",
+    ])
+  }
+
+  func testSharedAndGroupMemoryEditsUseRecordIDInTheirRoutes() async throws {
+    let record = #"{"id":"mem-1","kind":"fact","content":"Updated","createdAt":"2026-09-16T12:00:00Z","scope":"personal","source":"manual"}"#
+    var paths: [String] = []
+    MockURLProtocol.handler = { request in
+      paths.append(request.url?.path ?? "")
+      if request.httpMethod == "DELETE" {
+        return Self.response(for: request, body: #"{"deleted":true}"#)
+      }
+      return Self.response(for: request, body: record)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+
+    _ = try await api.updateMemory(id: "mem-1", content: "Updated")
+    try await api.deleteMemory(id: "mem-1")
+    _ = try await api.updateMemory(id: "mem-1", content: "Updated", groupId: "team")
+    try await api.deleteMemory(id: "mem-1", groupId: "team")
+
+    XCTAssertEqual(paths, [
+      "/memory/mem-1", "/memory/mem-1",
+      "/groups/team/memory/mem-1", "/groups/team/memory/mem-1",
+    ])
   }
 
   func testNewCustomBotStartsWithAServiceSupportedColor() {
@@ -477,6 +540,43 @@ import UniformTypeIdentifiers
 
     XCTAssertFalse(model.isLoadingMessages)
     XCTAssertEqual(model.messages.map(\.id), ["history"])
+  }
+
+  func testCompletedHistoryRefreshesAStaleWorkingBadge() async throws {
+    var staleBootstrap = DemoData.bootstrap
+    staleBootstrap.bots[0].processing = true
+    let refreshedBootstrap = DemoData.bootstrap
+    let refreshedData = try JSONEncoder().encode(refreshedBootstrap)
+    var paths: [String] = []
+    MockURLProtocol.handler = { request in
+      let path = request.url?.path ?? ""
+      paths.append(path)
+      if path == "/bootstrap" {
+        return (
+          HTTPURLResponse(
+            url: try XCTUnwrap(request.url), statusCode: 200, httpVersion: nil,
+            headerFields: nil)!,
+          refreshedData
+        )
+      }
+      XCTAssertEqual(path, "/bots/chief/messages")
+      return Self.response(
+        for: request,
+        body:
+          #"{"messages":[{"id":"finished","role":"assistant","text":"Done","createdAt":"2026-09-16T12:00:00Z","status":"complete"}],"nextToken":null}"#)
+    }
+    let api = FrogBotAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let model = AppModel(api: api)
+    model.bootstrap = staleBootstrap
+    model.selection = .init(kind: .bot, id: "chief")
+
+    try await model.loadMessages()
+
+    XCTAssertEqual(paths, ["/bots/chief/messages", "/bootstrap"])
+    XCTAssertEqual(model.messages.last?.status, "complete")
+    XCTAssertEqual(model.bootstrap?.bots.first?.processing, nil)
   }
 
   func testBootstrapRefreshLoadsMessagesForAReplacementSelection() async throws {

@@ -125,6 +125,25 @@ import XCTest
     XCTAssertFalse(app.staticTexts["Checking `README.md` for the intended release workflow."].exists)
   }
 
+  func testConversationAppearsAfterLoadingAndClearsStaleWorkingStatus() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing", "--ui-testing-delayed-conversation"]
+    app.launch()
+
+    let latestMessage = app.staticTexts["Latest message before send."]
+    let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
+    let sidebarChief = app.descendants(matching: .any)["sidebar.title.bot.chief"].firstMatch
+    XCTAssertTrue(latestMessage.waitForExistence(timeout: 10))
+    XCTAssertTrue(composer.waitForExistence(timeout: 5))
+    XCTAssertTrue(latestMessage.isHittable)
+    XCTAssertLessThan(latestMessage.frame.maxY, composer.frame.minY)
+    #if os(iOS)
+      app.buttons["FroggyBot"].tap()
+    #endif
+    XCTAssertTrue(sidebarChief.waitForExistence(timeout: 5))
+    XCTAssertFalse(sidebarChief.label.localizedCaseInsensitiveContains("working"))
+  }
+
   func testGroupProgressUsesCompactStatusRowsWithoutEmptyReplyBubbles() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing", "--ui-testing-group-progress"]
@@ -151,10 +170,10 @@ import XCTest
       XCTAssertLessThan(queued.frame.height, 80)
       XCTAssertLessThan(waiting.frame.height, 80)
     #else
-      XCTAssertTrue(
-        app.descendants(matching: .any)["sidebar.processing.group.research-team"]
-          .waitForExistence(timeout: 5))
-      XCTAssertTrue(app.staticTexts["Working"].exists)
+      let sidebarGroup =
+        app.descendants(matching: .any)["sidebar.title.group.research-team"].firstMatch
+      XCTAssertTrue(sidebarGroup.waitForExistence(timeout: 5))
+      XCTAssertTrue(sidebarGroup.label.localizedCaseInsensitiveContains("working"))
       let replyPicker = app.descendants(matching: .any)["chat.replyPicker"]
       XCTAssertTrue(replyPicker.waitForExistence(timeout: 5))
       XCTAssertTrue(replyPicker.isHittable)
@@ -182,15 +201,15 @@ import XCTest
     app.launchArguments = ["--ui-testing"]
     app.launch()
 
-    let attachmentMenu = app.buttons["chat.attachments"]
+    let attachmentMenu = app.descendants(matching: .any)["chat.attachments"].firstMatch
     XCTAssertTrue(attachmentMenu.waitForExistence(timeout: 10))
     let microphone = app.buttons["chat.microphone"]
     XCTAssertTrue(microphone.waitForExistence(timeout: 5))
     XCTAssertTrue(microphone.isHittable)
     attachmentMenu.tap()
 
-    XCTAssertTrue(app.buttons["Photo Library"].waitForExistence(timeout: 5))
-    XCTAssertTrue(app.buttons["Choose Files"].exists)
+    XCTAssertTrue(app.descendants(matching: .any)["Photo Library"].firstMatch.waitForExistence(timeout: 5))
+    XCTAssertTrue(app.descendants(matching: .any)["Choose Files"].firstMatch.exists)
   }
 
   func testConversationDetailsUsesPlatformNavigationAndCanClose() {

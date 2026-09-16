@@ -108,6 +108,95 @@ def _bot_sessions(user_id: str) -> dict[str, dict[str, str]]:
     return sessions
 
 
+def _bot_memory_namespace(user_id: str, bot_id: str) -> str:
+    return f"/summaries/{memory_actor_id(user_id)}/{direct_session_id(user_id, bot_id)}/"
+
+
+def _require_bot_memory_access(user_id: str, bot_id: str) -> dict:
+    from .bots import _get_bot
+
+    return _get_bot(user_id, bot_id)
+
+
+def _list_bot_memories(user_id: str, bot_id: str) -> dict:
+    bot = _require_bot_memory_access(user_id, bot_id)
+    namespace = _bot_memory_namespace(user_id, bot_id)
+    records = []
+    for record in _memory_pages(
+        "list_memory_records", "memoryRecordSummaries", namespacePath=namespace
+    ):
+        record_id = record.get("memoryRecordId")
+        content = record.get("content", {}).get("text")
+        namespaces = record.get("namespaces")
+        if (
+            not isinstance(record_id, str)
+            or not isinstance(content, str)
+            or not isinstance(namespaces, list)
+            or namespace not in namespaces
+        ):
+            continue
+        records.append(
+            {
+                "id": record_id,
+                "kind": "summary",
+                "content": _readable_content("summary", content),
+                "createdAt": _created_at(record.get("createdAt")),
+                "scope": "bot",
+                "source": _metadata_string(record, "frogbotSource") or "learned",
+                "botId": bot_id,
+                "botName": bot["name"],
+            }
+        )
+    records.sort(key=lambda item: item["createdAt"], reverse=True)
+    return {"records": records, "rawConversationRetentionDays": 30}
+
+
+def _create_bot_memory(user_id: str, bot_id: str, body: dict) -> dict:
+    # The summary namespace is the existing per-session store searched by this bot.
+    # A manual note here stays out of the account-wide facts/preferences stores.
+    bot = _require_bot_memory_access(user_id, bot_id)
+    if not FROGBOT_MEMORY_ID:
+        raise ApiError(503, "Memory is unavailable")
+    content = body.get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise ApiError(400, "Memory cannot be empty")
+    content = content.strip()
+    if len(content) > MAX_MEMORY_CHARS:
+        raise ApiError(400, f"Memory must be {MAX_MEMORY_CHARS:,} characters or fewer")
+    created_at = datetime.now(UTC)
+    response = agentcore.batch_create_memory_records(
+        memoryId=FROGBOT_MEMORY_ID,
+        records=[
+            {
+                "requestIdentifier": str(uuid.uuid4()),
+                "namespaces": [_bot_memory_namespace(user_id, bot_id)],
+                "content": {"text": content},
+                "timestamp": created_at,
+                "metadata": {
+                    "frogbotScope": {"stringValue": "bot"},
+                    "frogbotSource": {"stringValue": "manual"},
+                },
+            }
+        ],
+    )
+    successes = response.get("successfulRecords", [])
+    if response.get("failedRecords") or not successes:
+        raise ApiError(502, "Bot memory could not be saved")
+    record_id = successes[0].get("memoryRecordId")
+    if not isinstance(record_id, str):
+        raise ApiError(502, "Bot memory could not be saved")
+    return {
+        "id": record_id,
+        "kind": "summary",
+        "content": content,
+        "createdAt": created_at.isoformat(),
+        "scope": "bot",
+        "source": "manual",
+        "botId": bot_id,
+        "botName": bot["name"],
+    }
+
+
 def _list_user_memories(user_id: str) -> dict:
     if not FROGBOT_MEMORY_ID:
         return {"records": [], "rawConversationRetentionDays": 30}
@@ -156,6 +245,7 @@ def _list_user_memories(user_id: str) -> dict:
                 parts = namespace.strip("/").split("/")
                 if len(parts) >= 3:
                     item.update(bot_sessions.get(parts[2], {}))
+                item["scope"] = _metadata_string(record, "frogbotScope") or "personal"
             records.append(item)
     records.sort(key=lambda item: item["createdAt"], reverse=True)
     return {"records": records, "rawConversationRetentionDays": 30}
@@ -386,6 +476,28 @@ def _owned_memory_record(user_id: str, record_id: str) -> tuple[dict, str, str]:
     raise ApiError(404, "Memory not found")
 
 
+def _owned_bot_memory_record(
+    user_id: str, bot_id: str, record_id: str
+) -> tuple[dict, str, str]:
+    _require_bot_memory_access(user_id, bot_id)
+    record, namespace, kind = _owned_memory_record(user_id, record_id)
+    if kind != "summary" or namespace != _bot_memory_namespace(user_id, bot_id):
+        raise ApiError(404, "Memory not found")
+    return record, namespace, kind
+
+
+def _update_bot_memory(user_id: str, bot_id: str, record_id: str, body: dict) -> dict:
+    bot = _require_bot_memory_access(user_id, bot_id)
+    _owned_bot_memory_record(user_id, bot_id, record_id)
+    updated = _update_user_memory(user_id, record_id, body)
+    return {**updated, "scope": "bot", "botId": bot_id, "botName": bot["name"]}
+
+
+def _delete_bot_memory_record(user_id: str, bot_id: str, record_id: str) -> dict:
+    _owned_bot_memory_record(user_id, bot_id, record_id)
+    return _delete_user_memory_record(user_id, record_id)
+
+
 def _update_user_memory(user_id: str, record_id: str, body: dict) -> dict:
     content = body.get("content")
     if not isinstance(content, str) or not content.strip():
@@ -412,14 +524,19 @@ def _update_user_memory(user_id: str, record_id: str, body: dict) -> dict:
     )
     if response.get("failedRecords"):
         raise ApiError(502, "Memory could not be updated")
-    return {
+    result = {
         "id": record_id,
         "kind": kind,
         "content": content,
         "createdAt": _created_at(record.get("createdAt")),
-        "scope": "personal",
+        "scope": _metadata_string(record, "frogbotScope") or "personal",
         "source": _metadata_string(record, "frogbotSource") or "learned",
     }
+    if kind == "summary":
+        parts = namespace.strip("/").split("/")
+        if len(parts) >= 3:
+            result.update(_bot_sessions(user_id).get(parts[2], {}))
+    return result
 
 
 def _delete_user_memory_record(user_id: str, record_id: str) -> dict:

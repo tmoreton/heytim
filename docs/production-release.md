@@ -2,7 +2,7 @@
 
 The repository is release-hardened, but a production release is not complete merely because the code passes locally.
 The configured AWS account, third-party approvals, monitored alert destination, device evidence, and controlled
-deployment are external release inputs. The manual **Deploy FroggyBot production release** workflow fails closed until
+deployment are external release inputs. The **Deploy FroggyBot production release** workflow fails closed until
 they are present. Production temporarily shares management account `188757775631` with development while the dedicated
 member account's Lambda quota increase is pending; target-scoped stacks, KMS keys, storage, and secrets remain separate.
 AgentCore resources use the `FrogBotProduction` physical project namespace in this temporary shared-account posture;
@@ -54,6 +54,10 @@ Set these environment secrets:
 - `FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64`, containing a base64-encoded Apple Distribution `.p12`, and
   `FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD`
 
+The `production` environment must allow deployment from `main` and tags matching `v*`. The workflow still verifies
+that a release tag has the exact `vMAJOR.MINOR.PATCH` form and points to a commit on `main`. A full release stops before
+backend deployment if any Apple signing value above is missing.
+
 Do not set a Microsoft secret unless Microsoft 365 is intentionally reviewed and enabled. Meta and LinkedIn remain
 deferred and absent from the registry for this release.
 
@@ -77,18 +81,24 @@ requires its ignored `.env.local` file during credential provisioning, the workf
 permissions from protected environment secrets immediately before deployment and deletes it when the step exits.
 
 1. Merge a clean, reviewed commit to `main`; confirm application, backend, runtime, AgentCore, Apple, dependency,
-   provider-contract, and security workflows pass.
-2. Run **Deploy FroggyBot production release** from `main`. It validates the target/account and approvals, verifies and
+   provider-contract, and security workflows pass. Create and publish a stable GitHub Release from that commit with a
+   tag such as `v6.1.0`. Drafts and pre-releases do not deploy production; the tagged commit must be on `main`.
+2. Publishing the release starts **Deploy FroggyBot production release**. It validates the tag, target/account, and approvals, verifies and
    audits dependencies, deploys AgentCore then Amplify, generates the client outputs, hardens runtime logs, configures
    AgentCore alarms and APNs delivery feedback, seeds the private meme-template catalog when absent, verifies every
    referenced template image along with storage/PITR/alerts/public API, and preserves the exact production client
    configuration. A dependent job on the repository-scoped `frogbot-macmini` runner then verifies the native suites
-   once and uploads matching iPhone and Mac builds to TestFlight. Expo is neither built nor published by this release.
+   once and uploads matching iPhone and Mac builds to TestFlight. The release tag supplies the Apple marketing version
+   (`v6.1.0` becomes `6.1.0` in both apps); the shared numeric build number is generated for each workflow run. Expo is
+   neither built nor published by this release.
    The default `full` scope requires the protected Apple API key and Distribution certificate. When an authorized
-   release operator must use the Apple account already signed into Xcode, select `backend-only`; every AWS, provider,
+   release operator must use the Apple account already signed into Xcode, manually run the workflow from `main` with
+   `backend-only`; every AWS, provider,
    compliance, and device approval remains enforced, but the TestFlight job is skipped. Download the preserved
    production client-configuration artifact, place its two files at their recorded repository paths, then run
-   `APPLE_TEAM_ID=GVXC5FQ2RP ./scripts/apple-app.sh testflight all` from a clean checkout of the same commit.
+   `APPLE_TEAM_ID=GVXC5FQ2RP ./scripts/apple-app.sh testflight all` from a clean checkout of the same commit. Manual
+   runs remain available for recovery and use the version in the checked-in Xcode project unless an explicit
+   `FROGGYBOT_MARKETING_VERSION` is supplied for a local archive.
 3. Confirm both builds complete App Store Connect processing and complete the App Store/TestFlight compliance forms.
    The preserved configuration artifact remains available for local reproduction and incident review.
 4. Run an authenticated disposable-user workflow and the agreed concurrency test against production. Verify OAuth
@@ -99,5 +109,5 @@ permissions from protected environment secrets immediately before deployment and
    and rollback owner in `docs/verification-history.md`. Release invitations gradually and monitor the objectives in
    `docs/operations.md`.
 
-Rollback uses the last known-good commit through the same workflow. Never rename or manually replace retained stateful
-resources during an incident.
+Rollback reverts `main` to the last known-good state and uses a reviewed manual workflow run. Never rename or manually
+replace retained stateful resources during an incident.

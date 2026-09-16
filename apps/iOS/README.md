@@ -78,7 +78,9 @@ the bundled public backend configuration, and runs the shared iPhone/Mac verific
 `all` form verifies once and uploads matching iPhone and Mac builds with the same build number. The manual production
 workflow uses this path after its backend deployment succeeds; its signing material is injected from the protected
 GitHub production environment and removed from the runner afterward. Local runs use the developer account signed
-into Xcode by default.
+into Xcode by default. Publishing a stable GitHub Release tagged `vMAJOR.MINOR.PATCH` deploys the backend and runs
+this same TestFlight path automatically. The tag sets `MARKETING_VERSION` for both archives, while a single numeric
+build number is shared by the iPhone and Mac builds. The tag must point to a commit on `main`.
 For unattended uploads, set `APP_STORE_CONNECT_KEY_PATH`, `APP_STORE_CONNECT_KEY_ID`, and
 `APP_STORE_CONNECT_ISSUER_ID` together; never commit the `.p8` key. Add `--dry-run` before the platform to inspect
 the selected archive path and build number without signing or uploading.
