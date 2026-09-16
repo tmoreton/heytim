@@ -114,9 +114,6 @@ archive_args=(
   CURRENT_PROJECT_VERSION="$build_number"
   -allowProvisioningUpdates
 )
-if [[ -n "${FROGGYBOT_SIGNING_KEYCHAIN:-}" ]]; then
-  archive_args+=(CODE_SIGN_IDENTITY="Apple Distribution")
-fi
 if [[ -n "$marketing_version" ]]; then
   archive_args+=(MARKETING_VERSION="$marketing_version")
 fi
