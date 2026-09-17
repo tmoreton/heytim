@@ -21,6 +21,9 @@ dependencies = [
     "greenlet==3.5.5",
     # Direct dependency: hardened remote MCP transports use HTTPX directly.
     "httpx == 0.28.1",
+    # CodeZip resolves HTTPX transitives afresh; keep the packaged version
+    # identical to the runtime lockfile and its integration test.
+    "idna == 3.19",
     # CodeZip resolves transitive packages afresh. Keep the compiled gRPC wheel
     # identical to the version exercised by the locked runtime environment.
     "grpcio == 1.83.1",
