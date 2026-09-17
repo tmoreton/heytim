@@ -72,6 +72,7 @@ public final class AppModel {
   @ObservationIgnored private var pollTask: Task<Void, Never>?
   @ObservationIgnored private var demoMode: Bool
   @ObservationIgnored private var demoDelayedBotSwitch = false
+  @ObservationIgnored private var demoHistorySwitch = false
   @ObservationIgnored private var pushToken: Data?
   @ObservationIgnored private var composerDrafts: [ConversationSelection: ComposerDraft] = [:]
   @ObservationIgnored private var selectionGeneration: UInt = 0
@@ -89,6 +90,11 @@ public final class AppModel {
         bootstrap = DemoData.groupProgressBootstrap
         selection = .init(kind: .group, id: DemoData.groupProgressGroup.id)
         messages = DemoData.groupProgressMessages
+      } else if arguments.contains("--ui-testing-history-switch") {
+        bootstrap = DemoData.historySwitchBootstrap
+        selection = .init(kind: .group, id: DemoData.groupProgressGroup.id)
+        messages = DemoData.historySwitchGroupMessages
+        demoHistorySwitch = true
       } else if arguments.contains("--ui-testing-two-bots") {
         bootstrap = DemoData.twoBotsBootstrap
       } else if arguments.contains("--ui-testing-delayed-bot-switch") {
@@ -310,7 +316,18 @@ public final class AppModel {
     let requestedGeneration = selectionGeneration
     let requestedSession = sessionGeneration
     if demoMode {
-      if demoDelayedBotSwitch {
+      if demoHistorySwitch {
+        isLoadingMessages = true
+        try? await Task.sleep(for: .milliseconds(180))
+        guard selection == requestedSelection, selectionGeneration == requestedGeneration else {
+          return
+        }
+        messages = switch requestedSelection.kind {
+        case .group: DemoData.historySwitchGroupMessages
+        case .bot: requestedSelection.id == "researcher"
+          ? DemoData.historySwitchResearchMessages : DemoData.messages
+        }
+      } else if demoDelayedBotSwitch {
         isLoadingMessages = true
         try? await Task.sleep(for: .milliseconds(550))
         guard selection == requestedSelection, selectionGeneration == requestedGeneration else {
@@ -764,7 +781,7 @@ public final class AppModel {
     messages = []
     loadedMessagesSelection = nil
     nextToken = nil
-    isLoadingMessages = value != nil && (!demoMode || demoDelayedBotSwitch)
+    isLoadingMessages = value != nil && (!demoMode || demoDelayedBotSwitch || demoHistorySwitch)
     pollTask?.cancel()
     pollTask = nil
     return true
@@ -1108,6 +1125,36 @@ public enum DemoData {
     value.groups = [groupProgressGroup]
     return value
   }
+  public static var historySwitchBootstrap: Bootstrap {
+    var value = twoBotsBootstrap
+    var group = groupProgressGroup
+    group.processing = false
+    group.processingBotName = nil
+    value.groups = [group]
+    return value
+  }
+  public static let historySwitchGroupMessages = [
+    ChatMessage(
+      id: "history-group-user", role: "user", authorName: "You", isMine: true,
+      text: "Group conversation history before switching.",
+      createdAt: "2026-09-13T11:00:00.000Z", status: "complete"),
+    ChatMessage(
+      id: "history-group-reply", role: "assistant", authorType: "bot", authorId: "chief",
+      authorName: "Chief", authorColor: "#007A3D",
+      text: "Group answer remains available after switching.",
+      createdAt: "2026-09-13T11:01:00.000Z", status: "complete"),
+  ]
+  public static let historySwitchResearchMessages = [
+    ChatMessage(
+      id: "history-research-user", role: "user", authorName: "You", isMine: true,
+      text: "Research Bot conversation history before switching.",
+      createdAt: "2026-09-13T12:00:00.000Z", status: "complete"),
+    ChatMessage(
+      id: "history-research-reply", role: "assistant", authorType: "bot",
+      authorId: "researcher", authorName: "Research Bot", authorColor: "#3488E8",
+      text: "Research Bot answer remains available after switching.",
+      createdAt: "2026-09-13T12:01:00.000Z", status: "complete"),
+  ]
   public static let groupProgressMessages = [
     ChatMessage(
       id: "group-request", role: "user", authorType: "user", authorName: "You", isMine: true,

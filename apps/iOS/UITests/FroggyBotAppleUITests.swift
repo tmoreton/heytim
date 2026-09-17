@@ -679,6 +679,49 @@ import XCTest
   }
 
   #if os(macOS)
+    func testMacSwitchingFromGroupDetailsToBotDismissesOldCover() {
+      let app = XCUIApplication()
+      app.launchArguments = ["--ui-testing", "--ui-testing-history-switch"]
+      app.launchForUITesting()
+
+      let group = app.buttons["sidebar.title.group.research-team"]
+      let chief = app.buttons["sidebar.title.bot.chief"]
+      let researcher = app.buttons["sidebar.title.bot.researcher"]
+      let details = app.buttons["chat.details"]
+      let back = app.buttons["inspector.back"]
+      XCTAssertTrue(group.waitForExistence(timeout: 10))
+      XCTAssertTrue(chief.exists)
+      XCTAssertTrue(researcher.exists)
+
+      for _ in 0..<3 {
+        XCTAssertTrue(app.staticTexts["Group answer remains available after switching."].waitForExistence(timeout: 5))
+        XCTAssertTrue(details.waitForExistence(timeout: 5))
+        details.click()
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Research Team"].exists)
+
+        chief.click()
+        XCTAssertTrue(back.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.toolbars.staticTexts["Chief"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Can you summarize the launch plan?"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["chat.composer"].firstMatch.exists)
+        XCTAssertEqual(app.splitters.count, 1)
+
+        details.click()
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        researcher.click()
+        XCTAssertTrue(back.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.toolbars.staticTexts["Research Bot"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Research Bot answer remains available after switching."].waitForExistence(timeout: 5))
+
+        details.click()
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        group.click()
+        XCTAssertTrue(back.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.toolbars.staticTexts["Research Team"].waitForExistence(timeout: 5))
+      }
+    }
+
     func testMacSwitchingBotsWhileDetailsIsOpenKeepsNavigationStable() {
       let app = XCUIApplication()
       app.launchArguments = ["--ui-testing", "--ui-testing-two-bots"]

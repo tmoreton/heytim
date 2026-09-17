@@ -84,9 +84,13 @@ public struct MainView: View {
       ConversationSidebar(model: model, auth: auth) { selection in
         if presentedSheet != nil || showConversationInspector { resetDetailNavigation() }
         dictation.cancel()
-        showConversationInspector = false
-        model.sheet = nil
-        model.select(selection)
+        // A sidebar switch replaces the conversation and its cover together.
+        // Do not animate the old Details cover across the new conversation.
+        withTransaction(Transaction(animation: nil)) {
+          showConversationInspector = false
+          model.sheet = nil
+          model.select(selection)
+        }
       } present: { sheet in
         model.sheet = sheet
       }
@@ -111,6 +115,7 @@ public struct MainView: View {
           model: model, dictation: dictation,
           showInspector: $showConversationInspector,
           isCoveredByFeature: presentedSheet != nil)
+          .id(model.selection)
       } else {
         EmptyPanel(
           icon: "bubble.left.and.bubble.right", title: "Choose a chat",
@@ -710,8 +715,13 @@ private struct ConversationView: View {
     isFollowingLatest = true
     let requestedSelection = model.selection
     pendingScroll = Task { @MainActor in
-      // Let SwiftUI finish measuring newly loaded or expanded message content first.
-      await Task.yield()
+      // On Mac, scrollTo during the same AppKit layout cycle as a sidebar
+      // selection can recursively request constraints and terminate the app.
+      #if os(macOS)
+        try? await Task.sleep(for: .milliseconds(60))
+      #else
+        await Task.yield()
+      #endif
       guard !Task.isCancelled, model.selection == requestedSelection else { return }
       let scroll = {
         #if os(iOS)
