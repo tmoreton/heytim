@@ -4,6 +4,165 @@ from unittest.mock import patch
 
 
 class ExternalProviderOAuthCases:
+    def test_zoom_callback_saves_a_single_read_only_account(self) -> None:
+        state = "zoom-callback-state-with-enough-entropy"
+        secret_arn = (
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+            "frogbot/oauth/zoom-production-ABC123"
+        )
+        self.data_table.put_item(Item={
+            **self.external._state_key(state),
+            "userId": "user-1", "provider": "zoom", "verifier": "verifier-token",
+            "returnUrl": "froggybot://app?connection=zoom",
+            "clientSecretArn": secret_arn, "expiresAt": 2_000,
+        })
+        with (
+            patch.object(self.external.time, "time", return_value=1_000),
+            patch.object(self.external, "_exchange_code", return_value={
+                "access_token": "access-token", "refresh_token": "refresh-token",
+                "expires_in": 3600,
+                "scope": "user:read:user meeting:read:list_meetings meeting:read:meeting",
+            }),
+            patch.object(self.external, "_bearer_json", return_value={
+                "id": "zoom-user-1", "email": "owner@example.com",
+            }) as profile,
+            patch.object(self.catalog, "save_external_oauth_connection") as save,
+        ):
+            response = self.external._external_callback(
+                {"state": state, "code": "authorization-code"}
+            )
+        self.assertIn("status=connected", response["headers"]["location"])
+        self.assertEqual(save.call_args.args[1:4], ("zoom", "owner@example.com", "zoom-user-1"))
+        self.assertEqual(profile.call_args.args[0], "https://api.zoom.us/v2/users/me")
+
+    def test_teams_callback_saves_separate_microsoft_connection(self) -> None:
+        state = "teams-callback-state-with-enough-entropy"
+        secret_arn = (
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+            "frogbot/oauth/microsoft-production-ABC123"
+        )
+        self.data_table.put_item(Item={
+            **self.external._state_key(state),
+            "userId": "user-1", "provider": "microsoft_teams", "verifier": "verifier-token",
+            "returnUrl": "froggybot://app?connection=microsoft_teams",
+            "clientSecretArn": secret_arn, "expiresAt": 2_000,
+        })
+        with (
+            patch.object(self.external.time, "time", return_value=1_000),
+            patch.object(self.external, "_exchange_code", return_value={
+                "access_token": "access-token", "refresh_token": "refresh-token",
+                "expires_in": 3600,
+                "scope": "User.Read Team.ReadBasic.All Channel.ReadBasic.All ChannelMessage.Read.All",
+            }),
+            patch.object(self.external, "_bearer_json", return_value={
+                "id": "account-1", "mail": "owner@example.com",
+            }),
+            patch.object(self.catalog, "save_external_oauth_connection") as save,
+        ):
+            response = self.external._external_callback(
+                {"state": state, "code": "authorization-code"}
+            )
+        self.assertIn("status=connected", response["headers"]["location"])
+        self.assertEqual(save.call_args.args[1:4], (
+            "microsoft_teams", "owner@example.com", "account-1"
+        ))
+
+    def test_jira_callback_requires_one_site_and_saves_its_id(self) -> None:
+        state = "jira-callback-state-with-enough-entropy"
+        site_id = "11223344-a1b2-3b33-c444-def123456789"
+        secret_arn = (
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+            "frogbot/oauth/jira-production-ABC123"
+        )
+        self.data_table.put_item(
+            Item={
+                **self.external._state_key(state),
+                "userId": "user-1",
+                "provider": "jira",
+                "verifier": "verifier-token",
+                "returnUrl": "froggybot://app?connection=jira",
+                "clientSecretArn": secret_arn,
+                "expiresAt": 2_000,
+            }
+        )
+        with (
+            patch.object(self.external.time, "time", return_value=1_000),
+            patch.object(
+                self.external, "_exchange_code",
+                return_value={
+                    "access_token": "access-token",
+                    "refresh_token": "refresh-token",
+                    "expires_in": 3_600,
+                },
+            ),
+            patch.object(
+                self.external, "_bearer_list",
+                return_value=[{
+                    "id": site_id,
+                    "name": "Frog team",
+                    "scopes": ["read:jira-work"],
+                }],
+            ),
+            patch.object(self.catalog, "save_external_oauth_connection") as save,
+        ):
+            response = self.external._external_callback(
+                {"state": state, "code": "authorization-code"}
+            )
+        self.assertIn("status=connected", response["headers"]["location"])
+        self.assertEqual(save.call_args.args[1:4], ("jira", "Frog team", site_id))
+
+    def test_hubspot_callback_saves_only_the_selected_crm_account(self) -> None:
+        state = "hubspot-callback-state-with-enough-entropy"
+        secret_arn = (
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+            "frogbot/oauth/hubspot-production-ABC123"
+        )
+        self.data_table.put_item(
+            Item={
+                **self.external._state_key(state),
+                "userId": "user-1",
+                "provider": "hubspot",
+                "verifier": "verifier-token",
+                "returnUrl": "froggybot://app?connection=hubspot",
+                "clientSecretArn": secret_arn,
+                "expiresAt": 2_000,
+            }
+        )
+        with (
+            patch.object(self.external.time, "time", return_value=1_000),
+            patch.object(
+                self.external, "_exchange_code",
+                return_value={
+                    "access_token": "access-token",
+                    "refresh_token": "refresh-token",
+                    "expires_in": 3_600,
+                },
+            ),
+            patch.object(
+                self.external, "_oauth_client",
+                return_value=("client-id", "client-secret", secret_arn),
+            ),
+            patch.object(
+                self.external, "_request_json",
+                return_value={
+                    "active": True,
+                    "hub_id": 12345,
+                    "hub_domain": "example.com",
+                    "scopes": list(self.external.EXTERNAL_PROVIDER_SPECS["hubspot"]["scopes"]),
+                },
+            ) as inspect,
+            patch.object(self.catalog, "save_external_oauth_connection") as save,
+        ):
+            response = self.external._external_callback(
+                {"state": state, "code": "authorization-code"}
+            )
+        self.assertIn("status=connected", response["headers"]["location"])
+        self.assertEqual(
+            save.call_args.args[1:4], ("hubspot", "example.com", "12345")
+        )
+        self.assertEqual(save.call_args.args[4]["refreshToken"], "refresh-token")
+        self.assertIn("/oauth/2026-03/token/introspect", inspect.call_args.args[0].full_url)
+
     def test_microsoft_callback_accepts_case_normalized_read_scopes(self) -> None:
         state = "microsoft-callback-state-with-enough-entropy"
         secret_arn = (
@@ -199,6 +358,14 @@ class ExternalProviderOAuthCases:
                     "token_type": "bearer",
                     "workspace_id": "workspace-1",
                     "workspace_name": "Froggy Notes",
+                    "bot_id": "notion-bot-1",
+                    "owner": {
+                        "type": "user",
+                        "user": {
+                            "id": "owner-1",
+                            "person": {"email": "owner@example.com"},
+                        },
+                    },
                 },
             ),
             patch.object(self.catalog, "save_external_oauth_connection") as save,
@@ -211,12 +378,26 @@ class ExternalProviderOAuthCases:
         save.assert_called_once_with(
             "user-1",
             "notion",
-            "Froggy Notes",
-            "workspace-1",
+            "Froggy Notes · owner@example.com",
+            "workspace-1:owner-1",
             {"accessToken": "access-token"},
             secret_arn,
             ["read_content"],
         )
+
+    def test_notion_accounts_in_one_workspace_have_distinct_ids(self) -> None:
+        token = {
+            "access_token": "access-token",
+            "token_type": "bearer",
+            "workspace_id": "workspace-1",
+            "workspace_name": "Froggy Notes",
+            "owner": {"type": "user", "user": {"id": "owner-1"}},
+        }
+        first_id, _, _ = self.external._notion_connection(token)
+        token["owner"]["user"]["id"] = "owner-2"
+        second_id, _, _ = self.external._notion_connection(token)
+        self.assertEqual(first_id, "workspace-1:owner-1")
+        self.assertEqual(second_id, "workspace-1:owner-2")
 
 
 class ModuleGlobals:

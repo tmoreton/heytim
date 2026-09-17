@@ -19,6 +19,8 @@ GOOGLE_TOKEN_REVOKE_URL = "https://oauth2.googleapis.com/revoke"  # nosec B105
 X_TOKEN_REVOKE_URL = "https://api.x.com/2/oauth2/revoke"  # nosec B105
 SLACK_TOKEN_REVOKE_URL = "https://slack.com/api/auth.revoke"  # nosec B105
 NOTION_TOKEN_REVOKE_URL = "https://api.notion.com/v1/oauth/revoke"  # nosec B105
+HUBSPOT_TOKEN_REVOKE_URL = "https://api.hubapi.com/oauth/2026-03/token/revoke"  # nosec B105
+ZOOM_TOKEN_REVOKE_URL = "https://zoom.us/oauth/revoke"  # nosec B105
 NOTION_API_VERSION = "2026-03-11"
 PROVIDER_REVOKE_TIMEOUT_SECONDS = 4
 
@@ -163,9 +165,54 @@ def revoke_external_access(
             },
             method="POST",
         )
+    elif provider == "hubspot":
+        if not valid_secret_arn(config_arn):
+            return
+        config = secret_document(config_arn)
+        client_id = config.get("clientId")
+        client_secret = config.get("clientSecret")
+        refresh_token = credential.get("refreshToken")
+        if not all(
+            isinstance(value, str) and value
+            for value in (client_id, client_secret, refresh_token)
+        ):
+            return
+        request = urllib.request.Request(
+            HUBSPOT_TOKEN_REVOKE_URL,
+            data=urllib.parse.urlencode(
+                {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "token": refresh_token,
+                    "token_type_hint": "refresh_token",  # nosec B105 - OAuth hint
+                }
+            ).encode(),
+            headers={"content-type": "application/x-www-form-urlencoded"},
+            method="POST",
+        )
+    elif provider == "zoom":
+        if not valid_secret_arn(config_arn):
+            return
+        config = secret_document(config_arn)
+        client_id = config.get("clientId")
+        client_secret = config.get("clientSecret")
+        if not all(
+            isinstance(value, str) and value
+            for value in (client_id, client_secret)
+        ):
+            return
+        basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+        request = urllib.request.Request(
+            ZOOM_TOKEN_REVOKE_URL,
+            data=urllib.parse.urlencode({"token": access_token}).encode(),
+            headers={
+                "authorization": f"Basic {basic}",
+                "content-type": "application/x-www-form-urlencoded",
+            },
+            method="POST",
+        )
     else:
-        # Microsoft does not expose an app-specific refresh-token revocation
-        # endpoint. Removing the local secret immediately ends FroggyBot access.
+        # Microsoft and Jira remove the local secret to end FroggyBot access.
         return
     try:
         with urlopen(request, timeout=PROVIDER_REVOKE_TIMEOUT_SECONDS):

@@ -174,6 +174,8 @@ def test_runtime_can_read_provider_configuration_but_rotate_only_user_grants() -
     assert any("secret:frogbot/oauth/slack-*" in arn for arn in readable)
     assert any("secret:frogbot/oauth/microsoft-*" in arn for arn in readable)
     assert any("secret:frogbot/oauth/notion-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/hubspot-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/jira-*" in arn for arn in readable)
 
     rotatable = statements["RotateFrogBotUserOAuthTokens"]["Resource"]
     assert rotatable.endswith("secret:frogbot/connections/*")

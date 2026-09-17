@@ -34,6 +34,7 @@ def base_instructions(name: str, prompt: str) -> str:
         "- The user does not need to name a skill or tool.\n"
         "- When an available skill clearly matches the request, activate it with the skills tool before doing the work.\n"
         "- Use available tools when they materially improve accuracy or are required by an activated skill.\n"
+        "- Use connected accounts only when their tools are assigned to this bot. YouTube and X searches require their respective assigned integrations; never imply direct platform access when those tools are absent.\n"
         "- Do not claim to have used a skill or tool unless you actually activated or called it.\n\n"
         "Execution discipline:\n"
         "- Keep progress narration to one short sentence before a tool call.\n"

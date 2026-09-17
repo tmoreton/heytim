@@ -40,10 +40,16 @@ public struct MainView: View {
     }
     .onChange(of: model.notificationFocusRevision) { _, revision in
       guard revision > 0 else { return }
+      showConversationInspector = false
       resetDetailNavigation()
       #if os(iOS)
         columns = .detailOnly
       #endif
+    }
+    .onChange(of: model.selection) { previous, current in
+      guard previous != current else { return }
+      showConversationInspector = false
+      resetDetailNavigation()
     }
     .onAppear {
       guard model.notificationFocusRevision > 0 else { return }
@@ -121,7 +127,7 @@ public struct MainView: View {
     #if os(macOS)
       // Leave any nested page when the user explicitly changes context.
       // Ordinary Back/close keeps the mounted chat and its position.
-      detailPath = NavigationPath()
+      if !detailPath.isEmpty { detailPath = NavigationPath() }
     #endif
   }
 
@@ -488,6 +494,7 @@ private struct ConversationView: View {
   @Bindable var model: AppModel
   @Bindable var dictation: DictationModel
   @Binding var showInspector: Bool
+  @State private var inspectorSelection: ConversationSelection?
   var isCoveredByFeature = false
   @State private var importing = false
   @State private var showDelete = false
@@ -517,43 +524,14 @@ private struct ConversationView: View {
   var body: some View {
     ScrollViewReader { proxy in
       ScrollView {
-        LazyVStack(spacing: 0) {
-          if model.nextToken != nil {
-            Button("Load Earlier Messages", systemImage: "arrow.up") {
-              Task { await model.loadEarlier() }
-            }
-            .controlSize(.small)
-            .frame(minHeight: 44)
-            .padding(.bottom, 8)
-          }
-          if model.isLoadingMessages && model.messages.isEmpty {
-            ProgressView("Loading conversation…")
-              .tint(FrogTheme.accent)
-              .containerRelativeFrame(.vertical, alignment: .center)
-          } else if model.messages.isEmpty {
-            emptyConversation
-              .containerRelativeFrame(.vertical, alignment: .center)
-          }
-          ForEach(model.messages) { message in
-            MessageBubble(message: message, model: model, preview: preview)
-              .id(message.id)
-          }
-          Color.clear
-            .frame(height: 1)
-            .id(bottomID)
-            .onAppear { updateBottomVisibility(true) }
-            .onDisappear { updateBottomVisibility(false) }
-            .onGeometryChange(for: CGFloat.self) { geometry in
-              geometry.frame(in: .named(scrollSpace)).minY
-            } action: { bottomY in
-              updateBottomVisibility(bottomY >= 0 && bottomY <= transcriptHeight + 80)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.top, model.messages.isEmpty ? 0 : 24)
-        .padding(.bottom, model.messages.isEmpty ? 0 : 16)
-        .frame(maxWidth: 780)
-        .frame(maxWidth: .infinity)
+        transcriptStack
+          .padding(.horizontal, 14)
+          .padding(.top, model.messages.isEmpty ? 0 : 24)
+          .padding(.bottom, model.messages.isEmpty ? 0 : 16)
+          #if os(macOS)
+            .frame(maxWidth: 780)
+          #endif
+          .frame(maxWidth: .infinity)
       }
       .coordinateSpace(name: scrollSpace)
       .onGeometryChange(for: CGFloat.self) { geometry in
@@ -641,15 +619,17 @@ private struct ConversationView: View {
       if !isVisible { composerFocused = false }
     }
     .froggyInspector(isPresented: $showInspector, onDismiss: finishInspectorAction) {
-      ConversationInspector(
-        model: model,
-        close: { showInspector = false },
-        clear: {
-          confirmClearFromInspector()
-        },
-        delete: {
-          confirmDeleteFromInspector()
-        })
+      if let inspectorSelection {
+        ConversationInspector(
+          model: model, selection: inspectorSelection,
+          close: { showInspector = false },
+          clear: {
+            confirmClearFromInspector()
+          },
+          delete: {
+            confirmDeleteFromInspector()
+          })
+      }
     }
     .quickLookPreview($previewURL)
     .onChange(of: previewURL) { previous, current in
@@ -682,6 +662,47 @@ private struct ConversationView: View {
     }
   }
 
+  @ViewBuilder private var transcriptStack: some View {
+    #if os(iOS)
+      VStack(spacing: 0) { transcriptContent }
+    #else
+      LazyVStack(spacing: 0) { transcriptContent }
+    #endif
+  }
+
+  @ViewBuilder private var transcriptContent: some View {
+    if model.nextToken != nil {
+      Button("Load Earlier Messages", systemImage: "arrow.up") {
+        Task { await model.loadEarlier() }
+      }
+      .controlSize(.small)
+      .frame(minHeight: 44)
+      .padding(.bottom, 8)
+    }
+    if model.isLoadingMessages && model.messages.isEmpty {
+      ProgressView("Loading conversation…")
+        .tint(FrogTheme.accent)
+        .containerRelativeFrame(.vertical, alignment: .center)
+    } else if model.messages.isEmpty {
+      emptyConversation
+        .containerRelativeFrame(.vertical, alignment: .center)
+    }
+    ForEach(model.messages) { message in
+      MessageBubble(message: message, model: model, preview: preview)
+        .id(message.id)
+    }
+    Color.clear
+      .frame(height: 1)
+      .id(bottomID)
+      .onAppear { updateBottomVisibility(true) }
+      .onDisappear { updateBottomVisibility(false) }
+      .onGeometryChange(for: CGFloat.self) { geometry in
+        geometry.frame(in: .named(scrollSpace)).minY
+      } action: { bottomY in
+        updateBottomVisibility(bottomY >= 0 && bottomY <= transcriptHeight + 80)
+      }
+  }
+
   private func scheduleScrollToBottom(
     using proxy: ScrollViewProxy, animated: Bool, settleAfterLoad: Bool = false
   ) {
@@ -693,11 +714,15 @@ private struct ConversationView: View {
       await Task.yield()
       guard !Task.isCancelled, model.selection == requestedSelection else { return }
       let scroll = {
+        #if os(iOS)
+          proxy.scrollTo(bottomID, anchor: .bottom)
+        #else
         if let latestMessageID = model.messages.last?.id {
           proxy.scrollTo(latestMessageID, anchor: .bottom)
         } else {
           proxy.scrollTo(bottomID, anchor: .bottom)
         }
+        #endif
       }
       if animated {
         withAnimation(.easeOut(duration: 0.18)) { scroll() }
@@ -752,6 +777,7 @@ private struct ConversationView: View {
 
   private var detailsButton: some View {
     Button {
+      inspectorSelection = model.selection
       showInspector = true
     } label: {
       Label("Details", systemImage: "info.circle")
@@ -847,6 +873,7 @@ private struct ConversationView: View {
 
 private struct ConversationInspector: View {
   @Bindable var model: AppModel
+  let selection: ConversationSelection
   let close: () -> Void
   let clear: () -> Void
   let delete: () -> Void
@@ -859,14 +886,14 @@ private struct ConversationInspector: View {
       Form {
         Section {
           HStack(spacing: 12) {
-            if let group = model.selectedGroup {
+            if let group = selectedGroup {
               GroupAvatar(group: group, size: 52)
-            } else if let bot = model.selectedBot {
+            } else if let bot = selectedBot {
               BotAvatar(name: bot.name, color: bot.color, size: 52)
             }
             VStack(alignment: .leading, spacing: 3) {
-              Text(model.title).froggyFont(.headline)
-              Text(model.subtitle).froggyFont(.subheadline).foregroundStyle(.secondary)
+              Text(title).froggyFont(.headline)
+              Text(subtitle).froggyFont(.subheadline).foregroundStyle(.secondary)
             }
           }
         }
@@ -875,7 +902,7 @@ private struct ConversationInspector: View {
           botEditorSections
         }
 
-        if let group = model.selectedGroup {
+        if let group = selectedGroup {
           Section("People") {
             ForEach(group.members) { member in
               LabeledContent(member.name, value: member.role.capitalized)
@@ -900,7 +927,7 @@ private struct ConversationInspector: View {
               .foregroundStyle(FrogTheme.danger)
             }
             if canDelete {
-              Button("Delete \(model.selectedGroup == nil ? "Bot" : "Group")", systemImage: "trash", role: .destructive) {
+              Button("Delete \(selectedGroup == nil ? "Bot" : "Group")", systemImage: "trash", role: .destructive) {
                 delete()
               }
               .tint(FrogTheme.danger)
@@ -928,7 +955,7 @@ private struct ConversationInspector: View {
         }
       }
       .onAppear { loadBotDraftIfNeeded() }
-      .onChange(of: model.selectedBot?.id) { _, _ in loadBotDraftIfNeeded(force: true) }
+      .onChange(of: selectedBot?.id) { _, _ in loadBotDraftIfNeeded(force: true) }
     }
   }
 
@@ -1010,7 +1037,7 @@ private struct ConversationInspector: View {
   }
 
   @ViewBuilder private var conversationActions: some View {
-    if let selection = model.selection, actions.contains("schedule") {
+    if actions.contains("schedule") {
       FeatureLink {
         SchedulesView(model: model, selection: selection, showsDismissButton: false)
       } label: {
@@ -1024,7 +1051,7 @@ private struct ConversationInspector: View {
       }
       .accessibilityIdentifier("conversation.runs")
     }
-    if let selection = model.selection, actions.contains("share") {
+    if actions.contains("share") {
       FeatureLink {
         ShareView(model: model, selection: selection, showsDismissButton: false)
       } label: {
@@ -1032,7 +1059,7 @@ private struct ConversationInspector: View {
       }
       .accessibilityIdentifier("conversation.share")
     }
-    if let bot = model.selectedBot {
+    if let bot = selectedBot {
       if actions.contains("documents") {
         FeatureLink {
           DocumentsView(model: model, botId: bot.id, showsDismissButton: false)
@@ -1070,7 +1097,7 @@ private struct ConversationInspector: View {
         }
         .accessibilityIdentifier("bot.tools-and-skills")
       }
-    } else if let group = model.selectedGroup {
+    } else if let group = selectedGroup {
       if actions.contains("viewMemory") || actions.contains("manageMemory") {
         FeatureLink {
           MemoriesView(model: model, groupId: group.id, showsDismissButton: false)
@@ -1090,13 +1117,27 @@ private struct ConversationInspector: View {
     }
   }
 
+  private var selectedBot: Bot? {
+    guard selection.kind == .bot else { return nil }
+    return model.bootstrap?.bots.first { $0.id == selection.id }
+  }
+  private var selectedGroup: BotGroup? {
+    guard selection.kind == .group else { return nil }
+    return model.bootstrap?.groups.first { $0.id == selection.id }
+  }
+  private var title: String { selectedBot?.name ?? selectedGroup?.name ?? "FroggyBot" }
+  private var subtitle: String {
+    selectedBot?.tagline ?? selectedGroup.map {
+      "\($0.bots.count) bots · \($0.members.count) people"
+    } ?? ""
+  }
   private var actions: Set<String> {
-    Set(model.selectedBot?.allowedActions ?? model.selectedGroup?.allowedActions ?? [])
+    Set(selectedBot?.allowedActions ?? selectedGroup?.allowedActions ?? [])
   }
   private var canClear: Bool { actions.contains("clear") }
   private var canDelete: Bool { actions.contains("delete") }
 
-  private var editingBot: Bot? { model.selectedBot }
+  private var editingBot: Bot? { selectedBot }
 
   private var colorOptions: [BotColorOption] {
     editingBot?.systemRole == "chief"
@@ -1136,6 +1177,9 @@ private struct ConversationInspector: View {
     let availableToolIDs = Set((model.bootstrap?.tools ?? []).map(\.id))
     draft.toolIds.removeAll { !availableToolIDs.contains($0) }
     draft.alwaysAllowedToolIds.removeAll { !availableToolIDs.contains($0) }
+    draft.githubRepositoryAccess = draft.githubRepositoryAccess.filter {
+      availableToolIDs.contains($0.key)
+    }
     botDraft = draft
     loadedBotID = bot.id
   }
@@ -1190,20 +1234,35 @@ private struct MessageBubble: View {
   private var timestamp: String {
     message.createdAt.froggyDate?.formatted(date: .omitted, time: .shortened) ?? ""
   }
+  private var plainAssistantMessage: Bool {
+    #if os(iOS)
+      botMessage && !mine && !awaitingApproval && message.status != "error"
+        && message.roundRole != "synthesizer"
+    #else
+      false
+    #endif
+  }
 
   var body: some View {
     HStack(alignment: isProgressOnly ? .top : .bottom, spacing: 7) {
+      #if os(macOS)
       if groupMode && !mine {
         avatar
           .padding(.top, isProgressOnly ? 2 : 0)
       }
+      #endif
       if mine { Spacer(minLength: 50) }
       VStack(alignment: mine ? .trailing : .leading, spacing: 3) {
         if groupMode {
-          Text(mine ? "You" : authorLabel)
-            .froggyFont(.caption, weight: .semibold)
-            .foregroundStyle(mine ? FrogTheme.accent : FrogTheme.statusText)
-            .padding(.horizontal, 6)
+          HStack(spacing: 6) {
+            #if os(iOS)
+              if !mine { avatar }
+            #endif
+            Text(mine ? "You" : authorLabel)
+              .froggyFont(.caption, weight: .semibold)
+              .foregroundStyle(mine ? FrogTheme.accent : FrogTheme.statusText)
+          }
+          .padding(.horizontal, plainAssistantMessage ? 0 : 6)
         } else if message.source == "schedule" {
           Text("Scheduled · \(message.scheduleName ?? "Recurring task")")
             .froggyFont(.caption, weight: .bold).foregroundStyle(FrogTheme.statusText)
@@ -1251,8 +1310,10 @@ private struct MessageBubble: View {
               .controlSize(.small)
             }
           }
-          .padding(.horizontal, 14).padding(.vertical, 10)
-          .background(bubbleColor, in: bubbleShape)
+          .frame(maxWidth: mine ? nil : .infinity, alignment: .leading)
+          .padding(.horizontal, plainAssistantMessage ? 0 : 14)
+          .padding(.vertical, plainAssistantMessage ? 0 : 10)
+          .background(plainAssistantMessage ? Color.clear : bubbleColor, in: bubbleShape)
           .overlay { if bubbleBorder != .clear { bubbleShape.stroke(bubbleBorder) } }
           .accessibilityIdentifier("chat.message.content.\(message.id)")
         }
@@ -1270,8 +1331,14 @@ private struct MessageBubble: View {
           .padding(.horizontal, 6).padding(.top, 1)
         }
       }
-      .frame(maxWidth: mine ? 650 : 720, alignment: mine ? .trailing : .leading)
-      if !mine { Spacer(minLength: 50) }
+      #if os(iOS)
+        .frame(maxWidth: mine ? 650 : .infinity, alignment: mine ? .trailing : .leading)
+      #else
+        .frame(maxWidth: mine ? 650 : 720, alignment: mine ? .trailing : .leading)
+      #endif
+      #if os(macOS)
+        if !mine { Spacer(minLength: 50) }
+      #endif
     }
     .frame(maxWidth: .infinity)
     .padding(.bottom, 8)

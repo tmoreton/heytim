@@ -1,5 +1,58 @@
 import SwiftUI
 
+private enum ResourceLinkInput {
+  static func entries(_ text: String, provider: String) -> [String] {
+    Array(Set(text.split(separator: ",")
+      .map { normalize($0.trimmingCharacters(in: .whitespacesAndNewlines), provider: provider) }
+      .filter { !$0.isEmpty })).sorted()
+  }
+
+  private static func normalize(_ value: String, provider: String) -> String {
+    guard let url = URLComponents(string: value), let host = url.host else {
+      if provider == "jira" { return value.uppercased() }
+      if provider == "notion" { return notionID(value) ?? value }
+      if provider == "google_workspace" && value.contains("@") && !value.contains(":") {
+        return "calendar:\(value)"
+      }
+      return value
+    }
+    let parts = url.path.split(separator: "/").map(String.init)
+    if provider == "jira", let index = parts.firstIndex(of: "projects"), parts.indices.contains(index + 1) {
+      return parts[index + 1].uppercased()
+    }
+    if provider == "slack", host.hasSuffix("slack.com"),
+       let index = parts.firstIndex(of: "archives"), parts.indices.contains(index + 1) {
+      return parts[index + 1]
+    }
+    if provider == "notion", host.hasSuffix("notion.so"), let last = parts.last {
+      return notionID(last) ?? value
+    }
+    if provider == "google_workspace" {
+      if host == "docs.google.com", let index = parts.firstIndex(of: "d"), parts.indices.contains(index + 1) {
+        let kind = parts.first == "spreadsheets" ? "sheet" : "file"
+        return "\(kind):\(parts[index + 1])"
+      }
+      if host == "drive.google.com", let index = parts.firstIndex(of: "d"), parts.indices.contains(index + 1) {
+        return "file:\(parts[index + 1])"
+      }
+    }
+    if provider == "microsoft_teams", host.hasSuffix("teams.microsoft.com"),
+       let team = url.queryItems?.first(where: { $0.name == "groupId" })?.value,
+       let index = parts.firstIndex(of: "channel"), parts.indices.contains(index + 1) {
+      let channel = parts[index + 1].removingPercentEncoding ?? parts[index + 1]
+      return "\(team.lowercased())/\(channel)"
+    }
+    return value
+  }
+
+  private static func notionID(_ value: String) -> String? {
+    let raw = String(value.suffix(32)).lowercased()
+    guard raw.range(of: "^[0-9a-f]{32}$", options: .regularExpression) != nil else { return nil }
+    let chars = Array(raw)
+    return "\(String(chars[0..<8]))-\(String(chars[8..<12]))-\(String(chars[12..<16]))-\(String(chars[16..<20]))-\(String(chars[20..<32]))"
+  }
+}
+
 public struct FeatureSheet: View {
   let sheet: AppSheet
   @Bindable var model: AppModel
@@ -648,6 +701,9 @@ struct BotToolsAndSkillsEditor: View {
   let skills: [Skill]
   let tools: [Capability]
   let providers: [ConnectionProvider]
+  @State private var jiraProjectText: [String: String] = [:]
+  @State private var teamsChannelText: [String: String] = [:]
+  @State private var resourceText: [String: String] = [:]
 
   private var requiredByTool: [String: [String]] {
     var result: [String: [String]] = [:]
@@ -703,7 +759,7 @@ struct BotToolsAndSkillsEditor: View {
               connectionLink(provider)
             } else {
               ForEach(providerTools) { tool in
-                toolToggle(tool, name: provider.name)
+                toolToggle(tool)
               }
             }
           }
@@ -711,7 +767,12 @@ struct BotToolsAndSkillsEditor: View {
         ForEach(providerToolGroups.ungrouped) { tool in
           toolToggle(tool)
         }
-        if tools.isEmpty && providerToolGroups.groups.isEmpty {
+        ForEach(providers.filter { provider in
+          provider.familyId == nil && !tools.contains { $0.provider == provider.id }
+        }) { provider in
+          connectionLink(provider)
+        }
+        if tools.isEmpty && providers.isEmpty {
           ContentUnavailableView("No Tools", systemImage: "wrench.and.screwdriver")
         }
       }
@@ -736,6 +797,11 @@ struct BotToolsAndSkillsEditor: View {
     .froggyListSurface()
     .froggyNavigationTitle("Tools & Skills")
     .toolbarTitleDisplayMode(.inline)
+    .onAppear {
+      jiraProjectText = draft.jiraProjectAccess.mapValues { $0.joined(separator: ", ") }
+      teamsChannelText = draft.teamsChannelAccess.mapValues { $0.joined(separator: ", ") }
+      resourceText = draft.resourceAccess.mapValues { $0.joined(separator: ", ") }
+    }
   }
 
   @ViewBuilder private func capabilityToggle(
@@ -755,28 +821,165 @@ struct BotToolsAndSkillsEditor: View {
 
   @ViewBuilder private func toolToggle(_ tool: Capability, name: String? = nil) -> some View {
     let requiredBy = requiredByTool[tool.id] ?? []
-    Toggle(
-      isOn: Binding(
-        get: { requiredBy.isEmpty ? draft.toolIds.contains(tool.id) : true },
-        set: { enabled in
-          guard requiredBy.isEmpty else { return }
-          set(enabled, id: tool.id, in: &draft.toolIds)
-        })
-    ) {
-      HStack(spacing: 10) {
-        toolIcon(tool)
-        VStack(alignment: .leading, spacing: 3) {
-          Text(name ?? tool.name)
-          Text(tool.description).froggyFont(.caption).foregroundStyle(.secondary)
-          if !requiredBy.isEmpty {
-            Text("Required by \(requiredBy.joined(separator: ", "))")
-              .froggyFont(.caption2, weight: .semibold)
-              .foregroundStyle(FrogTheme.accent)
+    VStack(alignment: .leading, spacing: 8) {
+      Toggle(
+        isOn: Binding(
+          get: { requiredBy.isEmpty ? draft.toolIds.contains(tool.id) : true },
+          set: { enabled in
+            guard requiredBy.isEmpty else { return }
+            set(enabled, id: tool.id, in: &draft.toolIds)
+            if !enabled {
+              draft.githubRepositoryAccess.removeValue(forKey: tool.id)
+              draft.jiraProjectAccess.removeValue(forKey: tool.id)
+              jiraProjectText.removeValue(forKey: tool.id)
+              draft.teamsChannelAccess.removeValue(forKey: tool.id)
+              teamsChannelText.removeValue(forKey: tool.id)
+              draft.resourceAccess.removeValue(forKey: tool.id)
+              resourceText.removeValue(forKey: tool.id)
+            }
+          })
+      ) {
+        HStack(spacing: 10) {
+          toolIcon(tool)
+          VStack(alignment: .leading, spacing: 3) {
+            Text(tool.connectedAccount.map { "\(name ?? tool.name) · \($0)" } ?? (name ?? tool.name))
+            Text(tool.description).froggyFont(.caption).foregroundStyle(.secondary)
+            if !requiredBy.isEmpty {
+              Text("Required by \(requiredBy.joined(separator: ", "))")
+                .froggyFont(.caption2, weight: .semibold)
+                .foregroundStyle(FrogTheme.accent)
+            }
           }
         }
       }
+      .accessibilityIdentifier("bot.tool.\(tool.id)")
+      .disabled(!requiredBy.isEmpty)
+      if tool.provider == "github" && draft.toolIds.contains(tool.id) {
+        githubRepositoryPicker(tool).padding(.leading, 40)
+      }
+      if tool.provider == "jira" && draft.toolIds.contains(tool.id) {
+        jiraProjectPicker(tool).padding(.leading, 40)
+      }
+      if tool.provider == "microsoft_teams" && draft.toolIds.contains(tool.id) {
+        teamsChannelPicker(tool).padding(.leading, 40)
+      }
+      if (tool.provider == "slack" || tool.provider == "notion" || tool.provider == "google_workspace") && draft.toolIds.contains(tool.id) {
+        resourcePicker(tool).padding(.leading, 40)
+      }
     }
-    .disabled(!requiredBy.isEmpty)
+  }
+
+  @ViewBuilder private func githubRepositoryPicker(_ connection: Capability) -> some View {
+    if let repositories = connection.repositories, !repositories.isEmpty {
+      Toggle("All repositories in this installation", isOn: Binding(
+        get: { draft.githubRepositoryAccess[connection.id] == nil },
+        set: { all in
+          if all {
+            draft.githubRepositoryAccess.removeValue(forKey: connection.id)
+          } else {
+            draft.githubRepositoryAccess[connection.id] = repositories.map(\.id)
+          }
+        }))
+      .accessibilityIdentifier("bot.github.all.\(connection.id)")
+      if draft.githubRepositoryAccess[connection.id] != nil {
+        ForEach(repositories) { repository in
+          Toggle(repository.name, isOn: Binding(
+            get: { draft.githubRepositoryAccess[connection.id]?.contains(repository.id) == true },
+            set: { selected in
+              var ids = draft.githubRepositoryAccess[connection.id] ?? []
+              if selected {
+                if !ids.contains(repository.id) { ids.append(repository.id) }
+              } else {
+                ids.removeAll { $0 == repository.id }
+              }
+              if !ids.isEmpty { draft.githubRepositoryAccess[connection.id] = ids }
+            }))
+          .accessibilityIdentifier("bot.github.repository.\(repository.id)")
+          .accessibilityValue(
+            draft.githubRepositoryAccess[connection.id]?.contains(repository.id) == true
+              ? "Selected" : "Not selected")
+          .disabled(draft.githubRepositoryAccess[connection.id] == [repository.id])
+        }
+        if let selected = draft.githubRepositoryAccess[connection.id] {
+          Text("\(selected.count) of \(repositories.count) repositories selected")
+            .froggyFont(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+    } else {
+      Text("Update this GitHub installation to choose individual repositories.")
+        .froggyFont(.caption)
+        .foregroundStyle(.secondary)
+    }
+  }
+
+  private func jiraProjectPicker(_ connection: Capability) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      TextField("Project keys (optional)", text: Binding(
+        get: { jiraProjectText[connection.id] ?? "" },
+        set: { text in
+          jiraProjectText[connection.id] = text
+          let keys = ResourceLinkInput.entries(text, provider: "jira")
+          if keys.isEmpty {
+            draft.jiraProjectAccess.removeValue(forKey: connection.id)
+          } else {
+            draft.jiraProjectAccess[connection.id] = keys
+          }
+        }))
+        .autocorrectionDisabled()
+        .accessibilityIdentifier("bot.jira.projects.\(connection.id)")
+      Text("Paste Jira project links or enter project keys, separated by commas. Leave blank for all projects in this site.")
+        .froggyFont(.caption)
+        .foregroundStyle(.secondary)
+    }
+  }
+
+  private func teamsChannelPicker(_ connection: Capability) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      TextField("Teams channel links (optional)", text: Binding(
+        get: { teamsChannelText[connection.id] ?? "" },
+        set: { text in
+          teamsChannelText[connection.id] = text
+          let channels = ResourceLinkInput.entries(text, provider: "microsoft_teams")
+          if channels.isEmpty {
+            draft.teamsChannelAccess.removeValue(forKey: connection.id)
+          } else {
+            draft.teamsChannelAccess[connection.id] = channels
+          }
+        }))
+        .autocorrectionDisabled()
+        .accessibilityIdentifier("bot.teams.channels.\(connection.id)")
+      Text("Paste Teams channel links, separated by commas. Leave blank for all channels this account can read.")
+        .froggyFont(.caption)
+        .foregroundStyle(.secondary)
+    }
+  }
+
+  private func resourcePicker(_ connection: Capability) -> some View {
+    let isSlack = connection.provider == "slack"
+    let isWorkspace = connection.provider == "google_workspace"
+    return VStack(alignment: .leading, spacing: 4) {
+      TextField(isWorkspace ? "Google file or calendar links (optional)" : (isSlack ? "Slack channel links (optional)" : "Notion page links (optional)"), text: Binding(
+        get: { resourceText[connection.id] ?? "" },
+        set: { text in
+          resourceText[connection.id] = text
+          let ids = ResourceLinkInput.entries(text, provider: connection.provider ?? "")
+          if ids.isEmpty {
+            draft.resourceAccess.removeValue(forKey: connection.id)
+          } else {
+            draft.resourceAccess[connection.id] = ids
+          }
+        }))
+        .autocorrectionDisabled()
+        .accessibilityIdentifier("bot.resources.\(connection.id)")
+      Text(isWorkspace
+           ? "Paste Docs, Sheets, or Drive links, or enter calendar email IDs. Leave blank for all Workspace content this account can read."
+           : (isSlack
+             ? "Paste Slack channel links, separated by commas. Leave blank for all channels this account can read."
+             : "Paste Notion page links, separated by commas. Leave blank for all pages shared with this connection."))
+        .froggyFont(.caption)
+        .foregroundStyle(.secondary)
+    }
   }
 
   private func includedTools(in group: ConnectionProviderToolGroup) -> [Capability] {
@@ -924,6 +1127,7 @@ struct GroupEditor: View {
     Form {
       Section {
         TextField("Name", text: $draft.name)
+          .accessibilityLabel("Name")
       } header: {
         Text("Group")
       } footer: {
@@ -1122,6 +1326,16 @@ struct SchedulesView: View {
             .controlSize(.large)
             .frame(minWidth: 104, minHeight: 44)
             .disabled(runningID != nil)
+          #if os(macOS)
+            Button("Delete Task", systemImage: "trash", role: .destructive) {
+              deleteCandidate = item
+            }
+            .labelStyle(.iconOnly)
+            .froggyGlassButton(tint: FrogTheme.danger)
+            .controlSize(.large)
+            .frame(minWidth: 44, minHeight: 44)
+            .help("Delete \(item.name)")
+          #endif
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
           Button("Delete", systemImage: "trash", role: .destructive) {
@@ -1238,6 +1452,8 @@ private struct ScheduleEditor: View {
   let completed: () async -> Void
   @State private var draft = ScheduledTaskDraft()
   @State private var saving = false
+  @State private var deleting = false
+  @State private var confirmingDeletion = false
   @Environment(\.dismiss) private var dismiss
 
   private var weekdays: [ScheduleWeekday] {
@@ -1281,12 +1497,13 @@ private struct ScheduleEditor: View {
     return nil
   }
 
-  private var canSave: Bool { taskIssue == nil && !saving }
+  private var canSave: Bool { taskIssue == nil && !saving && !deleting }
 
   var body: some View {
     Form {
       Section {
         TextField("Name", text: $draft.name)
+          .accessibilityLabel("Name")
         GuidedTextEditor(
           title: "Task instructions",
           prompt: "For example: Review the latest conversation and send me the three priorities for today.",
@@ -1349,6 +1566,17 @@ private struct ScheduleEditor: View {
       } footer: {
         Text("Turn this off to pause future runs without deleting the task.")
       }
+
+      if existing != nil {
+        Section {
+          Button("Delete Task", systemImage: "trash", role: .destructive) {
+            confirmingDeletion = true
+          }
+          .tint(FrogTheme.danger)
+          .foregroundStyle(FrogTheme.danger)
+          .disabled(saving || deleting)
+        }
+      }
     }
     .formStyle(.grouped)
     .froggyListSurface()
@@ -1365,6 +1593,18 @@ private struct ScheduleEditor: View {
       normalizeConditionalFields()
     }
     .onChange(of: draft.frequency) { _, _ in normalizeConditionalFields() }
+    .confirmationDialog(
+      "Delete this scheduled task?",
+      isPresented: $confirmingDeletion,
+      titleVisibility: .visible
+    ) {
+      if let existing {
+        Button("Delete \(existing.name)", role: .destructive) { delete(existing) }
+      }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text("This stops all future runs. Past run history is not changed.")
+    }
   }
 
   private var weeklyDay: Binding<String> {
@@ -1443,6 +1683,19 @@ private struct ScheduleEditor: View {
       defer { saving = false }
       do {
         _ = try await model.api?.saveSchedule(draft, selection: selection, id: existing?.id)
+        await completed()
+        dismiss()
+      } catch { model.present(error) }
+    }
+  }
+
+  private func delete(_ task: ScheduledTask) {
+    guard let api = model.api else { return }
+    deleting = true
+    Task {
+      defer { deleting = false }
+      do {
+        try await api.deleteSchedule(task.id, selection: selection)
         await completed()
         dismiss()
       } catch { model.present(error) }

@@ -67,7 +67,9 @@ def _create(user_id: str, mutation_id: str, value: dict) -> None:
     if existing:
         return
     bot_api = _bot_api()
-    bot_api._put_bot(user_id, bot_api._bot_values(user_id, value), bot_id=bot_id)
+    values = bot_api._bot_values(user_id, value)
+    _reject_new_connection_grants(user_id, values["toolIds"], [])
+    bot_api._put_bot(user_id, values, bot_id=bot_id)
 
 
 def _install(user_id: str, value: dict) -> None:
@@ -95,7 +97,22 @@ def _update(user_id: str, value: dict) -> None:
     target = bot_api._get_bot(user_id, bot_id)
     if target.get("systemRole") == "chief":
         raise ValueError("Chief cannot update its own protected configuration")
+    if "toolIds" in changes or "skillIds" in changes:
+        values = bot_api._bot_values(user_id, changes, target)
+        _reject_new_connection_grants(user_id, values["toolIds"], target.get("toolIds", []))
     bot_api._update_bot(user_id, bot_id, changes)
+
+
+def _reject_new_connection_grants(
+    user_id: str, requested: Any, existing: Any
+) -> None:
+    if not isinstance(requested, list) or not isinstance(existing, list):
+        raise TypeError("Bot tool IDs are invalid")
+    if not all(isinstance(tool_id, str) for tool_id in [*requested, *existing]):
+        raise ValueError("Bot tool IDs are invalid")
+    connection_ids = {item["id"] for item in catalog.list_connections(user_id)}
+    if (set(requested) - set(existing)) & connection_ids:
+        raise ValueError("Connected accounts must be assigned in bot settings")
 
 
 def _create_skill(

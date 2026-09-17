@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import unittest
 from datetime import UTC, datetime
+from unittest.mock import patch
 
+from api_test_case import ApiTestCase
 from shared.schedules import occurrence_time, schedule_expression, scheduled_turn_id
 
 
@@ -40,6 +42,28 @@ class ScheduleTests(unittest.TestCase):
             occurrence_time("not-a-date", fallback),
             "2026-09-04T12:00:00.000+00:00",
         )
+
+
+class ScheduleDeletionTests(ApiTestCase):
+    def test_deleting_a_task_removes_its_remote_and_saved_schedule(self) -> None:
+        item = {
+            **self.schedules._schedule_key("owner", "daily"),
+            "id": "daily",
+            "botId": "chief",
+            "name": "Daily brief",
+            "enabled": False,
+        }
+        self.data_table.put_item(Item=item)
+        with (
+            patch.object(self.schedules, "table", self.data_table),
+            patch.object(self.schedules, "_delete_remote_schedule") as remote_delete,
+        ):
+            self.assertEqual(
+                self.schedules._delete_schedule("owner", "chief", "daily"),
+                {"deleted": True},
+            )
+        remote_delete.assert_called_once_with(item)
+        self.assertNotIn(("USER#owner", "SCHEDULE#daily"), self.data_table.items)
 
 
 if __name__ == "__main__":

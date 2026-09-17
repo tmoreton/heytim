@@ -23,6 +23,10 @@ public struct Bot: Codable, Identifiable, Hashable, Sendable {
   public var toolIds: [String]
   public var extraToolIds: [String]?
   public var alwaysAllowedToolIds: [String]?
+  public var githubRepositoryAccess: [String: [Int]]?
+  public var jiraProjectAccess: [String: [String]]?
+  public var teamsChannelAccess: [String: [String]]?
+  public var resourceAccess: [String: [String]]?
   public var skillIds: [String]
   public var templateId: String?
   public var templateVersion: Int?
@@ -45,6 +49,11 @@ public struct BotDraft: Codable, Equatable, Sendable {
   public var toolIds: [String] = []
   public var skillIds: [String] = []
   public var alwaysAllowedToolIds: [String] = []
+  // An absent installation uses all repositories granted to that connection.
+  public var githubRepositoryAccess: [String: [Int]] = [:]
+  public var jiraProjectAccess: [String: [String]] = [:]
+  public var teamsChannelAccess: [String: [String]] = [:]
+  public var resourceAccess: [String: [String]] = [:]
 
   public init() {}
   public init(bot: Bot) {
@@ -55,6 +64,10 @@ public struct BotDraft: Codable, Equatable, Sendable {
     toolIds = bot.toolIds
     skillIds = bot.skillIds
     alwaysAllowedToolIds = bot.alwaysAllowedToolIds ?? []
+    githubRepositoryAccess = bot.githubRepositoryAccess ?? [:]
+    jiraProjectAccess = bot.jiraProjectAccess ?? [:]
+    teamsChannelAccess = bot.teamsChannelAccess ?? [:]
+    resourceAccess = bot.resourceAccess ?? [:]
   }
 }
 
@@ -360,9 +373,15 @@ public struct Capability: Codable, Identifiable, Hashable, Sendable {
   public var source: String?
   public var editable: Bool?
   public var connectedAccount: String?
+  public var repositories: [ConnectedRepository]?
   public var connectionStatus: String?
   public var relationship: String?
   public var updatedAt: String?
+}
+
+public struct ConnectedRepository: Codable, Identifiable, Hashable, Sendable {
+  public var id: Int
+  public var name: String
 }
 
 public struct ConnectionProvider: Codable, Identifiable, Hashable, Sendable {
@@ -510,8 +529,7 @@ func connectionProviderToolGroups(
         || tool.provider.map(providerIDs.contains) == true
     }
     groupedToolIDs.formUnion(familyTools.map(\.id))
-    return familyTools.isEmpty
-      ? nil : ConnectionProviderToolGroup(family: family, tools: familyTools)
+    return ConnectionProviderToolGroup(family: family, tools: familyTools)
   }
   return (groups, tools.filter { !groupedToolIDs.contains($0.id) })
 }

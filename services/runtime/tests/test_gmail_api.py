@@ -50,6 +50,13 @@ def test_gmail_tools_keep_the_existing_connection_tool_names() -> None:
     }
 
 
+def test_gmail_tools_identify_the_selected_account() -> None:
+    binding = {**BINDING, "accountLabel": "work@example.com"}
+    tools = gmail_api.gmail_api_tools(binding)
+    assert all("work@example.com" in item.tool_spec["description"] for item in tools)
+    assert {item.tool_name for item in tools} == set(_tools())
+
+
 def test_search_threads_uses_gmail_syntax_and_returns_metadata(monkeypatch) -> None:
     calls = []
     responses = iter(

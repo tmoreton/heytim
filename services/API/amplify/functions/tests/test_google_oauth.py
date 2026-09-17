@@ -57,6 +57,7 @@ class GoogleOAuthTests(unittest.TestCase):
         query = result["authorizationUrl"].split("?", 1)[1]
         parameters = dict(self.google_oauth.urllib.parse.parse_qsl(query))
         self.assertEqual(parameters["access_type"], "offline")
+        self.assertEqual(parameters["prompt"], "consent select_account")
         self.assertEqual(parameters["include_granted_scopes"], "false")
         self.assertEqual(parameters["code_challenge_method"], "S256")
         item = self.data_table.items[
@@ -108,7 +109,6 @@ class GoogleOAuthTests(unittest.TestCase):
                 "save_gmail_connection",
                 return_value={"id": "connection_123"},
             ) as save,
-            patch.object(self.google_oauth, "_ensure_gmail_bot") as ensure_bot,
         ):
             response = self.google_oauth._gmail_callback(
                 {"state": state, "code": "authorization-code"}
@@ -123,7 +123,9 @@ class GoogleOAuthTests(unittest.TestCase):
             "refresh-token",
             GOOGLE_ENV["GOOGLE_OAUTH_SECRET_ARN"],
         )
-        ensure_bot.assert_called_once_with("user-1", "connection_123")
+        self.assertFalse(
+            any(sk.startswith("BOT#") for pk, sk in self.data_table.items if pk == "USER#user-1")
+        )
 
     def test_callback_http_budget_fails_before_lambda_timeout(self) -> None:
         with (
@@ -175,22 +177,6 @@ class GoogleOAuthTests(unittest.TestCase):
         revoke.assert_called_once_with("unused-refresh-token")
         save.assert_not_called()
 
-    def test_gmail_bot_creation_is_idempotent_across_concurrent_callbacks(
-        self,
-    ) -> None:
-        with (
-            patch.object(self.google_oauth, "_list_bots", return_value=[]),
-            patch.object(self.google_oauth, "_create_bot") as create_bot,
-        ):
-            self.google_oauth._ensure_gmail_bot("user-1", "connection_123")
-            self.google_oauth._ensure_gmail_bot("user-1", "connection_123")
-
-        first = create_bot.call_args_list[0]
-        second = create_bot.call_args_list[1]
-        self.assertEqual(first.kwargs["bot_id"], second.kwargs["bot_id"])
-        self.assertTrue(first.kwargs["require_active_account"])
-        self.assertTrue(first.kwargs["create_only"])
-
     def test_callback_fails_closed_after_account_deletion_starts(self) -> None:
         state = "state-token-with-enough-entropy"
         state_item = {
@@ -216,7 +202,6 @@ class GoogleOAuthTests(unittest.TestCase):
             patch.object(self.google_oauth.time, "time", return_value=1_000),
             patch.object(self.google_oauth, "_exchange_code") as exchange,
             patch.object(self.catalog, "save_gmail_connection") as save,
-            patch.object(self.google_oauth, "_ensure_gmail_bot") as ensure_bot,
         ):
             response = self.google_oauth._gmail_callback(
                 {"state": state, "code": "authorization-code"}
@@ -227,9 +212,8 @@ class GoogleOAuthTests(unittest.TestCase):
         self.assertNotIn((state_item["pk"], "STATE"), self.data_table.items)
         exchange.assert_not_called()
         save.assert_not_called()
-        ensure_bot.assert_not_called()
 
-    def test_callback_cannot_create_gmail_bot_after_deletion_snapshot(self) -> None:
+    def test_callback_does_not_grant_a_new_gmail_account_to_a_bot(self) -> None:
         state = "state-token-with-enough-entropy"
         self.data_table.put_item(
             Item={
@@ -252,17 +236,6 @@ class GoogleOAuthTests(unittest.TestCase):
             ] = "DELETING"
             return {"id": "connection_123"}
 
-        bot_values = {
-            "name": "Gmail Assistant",
-            "tagline": "Gmail help",
-            "prompt": "Use Gmail safely.",
-            "color": "#3984F6",
-            "toolIds": ["connection_123"],
-            "extraToolIds": ["connection_123"],
-            "alwaysAllowedToolIds": [],
-            "skillIds": [],
-            "skillVersions": {},
-        }
         with (
             patch.dict(os.environ, GOOGLE_ENV),
             patch.object(self.google_oauth.time, "time", return_value=1_000),
@@ -285,15 +258,13 @@ class GoogleOAuthTests(unittest.TestCase):
                 "save_gmail_connection",
                 side_effect=save_then_begin_deletion,
             ),
-            patch.object(self.google_oauth, "_list_bots", return_value=[]),
-            patch.object(self.bots, "_bot_values", return_value=bot_values),
         ):
             response = self.google_oauth._gmail_callback(
                 {"state": state, "code": "authorization-code"}
             )
 
         self.assertEqual(response["statusCode"], 302)
-        self.assertIn("status=error", response["headers"]["location"])
+        self.assertIn("status=connected", response["headers"]["location"])
         self.assertFalse(
             any(
                 pk == "USER#user-1" and sk.startswith("BOT#")

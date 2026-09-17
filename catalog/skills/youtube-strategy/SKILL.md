@@ -11,10 +11,10 @@ First establish the channel or niche, target viewer, desired outcome, format, ge
 
 ## Research the opportunity
 
-1. Search several specific phrasings of the topic rather than relying on one broad query. When useful, compare recent, relevant, and high-view results.
-2. Retrieve details for the strongest comparison set. Record the title, channel, publication date, duration, public view count, public engagement counts when present, and the search framing that found it.
-3. Compare recency and approximate views per day when the dates and counts support it. Label that calculation as a rough public momentum proxy, not private retention, click-through rate, or audience demand.
-4. Sample public top-level comments only when they can reveal recurring questions, objections, vocabulary, or unmet needs. A small comment sample is qualitative evidence, not a representative audience survey.
+1. If this bot has a connected YouTube account, search several specific phrasings of the topic rather than relying on one broad query. When useful, compare recent and relevant results. Otherwise, use web search for publicly indexed video pages and identify the narrower coverage.
+2. Record the title, channel, publication date, and public statistics only when the available sources actually provide them. Do not imply that web search provides YouTube API metadata.
+3. Compare recency and approximate views per day only when dates and counts support it. Label that calculation as a rough public momentum proxy, not private retention, click-through rate, or audience demand.
+4. Use comments only when an assigned tool can retrieve them. A small comment sample is qualitative evidence, not a representative audience survey.
 5. Use web search for primary or authoritative context when the video's topic depends on current facts. Cite those sources separately from YouTube audience signals.
 
 Do not rank opportunities by raw views alone. Account for publication age, the relevance of the audience, the specificity of the promise, and whether several independent videos support the same pattern. Do not infer channel-wide performance without channel-level data.
@@ -35,6 +35,6 @@ Recommend one concept and explain the tradeoff. Keep exploratory ideas separate 
 
 ## Capability boundary
 
-The available YouTube tool can search public videos and inspect public metadata, statistics, and a limited top-level comment sample. It cannot retrieve transcripts, watch or hear a video, access private YouTube Studio analytics, inspect retention or click-through rate, upload content, change metadata, or run native thumbnail tests.
+A YouTube connection is optional and must be assigned to this bot before it can use YouTube account tools. The connected search tool can search public videos; use only the data returned by tools actually assigned to this bot. A connection does not grant transcripts, the ability to watch or hear a video, private YouTube Studio analytics, retention or click-through rate, upload, metadata changes, or native thumbnail tests.
 
 Never quote or summarize spoken video content unless the user supplies a transcript. Never claim a title, description, or thumbnail was published. If the user requests transcript-based repurposing, ask them to provide the transcript and continue only from that supplied text.

@@ -10,6 +10,7 @@ from typing import Any
 from shared.client_contract import SKILL_DESCRIPTION_MAX_LENGTH, SKILL_NAME_MAX_LENGTH
 from shared.invites import invite_url
 
+from .catalog_access import CatalogAccessMixin
 from .catalog_rules import (
     MAX_SKILL_INSTRUCTIONS,
     MAX_SKILLS_PER_BOT,
@@ -38,7 +39,7 @@ __all__ = [
 ]
 
 
-class CatalogService(CatalogSyncMixin, ConnectionMixin):
+class CatalogService(CatalogAccessMixin, CatalogSyncMixin, ConnectionMixin):
     def __init__(
         self,
         table: Any,
@@ -72,7 +73,11 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
         items = self._official_tool_items()
         if user_id:
             items.extend(self._active_connection_items(user_id))
-        return [item for item in items if item.get("enabled", True) is True]
+        return [
+            item for item in items
+            if item.get("enabled", True) is True
+            and item.get("id") not in RETIRED_TOOL_IDS
+        ]
 
     def list_tools(self, user_id: str | None = None) -> list[dict]:
         return sorted(
@@ -265,7 +270,13 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
         """Return configured tool IDs that are still available to this account."""
         return [item["id"] for item in self.available_tools(user_id, tool_ids)]
 
-    def resolve_tools_for_runtime(self, user_id: str, tool_ids: Any) -> list[dict]:
+    def resolve_tools_for_runtime(
+        self, user_id: str, tool_ids: Any,
+        github_repository_access: dict[str, list[int]] | None = None,
+        jira_project_access: dict[str, list[str]] | None = None,
+        teams_channel_access: dict[str, list[str]] | None = None,
+        resource_access: dict[str, list[str]] | None = None,
+    ) -> list[dict]:
         selected = self.validate_tools(user_id, tool_ids)
         items = self._available_tool_items(user_id)
         by_id = {item.get("id"): item for item in items}
@@ -277,13 +288,40 @@ class CatalogService(CatalogSyncMixin, ConnectionMixin):
             risk = item.get("risk")
             if risk not in {"read", "sandbox", "interactive"}:
                 raise CatalogError(f"Tool risk is unavailable: {tool_id}")
-            resolved.append(
-                {
-                    "id": tool_id,
-                    "risk": risk,
-                    "runtime": _validate_runtime_binding(item.get("runtime")),
+            runtime = _validate_runtime_binding(item.get("runtime"))
+            if runtime.get("kind") in {"mcp", "mcp_bundle", "provider_api"}:
+                account_label = item.get("connectedAccount")
+                if isinstance(account_label, str) and account_label.strip():
+                    runtime["accountLabel"] = account_label.strip()[:160]
+            selected_repositories = (github_repository_access or {}).get(tool_id)
+            if item.get("provider") == "github" and selected_repositories is not None:
+                installed = {
+                    repo.get("id")
+                    for repo in item.get("repositories", [])
+                    if isinstance(repo, dict)
                 }
-            )
+                allowed = [
+                    repo_id for repo_id in selected_repositories if repo_id in installed
+                ]
+                if not allowed:
+                    continue
+                runtime["repositoryIds"] = allowed
+            selected_projects = (jira_project_access or {}).get(tool_id)
+            if item.get("provider") == "jira" and selected_projects is not None:
+                if not selected_projects:
+                    continue
+                runtime["projectKeys"] = selected_projects
+            selected_channels = (teams_channel_access or {}).get(tool_id)
+            if item.get("provider") == "microsoft_teams" and selected_channels is not None:
+                if not selected_channels:
+                    continue
+                runtime["channelAccess"] = selected_channels
+            selected_resources = (resource_access or {}).get(tool_id)
+            if item.get("provider") in {"slack", "notion", "google_workspace"} and selected_resources is not None:
+                if not selected_resources:
+                    continue
+                runtime["resourceIds"] = selected_resources
+            resolved.append({"id": tool_id, "risk": risk, "runtime": runtime})
         return resolved
 
     def approval_tools(self, user_id: str, tool_ids: Any) -> list[dict]:

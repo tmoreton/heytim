@@ -244,7 +244,14 @@ class InfrastructureContractTests(unittest.TestCase):
             self.assertIn(name, self.settings)
             self.assertIn(name, self.production_workflow)
         self.assertIn("FROGBOT_MICROSOFT_OAUTH_SECRET_ARN", self.settings)
-        self.assertNotIn("FROGBOT_MICROSOFT_OAUTH_SECRET_ARN", self.production_workflow)
+        for name in (
+            "FROGBOT_MICROSOFT_OAUTH_SECRET_ARN",
+            "FROGBOT_HUBSPOT_OAUTH_SECRET_ARN",
+            "FROGBOT_JIRA_OAUTH_SECRET_ARN",
+            "FROGBOT_ZOOM_OAUTH_SECRET_ARN",
+        ):
+            self.assertIn(name, self.settings)
+            self.assertIn(name, self.production_workflow)
         self.assertIn("addProviderConnectionAccess(apiFunction", self.backend)
         self.assertIn("DISABLED_CONNECTION_PROVIDER_IDS", self.provider_connections)
         self.assertIn("GITHUB_OAUTH_REDIRECT_URI", self.provider_connections)

@@ -9,9 +9,13 @@ from shared.connection_providers import (
 )
 
 from .external_oauth import (
+    _begin_hubspot_authorization,
+    _begin_jira_authorization,
     _begin_microsoft_authorization,
+    _begin_microsoft_teams_authorization,
     _begin_notion_authorization,
     _begin_slack_authorization,
+    _begin_zoom_authorization,
 )
 from .github_oauth import _begin_github_authorization
 from .google_oauth import (
@@ -30,7 +34,11 @@ _AUTHORIZATION_HANDLERS: dict[str, AuthorizationHandler] = {
     "google_workspace": _begin_google_workspace_authorization,
     "slack": _begin_slack_authorization,
     "microsoft": _begin_microsoft_authorization,
+    "microsoft_teams": _begin_microsoft_teams_authorization,
     "notion": _begin_notion_authorization,
+    "hubspot": _begin_hubspot_authorization,
+    "jira": _begin_jira_authorization,
+    "zoom": _begin_zoom_authorization,
     "x": _begin_x_authorization,
 }
 if frozenset(_AUTHORIZATION_HANDLERS) != SUPPORTED_CONNECTION_PROVIDER_IDS:

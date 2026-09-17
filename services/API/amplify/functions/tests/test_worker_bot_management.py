@@ -202,7 +202,7 @@ class WorkerBotManagementTests(WorkerTestCase):
             "toolIds": ["current_time", "bot_manager"],
         }
 
-        def resolve(_user_id, tool_ids):
+        def resolve(_user_id, tool_ids, _github_repository_access=None):
             if tool_ids == ["bot_manager"]:
                 raise self.agent.CatalogError("Unknown tools: bot_manager")
             return []
@@ -300,7 +300,7 @@ class WorkerBotManagementTests(WorkerTestCase):
             "skillIds": ["meme-maker"],
         }
         api = SimpleNamespace(
-            _bot_values=MagicMock(return_value={"validated": True}),
+            _bot_values=MagicMock(return_value={"validated": True, "toolIds": ["meme_lord"]}),
             _put_bot=MagicMock(),
         )
 
@@ -324,6 +324,35 @@ class WorkerBotManagementTests(WorkerTestCase):
 
         api._put_bot.assert_called_once()
         self.assertEqual(api._put_bot.call_args.kwargs["bot_id"], f"ai-{mutation_id}")
+
+    def test_bot_mutation_rejects_connection_granted_by_a_skill(self) -> None:
+        connection_id = "connection_12345678901234567890"
+        api = SimpleNamespace(
+            _bot_values=MagicMock(return_value={"toolIds": [connection_id]}),
+            _put_bot=MagicMock(),
+        )
+        with (
+            patch.dict(self.bot_mutation_globals, {"_bot_api": lambda: api}),
+            patch.object(
+                self.bot_mutation_globals["catalog"],
+                "list_connections",
+                return_value=[{"id": connection_id}],
+            ),
+            self.assertRaisesRegex(ValueError, "assigned in bot settings"),
+        ):
+            self.bot_mutation_globals["_create"](
+                "user-1",
+                str(uuid.uuid4()),
+                {
+                    "name": "Assistant",
+                    "tagline": "",
+                    "prompt": "Help.",
+                    "color": "#E95383",
+                    "toolIds": [],
+                    "skillIds": ["requires-private-account"],
+                },
+            )
+        api._put_bot.assert_not_called()
 
     def test_create_skill_mutation_is_private_attached_and_replay_safe(self) -> None:
         mutation_id = str(uuid.uuid4())
@@ -569,9 +598,3 @@ class WorkerBotManagementTests(WorkerTestCase):
         api._update_bot.assert_called_once_with(
             "user-1", "chief", {"prompt": "Coordinate carefully."}
         )
-
-
-if __name__ == "__main__":
-    import unittest
-
-    unittest.main()

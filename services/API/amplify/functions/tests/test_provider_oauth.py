@@ -333,7 +333,6 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
                 return_value=("channel-1", "Froggy Channel"),
             ),
             patch.object(self.catalog, "save_oauth_api_connection") as save,
-            patch.object(self.google, "_ensure_gmail_bot") as gmail_bot,
         ):
             response = self.google._google_callback(
                 {"state": state, "code": "authorization-code"}
@@ -350,7 +349,6 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             client_secret_arn,
             list(self.google.YOUTUBE_SCOPES),
         )
-        gmail_bot.assert_not_called()
 
     def test_google_workspace_oauth_saves_one_read_only_mcp_bundle(self) -> None:
         state = "workspace-state-token-with-enough-entropy"
@@ -385,7 +383,6 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
                 return_value=("permission-1", "owner@example.com"),
             ),
             patch.object(self.catalog, "save_google_workspace_connection") as save,
-            patch.object(self.google, "_ensure_gmail_bot") as gmail_bot,
         ):
             response = self.google._google_callback(
                 {"state": state, "code": "authorization-code"}
@@ -401,7 +398,6 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             client_secret_arn,
             list(self.google.GOOGLE_WORKSPACE_SCOPES),
         )
-        gmail_bot.assert_not_called()
 
     def test_x_oauth_uses_pkce_and_read_scopes(self) -> None:
         state = "x-state-token-with-enough-entropy"

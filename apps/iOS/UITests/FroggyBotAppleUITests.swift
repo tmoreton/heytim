@@ -1,6 +1,87 @@
 import XCTest
 
 @MainActor final class FroggyBotAppleUITests: XCTestCase {
+  #if os(iOS)
+    func testAssistantReplyUsesFullMobileTranscriptWidth() {
+      let app = XCUIApplication()
+      app.launchArguments = ["--ui-testing"]
+      app.launchForUITesting()
+
+      let transcript = app.scrollViews["chat.transcript"]
+      let reply = app.descendants(matching: .any)["chat.message.content.m2"].firstMatch
+      let userMessage = app.descendants(matching: .any)["chat.message.content.m1"].firstMatch
+      XCTAssertTrue(reply.waitForExistence(timeout: 10))
+      XCTAssertTrue(transcript.exists)
+      let screenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+      screenshot.name = "Assistant reply width on iPhone"
+      screenshot.lifetime = .keepAlways
+      add(screenshot)
+      XCTAssertTrue(reply.isHittable)
+      XCTAssertGreaterThanOrEqual(reply.frame.width, transcript.frame.width - 50)
+      XCTAssertLessThanOrEqual(reply.frame.minX - transcript.frame.minX, 20)
+      XCTAssertLessThanOrEqual(transcript.frame.maxX - reply.frame.maxX, 40)
+      XCTAssertLessThan(userMessage.frame.width, reply.frame.width)
+    }
+
+    func testDelayedBotSwitchShowsAnswerWithoutScrolling() {
+      let app = XCUIApplication()
+      app.launchArguments = ["--ui-testing", "--ui-testing-delayed-bot-switch"]
+      app.launchForUITesting()
+
+      let sidebar = app.buttons["FroggyBot"]
+      XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
+      sidebar.tap()
+      let researcher = app.staticTexts["Research Bot"].firstMatch
+      XCTAssertTrue(researcher.waitForExistence(timeout: 5))
+      researcher.tap()
+
+      let finalLine = app.staticTexts["Research Bot answer visible after loading."]
+      let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
+      XCTAssertTrue(finalLine.waitForExistence(timeout: 10))
+      XCTAssertTrue(finalLine.isHittable)
+      XCTAssertLessThan(finalLine.frame.maxY, composer.frame.minY)
+
+      sidebar.tap()
+      app.staticTexts["Chief"].firstMatch.tap()
+      sidebar.tap()
+      researcher.tap()
+      XCTAssertTrue(finalLine.waitForExistence(timeout: 10))
+      XCTAssertTrue(finalLine.isHittable)
+      XCTAssertLessThan(finalLine.frame.maxY, composer.frame.minY)
+    }
+  #endif
+
+  #if os(iOS)
+  func testBotEditorCanChooseGmailAccountsIndependently() {
+    let app = XCUIApplication()
+    app.launchArguments = [
+      "--ui-testing", "--ui-testing-multiple-connections",
+      "--ui-testing-sheet=bot-editor",
+    ]
+    app.launchForUITesting()
+
+    let toolsLink = app.descendants(matching: .any)["bot.tools-and-skills"].firstMatch
+    XCTAssertTrue(toolsLink.waitForExistence(timeout: 10))
+    toolsLink.tap()
+
+    let firstGmail = app.switches["bot.tool.connection_gmail_alpha"]
+    let secondGmail = app.switches["bot.tool.connection_gmail_beta"]
+    XCTAssertTrue(firstGmail.waitForExistence(timeout: 5))
+    XCTAssertTrue(secondGmail.exists)
+    XCTAssertTrue(firstGmail.label.contains("alpha@example.com"))
+    XCTAssertTrue(secondGmail.label.contains("beta@example.com"))
+
+    firstGmail.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).tap()
+    XCTAssertEqual(firstGmail.value as? String, "1")
+    XCTAssertEqual(secondGmail.value as? String, "0")
+    secondGmail.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).tap()
+    XCTAssertEqual(secondGmail.value as? String, "1")
+    firstGmail.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).tap()
+    XCTAssertEqual(firstGmail.value as? String, "0")
+    XCTAssertEqual(secondGmail.value as? String, "1")
+  }
+  #endif
+
   func testEveryFeatureSheetCanOpenAndCloseWithoutSelfDismissing() {
     let featureSheets = [
       (argument: "bot-library", marker: "Add a Bot"),
@@ -24,7 +105,7 @@ import XCTest
         app.launchArguments = [
           "--ui-testing", "--ui-testing-sheet=\(featureSheet.argument)",
         ]
-        app.launch()
+        app.launchForUITesting()
 
         let marker = app.staticTexts[featureSheet.marker]
         XCTAssertTrue(
@@ -45,7 +126,7 @@ import XCTest
   func testNativeSignInMatchesTheFroggyBotFlow() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing-auth"]
-    app.launch()
+    app.launchForUITesting()
 
     XCTAssertTrue(app.staticTexts["FroggyBot"].firstMatch.waitForExistence(timeout: 10))
     XCTAssertTrue(app.staticTexts["Welcome back"].waitForExistence(timeout: 5))
@@ -57,7 +138,7 @@ import XCTest
   func testNativeConversationLaunchesAndSendsAMessage() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]
-    app.launch()
+    app.launchForUITesting()
 
     // A vertically growing SwiftUI TextField is exposed as a TextField on some
     // iOS releases and as a TextView on others, so match its accessible label.
@@ -74,7 +155,11 @@ import XCTest
       app.buttons["FroggyBot"].tap()
     #endif
     XCTAssertTrue(app.searchFields["Search chats"].waitForExistence(timeout: 5))
-    let chief = app.staticTexts["Chief"].firstMatch
+    #if os(macOS)
+      let chief = app.descendants(matching: .any)["sidebar.title.bot.chief"].firstMatch
+    #else
+      let chief = app.staticTexts["Chief"].firstMatch
+    #endif
     XCTAssertTrue(chief.waitForExistence(timeout: 5))
     chief.tap()
     XCTAssertTrue(composer.waitForExistence(timeout: 5))
@@ -96,7 +181,7 @@ import XCTest
   func testEmptyConversationIsCenteredInTheAvailableSpace() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing", "--ui-testing-empty-conversation"]
-    app.launch()
+    app.launchForUITesting()
 
     let emptyTitle = app.staticTexts["Start a conversation"]
     let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
@@ -114,7 +199,7 @@ import XCTest
   func testActivityIsFormattedAndInitiallyFollowsTheLatestUpdate() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing", "--ui-testing-activity"]
-    app.launch()
+    app.launchForUITesting()
 
     let latestStep = app.descendants(matching: .any)["chat.activity.step.9"].firstMatch
     let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
@@ -128,7 +213,7 @@ import XCTest
   func testConversationAppearsAfterLoadingAndClearsStaleWorkingStatus() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing", "--ui-testing-delayed-conversation"]
-    app.launch()
+    app.launchForUITesting()
 
     let latestMessage = app.staticTexts["Latest message before send."]
     let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
@@ -147,7 +232,7 @@ import XCTest
   func testGroupProgressUsesCompactStatusRowsWithoutEmptyReplyBubbles() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing", "--ui-testing-group-progress"]
-    app.launch()
+    app.launchForUITesting()
 
     let running = app.descendants(matching: .any)["chat.progress.running"].firstMatch
     let queued = app.descendants(matching: .any)["chat.progress.pending"].firstMatch
@@ -183,7 +268,7 @@ import XCTest
   func testMessageMarkdownUsesNativeBlockFormatting() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing", "--ui-testing-markdown"]
-    app.launch()
+    app.launchForUITesting()
 
     XCTAssertTrue(app.staticTexts["Release check"].waitForExistence(timeout: 10))
     XCTAssertTrue(app.staticTexts["1."].exists)
@@ -199,7 +284,7 @@ import XCTest
   func testComposerUsesNativeAttachmentMenu() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]
-    app.launch()
+    app.launchForUITesting()
 
     let attachmentMenu = app.descendants(matching: .any)["chat.attachments"].firstMatch
     XCTAssertTrue(attachmentMenu.waitForExistence(timeout: 10))
@@ -215,7 +300,7 @@ import XCTest
   func testConversationDetailsUsesPlatformNavigationAndCanClose() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]
-    app.launch()
+    app.launchForUITesting()
 
     let details = app.buttons["chat.details"]
     XCTAssertTrue(details.waitForExistence(timeout: 10))
@@ -284,7 +369,7 @@ import XCTest
   func testAccountSettingsUsesTheFroggyBotLayout() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]
-    app.launch()
+    app.launchForUITesting()
 
     #if os(iOS)
       let sidebar = app.buttons["FroggyBot"]
@@ -347,12 +432,12 @@ import XCTest
   }
 
   #if os(macOS)
-    func testMacTextSizeUpdatesSettingsAndSidebarImmediately() {
+    func testMacTextSizeUpdatesSettingsAndKeepsSidebarUsable() {
       let app = XCUIApplication()
       app.launchArguments = ["--ui-testing"]
-      app.launch()
+      app.launchForUITesting()
 
-      let sidebarTitle = app.staticTexts["sidebar.title.bot.chief"]
+      let sidebarTitle = app.descendants(matching: .any)["sidebar.title.bot.chief"].firstMatch
       let settings = app.buttons["sidebar.settings"]
       XCTAssertTrue(sidebarTitle.waitForExistence(timeout: 10))
       XCTAssertTrue(settings.waitForExistence(timeout: 5))
@@ -368,18 +453,17 @@ import XCTest
 
       settings.click()
       chooseTextSize("Standard")
-      let standardSettingsHeight = app.staticTexts["Memory"].frame.height
+      let standardSettingsHeight = app.descendants(matching: .any)["Memory"].firstMatch.frame.height
       app.buttons["sheet.close"].click()
-      let standardSidebarHeight = sidebarTitle.frame.height
+      XCTAssertTrue(sidebarTitle.isHittable)
 
       settings.click()
       chooseTextSize("Extra Large")
-      let extraLargeSettingsHeight = app.staticTexts["Memory"].frame.height
+      let extraLargeSettingsHeight = app.descendants(matching: .any)["Memory"].firstMatch.frame.height
       app.buttons["sheet.close"].click()
-      let extraLargeSidebarHeight = sidebarTitle.frame.height
+      XCTAssertTrue(sidebarTitle.isHittable)
 
       XCTAssertGreaterThan(extraLargeSettingsHeight, standardSettingsHeight)
-      XCTAssertGreaterThan(extraLargeSidebarHeight, standardSidebarHeight)
 
       settings.click()
       chooseTextSize("Standard")
@@ -391,7 +475,7 @@ import XCTest
     func testConnectedAccountsUsesSettingsBackButtonWithoutARedundantTitleOrCloseButton() {
       let app = XCUIApplication()
       app.launchArguments = ["--ui-testing"]
-      app.launch()
+      app.launchForUITesting()
 
       let sidebar = app.buttons["FroggyBot"]
       XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
@@ -417,16 +501,16 @@ import XCTest
   func testAddBotGalleryExplainsTheConfiguredSkillsToolsAndPrompt() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]
-    app.launch()
+    app.launchForUITesting()
 
     #if os(iOS)
       app.buttons["FroggyBot"].tap()
     #endif
-    let create = app.buttons["sidebar.create"]
+    let create = app.descendants(matching: .any)["sidebar.create"].firstMatch
     XCTAssertTrue(create.waitForExistence(timeout: 10))
     XCTAssertFalse(app.buttons["sidebar.addBot"].exists)
     create.tap()
-    let addBot = app.buttons["Add a bot"]
+    let addBot = app.descendants(matching: .any)["Add a bot"].firstMatch
     XCTAssertTrue(addBot.waitForExistence(timeout: 5))
     addBot.tap()
 
@@ -441,24 +525,24 @@ import XCTest
     XCTAssertTrue(app.descendants(matching: .any)["bot.template.tools"].exists)
     XCTAssertTrue(app.staticTexts["Web Search"].exists)
     XCTAssertTrue(app.staticTexts["Files & Data"].exists)
-    XCTAssertTrue(app.buttons["View Full Instructions"].exists)
+    XCTAssertTrue(app.descendants(matching: .any)["View Full Instructions"].firstMatch.exists)
     XCTAssertTrue(app.buttons["Add Bot"].exists)
   }
 
   func testCreatingCustomBotKeepsTheEditorPresented() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]
-    app.launch()
+    app.launchForUITesting()
 
     #if os(iOS)
       let sidebar = app.buttons["FroggyBot"]
       XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
       sidebar.tap()
     #endif
-    let create = app.buttons["sidebar.create"]
+    let create = app.descendants(matching: .any)["sidebar.create"].firstMatch
     XCTAssertTrue(create.waitForExistence(timeout: 10))
     create.tap()
-    let addBot = app.buttons["Add a bot"]
+    let addBot = app.descendants(matching: .any)["Add a bot"].firstMatch
     XCTAssertTrue(addBot.waitForExistence(timeout: 5))
     addBot.tap()
 
@@ -478,28 +562,41 @@ import XCTest
   func testToolsAndSkillsShowsBothSkillsAndBuiltInTools() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]
-    app.launch()
+    app.launchForUITesting()
 
     #if os(iOS)
       app.buttons["FroggyBot"].tap()
     #endif
     XCTAssertTrue(app.buttons["sidebar.settings"].waitForExistence(timeout: 10))
     app.buttons["sidebar.settings"].tap()
-    XCTAssertTrue(app.staticTexts["Tools & Skills"].waitForExistence(timeout: 5))
-    app.staticTexts["Tools & Skills"].tap()
+    let toolsAndSkills = app.descendants(matching: .any)["Tools & Skills"].firstMatch
+    XCTAssertTrue(toolsAndSkills.waitForExistence(timeout: 5))
+    toolsAndSkills.tap()
 
-    XCTAssertTrue(app.staticTexts["Deep Research"].waitForExistence(timeout: 5))
-    let tools = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Tools'")).firstMatch
+    let research = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Deep Research'"))
+      .firstMatch
+    XCTAssertTrue(research.waitForExistence(timeout: 5))
+    #if os(macOS)
+      let tools = app.radioButtons.matching(NSPredicate(format: "label BEGINSWITH 'Tools'"))
+        .firstMatch
+    #else
+      let tools = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Tools'"))
+        .firstMatch
+    #endif
     XCTAssertTrue(tools.waitForExistence(timeout: 5))
     tools.tap()
-    XCTAssertTrue(app.staticTexts["Web Search"].waitForExistence(timeout: 5))
-    XCTAssertTrue(app.staticTexts["Files & Data"].exists)
+    XCTAssertTrue(
+      app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Web Search'"))
+        .firstMatch.waitForExistence(timeout: 5))
+    XCTAssertTrue(
+      app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Files & Data'"))
+        .firstMatch.exists)
   }
 
   func testCreatingSkillKeepsTheEditorPresented() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]
-    app.launch()
+    app.launchForUITesting()
 
     #if os(iOS)
       let sidebar = app.buttons["FroggyBot"]
@@ -509,7 +606,7 @@ import XCTest
     let settings = app.buttons["sidebar.settings"]
     XCTAssertTrue(settings.waitForExistence(timeout: 10))
     settings.tap()
-    let toolsAndSkills = app.staticTexts["Tools & Skills"]
+    let toolsAndSkills = app.descendants(matching: .any)["Tools & Skills"].firstMatch
     XCTAssertTrue(toolsAndSkills.waitForExistence(timeout: 5))
     toolsAndSkills.tap()
 
@@ -529,7 +626,7 @@ import XCTest
   func testCreatingScheduledTaskKeepsTheEditorPresented() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing", "--ui-testing-sheet=schedules"]
-    app.launch()
+    app.launchForUITesting()
 
     XCTAssertTrue(app.staticTexts["Scheduled tasks"].waitForExistence(timeout: 10))
     let create = app.buttons["New"]
@@ -548,7 +645,7 @@ import XCTest
   func testScrollToLatestControlAndSendingReturnToTheBottom() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing", "--ui-testing-scroll"]
-    app.launch()
+    app.launchForUITesting()
 
     let transcript = app.scrollViews["chat.transcript"]
     let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
@@ -582,11 +679,66 @@ import XCTest
   }
 
   #if os(macOS)
+    func testMacSwitchingBotsWhileDetailsIsOpenKeepsNavigationStable() {
+      let app = XCUIApplication()
+      app.launchArguments = ["--ui-testing", "--ui-testing-two-bots"]
+      app.launchForUITesting()
+
+      let chief = app.buttons["sidebar.title.bot.chief"]
+      let researcher = app.buttons["sidebar.title.bot.researcher"]
+      let details = app.buttons["chat.details"]
+      let back = app.buttons["inspector.back"]
+      XCTAssertTrue(chief.waitForExistence(timeout: 10))
+      XCTAssertTrue(researcher.exists)
+
+      for (nextBot, name) in [(researcher, "Research Bot"), (chief, "Chief"),
+        (researcher, "Research Bot")]
+      {
+        XCTAssertTrue(details.waitForExistence(timeout: 5))
+        details.click()
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        nextBot.click()
+        XCTAssertTrue(back.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.toolbars.staticTexts[name].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["chat.composer"].firstMatch.exists)
+        XCTAssertEqual(app.splitters.count, 1)
+      }
+
+      details.click()
+      XCTAssertTrue(back.waitForExistence(timeout: 5))
+      XCTAssertEqual(app.textFields["Name"].value as? String, "Research Bot")
+      let schedules = app.buttons["conversation.schedules"]
+      XCTAssertTrue(schedules.waitForExistence(timeout: 5))
+      schedules.click()
+      XCTAssertTrue(app.toolbars.staticTexts["Scheduled tasks"].waitForExistence(timeout: 5))
+      chief.click()
+      XCTAssertTrue(details.waitForExistence(timeout: 5))
+      XCTAssertFalse(app.toolbars.staticTexts["Scheduled tasks"].exists)
+      XCTAssertEqual(app.splitters.count, 1)
+
+      details.click()
+      let toolsAndSkills = app.buttons["bot.tools-and-skills"]
+      XCTAssertTrue(toolsAndSkills.waitForExistence(timeout: 5))
+      toolsAndSkills.click()
+      XCTAssertTrue(app.toolbars.staticTexts["Tools & Skills"].waitForExistence(timeout: 5))
+      researcher.click()
+      XCTAssertTrue(details.waitForExistence(timeout: 5))
+      XCTAssertFalse(app.toolbars.staticTexts["Tools & Skills"].exists)
+
+      details.click()
+      app.buttons["bot.prompt.editor"].click()
+      XCTAssertTrue(app.toolbars.staticTexts["Bot Prompt"].waitForExistence(timeout: 5))
+      chief.click()
+      XCTAssertTrue(details.waitForExistence(timeout: 5))
+      XCTAssertFalse(app.toolbars.staticTexts["Bot Prompt"].exists)
+      XCTAssertEqual(app.splitters.count, 1)
+    }
+
     func testMacDetailsCoverChatAndRemainStableWhenResizing() {
       for group in [false, true] {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing"] + (group ? ["--ui-testing-group-progress"] : [])
-        app.launch()
+        app.launchForUITesting()
 
         let window = app.windows.firstMatch
         let details = app.buttons["chat.details"]
@@ -644,7 +796,7 @@ import XCTest
     func testMacFeaturePagesCoverChatWithoutMovingSidebar() {
       let app = XCUIApplication()
       app.launchArguments = ["--ui-testing"]
-      app.launch()
+      app.launchForUITesting()
       let search = app.searchFields["Search chats"]
       XCTAssertTrue(search.waitForExistence(timeout: 10))
       let sidebarFrame = search.frame
@@ -687,7 +839,7 @@ import XCTest
     func testMacSavingRootBotEditorReturnsToChat() {
       let app = XCUIApplication()
       app.launchArguments = ["--ui-testing"]
-      app.launch()
+      app.launchForUITesting()
       let create = app.menuButtons["sidebar.create"]
       XCTAssertTrue(create.waitForExistence(timeout: 10))
       create.click()
@@ -718,11 +870,11 @@ import XCTest
     func testMacComposerAndToolbarStayInsideTheNativeWindowLayout() {
       let app = XCUIApplication()
       app.launchArguments = ["--ui-testing"]
-      app.launch()
+      app.launchForUITesting()
 
       let window = app.windows.firstMatch
       let splitter = app.splitters.firstMatch
-      let attachment = app.buttons["chat.attachments"]
+      let attachment = app.menuButtons["chat.attachments"]
       let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
       let microphone = app.buttons["chat.microphone"]
       let send = app.buttons["chat.send"]
@@ -761,7 +913,7 @@ import XCTest
     func testMacEditorUsesAReadableSlideOut() {
       let app = XCUIApplication()
       app.launchArguments = ["--ui-testing"]
-      app.launch()
+      app.launchForUITesting()
 
       let create = app.menuButtons["sidebar.create"]
       XCTAssertTrue(create.waitForExistence(timeout: 10))
@@ -800,7 +952,7 @@ import XCTest
       for connection in providerConnections {
         XCTAssertTrue(connection.exists)
       }
-      XCTAssertTrue(app.staticTexts["Google Workspace"].exists)
+      XCTAssertTrue(providerConnections[2].isHittable)
       let back = app.buttons["chevron.backward"]
       XCTAssertTrue(back.waitForExistence(timeout: 5))
       back.click()
@@ -812,4 +964,19 @@ import XCTest
       XCTAssertTrue(app.buttons["chat.details"].waitForExistence(timeout: 5))
     }
   #endif
+}
+
+private extension XCUIApplication {
+  func launchForUITesting() {
+    launch()
+    #if os(macOS)
+      activate()
+      if !windows.firstMatch.waitForExistence(timeout: 2) {
+        let newWindow = menuBars.menuItems["New Window"]
+        if newWindow.waitForExistence(timeout: 2) { newWindow.click() }
+        activate()
+      }
+      XCTAssertTrue(windows.firstMatch.waitForExistence(timeout: 5), "The Mac test app needs a window.")
+    #endif
+  }
 }

@@ -31,6 +31,24 @@ YOUTUBE_SEARCH_DAILY_LIMIT = _bounded_integer_environment(
 )
 
 
+def _uses_youtube_search(resolved_tools: list[dict]) -> bool:
+    return any(
+        isinstance(tool.get("runtime"), dict)
+        and (
+            (
+                tool["runtime"].get("kind") == "gateway"
+                and "youtube_search" in tool["runtime"].get("operations", [])
+            )
+            or (
+                tool["runtime"].get("kind") == "provider_api"
+                and tool["runtime"].get("provider") == "youtube"
+            )
+        )
+        for tool in resolved_tools
+        if isinstance(tool, dict)
+    )
+
+
 def youtube_quota_day(now: datetime | None = None) -> str:
     """Return the YouTube quota date, which resets at midnight Pacific Time."""
     recorded_at = (now or datetime.now(UTC)).astimezone(UTC)

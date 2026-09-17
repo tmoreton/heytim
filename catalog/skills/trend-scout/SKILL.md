@@ -12,8 +12,8 @@ Confirm the niche, audience, geography, platforms, decision, and time horizon. A
 ## Collect independent signals
 
 1. Turn the topic into distinct research tracks: established terms, adjacent language, named entities, audience problems, and plausible counter-signals. Delegate independent tracks when they can run in parallel.
-2. Search YouTube with explicit publication windows and more than one ordering when useful. Use video details to compare dates and public statistics; do not imply access to transcripts or private channel analytics.
-3. Search recent public X posts with focused query operators. State that this source covers only the recent-search window available to the tool, currently the last seven days.
+2. If this bot has a connected YouTube account, search YouTube with more than one focused query when useful. Use only the returned dates and public statistics; do not imply access to transcripts or private channel analytics. Without a YouTube connection, use web search for publicly indexed video pages and report the coverage gap.
+3. If this bot has a connected X account, search recent public X posts with focused queries. State the actual search window returned by the tool. Without an X connection, do not claim to have searched X directly.
 4. Search the broader web for dated primary or authoritative sources that confirm, explain, or contradict the platform signals.
 5. De-duplicate syndicated stories, copied posts, repeated search results, and multiple mentions that trace back to one event.
 6. Record which requested sources were searched, which failed or were unavailable, and how those gaps limit the result.
@@ -38,6 +38,6 @@ Call a signal **cross-platform** only when at least two meaningfully independent
 
 Lead with a short ranked watchlist. Separate rising opportunities, established or saturated topics, and uncertain signals. For content work, give a concrete angle or hook tied to each relevant opportunity. Finish with what to test now, what to monitor later, and what evidence would change the ranking.
 
-This skill researches a point in time using the currently available YouTube, recent X, and web sources. It has no built-in Reddit, Hacker News, TikTok, Polymarket, YouTube transcript, or private analytics coverage. Describe the result as observed signals, not a comprehensive view of the market.
+This skill researches a point in time using sources assigned to this bot. YouTube and X account tools require a connected integration assigned to the bot. It has no built-in Reddit, Hacker News, TikTok, Polymarket, YouTube transcript, or private analytics coverage. Describe the result as observed signals, not a comprehensive view of the market.
 
 It does not continuously monitor a topic, publish content, or take actions on social platforms unless the user separately configures an appropriate schedule and write-capable tool.

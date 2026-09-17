@@ -4,19 +4,25 @@ import { Function as LambdaFunction } from 'aws-cdk-lib/aws-lambda';
 type ProviderSecrets = {
   github: string;
   google: string;
+  hubspot: string;
+  jira: string;
   microsoft: string;
   notion: string;
   slack: string;
   x: string;
+  zoom: string;
 };
 
 const providerIdsBySecret: Record<keyof ProviderSecrets, string[]> = {
   github: ['github'],
   google: ['gmail', 'youtube', 'google_workspace'],
-  microsoft: ['microsoft'],
+  hubspot: ['hubspot'],
+  jira: ['jira'],
+  microsoft: ['microsoft', 'microsoft_teams'],
   notion: ['notion'],
   slack: ['slack'],
   x: ['x'],
+  zoom: ['zoom'],
 };
 
 export function addProviderConnectionAccess(
@@ -25,11 +31,14 @@ export function addProviderConnectionAccess(
   secrets: ProviderSecrets,
 ): void {
   apiFunction.addEnvironment('GOOGLE_OAUTH_SECRET_ARN', secrets.google);
+  apiFunction.addEnvironment('HUBSPOT_OAUTH_SECRET_ARN', secrets.hubspot);
+  apiFunction.addEnvironment('JIRA_OAUTH_SECRET_ARN', secrets.jira);
   apiFunction.addEnvironment('GITHUB_APP_SECRET_ARN', secrets.github);
   apiFunction.addEnvironment('X_OAUTH_SECRET_ARN', secrets.x);
   apiFunction.addEnvironment('SLACK_OAUTH_SECRET_ARN', secrets.slack);
   apiFunction.addEnvironment('MICROSOFT_OAUTH_SECRET_ARN', secrets.microsoft);
   apiFunction.addEnvironment('NOTION_OAUTH_SECRET_ARN', secrets.notion);
+  apiFunction.addEnvironment('ZOOM_OAUTH_SECRET_ARN', secrets.zoom);
   const disabledProviders = (Object.keys(providerIdsBySecret) as Array<keyof ProviderSecrets>)
     .filter((provider) => secrets[provider].length === 0)
     .flatMap((provider) => providerIdsBySecret[provider]);

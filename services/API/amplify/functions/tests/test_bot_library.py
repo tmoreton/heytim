@@ -165,6 +165,7 @@ class BotInstallTests(test_api_safety.ApiTestCase):
                     "toolIds": [],
                     "extraToolIds": [],
                     "alwaysAllowedToolIds": [],
+                    "githubRepositoryAccess": {},
                     "skillIds": [],
                     "skillVersions": {},
                 },
@@ -201,6 +202,7 @@ class BotInstallTests(test_api_safety.ApiTestCase):
             "toolIds": [],
             "extraToolIds": [],
             "alwaysAllowedToolIds": [],
+            "githubRepositoryAccess": {},
             "skillIds": [],
             "skillVersions": {},
         }

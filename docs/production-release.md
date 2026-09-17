@@ -50,6 +50,8 @@ Set these environment secrets:
   `AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI`
 - `FROGBOT_GOOGLE_OAUTH_SECRET_ARN`, `FROGBOT_GITHUB_APP_SECRET_ARN`, `FROGBOT_X_OAUTH_SECRET_ARN`,
   `FROGBOT_SLACK_OAUTH_SECRET_ARN`, `FROGBOT_NOTION_OAUTH_SECRET_ARN`
+- Optional: `FROGBOT_MICROSOFT_OAUTH_SECRET_ARN`, `FROGBOT_HUBSPOT_OAUTH_SECRET_ARN`,
+  `FROGBOT_JIRA_OAUTH_SECRET_ARN`, `FROGBOT_ZOOM_OAUTH_SECRET_ARN`
 - `FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY`, containing the App Store Connect `.p8` key
 - `FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64`, containing a base64-encoded Apple Distribution `.p12`, and
   `FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD`
@@ -58,7 +60,7 @@ The `production` environment must allow deployment from `main` and tags matching
 that a release tag has the exact `vMAJOR.MINOR.PATCH` form and points to a commit on `main`. A full release stops before
 backend deployment if any Apple signing value above is missing.
 
-Do not set a Microsoft secret unless Microsoft 365 is intentionally reviewed and enabled. Meta and LinkedIn remain
+Set optional provider secrets only after the corresponding OAuth app is configured and reviewed. Meta and LinkedIn remain
 deferred and absent from the registry for this release.
 
 ## Provider evidence

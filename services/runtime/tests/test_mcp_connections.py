@@ -55,7 +55,13 @@ def test_github_app_jwt_is_a_verifiable_short_lived_rs256_token() -> None:
     assert recovered.endswith(b"\x00" + digest_info)
 
 
-def test_github_app_connection_mints_installation_token_server_side(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("selected_repositories", "expected_repositories"),
+    [(None, [101, 202]), ([101], [101])],
+)
+def test_github_app_connection_mints_installation_token_server_side(
+    monkeypatch, selected_repositories, expected_repositories
+) -> None:
     user_secret = (
         "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
         "frogbot/connections/abcdef1234567890abcdef12/"
@@ -120,6 +126,10 @@ def test_github_app_connection_mints_installation_token_server_side(monkeypatch)
             "authType": "github_app",
             "secretArn": user_secret,
             "appSecretArn": app_secret,
+            **(
+                {"repositoryIds": selected_repositories}
+                if selected_repositories is not None else {}
+            ),
         },
     )
 
@@ -129,7 +139,7 @@ def test_github_app_connection_mints_installation_token_server_side(monkeypatch)
     assert requests[0].full_url.endswith("/app/installations/12345/access_tokens")
     assert requests[0].get_header("Authorization") == "Bearer app-jwt"
     assert json.loads(requests[0].data) == {
-        "repository_ids": [101, 202],
+        "repository_ids": expected_repositories,
         "permissions": {"metadata": "read", "contents": "write"},
     }
     transport = captured["transport"]
@@ -341,7 +351,9 @@ def test_google_workspace_bundle_refreshes_once_and_isolates_server_tools(
 
     clients = mcp_connections.connection_clients(binding)
 
-    assert len(clients) == len(captured) == 3
+    assert len(clients) == len(captured) == len(
+        mcp_connections.GOOGLE_WORKSPACE_MCP_SERVERS
+    )
     assert len(token_requests) == 1
     assert {
         entry["transport"].args[0]: set(entry["tool_filters"]["allowed"])
@@ -351,7 +363,9 @@ def test_google_workspace_bundle_refreshes_once_and_isolates_server_tools(
         entry["transport"].args[1] == {"Authorization": "Bearer access-token"}
         for entry in captured
     )
-    assert len({entry["connection_id"] for entry in captured}) == 3
+    assert len({entry["connection_id"] for entry in captured}) == len(
+        mcp_connections.GOOGLE_WORKSPACE_MCP_SERVERS
+    )
 
 
 def test_google_workspace_bundle_rejects_unreviewed_tools(monkeypatch) -> None:
@@ -382,6 +396,93 @@ def test_google_workspace_bundle_rejects_unreviewed_tools(monkeypatch) -> None:
                 "servers": servers,
             },
         )
+
+
+def test_existing_google_workspace_bundle_remains_valid_without_sheets(monkeypatch) -> None:
+    monkeypatch.setattr(mcp_connections.socket, "getaddrinfo", _public_address)
+    servers = [
+        {"endpoint": endpoint, "allowedTools": list(tools)}
+        for endpoint, tools in mcp_connections.GOOGLE_WORKSPACE_MCP_SERVERS.items()
+        if "sheetsmcp" not in endpoint
+    ]
+    binding = mcp_connections.validated_connection_bundle_binding(
+        "connection_1234567890abcdef1234",
+        {
+            "authType": "oauth",
+            "oauthProvider": "google",
+            "secretArn": (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+                "frogbot/connections/abcdef1234567890abcdef12/"
+                "connection_1234567890abcdef1234-abcdef123456-ABC123"
+            ),
+            "oauthClientSecretArn": (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+                "frogbot/oauth/google-production-ABC123"
+            ),
+            "scopes": list(mcp_connections.GOOGLE_WORKSPACE_SCOPES),
+            "servers": servers,
+        },
+    )
+    assert len(binding["servers"]) == 3
+
+
+def test_workspace_resource_selection_exposes_only_selected_service_tools(monkeypatch) -> None:
+    monkeypatch.setattr(mcp_connections, "_google_access_token", lambda _binding: "token")
+    captured = []
+
+    class FakeMCPClient:
+        def __init__(self, transport, **kwargs):
+            captured.append({"transport": transport, **kwargs})
+
+    monkeypatch.setattr(mcp_connections, "BoundedMCPClient", FakeMCPClient)
+    binding = {
+        "id": "connection_1234567890abcdef1234",
+        "kind": "mcp_bundle",
+        "authType": "oauth",
+        "resourceIds": ["sheet:spreadsheet123", "calendar:primary"],
+        "servers": [
+            {"endpoint": endpoint, "allowedTools": list(tools)}
+            for endpoint, tools in mcp_connections.GOOGLE_WORKSPACE_MCP_SERVERS.items()
+            if "sheetsmcp" not in endpoint
+        ],
+    }
+    mcp_connections.connection_clients(binding)
+    by_host = {
+        entry["resource_server"]: entry for entry in captured
+    }
+    assert "sheetsmcp.googleapis.com" in by_host
+    assert "docsmcp.googleapis.com" not in by_host
+    assert by_host["sheetsmcp.googleapis.com"]["resource_ids"] == {"spreadsheet123"}
+    assert set(by_host["calendarmcp.googleapis.com"]["tool_filters"]["allowed"]) == {
+        "get_event", "list_events"
+    }
+    assert "list_calendars" not in by_host["calendarmcp.googleapis.com"]["tool_filters"]["allowed"]
+
+
+def test_workspace_resource_guard_rejects_unselected_mcp_calls(monkeypatch) -> None:
+    calls = []
+
+    async def fake_call(self, tool_use_id, name, arguments=None, **_kwargs):
+        calls.append((tool_use_id, name, arguments))
+        return {"toolUseId": tool_use_id, "status": "success", "content": []}
+
+    monkeypatch.setattr(mcp_connections.MCPClient, "call_tool_async", fake_call)
+    client = mcp_connections.BoundedMCPClient(
+        lambda: None,
+        connection_id="connection_1234567890abcdef1234:sheetsmcp",
+        resource_ids={"spreadsheet123"},
+        resource_server="sheetsmcp.googleapis.com",
+    )
+    denied = asyncio.run(client.call_tool_async(
+        "use-1", "get_values", {"spreadsheetId": "other", "range": "A1:B2"}
+    ))
+    assert denied["status"] == "error"
+    assert calls == []
+    allowed = asyncio.run(client.call_tool_async(
+        "use-2", "get_values", {"spreadsheetId": "spreadsheet123", "range": "A1:B2"}
+    ))
+    assert allowed["status"] == "success"
+    assert len(calls) == 1
 
 
 def test_remote_tool_names_are_stable_and_bounded() -> None:

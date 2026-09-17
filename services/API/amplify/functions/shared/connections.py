@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import re
 import urllib.request
-import uuid
 from collections.abc import Callable
 from typing import Any
 
@@ -21,6 +19,7 @@ from .catalog_rules import (
     CatalogError,
     _public_tool,
 )
+from .connection_identity import _connection_id, _matching_connection, _secret_name
 from .connection_lifecycle import ConnectionLifecycleMixin
 from .connection_providers import (
     GMAIL_MCP_ENDPOINT,
@@ -38,7 +37,7 @@ from .github_app import (
 )
 from .time import utc_now_iso as _now
 
-MAX_CONNECTIONS = len(SUPPORTED_CONNECTION_PROVIDER_IDS)
+MAX_CONNECTIONS = 50
 MAX_CREDENTIAL_DOCUMENT_LENGTH = 64_000
 CONNECTION_SAVE_ATTEMPTS = 4
 CONNECTION_SPECS = connection_specs()
@@ -47,20 +46,9 @@ OAUTH_API_SCOPES = {
     for provider_id, spec in CONNECTION_SPECS.items()
     if provider_id in {"youtube", "x"}
 }
-EXTERNAL_OAUTH_PROVIDER_IDS = frozenset({"slack", "microsoft", "notion"})
+EXTERNAL_OAUTH_PROVIDER_IDS = frozenset({"slack", "microsoft", "microsoft_teams", "notion", "hubspot", "jira", "zoom"})
 
 logger = logging.getLogger(__name__)
-
-
-def _secret_name(user_id: str, connection_id: str) -> str:
-    owner = hashlib.sha256(user_id.encode("utf-8")).hexdigest()[:24]
-    revision = uuid.uuid4().hex[:12]
-    return f"frogbot/connections/{owner}/{connection_id}-{revision}"
-
-
-def _connection_id(provider: str, user_id: str) -> str:
-    digest = hashlib.sha256(f"{provider}:{user_id}".encode()).hexdigest()[:20]
-    return f"connection_{digest}"
 
 
 def _valid_secret_arn(value: Any) -> bool:
@@ -87,14 +75,22 @@ class ConnectionMixin(ConnectionLifecycleMixin):
         return self.secrets_manager
 
     def _connection_items(self, user_id: str) -> list[dict]:
-        return self.table.query(
-            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
-            ExpressionAttributeValues={
+        query = {
+            "KeyConditionExpression": "pk = :pk AND begins_with(sk, :prefix)",
+            "ExpressionAttributeValues": {
                 ":pk": f"USER#{user_id}",
                 ":prefix": "CONNECTION#",
             },
-            ConsistentRead=True,
-        ).get("Items", [])
+            "ConsistentRead": True,
+        }
+        items = []
+        while True:
+            page = self.table.query(**query)
+            items.extend(page.get("Items", []))
+            cursor = page.get("LastEvaluatedKey")
+            if not cursor:
+                return items
+            query["ExclusiveStartKey"] = cursor
 
     def _active_connection_items(self, user_id: str) -> list[dict]:
         return [
@@ -107,7 +103,10 @@ class ConnectionMixin(ConnectionLifecycleMixin):
     def list_connections(self, user_id: str) -> list[dict]:
         return sorted(
             (_public_tool(item) for item in self._active_connection_items(user_id)),
-            key=lambda item: item["name"].lower(),
+            key=lambda item: (
+                item["name"].lower(),
+                str(item.get("connectedAccount", "")).lower(),
+            ),
         )
 
     def _get_connection(self, user_id: str, connection_id: str) -> dict | None:
@@ -187,6 +186,7 @@ class ConnectionMixin(ConnectionLifecycleMixin):
         *,
         provider_account_id: str | None = None,
         repository_count: int | None = None,
+        repositories: list[dict] | None = None,
     ) -> dict:
         spec = CONNECTION_SPECS.get(provider)
         if not spec:
@@ -207,14 +207,13 @@ class ConnectionMixin(ConnectionLifecycleMixin):
                 "A provider cannot be connected while this account is being deleted"
             )
 
+        account_id = provider_account_id or account.strip()
         connections = self._active_connection_items(user_id)
-        existing = next(
-            (item for item in connections if item.get("provider") == provider), None
-        )
+        existing = _matching_connection(connections, provider, account_id, account.strip())
         if not existing and len(connections) >= MAX_CONNECTIONS:
             raise CatalogError(f"You can add up to {MAX_CONNECTIONS} connections")
         connection_id = (
-            existing["id"] if existing else _connection_id(provider, user_id)
+            existing["id"] if existing else _connection_id(provider, user_id, account_id)
         )
         secret_arn = self._create_secret(user_id, connection_id, credential_json)
         previous_secret_arn = None
@@ -223,18 +222,13 @@ class ConnectionMixin(ConnectionLifecycleMixin):
             for attempt in range(CONNECTION_SAVE_ATTEMPTS):
                 if attempt:
                     connections = self._active_connection_items(user_id)
-                    existing = next(
-                        (
-                            value
-                            for value in connections
-                            if value.get("provider") == provider
-                        ),
-                        None,
+                    existing = _matching_connection(
+                        connections, provider, account_id, account.strip()
                     )
                     connection_id = (
                         existing["id"]
                         if existing
-                        else _connection_id(provider, user_id)
+                        else _connection_id(provider, user_id, account_id)
                     )
                 previous_secret_arn = existing.get("secretArn") if existing else None
                 if existing and not _valid_secret_arn(previous_secret_arn):
@@ -275,6 +269,8 @@ class ConnectionMixin(ConnectionLifecycleMixin):
                     item["providerAccountId"] = provider_account_id
                 if repository_count is not None:
                     item["repositoryCount"] = repository_count
+                if repositories is not None:
+                    item["repositories"] = repositories
                 try:
                     self._put_connection_while_account_active(
                         user_id,
@@ -341,6 +337,7 @@ class ConnectionMixin(ConnectionLifecycleMixin):
                     "oauthClientSecretArn": client_secret_arn,
                     "allowedTools": list(GMAIL_MCP_TOOLS),
                 },
+                provider_account_id=account.strip().casefold(),
             )
         except Exception:
             self._revoke_google_token(refresh_token)
@@ -484,7 +481,7 @@ class ConnectionMixin(ConnectionLifecycleMixin):
         expires_at = credential.get("expiresAt")
         if not isinstance(access_token, str) or not access_token:
             raise CatalogError("OAuth access token is invalid")
-        if provider in {"slack", "microsoft"} and (
+        if provider in {"slack", "microsoft", "microsoft_teams", "hubspot", "jira", "zoom"} and (
             not isinstance(refresh_token, str)
             or not refresh_token
             or isinstance(expires_at, bool)
@@ -509,6 +506,7 @@ class ConnectionMixin(ConnectionLifecycleMixin):
                 "secretArn": secret_arn,
                 "oauthClientSecretArn": client_secret_arn,
                 "scopes": scopes,
+                **({"siteId": provider_account_id} if provider == "jira" else {}),
             },
             provider_account_id=provider_account_id,
         )
@@ -524,15 +522,23 @@ class ConnectionMixin(ConnectionLifecycleMixin):
     ) -> dict:
         if not re.fullmatch(r"[0-9]{1,20}", installation_id):
             raise CatalogError("GitHub installation id is invalid")
-        repository_ids = [
-            value.get("id") for value in repositories if isinstance(value, dict)
-        ]
         if (
-            not repository_ids
-            or len(repository_ids) > 500
-            or len(repository_ids) != len(set(repository_ids))
-            or any(not isinstance(value, int) or value <= 0 for value in repository_ids)
+            not isinstance(repositories, list)
+            or not repositories
+            or len(repositories) > 500
+            or any(
+                not isinstance(value, dict)
+                or type(value.get("id")) is not int
+                or value["id"] <= 0
+                or not isinstance(value.get("name"), str)
+                or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value["name"])
+                or len(value["name"]) > 200
+                for value in repositories
+            )
         ):
+            raise CatalogError("GitHub repository selection is invalid")
+        repository_ids = [value["id"] for value in repositories]
+        if len(repository_ids) != len(set(repository_ids)):
             raise CatalogError("GitHub repository selection is invalid")
         if not _valid_secret_arn(app_secret_arn):
             raise CatalogError("GitHub App configuration is invalid")
@@ -560,4 +566,8 @@ class ConnectionMixin(ConnectionLifecycleMixin):
             },
             provider_account_id=installation_id,
             repository_count=len(repository_ids),
+            repositories=[
+                {"id": value["id"], "name": value["name"]}
+                for value in repositories
+            ],
         )

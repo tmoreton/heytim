@@ -30,9 +30,11 @@ from .bot_roles import (
     CHIEF_SYSTEM_ROLE,
     DEFAULT_BOT_COLOR,
 )
-from .bot_setup import ensure_chief, install_bot_template
+from .bot_setup import LEGACY_BOT_TEMPLATE_IDS, ensure_chief, install_bot_template
 from .direct_messages import _list_turn_page
-from .message_views import messages_from_turns
+from .message_views import (
+    messages_from_turns as _messages_from_turns,  # noqa: F401 - public test helper
+)
 from .support import (
     QUEUE_URL,
     ApiError,
@@ -51,17 +53,6 @@ from .support import (
     sqs,
     table,
 )
-
-
-def _messages_from_turns(turns: list[dict]) -> list[dict]:
-    return messages_from_turns(turns)
-
-
-LEGACY_BOT_TEMPLATE_IDS = {
-    "starter-trip-planner": "trip-planner",
-    "starter-event-planner": "event-planner",
-    "starter-research-reports": "research-reports",
-}
 
 
 def _list_groups(user_id: str) -> list[dict]:
@@ -126,6 +117,65 @@ def _bot_values(
                 ],
             )
         tool_ids = catalog.validate_tools(user_id, [*extra_tool_ids, *required_tools])
+        if "githubRepositoryAccess" in value:
+            raw_github_access = value["githubRepositoryAccess"]
+        else:
+            previous_access = previous.get("githubRepositoryAccess", {})
+            raw_github_access = {
+                connection_id: repositories
+                for connection_id, repositories in (
+                    previous_access.items() if isinstance(previous_access, dict) else []
+                )
+                if connection_id in tool_ids
+            }
+        github_repository_access = catalog.validate_github_repository_access(
+            user_id, tool_ids, raw_github_access
+        )
+        if "jiraProjectAccess" in value:
+            raw_jira_access = value["jiraProjectAccess"]
+        else:
+            previous_jira_access = previous.get("jiraProjectAccess", {})
+            raw_jira_access = {
+                connection_id: projects
+                for connection_id, projects in (
+                    previous_jira_access.items()
+                    if isinstance(previous_jira_access, dict) else []
+                )
+                if connection_id in tool_ids
+            }
+        jira_project_access = catalog.validate_jira_project_access(
+            user_id, tool_ids, raw_jira_access
+        )
+        if "teamsChannelAccess" in value:
+            raw_teams_access = value["teamsChannelAccess"]
+        else:
+            previous_teams_access = previous.get("teamsChannelAccess", {})
+            raw_teams_access = {
+                connection_id: channels
+                for connection_id, channels in (
+                    previous_teams_access.items()
+                    if isinstance(previous_teams_access, dict) else []
+                )
+                if connection_id in tool_ids
+            }
+        teams_channel_access = catalog.validate_teams_channel_access(
+            user_id, tool_ids, raw_teams_access
+        )
+        if "resourceAccess" in value:
+            raw_resource_access = value["resourceAccess"]
+        else:
+            previous_resource_access = previous.get("resourceAccess", {})
+            raw_resource_access = {
+                connection_id: resources
+                for connection_id, resources in (
+                    previous_resource_access.items()
+                    if isinstance(previous_resource_access, dict) else []
+                )
+                if connection_id in tool_ids
+            }
+        resource_access = catalog.validate_resource_access(
+            user_id, tool_ids, raw_resource_access
+        )
         raw_always_allowed = value.get(
             "alwaysAllowedToolIds", previous.get("alwaysAllowedToolIds", [])
         )
@@ -166,6 +216,10 @@ def _bot_values(
         "toolIds": tool_ids,
         "extraToolIds": extra_tool_ids,
         "alwaysAllowedToolIds": always_allowed_tool_ids,
+        "githubRepositoryAccess": github_repository_access,
+        "jiraProjectAccess": jira_project_access,
+        "teamsChannelAccess": teams_channel_access,
+        "resourceAccess": resource_access,
         "skillIds": list(skill_versions),
         "skillVersions": skill_versions,
     }
@@ -199,6 +253,9 @@ def _put_bot(
         "updatedAt": current,
         "lastMessage": values.get("lastMessage", "Ready when you are."),
         "lastMessageAt": values.get("lastMessageAt", current),
+        "jiraProjectAccess": values.get("jiraProjectAccess", {}),
+        "teamsChannelAccess": values.get("teamsChannelAccess", {}),
+        "resourceAccess": values.get("resourceAccess", {}),
         **{
             key: values[key]
             for key in (
@@ -209,6 +266,7 @@ def _put_bot(
                 "toolIds",
                 "extraToolIds",
                 "alwaysAllowedToolIds",
+                "githubRepositoryAccess",
                 "skillIds",
                 "skillVersions",
             )

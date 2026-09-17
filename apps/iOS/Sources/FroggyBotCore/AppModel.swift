@@ -71,6 +71,7 @@ public final class AppModel {
   @ObservationIgnored var api: FrogBotAPI?
   @ObservationIgnored private var pollTask: Task<Void, Never>?
   @ObservationIgnored private var demoMode: Bool
+  @ObservationIgnored private var demoDelayedBotSwitch = false
   @ObservationIgnored private var pushToken: Data?
   @ObservationIgnored private var composerDrafts: [ConversationSelection: ComposerDraft] = [:]
   @ObservationIgnored private var selectionGeneration: UInt = 0
@@ -88,6 +89,13 @@ public final class AppModel {
         bootstrap = DemoData.groupProgressBootstrap
         selection = .init(kind: .group, id: DemoData.groupProgressGroup.id)
         messages = DemoData.groupProgressMessages
+      } else if arguments.contains("--ui-testing-two-bots") {
+        bootstrap = DemoData.twoBotsBootstrap
+      } else if arguments.contains("--ui-testing-delayed-bot-switch") {
+        bootstrap = DemoData.twoBotsBootstrap
+        demoDelayedBotSwitch = true
+      } else if arguments.contains("--ui-testing-multiple-connections") {
+        bootstrap = DemoData.multipleConnectionsBootstrap
       } else if arguments.contains("--ui-testing-empty-conversation") {
         messages = []
       } else if arguments.contains("--ui-testing-activity") {
@@ -302,6 +310,15 @@ public final class AppModel {
     let requestedGeneration = selectionGeneration
     let requestedSession = sessionGeneration
     if demoMode {
+      if demoDelayedBotSwitch {
+        isLoadingMessages = true
+        try? await Task.sleep(for: .milliseconds(550))
+        guard selection == requestedSelection, selectionGeneration == requestedGeneration else {
+          return
+        }
+        messages = requestedSelection.id == "researcher"
+          ? DemoData.delayedResearchMessages : DemoData.messages
+      }
       isLoadingMessages = false
       loadedMessagesSelection = requestedSelection
       return
@@ -747,7 +764,7 @@ public final class AppModel {
     messages = []
     loadedMessagesSelection = nil
     nextToken = nil
-    isLoadingMessages = value != nil && !demoMode
+    isLoadingMessages = value != nil && (!demoMode || demoDelayedBotSwitch)
     pollTask?.cancel()
     pollTask = nil
     return true
@@ -883,16 +900,6 @@ public enum DemoData {
   )
   public static let tools = [
     Capability(
-      id: "youtube_search", name: "YouTube",
-      description: "Find public videos and inspect their metadata and comments.",
-      provider: "agentcore-gateway", risk: "read", category: "Research",
-      actions: ["Search public videos", "Read public metadata"], source: "official"),
-    Capability(
-      id: "x_search", name: "X / Twitter Search",
-      description: "Search recent public posts on X.",
-      provider: "agentcore-gateway", risk: "read", category: "Research",
-      actions: ["Search public posts"], source: "official"),
-    Capability(
       id: "web_search", name: "Web Search",
       description: "Find current information from public web sources.", risk: "read",
       category: "Research", actions: ["Search the web", "Open public pages"],
@@ -912,22 +919,20 @@ public enum DemoData {
       privacyTitle: "Your Gmail account stays private",
       privacyDescription: "Used only when a bot needs the account.",
       familyId: "google", familyName: "Google",
-      familyDescription: "Connect only the Google services each bot needs.",
+      familyDescription: "Connect the Google accounts each bot needs.",
       familyIconText: "G", familyLogoProviderId: "google_workspace",
-      familyIncludedSummary: "Public YouTube research included",
-      familyIncludedToolIds: ["youtube_search"], serviceName: "Gmail"),
+      serviceName: "Gmail"),
     ConnectionProvider(
       id: "youtube", name: "YouTube Studio",
       description: "Read your own channel, uploads, and private channel data.",
       category: "Video", iconText: "YT",
       permissionsSummary: "Read-only channel access",
       privacyTitle: "Your channel connection is optional",
-      privacyDescription: "Public YouTube research remains included without sign-in.",
+      privacyDescription: "Connect an account before a bot can search YouTube.",
       familyId: "google", familyName: "Google",
-      familyDescription: "Connect only the Google services each bot needs.",
+      familyDescription: "Connect the Google accounts each bot needs.",
       familyIconText: "G", familyLogoProviderId: "google_workspace",
-      familyIncludedSummary: "Public YouTube research included",
-      familyIncludedToolIds: ["youtube_search"], serviceName: "YouTube Studio"),
+      serviceName: "YouTube Studio"),
     ConnectionProvider(
       id: "google_workspace", name: "Google Workspace",
       description: "Search and read Drive files, Docs, and Calendar events.",
@@ -936,22 +941,20 @@ public enum DemoData {
       privacyTitle: "Workspace content stays user-scoped",
       privacyDescription: "It cannot change files or calendar events.",
       familyId: "google", familyName: "Google",
-      familyDescription: "Connect only the Google services each bot needs.",
+      familyDescription: "Connect the Google accounts each bot needs.",
       familyIconText: "G", familyLogoProviderId: "google_workspace",
-      familyIncludedSummary: "Public YouTube research included",
-      familyIncludedToolIds: ["youtube_search"], serviceName: "Workspace"),
+      serviceName: "Workspace"),
     ConnectionProvider(
       id: "x", name: "X",
       description: "Access your profile, posts, and mentions when a bot needs them.",
       category: "Social", iconText: "X",
       permissionsSummary: "Read-only account access",
       privacyTitle: "Your X account stays private",
-      privacyDescription: "Public post search remains included without sign-in.",
+      privacyDescription: "Connect an account before a bot can search X.",
       familyId: "x", familyName: "X",
-      familyDescription: "Connect only when a bot needs your private account data.",
+      familyDescription: "Connect an X account for search and profile access.",
       familyIconText: "X", familyLogoProviderId: "x",
-      familyIncludedSummary: "Public post search included",
-      familyIncludedToolIds: ["x_search"], serviceName: "Account access"),
+      serviceName: "Account access"),
   ]
   public static let skills = [
     Skill(
@@ -985,6 +988,45 @@ public enum DemoData {
     needsBotOnboarding: false, groups: [], tools: tools,
     retiredToolIds: [], skills: skills, constraints: constraints
   )
+  public static var multipleConnectionsBootstrap: Bootstrap {
+    var value = bootstrap
+    value.tools += [
+      Capability(
+        id: "connection_gmail_alpha", name: "Gmail",
+        description: "Read and draft email.", provider: "gmail", source: "user",
+        connectedAccount: "alpha@example.com"),
+      Capability(
+        id: "connection_gmail_beta", name: "Gmail",
+        description: "Read and draft email.", provider: "gmail", source: "user",
+        connectedAccount: "beta@example.com"),
+      Capability(
+        id: "connection_github_team", name: "GitHub",
+        description: "Read connected repositories.", provider: "github", source: "user",
+        connectedAccount: "team", repositories: [
+          ConnectedRepository(id: 101, name: "team/api"),
+          ConnectedRepository(id: 102, name: "team/app"),
+        ]),
+    ]
+    value.connectionProviders.append(
+      ConnectionProvider(
+        id: "github", name: "GitHub", description: "Read connected repositories.",
+        category: "Development", iconText: "GH",
+        permissionsSummary: "Read-only repository access",
+        privacyTitle: "Choose repositories for each bot",
+        privacyDescription: "Only selected repositories are available."))
+    return value
+  }
+  public static var twoBotsBootstrap: Bootstrap {
+    var value = bootstrap
+    value.bots.append(
+      Bot(
+        id: "researcher", name: "Research Bot", tagline: "Investigates questions",
+        color: "#3488E8", prompt: "Research carefully.", toolIds: [], skillIds: [],
+        createdAt: "2026-09-12T12:02:00.000Z", updatedAt: "2026-09-12T12:02:00.000Z",
+        lastMessage: "Ready to research.", lastMessageAt: "2026-09-12T12:03:00.000Z",
+        allowedActions: ["schedule", "share", "documents", "browser", "edit", "clear", "delete"]))
+    return value
+  }
   public static let messages = [
     ChatMessage(
       id: "m1", role: "user", authorName: "You", isMine: true,
@@ -1009,6 +1051,13 @@ public enum DemoData {
         : "Conversation history item \(index) with enough detail to exercise scrolling.",
       createdAt: "2026-09-12T12:\(String(format: "%02d", index)):00.000Z",
       status: "complete")
+  }
+  public static var delayedResearchMessages: [ChatMessage] {
+    var value = scrollMessages
+    value[value.count - 1].text = String(
+      repeating: "A researched detail that makes this response taller than the screen.\n\n",
+      count: 18) + "Research Bot answer visible after loading."
+    return value
   }
   public static let activityMessages = [
     ChatMessage(

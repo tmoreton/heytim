@@ -540,7 +540,8 @@ def gmail_api_tools(
             separators=(",", ":"),
         )
 
-    return [
+    account_label = binding.get("accountLabel")
+    tools = [
         create_draft,
         list_drafts,
         get_draft,
@@ -548,6 +549,15 @@ def gmail_api_tools(
         get_message,
         search_threads,
         list_labels,
+    ]
+    if not account_label:
+        return tools
+    return [
+        tool(
+            name=item.tool_name,
+            description=f"{item.tool_spec['description']} Connected account: {account_label}.",
+        )(item.__wrapped__)
+        for item in tools
     ]
 
 

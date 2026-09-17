@@ -14,6 +14,12 @@ from botocore.config import Config
 from strands import tool
 
 from .collaboration_provider_tools import (
+    hubspot_tools as _hubspot_tools,
+)
+from .collaboration_provider_tools import (
+    jira_tools as _jira_tools,
+)
+from .collaboration_provider_tools import (
     microsoft_tools as _microsoft_tools,
 )
 from .collaboration_provider_tools import (
@@ -23,8 +29,16 @@ from .collaboration_provider_tools import (
     slack_tools as _slack_tools,
 )
 from .collaboration_provider_tools import (
+    teams_tools as _teams_tools,
+)
+from .collaboration_provider_tools import (
     x_tools as _x_tools,
 )
+from .collaboration_provider_tools import (
+    zoom_tools as _zoom_tools,
+)
+from .provider_binding import validated_provider_binding
+from .youtube_provider_tools import _youtube_tools
 
 CONNECTION_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
@@ -51,6 +65,21 @@ NOTION_CLIENT_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
     r"secret:frogbot/oauth/notion-[A-Za-z0-9-]+$"
 )
+HUBSPOT_CLIENT_SECRET_ARN_PATTERN = re.compile(
+    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
+    r"secret:frogbot/oauth/hubspot-[A-Za-z0-9-]+$"
+)
+JIRA_CLIENT_SECRET_ARN_PATTERN = re.compile(
+    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
+    r"secret:frogbot/oauth/jira-[A-Za-z0-9-]+$"
+)
+ZOOM_CLIENT_SECRET_ARN_PATTERN = re.compile(
+    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
+    r"secret:frogbot/oauth/zoom-[A-Za-z0-9-]+$"
+)
+JIRA_SITE_ID_PATTERN = re.compile(
+    r"^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+)
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 YOUTUBE_API_URL = "https://www.googleapis.com/youtube/v3"
 X_TOKEN_URL = "https://api.x.com/2/oauth2/token"
@@ -61,6 +90,12 @@ MICROSOFT_API_URL = "https://graph.microsoft.com/v1.0"
 MICROSOFT_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
 NOTION_API_URL = "https://api.notion.com/v1"
 NOTION_API_VERSION = "2026-03-11"
+HUBSPOT_API_URL = "https://api.hubapi.com"
+HUBSPOT_TOKEN_URL = f"{HUBSPOT_API_URL}/oauth/2026-03/token"
+JIRA_API_URL = "https://api.atlassian.com"
+JIRA_TOKEN_URL = "https://auth.atlassian.com/oauth/token"
+ZOOM_TOKEN_URL = "https://zoom.us/oauth/token"
+ZOOM_API_URL = "https://api.zoom.us/v2"
 PROVIDER_SCOPES = {
     "youtube": {"https://www.googleapis.com/auth/youtube.readonly"},
     "x": {"tweet.read", "users.read", "offline.access"},
@@ -87,14 +122,29 @@ PROVIDER_SCOPES = {
         "Files.Read.All",
         "Sites.Read.All",
     },
+    "microsoft_teams": {
+        "openid", "profile", "email", "offline_access", "User.Read",
+        "Team.ReadBasic.All", "Channel.ReadBasic.All", "ChannelMessage.Read.All",
+    },
     "notion": {"read_content"},
+    "hubspot": {
+        "crm.objects.contacts.read",
+        "crm.objects.companies.read",
+        "crm.objects.deals.read",
+    },
+    "jira": {"offline_access", "read:jira-work"},
+    "zoom": {"user:read:user", "meeting:read:list_meetings", "meeting:read:meeting"},
 }
 PROVIDER_CLIENT_SECRET_PATTERNS = {
     "youtube": GOOGLE_CLIENT_SECRET_ARN_PATTERN,
     "x": X_CLIENT_SECRET_ARN_PATTERN,
     "slack": SLACK_CLIENT_SECRET_ARN_PATTERN,
     "microsoft": MICROSOFT_CLIENT_SECRET_ARN_PATTERN,
+    "microsoft_teams": MICROSOFT_CLIENT_SECRET_ARN_PATTERN,
     "notion": NOTION_CLIENT_SECRET_ARN_PATTERN,
+    "hubspot": HUBSPOT_CLIENT_SECRET_ARN_PATTERN,
+    "jira": JIRA_CLIENT_SECRET_ARN_PATTERN,
+    "zoom": ZOOM_CLIENT_SECRET_ARN_PATTERN,
 }
 _secrets_manager = None
 
@@ -129,39 +179,6 @@ def _json_secret(secret_arn: str) -> dict:
     if not isinstance(value, dict):
         raise TypeError("Provider connection credential is invalid")
     return value
-
-
-def validated_provider_binding(tool_id: str, runtime: dict) -> dict:
-    provider = runtime.get("provider")
-    secret_arn = runtime.get("secretArn")
-    client_secret_arn = runtime.get("oauthClientSecretArn")
-    scopes = runtime.get("scopes")
-    expected_scopes = PROVIDER_SCOPES.get(provider)
-    expected_oauth_provider = "google" if provider == "youtube" else provider
-    expected_client_pattern = PROVIDER_CLIENT_SECRET_PATTERNS.get(provider)
-    if (
-        expected_scopes is None
-        or runtime.get("authType") != "oauth"
-        or runtime.get("oauthProvider") != expected_oauth_provider
-        or not isinstance(secret_arn, str)
-        or not CONNECTION_SECRET_ARN_PATTERN.fullmatch(secret_arn)
-        or not isinstance(client_secret_arn, str)
-        or not expected_client_pattern.fullmatch(client_secret_arn)
-        or not isinstance(scopes, list)
-        or len(scopes) != len(set(scopes))
-        or set(scopes) != expected_scopes
-    ):
-        raise ValueError(f"OAuth provider connection is invalid: {tool_id}")
-    return {
-        "id": tool_id,
-        "kind": "provider_api",
-        "provider": provider,
-        "authType": "oauth",
-        "oauthProvider": expected_oauth_provider,
-        "secretArn": secret_arn,
-        "oauthClientSecretArn": client_secret_arn,
-        "scopes": scopes,
-    }
 
 
 def _oauth_client(binding: dict) -> tuple[str, str]:
@@ -323,7 +340,7 @@ def _rotating_provider_access_token(binding: dict) -> str:
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
         }
-    elif provider == "microsoft":
+    elif provider in {"microsoft", "microsoft_teams"}:
         url = MICROSOFT_TOKEN_URL
         fields = {
             "client_id": client_id,
@@ -332,12 +349,45 @@ def _rotating_provider_access_token(binding: dict) -> str:
             "refresh_token": refresh_token,
             "scope": " ".join(binding["scopes"]),
         }
+    elif provider == "hubspot":
+        url = HUBSPOT_TOKEN_URL
+        fields = {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+        }
+    elif provider == "jira":
+        url = JIRA_TOKEN_URL
+        fields = {
+            "grant_type": "refresh_token",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+        }
+    elif provider == "zoom":
+        url = ZOOM_TOKEN_URL
+        fields = {"grant_type": "refresh_token", "refresh_token": refresh_token}
     else:
         raise ValueError("Rotating OAuth provider is unsupported")
     request = urllib.request.Request(
         url,
-        data=urllib.parse.urlencode(fields).encode(),
-        headers={"content-type": "application/x-www-form-urlencoded"},
+        data=(
+            json.dumps(fields, separators=(",", ":")).encode()
+            if provider == "jira"
+            else urllib.parse.urlencode(fields).encode()
+        ),
+        headers={
+            "content-type": (
+                "application/json" if provider == "jira" else "application/x-www-form-urlencoded"
+            ),
+            **(
+                {"authorization": "Basic " + base64.b64encode(
+                    f"{client_id}:{client_secret}".encode()
+                ).decode()}
+                if provider == "zoom" else {}
+            ),
+        },
         method="POST",
     )
     try:
@@ -360,6 +410,7 @@ def _rotating_provider_access_token(binding: dict) -> str:
         or not access_token
         or not isinstance(replacement_refresh_token, str)
         or not replacement_refresh_token
+        or (provider == "jira" and not isinstance(token.get("refresh_token"), str))
         or isinstance(expires_in, bool)
         or not isinstance(expires_in, (int, float))
         or int(expires_in) <= 0
@@ -383,7 +434,7 @@ def _provider_access_token(binding: dict) -> str:
         return _google_access_token(binding)
     if provider == "x":
         return _x_access_token(binding)
-    if provider in {"slack", "microsoft"}:
+    if provider in {"slack", "microsoft", "microsoft_teams", "hubspot", "jira", "zoom"}:
         return _rotating_provider_access_token(binding)
     if provider == "notion":
         credential = _json_secret(binding["secretArn"])
@@ -470,111 +521,38 @@ def _text(value: str, field: str, maximum: int) -> str:
     return value.strip()
 
 
-def _youtube_tools(binding: dict, usage: Any) -> list[Any]:
-    @tool
-    def youtube_my_channel() -> str:
-        """Read the connected user's YouTube channel profile and aggregate statistics."""
-        _record(usage, "youtube", "youtube_my_channel")
-        query = urllib.parse.urlencode(
-            {
-                "part": "id,snippet,contentDetails,statistics,status",
-                "mine": "true",
-                "maxResults": "1",
-            }
-        )
-        value = _api_json(
-            f"{YOUTUBE_API_URL}/channels?{query}", _google_access_token(binding)
-        )
-        items = value.get("items")
-        channel = items[0] if isinstance(items, list) and items else None
-        if not isinstance(channel, dict):
-            raise TypeError("The connected Google account has no YouTube channel")
-        return json.dumps(
-            {
-                "id": channel.get("id"),
-                "snippet": channel.get("snippet"),
-                "statistics": channel.get("statistics"),
-                "status": channel.get("status"),
-            },
-            separators=(",", ":"),
-        )
-
-    @tool
-    def youtube_my_videos(max_results: int = 10) -> str:
-        """List recent uploads from the connected user's own YouTube channel."""
-        count = _limit(max_results, minimum=1, maximum=50)
-        _record(usage, "youtube", "youtube_my_videos")
-        access_token = _google_access_token(binding)
-        channel_query = urllib.parse.urlencode(
-            {"part": "contentDetails", "mine": "true", "maxResults": "1"}
-        )
-        channel_value = _api_json(
-            f"{YOUTUBE_API_URL}/channels?{channel_query}", access_token
-        )
-        channels = channel_value.get("items")
-        channel = channels[0] if isinstance(channels, list) and channels else None
-        content = channel.get("contentDetails") if isinstance(channel, dict) else None
-        related = content.get("relatedPlaylists") if isinstance(content, dict) else None
-        uploads = related.get("uploads") if isinstance(related, dict) else None
-        if not isinstance(uploads, str) or not uploads:
-            raise ValueError("The connected YouTube channel has no uploads playlist")
-        videos_query = urllib.parse.urlencode(
-            {
-                "part": "id,snippet,contentDetails,status",
-                "playlistId": uploads,
-                "maxResults": str(count),
-            }
-        )
-        value = _api_json(
-            f"{YOUTUBE_API_URL}/playlistItems?{videos_query}", access_token
-        )
-        items = value.get("items")
-        videos = []
-        for item in items if isinstance(items, list) else []:
-            if not isinstance(item, dict):
-                continue
-            snippet = item.get("snippet")
-            content_details = item.get("contentDetails")
-            status = item.get("status")
-            videos.append(
-                {
-                    "videoId": (
-                        content_details.get("videoId")
-                        if isinstance(content_details, dict)
-                        else None
-                    ),
-                    "title": snippet.get("title")
-                    if isinstance(snippet, dict)
-                    else None,
-                    "publishedAt": (
-                        content_details.get("videoPublishedAt")
-                        if isinstance(content_details, dict)
-                        else None
-                    ),
-                    "privacyStatus": (
-                        status.get("privacyStatus")
-                        if isinstance(status, dict)
-                        else None
-                    ),
-                }
-            )
-        return json.dumps({"videos": videos}, separators=(",", ":"))
-
-    return [youtube_my_channel, youtube_my_videos]
-
-
 def provider_connection_tools(binding: dict, usage: Any = None) -> list[Any]:
+    from .mcp_connections import _bounded_tool_name
+
     if binding["provider"] == "youtube":
-        return _youtube_tools(binding, usage)
-    if binding["provider"] == "x":
-        return _x_tools(binding, usage)
-    if binding["provider"] == "slack":
-        return _slack_tools(binding, usage)
-    if binding["provider"] == "microsoft":
-        return _microsoft_tools(binding, usage)
-    if binding["provider"] == "notion":
-        return _notion_tools(binding, usage)
-    raise ValueError("OAuth provider connection is unsupported")
+        provider_tools = _youtube_tools(binding, usage)
+    elif binding["provider"] == "x":
+        provider_tools = _x_tools(binding, usage)
+    elif binding["provider"] == "slack":
+        provider_tools = _slack_tools(binding, usage)
+    elif binding["provider"] == "microsoft":
+        provider_tools = _microsoft_tools(binding, usage)
+    elif binding["provider"] == "microsoft_teams":
+        provider_tools = _teams_tools(binding, usage)
+    elif binding["provider"] == "notion":
+        provider_tools = _notion_tools(binding, usage)
+    elif binding["provider"] == "hubspot":
+        provider_tools = _hubspot_tools(binding, usage)
+    elif binding["provider"] == "jira":
+        provider_tools = _jira_tools(binding, usage)
+    elif binding["provider"] == "zoom":
+        provider_tools = _zoom_tools(binding, usage)
+    else:
+        raise ValueError("OAuth provider connection is unsupported")
+
+    label = binding.get("accountLabel") or binding["provider"]
+    return [
+        tool(
+            name=_bounded_tool_name(binding["id"], item.tool_name),
+            description=f"{item.tool_spec['description']} Connected account: {label}.",
+        )(item.__wrapped__)
+        for item in provider_tools
+    ]
 
 
 __all__ = ["provider_connection_tools", "validated_provider_binding"]

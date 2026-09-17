@@ -131,7 +131,9 @@ struct SkillEditor: View {
         Form {
           Section {
             TextField("Name", text: $draft.name)
+              .accessibilityLabel("Name")
             TextField("Description", text: $draft.description, axis: .vertical)
+              .accessibilityLabel("Description")
           } header: {
             Text("Overview")
           } footer: {
@@ -404,8 +406,8 @@ struct ConnectionsView: View {
     }
   }
 
-  private func connection(for providerID: String) -> Capability? {
-    connections.first { $0.provider == providerID }
+  private func connections(for providerID: String) -> [Capability] {
+    connections.filter { $0.provider == providerID }
   }
 
   private func providerName(_ id: String) -> String {
@@ -414,16 +416,26 @@ struct ConnectionsView: View {
 
   @ViewBuilder
   private func providerAccessRow(_ provider: ConnectionProvider, nested: Bool = false) -> some View {
-    if let connection = connection(for: provider.id) {
-      FeatureLink {
-        ConnectionDetailView(
-          connection: connection, provider: provider,
-          reconnect: { connect(provider.id) },
-          disconnect: { disconnectCandidate = connection })
-      } label: {
-        connectionRow(
-          connection, provider: provider,
-          displayName: nested ? provider.name : nil)
+    let accounts = connections(for: provider.id)
+    if !accounts.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        ForEach(accounts) { connection in
+          FeatureLink {
+            ConnectionDetailView(
+              connection: connection, provider: provider,
+              reconnect: { connect(provider.id) },
+              disconnect: { disconnectCandidate = connection })
+          } label: {
+            connectionRow(
+              connection, provider: provider,
+              displayName: nested ? provider.name : nil)
+          }
+        }
+        Button(provider.id == "github" ? "Add another installation" : "Add another account") {
+          connect(provider.id)
+        }
+        .disabled(connectingProviderID != nil || webAuthentication.isRunning)
+        .accessibilityIdentifier("connection.add.\(provider.id)")
       }
     } else {
       HStack(spacing: 12) {
@@ -529,6 +541,13 @@ private struct ConnectionDetailView: View {
           }
           if let permissions = provider?.permissionsSummary {
             Text(permissions).froggyFont(.footnote).foregroundStyle(.secondary)
+          }
+        }
+      }
+      if connection.provider == "github", let repositories = connection.repositories {
+        Section("Connected repositories") {
+          ForEach(repositories) { repository in
+            Text(repository.name)
           }
         }
       }

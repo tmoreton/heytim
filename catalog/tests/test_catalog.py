@@ -157,7 +157,7 @@ class CatalogTests(unittest.TestCase):
         )
         self.assertEqual(
             youtube_tools,
-            {"youtube_search", "web_search", "image_generator"},
+            {"web_search", "image_generator"},
         )
         self.assertIn("Visually verify the returned image's wording", youtube["prompt"])
         self.assertIn("unverified or still-flawed result as a draft", youtube["prompt"])
@@ -181,7 +181,7 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(trend["skillIds"], ["trend-scout"])
         self.assertEqual(
             set(skills["trend-scout"]["requiredToolIds"]),
-            {"youtube_search", "x_search", "web_search", "delegate"},
+            {"web_search", "delegate"},
         )
 
     def test_everyday_bots_use_least_privilege_capability_bundles(self) -> None:
@@ -191,7 +191,7 @@ class CatalogTests(unittest.TestCase):
         tools = {tool["id"]: tool for tool in catalog["tools"]}
         expected_tools = {
             "morning-brief": {"web", "web_search", "current_time", "task_list"},
-            "social-writer": {"web", "web_search", "x_search", "current_time"},
+            "social-writer": {"web", "web_search", "current_time"},
             "meeting-prep": {"web", "web_search", "current_time", "task_list"},
             "career-coach": {"web", "web_search", "code_interpreter"},
         }
@@ -203,10 +203,14 @@ class CatalogTests(unittest.TestCase):
                 {"browser", "image_generator", "bot_manager"} & tool_ids,
                 bot_id,
             )
+
             self.assertTrue(
                 all(tools[tool_id]["risk"] != "interactive" for tool_id in tool_ids),
                 bot_id,
             )
+
+        self.assertFalse(tools["x_search"]["enabled"])
+        self.assertFalse(tools["youtube_search"]["enabled"])
 
         self.assertTrue(bots["morning-brief"]["featured"])
         self.assertTrue(bots["social-writer"]["featured"])

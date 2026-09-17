@@ -7,6 +7,12 @@ from shared.catalog import CatalogError
 from .bot_roles import CHIEF_COLOR, CHIEF_SYSTEM_ROLE, CHIEF_TEMPLATE_ID
 from .support import ApiError, _bot_sk, _now, _user_pk, catalog, table
 
+LEGACY_BOT_TEMPLATE_IDS = {
+    "starter-trip-planner": "trip-planner",
+    "starter-event-planner": "event-planner",
+    "starter-research-reports": "research-reports",
+}
+
 
 def _required_chief_template() -> dict:
     try:

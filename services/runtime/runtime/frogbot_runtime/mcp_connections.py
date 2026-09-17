@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import ipaddress
 import json
 import re
@@ -29,6 +28,7 @@ from .github_app import (
     github_app_jwt,
     validate_installation_grant,
 )
+from .mcp_tool_names import _bounded_tool_name
 
 SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
@@ -63,6 +63,10 @@ GOOGLE_WORKSPACE_MCP_SERVERS = {
         "search_files",
     },
     "https://docsmcp.googleapis.com/mcp/v1": {"read_doc"},
+    "https://sheetsmcp.googleapis.com/mcp/v1": {
+        "get_spreadsheet",
+        "get_values",
+    },
     "https://calendarmcp.googleapis.com/mcp/v1": {
         "get_event",
         "list_calendars",
@@ -80,23 +84,52 @@ GOOGLE_WORKSPACE_SCOPES = {
 }
 GOOGLE_OAUTH_ENDPOINT = "https://oauth2.googleapis.com/token"
 _secrets_manager = None
-MAX_TOOL_NAME_CHARS = 64
+SCOPED_GOOGLE_TOOLS = {
+    "drivemcp.googleapis.com": {
+        "get_file_metadata": "fileId",
+        "get_file_permissions": "fileId",
+        "read_file_content": "fileId",
+        "download_file_content": "fileId",
+    },
+    "docsmcp.googleapis.com": {"read_doc": "documentId"},
+    "sheetsmcp.googleapis.com": {
+        "get_spreadsheet": "spreadsheetId",
+        "get_values": "spreadsheetId",
+    },
+    "calendarmcp.googleapis.com": {
+        "get_event": "calendarId",
+        "list_events": "calendarId",
+    },
+}
 
 
-def _bounded_tool_name(connection_id: str, remote_name: str) -> str:
-    prefix = f"c{hashlib.sha256(connection_id.encode()).hexdigest()[:10]}"
-    candidate = f"{prefix}_{remote_name}"
-    if len(candidate) <= MAX_TOOL_NAME_CHARS:
-        return candidate
-    suffix = hashlib.sha256(candidate.encode()).hexdigest()[:10]
-    return f"{candidate[: MAX_TOOL_NAME_CHARS - len(suffix) - 1]}_{suffix}"
+class LabeledMCPAgentTool(MCPAgentTool):
+    def __init__(self, *args: Any, account_label: str | None = None, **kwargs: Any) -> None:
+        self._frogbot_account_label = account_label
+        super().__init__(*args, **kwargs)
+
+    @property
+    def tool_spec(self):
+        spec = super().tool_spec
+        if self._frogbot_account_label:
+            spec["description"] += f" Connected account: {self._frogbot_account_label}."
+        return spec
 
 
 class BoundedMCPClient(MCPClient):
     """Expose stable MCP aliases that every supported text model can accept."""
 
-    def __init__(self, *args: Any, connection_id: str, **kwargs: Any) -> None:
+    def __init__(
+        self, *args: Any, connection_id: str,
+        resource_ids: set[str] | None = None,
+        resource_server: str | None = None,
+        account_label: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         self._frogbot_connection_id = connection_id
+        self._frogbot_resource_ids = resource_ids
+        self._frogbot_resource_server = resource_server
+        self._frogbot_account_label = account_label
         super().__init__(*args, prefix=None, **kwargs)
 
     def list_tools_sync(
@@ -111,9 +144,10 @@ class BoundedMCPClient(MCPClient):
             tool_filters=tool_filters,
         )
         tools = [
-            MCPAgentTool(
+            LabeledMCPAgentTool(
                 tool.mcp_tool,
                 self,
+                account_label=self._frogbot_account_label,
                 name_override=_bounded_tool_name(
                     self._frogbot_connection_id,
                     tool.mcp_tool.name,
@@ -121,8 +155,32 @@ class BoundedMCPClient(MCPClient):
                 timeout=tool.timeout,
             )
             for tool in page
+            if self._frogbot_resource_ids is None
+            or tool.mcp_tool.name in SCOPED_GOOGLE_TOOLS.get(
+                self._frogbot_resource_server or "", {}
+            )
         ]
         return PaginatedList(tools, token=page.pagination_token)
+
+    async def call_tool_async(
+        self, tool_use_id: str, name: str,
+        arguments: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ):
+        if self._frogbot_resource_ids is not None:
+            field = SCOPED_GOOGLE_TOOLS.get(
+                self._frogbot_resource_server or "", {}
+            ).get(name)
+            resource = arguments.get(field) if isinstance(arguments, dict) and field else None
+            if not isinstance(resource, str) or resource not in self._frogbot_resource_ids:
+                return {
+                    "toolUseId": tool_use_id,
+                    "status": "error",
+                    "content": [{"text": "This bot is not assigned that Workspace resource"}],
+                }
+        return await super().call_tool_async(
+            tool_use_id, name, arguments=arguments, **kwargs
+        )
 
 
 def _validated_endpoint(value: Any) -> str:
@@ -195,6 +253,11 @@ def validated_connection_binding(tool_id: str, runtime: dict) -> dict:
         "endpoint": endpoint,
         "authType": auth_type,
     }
+    account_label = runtime.get("accountLabel")
+    if account_label is not None:
+        if not isinstance(account_label, str) or not account_label.strip() or len(account_label) > 160:
+            raise ValueError(f"MCP account label is invalid: {tool_id}")
+        binding["accountLabel"] = account_label.strip()
     if auth_type == "none":
         return binding
     secret_arn = runtime.get("secretArn")
@@ -231,10 +294,19 @@ def validated_connection_binding(tool_id: str, runtime: dict) -> dict:
         or not GITHUB_APP_SECRET_ARN_PATTERN.fullmatch(app_secret_arn)
     ):
         raise ValueError(f"MCP connection authentication is invalid: {tool_id}")
+    repository_ids = runtime.get("repositoryIds")
+    if repository_ids is not None and (
+        not isinstance(repository_ids, list)
+        or not 1 <= len(repository_ids) <= 500
+        or any(type(value) is not int or value <= 0 for value in repository_ids)
+        or len(repository_ids) != len(set(repository_ids))
+    ):
+        raise ValueError(f"GitHub repository access is invalid: {tool_id}")
     return {
         **binding,
         "secretArn": secret_arn,
         "appSecretArn": app_secret_arn,
+        **({"repositoryIds": repository_ids} if repository_ids is not None else {}),
     }
 
 
@@ -243,6 +315,12 @@ def validated_connection_bundle_binding(tool_id: str, runtime: dict) -> dict:
     client_secret_arn = runtime.get("oauthClientSecretArn")
     scopes = runtime.get("scopes")
     servers = runtime.get("servers")
+    resource_ids = runtime.get("resourceIds")
+    account_label = runtime.get("accountLabel")
+    if account_label is not None and (
+        not isinstance(account_label, str) or not account_label.strip() or len(account_label) > 160
+    ):
+        raise ValueError(f"Workspace account label is invalid: {tool_id}")
     if (
         runtime.get("authType") != "oauth"
         or runtime.get("oauthProvider") != "google"
@@ -254,7 +332,10 @@ def validated_connection_bundle_binding(tool_id: str, runtime: dict) -> dict:
         or set(scopes) != GOOGLE_WORKSPACE_SCOPES
         or len(scopes) != len(set(scopes))
         or not isinstance(servers, list)
-        or len(servers) != len(GOOGLE_WORKSPACE_MCP_SERVERS)
+        or len(servers) not in {
+            len(GOOGLE_WORKSPACE_MCP_SERVERS),
+            len(GOOGLE_WORKSPACE_MCP_SERVERS) - 1,
+        }
     ):
         raise ValueError(f"Google Workspace MCP connection is invalid: {tool_id}")
 
@@ -282,8 +363,28 @@ def validated_connection_bundle_binding(tool_id: str, runtime: dict) -> dict:
         normalized_servers.append(
             {"endpoint": endpoint, "allowedTools": allowed_tools}
         )
-    if seen != set(GOOGLE_WORKSPACE_MCP_SERVERS):
+    legacy_servers = set(GOOGLE_WORKSPACE_MCP_SERVERS) - {
+        "https://sheetsmcp.googleapis.com/mcp/v1"
+    }
+    if frozenset(seen) not in {
+        frozenset(GOOGLE_WORKSPACE_MCP_SERVERS),
+        frozenset(legacy_servers),
+    }:
         raise ValueError(f"Google Workspace MCP connection is invalid: {tool_id}")
+    if resource_ids is not None and (
+        not isinstance(resource_ids, list)
+        or not 1 <= len(resource_ids) <= 100
+        or any(
+            not isinstance(item, str)
+            or not re.fullmatch(
+                r"(?:file|sheet):[A-Za-z0-9_-]{8,256}|calendar:[A-Za-z0-9_.@%+\-]{1,256}",
+                item,
+            )
+            for item in resource_ids
+        )
+        or len(resource_ids) != len(set(resource_ids))
+    ):
+        raise ValueError(f"Workspace resource access is invalid: {tool_id}")
     return {
         "id": tool_id,
         "kind": "mcp_bundle",
@@ -293,6 +394,8 @@ def validated_connection_bundle_binding(tool_id: str, runtime: dict) -> dict:
         "oauthClientSecretArn": client_secret_arn,
         "scopes": scopes,
         "servers": normalized_servers,
+        **({"accountLabel": account_label.strip()} if account_label is not None else {}),
+        **({"resourceIds": resource_ids} if resource_ids is not None else {}),
     }
 
 
@@ -368,12 +471,21 @@ def github_installation_token(binding: dict) -> str:
     if binding.get("authType") != "github_app":
         raise ValueError("Connection does not use a GitHub App installation")
     grant = validate_installation_grant(_json_secret(binding["secretArn"]))
+    repository_ids = binding.get("repositoryIds")
+    if repository_ids is not None:
+        repository_ids = [
+            value for value in repository_ids if value in grant["repositoryIds"]
+        ]
+        if not repository_ids:
+            raise ValueError("The bot no longer has access to a connected repository")
+    else:
+        repository_ids = grant["repositoryIds"]
     config = github_app_config(_json_secret(binding["appSecretArn"]))
     request = urllib.request.Request(
         (f"{GITHUB_API_URL}/app/installations/{grant['installationId']}/access_tokens"),
         data=json.dumps(
             {
-                "repository_ids": grant["repositoryIds"],
+                "repository_ids": repository_ids,
                 "permissions": {
                     name: value
                     for name, value in grant["permissions"].items()
@@ -417,6 +529,7 @@ def connection_client(binding: dict) -> MCPClient:
         "startup_timeout": 15,
         "continue_on_error": False,
         "application_name": "FroggyBot",
+        "account_label": binding.get("accountLabel"),
     }
     if binding["authType"] == "oauth":
         options["tool_filters"] = {"allowed": binding["allowedTools"]}
@@ -433,16 +546,51 @@ def connection_clients(binding: dict) -> list[MCPClient]:
         raise ValueError("MCP connection bundle is invalid")
     headers = {"Authorization": f"Bearer {_google_access_token(binding)}"}
     clients = []
-    for server in binding["servers"]:
+    servers = list(binding["servers"])
+    if (
+        any(item.startswith("sheet:") for item in binding.get("resourceIds", []))
+        and not any("sheetsmcp.googleapis.com" in server["endpoint"] for server in servers)
+    ):
+        endpoint = "https://sheetsmcp.googleapis.com/mcp/v1"
+        servers.append({
+            "endpoint": endpoint,
+            "allowedTools": list(GOOGLE_WORKSPACE_MCP_SERVERS[endpoint]),
+        })
+    for server in servers:
         hostname = urllib.parse.urlsplit(server["endpoint"]).hostname or "mcp"
+        resource_ids = None
+        allowed_tools = server["allowedTools"]
+        if "resourceIds" in binding:
+            selected = {
+                kind: {item.split(":", 1)[1] for item in binding["resourceIds"]
+                       if item.startswith(f"{kind}:")}
+                for kind in ("file", "sheet", "calendar")
+            }
+            resource_ids = (
+                selected["file"] | selected["sheet"]
+                if hostname == "drivemcp.googleapis.com"
+                else selected["file"] if hostname == "docsmcp.googleapis.com"
+                else selected["sheet"] if hostname == "sheetsmcp.googleapis.com"
+                else selected["calendar"] if hostname == "calendarmcp.googleapis.com"
+                else set()
+            )
+            allowed_tools = [
+                name for name in allowed_tools
+                if name in SCOPED_GOOGLE_TOOLS.get(hostname, {})
+            ]
+            if not resource_ids or not allowed_tools:
+                continue
         clients.append(
             BoundedMCPClient(
                 partial(_secure_streamable_http, server["endpoint"], headers),
                 connection_id=f"{binding['id']}:{hostname}",
+                resource_ids=resource_ids,
+                resource_server=hostname,
+                account_label=binding.get("accountLabel"),
                 startup_timeout=15,
                 continue_on_error=False,
                 application_name="FroggyBot",
-                tool_filters={"allowed": server["allowedTools"]},
+                tool_filters={"allowed": allowed_tools},
             )
         )
     return clients

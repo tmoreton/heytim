@@ -15,7 +15,9 @@ from .connection_revocation import (
     revoke_x_token,
 )
 
-EXTERNAL_OAUTH_PROVIDER_IDS = frozenset({"slack", "microsoft", "notion"})
+EXTERNAL_OAUTH_PROVIDER_IDS = frozenset({
+    "slack", "microsoft", "microsoft_teams", "notion", "hubspot", "jira", "zoom"
+})
 logger = logging.getLogger("shared.connections")
 
 

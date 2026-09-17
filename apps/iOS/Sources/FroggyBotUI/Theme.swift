@@ -177,7 +177,7 @@ private struct FroggyNavigationTitleModifier: ViewModifier {
             ToolbarItem(placement: .navigation) {
               Text(title)
                 .froggyFont(.title3, weight: .semibold)
-                .padding(.horizontal, horizontalPadding)
+                .padding(.horizontal, max(horizontalPadding, 12))
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(title)
                 .accessibilityAddTraits(.isHeader)

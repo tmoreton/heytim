@@ -35,29 +35,12 @@ from .usage_controls import UsageControlUnavailable
 from .work import _pause_work, _restore_paused_work
 from .youtube_quota import (
     YOUTUBE_SEARCH_RESERVATION_CALLS,
+    _uses_youtube_search,
     reserve_youtube_search_calls,
 )
 
 RECENT_DIRECT_TURNS = 50
 MAX_TEAM_BOTS = 24
-
-
-def _uses_youtube_search(resolved_tools: list[dict]) -> bool:
-    return any(
-        isinstance(tool.get("runtime"), dict)
-        and (
-            (
-                tool["runtime"].get("kind") == "gateway"
-                and "youtube_search" in tool["runtime"].get("operations", [])
-            )
-            or (
-                tool["runtime"].get("kind") == "provider_api"
-                and tool["runtime"].get("provider") == "youtube"
-            )
-        )
-        for tool in resolved_tools
-        if isinstance(tool, dict)
-    )
 
 
 def _reserve_youtube_capacity(
@@ -414,7 +397,9 @@ def _invoke(
     for skill in resolved_skills:
         tool_ids.extend(
             tool_id
-            for tool_id in skill.get("requiredToolIds", [])
+            for tool_id in catalog.available_tool_ids(
+                user_id, skill.get("requiredToolIds", [])
+            )
             if tool_id not in tool_ids
         )
     bot_management = None
@@ -430,7 +415,19 @@ def _invoke(
         else:
             tool_ids.append("bot_manager")
             bot_management = _bot_management_context(user_id, bot)
-    resolved_tools = catalog.resolve_tools_for_runtime(user_id, tool_ids)
+    jira_project_access = bot.get("jiraProjectAccess")
+    teams_channel_access = bot.get("teamsChannelAccess")
+    resource_access = bot.get("resourceAccess")
+    resolved_tools = (
+        catalog.resolve_tools_for_runtime(
+            user_id, tool_ids, bot.get("githubRepositoryAccess", {}),
+            jira_project_access, teams_channel_access, resource_access,
+        )
+        if jira_project_access or teams_channel_access or resource_access
+        else catalog.resolve_tools_for_runtime(
+            user_id, tool_ids, bot.get("githubRepositoryAccess", {})
+        )
+    )
     uses_youtube_search = _uses_youtube_search(resolved_tools)
     payload = {
         "messages": (

@@ -22,6 +22,9 @@ import {
   WORKER_CONCURRENCY, deploymentEnvironment,
   apnsApplicationArn, apnsSandboxApplicationArn,
   githubAppSecretArn, globalWindowRunUnitLimit, googleOAuthSecretArn,
+  hubspotOAuthSecretArn,
+  jiraOAuthSecretArn,
+  zoomOAuthSecretArn,
   memoryId, memoryKmsKeyArn, microsoftOAuthSecretArn, monthlyBudgetUsd, monthlyRunUnitLimit,
   notionOAuthSecretArn,
   runtimeArn, runtimeQualifier, usageWindowSeconds, userWindowRunUnitLimit,
@@ -531,6 +534,9 @@ const availabilityProbe = addPublicAvailabilityProbe({
 });
 addProviderConnectionAccess(apiFunction, httpApi.apiEndpoint, {
   github: githubAppSecretArn, google: googleOAuthSecretArn,
+  hubspot: hubspotOAuthSecretArn,
+  jira: jiraOAuthSecretArn,
+  zoom: zoomOAuthSecretArn,
   microsoft: microsoftOAuthSecretArn, notion: notionOAuthSecretArn,
   slack: slackOAuthSecretArn, x: xOAuthSecretArn,
 });

@@ -18,7 +18,7 @@ from shared.github_app import GITHUB_MCP_ENDPOINT
 MAX_SKILLS_PER_BOT = 12
 MAX_TOOLS_PER_BOT = 12
 MAX_SKILL_INSTRUCTIONS = SKILL_INSTRUCTIONS_MAX_LENGTH
-RETIRED_TOOL_IDS = frozenset({"meme_composer"})
+RETIRED_TOOL_IDS = frozenset({"meme_composer", "x_search", "youtube_search"})
 MAX_CATALOG_TAGS = 6
 MAX_BOT_PROMPT = BOT_PROMPT_MAX_LENGTH
 ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
@@ -64,7 +64,7 @@ BOT_CATALOG_FIELDS = {
 PROVIDER_API_SCOPES = {
     provider_id: frozenset(spec["scopes"])
     for provider_id, spec in connection_specs().items()
-    if provider_id in {"youtube", "x", "slack", "microsoft", "notion"}
+    if provider_id in {"youtube", "x", "slack", "microsoft", "microsoft_teams", "notion", "hubspot", "jira", "zoom"}
 }
 GOOGLE_WORKSPACE_SCOPES = frozenset(
     connection_specs()["google_workspace"]["scopes"]
@@ -279,6 +279,7 @@ def _validate_mcp_bundle_binding(value: dict) -> dict:
     client_secret_arn = value.get("oauthClientSecretArn")
     scopes = value.get("scopes")
     servers = value.get("servers")
+    resource_ids = value.get("resourceIds")
     if (
         value.get("authType") != "oauth"
         or value.get("oauthProvider") != "google"
@@ -290,7 +291,7 @@ def _validate_mcp_bundle_binding(value: dict) -> dict:
         or set(scopes) != GOOGLE_WORKSPACE_SCOPES
         or len(scopes) != len(set(scopes))
         or not isinstance(servers, list)
-        or len(servers) != len(GOOGLE_WORKSPACE_SERVERS)
+        or len(servers) not in {len(GOOGLE_WORKSPACE_SERVERS), len(GOOGLE_WORKSPACE_SERVERS) - 1}
     ):
         raise CatalogError("Google Workspace MCP connection is invalid")
 
@@ -314,8 +315,25 @@ def _validate_mcp_bundle_binding(value: dict) -> dict:
         normalized_servers.append(
             {"endpoint": endpoint, "allowedTools": allowed_tools}
         )
-    if seen != set(GOOGLE_WORKSPACE_SERVERS):
+    legacy_servers = set(GOOGLE_WORKSPACE_SERVERS) - {
+        "https://sheetsmcp.googleapis.com/mcp/v1"
+    }
+    if frozenset(seen) not in {frozenset(GOOGLE_WORKSPACE_SERVERS), frozenset(legacy_servers)}:
         raise CatalogError("Google Workspace MCP connection is invalid")
+    if resource_ids is not None and (
+        not isinstance(resource_ids, list)
+        or not 1 <= len(resource_ids) <= 100
+        or any(
+            not isinstance(item, str)
+            or not re.fullmatch(
+                r"(?:file|sheet):[A-Za-z0-9_-]{8,256}|calendar:[A-Za-z0-9_.@%+\-]{1,256}",
+                item,
+            )
+            for item in resource_ids
+        )
+        or len(resource_ids) != len(set(resource_ids))
+    ):
+        raise CatalogError("Workspace resource access is invalid")
     return {
         "kind": "mcp_bundle",
         "authType": "oauth",
@@ -324,6 +342,7 @@ def _validate_mcp_bundle_binding(value: dict) -> dict:
         "oauthClientSecretArn": client_secret_arn,
         "scopes": scopes,
         "servers": normalized_servers,
+        **({"resourceIds": resource_ids} if resource_ids is not None else {}),
     }
 
 
@@ -347,6 +366,59 @@ def _validate_provider_api_binding(value: dict) -> dict:
         or len(scopes) != len(set(scopes))
     ):
         raise CatalogError("OAuth provider connection is invalid")
+    site_id = value.get("siteId")
+    project_keys = value.get("projectKeys")
+    channel_access = value.get("channelAccess")
+    resource_ids = value.get("resourceIds")
+    if provider == "jira" and (
+        not isinstance(site_id, str)
+        or not re.fullmatch(
+            r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", site_id
+        )
+    ):
+        raise CatalogError("Jira site identity is invalid")
+    if provider == "jira" and project_keys is not None and (
+        not isinstance(project_keys, list)
+        or not 1 <= len(project_keys) <= 100
+        or any(
+            not isinstance(key, str)
+            or not re.fullmatch(r"[A-Z][A-Z0-9_]{0,31}", key)
+            for key in project_keys
+        )
+        or len(project_keys) != len(set(project_keys))
+    ):
+        raise CatalogError("Jira project access is invalid")
+    if provider == "microsoft_teams" and channel_access is not None and (
+        not isinstance(channel_access, list)
+        or not 1 <= len(channel_access) <= 100
+        or any(
+            not isinstance(value, str)
+            or not re.fullmatch(
+                r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}/[A-Za-z0-9:_@.\-]{5,200}",
+                value,
+            )
+            for value in channel_access
+        )
+        or len(channel_access) != len(set(channel_access))
+    ):
+        raise CatalogError("Teams channel access is invalid")
+    patterns = {
+        "slack": r"[A-Z0-9]{2,32}",
+        "notion": r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}",
+        "google_workspace": r"(?:file|sheet):[A-Za-z0-9_-]{8,256}|calendar:[A-Za-z0-9_.@%+\-]{1,256}",
+    }
+    if resource_ids is not None and (
+        provider not in patterns
+        or not isinstance(resource_ids, list)
+        or not 1 <= len(resource_ids) <= 100
+        or any(
+            not isinstance(value, str)
+            or not re.fullmatch(patterns[provider], value)
+            for value in resource_ids
+        )
+        or len(resource_ids) != len(set(resource_ids))
+    ):
+        raise CatalogError("Provider resource access is invalid")
     return {
         "kind": "provider_api",
         "provider": provider,
@@ -355,6 +427,16 @@ def _validate_provider_api_binding(value: dict) -> dict:
         "secretArn": secret_arn,
         "oauthClientSecretArn": client_secret_arn,
         "scopes": scopes,
+        **({"siteId": site_id.lower()} if provider == "jira" else {}),
+        **(
+            {"projectKeys": project_keys}
+            if provider == "jira" and project_keys is not None else {}
+        ),
+        **(
+            {"channelAccess": channel_access}
+            if provider == "microsoft_teams" and channel_access is not None else {}
+        ),
+        **({"resourceIds": resource_ids} if resource_ids is not None else {}),
     }
 
 
@@ -415,6 +497,7 @@ def _public_tool(item: dict) -> dict:
         "connectionStatus",
         "connectedAccount",
         "repositoryCount",
+        "repositories",
         "updatedAt",
     )
     return {key: item[key] for key in keys if key in item}

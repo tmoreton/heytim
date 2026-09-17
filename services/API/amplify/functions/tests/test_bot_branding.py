@@ -164,7 +164,11 @@ class BotBrandingTests(unittest.TestCase):
                 "google_workspace",
                 "slack",
                 "microsoft",
+                "microsoft_teams",
                 "notion",
+                "hubspot",
+                "jira",
+                "zoom",
                 "x",
             ],
         )
@@ -186,22 +190,15 @@ class BotBrandingTests(unittest.TestCase):
         self.assertTrue(
             all(provider["familyName"] == "Google" for provider in google)
         )
-        self.assertTrue(
-            all(
-                provider["familyIncludedToolIds"] == ["youtube_search"]
-                for provider in google
-            )
-        )
+        self.assertTrue(all("familyIncludedToolIds" not in provider for provider in google))
         x_provider = next(
             provider
             for provider in result["connectionProviders"]
             if provider["id"] == "x"
         )
         self.assertEqual(x_provider["serviceName"], "Account access")
-        self.assertEqual(
-            x_provider["familyIncludedSummary"], "Public post search included"
-        )
-        self.assertEqual(x_provider["familyIncludedToolIds"], ["x_search"])
+        self.assertNotIn("familyIncludedSummary", x_provider)
+        self.assertNotIn("familyIncludedToolIds", x_provider)
         self.assertTrue(result["needsBotOnboarding"])
         self.assertEqual(result["constraints"]["messageMaxLength"], 8_000)
         self.assertEqual(result["constraints"]["maxAttachmentsPerMessage"], 5)

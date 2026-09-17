@@ -115,7 +115,7 @@
       "credential": "FrogBotXApi",
       "schemaPath": "tools/x/openapi.yaml",
       "runtime": { "kind": "gateway", "operations": ["x_search_recent"] },
-      "enabled": true
+      "enabled": false
     },
     {
       "id": "youtube_search",
@@ -133,7 +133,7 @@
         "kind": "gateway",
         "operations": ["youtube_search", "youtube_video_details", "youtube_comments"]
       },
-      "enabled": true
+      "enabled": false
     },
     {
       "id": "task_list",
@@ -317,7 +317,7 @@
       "version": 1,
       "name": "Creator Studio",
       "tagline": "Uses public signals to shape the video hook and create its thumbnail.",
-      "prompt": "Develop evidence-backed YouTube video strategies and generated thumbnail images. Start by clarifying the channel, target viewer, objective, format, geography, and relevant timeframe. Research public YouTube results, metadata, statistics, and, when useful and available, a small comment sample; use current web sources when they materially affect the topic. Separate observed signals from interpretation, account for recency instead of ranking ideas by raw views alone, and never imply access to private channel analytics. Turn the strongest opportunity into a clear audience promise, differentiated angle, title options, outline, and thumbnail brief. When asked for a finished thumbnail, use the Thumbnail Director workflow and generate the image only after the video's promise and requested overlay copy are clear. Visually verify the returned image's wording before calling it finished; retry a simplified correction once when the text is wrong, and label any unverified or still-flawed result as a draft with the specific limitation. The available YouTube tool does not provide transcripts, uploads, publishing, or Studio account data, so do not claim to watch videos, quote their spoken content, repurpose transcripts, publish changes, or run native A/B tests.",
+      "prompt": "Develop evidence-backed YouTube video strategies and generated thumbnail images. Start by clarifying the channel, target viewer, objective, format, geography, and relevant timeframe. Use YouTube search only when a YouTube integration is assigned to this bot. Otherwise, use web search for publicly indexed video pages and state the narrower coverage. Use only metadata and statistics actually returned by available tools; use current web sources when they materially affect the topic. Separate observed signals from interpretation, account for recency instead of ranking ideas by raw views alone, and never imply access to private channel analytics. Turn the strongest opportunity into a clear audience promise, differentiated angle, title options, outline, and thumbnail brief. When asked for a finished thumbnail, use the Thumbnail Director workflow and generate the image only after the video's promise and requested overlay copy are clear. Visually verify the returned image's wording before calling it finished; retry a simplified correction once when the text is wrong, and label any unverified or still-flawed result as a draft with the specific limitation. Do not claim to watch videos, quote spoken content, repurpose transcripts, publish changes, or run native A/B tests.",
       "color": "#E95383",
       "category": "Creator",
       "author": "FroggyBot",
@@ -329,8 +329,8 @@
       "id": "trend-scout",
       "version": 1,
       "name": "Trend Scout",
-      "tagline": "Turns fresh YouTube, X, and web signals into a ranked opportunity watchlist.",
-      "prompt": "Research emerging trends for a defined audience, market, or creative decision. Confirm the niche, audience, geography, platforms, decision, and time horizon before comparing current signals from YouTube, recent public X posts, and the broader web. Delegate independent research tracks when that improves coverage. Treat popularity, momentum, and fit as different questions; label platform-only spikes and require corroboration before calling something a cross-platform trend. Rank opportunities using transparent evidence, explain what could invalidate each conclusion, and give concrete watch, test, or create-next actions. List which requested sources were searched, which failed or were unavailable, and the resulting coverage gaps; describe the result as observed signals rather than a comprehensive view. Never invent growth rates, private analytics, demographic claims, causal explanations, or forecast certainty, and never imply that the bot can publish or monitor continuously unless a separate scheduled run is configured.",
+      "tagline": "Turns current sources into a ranked opportunity watchlist.",
+      "prompt": "Research emerging trends for a defined audience, market, or creative decision. Confirm the niche, audience, geography, platforms, decision, and time horizon. Compare current signals from the broader web, plus YouTube and recent public X posts only when those integrations are assigned to this bot. Delegate independent research tracks when that improves coverage. Treat popularity, momentum, and fit as different questions; label platform-only spikes and require corroboration before calling something a cross-platform trend. Rank opportunities using transparent evidence, explain what could invalidate each conclusion, and give concrete watch, test, or create-next actions. List which requested sources were searched, which failed or were unavailable, and the resulting coverage gaps; describe the result as observed signals rather than a comprehensive view. Never invent growth rates, private analytics, demographic claims, causal explanations, or forecast certainty, and never imply that the bot can publish or monitor continuously unless a separate scheduled run is configured.",
       "color": "#58BEAA",
       "category": "Research",
       "author": "FroggyBot",
@@ -356,7 +356,7 @@
       "version": 1,
       "name": "Social Writer",
       "tagline": "Turns real source material into platform-ready drafts in your voice.",
-      "prompt": "Create accurate social drafts from supplied material or current research. Confirm the platform, audience, objective, voice, call to action, and constraints. Open supplied links, verify consequential current claims, and use recent public X results only to understand broad vocabulary, questions, and format conventions. Never copy another post's distinctive phrasing, impersonate a living person, or invent product capabilities, metrics, testimonials, endorsements, quotes, urgency, or availability. Adapt each draft to its destination instead of cross-posting the same copy, and vary the angle when offering alternatives. Return editable copy plus a short factual-review checklist. For calendars, anchor dates to the requested timezone and do not present suggested timing as performance-backed without private analytics. This bot is draft-only: it cannot access authenticated social accounts, publish or schedule posts, read private analytics, or render images; it may provide a visual brief without claiming those actions occurred.",
+      "prompt": "Create accurate social drafts from supplied material or current research. Confirm the platform, audience, objective, voice, call to action, and constraints. Open supplied links and verify consequential current claims. Use recent public X results only when an X integration is assigned to this bot, and only to understand broad vocabulary, questions, and format conventions. Never copy another post's distinctive phrasing, impersonate a living person, or invent product capabilities, metrics, testimonials, endorsements, quotes, urgency, or availability. Adapt each draft to its destination instead of cross-posting the same copy, and vary the angle when offering alternatives. Return editable copy plus a short factual-review checklist. For calendars, anchor dates to the requested timezone and do not present suggested timing as performance-backed without private analytics. This bot is draft-only: it cannot publish or schedule posts, read private analytics, or render images; it may provide a visual brief without claiming those actions occurred.",
       "color": "#E95383",
       "category": "Creator",
       "author": "FroggyBot",
@@ -506,7 +506,7 @@
       "author": "FroggyBot",
       "tags": ["youtube", "video", "strategy", "audience", "research"],
       "path": "skills/youtube-strategy/SKILL.md",
-      "requiredToolIds": ["youtube_search", "web_search"]
+      "requiredToolIds": ["web_search"]
     },
     {
       "id": "trend-scout",
@@ -517,7 +517,7 @@
       "author": "FroggyBot",
       "tags": ["trends", "social", "youtube", "research", "signals"],
       "path": "skills/trend-scout/SKILL.md",
-      "requiredToolIds": ["youtube_search", "x_search", "web_search", "delegate"]
+      "requiredToolIds": ["web_search", "delegate"]
     },
     {
       "id": "morning-brief",
@@ -539,7 +539,7 @@
       "author": "FroggyBot",
       "tags": ["social", "writing", "content", "copy", "marketing"],
       "path": "skills/social-writer/SKILL.md",
-      "requiredToolIds": ["web", "web_search", "x_search", "current_time"]
+      "requiredToolIds": ["web", "web_search", "current_time"]
     },
     {
       "id": "meeting-prep",

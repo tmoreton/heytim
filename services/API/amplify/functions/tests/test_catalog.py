@@ -6,6 +6,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import shared.catalog_sync as sync_module
+from catalog_connection_test_support import ConnectionCatalogCases
 from catalog_test_fakes import FakeSecrets, FakeTable
 from shared.catalog import CatalogError, CatalogService
 
@@ -90,7 +91,7 @@ TEST_SKILLS = [
 ]
 
 
-class CatalogServiceTests(unittest.TestCase):
+class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
     def setUp(self) -> None:
         sync_module._last_sync_at = time.monotonic()
         sync_module._local_sync_delay = sync_module.SYNC_SECONDS
@@ -307,7 +308,10 @@ class CatalogServiceTests(unittest.TestCase):
     def test_retired_tool_is_removed_but_unknown_tools_are_rejected(self) -> None:
         selected = self.catalog.validate_tools("owner", ["web", "meme_composer", "web"])
         self.assertEqual(selected, ["web"])
-        self.assertEqual(self.catalog.retired_tool_ids(), ["meme_composer"])
+        self.assertEqual(
+            self.catalog.retired_tool_ids(),
+            ["meme_composer", "x_search", "youtube_search"],
+        )
         with self.assertRaisesRegex(CatalogError, "Unknown tools: never_existed"):
             self.catalog.validate_tools("owner", ["web", "never_existed"])
 
@@ -389,6 +393,7 @@ class CatalogServiceTests(unittest.TestCase):
             {
                 "https://drivemcp.googleapis.com/mcp/v1",
                 "https://docsmcp.googleapis.com/mcp/v1",
+                "https://sheetsmcp.googleapis.com/mcp/v1",
                 "https://calendarmcp.googleapis.com/mcp/v1",
             },
         )
@@ -450,6 +455,35 @@ class CatalogServiceTests(unittest.TestCase):
                 ["User.Read", "Mail.Read", "Mail.Send"],
             )
 
+    def test_jira_projects_are_limited_for_one_bot(self) -> None:
+        site_id = "11223344-a1b2-3b33-c444-def123456789"
+        saved = self.catalog.save_external_oauth_connection(
+            "owner", "jira", "Frog team", site_id,
+            {
+                "accessToken": "access-token",
+                "refreshToken": "refresh-token",
+                "expiresAt": 2_000_000_000,
+            },
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+            "frogbot/oauth/jira-production-ABC123",
+            ["offline_access", "read:jira-work"],
+        )
+        access = self.catalog.validate_jira_project_access(
+            "owner", [saved["id"]], {saved["id"]: ["FROG"]}
+        )
+        with patch(
+            "shared.catalog_rules._hostname_resolves_publicly", return_value=True
+        ):
+            runtime = self.catalog.resolve_tools_for_runtime(
+                "owner", [saved["id"]], {}, access
+            )[0]["runtime"]
+        self.assertEqual(runtime["siteId"], site_id)
+        self.assertEqual(runtime["projectKeys"], ["FROG"])
+        with self.assertRaisesRegex(CatalogError, "project keys"):
+            self.catalog.validate_jira_project_access(
+                "owner", [saved["id"]], {saved["id"]: ["frog"]}
+            )
+
     def test_legacy_connection_records_are_inert(self) -> None:
         self.table.put_item(
             Item={
@@ -471,73 +505,6 @@ class CatalogServiceTests(unittest.TestCase):
             self.catalog.resolve_tools_for_runtime(
                 "owner", ["connection_aaaaaaaaaaaaaaaaaaaa"]
             )
-
-    def test_managed_connection_reconnect_rotates_its_secret(self) -> None:
-        saved = self.catalog.save_gmail_connection(
-            "owner",
-            "owner@example.com",
-            "first-token",
-            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/google-ABC123",
-        )
-        first_item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
-        first_secret = first_item["secretArn"]
-
-        replaced = self.catalog.save_gmail_connection(
-            "owner",
-            "owner@example.com",
-            "second-token",
-            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/google-ABC123",
-        )
-        second_item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
-
-        self.assertNotIn("hasCredential", replaced)
-        self.assertIn(first_secret, self.secrets.deleted)
-        self.assertNotEqual(first_secret, second_item["secretArn"])
-
-    def test_connection_cannot_be_deleted_while_a_bot_uses_it(self) -> None:
-        saved = self.catalog.save_gmail_connection(
-            "owner",
-            "owner@example.com",
-            "refresh-token",
-            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/google-ABC123",
-        )
-        self.table.put_item(
-            Item={
-                "pk": "USER#owner",
-                "sk": "BOT#one",
-                "entity": "BOT",
-                "name": "Notes bot",
-                "toolIds": [saved["id"]],
-            }
-        )
-
-        with self.assertRaisesRegex(CatalogError, "Notes bot"):
-            self.catalog.delete_connection("owner", saved["id"])
-
-    def test_skill_share_never_carries_a_private_connection(self) -> None:
-        connection = self.catalog.save_gmail_connection(
-            "owner",
-            "owner@example.com",
-            "refresh-token",
-            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/google-ABC123",
-        )
-        skill = self.catalog.save_skill(
-            "owner",
-            {
-                "name": "Notes helper",
-                "description": "Use my private notes when answering.",
-                "instructions": "Use the connected notes server when it is relevant.",
-                "requiredToolIds": [connection["id"]],
-                "visibility": "private",
-            },
-        )
-
-        with self.assertRaisesRegex(CatalogError, "private connections"):
-            self.catalog.create_share("owner", skill["id"])
 
     def test_public_catalog_contains_only_reviewed_installable_metadata(self) -> None:
         personal = self.catalog.save_skill(

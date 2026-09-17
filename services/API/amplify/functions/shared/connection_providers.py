@@ -32,6 +32,10 @@ GOOGLE_WORKSPACE_MCP_SERVERS = (
         "allowedTools": ("read_doc",),
     },
     {
+        "endpoint": "https://sheetsmcp.googleapis.com/mcp/v1",
+        "allowedTools": ("get_spreadsheet", "get_values"),
+    },
+    {
         "endpoint": "https://calendarmcp.googleapis.com/mcp/v1",
         "allowedTools": (
             "get_event",
@@ -70,13 +74,11 @@ GOOGLE_FAMILY = {
     "familyId": "google",
     "familyName": "Google",
     "familyDescription": (
-        "Public YouTube research is included. Connect only the Google services "
-        "each bot needs."
+        "Connect the Google accounts each bot needs. YouTube search is available "
+        "through a connected YouTube account."
     ),
     "familyIconText": "G",
     "familyLogoProviderId": "google_workspace",
-    "familyIncludedSummary": "Public YouTube research included",
-    "familyIncludedToolIds": ["youtube_search"],
 }
 
 # This is the single backend registry for connection identity, client presentation,
@@ -134,15 +136,15 @@ CONNECTION_PROVIDER_SPECS = (
         "permissionsSummary": "Read-only channel access; shared project quota still applies",
         "privacyTitle": "Your channel connection is optional",
         "privacyDescription": (
-            "Public YouTube research remains included without sign-in. Connect only "
-            "when a bot needs your own channel or private channel data."
+            "Connect a YouTube account before a bot can search videos or read "
+            "your own channel data."
         ),
         "connectLabel": "Connect account",
         "reconnectLabel": "Reconnect account",
         "authType": "oauth",
         "risk": "read",
         "tags": ["private", "youtube", "oauth"],
-        "actions": ["Read channel details", "List uploaded videos"],
+        "actions": ["Search videos", "Read channel details", "List uploaded videos"],
         "scopes": ["https://www.googleapis.com/auth/youtube.readonly"],
         **GOOGLE_FAMILY,
         "serviceName": "YouTube Studio",
@@ -150,14 +152,14 @@ CONNECTION_PROVIDER_SPECS = (
     {
         "id": "google_workspace",
         "name": "Google Workspace",
-        "description": "Search and read Drive files, Docs, and Calendar events.",
+        "description": "Search and read Drive files, Docs, Sheets, and Calendar events.",
         "category": "Productivity",
         "iconText": "GW",
-        "permissionsSummary": "Read-only Drive, Docs, and Calendar access",
+        "permissionsSummary": "Read-only Drive, Docs, Sheets, and Calendar access",
         "privacyTitle": "Workspace content stays user-scoped",
         "privacyDescription": (
             "FroggyBot requests read-only access and exposes only reviewed Drive, "
-            "Docs, and Calendar tools. It cannot change files or calendar events."
+            "Docs, Sheets, and Calendar tools. It cannot change files or calendar events."
         ),
         "connectLabel": "Connect account",
         "reconnectLabel": "Reconnect account",
@@ -165,7 +167,7 @@ CONNECTION_PROVIDER_SPECS = (
         "runtimeKind": "mcp_bundle",
         "risk": "read",
         "tags": ["private", "google", "workspace", "mcp"],
-        "actions": ["Search Drive", "Read documents", "Read calendar events"],
+        "actions": ["Search Drive", "Read documents", "Read spreadsheets", "Read calendar events"],
         "scopes": [
             "https://www.googleapis.com/auth/drive.readonly",
             "https://www.googleapis.com/auth/documents.readonly",
@@ -238,6 +240,29 @@ CONNECTION_PROVIDER_SPECS = (
         ],
     },
     {
+        "id": "microsoft_teams",
+        "name": "Microsoft Teams",
+        "description": "Read joined teams, channels, and channel messages.",
+        "category": "Team communication",
+        "iconText": "MT",
+        "permissionsSummary": "Delegated, read-only Teams channel access",
+        "privacyTitle": "Teams access is assigned per bot",
+        "privacyDescription": (
+            "Connect a Microsoft account and assign this connection only to bots "
+            "that need Teams. Bots cannot post or edit messages."
+        ),
+        "connectLabel": "Connect Teams account",
+        "reconnectLabel": "Reconnect Teams account",
+        "authType": "oauth",
+        "risk": "read",
+        "tags": ["private", "microsoft", "teams", "oauth"],
+        "actions": ["List joined teams", "List channels", "Read channel messages"],
+        "scopes": [
+            "openid", "profile", "email", "offline_access", "User.Read",
+            "Team.ReadBasic.All", "Channel.ReadBasic.All", "ChannelMessage.Read.All",
+        ],
+    },
+    {
         "id": "notion",
         "name": "Notion",
         "description": "Search and read pages shared with the FroggyBot connection.",
@@ -258,34 +283,96 @@ CONNECTION_PROVIDER_SPECS = (
         "scopes": ["read_content"],
     },
     {
+        "id": "hubspot",
+        "name": "HubSpot",
+        "description": "Search contacts, companies, and deals in a connected CRM account.",
+        "category": "Sales & CRM",
+        "iconText": "H",
+        "permissionsSummary": "Read-only contacts, companies, and deals",
+        "privacyTitle": "Each CRM account is assigned separately",
+        "privacyDescription": (
+            "A bot can use only the HubSpot accounts you assign. "
+            "FroggyBot cannot change CRM records."
+        ),
+        "connectLabel": "Connect HubSpot account",
+        "reconnectLabel": "Reconnect HubSpot account",
+        "authType": "oauth",
+        "risk": "read",
+        "tags": ["private", "hubspot", "crm", "oauth"],
+        "actions": ["Search contacts", "Search companies", "Search deals"],
+        "scopes": [
+            "crm.objects.contacts.read",
+            "crm.objects.companies.read",
+            "crm.objects.deals.read",
+        ],
+    },
+    {
+        "id": "jira",
+        "name": "Jira",
+        "description": "Read projects and issues from one connected Jira site.",
+        "category": "Project management",
+        "iconText": "J",
+        "permissionsSummary": "Read-only access to the selected Jira site",
+        "privacyTitle": "Each Jira site is assigned separately",
+        "privacyDescription": (
+            "Connect one Jira site at a time. A bot can read only the sites "
+            "you assign to it, and cannot change issues."
+        ),
+        "connectLabel": "Connect Jira site",
+        "reconnectLabel": "Reconnect Jira site",
+        "authType": "oauth",
+        "risk": "read",
+        "tags": ["private", "jira", "projects", "oauth"],
+        "actions": ["List projects", "Search issues", "Read issues"],
+        "scopes": ["offline_access", "read:jira-work"],
+    },
+    {
+        "id": "zoom",
+        "name": "Zoom",
+        "description": "Read meetings from a connected Zoom account.",
+        "category": "Meetings",
+        "iconText": "Z",
+        "permissionsSummary": "Read-only profile and meeting access",
+        "privacyTitle": "Zoom meetings stay account-scoped",
+        "privacyDescription": (
+            "Only assigned bots can list or read meetings in this Zoom account. "
+            "FroggyBot cannot start, change, or delete meetings."
+        ),
+        "connectLabel": "Connect Zoom account",
+        "reconnectLabel": "Reconnect Zoom account",
+        "authType": "oauth",
+        "risk": "read",
+        "tags": ["private", "zoom", "meetings", "oauth"],
+        "actions": ["List meetings", "Read meeting details"],
+        "scopes": ["user:read:user", "meeting:read:list_meetings", "meeting:read:meeting"],
+    },
+    {
         "id": "x",
         "name": "X",
         "description": "Read your profile and account-visible posts with per-user OAuth.",
         "category": "Social",
         "iconText": "X",
         "permissionsSummary": "Read-only; no posting, liking, following, or messages",
-        "privacyTitle": "Public X research remains included",
+        "privacyTitle": "X access requires a connected account",
         "privacyDescription": (
-            "Connect only for account-specific data. FroggyBot requests read scopes "
-            "and offline access, never write permissions."
+            "Connect an X account before a bot can search posts or read your "
+            "profile. FroggyBot requests read scopes, never write permissions."
         ),
         "connectLabel": "Connect account",
         "reconnectLabel": "Reconnect account",
         "authType": "oauth",
         "risk": "read",
         "tags": ["private", "x", "oauth"],
-        "actions": ["Read profile", "Read own posts", "Read mentions"],
+        "actions": ["Search recent posts", "Read profile", "Read own posts", "Read mentions"],
         "scopes": ["tweet.read", "users.read", "offline.access"],
         "familyId": "x",
         "familyName": "X",
         "familyDescription": (
-            "Search recent public posts without connecting an account. Connect only "
-            "when a bot needs your profile, posts, or mentions."
+            "Connect an X account to let selected bots search posts or read "
+            "the account's profile, posts, and mentions."
         ),
         "familyIconText": "X",
         "familyLogoProviderId": "x",
-        "familyIncludedSummary": "Public post search included",
-        "familyIncludedToolIds": ["x_search"],
         "serviceName": "Account access",
     },
 )

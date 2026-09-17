@@ -104,6 +104,9 @@ export const xOAuthSecretArn = requiredSetting('FROGBOT_X_OAUTH_SECRET_ARN');
 export const slackOAuthSecretArn = stagedProviderSetting('FROGBOT_SLACK_OAUTH_SECRET_ARN');
 export const microsoftOAuthSecretArn = optionalProviderSetting('FROGBOT_MICROSOFT_OAUTH_SECRET_ARN');
 export const notionOAuthSecretArn = stagedProviderSetting('FROGBOT_NOTION_OAUTH_SECRET_ARN');
+export const hubspotOAuthSecretArn = optionalProviderSetting('FROGBOT_HUBSPOT_OAUTH_SECRET_ARN');
+export const jiraOAuthSecretArn = optionalProviderSetting('FROGBOT_JIRA_OAUTH_SECRET_ARN');
+export const zoomOAuthSecretArn = optionalProviderSetting('FROGBOT_ZOOM_OAUTH_SECRET_ARN');
 export const apnsApplicationArn = optionalPlatformApplicationArn('FROGBOT_APNS_APPLICATION_ARN');
 export const apnsSandboxApplicationArn = optionalPlatformApplicationArn('FROGBOT_APNS_SANDBOX_APPLICATION_ARN');
 if (deploymentEnvironment === 'production' && !apnsApplicationArn) {

@@ -55,7 +55,10 @@
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/x-*",
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/slack-*",
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/microsoft-*",
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/notion-*"
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/notion-*",
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/hubspot-*",
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/jira-*",
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/zoom-*"
       ]
     },
     {

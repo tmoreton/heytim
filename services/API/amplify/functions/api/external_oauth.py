@@ -18,6 +18,14 @@ from botocore.exceptions import BotoCoreError, ClientError
 from shared.catalog import CatalogError
 from shared.connection_providers import connection_specs
 
+from .external_oauth_accounts import (
+    _hubspot_connection,
+    _jira_connection,
+    _microsoft_connection,
+    _notion_connection,
+    _slack_connection,
+    _zoom_connection,
+)
 from .google_oauth import (
     _pkce_challenge,
     _redirect,
@@ -30,7 +38,7 @@ from .support import ApiError, _ensure_account_active, catalog, table
 EXTERNAL_PROVIDER_SPECS = {
     provider_id: spec
     for provider_id, spec in connection_specs().items()
-    if provider_id in {"slack", "microsoft", "notion"}
+    if provider_id in {"slack", "microsoft", "microsoft_teams", "notion", "hubspot", "jira", "zoom"}
 }
 OAUTH_STATE_SECONDS = 10 * 60
 CALLBACK_BUDGET_SECONDS = 12.0
@@ -40,7 +48,11 @@ REDIRECT_ENV = "EXTERNAL_OAUTH_REDIRECT_URI"
 SECRET_ENVS = {
     "slack": "SLACK_OAUTH_SECRET_ARN",
     "microsoft": "MICROSOFT_OAUTH_SECRET_ARN",
+    "microsoft_teams": "MICROSOFT_OAUTH_SECRET_ARN",
     "notion": "NOTION_OAUTH_SECRET_ARN",
+    "hubspot": "HUBSPOT_OAUTH_SECRET_ARN",
+    "jira": "JIRA_OAUTH_SECRET_ARN",
+    "zoom": "ZOOM_OAUTH_SECRET_ARN",
 }
 SLACK_AUTH_URL = "https://slack.com/oauth/v2/authorize"
 SLACK_TOKEN_URL = "https://slack.com/api/oauth.v2.access"  # nosec B105
@@ -57,6 +69,15 @@ MICROSOFT_PROFILE_URL = (
 NOTION_AUTH_URL = "https://api.notion.com/v1/oauth/authorize"
 NOTION_TOKEN_URL = "https://api.notion.com/v1/oauth/token"  # nosec B105
 NOTION_API_VERSION = "2026-03-11"
+HUBSPOT_AUTH_URL = "https://app.hubspot.com/oauth/authorize"
+HUBSPOT_TOKEN_URL = "https://api.hubapi.com/oauth/2026-03/token"  # nosec B105
+HUBSPOT_INTROSPECT_URL = "https://api.hubapi.com/oauth/2026-03/token/introspect"
+JIRA_AUTH_URL = "https://auth.atlassian.com/authorize"
+JIRA_TOKEN_URL = "https://auth.atlassian.com/oauth/token"  # nosec B105
+JIRA_RESOURCES_URL = "https://api.atlassian.com/oauth/token/accessible-resources"
+ZOOM_AUTH_URL = "https://zoom.us/oauth/authorize"
+ZOOM_TOKEN_URL = "https://zoom.us/oauth/token"  # nosec B105
+ZOOM_PROFILE_URL = "https://api.zoom.us/v2/users/me"
 
 _secrets_manager = None
 logger = logging.getLogger(__name__)
@@ -124,7 +145,7 @@ def _authorization_query(
     }
     if provider == "slack":
         return SLACK_AUTH_URL, {**common, "user_scope": ",".join(scopes)}
-    if provider == "microsoft":
+    if provider in {"microsoft", "microsoft_teams"}:
         return MICROSOFT_AUTH_URL, {
             **common,
             "response_mode": "query",
@@ -133,6 +154,17 @@ def _authorization_query(
             "code_challenge_method": "S256",
             "prompt": "select_account",
         }
+    if provider == "hubspot":
+        return HUBSPOT_AUTH_URL, {**common, "scope": " ".join(scopes)}
+    if provider == "jira":
+        return JIRA_AUTH_URL, {
+            **common,
+            "audience": "api.atlassian.com",
+            "scope": " ".join(scopes),
+            "prompt": "consent",
+        }
+    if provider == "zoom":
+        return ZOOM_AUTH_URL, common
     return NOTION_AUTH_URL, {**common, "owner": "user"}
 
 
@@ -174,8 +206,24 @@ def _begin_microsoft_authorization(user_id: str, value: dict) -> dict:
     return _begin_external_authorization(user_id, value, "microsoft")
 
 
+def _begin_microsoft_teams_authorization(user_id: str, value: dict) -> dict:
+    return _begin_external_authorization(user_id, value, "microsoft_teams")
+
+
 def _begin_notion_authorization(user_id: str, value: dict) -> dict:
     return _begin_external_authorization(user_id, value, "notion")
+
+
+def _begin_hubspot_authorization(user_id: str, value: dict) -> dict:
+    return _begin_external_authorization(user_id, value, "hubspot")
+
+
+def _begin_jira_authorization(user_id: str, value: dict) -> dict:
+    return _begin_external_authorization(user_id, value, "jira")
+
+
+def _begin_zoom_authorization(user_id: str, value: dict) -> dict:
+    return _begin_external_authorization(user_id, value, "zoom")
 
 
 def _consume_state(state: Any) -> dict:
@@ -221,7 +269,7 @@ def _exchange_code(provider: str, code: str, verifier: str, deadline: float) -> 
             "redirect_uri": redirect_uri,
         }
         url = SLACK_TOKEN_URL
-    elif provider == "microsoft":
+    elif provider in {"microsoft", "microsoft_teams"}:
         fields = {
             "client_id": client_id,
             "client_secret": client_secret,
@@ -232,6 +280,40 @@ def _exchange_code(provider: str, code: str, verifier: str, deadline: float) -> 
             "scope": " ".join(EXTERNAL_PROVIDER_SPECS[provider]["scopes"]),
         }
         url = MICROSOFT_TOKEN_URL
+    elif provider == "hubspot":
+        fields = {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+            "grant_type": "authorization_code",
+            "redirect_uri": redirect_uri,
+        }
+        url = HUBSPOT_TOKEN_URL
+    elif provider == "zoom":
+        basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+        headers["authorization"] = f"Basic {basic}"
+        fields = {
+            "code": code,
+            "grant_type": "authorization_code",
+            "redirect_uri": redirect_uri,
+        }
+        url = ZOOM_TOKEN_URL
+    elif provider == "jira":
+        request = urllib.request.Request(
+            JIRA_TOKEN_URL,
+            data=json.dumps(
+                {
+                    "grant_type": "authorization_code",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "code": code,
+                    "redirect_uri": redirect_uri,
+                }
+            ).encode(),
+            headers={"content-type": "application/json"},
+            method="POST",
+        )
+        return _request_json(request, deadline, provider)
     else:
         basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
         headers = {
@@ -272,122 +354,24 @@ def _bearer_json(url: str, access_token: str, deadline: float, provider: str) ->
     return _request_json(request, deadline, provider)
 
 
-def _slack_connection(token: dict) -> tuple[str, str, dict]:
-    if token.get("ok") is not True:
-        raise ApiError(400, "Slack could not complete the connection")
-    user = token.get("authed_user")
-    team = token.get("team")
-    if not isinstance(user, dict) or not isinstance(team, dict):
-        raise ApiError(400, "Slack returned an invalid connection")
-    access_token = user.get("access_token")
-    refresh_token = user.get("refresh_token")
-    expires_in = user.get("expires_in")
-    user_id = user.get("id")
-    team_id = team.get("id")
-    team_name = team.get("name")
-    granted = {
-        scope.strip()
-        for scope in str(user.get("scope", "")).split(",")
-        if scope.strip()
-    }
-    required = set(EXTERNAL_PROVIDER_SPECS["slack"]["scopes"])
-    if (
-        granted != required
-        or not all(
-            isinstance(value, str) and value
-            for value in (
-                access_token,
-                refresh_token,
-                user_id,
-                team_id,
-                team_name,
-            )
-        )
-        or isinstance(expires_in, bool)
-        or not isinstance(expires_in, (int, float))
-        or int(expires_in) <= 0
-    ):
-        raise ApiError(400, "Slack read-only access is required")
-    return (
-        f"{team_id}:{user_id}",
-        team_name[:254],
-        {
-            "accessToken": access_token,
-            "refreshToken": refresh_token,
-            "expiresAt": int(time.time()) + int(expires_in),
+def _bearer_list(url: str, access_token: str, deadline: float, provider: str) -> list:
+    request = urllib.request.Request(
+        url,
+        headers={
+            "accept": "application/json",
+            "authorization": f"Bearer {access_token}",
         },
     )
-
-
-def _microsoft_connection(
-    token: dict, deadline: float
-) -> tuple[str, str, dict]:
-    access_token = token.get("access_token")
-    refresh_token = token.get("refresh_token")
-    expires_in = token.get("expires_in")
-    granted = {scope.casefold() for scope in str(token.get("scope", "")).split()}
-    required = {
-        "user.read",
-        "mail.read",
-        "calendars.read",
-        "files.read.all",
-        "sites.read.all",
-    }
-    if (
-        not required.issubset(granted)
-        or not isinstance(access_token, str)
-        or not access_token
-        or not isinstance(refresh_token, str)
-        or not refresh_token
-        or isinstance(expires_in, bool)
-        or not isinstance(expires_in, (int, float))
-        or int(expires_in) <= 0
-    ):
-        raise ApiError(400, "Microsoft 365 read-only access is required")
-    profile = _bearer_json(
-        MICROSOFT_PROFILE_URL, access_token, deadline, "microsoft"
-    )
-    account_id = profile.get("id")
-    account = profile.get("mail") or profile.get("userPrincipalName")
-    if not isinstance(account, str) or not account:
-        account = profile.get("displayName")
-    if (
-        not isinstance(account_id, str)
-        or not account_id
-        or not isinstance(account, str)
-        or not account.strip()
-    ):
-        raise ApiError(400, "Microsoft could not verify the account")
-    return (
-        account_id[:200],
-        account.strip()[:254],
-        {
-            "accessToken": access_token,
-            "refreshToken": refresh_token,
-            "expiresAt": int(time.time()) + int(expires_in),
-        },
-    )
-
-
-def _notion_connection(token: dict) -> tuple[str, str, dict]:
-    access_token = token.get("access_token")
-    workspace_id = token.get("workspace_id")
-    workspace_name = token.get("workspace_name") or "Notion workspace"
-    if (
-        token.get("token_type") != "bearer"
-        or not isinstance(access_token, str)
-        or not access_token
-        or not isinstance(workspace_id, str)
-        or not workspace_id
-        or not isinstance(workspace_name, str)
-        or not workspace_name.strip()
-    ):
-        raise ApiError(400, "Notion returned an invalid connection")
-    credential = {"accessToken": access_token}
-    refresh_token = token.get("refresh_token")
-    if isinstance(refresh_token, str) and refresh_token:
-        credential["refreshToken"] = refresh_token
-    return workspace_id[:200], workspace_name.strip()[:254], credential
+    try:
+        with urllib.request.urlopen(  # nosec B310 - fixed provider endpoint.
+            request, timeout=_remaining_timeout(deadline, provider)
+        ) as response:
+            value = json.loads(response.read(200_001).decode())
+    except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        raise ApiError(400, f"{provider.title()} could not complete the connection") from exc
+    if not isinstance(value, list):
+        raise ApiError(400, f"{provider.title()} returned an invalid response")
+    return value
 
 
 def _external_callback(query: dict) -> dict:
@@ -410,9 +394,15 @@ def _external_callback(query: dict) -> dict:
             raise ApiError(400, f"{provider.title()} did not return an authorization code")
         token = _exchange_code(provider, code, verifier, deadline)
         if provider == "slack":
-            account_id, account, credential = _slack_connection(token)
-        elif provider == "microsoft":
-            account_id, account, credential = _microsoft_connection(token, deadline)
+            account_id, account, credential = _slack_connection(token, globals())
+        elif provider in {"microsoft", "microsoft_teams"}:
+            account_id, account, credential = _microsoft_connection(token, deadline, globals(), provider)
+        elif provider == "hubspot":
+            account_id, account, credential = _hubspot_connection(token, deadline, globals())
+        elif provider == "jira":
+            account_id, account, credential = _jira_connection(token, deadline, globals())
+        elif provider == "zoom":
+            account_id, account, credential = _zoom_connection(token, deadline, globals())
         else:
             account_id, account, credential = _notion_connection(token)
         persistence_attempted = True
@@ -440,8 +430,12 @@ def _external_callback(query: dict) -> dict:
 
 __all__ = [
     "EXTERNAL_PROVIDER_SPECS",
+    "_begin_hubspot_authorization",
+    "_begin_jira_authorization",
     "_begin_microsoft_authorization",
+    "_begin_microsoft_teams_authorization",
     "_begin_notion_authorization",
     "_begin_slack_authorization",
+    "_begin_zoom_authorization",
     "_external_callback",
 ]
