@@ -619,7 +619,7 @@ private struct ConversationView: View {
       if !isVisible { composerFocused = false }
     }
     .froggyInspector(isPresented: $showInspector, onDismiss: finishInspectorAction) {
-      if let inspectorSelection {
+      if let inspectorSelection = inspectorSelection ?? model.selection {
         ConversationInspector(
           model: model, selection: inspectorSelection,
           close: { showInspector = false },
