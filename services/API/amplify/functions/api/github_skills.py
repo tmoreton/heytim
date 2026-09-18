@@ -231,7 +231,7 @@ def _frontmatter(text: str, path: str) -> tuple[str, str, str, list[str]]:
     if not instructions or len(instructions) > SKILL_INSTRUCTIONS_MAX_LENGTH:
         raise ApiError(400, f"{path}: skill instructions are missing or too long")
     warnings = []
-    if re.search(r"\]\((?!https?://|mailto:|#)[^)]+\)", instructions, re.I) or re.search(
+    if re.search(r"\]\((?!https?://|mailto:|#)[^)]+\)", instructions, re.IGNORECASE) or re.search(
         r"\b(?:scripts|references|assets)/[\w./-]+", instructions
     ):
         warnings.append("This skill refers to other files. Only SKILL.md is copied; adapt those steps before using it.")

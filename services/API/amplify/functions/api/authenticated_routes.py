@@ -33,9 +33,9 @@ from .direct_chat import (
     _run_schedule_now,
     _send_message,
 )
+from .github_skills import preview_github_skill, scan_github_skills
 from .group_messages import _list_group_message_page, _send_group_message
 from .group_schedules import group_schedule_route
-from .github_skills import preview_github_skill, scan_github_skills
 from .groups import (
     _create_group,
     _create_group_invite,

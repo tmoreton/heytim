@@ -61,9 +61,9 @@ class GitHubSkillsTests(ApiTestCase):
 
     def test_preview_decodes_only_skill_text_and_flags_external_files(self) -> None:
         source = (
-            "---\nname: research\ndescription: >-\n  Research a topic against\n  primary sources.\n"
-            "disable-model-invocation: true\n---\nRead [guide](references/guide.md) first.\n"
-        ).encode()
+            b"---\nname: research\ndescription: >-\n  Research a topic against\n  primary sources.\n"
+            b"disable-model-invocation: true\n---\nRead [guide](references/guide.md) first.\n"
+        )
         blob = {
             "encoding": "base64", "sha": SHA, "size": len(source),
             "content": base64.b64encode(source).decode()[:60] + "\n" + base64.b64encode(source).decode()[60:],
