@@ -299,13 +299,9 @@ struct ConnectionsView: View {
           }
         }
       } else {
-        Section("Accounts") {
-          ForEach(connectionProviderFamilies(providers)) { family in
-            if family.grouped {
-              connectionFamily(family)
-            } else if let provider = family.providers.first {
-              providerAccessRow(provider)
-            }
+        Section {
+          ForEach(providers) { provider in
+            providerAccessRow(provider)
           }
           if providers.isEmpty && !loading {
             Text("No account providers are available.").foregroundStyle(.secondary)
@@ -423,7 +419,7 @@ struct ConnectionsView: View {
   }
 
   @ViewBuilder
-  private func providerAccessRow(_ provider: ConnectionProvider, nested: Bool = false) -> some View {
+  private func providerAccessRow(_ provider: ConnectionProvider) -> some View {
     let accounts = connections(for: provider.id)
     if !accounts.isEmpty {
       VStack(alignment: .leading, spacing: 8) {
@@ -434,9 +430,7 @@ struct ConnectionsView: View {
               reconnect: { connect(provider.id) },
               disconnect: { disconnectCandidate = connection })
           } label: {
-            connectionRow(
-              connection, provider: provider,
-              displayName: nested ? provider.name : nil)
+            connectionRow(connection, provider: provider)
           }
         }
         Button(provider.id == "github" ? "Add another installation" : "Add another account") {
@@ -450,8 +444,8 @@ struct ConnectionsView: View {
         ProviderLogoView(provider: provider)
         VStack(alignment: .leading, spacing: 3) {
           Text(provider.name).froggyFont(.headline)
-          Text(provider.description).froggyFont(.caption).foregroundStyle(.secondary)
-          Text(provider.permissionsSummary).froggyFont(.caption2).foregroundStyle(.tertiary)
+          Text(provider.description)
+            .froggyFont(.caption).foregroundStyle(.secondary).lineLimit(2)
         }
         Spacer()
         if connectingProviderID == provider.id {
@@ -468,49 +462,13 @@ struct ConnectionsView: View {
     }
   }
 
-  private func connectionFamily(_ family: ConnectionProviderFamily) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
-      HStack(alignment: .top, spacing: 12) {
-        ProviderLogoView(providerID: family.logoProviderId, iconText: family.iconText)
-        VStack(alignment: .leading, spacing: 4) {
-          HStack(spacing: 8) {
-            Text(family.name).froggyFont(.headline)
-            if family.includedSummary != nil {
-              Text("Included")
-                .froggyFont(.caption2, weight: .bold)
-                .foregroundStyle(FrogTheme.accent)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .background(FrogTheme.accent.opacity(0.12), in: Capsule())
-            }
-          }
-          Text(family.description).froggyFont(.caption).foregroundStyle(.secondary)
-          if let includedSummary = family.includedSummary {
-            Text(includedSummary).froggyFont(.caption2).foregroundStyle(.tertiary)
-          }
-        }
-      }
-      ForEach(family.providers) { provider in
-        Divider()
-        providerAccessRow(provider, nested: true)
-      }
-    }
-    .padding(.vertical, 4)
-  }
-
   private func connectionRow(
-    _ connection: Capability, provider: ConnectionProvider?, displayName: String? = nil
+    _ connection: Capability, provider: ConnectionProvider
   ) -> some View {
     HStack(spacing: 12) {
-      if let provider {
-        ProviderLogoView(provider: provider)
-      } else {
-        Image(systemName: "link")
-          .frame(width: 36, height: 36)
-          .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
-      }
+      ProviderLogoView(provider: provider)
       VStack(alignment: .leading, spacing: 3) {
-        Text(displayName ?? connection.name).froggyFont(.headline)
+        Text(provider.name).froggyFont(.headline)
         Text(connection.connectedAccount ?? connection.description)
           .froggyFont(.caption).foregroundStyle(.secondary).lineLimit(2)
       }
