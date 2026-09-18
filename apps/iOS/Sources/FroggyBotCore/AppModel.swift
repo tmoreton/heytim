@@ -45,7 +45,7 @@ public final class AppModel {
     var isEmpty: Bool { text.isEmpty && attachments.isEmpty && workspaceFiles.isEmpty }
   }
 
-  private static let pushLogger = Logger(subsystem: "com.frogbot.app", category: "push")
+  private static let pushLogger = Logger(subsystem: "ai.heytim.app", category: "push")
   public var bootstrap: Bootstrap?
   public var selection: ConversationSelection? {
     didSet {

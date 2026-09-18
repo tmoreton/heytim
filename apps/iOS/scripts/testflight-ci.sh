@@ -87,4 +87,4 @@ umask 022
 
 APP_STORE_CONNECT_KEY_PATH="$api_key" \
   FROGGYBOT_SIGNING_KEYCHAIN="$keychain" \
-  "$apple_root/scripts/testflight.sh" all
+  "$apple_root/scripts/testflight.sh" ios

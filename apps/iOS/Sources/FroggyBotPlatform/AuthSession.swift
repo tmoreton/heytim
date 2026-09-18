@@ -93,8 +93,8 @@ public final class AuthSession {
       process.environment["XCTestConfigurationFilePath"] != nil
       || process.environment["XCInjectBundleInto"] != nil
       || NSClassFromString("XCTestCase") != nil
-    guard isRunningTests else { return "com.frogbot.app.auth" }
-    return "com.frogbot.app.auth.tests.\(process.processIdentifier)"
+    guard isRunningTests else { return "ai.heytim.app.auth" }
+    return "ai.heytim.app.auth.tests.\(process.processIdentifier)"
   }
 
   public init(configuration: AppConfiguration, network: URLSession = .shared) {
@@ -392,7 +392,7 @@ public final class AuthSession {
 }
 
 private final class TokenKeychain: @unchecked Sendable {
-  private static let logger = Logger(subsystem: "com.frogbot.app", category: "SecureSession")
+  private static let logger = Logger(subsystem: "ai.heytim.app", category: "SecureSession")
 
   private let service: String
   private let account = "cognito-session"

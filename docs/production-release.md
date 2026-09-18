@@ -84,24 +84,24 @@ permissions from protected environment secrets immediately before deployment and
 
 1. Merge a clean, reviewed commit to `main`; confirm application, backend, runtime, AgentCore, Apple, dependency,
    provider-contract, and security workflows pass. Create and publish a stable GitHub Release from that commit with a
-   tag such as `v6.1.0`. Drafts and pre-releases do not deploy production; the tagged commit must be on `main`.
+   tag such as `v1.0.0`. Drafts and pre-releases do not deploy production; the tagged commit must be on `main`.
 2. Publishing the release starts **Deploy HeyTim production release**. It validates the tag, target/account, and approvals, verifies and
    audits dependencies, deploys AgentCore then Amplify, generates the client outputs, hardens runtime logs, configures
    AgentCore alarms and APNs delivery feedback, seeds the private meme-template catalog when absent, verifies every
    referenced template image along with storage/PITR/alerts/public API, and preserves the exact production client
    configuration. A dependent job on the repository-scoped `frogbot-macmini` runner then verifies the native suites
-   once and uploads matching iPhone and Mac builds to TestFlight. The release tag supplies the Apple marketing version
-   (`v6.1.0` becomes `6.1.0` in both apps); the shared numeric build number is generated for each workflow run. Expo is
+   once and uploads the iPhone build to the new Hey Tim TestFlight listing. The release tag supplies the Apple marketing version
+   (`v1.0.0` becomes `1.0.0`); a numeric build number is generated for each workflow run. Expo is
    neither built nor published by this release.
    The default `full` scope requires the protected Apple API key and Distribution certificate. When an authorized
    release operator must use the Apple account already signed into Xcode, manually run the workflow from `main` with
    `backend-only`; every AWS, provider,
    compliance, and device approval remains enforced, but the TestFlight job is skipped. Download the preserved
    production client-configuration artifact, place its two files at their recorded repository paths, then run
-   `APPLE_TEAM_ID=GVXC5FQ2RP ./scripts/apple-app.sh testflight all` from a clean checkout of the same commit. Manual
+   `APPLE_TEAM_ID=GVXC5FQ2RP ./scripts/apple-app.sh testflight ios` from a clean checkout of the same commit. Manual
    runs remain available for recovery and use the version in the checked-in Xcode project unless an explicit
    `FROGGYBOT_MARKETING_VERSION` is supplied for a local archive.
-3. Confirm both builds complete App Store Connect processing and complete the App Store/TestFlight compliance forms.
+3. Confirm the iPhone build completes App Store Connect processing and complete the App Store/TestFlight compliance forms.
    The preserved configuration artifact remains available for local reproduction and incident review.
 4. Run an authenticated disposable-user workflow and the agreed concurrency test against production. Verify OAuth
    connect/read/revoke for every enabled provider and confirm logs contain neither content nor tokens.

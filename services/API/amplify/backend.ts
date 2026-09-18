@@ -65,8 +65,8 @@ cfnUserPool.userPoolTier = 'ESSENTIALS';
 cfnUserPool.deletionProtection = 'ACTIVE';
 cfnUserPool.emailConfiguration = {
   emailSendingAccount: 'DEVELOPER',
-  sourceArn: `arn:aws:ses:${stack.region}:${stack.account}:identity/inboxai.cc`,
-  from: 'FroggyBot <no-reply@inboxai.cc>',
+  sourceArn: `arn:aws:ses:${stack.region}:${stack.account}:identity/heytim.ai`,
+  from: 'Hey Tim <no-reply@heytim.ai>',
 };
 // Username attributes already create Cognito's standard email schema. Omitting
 // the generated schema prevents CloudFormation from re-submitting that immutable
@@ -86,11 +86,11 @@ cfnUserPoolClient.callbackUrLs = undefined;
 cfnUserPoolClient.logoutUrLs = undefined;
 cfnUserPoolClient.supportedIdentityProviders = ['COGNITO'];
 
-cfnUserPool.emailAuthenticationSubject = 'Your FroggyBot sign-in code';
+cfnUserPool.emailAuthenticationSubject = 'Your Hey Tim sign-in code';
 cfnUserPool.emailAuthenticationMessage = emailCodeMessage('{####}');
 cfnUserPool.verificationMessageTemplate = {
   defaultEmailOption: 'CONFIRM_WITH_CODE',
-  emailSubject: 'Your FroggyBot verification code',
+  emailSubject: 'Your Hey Tim verification code',
   emailMessage: emailCodeMessage('{####}'),
 };
 

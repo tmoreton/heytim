@@ -10,7 +10,7 @@
   <key>CFBundlePackageType</key><string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
   <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
   <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
-  <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>com.frogbot.app</string><key>CFBundleURLSchemes</key><array><string>heytim</string><string>froggybot</string></array></dict></array>
+  <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>ai.heytim.app</string><key>CFBundleURLSchemes</key><array><string>heytim</string></array></dict></array>
   <key>ITSAppUsesNonExemptEncryption</key><false/>
   <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
   <key>NSMicrophoneUsageDescription</key><string>Hey Tim uses the microphone only while you dictate a message. Speech recognition stays on this device.</string>

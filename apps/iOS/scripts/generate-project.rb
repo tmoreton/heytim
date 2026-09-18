@@ -34,12 +34,12 @@ app.build_configurations.each do |config|
   release = config.name == 'Release'
   config.build_settings.merge!(common)
   config.build_settings.merge!(
-    'PRODUCT_BUNDLE_IDENTIFIER' => 'com.frogbot.app',
+    'PRODUCT_BUNDLE_IDENTIFIER' => 'ai.heytim.app',
     'PRODUCT_NAME' => 'FroggyBot',
     'PRODUCT_MODULE_NAME' => 'FroggyBotApple',
     'ASSETCATALOG_COMPILER_APPICON_NAME' => 'AppIcon',
     'INFOPLIST_FILE' => 'Resources/Info.plist',
-    'MARKETING_VERSION' => '6.0.0',
+    'MARKETING_VERSION' => '1.0.0',
     'CURRENT_PROJECT_VERSION' => '202609130148',
     'CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]' => release ? 'Resources/FroggyBot-iOS-Release.entitlements' : 'Resources/FroggyBot-iOS.entitlements',
     'CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]' => 'Resources/FroggyBot-iOS.entitlements',
@@ -52,7 +52,7 @@ app.build_configurations.each do |config|
   )
 end
 
-[[tests, 'com.frogbot.app.tests']].each do |target, identifier|
+[[tests, 'ai.heytim.app.tests']].each do |target, identifier|
   target.build_configurations.each do |config|
     config.build_settings.merge!(common)
     config.build_settings.merge!(
@@ -68,7 +68,7 @@ end
 ui_tests.build_configurations.each do |config|
   config.build_settings.merge!(common)
   config.build_settings.merge!(
-    'PRODUCT_BUNDLE_IDENTIFIER' => 'com.frogbot.app.uitests',
+    'PRODUCT_BUNDLE_IDENTIFIER' => 'ai.heytim.app.uitests',
     'GENERATE_INFOPLIST_FILE' => 'YES',
     'TEST_TARGET_NAME' => 'FroggyBotApple',
   )

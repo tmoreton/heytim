@@ -1,6 +1,6 @@
-# FroggyBot for Apple
+# Hey Tim for Apple
 
-This is FroggyBot's primary client and the only supported source for iPhone and Mac builds. The single native SwiftUI target uses the same Cognito account, HTTP API, data, bots, groups, schedules, skills, connections, files, and browser sessions on both platforms. The Expo application is archived outside the repository; `apps/website` is the public marketing site and skills library.
+This is Hey Tim's primary client and the only supported source for iPhone and Mac builds. The single native SwiftUI target uses the same Cognito account, HTTP API, data, bots, groups, schedules, skills, connections, files, and browser sessions on both platforms. The Expo application is archived outside the repository; `apps/website` is the public marketing site and skills library.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the code-sharing boundary, backend-first decisions, feature surface, and verification model. The native-first Apple design direction and the small set of FroggyBot brand elements shared with Expo are recorded in [DESIGN_PARITY.md](DESIGN_PARITY.md).
 
@@ -45,10 +45,10 @@ release workflow before creating the archive.
 Before installing on physical devices or distributing the app:
 
 1. Select the Apple Developer team for the app target.
-2. Register `com.frogbot.app` for iOS and macOS with Push Notifications enabled.
+2. Register `ai.heytim.app` with Push Notifications enabled. The new App Store Connect listing initially targets iOS; add macOS before uploading a Mac archive.
 3. Use the included development APNs entitlements for Debug and production entitlements for Release.
 4. Configure the matching SNS platform application ARNs in the backend environment.
-5. Capture App Store screenshots before archive submission; the shared FrogBot icon is already configured for both platforms.
+5. Capture App Store screenshots before archive submission; the Hey Tim icon is configured for both platforms.
 
 No Apple signing key belongs in source control.
 
@@ -75,12 +75,12 @@ APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh testflight all
 
 The TestFlight entry point requires a clean working tree except for the two generated production output files, checks
 the bundled public backend configuration, and runs the shared iPhone/Mac verification suite before archiving. The
-`all` form verifies once and uploads matching iPhone and Mac builds with the same build number. The manual production
-workflow uses this path after its backend deployment succeeds; its signing material is injected from the protected
-GitHub production environment and removed from the runner afterward. Local runs use the developer account signed
-into Xcode by default. Publishing a stable GitHub Release tagged `vMAJOR.MINOR.PATCH` deploys the backend and runs
-this same TestFlight path automatically. The tag sets `MARKETING_VERSION` for both archives, while a single numeric
-build number is shared by the iPhone and Mac builds. The tag must point to a commit on `main`.
+`all` form verifies once and uploads matching iPhone and Mac builds with the same build number after both platforms
+are enabled in App Store Connect. The production workflow currently uploads iPhone only to the new Hey Tim listing
+after its backend deployment succeeds; its signing material is injected from the protected GitHub production
+environment and removed from the runner afterward. Local runs use the developer account signed into Xcode by default.
+Publishing a stable GitHub Release tagged `vMAJOR.MINOR.PATCH` deploys the backend and runs the iPhone TestFlight path
+automatically. The tag sets `MARKETING_VERSION` and must point to a commit on `main`.
 For unattended uploads, set `APP_STORE_CONNECT_KEY_PATH`, `APP_STORE_CONNECT_KEY_ID`, and
 `APP_STORE_CONNECT_ISSUER_ID` together; never commit the `.p8` key. Add `--dry-run` before the platform to inspect
 the selected archive path and build number without signing or uploading.
@@ -119,5 +119,5 @@ xcodebuild test -project apps/iOS/FroggyBotApple.xcodeproj \
   -only-testing:FroggyBotAppleUITests/FroggyBotAppleUITests/testMacSavingRootBotEditorReturnsToChat \
   DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic \
   CODE_SIGN_IDENTITY='Apple Development' \
-  PRODUCT_BUNDLE_IDENTIFIER=com.frogbot.app.uitesting CODE_SIGN_ENTITLEMENTS=
+  PRODUCT_BUNDLE_IDENTIFIER=ai.heytim.app.uitesting CODE_SIGN_ENTITLEMENTS=
 ```

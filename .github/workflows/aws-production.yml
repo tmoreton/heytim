@@ -410,7 +410,7 @@ jobs:
         id: apple-build
         run: echo "number=$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
 
-      - name: Verify, sign, and upload iPhone and Mac builds
+      - name: Verify, sign, and upload iPhone build
         env:
           APPLE_TEAM_ID: ${{ vars.FROGBOT_APPLE_TEAM_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ vars.FROGBOT_APP_STORE_CONNECT_KEY_ID }}

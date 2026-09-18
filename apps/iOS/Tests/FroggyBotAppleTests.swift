@@ -831,7 +831,7 @@ import UniformTypeIdentifiers
   }
 
   func testAuthenticationTestsUseAnIsolatedKeychainService() {
-    XCTAssertTrue(AuthSession.keychainServiceForCurrentProcess.hasPrefix("com.frogbot.app.auth.tests."))
+    XCTAssertTrue(AuthSession.keychainServiceForCurrentProcess.hasPrefix("ai.heytim.app.auth.tests."))
   }
 
   func testEmailOTPUsesCognitoChallengeResponseField() async throws {
