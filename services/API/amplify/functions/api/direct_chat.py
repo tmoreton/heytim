@@ -302,8 +302,10 @@ def _steer_active_turns(user_id: str, bot_id: str, turns: list[dict]) -> list[st
 
 def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
     bot = _get_bot(user_id, bot_id)
-    attachments = _resolve_attachments(user_id, value.get("attachmentIds"))
     raw_text = value.get("text", "")
+    if not isinstance(raw_text, str) or raw_text.strip():
+        _validate_string(raw_text, "text", MESSAGE_MAX_LENGTH)
+    attachments = _resolve_attachments(user_id, value.get("attachmentIds"))
     if attachments and isinstance(raw_text, str) and not raw_text.strip():
         raw_text = "Please review the attached files."
     text = _validate_string(raw_text, "text", MESSAGE_MAX_LENGTH)

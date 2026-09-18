@@ -563,5 +563,34 @@ class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
         self.assertNotIn(("SYSTEM#SKILLS", "SKILL#old-skill"), self.table.items)
         self.assertIn(("SKILL#old-skill", "VERSION#000000001"), self.table.items)
 
+    def test_catalog_requires_new_versions_for_changed_skill_and_bot_content(self) -> None:
+        original_skill = self.table.items[("SKILL#planner", "VERSION#000000001")].copy()
+        revised_skill = {**TEST_SKILLS[0], "instructions": "A revised plan."}
+        with self.assertRaisesRegex(CatalogError, "publish a new version"):
+            self.catalog._store_official(TEST_TOOLS, [revised_skill], [])
+        self.assertEqual(
+            self.table.items[("SKILL#planner", "VERSION#000000001")],
+            original_skill,
+        )
+
+        bot = {"id": "helper", "version": 1, "name": "Helper", "prompt": "First prompt"}
+        self.catalog._store_official(TEST_TOOLS, TEST_SKILLS, [bot])
+        with self.assertRaisesRegex(CatalogError, "publish a new version"):
+            self.catalog._store_official(
+                TEST_TOOLS, TEST_SKILLS, [{**bot, "prompt": "Revised prompt"}]
+            )
+        self.assertEqual(
+            self.table.items[("BOT_TEMPLATE#helper", "VERSION#000000001")]["prompt"],
+            "First prompt",
+        )
+
+        self.catalog._store_official(
+            TEST_TOOLS,
+            [{**revised_skill, "version": 2}],
+            [{**bot, "version": 2, "prompt": "Revised prompt"}],
+        )
+        self.assertIn(("SKILL#planner", "VERSION#000000002"), self.table.items)
+        self.assertIn(("BOT_TEMPLATE#helper", "VERSION#000000002"), self.table.items)
+
 if __name__ == "__main__":
     unittest.main()

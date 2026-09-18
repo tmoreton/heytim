@@ -37,6 +37,7 @@ class AttachmentSafetyTests(ApiTestCase):
         self.assertEqual(result["file"]["contentType"], "image/jpeg")
         request = self.s3.generate_presigned_post.call_args.kwargs
         self.assertEqual(request["Fields"]["Content-Type"], "image/jpeg")
+        self.assertNotIn("x-amz-server-side-encryption", request["Fields"])
         self.assertIn(["content-length-range", 1, 3_750_000], request["Conditions"])
 
     def test_group_memory_is_owner_editable_and_bounded(self) -> None:
@@ -158,6 +159,33 @@ class AttachmentSafetyTests(ApiTestCase):
         self.assertEqual(message["text"], "Please review the attached files.")
         self.assertEqual(message["attachments"][0]["id"], file_id)
         self.s3.copy_object.assert_called_once()
+        self.assertNotIn("ServerSideEncryption", self.s3.copy_object.call_args.kwargs)
+
+    def test_invalid_message_does_not_touch_attachments(self) -> None:
+        with (
+            patch.object(self.direct_chat, "_get_bot", return_value={}),
+            patch.object(self.direct_chat, "_resolve_attachments") as direct_attachments,
+            self.assertRaises(self.support.ApiError),
+        ):
+            self.direct_chat._send_message(
+                "user-1", "bot-1", {"text": 123, "attachmentIds": ["file-1"]}
+            )
+        direct_attachments.assert_not_called()
+
+        meta = {"entity": "GROUP", "id": "group-1"}
+        with (
+            patch.object(
+                self.group_messages,
+                "_require_group_member",
+                return_value=(meta, [meta]),
+            ),
+            patch.object(self.group_messages, "_resolve_group_attachments") as group_attachments,
+            self.assertRaises(self.support.ApiError),
+        ):
+            self.group_messages._send_group_message(
+                "user-1", "Taylor", "group-1", {"text": 123, "attachmentIds": ["file-1"]}
+            )
+        group_attachments.assert_not_called()
 
     def test_oversized_image_upload_is_rejected_before_signing(self) -> None:
         with self.assertRaises(self.support.ApiError) as error:

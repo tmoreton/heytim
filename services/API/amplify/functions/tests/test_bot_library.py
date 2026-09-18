@@ -109,7 +109,7 @@ class BotInstallTests(test_api_safety.ApiTestCase):
                 self.bots.catalog,
                 "validate_and_pin",
                 return_value={
-                    "youtube-strategy": 1,
+                    "youtube-strategy": 2,
                     "youtube-thumbnail-director": 3,
                 },
             ),
@@ -141,7 +141,7 @@ class BotInstallTests(test_api_safety.ApiTestCase):
         self.assertEqual(installed["alwaysAllowedToolIds"], [])
         self.assertEqual(
             installed["skillVersions"],
-            {"youtube-strategy": 1, "youtube-thumbnail-director": 3},
+            {"youtube-strategy": 2, "youtube-thumbnail-director": 3},
         )
 
     def test_catalog_template_install_tracks_provenance(self) -> None:

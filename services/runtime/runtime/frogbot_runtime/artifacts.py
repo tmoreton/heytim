@@ -124,7 +124,6 @@ def _put_artifact(
         "Body": body,
         "ContentType": content_type,
         "ContentDisposition": f"attachment; filename*=UTF-8''{encoded_name}",
-        "ServerSideEncryption": "AES256",
     }
     if metadata:
         encoded_metadata: dict[str, str] = {}

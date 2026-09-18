@@ -47,16 +47,7 @@ def _group_items(group_id: str) -> list[dict]:
     ).get("Item")
     items = [meta] if meta else []
     for prefix in ("BOT#", "USER#", "DECISION#"):
-        items.extend(
-            table.query(
-                KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
-                ExpressionAttributeValues={
-                    ":pk": _group_pk(group_id),
-                    ":prefix": prefix,
-                },
-                ConsistentRead=True,
-            ).get("Items", [])
-        )
+        items.extend(_partition_items(_group_pk(group_id), prefix))
     return items
 
 

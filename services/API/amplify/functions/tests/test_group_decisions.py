@@ -6,6 +6,31 @@ from api_test_case import ApiTestCase
 
 
 class GroupDecisionTests(ApiTestCase):
+    def test_group_items_include_paginated_decisions(self) -> None:
+        group_id = "group-1"
+        meta = {"pk": "GROUP#group-1", "sk": "META", "entity": "GROUP"}
+        self.data_table.items[(meta["pk"], meta["sk"])] = meta
+        with patch.object(
+            self.data_table,
+            "query",
+            side_effect=[
+                {"Items": []},
+                {"Items": []},
+                {
+                    "Items": [{"sk": "DECISION#1"}],
+                    "LastEvaluatedKey": {"pk": meta["pk"], "sk": "DECISION#1"},
+                },
+                {"Items": [{"sk": "DECISION#2"}]},
+            ],
+            create=True,
+        ) as query:
+            items = self.groups._group_items(group_id)
+        self.assertEqual([item["sk"] for item in items], ["META", "DECISION#1", "DECISION#2"])
+        self.assertEqual(
+            query.call_args_list[3].kwargs["ExclusiveStartKey"],
+            {"pk": meta["pk"], "sk": "DECISION#1"},
+        )
+
     def test_completed_bot_answer_can_be_saved_once(self) -> None:
         group_id = "group-1"
         meta = {"entity": "GROUP", "ownerId": "owner"}

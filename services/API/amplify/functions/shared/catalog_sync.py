@@ -380,6 +380,28 @@ class CatalogSyncMixin:
         tool_keys = {f"TOOL#{tool['id']}" for tool in tools}
         skill_keys = {f"SKILL#{skill['id']}" for skill in skills}
         bot_keys = {f"BOT#{bot['id']}" for bot in bots}
+
+        def version_is_new(prefix: str, item: dict) -> bool:
+            key = {"pk": f"{prefix}#{item['id']}", "sk": _version_key(item["version"])}
+            existing = self.table.get_item(Key=key, ConsistentRead=True).get("Item")
+            if not existing:
+                return True
+            metadata = {"pk", "sk", "entity", "updatedAt", "release"}
+            stored_content = {k: v for k, v in existing.items() if k not in metadata}
+            new_content = {k: v for k, v in item.items() if k not in metadata}
+            if stored_content != new_content:
+                raise CatalogError(
+                    f"{prefix.lower()} {item['id']} version {item['version']} changed; "
+                    "publish a new version"
+                )
+            return False
+
+        new_skill_versions = {
+            skill["id"] for skill in skills if version_is_new("SKILL", skill)
+        }
+        new_bot_versions = {
+            bot["id"] for bot in bots if version_is_new("BOT_TEMPLATE", bot)
+        }
         with self.table.batch_writer() as batch:
             for item in existing_tools:
                 if item.get("sk") not in tool_keys:
@@ -415,7 +437,8 @@ class CatalogSyncMixin:
                     "updatedAt": current,
                 }
                 batch.put_item(Item=listing)
-                batch.put_item(Item=version)
+                if skill["id"] in new_skill_versions:
+                    batch.put_item(Item=version)
             for bot in bots:
                 listing = {
                     "pk": "SYSTEM#BOTS",
@@ -431,4 +454,5 @@ class CatalogSyncMixin:
                     "updatedAt": current,
                 }
                 batch.put_item(Item=listing)
-                batch.put_item(Item=version)
+                if bot["id"] in new_bot_versions:
+                    batch.put_item(Item=version)

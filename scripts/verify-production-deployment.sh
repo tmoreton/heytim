@@ -54,7 +54,14 @@ aws s3api head-bucket --bucket "$bucket_name"
   echo 'Production file bucket versioning is disabled.' >&2
   exit 1
 }
-aws s3api get-bucket-encryption --bucket "$bucket_name" >/dev/null
+bucket_encryption="$(aws s3api get-bucket-encryption \
+  --bucket "$bucket_name" \
+  --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm' \
+  --output text)"
+[[ "$bucket_encryption" == aws:kms ]] || {
+  echo 'Production file bucket does not default to AWS KMS encryption.' >&2
+  exit 1
+}
 
 meme_prefix="$(jq -r '.runtimes[] | select(.name == "FrogBot") | .envVars[] | select(.name == "FROGBOT_MEME_TEMPLATE_PREFIX") | .value' "$repository_root/agentcore/agentcore.json")"
 [[ -n "$meme_prefix" ]] || { echo 'Meme template prefix is missing.' >&2; exit 1; }

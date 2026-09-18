@@ -135,10 +135,12 @@ def _send_group_message(
                 409,
                 "Interactive tools currently require approval in a direct chat.",
             )
+    raw_text = value.get("text", "")
+    if not isinstance(raw_text, str) or raw_text.strip():
+        _validate_string(raw_text, "text", MESSAGE_MAX_LENGTH)
     attachments = _resolve_group_attachments(
         user_id, group_id, value.get("attachmentIds")
     )
-    raw_text = value.get("text", "")
     if attachments and isinstance(raw_text, str) and not raw_text.strip():
         raw_text = "Please review the attached files."
     text = _validate_string(raw_text, "text", MESSAGE_MAX_LENGTH)

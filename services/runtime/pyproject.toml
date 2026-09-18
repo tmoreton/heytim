@@ -9,13 +9,15 @@ description = "AgentCore Runtime Application using Strands SDK"
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
 dependencies = [
-    "aws-opentelemetry-distro",
+    # CodeZip resolves dependencies independently of uv.lock.
+    "aws-opentelemetry-distro == 0.19.0",
     "bedrock-agentcore >= 1.22.0",
     # AgentCore CodeZip resolves from this file instead of uv.lock. AWS SDK
     # patch releases are frequent, so pin both halves to keep deployed bundles
     # identical to the version verified in uv.lock.
     "boto3 == 1.43.90",
     "botocore==1.43.92",
+    "cyclopts == 4.25.2",
     # The toolkit resolves its first supported AgentCore target as manylinux2014.
     # Pin compiled transitive packages to versions that publish that ARM64 wheel.
     "greenlet==3.5.5",
@@ -57,6 +59,7 @@ dependencies = [
     # which can drift from the dependency-complete archive verified in uv.lock.
     "uvicorn == 0.52.4",
     "urllib3 == 2.7.0",
+    "wcwidth == 0.8.3",
     "yarl == 1.24.5",
     # CodeZip resolves transitive instrumentation dependencies afresh. Keep its
     # ARM64 wheel identical to the version recorded in uv.lock.

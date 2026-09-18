@@ -63,7 +63,7 @@ def test_artifact_tool_writes_only_to_the_scoped_user_prefix(monkeypatch) -> Non
     assert request["Bucket"] == bucket
     assert request["Key"].startswith(f"{prefix}/")
     assert request["Key"].endswith("Quarterly.md")
-    assert request["ServerSideEncryption"] == "AES256"
+    assert "ServerSideEncryption" not in request
 
 
 def test_png_artifact_round_trips_only_inside_its_scoped_prefix(monkeypatch) -> None:
@@ -86,7 +86,7 @@ def test_png_artifact_round_trips_only_inside_its_scoped_prefix(monkeypatch) -> 
     assert loaded["body"] == png
     assert loaded["filename"] == "Award deal.png"
     assert loaded["metadata"]["source-url"] == "https://www.delta.com/deals"
-    assert target.requests[0]["ServerSideEncryption"] == "AES256"
+    assert "ServerSideEncryption" not in target.requests[0]
     with pytest.raises(ValueError, match="unavailable"):
         artifacts.load_png_artifact(
             f"users/{'b' * 64}/artifacts/12345678-1234-1234-1234-123456789012",

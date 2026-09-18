@@ -112,12 +112,10 @@ def _create_upload(user_id: str, value: dict) -> dict:
             Key=object_key,
             Fields={
                 "Content-Type": spec["contentType"],
-                "x-amz-server-side-encryption": "AES256",
                 "success_action_status": "204",
             },
             Conditions=[
                 {"Content-Type": spec["contentType"]},
-                {"x-amz-server-side-encryption": "AES256"},
                 {"success_action_status": "204"},
                 ["content-length-range", 1, spec["maximum"]],
             ],
@@ -225,7 +223,6 @@ def _resolve_group_attachments(
                 Key=object_key,
                 ContentType=item["contentType"],
                 MetadataDirective="REPLACE",
-                ServerSideEncryption="AES256",
             )
             copied_keys.append(object_key)
             group_attachments.append(
