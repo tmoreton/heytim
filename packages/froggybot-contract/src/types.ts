@@ -287,13 +287,35 @@ export type Skill = Capability & {
   editable: boolean;
   relationship?: 'owner' | 'installed';
   updatedAt?: string;
+  sourceUrl?: string;
 };
 
 export type SkillDetail = Skill & {
   instructions: string;
 };
 
-export type SkillDraft = Pick<SkillDetail, 'name' | 'description' | 'instructions' | 'requiredToolIds' | 'visibility'>;
+export type SkillDraft = Pick<SkillDetail, 'name' | 'description' | 'instructions' | 'requiredToolIds' | 'visibility'> & {
+  sourceUrl?: string;
+};
+
+export type GitHubSkillEntry = {
+  name: string;
+  path: string;
+  blobSha: string;
+  sourceUrl: string;
+};
+
+export type GitHubSkillScan = {
+  repository: string;
+  reference: string;
+  skills: GitHubSkillEntry[];
+  moreAvailable: boolean;
+};
+
+export type GitHubSkillPreview = Pick<SkillDraft, 'name' | 'description' | 'instructions'> & {
+  sourceUrl: string;
+  warnings: string[];
+};
 
 export type Bootstrap = {
   bots: Bot[];

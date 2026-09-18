@@ -7,6 +7,8 @@ import type {
   SharedLink,
   SkillDetail,
   SkillDraft,
+  GitHubSkillScan,
+  GitHubSkillPreview,
 } from '../types';
 
 export interface AccountApi {
@@ -31,6 +33,8 @@ export interface AccountApi {
   saveSkill(draft: SkillDraft, skillId?: string): Promise<SkillDetail>;
   shareSkill(skillId: string): Promise<string>;
   importSkill(token: string): Promise<SkillDetail>;
+  scanGitHubSkills(url: string): Promise<GitHubSkillScan>;
+  previewGitHubSkill(repository: string, reference: string, path: string, blobSha: string): Promise<GitHubSkillPreview>;
   beginConnection(providerId: string, returnUrl: string): Promise<string>;
   deleteConnection(connectionId: string): Promise<void>;
 }

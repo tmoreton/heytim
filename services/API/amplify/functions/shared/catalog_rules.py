@@ -471,6 +471,7 @@ def _public_skill(item: dict) -> dict:
         "editable",
         "relationship",
         "updatedAt",
+        "sourceUrl",
         "category",
         "author",
         "tags",

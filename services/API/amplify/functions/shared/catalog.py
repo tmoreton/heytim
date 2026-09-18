@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+import re
 import secrets
+import urllib.parse
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -390,6 +392,22 @@ class CatalogService(CatalogAccessMixin, CatalogSyncMixin, ConnectionMixin):
         visibility = value.get("visibility", "private")
         if visibility not in {"private", "link"}:
             raise CatalogError("visibility must be private or link")
+        source_url = value.get("sourceUrl")
+        if source_url is not None:
+            if not isinstance(source_url, str) or len(source_url) > 800:
+                raise CatalogError("sourceUrl must be a GitHub SKILL.md URL")
+            parsed_source = urllib.parse.urlsplit(source_url)
+            if (
+                parsed_source.scheme != "https"
+                or parsed_source.netloc.lower() != "github.com"
+                or parsed_source.query
+                or parsed_source.fragment
+                or not re.fullmatch(
+                    r"/[A-Za-z0-9-]+/[A-Za-z0-9._-]+/blob/.+/SKILL\.md",
+                    parsed_source.path,
+                )
+            ):
+                raise CatalogError("sourceUrl must be a GitHub SKILL.md URL")
         current = _now()
 
         if skill_id and new_skill_id:
@@ -428,6 +446,8 @@ class CatalogService(CatalogAccessMixin, CatalogSyncMixin, ConnectionMixin):
             "createdAt": created_at,
             "updatedAt": current,
         }
+        if source_url is not None:
+            common["sourceUrl"] = source_url
         with self.table.batch_writer() as batch:
             batch.put_item(
                 Item={

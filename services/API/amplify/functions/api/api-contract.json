@@ -80,6 +80,8 @@
     { "id": "shareImport", "method": "POST", "path": "/shares/{token}/import", "access": "authenticated", "handler": "sharing" },
 
     { "id": "skillCreate", "method": "POST", "path": "/skills", "access": "authenticated", "handler": "skill" },
+    { "id": "githubSkillsScan", "method": "POST", "path": "/skills/github/scan", "access": "authenticated", "handler": "skill" },
+    { "id": "githubSkillPreview", "method": "POST", "path": "/skills/github/preview", "access": "authenticated", "handler": "skill" },
     { "id": "skillGet", "method": "GET", "path": "/skills/{skillId}", "access": "authenticated", "handler": "skill" },
     { "id": "skillUpdate", "method": "PUT", "path": "/skills/{skillId}", "access": "authenticated", "handler": "skill" },
     { "id": "skillShare", "method": "POST", "path": "/skills/{skillId}/share", "access": "authenticated", "handler": "skill" },

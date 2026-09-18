@@ -736,6 +736,11 @@ struct BotToolsAndSkillsEditor: View {
       }
 
       Section("Skills") {
+        FeatureLink {
+          SkillsView(model: model, showsDismissButton: false)
+        } label: {
+          Label("Browse, Create, or Import Skills", systemImage: "square.grid.2x2")
+        }
         ForEach(skills) { skill in
           capabilityToggle(
             id: skill.id,
@@ -2389,6 +2394,7 @@ struct SkillsView: View {
   var showsDismissButton = true
   @State private var selection = CapabilityLibrarySection.skills
   @State private var editor: SkillEditorDestination?
+  @State private var importingFromGitHub = false
 
   private enum CapabilityLibrarySection: String, CaseIterable, Identifiable {
     case skills = "Skills"
@@ -2463,14 +2469,24 @@ struct SkillsView: View {
       }
       if selection == .skills {
         ToolbarItem(placement: .primaryAction) {
-          Button("Create", systemImage: "plus") {
-            editor = SkillEditorDestination(skillID: nil)
+          Menu {
+            Button("Create Skill", systemImage: "plus") {
+              editor = SkillEditorDestination(skillID: nil)
+            }
+            Button("Import from GitHub", systemImage: "square.and.arrow.down") {
+              importingFromGitHub = true
+            }
+          } label: {
+            Label("Add Skill", systemImage: "plus")
           }
         }
       }
     }
     .navigationDestination(item: $editor) { destination in
       SkillEditor(model: model, id: destination.skillID, showsDismissButton: false)
+    }
+    .navigationDestination(isPresented: $importingFromGitHub) {
+      GitHubSkillImportView(model: model)
     }
   }
 
@@ -2526,6 +2542,11 @@ private struct SkillDetailView: View {
     Form {
       if let detail {
         Section { Text(detail.description) }
+        if let source = detail.sourceUrl, let url = URL(string: source) {
+          Section("Source") {
+            Link("View original SKILL.md on GitHub", destination: url)
+          }
+        }
         Section("Required Tools") {
           if detail.requiredToolIds.isEmpty {
             Text("No tools are required.").foregroundStyle(.secondary)

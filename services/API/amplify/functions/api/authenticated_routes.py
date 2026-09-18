@@ -35,6 +35,7 @@ from .direct_chat import (
 )
 from .group_messages import _list_group_message_page, _send_group_message
 from .group_schedules import group_schedule_route
+from .github_skills import preview_github_skill, scan_github_skills
 from .groups import (
     _create_group,
     _create_group_invite,
@@ -421,6 +422,10 @@ def _skill_route(
     params: dict,
     event: dict,
 ) -> dict | None:
+    if method == "POST" and path == "/skills/github/scan":
+        return _response(200, scan_github_skills(_body(event)))
+    if method == "POST" and path == "/skills/github/preview":
+        return _response(200, preview_github_skill(_body(event)))
     if method == "POST" and path == "/skills":
         return _response(201, _save_skill(user_id, _body(event)))
     if method == "GET" and path.startswith("/skills/"):

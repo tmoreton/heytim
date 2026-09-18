@@ -83,6 +83,8 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case shareDelete
     case shareImport
     case skillCreate
+    case githubSkillsScan
+    case githubSkillPreview
     case skillGet
     case skillUpdate
     case skillShare
@@ -545,6 +547,18 @@ public enum GeneratedAPIContract {
             id: .skillCreate,
             method: .post,
             pathTemplate: "/skills",
+            access: .authenticated
+        ),
+        .githubSkillsScan: APIContractRoute(
+            id: .githubSkillsScan,
+            method: .post,
+            pathTemplate: "/skills/github/scan",
+            access: .authenticated
+        ),
+        .githubSkillPreview: APIContractRoute(
+            id: .githubSkillPreview,
+            method: .post,
+            pathTemplate: "/skills/github/preview",
             access: .authenticated
         ),
         .skillGet: APIContractRoute(

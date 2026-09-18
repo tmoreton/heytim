@@ -121,6 +121,28 @@ class BotBrandingTests(unittest.TestCase):
         self.assertEqual(result[0]["skillIds"], ["group-intake"])
         update.assert_not_called()
 
+    def test_existing_chief_receives_new_import_guidance_without_restoring_removed_skill(self) -> None:
+        chief = {
+            "id": "chief", "systemRole": "chief", "templateId": "chief",
+            "templateVersion": 5, "skillIds": ["group-intake", "skill-builder"],
+            "skillVersions": {"group-intake": 1, "skill-builder": 1},
+        }
+        with (
+            patch.object(self.bots.catalog, "get_skill", return_value={
+                "id": "skill-builder", "source": "official", "version": Decimal(2),
+            }),
+            patch.object(self.bots.catalog, "get_version", return_value={"version": 2}),
+            patch.object(self.bots.table, "update_item") as update,
+        ):
+            refreshed = self.bots._ensure_chief("user-1", [chief])[0]
+            opted_out = self.bots._ensure_chief(
+                "user-1", [{**chief, "skillIds": ["group-intake"]}]
+            )[0]
+        self.assertEqual(refreshed["skillVersions"]["skill-builder"], 2)
+        self.assertEqual(refreshed["templateVersion"], 6)
+        self.assertEqual(opted_out["skillIds"], ["group-intake"])
+        update.assert_called_once()
+
     def test_empty_signup_installs_chief_from_the_public_catalog(self) -> None:
         template = {
             "id": "chief",

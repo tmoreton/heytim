@@ -68,6 +68,8 @@ export const apiContractPaths = {
   "shareDelete": "/shares/{token}",
   "shareImport": "/shares/{token}/import",
   "skillCreate": "/skills",
+  "githubSkillsScan": "/skills/github/scan",
+  "githubSkillPreview": "/skills/github/preview",
   "skillGet": "/skills/{skillId}",
   "skillUpdate": "/skills/{skillId}",
   "skillShare": "/skills/{skillId}/share",

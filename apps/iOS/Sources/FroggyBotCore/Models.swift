@@ -581,6 +581,7 @@ public struct Skill: Codable, Identifiable, Hashable, Sendable {
   public var editable: Bool
   public var relationship: String?
   public var updatedAt: String?
+  public var sourceUrl: String?
 }
 
 public struct SkillDetail: Codable, Identifiable, Hashable, Sendable {
@@ -601,6 +602,7 @@ public struct SkillDetail: Codable, Identifiable, Hashable, Sendable {
   public var editable: Bool
   public var relationship: String?
   public var updatedAt: String?
+  public var sourceUrl: String?
   public var instructions: String
 }
 
@@ -610,6 +612,7 @@ public struct SkillDraft: Codable, Equatable, Sendable {
   public var instructions = ""
   public var requiredToolIds: [String] = []
   public var visibility = "private"
+  public var sourceUrl: String?
   public init() {}
   public init(skill: SkillDetail) {
     name = skill.name
@@ -617,7 +620,37 @@ public struct SkillDraft: Codable, Equatable, Sendable {
     instructions = skill.instructions
     requiredToolIds = skill.requiredToolIds
     visibility = skill.visibility
+    sourceUrl = skill.sourceUrl
   }
+  public init(preview: GitHubSkillPreview) {
+    name = preview.name
+    description = preview.description
+    instructions = preview.instructions
+    sourceUrl = preview.sourceUrl
+  }
+}
+
+public struct GitHubSkillEntry: Codable, Identifiable, Hashable, Sendable {
+  public var name: String
+  public var path: String
+  public var blobSha: String
+  public var sourceUrl: String
+  public var id: String { path }
+}
+
+public struct GitHubSkillScan: Codable, Sendable {
+  public var repository: String
+  public var reference: String
+  public var skills: [GitHubSkillEntry]
+  public var moreAvailable: Bool
+}
+
+public struct GitHubSkillPreview: Codable, Sendable {
+  public var name: String
+  public var description: String
+  public var instructions: String
+  public var sourceUrl: String
+  public var warnings: [String]
 }
 
 public struct AppConstraints: Codable, Equatable, Sendable {

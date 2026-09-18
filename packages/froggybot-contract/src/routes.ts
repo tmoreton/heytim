@@ -82,6 +82,8 @@ export const apiRoutes = {
   skillShare: (skillId: string) => contractPath('skillShare', { skillId }),
   skillShareImport: (token: string) => contractPath('skillShareImport', { token }),
   skills: contractPath('skillCreate'),
+  githubSkillsScan: contractPath('githubSkillsScan'),
+  githubSkillPreview: contractPath('githubSkillPreview'),
   upload: (fileId: string) => contractPath('uploadComplete', { fileId }),
   uploads: contractPath('uploadCreate'),
 } as const;

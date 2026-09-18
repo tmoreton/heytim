@@ -400,6 +400,21 @@ public final class FrogBotAPI: Sendable {
   public func importSkill(_ token: String) async throws -> SkillDetail {
     try await request(.skillShareImport, parameters: ["token": token], body: EmptyResponse())
   }
+  public func scanGitHubSkills(_ url: String) async throws -> GitHubSkillScan {
+    try await request(.githubSkillsScan, body: ["url": url])
+  }
+  public func previewGitHubSkill(
+    repository: String, reference: String, entry: GitHubSkillEntry
+  ) async throws -> GitHubSkillPreview {
+    try await request(
+      .githubSkillPreview,
+      body: [
+        "repository": repository,
+        "reference": reference,
+        "path": entry.path,
+        "blobSha": entry.blobSha,
+      ])
+  }
 
   public func beginConnection(providerId: String, returnURL: URL) async throws -> URL {
     let value: AuthorizationEnvelope = try await request(

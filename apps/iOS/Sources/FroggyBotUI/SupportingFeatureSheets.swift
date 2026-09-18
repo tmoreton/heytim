@@ -79,9 +79,11 @@ struct SkillEditor: View {
   @Bindable var model: AppModel
   let id: String?
   var showsDismissButton = true
+  var initialDraft: SkillDraft?
   @State private var draft = SkillDraft()
   @State private var loading = false
   @State private var saving = false
+  @State private var appliedInitialDraft = false
   @State private var loadError: String?
   @Environment(\.dismiss) private var dismiss
 
@@ -235,7 +237,13 @@ struct SkillEditor: View {
         }
       }
     }
-    .task { await load() }
+    .task {
+      if id == nil, !appliedInitialDraft, let initialDraft {
+        draft = initialDraft
+        appliedInitialDraft = true
+      }
+      await load()
+    }
   }
 
   private func load() async {

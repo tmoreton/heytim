@@ -16,6 +16,8 @@ LEGACY_BOT_TEMPLATE_IDS = {
 }
 CHIEF_SKILL_BUILDER_ID = "skill-builder"
 CHIEF_SKILL_BUILDER_TEMPLATE_VERSION = 5
+CHIEF_SKILL_IMPORT_TEMPLATE_VERSION = 6
+CHIEF_SKILL_IMPORT_SKILL_VERSION = 2
 
 
 def _version_number(value: object) -> int | None:
@@ -25,20 +27,27 @@ def _version_number(value: object) -> int | None:
 
 
 def _add_chief_default_skill(user_id: str, bot: dict) -> dict:
-    """Add Skill Builder once to an existing Chief without replacing user edits."""
+    """Add or refresh Chief's default Skill Builder without undoing removal."""
     old_version = bot.get("templateVersion")
     old_version_number = _version_number(old_version)
     if bot.get("templateId") != CHIEF_TEMPLATE_ID:
         return bot
     if (
         old_version_number is not None
-        and old_version_number >= CHIEF_SKILL_BUILDER_TEMPLATE_VERSION
+        and old_version_number >= CHIEF_SKILL_IMPORT_TEMPLATE_VERSION
     ):
         return bot
     old_skill_ids = bot.get("skillIds")
     if not isinstance(old_skill_ids, list) or any(
         not isinstance(skill_id, str) for skill_id in old_skill_ids
     ):
+        return bot
+    if (
+        old_version_number is not None
+        and old_version_number >= CHIEF_SKILL_BUILDER_TEMPLATE_VERSION
+        and CHIEF_SKILL_BUILDER_ID not in old_skill_ids
+    ):
+        # The user removed the default after the initial migration.
         return bot
     if (
         CHIEF_SKILL_BUILDER_ID not in old_skill_ids
@@ -57,6 +66,13 @@ def _add_chief_default_skill(user_id: str, bot: dict) -> dict:
         or not catalog.get_version(CHIEF_SKILL_BUILDER_ID, skill_version)
     ):
         return bot
+    target_template_version = (
+        CHIEF_SKILL_IMPORT_TEMPLATE_VERSION
+        if skill_version >= CHIEF_SKILL_IMPORT_SKILL_VERSION
+        else CHIEF_SKILL_BUILDER_TEMPLATE_VERSION
+    )
+    if old_version_number is not None and old_version_number >= target_template_version:
+        return bot
     skill_ids = list(dict.fromkeys([*old_skill_ids, CHIEF_SKILL_BUILDER_ID]))
     old_skill_versions = bot.get("skillVersions")
     skill_versions = (
@@ -67,7 +83,7 @@ def _add_chief_default_skill(user_id: str, bot: dict) -> dict:
         ":previousSkillIds": old_skill_ids,
         ":skillIds": skill_ids,
         ":skillVersions": skill_versions,
-        ":templateVersion": CHIEF_SKILL_BUILDER_TEMPLATE_VERSION,
+        ":templateVersion": target_template_version,
         ":now": _now(),
     }
     condition = "skillIds = :previousSkillIds"
@@ -98,7 +114,7 @@ def _add_chief_default_skill(user_id: str, bot: dict) -> dict:
         **bot,
         "skillIds": skill_ids,
         "skillVersions": skill_versions,
-        "templateVersion": CHIEF_SKILL_BUILDER_TEMPLATE_VERSION,
+        "templateVersion": target_template_version,
         "updatedAt": expression_values[":now"],
     }
 

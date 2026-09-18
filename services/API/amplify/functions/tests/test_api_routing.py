@@ -37,6 +37,18 @@ class ApiRoutingTests(unittest.TestCase):
         self.assertEqual(response["statusCode"], 200)
         group_messages.assert_not_called()
 
+    def test_github_skill_scan_uses_its_own_route(self) -> None:
+        found = {"repository": "mattpocock/skills", "reference": "main", "skills": [], "moreAvailable": False}
+        with patch.object(self.routes, "scan_github_skills", return_value=found) as scan:
+            response = self.routes.route_authenticated(
+                "user-1", "Tim", "POST", "/skills/github/scan", {},
+                {"body": '{"url":"https://github.com/mattpocock/skills"}'},
+                route_key="POST /skills/github/scan",
+            )
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(json.loads(response["body"]), found)
+        scan.assert_called_once_with({"url": "https://github.com/mattpocock/skills"})
+
     def test_bot_memory_routes_to_bot_scope(self) -> None:
         snapshot = {"records": [], "rawConversationRetentionDays": 30}
         with patch.object(

@@ -31,3 +31,5 @@ Chief has both group-specific skills and access to specialist templates because 
 The reviewed repositories target coding agents and sometimes bundle scripts or tool integrations. FroggyBot public skills remain instruction-only under this catalog's validation and review rules.
 
 Catalog release `skills-v28` includes Skill Builder and supersedes the unshipped `skills-v27` audit changes. Publication still needs the matching backend deployment and versioned gateway schema assets before the public API and website can agree.
+
+The subsequent `skills-v29` release updates Skill Builder with the GitHub import route and moves Chief's template to version 6. The Apple app can browse a public repository or direct `SKILL.md`, preview one file, and save an editable private instruction-only copy with its source link. Chief can then attach that saved skill to itself or another bot on request. Existing Chiefs with Skill Builder receive its new guidance once the catalog publishes; a user who removed it does not get it back. The app does not copy scripts, references, assets, or tool permissions from the repository.

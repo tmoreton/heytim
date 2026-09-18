@@ -103,7 +103,7 @@ class CatalogTests(unittest.TestCase):
         )
 
         self.assertEqual(chief["name"], "Chief")
-        self.assertEqual(chief["version"], 5)
+        self.assertEqual(chief["version"], 6)
         self.assertEqual(chief["color"], "#007A3D")
         self.assertEqual(chief["toolIds"], ["current_time", "bot_manager"])
         self.assertIn("skill-builder", chief["skillIds"])

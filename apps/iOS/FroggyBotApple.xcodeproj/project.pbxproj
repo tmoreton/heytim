@@ -11,6 +11,7 @@
 		210B9BE153D5686089135A68 /* NativeNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B0985F8115CEB836CD010E9 /* NativeNotifications.swift */; };
 		2FB88824D218D6723CF98661 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = E44436B706812F76F19B3078 /* Models.swift */; };
 		426A80AB8CDF6781ED014719 /* SupportingFeatureSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA8D378593067C7774568255 /* SupportingFeatureSheets.swift */; };
+		4D30AF05C99DB4500B6EABFF /* GitHubSkillImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CFD41EB989618792524A7C0 /* GitHubSkillImportView.swift */; };
 		538182FD02180A556AF59297 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F713879F74E02CE9C58A0BC6 /* APIClient.swift */; };
 		6A340DF1A18914BB14F9A724 /* MarkdownMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0D9AA080CFDA3657F94E3E /* MarkdownMessageView.swift */; };
 		6AB59CEB2A764DFE52B601E2 /* DictationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78ACC166CE615803B645EBD2 /* DictationModel.swift */; };
@@ -61,6 +62,7 @@
 		3C0D9AA080CFDA3657F94E3E /* MarkdownMessageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarkdownMessageView.swift; path = Sources/FroggyBotUI/MarkdownMessageView.swift; sourceTree = "<group>"; };
 		4504C9CD8519F0437246DB31 /* FroggyBot-iOS-Release.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "FroggyBot-iOS-Release.entitlements"; path = "Resources/FroggyBot-iOS-Release.entitlements"; sourceTree = "<group>"; };
 		50CD040E1DF7A5297C86153B /* AuthView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthView.swift; path = Sources/FroggyBotUI/AuthView.swift; sourceTree = "<group>"; };
+		6CFD41EB989618792524A7C0 /* GitHubSkillImportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GitHubSkillImportView.swift; path = Sources/FroggyBotUI/GitHubSkillImportView.swift; sourceTree = "<group>"; };
 		6B0985F8115CEB836CD010E9 /* NativeNotifications.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeNotifications.swift; path = Sources/FroggyBotPlatform/NativeNotifications.swift; sourceTree = "<group>"; };
 		7819A342AF0D4579EB19000E /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = Resources/Info.plist; sourceTree = "<group>"; };
 		789C95911A12F3E302C92BA4 /* amplify_outputs.json */ = {isa = PBXFileReference; includeInIndex = 1; name = amplify_outputs.json; path = Resources/amplify_outputs.json; sourceTree = "<group>"; };
@@ -139,6 +141,7 @@
 				50CD040E1DF7A5297C86153B /* AuthView.swift */,
 				9E318C972593FE8154ADF160 /* BrowserHandoffView.swift */,
 				7C3F35AF3D9130FCA6170753 /* FeatureSheets.swift */,
+				6CFD41EB989618792524A7C0 /* GitHubSkillImportView.swift */,
 				D5023CBF8EAAA765BCCE8240 /* MainView.swift */,
 				3C0D9AA080CFDA3657F94E3E /* MarkdownMessageView.swift */,
 				2F946FE1E5CF94F5D1642209 /* ProviderLogoView.swift */,
@@ -340,6 +343,7 @@
 				F018AD8B9D92A17074C3FF6C /* AuthView.swift in Sources */,
 				C9C6AC4A3540461DD99C2421 /* BrowserHandoffView.swift in Sources */,
 				FA701333A5D05C211A59ECBE /* FeatureSheets.swift in Sources */,
+				4D30AF05C99DB4500B6EABFF /* GitHubSkillImportView.swift in Sources */,
 				B8695991EE1C57BAFCA4C3CC /* MainView.swift in Sources */,
 				6A340DF1A18914BB14F9A724 /* MarkdownMessageView.swift in Sources */,
 				9506F0E04D2073B08BBD769C /* ProviderLogoView.swift in Sources */,
