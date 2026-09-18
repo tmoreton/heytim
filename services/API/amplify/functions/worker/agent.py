@@ -67,7 +67,7 @@ def _reserve_youtube_capacity(
 def agent_failure_message(error: Exception) -> str:
     if "Runtime initialization time exceeded" in str(error):
         return (
-            "FroggyBot could not start its worker after repeated attempts. No agent "
+            "HeyTim could not start its worker after repeated attempts. No agent "
             "work began and no external actions were taken. Please try again."
         )
     return "I could not finish that request. Please try again."

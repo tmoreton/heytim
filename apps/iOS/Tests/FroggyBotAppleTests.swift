@@ -350,7 +350,7 @@ import UniformTypeIdentifiers
     XCTAssertEqual(
       ConnectionAuthorizationCallback(
         url: try XCTUnwrap(
-          URL(string: "froggybot://app?connection=gmail&status=connected"))),
+          URL(string: "heytim://app?connection=gmail&status=connected"))),
       ConnectionAuthorizationCallback(
         url: try XCTUnwrap(
           URL(string: "froggybot://app?status=connected&connection=gmail"))))
@@ -820,18 +820,18 @@ import UniformTypeIdentifiers
   func testInvitationLinksMatchWebAndNativeFormats() throws {
     XCTAssertEqual(
       InvitationParser.parse(
-        try XCTUnwrap(URL(string: "https://froggybot.com/invite?kind=group&token=abc%2B123"))),
+        try XCTUnwrap(URL(string: "https://app.heytim.ai/invite?kind=group&token=abc%2B123"))),
       PendingInvitation(kind: "group", token: "abc+123")
     )
     XCTAssertEqual(
       InvitationParser.parse(
-        try XCTUnwrap(URL(string: "froggybot://invite?kind=skill&token=shared"))),
+        try XCTUnwrap(URL(string: "heytim://invite?kind=skill&token=shared"))),
       PendingInvitation(kind: "skill", token: "shared")
     )
   }
 
   func testAuthenticationTestsUseAnIsolatedKeychainService() {
-    XCTAssertTrue(AuthSession.keychainServiceForCurrentProcess.hasPrefix("com.frogbot.app.auth.tests."))
+    XCTAssertTrue(AuthSession.keychainServiceForCurrentProcess.hasPrefix("ai.heytim.app.auth.tests."))
   }
 
   func testEmailOTPUsesCognitoChallengeResponseField() async throws {

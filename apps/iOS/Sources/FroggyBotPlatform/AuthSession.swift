@@ -93,8 +93,8 @@ public final class AuthSession {
       process.environment["XCTestConfigurationFilePath"] != nil
       || process.environment["XCInjectBundleInto"] != nil
       || NSClassFromString("XCTestCase") != nil
-    guard isRunningTests else { return "com.frogbot.app.auth" }
-    return "com.frogbot.app.auth.tests.\(process.processIdentifier)"
+    guard isRunningTests else { return "ai.heytim.app.auth" }
+    return "ai.heytim.app.auth.tests.\(process.processIdentifier)"
   }
 
   public init(configuration: AppConfiguration, network: URLSession = .shared) {
@@ -162,13 +162,13 @@ public final class AuthSession {
         } catch let error as CognitoError where error.name == "UserLambdaValidationException" {
           throw CognitoError(
             name: error.name,
-            message: "This invitation is no longer valid. Ask a friend for a fresh FroggyBot link.")
+            message: "This invitation is no longer valid. Ask a friend for a fresh Hey Tim link.")
         }
       }
       try await beginSignIn(value)
     } catch let error as CognitoError where error.name == "UserNotFoundException" {
       errorMessage =
-        "FroggyBot is invite-only right now. Open a link shared by a member to create your account."
+        "Hey Tim is invite-only right now. Open a link shared by a member to create your account."
     } catch let error as CognitoError where error.name == "UserNotConfirmedException" {
       do {
         _ = try await invoke(
@@ -392,7 +392,7 @@ public final class AuthSession {
 }
 
 private final class TokenKeychain: @unchecked Sendable {
-  private static let logger = Logger(subsystem: "com.frogbot.app", category: "SecureSession")
+  private static let logger = Logger(subsystem: "ai.heytim.app", category: "SecureSession")
 
   private let service: String
   private let account = "cognito-session"
@@ -428,7 +428,7 @@ private final class TokenKeychain: @unchecked Sendable {
       Self.logFailure(operation: "save", status: status)
       throw APIError.configuration(
         status == errSecMissingEntitlement
-          ? "Secure storage is unavailable in this build. Reinstall FroggyBot and try again."
+          ? "Secure storage is unavailable in this build. Reinstall Hey Tim and try again."
           : "The secure session could not be saved. Try again.")
     }
     #if targetEnvironment(simulator)

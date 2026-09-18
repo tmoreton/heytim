@@ -1,22 +1,22 @@
 # Contributing
 
-Frog Bots accepts small, reviewable additions that help a person or group reach a concrete outcome.
+HeyTim Bots accepts small, reviewable additions that help a person or group reach a concrete outcome.
 
-These instructions are relative to `catalog/` in the FroggyBot monorepo.
+These instructions are relative to `catalog/` in the HeyTim monorepo.
 Maintainers make changes here; public contributors can submit proposals through
-the [public issue tracker](https://github.com/tmoreton/frog-bots/issues). That
+the [public issue tracker](https://github.com/tmoreton/heytim-bots/issues). That
 repository is a publishing mirror and contribution inbox, not a second source.
 
 ## Choose the right contribution
 
-- **Skill:** readable instructions that shape how a FroggyBot approaches work.
+- **Skill:** readable instructions that shape how a HeyTim approaches work.
 - **Bot:** a small configuration that combines a prompt with existing skills and required tools.
 - **Tool or connector:** a public definition for reading from or acting in another service.
 - **Website or documentation:** a focused improvement to `../apps/website/`, `README.md`, or `docs/`.
 
-Do not put executable integrations inside a skill. Remote integrations stay hosted outside this repository. FroggyBot supplies any credentials required by shared public services, while private account data uses a reviewed provider OAuth flow.
+Do not put executable integrations inside a skill. Remote integrations stay hosted outside this repository. HeyTim supplies any credentials required by shared public services, while private account data uses a reviewed provider OAuth flow.
 
-Private instruction-only skills and custom bot configurations do not need review and can be created directly in the FroggyBot app. Tools and account connections require review before they are offered to users.
+Private instruction-only skills and custom bot configurations do not need review and can be created directly in the HeyTim app. Tools and account connections require review before they are offered to users.
 
 ## Add a bot
 
@@ -46,7 +46,7 @@ Add at least three realistic scenarios to `bots/<bot-id>/evals.json`. Each scena
 
 Never put an API token, secret, authorization header value, or credential-bearing URL in a bot, skill, evaluation, or pull request. A bot references a tool by ID only.
 
-When a required integration needs authentication, the tool proposal must explain whether it uses a FroggyBot-owned service credential or per-user OAuth, which request field carries authorization, and the minimum permissions it needs. Installing a bot must never ask a user to paste a developer API key. FroggyBot-owned values stay in operator secret storage, while per-user OAuth credentials are stored by the app's reviewed connection flow. Shared bot configurations never include either kind of credential.
+When a required integration needs authentication, the tool proposal must explain whether it uses a HeyTim-owned service credential or per-user OAuth, which request field carries authorization, and the minimum permissions it needs. Installing a bot must never ask a user to paste a developer API key. HeyTim-owned values stay in operator secret storage, while per-user OAuth credentials are stored by the app's reviewed connection flow. Shared bot configurations never include either kind of credential.
 
 ## Add a skill
 
@@ -121,7 +121,7 @@ Open a focused pull request, or use the tool request first when you want design 
 - rate limits, cost, and failure behavior; and
 - the smallest permissions that support the outcome.
 
-Community pull requests never add secrets or hosted executable code. Public built-ins maintained by FroggyBot use reviewed OpenAPI schemas under `tools/<provider>/openapi.yaml`. A remote integration needs a reviewed runtime binding; when it requires authentication, it uses either a FroggyBot-owned service credential or provider OAuth for private account access.
+Community pull requests never add secrets or hosted executable code. Public built-ins maintained by HeyTim use reviewed OpenAPI schemas under `tools/<provider>/openapi.yaml`. A remote integration needs a reviewed runtime binding; when it requires authentication, it uses either a HeyTim-owned service credential or provider OAuth for private account access.
 
 ## Run the checks
 

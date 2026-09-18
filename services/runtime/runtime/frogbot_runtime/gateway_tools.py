@@ -89,6 +89,6 @@ def gateway_client(
         tool_filters={"allowed": allowed},
         continue_on_error=False,
         startup_timeout=15,
-        application_name="FroggyBot",
+        application_name="HeyTim",
         usage=usage,
     )

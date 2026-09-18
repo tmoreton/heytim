@@ -80,7 +80,7 @@ def _preview(raw: bytes, mail: dict) -> dict:
         return {
             "from": _clean_text(str(mail.get("source", "")), 320),
             "subject": _clean_text(str((mail.get("commonHeaders") or {}).get("subject", "")), 240),
-            "body": "This email is too large to preview in FroggyBot.",
+            "body": "This email is too large to preview in HeyTim.",
             "attachmentNames": [],
         }
     message = BytesParser(policy=policy.default).parsebytes(raw)

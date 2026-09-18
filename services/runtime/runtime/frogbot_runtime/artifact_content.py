@@ -82,4 +82,4 @@ def markdown_blocks(content: str) -> list[ContentBlock]:
 
 def document_title(filename: str) -> str:
     title = Path(filename).stem.replace("_", " ").replace("-", " ").strip()
-    return title or "FroggyBot document"
+    return title or "HeyTim document"

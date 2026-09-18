@@ -63,7 +63,7 @@ AGENT_RUNTIME_ARN = os.environ.get("AGENT_RUNTIME_ARN")
 AGENT_RUNTIME_QUALIFIER = os.environ.get("AGENT_RUNTIME_QUALIFIER", "DEFAULT")
 FROGBOT_MEMORY_ID = os.environ.get("FROGBOT_MEMORY_ID")
 FILES_BUCKET_NAME = os.environ.get("FILES_BUCKET_NAME")
-PUBLIC_WEB_BASE_URL = os.environ.get("PUBLIC_WEB_BASE_URL", "https://froggybot.com")
+PUBLIC_WEB_BASE_URL = os.environ.get("PUBLIC_WEB_BASE_URL", "https://app.heytim.ai")
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)
@@ -247,7 +247,7 @@ def _display_name(event: dict) -> str:
             if key == "email":
                 clean = clean.split("@", 1)[0]
             return clean[:40]
-    return "FroggyBot user"
+    return "HeyTim user"
 
 
 def _push_token_id(token: str, provider: str = "expo") -> str:

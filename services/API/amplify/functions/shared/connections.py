@@ -125,7 +125,7 @@ class ConnectionMixin(ConnectionLifecycleMixin):
     def _create_secret(self, user_id: str, connection_id: str, credential: str) -> str:
         response = self._secret_client().create_secret(
             Name=_secret_name(user_id, connection_id),
-            Description="User OAuth or installation grant for a FroggyBot connection",
+            Description="User OAuth or installation grant for a HeyTim connection",
             SecretString=credential,
             Tags=[
                 {"Key": "frogbot:resource", "Value": "connection"},

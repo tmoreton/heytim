@@ -58,12 +58,10 @@ are performed by the release command above and reported separately.
 
 ## Public hosting
 
-The existing `froggybot.com` GitHub Pages repository can remain a **deployment
-mirror**, without being a second source repository. The website deployment
-script publishes only the checked Vite output to its `gh-pages` branch. No
-backend, Apple source, private configuration, or credentials are copied there.
-Historic public source and tagged skill releases remain available on its
-existing branches. Pages serves the same catalog and association-file URLs.
-The existing Expo-hosted `app.froggybot.com` deployment is not automatically
-deleted; retiring its hosting/DNS is a separate cutover so old links aren't
-silently broken.
+`apps/website` is the maintained source for the HeyTim website. The deployment
+script publishes its checked Vite output to `tmoreton/heytim-web:main` for
+`heytim.ai` and `tmoreton/heytim-bots:gh-pages` for the `app.heytim.ai` alias.
+Both repositories are artifact mirrors; no backend, Apple source, private
+configuration, or credentials are copied there. Historic catalog source and
+tagged skill releases remain on the bot repository's main branch. A separate
+legacy Pages mirror keeps `froggybot.com` links working for older clients.

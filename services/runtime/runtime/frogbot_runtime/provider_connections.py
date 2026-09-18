@@ -451,7 +451,7 @@ def _api_json(url: str, access_token: str) -> dict:
         headers={
             "accept": "application/json",
             "authorization": f"Bearer {access_token}",
-            "user-agent": "FroggyBot/1.0",
+            "user-agent": "HeyTim/1.0",
         },
     )
     try:
@@ -476,7 +476,7 @@ def _provider_api_json(
     request_headers = {
         "accept": "application/json",
         "authorization": f"Bearer {access_token}",
-        "user-agent": "FroggyBot/1.0",
+        "user-agent": "HeyTim/1.0",
         **(headers or {}),
     }
     data = None

@@ -1,8 +1,8 @@
-# FroggyBot production release gate
+# HeyTim production release gate
 
 The repository is release-hardened, but a production release is not complete merely because the code passes locally.
 The configured AWS account, third-party approvals, monitored alert destination, device evidence, and controlled
-deployment are external release inputs. The **Deploy FroggyBot production release** workflow fails closed until
+deployment are external release inputs. The **Deploy HeyTim production release** workflow fails closed until
 they are present. Production temporarily shares management account `188757775631` with development while the dedicated
 member account's Lambda quota increase is pending; target-scoped stacks, KMS keys, storage, and secrets remain separate.
 AgentCore resources use the `FrogBotProduction` physical project namespace in this temporary shared-account posture;
@@ -17,8 +17,8 @@ the platform API-key credential providers remain account-scoped.
    rotating customer-managed KMS key for AgentCore memory and retain its ARN.
 3. Perform the first AgentCore and Amplify bootstrap with that reviewed principal. The Amplify stack creates the
    recurring least-privilege GitHub OIDC deployment role; its trust subject is
-   `repo:tmoreton@5090418/frogbot@1356546597:environment:production`, using GitHub's immutable owner and repository
-   IDs. Save the `githubDeployRoleArn` output as
+   `repo:tmoreton@5090418/heytim-platform@1356546597:environment:production`, using GitHub's immutable owner and repository
+   IDs. The previous repository name remains trusted only during the transition. Save the `githubDeployRoleArn` output as
    `AWS_DEPLOY_ROLE_ARN`, then use the workflow for every later release. Never use account-root access.
 4. Create a production Amplify app and production/sandbox SNS APNs platform applications. Subscribe an accountable
    team or incident system to the generated service-alarm topic and confirm the subscription.
@@ -84,24 +84,24 @@ permissions from protected environment secrets immediately before deployment and
 
 1. Merge a clean, reviewed commit to `main`; confirm application, backend, runtime, AgentCore, Apple, dependency,
    provider-contract, and security workflows pass. Create and publish a stable GitHub Release from that commit with a
-   tag such as `v6.1.0`. Drafts and pre-releases do not deploy production; the tagged commit must be on `main`.
-2. Publishing the release starts **Deploy FroggyBot production release**. It validates the tag, target/account, and approvals, verifies and
+   tag such as `v1.0.0`. Drafts and pre-releases do not deploy production; the tagged commit must be on `main`.
+2. Publishing the release starts **Deploy HeyTim production release**. It validates the tag, target/account, and approvals, verifies and
    audits dependencies, deploys AgentCore then Amplify, generates the client outputs, hardens runtime logs, configures
    AgentCore alarms and APNs delivery feedback, seeds the private meme-template catalog when absent, verifies every
    referenced template image along with storage/PITR/alerts/public API, and preserves the exact production client
    configuration. A dependent job on the repository-scoped `frogbot-macmini` runner then verifies the native suites
-   once and uploads matching iPhone and Mac builds to TestFlight. The release tag supplies the Apple marketing version
-   (`v6.1.0` becomes `6.1.0` in both apps); the shared numeric build number is generated for each workflow run. Expo is
+   once and uploads the iPhone build to the new Hey Tim TestFlight listing. The release tag supplies the Apple marketing version
+   (`v1.0.0` becomes `1.0.0`); a numeric build number is generated for each workflow run. Expo is
    neither built nor published by this release.
    The default `full` scope requires the protected Apple API key and Distribution certificate. When an authorized
    release operator must use the Apple account already signed into Xcode, manually run the workflow from `main` with
    `backend-only`; every AWS, provider,
    compliance, and device approval remains enforced, but the TestFlight job is skipped. Download the preserved
    production client-configuration artifact, place its two files at their recorded repository paths, then run
-   `APPLE_TEAM_ID=GVXC5FQ2RP ./scripts/apple-app.sh testflight all` from a clean checkout of the same commit. Manual
+   `APPLE_TEAM_ID=GVXC5FQ2RP ./scripts/apple-app.sh testflight ios` from a clean checkout of the same commit. Manual
    runs remain available for recovery and use the version in the checked-in Xcode project unless an explicit
    `FROGGYBOT_MARKETING_VERSION` is supplied for a local archive.
-3. Confirm both builds complete App Store Connect processing and complete the App Store/TestFlight compliance forms.
+3. Confirm the iPhone build completes App Store Connect processing and complete the App Store/TestFlight compliance forms.
    The preserved configuration artifact remains available for local reproduction and incident review.
 4. Run an authenticated disposable-user workflow and the agreed concurrency test against production. Verify OAuth
    connect/read/revoke for every enabled provider and confirm logs contain neither content nor tokens.

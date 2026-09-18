@@ -94,7 +94,7 @@ def start_background_command(
             {
                 "text": (
                     f"Started background work: {clean_label}. End this response "
-                    "now; FroggyBot will resume automatically when it finishes."
+                    "now; HeyTim will resume automatically when it finishes."
                 )
             }
         ],

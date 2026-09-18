@@ -69,7 +69,7 @@ export function addGithubDeploymentRole({
   });
 
   const role = new Role(stack, 'GitHubProductionDeployRole', {
-    description: 'Least-privilege GitHub OIDC entrypoint for reviewed FroggyBot production deployments.',
+    description: 'Least-privilege GitHub OIDC entrypoint for reviewed HeyTim production deployments.',
     assumedBy: new FederatedPrincipal(
       stack.formatArn({
         service: 'iam',
@@ -81,10 +81,12 @@ export function addGithubDeploymentRole({
       {
         StringEquals: {
           'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-          // GitHub's customized OIDC subject binds the owner and repository names to
-          // their immutable IDs, so a rename or name reuse cannot inherit production access.
-          'token.actions.githubusercontent.com:sub':
+          // GitHub's customized OIDC subject includes the immutable repository ID.
+          // Accept both names during the rename; retire the old subject after release.
+          'token.actions.githubusercontent.com:sub': [
             'repo:tmoreton@5090418/frogbot@1356546597:environment:production',
+            'repo:tmoreton@5090418/heytim-platform@1356546597:environment:production',
+          ],
         },
       },
       'sts:AssumeRoleWithWebIdentity',

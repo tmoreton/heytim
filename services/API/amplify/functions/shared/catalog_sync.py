@@ -33,13 +33,13 @@ from .time import utc_now_iso as _now
 
 CATALOG_URL = os.environ.get(
     "CAPABILITY_CATALOG_URL",
-    "https://froggybot.com/catalog.json",
+    "https://app.heytim.ai/catalog.json",
 )
-ALLOWED_REPOSITORY = "tmoreton/frogbot-skills"
+ALLOWED_REPOSITORY = "tmoreton/heytim-bots"
 SYNC_SECONDS = 300
 SYNC_LEASE_SECONDS = 180
 SYNC_RETRY_SECONDS = 60
-TRUSTED_CATALOG_HOST = "froggybot.com"
+TRUSTED_CATALOG_HOST = "app.heytim.ai"
 TRUSTED_CATALOG_PATHS = ("/catalog.json", "/skills/")
 _last_sync_at = 0.0
 _local_sync_delay = SYNC_SECONDS
@@ -69,7 +69,7 @@ def _trusted_catalog_url(url: str) -> str:
 def _fetch_json(url: str) -> dict:
     request = urllib.request.Request(
         _trusted_catalog_url(url),
-        headers={"accept": "application/json", "user-agent": "FroggyBot/1.0"},
+        headers={"accept": "application/json", "user-agent": "HeyTim/1.0"},
     )
     with urllib.request.urlopen(request, timeout=5) as response:  # nosec B310
         _trusted_catalog_url(response.geturl())
@@ -82,7 +82,7 @@ def _fetch_json(url: str) -> dict:
 def _fetch_text(url: str) -> str:
     request = urllib.request.Request(
         _trusted_catalog_url(url),
-        headers={"accept": "text/plain", "user-agent": "FroggyBot/1.0"},
+        headers={"accept": "text/plain", "user-agent": "HeyTim/1.0"},
     )
     with urllib.request.urlopen(request, timeout=5) as response:  # nosec B310
         _trusted_catalog_url(response.geturl())

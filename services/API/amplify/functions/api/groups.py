@@ -78,7 +78,7 @@ def _public_group(user_id: str, group_id: str, items: list[dict] | None = None) 
         (
             {
                 "id": item["userId"],
-                "name": item.get("name", "FroggyBot user"),
+                "name": item.get("name", "HeyTim user"),
                 "role": item.get("role", "member"),
                 "allowedActions": (
                     ["remove"]
@@ -117,7 +117,7 @@ def _public_group(user_id: str, group_id: str, items: list[dict] | None = None) 
                 "id": item["id"],
                 "text": item["text"],
                 "sourceMessageId": item["sourceMessageId"],
-                "sourceAuthorName": item.get("sourceAuthorName", "FroggyBot"),
+                "sourceAuthorName": item.get("sourceAuthorName", "HeyTim"),
                 "createdById": item["createdById"],
                 "createdByName": item.get("createdByName", "Group member"),
                 "createdAt": item["createdAt"],
@@ -230,7 +230,7 @@ def _save_group_decision(
         or not isinstance(source.get("text"), str)
         or not source["text"].strip()
     ):
-        raise ApiError(400, "Only a completed FroggyBot answer can be saved as a decision")
+        raise ApiError(400, "Only a completed HeyTim answer can be saved as a decision")
     decision_id = message_id
     decision = {
         "pk": _group_pk(group_id),
@@ -240,7 +240,7 @@ def _save_group_decision(
         "text": source["text"].strip()[:4_000],
         "sourceMessageId": message_id,
         **({"sourceMessageKey": source["sk"]} if isinstance(source.get("sk"), str) else {}),
-        "sourceAuthorName": str(source.get("authorName", "FroggyBot"))[:60],
+        "sourceAuthorName": str(source.get("authorName", "HeyTim"))[:60],
         "createdById": user_id,
         "createdByName": display_name[:60],
         "createdAt": _now(),
@@ -519,7 +519,7 @@ def _delete_group(user_id: str, group_id: str) -> dict:
     items = _partition_items(_group_pk(group_id))
     if has_pending_work(items):
         raise ApiError(
-            409, "Wait for the FroggyBots to finish before deleting this group"
+            409, "Wait for the HeyTim bots to finish before deleting this group"
         )
     from .group_schedules import _delete_group_schedule, _list_group_schedules
 

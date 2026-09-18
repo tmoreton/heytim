@@ -29,7 +29,7 @@ final class WebAuthenticationController: NSObject,
     outcome = nil
     isRunning = true
     let session = ASWebAuthenticationSession(
-      url: url, callbackURLScheme: "froggybot"
+      url: url, callbackURLScheme: "heytim"
     ) { @Sendable [weak self] callbackURL, error in
       self?.finish(callbackURL: callbackURL, error: error)
     }
@@ -365,7 +365,7 @@ struct ConnectionsView: View {
       }
       Button("Cancel", role: .cancel) { disconnectCandidate = nil }
     } message: {
-      Text("Bots using this account will lose access. FroggyBot will revoke supported OAuth access and schedule its stored credential for deletion.")
+      Text("Bots using this account will lose access. Hey Tim will revoke supported OAuth access and schedule its stored credential for deletion.")
     }
   }
 
@@ -385,7 +385,7 @@ struct ConnectionsView: View {
     Task {
       do {
         var callback = URLComponents()
-        callback.scheme = "froggybot"
+        callback.scheme = "heytim"
         callback.host = "app"
         callback.queryItems = [URLQueryItem(name: "connection", value: id)]
         guard let returnURL = callback.url else { throw APIError.invalidResponse }
@@ -1033,7 +1033,7 @@ struct WorkspaceFilesView: View {
     }
     .fileExporter(
       isPresented: $showingExporter, document: exportDocument,
-      contentType: .json, defaultFilename: "froggybot-workspace-links"
+      contentType: .json, defaultFilename: "heytim-workspace-links"
     ) { result in
       if case .failure(let error) = result { model.present(error) }
       exportDocument = nil
@@ -1159,7 +1159,7 @@ struct ShareView: View {
   private var title: String {
     switch selection.kind {
     case .bot:
-      model.bootstrap?.bots.first(where: { $0.id == selection.id })?.name ?? "FroggyBot"
+      model.bootstrap?.bots.first(where: { $0.id == selection.id })?.name ?? "Hey Tim"
     case .group:
       model.bootstrap?.groups.first(where: { $0.id == selection.id })?.name ?? "Group"
     }
@@ -1278,7 +1278,7 @@ struct AccountView: View {
       } header: {
         Text("Notifications")
       } footer: {
-        Text("Apple permission and FroggyBot delivery registration must both be active.")
+        Text("Apple permission and Hey Tim delivery registration must both be active.")
       }
 
       Section("Active Shared Links") {
@@ -1336,8 +1336,8 @@ struct AccountView: View {
           }
         }
         .disabled(exportingMemory)
-        Link("Privacy Policy", destination: URL(string: "https://froggybot.com/privacy")!)
-        Link("Terms of Use", destination: URL(string: "https://froggybot.com/terms")!)
+        Link("Privacy Policy", destination: URL(string: "https://heytim.ai/privacy")!)
+        Link("Terms of Use", destination: URL(string: "https://heytim.ai/terms")!)
       }
 
       Section {
@@ -1364,11 +1364,11 @@ struct AccountView: View {
       }
 
       Section("About") {
-        LabeledContent("App", value: "FroggyBot for Apple")
+        LabeledContent("App", value: "Hey Tim for Apple")
         LabeledContent("Platforms", value: "iPhone + Mac")
         LabeledContent("Version", value: versionLabel)
           .accessibilityIdentifier("settings.version")
-        Link("Support", destination: URL(string: "mailto:tmoreton89@gmail.com?subject=FroggyBot%20Support")!)
+        Link("Support", destination: URL(string: "mailto:support@heytim.ai?subject=Hey%20Tim%20Support")!)
       }
     }
     .formStyle(.grouped)
@@ -1385,7 +1385,7 @@ struct AccountView: View {
       isPresented: $showingMemoryExporter,
       document: memoryExportDocument,
       contentType: .json,
-      defaultFilename: "froggybot-memory"
+      defaultFilename: "heytim-memory"
     ) { result in
       if case .failure(let error) = result {
         let cocoaError = error as NSError
@@ -1411,7 +1411,7 @@ struct AccountView: View {
       Text("Anyone using this link will immediately lose access.")
     }
     .confirmationDialog(
-      "Permanently delete your FroggyBot account?", isPresented: $confirmDelete,
+      "Permanently delete your Hey Tim account?", isPresented: $confirmDelete,
       titleVisibility: .visible
     ) {
       Button("Delete Account", role: .destructive) { deleteAccount() }

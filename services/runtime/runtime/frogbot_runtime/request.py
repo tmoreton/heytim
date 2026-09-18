@@ -47,7 +47,7 @@ def _s3_source(
         uri.startswith(prefix)
         or (workspace_prefix is not None and uri.startswith(workspace_prefix))
     ):
-        raise ValueError("attachment source is outside the FroggyBot file store")
+        raise ValueError("attachment source is outside the HeyTim file store")
     key = uri[len(f"s3://{FILES_BUCKET_NAME}/") :]
     if _s3 is None:
         _s3 = boto3.client(

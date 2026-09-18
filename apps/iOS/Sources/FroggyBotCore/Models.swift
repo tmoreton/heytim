@@ -73,7 +73,7 @@ public struct BotInboxPage: Codable, Sendable {
 public struct BotDraft: Codable, Equatable, Sendable {
   public var name = ""
   public var tagline = ""
-  // Chief owns FroggyBot green. New custom bots start with the service's supported teal.
+  // Chief owns Tim amber. New custom bots start with the service's supported teal.
   public var color = "#58BEAA"
   public var prompt = ""
   public var toolIds: [String] = []
@@ -681,7 +681,7 @@ public struct ConnectionAuthorizationCallback: Equatable, Sendable {
   public let status: Status
 
   public init?(url: URL) {
-    guard url.scheme?.lowercased() == "froggybot", url.host?.lowercased() == "app",
+    guard ["heytim", "froggybot"].contains(url.scheme?.lowercased() ?? ""), url.host?.lowercased() == "app",
       let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
       let providerID = components.queryItems?.first(where: { $0.name == "connection" })?.value,
       !providerID.isEmpty,

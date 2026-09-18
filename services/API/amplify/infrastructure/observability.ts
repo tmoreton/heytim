@@ -201,7 +201,7 @@ export function addObservability({
     treatMissingData: TreatMissingData.NOT_BREACHING,
   });
   const alarmTopic = new Topic(stack, 'ServiceAlarms', {
-    displayName: 'FroggyBot service alarms',
+    displayName: 'HeyTim service alarms',
     masterKey: logsKey,
   });
   const availabilityAlarm = availabilityProbe
@@ -296,7 +296,7 @@ export function addObservability({
     periodOverride: PeriodOverride.INHERIT,
   });
   dashboard.addWidgets(
-    new TextWidget({ width: 24, height: 1, markdown: '# FroggyBot service health' }),
+    new TextWidget({ width: 24, height: 1, markdown: '# HeyTim service health' }),
     new AlarmStatusWidget({
       width: 24,
       height: 6,

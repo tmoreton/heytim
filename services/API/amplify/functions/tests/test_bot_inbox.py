@@ -29,7 +29,7 @@ class BotInboxTests(ApiTestCase):
 
         self.assertEqual(resolve_mail_address(Lookup(), address), (user_id, bot))
         self.assertIsNone(resolve_mail_address(Lookup(), address.replace("abcdefghijklmnop", "qrstuvwxyzabcdef")))
-        self.assertIsNone(resolve_mail_address(Lookup(), address.replace("bots.froggybot.com", "example.com")))
+        self.assertIsNone(resolve_mail_address(Lookup(), address.replace("bots.heytim.ai", "example.com")))
 
     def test_inbox_list_keeps_one_bot_scoped_and_hides_internal_mail_fields(self) -> None:
         user_id = str(uuid.uuid4())

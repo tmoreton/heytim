@@ -1,1 +1,1 @@
-"""FroggyBot worker Lambda package."""
+"""HeyTim worker Lambda package."""

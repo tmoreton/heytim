@@ -397,12 +397,12 @@ def _load_openrouter_model(
         client_args={
             "api_key": api_key,
             "base_url": OPENROUTER_BASE_URL,
-            # FroggyBot owns retries so every paid HTTP attempt is reserved by
+            # HeyTim owns retries so every paid HTTP attempt is reserved by
             # UsageTrackingModel before dispatch.
             "max_retries": 0,
             "default_headers": {
-                "HTTP-Referer": "https://froggybot.com",
-                "X-OpenRouter-Title": "FroggyBot",
+                "HTTP-Referer": "https://heytim.ai",
+                "X-OpenRouter-Title": "HeyTim",
             },
         },
     )

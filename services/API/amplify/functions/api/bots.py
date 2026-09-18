@@ -353,7 +353,7 @@ def _clear_bot_chat(user_id: str, bot_id: str, *, forget_memory: bool = False) -
     turns = _partition_items(_turn_pk(user_id, bot_id))
     if has_pending_work(turns):
         raise ApiError(
-            409, "Wait for this FroggyBot to finish before clearing the chat"
+            409, "Wait for this HeyTim to finish before clearing the chat"
         )
     forgotten_memory = (
         _forget_bot_conversation(user_id, bot_id)
@@ -390,7 +390,7 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
     turns = _partition_items(_turn_pk(user_id, bot_id))
     schedules = _schedule_items(user_id, bot_id)
     if has_pending_work(turns):
-        raise ApiError(409, "Wait for this FroggyBot to finish before deleting it")
+        raise ApiError(409, "Wait for this HeyTim to finish before deleting it")
 
     group_bot_keys = []
     group_meta_updates = []
@@ -414,7 +414,7 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
         if has_pending_work(group_items, bot_id=bot_id):
             raise ApiError(
                 409,
-                "Wait for this FroggyBot to finish its group reply before deleting it",
+                "Wait for this HeyTim to finish its group reply before deleting it",
             )
         group_bot_keys.append({"pk": group_bot["pk"], "sk": group_bot["sk"]})
         meta = next(

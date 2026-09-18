@@ -58,7 +58,7 @@ public struct MainView: View {
       #endif
     }
     .alert(
-      "FroggyBot",
+      "Hey Tim",
       isPresented: Binding(
         get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })
     ) {
@@ -119,7 +119,7 @@ public struct MainView: View {
       } else {
         EmptyPanel(
           icon: "bubble.left.and.bubble.right", title: "Choose a chat",
-          detail: "Select a person, group, or FroggyBot from the chat list.")
+          detail: "Select a person, group, or a bot from the chat list.")
       }
     }
     .froggyFeaturePresentation(item: $presentedSheet, onDismiss: sheetDidDismiss) { sheet in
@@ -220,7 +220,7 @@ private struct ConversationSidebar: View {
     }
     .listStyle(.sidebar)
     #if os(iOS)
-      .froggyNavigationTitle("FroggyBot")
+      .froggyNavigationTitle("Hey Tim")
       .toolbarTitleDisplayMode(.inline)
     #endif
     .searchable(text: $search, placement: .sidebar, prompt: "Search chats")
@@ -233,12 +233,12 @@ private struct ConversationSidebar: View {
           ViewThatFits(in: .horizontal) {
             HStack(spacing: 6) {
               FrogMark(size: 26)
-              Text("FroggyBot").froggyFont(.headline).lineLimit(1)
+              Text("Hey Tim").froggyFont(.headline).lineLimit(1)
             }
             FrogMark(size: 26)
           }
           .accessibilityElement(children: .ignore)
-          .accessibilityLabel("FroggyBot")
+          .accessibilityLabel("Hey Tim")
         }
         ToolbarItem(placement: .primaryAction) {
           createMenu
@@ -359,7 +359,7 @@ private struct ConversationSidebar: View {
       return activeName
     }
     if let name = item.processingBotName { return name }
-    return item.selection.kind == .bot ? item.name : "A FroggyBot"
+    return item.selection.kind == .bot ? item.name : "A bot"
   }
 
   private func latestPreview(for item: ConversationListItem) -> String {
@@ -1153,7 +1153,7 @@ private struct ConversationInspector: View {
     guard selection.kind == .group else { return nil }
     return model.bootstrap?.groups.first { $0.id == selection.id }
   }
-  private var title: String { selectedBot?.name ?? selectedGroup?.name ?? "FroggyBot" }
+  private var title: String { selectedBot?.name ?? selectedGroup?.name ?? "Hey Tim" }
   private var subtitle: String {
     selectedBot?.tagline ?? selectedGroup.map {
       "\($0.bots.count) bots · \($0.members.count) people"
@@ -1169,7 +1169,7 @@ private struct ConversationInspector: View {
 
   private var colorOptions: [BotColorOption] {
     editingBot?.systemRole == "chief"
-      ? [BotColorOption(value: "#007A3D", name: "FroggyBot green")]
+      ? [BotColorOption(value: "#FFBC3B", name: "Tim amber")]
       : customBotColors
   }
 
@@ -1413,7 +1413,7 @@ private struct MessageBubble: View {
   @ViewBuilder private var avatar: some View {
     let name = message.authorName ?? (botMessage ? model.title : "Person")
     if botMessage {
-      BotAvatar(name: name, color: message.authorColor ?? "#007A3D", size: 31)
+      BotAvatar(name: name, color: message.authorColor ?? "#FFBC3B", size: 31)
     } else {
       PersonAvatar(name: name, size: 31)
     }
@@ -1638,7 +1638,7 @@ private struct ImportedPhoto: Transferable, Sendable {
     FileRepresentation(importedContentType: .image) { received in
       let sourceExtension = received.file.pathExtension
       var destination = FileManager.default.temporaryDirectory
-        .appendingPathComponent("FroggyBot-Photo-Source-\(UUID().uuidString)")
+        .appendingPathComponent("Hey Tim-Photo-Source-\(UUID().uuidString)")
       if !sourceExtension.isEmpty { destination.appendPathExtension(sourceExtension) }
       do {
         try FileManager.default.copyItem(at: received.file, to: destination)
@@ -2125,7 +2125,7 @@ private struct Composer: View {
             maxBytes: constraints.imageMaxBytes)
           try Task.checkCancellation()
           let folder = FileManager.default.temporaryDirectory
-            .appendingPathComponent("FroggyBot-Photo-Prepared-\(UUID().uuidString)")
+            .appendingPathComponent("Hey Tim-Photo-Prepared-\(UUID().uuidString)")
           do {
             try FileManager.default.createDirectory(
               at: folder, withIntermediateDirectories: true)

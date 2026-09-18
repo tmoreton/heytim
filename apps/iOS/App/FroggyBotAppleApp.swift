@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct FroggyBotAppleApp: App {
+struct HeyTimAppleApp: App {
   #if os(iOS)
     @UIApplicationDelegateAdaptor(FroggyAppDelegate.self) private var appDelegate
   #elseif os(macOS)
@@ -24,7 +24,7 @@ struct FroggyBotAppleApp: App {
     #if os(macOS)
       WindowGroup {
         AppRoot(configuration: configuration, auth: auth, model: model)
-          .frame(minWidth: auth.phase == .signedIn ? 1_160 : 480, minHeight: 520)
+          .frame(minWidth: auth.phase == .signedIn ? 1_160 : 900, minHeight: 620)
       }
       .defaultSize(width: 1200, height: 760)
       .windowStyle(.hiddenTitleBar)
@@ -67,7 +67,7 @@ private struct AppRoot: View {
     Group {
       switch auth.phase {
       case .checking:
-        ProgressView("Opening FroggyBot…").frame(maxWidth: .infinity, maxHeight: .infinity)
+        ProgressView("Opening Hey Tim…").frame(maxWidth: .infinity, maxHeight: .infinity)
           .background(FrogTheme.background)
       case .signedOut, .codeSent: AuthView(auth: auth, invitation: invitation)
       case .signedIn: MainView(model: model, auth: auth)
@@ -98,7 +98,7 @@ private struct AppRoot: View {
     .onOpenURL { url in
       if auth.phase == .signedIn, ConnectionAuthorizationCallback(url: url) != nil {
         Task { await model.handleConnectionCallback(url) }
-      } else if auth.phase == .signedIn, url.scheme == "froggybot", url.host == "app" {
+      } else if auth.phase == .signedIn, ["heytim", "froggybot"].contains(url.scheme ?? ""), url.host == "app" {
         Task { await model.refreshBootstrap() }
       } else if auth.phase == .signedIn {
         model.handle(url: url)

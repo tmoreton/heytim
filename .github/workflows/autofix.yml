@@ -35,7 +35,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: services/runtime/uv.lock
 
-      - name: Ask FroggyBot's DeepSeek agent for a bounded repair
+      - name: Ask HeyTim's DeepSeek agent for a bounded repair
         env:
           AUTOFIX_INCIDENT_JSON: ${{ github.event_name == 'repository_dispatch' && toJSON(github.event.client_payload) || inputs.incident }}
           OPENROUTER_API_KEY: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
@@ -217,7 +217,7 @@ jobs:
           git apply "$artifact/proposed.patch"
           branch="autofix/${fingerprint}-${GITHUB_RUN_ID}"
           git switch -c "$branch"
-          git config user.name 'FroggyBot Repair Agent'
+          git config user.name 'HeyTim Repair Agent'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add --all
           git commit -m "Autofix production failure ${fingerprint}"
@@ -233,7 +233,7 @@ jobs:
           reasons = metadata.get("riskReasons") or ["none"]
           body = f"""## Automated repair
 
-          FroggyBot generated this patch from structural production telemetry. No user message, tool argument, or raw exception text was sent to the model.
+          HeyTim generated this patch from structural production telemetry. No user message, tool argument, or raw exception text was sent to the model.
 
           - Fingerprint: `{metadata['fingerprint']}`
           - Source: `{incident['source']}`

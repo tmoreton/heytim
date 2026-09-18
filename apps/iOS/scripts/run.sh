@@ -77,7 +77,7 @@ case "$platform" in
     if [[ "$build_only" == false ]]; then
       open -a Simulator
       xcrun simctl install "$simulator_id" "$app_path"
-      xcrun simctl launch "$simulator_id" com.frogbot.app
+      xcrun simctl launch "$simulator_id" ai.heytim.app
       echo "Launched FroggyBot on iPhone simulator $simulator_id"
     else
       echo "Built $app_path"

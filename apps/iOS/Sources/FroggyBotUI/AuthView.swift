@@ -17,24 +17,34 @@ public struct AuthView: View {
   public var body: some View {
     ZStack {
       FrogTheme.canvas.ignoresSafeArea()
-      ScrollView {
-        VStack(spacing: 0) {
-          brand
-          card
+      #if os(macOS)
+        GeometryReader { geometry in
+          signInContent(minHeight: geometry.size.height)
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 18)
-        .frame(maxWidth: .infinity, minHeight: 560)
-      }
-      .scrollIndicators(.hidden)
+      #else
+        signInContent(minHeight: 560)
+      #endif
     }
     .foregroundStyle(FrogTheme.text)
+  }
+
+  private func signInContent(minHeight: CGFloat) -> some View {
+    ScrollView {
+      VStack(spacing: 0) {
+        brand
+        card
+      }
+      .padding(.horizontal, 24)
+      .padding(.vertical, 18)
+      .frame(maxWidth: .infinity, minHeight: minHeight)
+    }
+    .scrollIndicators(.hidden)
   }
 
   private var brand: some View {
     VStack(spacing: 0) {
       FrogMark(size: 84).frame(height: 72).padding(.bottom, 12)
-      Text("FroggyBot")
+      Text("Hey Tim")
         .froggyFont(size: 34, weight: .heavy, design: .rounded, relativeTo: .largeTitle)
         .tracking(-1.3)
         .foregroundStyle(.primary)
@@ -106,7 +116,7 @@ public struct AuthView: View {
         Link(
           "Need an invite? Request beta access",
           destination: URL(
-            string: "mailto:tmoreton89@gmail.com?subject=FroggyBot%20beta%20access")!
+            string: "mailto:support@heytim.ai?subject=Hey%20Tim%20beta%20access")!
         )
         .froggyFont(size: 13, weight: .bold, relativeTo: .footnote)
         .foregroundStyle(brandText)
@@ -180,7 +190,7 @@ public struct AuthView: View {
     HStack(spacing: 12) {
       FrogMark(size: 38)
       VStack(alignment: .leading, spacing: 2) {
-        Text("FroggyBot invitation")
+        Text("Hey Tim invitation")
           .froggyFont(size: 14, weight: .bold, relativeTo: .callout)
         Text("Your invitation will be verified after email confirmation.")
           .froggyFont(size: 12, relativeTo: .footnote).foregroundStyle(.secondary)
@@ -198,7 +208,7 @@ public struct AuthView: View {
   private var brandText: Color { FrogTheme.accent }
   private var primaryLabel: String { isCodeSent ? "Sign in" : "Continue" }
   private var title: String {
-    isCodeSent ? "Check your messages" : invitation == nil ? "Welcome back" : "Join FroggyBot"
+    isCodeSent ? "Check your messages" : invitation == nil ? "Welcome back" : "Join Hey Tim"
   }
   private var copy: String {
     if case .codeSent(let email, let purpose) = auth.phase {

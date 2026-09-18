@@ -68,8 +68,16 @@ class GoogleOAuthTests(unittest.TestCase):
 
     def test_native_return_url_accepts_the_apple_callback_shape(self) -> None:
         self.assertEqual(
+            self.google_oauth._return_url("heytim://app?connection=gmail"),
+            "heytim://app?connection=gmail",
+        )
+        self.assertEqual(
             self.google_oauth._return_url("froggybot://app?connection=gmail"),
             "froggybot://app?connection=gmail",
+        )
+        self.assertEqual(
+            self.google_oauth._return_url("https://app.heytim.ai/app?connection=gmail"),
+            "https://app.heytim.ai/app?connection=gmail",
         )
         with self.assertRaises(self.google_oauth.ApiError) as rejected:
             self.google_oauth._return_url("froggybot://other?connection=gmail")

@@ -24,7 +24,7 @@ RUNTIME_NAMES = {
 }
 MAX_TAGS = 6
 TOOL_RISKS = {"read", "sandbox", "interactive"}
-BOT_COLORS = {"#007A3D", "#58BEAA", "#FFAA34", "#6C5CE7", "#3984F6", "#F46A27", "#E95383"}
+BOT_COLORS = {"#FFBC3B", "#007A3D", "#58BEAA", "#FFAA34", "#6C5CE7", "#3984F6", "#F46A27", "#E95383"}
 BOT_FIELDS = {
     "id",
     "version",
@@ -39,7 +39,7 @@ BOT_FIELDS = {
     "skillIds",
     "toolIds",
 }
-REPOSITORY = "tmoreton/frogbot-skills"
+REPOSITORY = "tmoreton/heytim-bots"
 GATEWAY_TARGETS = ROOT / "infrastructure" / "gateway-targets.yaml"
 
 

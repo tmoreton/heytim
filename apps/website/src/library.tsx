@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 import catalog from '../../../catalog/catalog.json';
 import { availableEntries, filterEntries, type Bot, type Skill } from './catalog';
+import { TimIcon } from './tim-icon';
 
 const available = availableEntries(catalog);
 
@@ -35,8 +36,8 @@ export function Library({ kind = 'skills' }: { kind?: 'bots' | 'skills' }) {
       <div className="catalog-grid">
         {visible.map((item) => <article key={item.id} className="catalog-card">
           <div className="card-top">
-            <span className="card-mark" style={{ '--bot-color': item.color ?? '#007a3d' } as CSSProperties}>
-              <img src="/assets/favicon.png" alt="" width="48" height="48" />
+            <span className="card-mark" style={{ '--bot-color': item.color ?? '#FFBC3B' } as CSSProperties}>
+              <TimIcon color={item.color ?? '#FFBC3B'} />
             </span>
             <span className="badge">{item.category}</span>
           </div>
@@ -44,7 +45,7 @@ export function Library({ kind = 'skills' }: { kind?: 'bots' | 'skills' }) {
           <p className="reviewed">Reviewed · {item.author} · Version {item.version}</p>
           <div className="detail-list">{item.tags.map((tag) => <span className="detail" key={tag}>{tag}</span>)}</div>
           {'path' in item ? <a className="button" href={`/${item.path}`}>Read skill instructions <span aria-hidden="true">→</span></a>
-            : <a className="button" href="/download/">Use in FroggyBot <span aria-hidden="true">→</span></a>}
+            : <a className="button" href="/download/">Use in HeyTim <span aria-hidden="true">→</span></a>}
         </article>)}
         {visible.length === 0 ? <p className="empty">No matches. Try a different search or category.
           <button className="text-button" onClick={() => { setQuery(''); setCategory('All'); }}>Clear filters</button></p> : null}

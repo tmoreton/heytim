@@ -25,7 +25,7 @@ def _bot_values(
         color = CHIEF_COLOR
     elif color == CHIEF_COLOR:
         if "color" in value:
-            raise ApiError(400, "FroggyBot green is reserved for Chief")
+            raise ApiError(400, "Tim amber is reserved for Chief")
         color = DEFAULT_BOT_COLOR
     if color not in ALLOWED_COLORS:
         raise ApiError(400, "Choose one of the available bot colors")

@@ -45,7 +45,7 @@ public final class AppModel {
     var isEmpty: Bool { text.isEmpty && attachments.isEmpty && workspaceFiles.isEmpty }
   }
 
-  private static let pushLogger = Logger(subsystem: "com.frogbot.app", category: "push")
+  private static let pushLogger = Logger(subsystem: "ai.heytim.app", category: "push")
   public var bootstrap: Bootstrap?
   public var selection: ConversationSelection? {
     didSet {
@@ -225,7 +225,7 @@ public final class AppModel {
     guard selection?.kind == .group else { return nil }
     return bootstrap?.groups.first { $0.id == selection?.id }
   }
-  public var title: String { selectedBot?.name ?? selectedGroup?.name ?? "FroggyBot" }
+  public var title: String { selectedBot?.name ?? selectedGroup?.name ?? "Hey Tim" }
   public var subtitle: String {
     selectedBot?.tagline ?? selectedGroup.map {
       "\($0.bots.count) bots · \($0.members.count) people"
@@ -456,7 +456,7 @@ public final class AppModel {
       await Task.yield()
       messages.append(
         ChatMessage(
-          id: UUID().uuidString, role: "assistant", authorName: selectedBot?.name ?? "FroggyBot",
+          id: UUID().uuidString, role: "assistant", authorName: selectedBot?.name ?? "Hey Tim",
           text: "This is the native app’s offline test reply.", createdAt: now, status: "complete"))
       return
     }
@@ -1048,13 +1048,13 @@ public enum DemoData {
       prompt:
         "Research broad questions with current, high-quality sources and lead with the conclusion. Distinguish evidence from interpretation and create a polished report when it helps.",
       color: "#5C6BC0", skillIds: ["deep-research"], toolIds: [],
-      category: "Research", author: "FroggyBot", tags: ["research", "reports"],
+      category: "Research", author: "Hey Tim", tags: ["research", "reports"],
       featured: true)
   ]
   public static let bootstrap = Bootstrap(
     bots: [
       Bot(
-        id: "chief", name: "Chief", tagline: "Your capable AI chief of staff", color: "#007A3D",
+        id: "chief", name: "Chief", tagline: "Your capable AI chief of staff", color: "#FFBC3B",
         prompt: "Help thoughtfully.", toolIds: [], skillIds: [],
         systemRole: "chief",
         createdAt: "2026-09-12T12:00:00.000Z", updatedAt: "2026-09-12T12:00:00.000Z",
@@ -1111,7 +1111,7 @@ public enum DemoData {
       status: "complete"),
     ChatMessage(
       id: "m2", role: "assistant", authorType: "bot", authorId: "chief", authorName: "Chief",
-      authorColor: "#007A3D",
+      authorColor: "#FFBC3B",
       text:
         "Absolutely. The native SwiftUI client is sharing the same backend and API contract across iPhone and Mac.\n\n- Authentication and data stay in AWS.\n- Conversations and background tasks are preserved.\n- The existing web app remains available.",
       createdAt: "2026-09-12T12:01:00.000Z", status: "complete"),
@@ -1121,7 +1121,7 @@ public enum DemoData {
       id: "scroll-\(index)", role: index.isMultiple(of: 2) ? "assistant" : "user",
       authorType: index.isMultiple(of: 2) ? "bot" : "user",
       authorName: index.isMultiple(of: 2) ? "Chief" : "You",
-      authorColor: index.isMultiple(of: 2) ? "#007A3D" : nil,
+      authorColor: index.isMultiple(of: 2) ? "#FFBC3B" : nil,
       isMine: !index.isMultiple(of: 2),
       text: index == 24
         ? "Latest message before send."
@@ -1143,7 +1143,7 @@ public enum DemoData {
       createdAt: "2026-09-12T12:02:00.000Z", status: "complete"),
     ChatMessage(
       id: "activity-assistant", role: "assistant", authorType: "bot", authorId: "chief",
-      authorName: "Chief", authorColor: "#007A3D", text: "",
+      authorName: "Chief", authorColor: "#FFBC3B", text: "",
       activity: [
         "Reviewing the repository structure and current branch.",
         "Checking `README.md` for the intended release workflow.",
@@ -1172,7 +1172,7 @@ public enum DemoData {
         tagline: "Researches source material", color: "#3488E8", systemRole: nil),
       GroupBot(
         id: "chief", ownerId: "owner", name: "Chief", tagline: "Coordinates the team",
-        color: "#007A3D", systemRole: "chief"),
+        color: "#FFBC3B", systemRole: "chief"),
       GroupBot(
         id: "reviewer", ownerId: "owner", name: "Reviewer", tagline: "Checks the result",
         color: "#6C5CE7", systemRole: nil),
@@ -1200,7 +1200,7 @@ public enum DemoData {
       createdAt: "2026-09-13T11:00:00.000Z", status: "complete"),
     ChatMessage(
       id: "history-group-reply", role: "assistant", authorType: "bot", authorId: "chief",
-      authorName: "Chief", authorColor: "#007A3D",
+      authorName: "Chief", authorColor: "#FFBC3B",
       text: "Group answer remains available after switching.",
       createdAt: "2026-09-13T11:01:00.000Z", status: "complete"),
   ]
@@ -1235,14 +1235,14 @@ public enum DemoData {
       createdAt: "2026-09-13T11:00:02.000Z", status: "pending"),
     ChatMessage(
       id: "group-waiting", role: "assistant", authorType: "bot", authorId: "reviewer",
-      authorName: "Reviewer", authorColor: "#007A3D", text: "", roundId: "round-1",
+      authorName: "Reviewer", authorColor: "#FFBC3B", text: "", roundId: "round-1",
       roundPosition: 3, roundSize: 3, roundRole: "contributor",
       createdAt: "2026-09-13T11:00:03.000Z", status: "waiting"),
   ]
   public static let markdownMessages = [
     ChatMessage(
       id: "markdown-assistant", role: "assistant", authorType: "bot", authorId: "chief",
-      authorName: "Chief", authorColor: "#007A3D",
+      authorName: "Chief", authorColor: "#FFBC3B",
       text: """
         ## Release check
 

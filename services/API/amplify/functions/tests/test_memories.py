@@ -323,7 +323,7 @@ class MemoryTests(unittest.TestCase):
             result = self.memories._export_user_memories("user-1")
 
         uploaded = self.s3.put_object.call_args.kwargs
-        self.assertEqual(uploaded["Key"], "users/actor/exports/froggybot-memory.json")
+        self.assertEqual(uploaded["Key"], "users/actor/exports/heytim-memory.json")
         self.assertEqual(json.loads(uploaded["Body"])["memories"], [])
         self.assertEqual(result["url"], "https://download.example/memory")
 

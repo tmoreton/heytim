@@ -10,7 +10,7 @@
   "runtimes": [
     {
       "name": "FrogBot",
-      "description": "Stan-powered multi-personality chat runtime for the FroggyBot mobile app",
+      "description": "Stan-powered multi-personality chat runtime for the HeyTim app",
       "build": "CodeZip",
       "entrypoint": "main.py",
       "codeLocation": "services/runtime/runtime/",
@@ -203,7 +203,7 @@
     {
       "name": "FrogBotTools",
       "protocolType": "MCP",
-      "description": "Read-only research tools available to FroggyBot agents",
+      "description": "Read-only research tools available to HeyTim agents",
       "targets": [
         {
           "name": "FrogBotWebSearch",

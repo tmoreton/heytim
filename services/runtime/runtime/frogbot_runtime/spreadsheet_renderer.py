@@ -106,7 +106,7 @@ def render_xlsx(filename: str, content: str) -> bytes:
         sheet.column_dimensions[get_column_letter(column_index)].width = width
 
     workbook.properties.title = document_title(filename)
-    workbook.properties.creator = "FroggyBot"
+    workbook.properties.creator = "HeyTim"
     output = io.BytesIO()
     workbook.save(output)
     return output.getvalue()
