@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 CHIEF_TEMPLATE_ID = "chief"
-CHIEF_COLOR = "#007A3D"
+CHIEF_COLOR = "#FFBC3B"
 DEFAULT_BOT_COLOR = "#58BEAA"
 ALLOWED_COLORS = {
     CHIEF_COLOR,
+    "#007A3D",  # Existing Chief records may still carry the previous color.
     DEFAULT_BOT_COLOR,
     "#FFAA34",
     "#6C5CE7",

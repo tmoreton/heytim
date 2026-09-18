@@ -226,7 +226,7 @@ def _api_json(
     headers = {
         "accept": "application/json",
         "authorization": f"Bearer {access_token}",
-        "user-agent": "FroggyBot/1.0",
+        "user-agent": "HeyTim/1.0",
     }
     if payload is not None:
         data = json.dumps(payload, separators=(",", ":")).encode()

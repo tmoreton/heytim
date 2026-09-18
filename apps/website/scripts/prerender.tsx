@@ -7,7 +7,7 @@ const output = new URL('../dist/', import.meta.url);
 const template = await readFile(new URL('index.html', output), 'utf8');
 for (const route of [...Object.keys(pages), '/404']) {
   const html = template.replace('<!--prerender-->', renderToString(<Website pathname={route} />))
-    .replace(/<title>[^<]*<\/title>/, `<title>${pages[route] ?? 'Page not found — FroggyBot'}</title>`);
+    .replace(/<title>[^<]*<\/title>/, `<title>${pages[route] ?? 'Page not found — HeyTim'}</title>`);
   const path = route === '/' ? 'index.html' : route === '/404' ? '404.html' : `${route.slice(1)}/index.html`;
   await mkdir(new URL('./', new URL(path, output)), { recursive: true });
   await writeFile(new URL(path, output), html);

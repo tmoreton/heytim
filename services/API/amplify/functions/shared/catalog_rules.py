@@ -39,6 +39,7 @@ RUNTIME_NAMES = {
 }
 TOOL_RISKS = {"read", "sandbox", "interactive"}
 BOT_COLORS = {
+    "#FFBC3B",
     "#007A3D",
     "#58BEAA",
     "#FFAA34",
@@ -164,7 +165,7 @@ def _validate_catalog_metadata(value: dict, *, actions: bool = False) -> dict:
         raise CatalogError(f"tags must contain at most {MAX_CATALOG_TAGS} short labels")
     metadata = {
         "category": _validate_text(value.get("category", "General"), "category", 48),
-        "author": _validate_text(value.get("author", "FroggyBot"), "author", 80),
+        "author": _validate_text(value.get("author", "HeyTim"), "author", 80),
         "tags": list(dict.fromkeys(tag.strip() for tag in tags)),
         "featured": value.get("featured") is True,
     }

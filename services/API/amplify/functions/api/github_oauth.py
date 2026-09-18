@@ -32,7 +32,7 @@ from .support import ApiError, _ensure_account_active, catalog, table
 OAUTH_STATE_SECONDS = 10 * 60
 CALLBACK_BUDGET_SECONDS = 24.0
 REQUEST_MAX_SECONDS = 5.0
-DEFAULT_RETURN_URL = "https://app.froggybot.com/app?oauth=github"
+DEFAULT_RETURN_URL = "https://app.heytim.ai/app?oauth=github"
 REDIRECT_ENV = "GITHUB_OAUTH_REDIRECT_URI"
 
 _secrets_manager = None
@@ -99,7 +99,7 @@ def _github_json(
 ) -> dict:
     headers = {
         "accept": "application/vnd.github+json",
-        "user-agent": "FroggyBot/1.0",
+        "user-agent": "HeyTim/1.0",
         "x-github-api-version": GITHUB_API_VERSION,
     }
     if token:
@@ -151,7 +151,7 @@ def _exchange_user_code(
         headers={
             "accept": "application/json",
             "content-type": "application/x-www-form-urlencoded",
-            "user-agent": "FroggyBot/1.0",
+            "user-agent": "HeyTim/1.0",
         },
         method="POST",
     )
@@ -208,7 +208,7 @@ def _installation_repositories(token: str, deadline: float) -> list[dict]:
         )
         total_count = result.get("total_count")
         if isinstance(total_count, int) and total_count > 500:
-            raise ApiError(400, "Select 500 or fewer repositories for FroggyBot")
+            raise ApiError(400, "Select 500 or fewer repositories for HeyTim")
         values = result.get("repositories")
         if not isinstance(values, list):
             raise ApiError(400, "GitHub did not return repository access")
@@ -222,7 +222,7 @@ def _installation_repositories(token: str, deadline: float) -> list[dict]:
         if len(values) < 100:
             break
     if not repositories:
-        raise ApiError(400, "Select at least one repository for FroggyBot")
+        raise ApiError(400, "Select at least one repository for HeyTim")
     return repositories
 
 

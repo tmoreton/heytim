@@ -80,11 +80,11 @@ class AdmissionDecision:
             )
         if self.reason == "provider_daily_limit":
             return (
-                "YouTube research has reached FroggyBot's shared daily capacity. "
+                "YouTube research has reached HeyTim's shared daily capacity. "
                 "Please try again after the provider limit resets."
             )
         return (
-            "FroggyBot is temporarily unavailable because this run could not be "
+            "HeyTim is temporarily unavailable because this run could not be "
             "safely authorized. Please try again later."
         )
 

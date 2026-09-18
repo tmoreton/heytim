@@ -490,7 +490,7 @@ private struct BotEditor: View {
 
   private var colorOptions: [BotColorOption] {
     if editingBot?.systemRole == "chief" {
-      return [BotColorOption(value: "#007A3D", name: "FroggyBot green")]
+      return [BotColorOption(value: "#FFBC3B", name: "Tim amber")]
     }
     return customBotColors
   }
@@ -1992,7 +1992,7 @@ struct MemoriesView: View {
             "Nothing Remembered Yet", systemImage: "brain.head.profile",
             description: Text(
               botId == nil
-                ? "Facts and preferences you add or ask FroggyBot to remember will appear here."
+                ? "Facts and preferences you add or ask Hey Tim to remember will appear here."
                 : "This bot has no private memories yet. Add a note here to keep it just for this bot."))
         }
       } else if filteredRecords.isEmpty {
@@ -2092,7 +2092,7 @@ struct MemoriesView: View {
     } message: {
       Text(
         forgetCandidates.count == 1
-          ? "FroggyBot will stop using this information in future conversations."
+          ? "Hey Tim will stop using this information in future conversations."
           : "This permanently removes the selected memories. This cannot be undone."
       )
     }
@@ -2519,7 +2519,7 @@ private struct CapabilityDetailView: View {
         if let category = capability.category { LabeledContent("Category", value: category) }
         if let provider = capability.provider { LabeledContent("Provider", value: provider) }
         LabeledContent("Access", value: accessLabel)
-        LabeledContent("Source", value: capability.source == "user" ? "Connected account" : "FroggyBot")
+        LabeledContent("Source", value: capability.source == "user" ? "Connected account" : "Hey Tim")
       }
       if let actions = capability.actions, !actions.isEmpty {
         Section("Actions") {

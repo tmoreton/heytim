@@ -19,7 +19,7 @@ type BotEmailProps = {
 };
 
 export function addBotEmailReceiving({ stack, table, logsKey }: BotEmailProps): void {
-  const domain = 'bots.froggybot.com';
+  const domain = 'bots.heytim.ai';
   const stage = process.env.FROGBOT_BOT_EMAIL_STAGE;
   if (stage !== 'identity' && stage !== 'receive') {
     throw new Error('Set FROGBOT_BOT_EMAIL_STAGE to identity or receive for production.');

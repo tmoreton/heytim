@@ -36,7 +36,7 @@ def _post_json(url: str, payload: Any) -> dict:
         headers={
             "accept": "application/json",
             "content-type": "application/json",
-            "user-agent": "FroggyBot/1.0",
+            "user-agent": "HeyTim/1.0",
         },
         method="POST",
     )

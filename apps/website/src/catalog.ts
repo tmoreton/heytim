@@ -30,5 +30,5 @@ export function invitationAppLink(search: string): string | undefined {
   if (!kind || !['group', 'bot', 'skill', 'chat'].includes(kind) || !value) return undefined;
   if (params.getAll('kind').length !== 1 || params.getAll('token').length !== 1) return undefined;
   if (value.length > 2048 || /[\s\x00-\x1f]/.test(value)) return undefined;
-  return `frogbot://invite?${new URLSearchParams({ kind, token: value })}`;
+  return `heytim://invite?${new URLSearchParams({ kind, token: value })}`;
 }

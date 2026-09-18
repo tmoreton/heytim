@@ -20,8 +20,8 @@ test('searches text and filters categories without mutating the catalog', () => 
   assert.equal(JSON.stringify(catalog), original);
 });
 test('preserves invite tokens without accepting arbitrary redirects', () => {
-  assert.equal(invitationAppLink('?kind=group&token=abc_123&redirect=https://evil.test'), 'frogbot://invite?kind=group&token=abc_123');
-  assert.equal(invitationAppLink('?kind=skill&token=skill-token'), 'frogbot://invite?kind=skill&token=skill-token');
+  assert.equal(invitationAppLink('?kind=group&token=abc_123&redirect=https://evil.test'), 'heytim://invite?kind=group&token=abc_123');
+  assert.equal(invitationAppLink('?kind=skill&token=skill-token'), 'heytim://invite?kind=skill&token=skill-token');
   for (const search of ['', '?redirect=javascript:alert(1)', '?kind=group&kind=bot&token=a', '?kind=group&token=a%0Ab']) {
     assert.equal(invitationAppLink(search), undefined);
   }

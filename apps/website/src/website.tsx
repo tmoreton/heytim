@@ -7,12 +7,12 @@ import { Library } from './library';
 import { OpenApp } from './open-app';
 
 export const pages: Record<string, string> = {
-  '/': 'FroggyBot — Turn group talk into action',
-  '/library': 'Ready-made bots — FroggyBot', '/skills': 'Skills — FroggyBot',
-  '/privacy': 'Privacy Policy — FroggyBot', '/terms': 'Terms of Use — FroggyBot',
-  '/sms': 'SMS program — FroggyBot', '/contribute': 'Contribute — FroggyBot',
-  '/download': 'Get the Apple app — FroggyBot', '/app': 'Open FroggyBot',
-  '/invite': 'You’re invited — FroggyBot',
+  '/': 'HeyTim — Turn group talk into action',
+  '/library': 'Ready-made bots — HeyTim', '/skills': 'Skills — HeyTim',
+  '/privacy': 'Privacy Policy — HeyTim', '/terms': 'Terms of Use — HeyTim',
+  '/sms': 'SMS program — HeyTim', '/contribute': 'Contribute — HeyTim',
+  '/download': 'Get the Apple app — HeyTim', '/app': 'Open HeyTim',
+  '/invite': 'You’re invited — HeyTim',
 };
 
 export function Website({ pathname }: { pathname: string }) {
@@ -27,7 +27,7 @@ export function Website({ pathname }: { pathname: string }) {
   return <>
     <a className="skip-link" href="#main">Skip to content</a>
     <header className="site-header">
-      <a className="wordmark" href="/" aria-label="FroggyBot home"><img src="/assets/frogbot.png" alt="" width="38" height="38" /><span>FroggyBot</span></a>
+      <a className="wordmark" href="/" aria-label="HeyTim home"><img src="/assets/tim-mark.svg" alt="" width="38" height="38" /><span>HeyTim</span></a>
       <nav className="site-nav" aria-label="Main navigation">
         <a href="/library/" aria-current={route === '/library' ? 'page' : undefined}>Bots</a>
         <a href="/skills/" aria-current={route === '/skills' ? 'page' : undefined}>Skills</a>
@@ -36,9 +36,9 @@ export function Website({ pathname }: { pathname: string }) {
       </nav>
     </header>
     {content}
-    <footer className="site-footer"><span>© 2026 FroggyBot</span><nav className="footer-links" aria-label="Footer">
+    <footer className="site-footer"><span>© 2026 HeyTim</span><nav className="footer-links" aria-label="Footer">
       <a href="/sms/">SMS program</a><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a>
-      <a href="/skills/">Skills</a><a href="mailto:tmoreton89@gmail.com">Contact</a>
+      <a href="/skills/">Skills</a><a href="mailto:support@heytim.ai">Contact</a>
     </nav></footer>
   </>;
 }

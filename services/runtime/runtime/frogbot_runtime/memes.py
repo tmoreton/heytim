@@ -46,7 +46,7 @@ def _safe_png_name(value: Any) -> str:
     if Path(raw_name).suffix.lower() != ".png":
         raise ValueError("filename must end in .png")
     stem = re.sub(r"[^A-Za-z0-9 _.-]", "-", Path(raw_name).stem).strip(" .-")
-    return f"{(stem or 'FroggyBot meme')[:80]}.png"
+    return f"{(stem or 'HeyTim meme')[:80]}.png"
 
 
 def _clean_caption(value: Any, field_name: str) -> str:

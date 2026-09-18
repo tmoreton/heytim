@@ -1,5 +1,5 @@
-name: Deploy FroggyBot production release
-run-name: Deploy FroggyBot ${{ github.event.release.tag_name || github.ref_name }}
+name: Deploy HeyTim production release
+run-name: Deploy HeyTim ${{ github.event.release.tag_name || github.ref_name }}
 
 on:
   release:

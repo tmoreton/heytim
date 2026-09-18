@@ -556,13 +556,13 @@ def _export_user_memories(user_id: str) -> dict:
     snapshot = _list_user_memories(user_id)
     exported_at = datetime.now(UTC)
     document = {
-        "format": "FroggyBot memory export",
+        "format": "HeyTim memory export",
         "version": 1,
         "exportedAt": exported_at.isoformat(),
         "rawConversationRetentionDays": snapshot["rawConversationRetentionDays"],
         "memories": snapshot["records"],
     }
-    key = f"users/{memory_actor_id(user_id)}/exports/froggybot-memory.json"
+    key = f"users/{memory_actor_id(user_id)}/exports/heytim-memory.json"
     s3.put_object(
         Bucket=FILES_BUCKET_NAME,
         Key=key,
@@ -575,7 +575,7 @@ def _export_user_memories(user_id: str) -> dict:
             "Bucket": FILES_BUCKET_NAME,
             "Key": key,
             "ResponseContentType": "application/json",
-            "ResponseContentDisposition": 'attachment; filename="froggybot-memory.json"',
+            "ResponseContentDisposition": 'attachment; filename="heytim-memory.json"',
         },
         ExpiresIn=900,
     )

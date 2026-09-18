@@ -41,7 +41,7 @@ def _download_repository_archive(repository: str, ref: str, token: str) -> bytes
         headers={
             "Accept": "application/vnd.github+json",
             "Authorization": f"Bearer {token}",
-            "User-Agent": "FroggyBot",
+            "User-Agent": "HeyTim",
             "X-GitHub-Api-Version": "2022-11-28",
         },
     )

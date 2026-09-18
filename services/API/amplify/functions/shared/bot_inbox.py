@@ -9,7 +9,7 @@ import uuid
 
 from shared.keys import user_pk
 
-MAIL_DOMAIN = "bots.froggybot.com"
+MAIL_DOMAIN = "bots.heytim.ai"
 _ADDRESS_PATTERN = re.compile(r"^b-([a-z2-7]{26})\.([a-z2-7]{16})\.([a-z2-7]{16})$")
 
 

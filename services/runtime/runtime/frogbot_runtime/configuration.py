@@ -49,7 +49,7 @@ def bot_configuration(
     if not isinstance(bot, dict):
         raise TypeError("bot must be an object")
 
-    name = bot.get("name", "FroggyBot")
+    name = bot.get("name", "HeyTim")
     prompt = bot.get("prompt", "Be helpful, direct, and honest.")
     if not isinstance(name, str) or not name.strip() or len(name) > 60:
         raise ValueError("bot.name must be a non-empty string up to 60 characters")

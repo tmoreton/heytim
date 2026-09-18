@@ -94,7 +94,7 @@ CONNECTION_PROVIDER_SPECS = (
         "permissionsSummary": "Only selected repositories and app permissions",
         "privacyTitle": "Repository access stays narrowly scoped",
         "privacyDescription": (
-            "FroggyBot stores the installation grant, not a personal token. "
+            "HeyTim stores the installation grant, not a personal token. "
             "It mints one-hour installation tokens only when a bot uses GitHub."
         ),
         "connectLabel": "Install app",
@@ -114,7 +114,7 @@ CONNECTION_PROVIDER_SPECS = (
         "permissionsSummary": "No sending, deleting, relabeling, or archiving",
         "privacyTitle": "Your Gmail account stays private",
         "privacyDescription": (
-            "FroggyBot uses this connection only when a bot needs the account. "
+            "HeyTim uses this connection only when a bot needs the account. "
             "It can search and read email and create drafts for review."
         ),
         "connectLabel": "Connect account",
@@ -158,7 +158,7 @@ CONNECTION_PROVIDER_SPECS = (
         "permissionsSummary": "Read-only Drive, Docs, Sheets, and Calendar access",
         "privacyTitle": "Workspace content stays user-scoped",
         "privacyDescription": (
-            "FroggyBot requests read-only access and exposes only reviewed Drive, "
+            "HeyTim requests read-only access and exposes only reviewed Drive, "
             "Docs, Sheets, and Calendar tools. It cannot change files or calendar events."
         ),
         "connectLabel": "Connect account",
@@ -187,7 +187,7 @@ CONNECTION_PROVIDER_SPECS = (
         "permissionsSummary": "Read-only search and conversation history",
         "privacyTitle": "Slack access follows your own workspace permissions",
         "privacyDescription": (
-            "FroggyBot uses a per-user Slack grant and cannot post, react, edit, "
+            "HeyTim uses a per-user Slack grant and cannot post, react, edit, "
             "or delete messages. Private results remain limited by Slack consent."
         ),
         "connectLabel": "Connect workspace",
@@ -218,7 +218,7 @@ CONNECTION_PROVIDER_SPECS = (
         "permissionsSummary": "Delegated read-only Microsoft Graph access",
         "privacyTitle": "Microsoft data stays user-scoped",
         "privacyDescription": (
-            "FroggyBot acts only for the signed-in user. It cannot send mail, "
+            "HeyTim acts only for the signed-in user. It cannot send mail, "
             "change calendars, or modify OneDrive and SharePoint content."
         ),
         "connectLabel": "Connect Microsoft",
@@ -265,13 +265,13 @@ CONNECTION_PROVIDER_SPECS = (
     {
         "id": "notion",
         "name": "Notion",
-        "description": "Search and read pages shared with the FroggyBot connection.",
+        "description": "Search and read pages shared with the HeyTim connection.",
         "category": "Knowledge",
         "iconText": "N",
         "permissionsSummary": "Read content only; users choose accessible pages",
         "privacyTitle": "Notion access is page-scoped",
         "privacyDescription": (
-            "Each workspace chooses which pages to share. FroggyBot cannot insert, "
+            "Each workspace chooses which pages to share. HeyTim cannot insert, "
             "update, or delete Notion content."
         ),
         "connectLabel": "Connect workspace",
@@ -292,7 +292,7 @@ CONNECTION_PROVIDER_SPECS = (
         "privacyTitle": "Each CRM account is assigned separately",
         "privacyDescription": (
             "A bot can use only the HubSpot accounts you assign. "
-            "FroggyBot cannot change CRM records."
+            "HeyTim cannot change CRM records."
         ),
         "connectLabel": "Connect HubSpot account",
         "reconnectLabel": "Reconnect HubSpot account",
@@ -336,7 +336,7 @@ CONNECTION_PROVIDER_SPECS = (
         "privacyTitle": "Zoom meetings stay account-scoped",
         "privacyDescription": (
             "Only assigned bots can list or read meetings in this Zoom account. "
-            "FroggyBot cannot start, change, or delete meetings."
+            "HeyTim cannot start, change, or delete meetings."
         ),
         "connectLabel": "Connect Zoom account",
         "reconnectLabel": "Reconnect Zoom account",
@@ -356,7 +356,7 @@ CONNECTION_PROVIDER_SPECS = (
         "privacyTitle": "X access requires a connected account",
         "privacyDescription": (
             "Connect an X account before a bot can search posts or read your "
-            "profile. FroggyBot requests read scopes, never write permissions."
+            "profile. HeyTim requests read scopes, never write permissions."
         ),
         "connectLabel": "Connect account",
         "reconnectLabel": "Reconnect account",

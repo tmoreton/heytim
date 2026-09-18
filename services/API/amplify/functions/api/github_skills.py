@@ -41,7 +41,7 @@ def _github_json(path: str, *, limit: int = _MAX_INDEX_BYTES) -> Any:
         url,
         headers={
             "Accept": "application/vnd.github+json",
-            "User-Agent": "FroggyBot-Skill-Importer",
+            "User-Agent": "HeyTim-Skill-Importer",
             "X-GitHub-Api-Version": "2022-11-28",
         },
     )

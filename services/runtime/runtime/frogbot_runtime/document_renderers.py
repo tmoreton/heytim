@@ -48,9 +48,9 @@ def render_docx(filename: str, content: str) -> bytes:
     normal.paragraph_format.space_after = Pt(8)
     normal.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
 
-    if "FroggyBot Code" not in document.styles:
+    if "HeyTim Code" not in document.styles:
         code_style = document.styles.add_style(
-            "FroggyBot Code", WD_STYLE_TYPE.PARAGRAPH
+            "HeyTim Code", WD_STYLE_TYPE.PARAGRAPH
         )
         code_style.font.name = "Courier New"
         code_style.font.size = Pt(9)
@@ -74,7 +74,7 @@ def render_docx(filename: str, content: str) -> bytes:
         elif block.kind == "number":
             document.add_paragraph(block.text, style="List Number")
         elif block.kind == "code":
-            paragraph = document.add_paragraph(style="FroggyBot Code")
+            paragraph = document.add_paragraph(style="HeyTim Code")
             for index, line in enumerate(block.text.split("\n")):
                 if index:
                     paragraph.add_run().add_break(WD_BREAK.LINE)
@@ -85,7 +85,7 @@ def render_docx(filename: str, content: str) -> bytes:
     document.core_properties.title = (
         first_heading.text if first_heading else document_title(filename)
     )
-    document.core_properties.author = "FroggyBot"
+    document.core_properties.author = "HeyTim"
     output = io.BytesIO()
     document.save(output)
     return output.getvalue()
@@ -102,13 +102,13 @@ def _reportlab_fonts() -> tuple[str, str, str]:
     mono = fonts_dir / "VeraMono.ttf"
     if regular.is_file() and bold.is_file() and mono.is_file():
         for name, path in (
-            ("FroggyBotSans", regular),
-            ("FroggyBotSansBold", bold),
-            ("FroggyBotMono", mono),
+            ("HeyTimSans", regular),
+            ("HeyTimSansBold", bold),
+            ("HeyTimMono", mono),
         ):
             if name not in pdfmetrics.getRegisteredFontNames():
                 pdfmetrics.registerFont(TTFont(name, str(path)))
-        return "FroggyBotSans", "FroggyBotSansBold", "FroggyBotMono"
+        return "HeyTimSans", "HeyTimSansBold", "HeyTimMono"
     return "Helvetica", "Helvetica-Bold", "Courier"
 
 
@@ -134,7 +134,7 @@ def render_pdf(filename: str, content: str) -> bytes:
         output,
         pagesize=letter,
         title=title,
-        author="FroggyBot",
+        author="HeyTim",
         leftMargin=0.8 * inch,
         rightMargin=0.8 * inch,
         topMargin=0.75 * inch,
@@ -142,7 +142,7 @@ def render_pdf(filename: str, content: str) -> bytes:
     )
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
-        "FroggyBotTitle",
+        "HeyTimTitle",
         parent=styles["Title"],
         fontName=bold,
         fontSize=22,
@@ -152,7 +152,7 @@ def render_pdf(filename: str, content: str) -> bytes:
         spaceAfter=22,
     )
     body_style = ParagraphStyle(
-        "FroggyBotBody",
+        "HeyTimBody",
         parent=styles["BodyText"],
         fontName=regular,
         fontSize=10.5,
@@ -161,7 +161,7 @@ def render_pdf(filename: str, content: str) -> bytes:
         spaceAfter=9,
     )
     bullet_style = ParagraphStyle(
-        "FroggyBotBullet",
+        "HeyTimBullet",
         parent=body_style,
         leftIndent=18,
         firstLineIndent=-9,
@@ -169,7 +169,7 @@ def render_pdf(filename: str, content: str) -> bytes:
     )
     heading_styles = {
         level: ParagraphStyle(
-            f"FroggyBotHeading{level}",
+            f"HeyTimHeading{level}",
             parent=styles[f"Heading{level}"],
             fontName=bold,
             fontSize=size,
@@ -181,7 +181,7 @@ def render_pdf(filename: str, content: str) -> bytes:
         for level, size in ((1, 17), (2, 14), (3, 12))
     }
     code_style = ParagraphStyle(
-        "FroggyBotCode",
+        "HeyTimCode",
         parent=body_style,
         fontName=mono,
         fontSize=8.5,

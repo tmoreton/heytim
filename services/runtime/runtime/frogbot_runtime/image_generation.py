@@ -61,7 +61,7 @@ def _safe_png_name(value: Any) -> str:
     if Path(raw_name).suffix.lower() != ".png":
         raise ValueError("filename must end in .png")
     stem = re.sub(r"[^A-Za-z0-9 _.-]", "-", Path(raw_name).stem).strip(" .-")
-    return f"{(stem or 'FroggyBot image')[:80]}.png"
+    return f"{(stem or 'HeyTim image')[:80]}.png"
 
 
 def _clean_text(value: Any, field: str, maximum: int) -> str:
@@ -281,8 +281,8 @@ async def _invoke_image(
                 f"{OPENROUTER_BASE_URL.rstrip('/')}/images",
                 headers={
                     "Authorization": f"Bearer {api_key}",
-                    "HTTP-Referer": "https://froggybot.com",
-                    "X-OpenRouter-Title": "FroggyBot",
+                    "HTTP-Referer": "https://heytim.ai",
+                    "X-OpenRouter-Title": "HeyTim",
                 },
                 json=request,
             )

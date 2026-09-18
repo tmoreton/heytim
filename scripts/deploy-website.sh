@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-target_repository="tmoreton/frog-bots"
+target_repository="tmoreton/heytim-bots"
 mode="${1:---dry-run}"
 if [[ "$mode" != --apply && "$mode" != --dry-run ]] || (( $# > 1 )); then
   echo "Usage: $0 [--dry-run|--apply]" >&2
@@ -20,7 +20,7 @@ fi
 # The public repository is an artifact mirror, not a second maintained source.
 # main and all historical catalog tags are untouched.
 gh auth status >/dev/null
-staging="$(mktemp -d /tmp/frogbot-website-publish.XXXXXX)"
+staging="$(mktemp -d /tmp/heytim-website-publish.XXXXXX)"
 checkout="$staging/checkout"
 git clone --quiet --no-checkout --filter=blob:none "https://github.com/$target_repository.git" "$checkout"
 if git -C "$checkout" ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
@@ -32,11 +32,11 @@ fi
 rsync -a --delete --exclude .git "$repository_root/apps/website/dist/" "$checkout/"
 git -C "$checkout" add --all
 if ! git -C "$checkout" diff --cached --quiet; then
-  git -C "$checkout" -c user.name='FroggyBot Publisher' -c user.email='tmoreton89@gmail.com' \
-    commit -m "Publish website from frogbot $source_revision"
+  git -C "$checkout" -c user.name='HeyTim Publisher' -c user.email='tmoreton89@gmail.com' \
+    commit -m "Publish website from HeyTim $source_revision"
   git -C "$checkout" push origin HEAD:gh-pages
 fi
-# Keep the existing domain and HTTPS settings; switch only the build source.
+# Keep the configured custom domain and HTTPS settings; switch only the build source.
 gh api --method PUT "repos/$target_repository/pages" \
   -f build_type=legacy -f 'source[branch]=gh-pages' -f 'source[path]=/' >/dev/null
 # The first push can precede the source switch, so request the initial Pages

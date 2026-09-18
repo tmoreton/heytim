@@ -1,12 +1,12 @@
-:focus-visible { outline: 3px solid var(--green); outline-offset: 4px; }
-.site-nav [aria-current="page"] { color: var(--green); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+.site-nav [aria-current="page"] { color: var(--accent); }
 .library-tabs { display: flex; justify-content: center; gap: 12px; margin-top: 26px; }
 .library-tabs a { padding: 12px 24px; border: 1px solid var(--line); border-radius: 24px; font-weight: 700; }
-.library-tabs [aria-current="page"] { color: var(--white); background: var(--green); border-color: var(--green); }
+.library-tabs [aria-current="page"] { color: var(--white); background: var(--accent); border-color: var(--accent); }
 .search-label { display: block; text-align: center; font-weight: 650; }
 .directory-count { margin-bottom: 24px; }
 .catalog-card { min-height: 310px; }
-.text-button { display: block; margin: 16px auto; border: none; background: transparent; color: var(--green); text-decoration: underline; cursor: pointer; min-height: 44px; }
+.text-button { display: block; margin: 16px auto; border: none; background: transparent; color: var(--accent); text-decoration: underline; cursor: pointer; min-height: 44px; }
 .doc-page .button, .doc-page .button-secondary { margin-top: 12px; }
 @media (max-width: 420px) { .site-header { gap: 12px; } .site-nav { gap: 12px; } .site-nav .button-secondary { padding: 0 12px; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }

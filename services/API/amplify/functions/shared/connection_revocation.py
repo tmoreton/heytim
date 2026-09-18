@@ -105,7 +105,7 @@ def revoke_github_access(
         headers={
             "accept": "application/vnd.github+json",
             "authorization": f"Bearer {token}",
-            "user-agent": "FroggyBot/1.0",
+            "user-agent": "HeyTim/1.0",
             "x-github-api-version": GITHUB_API_VERSION,
         },
         method="DELETE",
@@ -212,7 +212,7 @@ def revoke_external_access(
             method="POST",
         )
     else:
-        # Microsoft and Jira remove the local secret to end FroggyBot access.
+        # Microsoft and Jira remove the local secret to end HeyTim access.
         return
     try:
         with urlopen(request, timeout=PROVIDER_REVOKE_TIMEOUT_SECONDS):

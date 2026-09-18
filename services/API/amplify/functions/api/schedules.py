@@ -145,7 +145,7 @@ def _remote_schedule_request(item: dict) -> dict:
     return {
         "Name": item["schedulerName"],
         "GroupName": SCHEDULE_GROUP_NAME,
-        "Description": "Runs a recurring FroggyBot task.",
+        "Description": "Runs a recurring HeyTim task.",
         "ScheduleExpression": schedule_expression(
             item["frequency"],
             item["time"],

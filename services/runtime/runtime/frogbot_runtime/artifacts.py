@@ -97,7 +97,7 @@ def _artifact_name(value: Any) -> tuple[str, str, str]:
         )
     stem = re.sub(r"[^A-Za-z0-9 _.-]", "-", Path(name).stem).strip(" .-")
     if not stem:
-        stem = "FroggyBot artifact"
+        stem = "HeyTim artifact"
     safe_name = f"{stem[:80]}{extension}"
     return safe_name, extension, content_type
 
@@ -169,7 +169,7 @@ def put_png_artifact(
     if Path(raw_name).suffix.lower() != ".png":
         raise ValueError("filename must end in .png")
     stem = re.sub(r"[^A-Za-z0-9 _.-]", "-", Path(raw_name).stem).strip(" .-")
-    safe_name = f"{(stem or 'FroggyBot screenshot')[:80]}.png"
+    safe_name = f"{(stem or 'HeyTim screenshot')[:80]}.png"
     _validated_points_png(body)
     return _put_artifact(
         client or boto3.client("s3"),

@@ -47,7 +47,7 @@ INCOMPLETE_TURN_MESSAGE = (
     "verified step."
 )
 PROVIDER_CALL_LIMIT_MESSAGE = (
-    "I stopped this run before it could exceed FroggyBot's provider-call safety "
+    "I stopped this run before it could exceed HeyTim's provider-call safety "
     "limit. Start a new, narrower request to continue."
 )
 
@@ -67,7 +67,7 @@ async def run_agent(payload, context):
     config = bot_configuration(payload, session_id, actor_id, messages, usage)
     approval = approval_configuration(payload, actor_id)
     log.info(
-        "Invoking FroggyBot session %s with %d history messages",
+        "Invoking HeyTim session %s with %d history messages",
         session_id,
         len(messages),
     )

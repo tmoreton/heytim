@@ -72,7 +72,7 @@ export function addProductionAutofix({
       TABLE_NAME: table.tableName,
       AUTOFIX_ALLOWED_LOG_GROUPS: [workerLogGroup.logGroupName, runtimeLogGroupName].join(','),
       AUTOFIX_GITHUB_APP_SECRET_ARN: githubAppSecretArn,
-      AUTOFIX_REPOSITORY: 'tmoreton/frogbot',
+      AUTOFIX_REPOSITORY: 'tmoreton/heytim-platform',
       AUTOFIX_EVENT_TYPE: 'froggybot-production-error',
       AUTOFIX_COOLDOWN_HOURS: '6',
       AUTOFIX_DAILY_LIMIT: '3',

@@ -125,7 +125,7 @@ def _public_invite_preview(kind: str, token: str) -> dict:
         return {
             "kind": "group",
             "title": meta["name"],
-            "description": f"{inviter} invited you to chat with friends and FroggyBots.",
+            "description": f"{inviter} invited you to chat with friends and HeyTim bots.",
             "inviterName": inviter,
             "peopleCount": len(members),
             "bots": sorted(bots, key=lambda item: item["name"].lower()),
@@ -139,20 +139,20 @@ def _public_invite_preview(kind: str, token: str) -> dict:
         if not share or int(share.get("expiresAt", 0)) < int(
             datetime.now(UTC).timestamp()
         ):
-            raise ApiError(404, "This FroggyBot invite is invalid or expired")
+            raise ApiError(404, "This HeyTim invite is invalid or expired")
         bot = share.get("snapshot", {}).get("bot")
         if (
             not isinstance(bot, dict)
             or access.get("targetId") != share.get("targetId")
         ):
-            raise ApiError(404, "This FroggyBot invite is invalid")
+            raise ApiError(404, "This HeyTim invite is invalid")
         return {
             "kind": kind,
-            "title": bot.get("name", "Shared FroggyBot"),
-            "description": bot.get("tagline", "Add this FroggyBot to your team."),
+            "title": bot.get("name", "Shared HeyTim"),
+            "description": bot.get("tagline", "Add this HeyTim to your team."),
             "bots": [
                 {
-                    "name": bot.get("name", "FroggyBot"),
+                    "name": bot.get("name", "HeyTim"),
                     "tagline": bot.get("tagline", ""),
                     "color": _bot_color(bot),
                 }
@@ -178,7 +178,7 @@ def _public_invite_preview(kind: str, token: str) -> dict:
             "kind": "skill",
             "title": skill.get("name", "Shared skill"),
             "description": skill.get(
-                "description", "Add this skill to your FroggyBot team."
+                "description", "Add this skill to your HeyTim team."
             ),
             "bots": [],
             "expiresAt": share["expiresAt"],
@@ -474,9 +474,9 @@ def _share_summary(item: dict) -> dict | None:
         bot = snapshot.get("bot", {}) if isinstance(snapshot, dict) else {}
         kind = "chat" if item.get("scope") == "chat" else "bot"
         title = (
-            bot.get("name", "Shared FroggyBot")
+            bot.get("name", "Shared HeyTim")
             if isinstance(bot, dict)
-            else "Shared FroggyBot"
+            else "Shared HeyTim"
         )
     elif entity == "SKILL_SHARE":
         snapshot = item.get("snapshot", {})

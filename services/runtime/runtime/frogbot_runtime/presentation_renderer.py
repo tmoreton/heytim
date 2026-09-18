@@ -119,7 +119,7 @@ def render_pptx(filename: str, content: str) -> bytes:
                 paragraph.font.size = Pt(max(17, font_size - 2))
 
     presentation.core_properties.title = slides[0][0]
-    presentation.core_properties.author = "FroggyBot"
+    presentation.core_properties.author = "HeyTim"
     output = io.BytesIO()
     presentation.save(output)
     return output.getvalue()

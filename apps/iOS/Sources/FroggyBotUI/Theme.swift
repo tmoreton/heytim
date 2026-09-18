@@ -191,25 +191,25 @@ private struct FroggyNavigationTitleModifier: ViewModifier {
 }
 
 public enum FrogTheme {
-  // Keep the original, darker FroggyBot green for filled surfaces where white text sits on top.
-  public static let brand = Color(hex: "#007A3D")
-  public static let brandDark = Color(hex: "#006633")
-  // Interactive controls and green text need a lighter green on dark system surfaces.
+  // Tim's amber identity uses a deeper tone for readable controls on light surfaces.
+  public static let brand = Color(hex: "#A15B00")
+  public static let brandDark = Color(hex: "#754100")
+  public static let mascot = Color(hex: "#FFBC3B")
   public static let accent: Color = {
     #if os(iOS)
       Color(
         uiColor: UIColor { traits in
           traits.userInterfaceStyle == .dark
-            ? UIColor(red: 87 / 255, green: 224 / 255, blue: 140 / 255, alpha: 1)
-            : UIColor(red: 0, green: 122 / 255, blue: 61 / 255, alpha: 1)
+            ? UIColor(red: 1, green: 196 / 255, blue: 87 / 255, alpha: 1)
+            : UIColor(red: 161 / 255, green: 91 / 255, blue: 0, alpha: 1)
         })
     #else
       Color(
         nsColor: NSColor(name: nil) { appearance in
           let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
           return isDark
-            ? NSColor(srgbRed: 87 / 255, green: 224 / 255, blue: 140 / 255, alpha: 1)
-            : NSColor(srgbRed: 0, green: 122 / 255, blue: 61 / 255, alpha: 1)
+            ? NSColor(srgbRed: 1, green: 196 / 255, blue: 87 / 255, alpha: 1)
+            : NSColor(srgbRed: 161 / 255, green: 91 / 255, blue: 0, alpha: 1)
         })
     #endif
   }()
@@ -257,11 +257,7 @@ public struct FrogMark: View {
   public init(size: CGFloat = 84) { self.size = size }
 
   public var body: some View {
-    Image("FrogLogo")
-      .resizable()
-      .interpolation(.high)
-      .scaledToFit()
-      .frame(width: size, height: size)
+    TimMark(color: FrogTheme.mascot, size: size)
       .accessibilityHidden(true)
   }
 }
@@ -278,58 +274,41 @@ public struct BotAvatar: View {
   }
 
   public var body: some View {
-    ZStack {
-      Image("FrogLogo")
-        .resizable()
-        .renderingMode(.template)
-        .foregroundStyle(Color(hex: color))
-        .scaledToFit()
-      AvatarFace(color: Color(hex: color))
-    }
-    .frame(width: size, height: size)
+    TimMark(color: Color(hex: color), size: size)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel("\(name) bot")
   }
 }
 
-private struct AvatarFace: View {
+private struct TimMark: View {
   let color: Color
+  let size: CGFloat
 
   var body: some View {
-    GeometryReader { geometry in
-      let side = min(geometry.size.width, geometry.size.height)
-      ZStack {
-        eye(at: CGPoint(x: side * 0.295, y: side * 0.348), side: side)
-        eye(at: CGPoint(x: side * 0.705, y: side * 0.348), side: side)
-        SmileShape()
-          .stroke(.white, style: StrokeStyle(lineWidth: max(2, side * 0.057), lineCap: .round))
-          .frame(width: side, height: side)
-      }
-    }
-  }
+    Canvas { context, _ in
+      var context = context
+      let scale = size / 100
+      context.scaleBy(x: scale, y: scale)
+      let ink = Color(hex: "#252829")
+      let white = Color(hex: "#FFFDF8")
 
-  private func eye(at point: CGPoint, side: CGFloat) -> some View {
-    ZStack {
-      Circle().fill(.white).frame(width: side * 0.19, height: side * 0.19)
-      ZStack(alignment: .topTrailing) {
-        Circle().fill(color)
-        Circle().fill(.white).frame(width: side * 0.03, height: side * 0.03)
-          .padding(side * 0.006)
-      }
-      .frame(width: side * 0.084, height: side * 0.084)
-    }
-    .position(point)
-  }
-}
+      var antenna = Path()
+      antenna.move(to: CGPoint(x: 50, y: 21))
+      antenna.addCurve(to: CGPoint(x: 65, y: 7), control1: CGPoint(x: 50, y: 11), control2: CGPoint(x: 56, y: 7))
+      context.stroke(antenna, with: .color(ink), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+      context.fill(Path(ellipseIn: CGRect(x: 61, y: 0, width: 16, height: 16)), with: .color(color))
+      context.fill(Path(ellipseIn: CGRect(x: 66.3, y: 5.3, width: 5.4, height: 5.4)), with: .color(white))
+      context.fill(Path(ellipseIn: CGRect(x: 11, y: 19, width: 78, height: 78)), with: .color(color))
+      context.fill(Path(roundedRect: CGRect(x: 18, y: 40, width: 64, height: 38), cornerRadius: 19), with: .color(ink))
 
-private struct SmileShape: Shape {
-  func path(in rect: CGRect) -> Path {
-    var path = Path()
-    path.move(to: CGPoint(x: rect.width * 0.365, y: rect.height * 0.595))
-    path.addQuadCurve(
-      to: CGPoint(x: rect.width * 0.635, y: rect.height * 0.595),
-      control: CGPoint(x: rect.width * 0.5, y: rect.height * 0.73))
-    return path
+      var eyes = Path()
+      eyes.move(to: CGPoint(x: 29, y: 62))
+      eyes.addCurve(to: CGPoint(x: 41, y: 62), control1: CGPoint(x: 30, y: 55), control2: CGPoint(x: 40, y: 55))
+      eyes.move(to: CGPoint(x: 59, y: 62))
+      eyes.addCurve(to: CGPoint(x: 71, y: 62), control1: CGPoint(x: 60, y: 55), control2: CGPoint(x: 70, y: 55))
+      context.stroke(eyes, with: .color(white), style: StrokeStyle(lineWidth: 5.5, lineCap: .round))
+    }
+    .frame(width: size, height: size)
   }
 }
 

@@ -12,7 +12,7 @@ OUTPUT = ROOT.parent / "apps" / "website" / "dist"
 class CatalogTests(unittest.TestCase):
     def test_catalog_points_at_current_repository(self) -> None:
         catalog = json.loads((ROOT / "catalog.json").read_text())
-        self.assertEqual(catalog["repository"], "tmoreton/frogbot-skills")
+        self.assertEqual(catalog["repository"], "tmoreton/heytim-bots")
 
     def test_gateway_targets_default_to_the_catalog_release(self) -> None:
         catalog = json.loads((ROOT / "catalog.json").read_text())
@@ -103,8 +103,8 @@ class CatalogTests(unittest.TestCase):
         )
 
         self.assertEqual(chief["name"], "Chief")
-        self.assertEqual(chief["version"], 6)
-        self.assertEqual(chief["color"], "#007A3D")
+        self.assertEqual(chief["version"], 7)
+        self.assertEqual(chief["color"], "#FFBC3B")
         self.assertEqual(chief["toolIds"], ["current_time", "bot_manager"])
         self.assertIn("skill-builder", chief["skillIds"])
         self.assertEqual(skill_builder["requiredToolIds"], [])

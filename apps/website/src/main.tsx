@@ -7,7 +7,7 @@ import './styles/library.css';
 import './styles/website.css';
 
 const pathname = window.location.pathname;
-document.title = pages[pathname.replace(/\/+$/, '') || '/'] ?? 'Page not found — FroggyBot';
+document.title = pages[pathname.replace(/\/+$/, '') || '/'] ?? 'Page not found — HeyTim';
 const root = document.getElementById('root')!;
 const website = <StrictMode><Website pathname={pathname} /></StrictMode>;
 if (root.querySelector('header')) hydrateRoot(root, website);

@@ -1,4 +1,4 @@
-export const PUBLIC_WEB_BASE_URL = 'https://froggybot.com';
+export const PUBLIC_WEB_BASE_URL = 'https://app.heytim.ai';
 export const CAPABILITY_CATALOG_URL = `${PUBLIC_WEB_BASE_URL}/catalog.json`;
 export const deploymentEnvironment = process.env.FROGBOT_ENVIRONMENT ?? 'development';
 if (!/^[a-z][a-z0-9-]{0,20}$/.test(deploymentEnvironment)) {
@@ -7,7 +7,10 @@ if (!/^[a-z][a-z0-9-]{0,20}$/.test(deploymentEnvironment)) {
 
 const PRODUCTION_WEB_ORIGINS = [
   PUBLIC_WEB_BASE_URL,
+  'https://heytim.ai',
+  'https://www.heytim.ai',
   'https://app.froggybot.com',
+  'https://froggybot.com',
   'https://www.froggybot.com',
   'https://frogbot.expo.app',
 ];

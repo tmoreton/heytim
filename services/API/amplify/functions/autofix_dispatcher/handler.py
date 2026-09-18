@@ -158,7 +158,7 @@ def _github_request(
             "Accept": "application/vnd.github+json",
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
-            "User-Agent": "FroggyBot-production-autofix",
+            "User-Agent": "HeyTim-production-autofix",
             "X-GitHub-Api-Version": GITHUB_API_VERSION,
         },
     )
@@ -191,7 +191,7 @@ def _github_installation_token(repository: str) -> str:
     if isinstance(installation_id, bool) or not isinstance(installation_id, int):
         raise TypeError("GitHub installation response is invalid")
     if installation_id <= 0:
-        raise RuntimeError("FroggyBot GitHub App is not installed on the repository")
+        raise RuntimeError("HeyTim GitHub App is not installed on the repository")
     _status, credential = _github_request(
         "POST",
         f"/app/installations/{installation_id}/access_tokens",

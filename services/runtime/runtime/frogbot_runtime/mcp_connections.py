@@ -500,7 +500,7 @@ def github_installation_token(binding: dict) -> str:
                 f"Bearer {github_app_jwt(config['appId'], config['privateKey'])}"
             ),
             "content-type": "application/json",
-            "user-agent": "FroggyBot/1.0",
+            "user-agent": "HeyTim/1.0",
             "x-github-api-version": GITHUB_API_VERSION,
         },
         method="POST",
@@ -528,7 +528,7 @@ def connection_client(binding: dict) -> MCPClient:
         "connection_id": binding["id"],
         "startup_timeout": 15,
         "continue_on_error": False,
-        "application_name": "FroggyBot",
+        "application_name": "HeyTim",
         "account_label": binding.get("accountLabel"),
     }
     if binding["authType"] == "oauth":
@@ -589,7 +589,7 @@ def connection_clients(binding: dict) -> list[MCPClient]:
                 account_label=binding.get("accountLabel"),
                 startup_timeout=15,
                 continue_on_error=False,
-                application_name="FroggyBot",
+                application_name="HeyTim",
                 tool_filters={"allowed": allowed_tools},
             )
         )

@@ -71,7 +71,7 @@ class BotCatalogTests(unittest.TestCase):
                 "_fetch_json",
                 return_value={
                     "schemaVersion": 3,
-                    "repository": "tmoreton/frogbot-skills",
+                    "repository": "tmoreton/heytim-bots",
                     "release": "skills-v11",
                     "tools": test_catalog.TEST_TOOLS,
                     "skills": [raw_skill],
@@ -198,7 +198,7 @@ class BotInstallTests(test_api_safety.ApiTestCase):
             "name": template["name"],
             "tagline": template["tagline"],
             "prompt": template["prompt"],
-            "color": "#007A3D",
+            "color": "#FFBC3B",
             "toolIds": [],
             "extraToolIds": [],
             "alwaysAllowedToolIds": [],
@@ -215,7 +215,7 @@ class BotInstallTests(test_api_safety.ApiTestCase):
 
         self.assertEqual(installed["systemRole"], "chief")
         self.assertEqual(installed["templateId"], "chief")
-        self.assertEqual(installed["color"], "#007A3D")
+        self.assertEqual(installed["color"], "#FFBC3B")
 
 
 if __name__ == "__main__":

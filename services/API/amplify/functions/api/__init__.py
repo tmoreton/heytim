@@ -1,1 +1,1 @@
-"""FroggyBot API Lambda package."""
+"""HeyTim API Lambda package."""
