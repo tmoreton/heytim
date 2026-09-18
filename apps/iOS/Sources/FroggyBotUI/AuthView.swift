@@ -17,18 +17,28 @@ public struct AuthView: View {
   public var body: some View {
     ZStack {
       FrogTheme.canvas.ignoresSafeArea()
-      ScrollView {
-        VStack(spacing: 0) {
-          brand
-          card
+      #if os(macOS)
+        GeometryReader { geometry in
+          signInContent(minHeight: geometry.size.height)
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 18)
-        .frame(maxWidth: .infinity, minHeight: 560)
-      }
-      .scrollIndicators(.hidden)
+      #else
+        signInContent(minHeight: 560)
+      #endif
     }
     .foregroundStyle(FrogTheme.text)
+  }
+
+  private func signInContent(minHeight: CGFloat) -> some View {
+    ScrollView {
+      VStack(spacing: 0) {
+        brand
+        card
+      }
+      .padding(.horizontal, 24)
+      .padding(.vertical, 18)
+      .frame(maxWidth: .infinity, minHeight: minHeight)
+    }
+    .scrollIndicators(.hidden)
   }
 
   private var brand: some View {

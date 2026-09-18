@@ -24,7 +24,7 @@ struct HeyTimAppleApp: App {
     #if os(macOS)
       WindowGroup {
         AppRoot(configuration: configuration, auth: auth, model: model)
-          .frame(minWidth: auth.phase == .signedIn ? 1_160 : 480, minHeight: 520)
+          .frame(minWidth: auth.phase == .signedIn ? 1_160 : 900, minHeight: 620)
       }
       .defaultSize(width: 1200, height: 760)
       .windowStyle(.hiddenTitleBar)
