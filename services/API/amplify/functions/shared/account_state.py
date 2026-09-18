@@ -20,6 +20,10 @@ class UserItemConflictError(RuntimeError):
     pass
 
 
+class UserItemGuardFailedError(RuntimeError):
+    pass
+
+
 def _client_error_code(error: ClientError) -> str | None:
     response = getattr(error, "response", None)
     if not isinstance(response, dict):
@@ -52,6 +56,7 @@ def _transaction_token(
     *,
     require_absent: bool,
     expected_secret_arn: str | None,
+    required_item_condition: dict | None,
 ) -> str:
     payload = json.dumps(
         {
@@ -59,6 +64,7 @@ def _transaction_token(
             "item": item,
             "requireAbsent": require_absent,
             "expectedSecretArn": expected_secret_arn,
+            "requiredItemCondition": required_item_condition,
         },
         default=repr,
         separators=(",", ":"),
@@ -80,6 +86,7 @@ def _raise_transaction_cancellation(
     user_id: str,
     *,
     has_item_condition: bool,
+    has_required_item_condition: bool,
     error: Exception,
 ) -> None:
     response = getattr(error, "response", {})
@@ -91,11 +98,20 @@ def _raise_transaction_cancellation(
     )
     if account_check_failed or not account_accepts_writes(table, user_id):
         raise AccountInactiveError from error
-    item_check_failed = bool(
-        has_item_condition
+    guard_check_failed = bool(
+        has_required_item_condition
         and len(reasons) > 1
         and isinstance(reasons[1], dict)
         and reasons[1].get("Code") == "ConditionalCheckFailed"
+    )
+    if guard_check_failed:
+        raise UserItemGuardFailedError from error
+    item_index = 2 if has_required_item_condition else 1
+    item_check_failed = bool(
+        has_item_condition
+        and len(reasons) > item_index
+        and isinstance(reasons[item_index], dict)
+        and reasons[item_index].get("Code") == "ConditionalCheckFailed"
     )
     if item_check_failed:
         raise UserItemConflictError from error
@@ -120,6 +136,7 @@ def put_user_item_while_account_active(
     *,
     require_absent: bool = False,
     expected_secret_arn: str | None = None,
+    required_item_condition: dict | None = None,
 ) -> None:
     if require_absent and expected_secret_arn is not None:
         raise ValueError("A conditional user write cannot have two expectations")
@@ -158,13 +175,18 @@ def put_user_item_while_account_active(
                 },
             }
         },
-        {"Put": put},
     ]
+    if required_item_condition is not None:
+        transact_items.append({
+            "ConditionCheck": {"TableName": table.name, **required_item_condition}
+        })
+    transact_items.append({"Put": put})
     token = _transaction_token(
         user_id,
         item,
         require_absent=require_absent,
         expected_secret_arn=expected_secret_arn,
+        required_item_condition=required_item_condition,
     )
     client = table.meta.client
     delays = (0.0, *TRANSACTION_SETTLEMENT_DELAYS_SECONDS)
@@ -185,6 +207,7 @@ def put_user_item_while_account_active(
                 table,
                 user_id,
                 has_item_condition=has_item_condition,
+                has_required_item_condition=required_item_condition is not None,
                 error=exc,
             )
         except (BotoCoreError, ClientError) as exc:

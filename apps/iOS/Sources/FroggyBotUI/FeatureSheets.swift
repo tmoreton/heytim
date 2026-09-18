@@ -614,6 +614,15 @@ private struct BotEditor: View {
       } footer: {
         Text("Choose optional playbooks and the actions this bot can use.")
       }
+      if let bot = editingBot {
+        Section("Email") {
+          FeatureLink {
+            BotInboxView(model: model, botId: bot.id, showsDismissButton: false)
+          } label: {
+            Label("Bot Inbox", systemImage: "tray")
+          }
+        }
+      }
     }
     .formStyle(.grouped)
     .froggyListSurface()

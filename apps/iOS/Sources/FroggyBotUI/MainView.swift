@@ -1076,6 +1076,12 @@ private struct ConversationInspector: View {
       .accessibilityIdentifier("conversation.share")
     }
     if let bot = selectedBot {
+      FeatureLink {
+        BotInboxView(model: model, botId: bot.id, showsDismissButton: false)
+      } label: {
+        Label("Bot Inbox", systemImage: "tray")
+      }
+      .accessibilityIdentifier("conversation.bot-inbox")
       if actions.contains("documents") {
         FeatureLink {
           DocumentsView(model: model, botId: bot.id, showsDismissButton: false)

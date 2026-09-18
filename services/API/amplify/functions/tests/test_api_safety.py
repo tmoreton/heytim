@@ -530,7 +530,10 @@ class ApiSafetyTests(ApiTestCase):
 
         self.assertEqual(saved, {"id": "bot-1"})
         schedules.assert_not_called()
-        put_bot.assert_called_once_with("user-1", values, "bot-1", None)
+        put_bot.assert_called_once_with(
+            "user-1", values, "bot-1", None,
+            expected_email_token=None, check_email_token=True,
+        )
 
     def test_schedule_run_inbox_includes_output_and_pending_approval(self) -> None:
         turns = [

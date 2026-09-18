@@ -288,6 +288,9 @@ jobs:
         working-directory: services/API
         env:
           FROGBOT_ENVIRONMENT: production
+          FROGBOT_BOT_EMAIL_STAGE: identity
+          FROGBOT_SES_RULE_SET_NAME: inboxai-inboxai-cc
+          FROGBOT_BOT_EMAIL_AVAILABLE: 'false'
           FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN }}
           FROGBOT_GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_GOOGLE_OAUTH_SECRET_ARN }}
           FROGBOT_GITHUB_APP_SECRET_ARN: ${{ secrets.FROGBOT_GITHUB_APP_SECRET_ARN }}

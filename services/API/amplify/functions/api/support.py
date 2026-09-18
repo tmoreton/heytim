@@ -420,8 +420,10 @@ def _bot_color(item: dict) -> str:
 
 def _public_bot(item: dict) -> dict:
     bot = {
-        key: value for key, value in item.items() if key not in {"pk", "sk", "entity"}
+        key: value for key, value in item.items()
+        if key not in {"pk", "sk", "entity", "emailToken", "emailInboxClosing"}
     }
+    bot["emailEnabled"] = bool(item.get("emailToken"))
     bot["color"] = _bot_color(item)
     bot["allowedActions"] = [
         "edit",
