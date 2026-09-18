@@ -625,9 +625,12 @@ import XCTest
     XCTAssertTrue(toolsAndSkills.waitForExistence(timeout: 5))
     toolsAndSkills.tap()
 
-    let create = app.buttons["Create"]
-    XCTAssertTrue(create.waitForExistence(timeout: 5))
-    create.tap()
+    let addSkill = app.buttons["Add Skill"]
+    XCTAssertTrue(addSkill.waitForExistence(timeout: 5))
+    addSkill.tap()
+    let createSkill = app.buttons["Create Skill"]
+    XCTAssertTrue(createSkill.waitForExistence(timeout: 5))
+    createSkill.tap()
 
     XCTAssertTrue(app.staticTexts["New skill"].waitForExistence(timeout: 5))
     let name = app.textFields["Name"]
