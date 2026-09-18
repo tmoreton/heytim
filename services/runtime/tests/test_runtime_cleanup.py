@@ -84,7 +84,8 @@ def test_provider_call_limit_becomes_terminal_result_without_retry(monkeypatch):
     )
     monkeypatch.setattr(runtime_main, "load_model", AsyncMock(return_value=object()))
     agent = SimpleNamespace(messages=[], memory_manager=None)
-    monkeypatch.setattr(runtime_main, "harness_agent", MagicMock(return_value=agent))
+    harness = MagicMock(return_value=agent)
+    monkeypatch.setattr(runtime_main, "harness_agent", harness)
 
     async def over_limit(*_args, **_kwargs):
         if False:
@@ -110,4 +111,5 @@ def test_provider_call_limit_becomes_terminal_result_without_retry(monkeypatch):
     )
     assert terminal["code"] == "PROVIDER_CALL_LIMIT"
     assert "provider-call safety limit" in terminal["message"]
+    assert harness.call_args.kwargs["skills_dir"] is None
     capabilities.close.assert_awaited_once()

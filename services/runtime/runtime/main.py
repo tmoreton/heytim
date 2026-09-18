@@ -83,6 +83,8 @@ async def run_agent(payload, context):
             builtin_tools=config.builtin_tools,
             plugins=config.plugins,
             builtin_plugins=config.builtin_plugins,
+            # Skills come only from the validated per-bot plugin, never local files.
+            skills_dir=None,
             memory=bool(memories),
             memory_store=memories,
             context_management="auto",

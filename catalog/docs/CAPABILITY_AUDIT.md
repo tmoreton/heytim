@@ -63,4 +63,23 @@ FroggyBot-owned keys for shared services stay server-side and are never entered 
 
 ## Next integrations
 
-Prioritize Google Calendar, Google Drive and documents, maps and places, Notion, email, and Slack. These strengthen the group-planning loop more than additional generic personas or social-search wrappers.
+The backend now has reviewed connections for Gmail, Google Workspace (Drive, Docs, Sheets, and Calendar), Slack, Notion, Microsoft 365 and Teams, GitHub, HubSpot, Jira, Zoom, YouTube, and X. A connection is usable only after its provider configuration and OAuth grant are available in the deployed environment and the user assigns it to a bot. The earlier Google, Notion, email, and Slack candidates are therefore no longer missing from the codebase.
+
+The clearest remaining product tool is **read-only maps and places**: reliable place identity, addresses, travel times, and routes would improve group trips and events. Keep booking and purchases outside that first integration. Select a provider only after checking coverage, quotas, terms, source attribution, and user location privacy.
+
+## AgentCore and Strands review
+
+The September 2026 review found no missing general-purpose agent engine component. FroggyBot already uses AgentCore Runtime, Memory, Gateway web search, Browser, Code Interpreter, Identity for platform keys, traces, a structural online evaluator, and production alarms. Strands supplies per-bot skills, delegation, task lists, streaming, memory access, and bounded context handling. The app backend owns chat history, group coordination, approvals, account scoping, and long-running work. A second AgentCore Harness would duplicate that custom orchestration rather than simplify it.
+
+One runtime default was worth tightening: for a bot with no selected skills, Stan could scan a local skills directory. The runtime now passes `skills_dir=None`, leaving only the validated per-bot `AgentSkills` plugin. Stan's existing context offloader is enabled by `context_management="auto"`; the runtime also supplies a summarizing conversation manager, so a second offloader is unnecessary. [Strands skills](https://strandsagents.com/docs/user-guide/concepts/plugins/skills/), [Strands context offloader](https://strandsagents.com/docs/user-guide/concepts/plugins/context-offloader/).
+
+The next quality investment is **behavioral evaluation of actual skill and tool selection**. The checked-in scenario matrix pre-activates selected skills and runs without external tools; the deployed online evaluator detects structural completion failures. Neither proves that Chief chooses the right skill or that an agent calls the right connected tool for a realistic request. Start with synthetic accounts and deterministic tool stubs in an offline regression suite. AgentCore now offers skill-selection and skill-instruction evaluators, but they require skill and conversation content in traces; assess that against FroggyBot's content-minimizing telemetry before enabling them on private production chats. [AgentCore skill evaluators](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/skill-evaluators.html).
+
+Keep the following platform features out of the default build until there is a specific need:
+
+- **AgentCore Policy:** it evaluates actions through Gateway; FroggyBot's Gateway tools are currently read-only, while private-account actions have separate approval and authorization paths. Adding a policy engine now would not cover those paths. [AgentCore Policy](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy.html).
+- **AWS Agent Registry:** the reviewed, versioned FroggyBot catalog already owns public bot, skill, and tool discovery. Registry becomes useful for multiple teams or accounts publishing independent agents. [AgentCore release notes](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/release-notes.html).
+- **AgentCore Consent Portal:** it requires a JWT-authenticated Gateway and an OpenID Connect provider, while this app uses its own reviewed OAuth flows and an IAM-authenticated Gateway. Revisit only if account consent moves to AgentCore Identity. [AgentCore release notes](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/release-notes.html).
+- **AgentCore payments, A2A, and another sandbox:** no current chatbot workflow needs agent payments, a public agent-to-agent endpoint, or a second code/browser execution system.
+
+At higher traffic, add durable per-user spending limits and consider Gateway rate limits for shared web-search capacity. The present runtime caps apply to one invocation, and AWS Gateway rate limits can cap callers, targets, or tools; the IAM Gateway currently sees the shared runtime identity, so per-user fairness would also need application-level identity or accounting. [Gateway rate limits](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-rate-limits/).
