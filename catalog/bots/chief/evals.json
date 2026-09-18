@@ -34,6 +34,13 @@
         "Resolves the existing bot and available tool IDs before staging one targeted update.",
         "Preserves unspecified bot settings and does not edit Chief's protected configuration."
       ]
+    },
+    {
+      "prompt": "Create a reusable private skill for my Research bot that compares competitors using only its current tools.",
+      "expectations": [
+        "Checks the bot's existing skills and tools, then stages one focused private skill for Research.",
+        "Does not grant a new tool, attach the skill to Chief, or claim it is public."
+      ]
     }
   ]
 }

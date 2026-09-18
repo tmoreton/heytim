@@ -119,6 +119,32 @@ def test_self_authored_skill_cannot_grant_a_new_tool() -> None:
         )
 
 
+def test_chief_can_create_a_private_skill_for_an_existing_bot() -> None:
+    context = _context()
+    context["bots"][1]["toolIds"] = ["meme_lord"]
+    tracker = BotMutationTracker()
+    tools = {
+        item.tool_name: item for item in bot_management_tools(context, tracker)
+    }
+
+    result = tools["create_skill_for_bot"](
+        "Research",
+        "Competitor Brief",
+        "Creates a repeatable competitor brief.",
+        "Compare supplied competitors and mark unknowns.",
+        required_tool_ids=["meme_lord"],
+    )
+
+    assert "attached to Research" in result
+    assert tracker.pending[0]["action"] == "create_skill"
+    assert tracker.pending[0]["value"]["targetBotId"] == "research"
+    assert tracker.pending[0]["value"]["requiredToolIds"] == ["meme_lord"]
+    with pytest.raises(ValueError, match="Unknown required_tool_ids"):
+        tools["create_skill_for_bot"](
+            "Research", "Unsafe", "Needs shell.", "Run shell.", ["shell"]
+        )
+
+
 def test_any_bot_can_update_its_own_prompt_without_changing_tools() -> None:
     tracker, tools = _tools()
 
@@ -328,6 +354,7 @@ def test_catalog_bindings_expose_chief_and_meme_tools(monkeypatch) -> None:
     assert {item.tool_name for item in config.tools} == {
         "compose_meme",
         "create_bot",
+        "create_skill_for_bot",
         "create_skill_for_self",
         "install_bot_template",
         "list_bot_options",

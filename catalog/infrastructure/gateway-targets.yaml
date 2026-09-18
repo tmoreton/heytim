@@ -19,7 +19,7 @@ Parameters:
     Description: Private bucket containing immutable schema release objects.
   Release:
     Type: String
-    Default: skills-v27
+    Default: skills-v28
     AllowedPattern: 'skills-v[1-9][0-9]*'
     Description: FroggyBot Skills release containing the deployed schemas.
   XCredentialProviderName:

@@ -51,6 +51,7 @@ You do not need a pull request to make a private instruction-only skill. Add it 
 A public bot is intentionally just configuration: its identity, prompt, existing skill IDs, and any directly required tool IDs. It never chooses a model, reasoning level, schedule, memory policy, approval mode, or credential. Add its entry to the `bots` array in `catalog.json`, add at least three scenarios under `bots/<bot-id>/evals.json`, and follow the review rules in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Chief is published here like every other bot. FroggyBot setup requires the `chief` template and applies its protected coordinator role after installation; the public configuration itself needs no app-only role or setup fields.
+Chief includes Skill Builder by default, so an explicit request in a direct chat can create a private skill for Chief or an existing teammate without granting new tools. Existing Chiefs receive it once after the new catalog is available, unless they have reached the 12-skill limit; a user can remove it later.
 
 Installing a public bot never asks the user for a developer API key. FroggyBot supplies credentials for shared public services, while access to private account data uses a provider-specific **Connect account** flow.
 

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from decimal import Decimal
 
 from shared.catalog import CatalogError
+from shared.catalog_rules import MAX_SKILLS_PER_BOT
 
 from .bot_roles import CHIEF_COLOR, CHIEF_SYSTEM_ROLE, CHIEF_TEMPLATE_ID
 from .support import ApiError, _bot_sk, _now, _user_pk, catalog, table
@@ -12,6 +14,93 @@ LEGACY_BOT_TEMPLATE_IDS = {
     "starter-event-planner": "event-planner",
     "starter-research-reports": "research-reports",
 }
+CHIEF_SKILL_BUILDER_ID = "skill-builder"
+CHIEF_SKILL_BUILDER_TEMPLATE_VERSION = 5
+
+
+def _version_number(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, (int, Decimal)):
+        return None
+    return int(value) if int(value) == value else None
+
+
+def _add_chief_default_skill(user_id: str, bot: dict) -> dict:
+    """Add Skill Builder once to an existing Chief without replacing user edits."""
+    old_version = bot.get("templateVersion")
+    old_version_number = _version_number(old_version)
+    if bot.get("templateId") != CHIEF_TEMPLATE_ID:
+        return bot
+    if (
+        old_version_number is not None
+        and old_version_number >= CHIEF_SKILL_BUILDER_TEMPLATE_VERSION
+    ):
+        return bot
+    old_skill_ids = bot.get("skillIds")
+    if not isinstance(old_skill_ids, list) or any(
+        not isinstance(skill_id, str) for skill_id in old_skill_ids
+    ):
+        return bot
+    if (
+        CHIEF_SKILL_BUILDER_ID not in old_skill_ids
+        and len(set(old_skill_ids)) >= MAX_SKILLS_PER_BOT
+    ):
+        return bot
+    try:
+        skill = catalog.get_skill(user_id, CHIEF_SKILL_BUILDER_ID)
+    except CatalogError:
+        # Backend code may deploy before the corresponding catalog publication.
+        return bot
+    skill_version = _version_number(skill.get("version"))
+    if (
+        skill.get("source") != "official"
+        or skill_version is None
+        or not catalog.get_version(CHIEF_SKILL_BUILDER_ID, skill_version)
+    ):
+        return bot
+    skill_ids = list(dict.fromkeys([*old_skill_ids, CHIEF_SKILL_BUILDER_ID]))
+    old_skill_versions = bot.get("skillVersions")
+    skill_versions = (
+        dict(old_skill_versions) if isinstance(old_skill_versions, dict) else {}
+    )
+    skill_versions[CHIEF_SKILL_BUILDER_ID] = skill_version
+    expression_values = {
+        ":previousSkillIds": old_skill_ids,
+        ":skillIds": skill_ids,
+        ":skillVersions": skill_versions,
+        ":templateVersion": CHIEF_SKILL_BUILDER_TEMPLATE_VERSION,
+        ":now": _now(),
+    }
+    condition = "skillIds = :previousSkillIds"
+    if old_version_number is not None:
+        condition += " AND templateVersion = :previousVersion"
+        expression_values[":previousVersion"] = old_version_number
+    else:
+        condition += " AND attribute_not_exists(templateVersion)"
+    if isinstance(old_skill_versions, dict):
+        condition += " AND skillVersions = :previousSkillVersions"
+        expression_values[":previousSkillVersions"] = old_skill_versions
+    else:
+        condition += " AND attribute_not_exists(skillVersions)"
+    try:
+        table.update_item(
+            Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot["id"])},
+            UpdateExpression=(
+                "SET skillIds = :skillIds, skillVersions = :skillVersions, "
+                "templateVersion = :templateVersion, updatedAt = :now"
+            ),
+            ConditionExpression=condition,
+            ExpressionAttributeValues=expression_values,
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        # A concurrent edit won; the next bootstrap can retry from fresh state.
+        return bot
+    return {
+        **bot,
+        "skillIds": skill_ids,
+        "skillVersions": skill_versions,
+        "templateVersion": CHIEF_SKILL_BUILDER_TEMPLATE_VERSION,
+        "updatedAt": expression_values[":now"],
+    }
 
 
 def _required_chief_template() -> dict:
@@ -68,9 +157,18 @@ def ensure_chief(
     if existing:
         if existing.get("templateId") == CHIEF_TEMPLATE_ID:
             return sorted(
-                bots, key=lambda bot: bot.get("systemRole") != CHIEF_SYSTEM_ROLE
+                [
+                    _add_chief_default_skill(user_id, bot)
+                    if bot["id"] == existing["id"]
+                    else bot
+                    for bot in bots
+                ],
+                key=lambda bot: bot.get("systemRole") != CHIEF_SYSTEM_ROLE,
             )
         template = _required_chief_template()
+        linked_version = min(
+            template["version"], CHIEF_SKILL_BUILDER_TEMPLATE_VERSION - 1
+        )
         table.update_item(
             Key={"pk": _user_pk(user_id), "sk": _bot_sk(existing["id"])},
             UpdateExpression=(
@@ -78,16 +176,19 @@ def ensure_chief(
             ),
             ExpressionAttributeValues={
                 ":templateId": template["id"],
-                ":templateVersion": template["version"],
+                ":templateVersion": linked_version,
             },
         )
         return sorted(
             [
-                {
-                    **bot,
-                    "templateId": template["id"],
-                    "templateVersion": template["version"],
-                }
+                _add_chief_default_skill(
+                    user_id,
+                    {
+                        **bot,
+                        "templateId": template["id"],
+                        "templateVersion": linked_version,
+                    },
+                )
                 if bot["id"] == existing["id"]
                 else bot
                 for bot in bots
@@ -101,6 +202,9 @@ def ensure_chief(
     )
     if legacy:
         template = _required_chief_template()
+        linked_version = min(
+            template["version"], CHIEF_SKILL_BUILDER_TEMPLATE_VERSION - 1
+        )
         table.update_item(
             Key={"pk": _user_pk(user_id), "sk": _bot_sk(legacy["id"])},
             UpdateExpression=(
@@ -112,18 +216,21 @@ def ensure_chief(
                 ":color": CHIEF_COLOR,
                 ":now": _now(),
                 ":templateId": template["id"],
-                ":templateVersion": template["version"],
+                ":templateVersion": linked_version,
             },
         )
         return sorted(
             [
-                {
-                    **bot,
-                    "systemRole": CHIEF_SYSTEM_ROLE,
-                    "color": CHIEF_COLOR,
-                    "templateId": template["id"],
-                    "templateVersion": template["version"],
-                }
+                _add_chief_default_skill(
+                    user_id,
+                    {
+                        **bot,
+                        "systemRole": CHIEF_SYSTEM_ROLE,
+                        "color": CHIEF_COLOR,
+                        "templateId": template["id"],
+                        "templateVersion": linked_version,
+                    },
+                )
                 if bot["id"] == legacy["id"]
                 else bot
                 for bot in bots

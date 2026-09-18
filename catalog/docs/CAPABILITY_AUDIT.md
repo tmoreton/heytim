@@ -1,6 +1,6 @@
 # Capability audit
 
-Updated September 12, 2026.
+Updated September 17, 2026.
 
 ## Product lens
 
@@ -25,8 +25,15 @@ The public catalog should contain workflows that materially change how a result 
 - Social Writer
 - Meeting Prep
 - Career Coach
+- Skill Builder
 
-The five group workflows are the product's core. Deep Research and Data Workspace remain as broadly useful advanced workflows. Meme Lord and the creator-research skills support an evidence-backed creator expansion. Morning Brief, Meeting Prep, and Career Coach add narrow outcome workflows whose sourcing, privacy, or artifact rules materially improve on a generic persona. Generic writing, summarizing, brainstorming, and service-wrapper skills remain excluded because the base model already covers them and Git history preserves their earlier examples.
+The five group workflows are the product's core. Deep Research and Data Workspace remain as broadly useful advanced workflows. Meme Lord and the creator-research skills support an evidence-backed creator expansion. Morning Brief, Meeting Prep, and Career Coach add narrow outcome workflows whose sourcing, privacy, or artifact rules materially improve on a generic persona. Skill Builder makes explicit, private skill authoring repeatable and limits each new skill to the intended bot's existing tools. Generic writing, summarizing, brainstorming, and service-wrapper skills remain excluded because the base model already covers them and Git history preserves their earlier examples.
+
+## Default skills
+
+Chief installs the five group workflows and Skill Builder by default. These six cover coordination and on-demand creation of a reusable workflow. A one-off task is still handled directly; a skill is created only when the user explicitly requests one. The skill requires no new catalog tool because the app exposes guarded authoring actions only in direct bot chats. Chief can create a private skill for another existing bot; other bots can create a private skill for themselves. Existing Chiefs receive Skill Builder once when the new catalog version is available and they have room under the 12-skill limit, while preserving their other skills and allowing a later user removal.
+
+No other skill is universal. Deep Research, Data Workspace, creator skills, and everyday specialists remain opt-in because their workflows and tool needs depend on the user's job. A generic writing or planning skill would duplicate baseline model behavior.
 
 ## Tool presentation
 

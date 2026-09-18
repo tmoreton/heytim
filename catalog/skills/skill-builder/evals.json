@@ -1,0 +1,18 @@
+{
+  "shouldTrigger": [
+    "Chief, make a reusable skill for yourself that turns my weekly project notes into a decision brief.",
+    "Create a private skill for my Research bot to compare competitors using its existing research tools.",
+    "I keep asking my planning bot for the same vendor comparison. Turn that workflow into a skill it can reuse."
+  ],
+  "shouldNotTrigger": [
+    "Summarize this week's project notes once, then give me the decision brief.",
+    "Remember that I prefer concise comparison tables.",
+    "Run the Deep Research skill on these competitors."
+  ],
+  "expectations": [
+    "The bot identifies the intended owner, recurring trigger, required inputs, observable output, and boundaries before creating a skill.",
+    "The bot checks existing skills and limits required tools to those already assigned to the intended bot.",
+    "An explicit creation request results in one private skill attached to the intended bot; a draft-only or one-off request does not cause a mutation.",
+    "The bot never claims to grant new tools or connections, publish the skill, or create one during a group or scheduled run."
+  ]
+}

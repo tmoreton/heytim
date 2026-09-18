@@ -98,10 +98,16 @@ class CatalogTests(unittest.TestCase):
     def test_chief_is_a_minimal_public_bot(self) -> None:
         catalog = json.loads((ROOT / "catalog.json").read_text())
         chief = next(bot for bot in catalog["bots"] if bot["id"] == "chief")
+        skill_builder = next(
+            skill for skill in catalog["skills"] if skill["id"] == "skill-builder"
+        )
 
         self.assertEqual(chief["name"], "Chief")
+        self.assertEqual(chief["version"], 5)
         self.assertEqual(chief["color"], "#007A3D")
         self.assertEqual(chief["toolIds"], ["current_time", "bot_manager"])
+        self.assertIn("skill-builder", chief["skillIds"])
+        self.assertEqual(skill_builder["requiredToolIds"], [])
         self.assertNotIn("systemRole", chief)
         self.assertNotIn("requiredOnSetup", chief)
 

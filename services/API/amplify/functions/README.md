@@ -15,6 +15,9 @@ depend on either entrypoint.
 `api/bot_roles.py` defines Chief's protected application role and reserved branding, but not its bot content.
 Chief and every specialist come from the public catalog; setup requires and installs Chief as a user-owned,
 version-pinned copy.
+In a direct chat, Chief may create a private skill for an existing teammate after the user explicitly requests it.
+The worker rechecks the target bot and limits the skill to tools that bot still has; other bots may create skills
+only for themselves. Skill Builder is added once to existing Chiefs after its public catalog version is available.
 
 The whole `amplify/functions` directory is packaged for each Lambda, so relative package imports are
 available in AWS and in the local test command.

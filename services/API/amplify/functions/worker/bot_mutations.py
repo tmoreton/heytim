@@ -5,6 +5,7 @@ import uuid
 from typing import Any
 
 from shared.catalog import CatalogError
+from shared.catalog_rules import MAX_SKILLS_PER_BOT
 
 from .support import _bot_key, catalog, table
 
@@ -118,11 +119,15 @@ def _reject_new_connection_grants(
 def _create_skill(
     user_id: str, invoking_bot: dict, mutation_id: str, value: dict
 ) -> None:
-    if set(value) != CREATE_SKILL_FIELDS:
+    fields = set(value)
+    if fields not in (CREATE_SKILL_FIELDS, CREATE_SKILL_FIELDS | {"targetBotId"}):
         raise ValueError("Create skill fields are invalid")
-    bot_id = invoking_bot.get("id")
+    target_bot_id = value.get("targetBotId")
+    if target_bot_id is not None and invoking_bot.get("systemRole") != "chief":
+        raise ValueError("Only Chief can create a skill for another bot")
+    bot_id = target_bot_id if target_bot_id is not None else invoking_bot.get("id")
     if not isinstance(bot_id, str) or not bot_id:
-        raise ValueError("The invoking bot ID is invalid")
+        raise ValueError("The target bot ID is invalid")
     required_tool_ids = value.get("requiredToolIds")
     if not isinstance(required_tool_ids, list) or not all(
         isinstance(tool_id, str) for tool_id in required_tool_ids
@@ -131,6 +136,8 @@ def _create_skill(
 
     bot_api = _bot_api()
     target = bot_api._get_bot(user_id, bot_id)
+    if target_bot_id is not None and target.get("systemRole") == "chief":
+        raise ValueError("Use self skill creation for Chief")
     allowed_tool_ids = {
         tool_id
         for tool_id in target.get("toolIds", [])
@@ -148,6 +155,13 @@ def _create_skill(
     ]
 
     skill_id = f"skill-ai-{mutation_id.replace('-', '')}"
+    skill_ids = [
+        skill_id_value
+        for skill_id_value in target.get("skillIds", [])
+        if isinstance(skill_id_value, str)
+    ]
+    if skill_id not in skill_ids and len(set(skill_ids)) >= MAX_SKILLS_PER_BOT:
+        raise ValueError("The target bot already has the maximum number of skills")
     try:
         catalog.get_skill(user_id, skill_id)
     except CatalogError:
@@ -160,18 +174,13 @@ def _create_skill(
         catalog.save_skill(
             user_id,
             {
-                **value,
+                **{key: value[key] for key in CREATE_SKILL_FIELDS},
                 "requiredToolIds": current_required_tool_ids,
                 "visibility": "private",
             },
             new_skill_id=skill_id,
         )
 
-    skill_ids = [
-        skill_id_value
-        for skill_id_value in target.get("skillIds", [])
-        if isinstance(skill_id_value, str)
-    ]
     if skill_id not in skill_ids:
         bot_api._update_bot(user_id, bot_id, {"skillIds": [*skill_ids, skill_id]})
 

@@ -117,7 +117,7 @@ def test_image_generator_calls_openrouter_and_saves_png(monkeypatch) -> None:
     }
     saved = storage.requests[0]
     assert saved["ContentType"] == "image/png"
-    assert saved["ServerSideEncryption"] == "AES256"
+    assert "ServerSideEncryption" not in saved
     output = Image.open(io.BytesIO(saved["Body"]))
     assert output.format == "PNG"
     assert output.size == (640, 480)

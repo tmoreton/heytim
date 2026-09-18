@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import unittest
+from decimal import Decimal
 from unittest.mock import patch
 
 import test_api_safety
+from shared.catalog import CatalogError
 
 
 class BotBrandingTests(unittest.TestCase):
@@ -59,6 +61,65 @@ class BotBrandingTests(unittest.TestCase):
         )
 
         self.assertEqual(ordered[0]["id"], "chief")
+
+    def test_existing_chief_gets_skill_builder_once_without_losing_edits(self) -> None:
+        chief = {
+            "id": "chief",
+            "name": "Chief",
+            "prompt": "Keep my custom prompt.",
+            "systemRole": "chief",
+            "templateId": "chief",
+            "templateVersion": Decimal(4),
+            "skillIds": ["group-intake", "skill-personal"],
+            "skillVersions": {"group-intake": 1, "skill-personal": 2},
+        }
+        with (
+            patch.object(
+                self.bots.catalog,
+                "get_skill",
+                return_value={"id": "skill-builder", "source": "official", "version": Decimal(1)},
+            ),
+            patch.object(self.bots.catalog, "get_version", return_value={"version": 1}),
+            patch.object(self.bots.table, "update_item") as update,
+        ):
+            migrated = self.bots._ensure_chief("user-1", [chief])[0]
+            opted_out = self.bots._ensure_chief(
+                "user-1", [{**migrated, "skillIds": ["group-intake", "skill-personal"]}]
+            )[0]
+
+        self.assertEqual(migrated["prompt"], chief["prompt"])
+        self.assertEqual(
+            migrated["skillIds"],
+            ["group-intake", "skill-personal", "skill-builder"],
+        )
+        self.assertEqual(migrated["skillVersions"]["skill-personal"], 2)
+        self.assertEqual(migrated["skillVersions"]["skill-builder"], 1)
+        self.assertEqual(migrated["templateVersion"], 5)
+        self.assertEqual(opted_out["skillIds"], ["group-intake", "skill-personal"])
+        update.assert_called_once()
+        self.assertIn("skillIds = :previousSkillIds", update.call_args.kwargs["ConditionExpression"])
+
+    def test_existing_chief_waits_for_skill_builder_publication(self) -> None:
+        chief = {
+            "id": "chief",
+            "systemRole": "chief",
+            "templateId": "chief",
+            "templateVersion": 4,
+            "skillIds": ["group-intake"],
+            "skillVersions": {"group-intake": 1},
+        }
+        with (
+            patch.object(
+                self.bots.catalog,
+                "get_skill",
+                side_effect=CatalogError("Skill not found"),
+            ),
+            patch.object(self.bots.table, "update_item") as update,
+        ):
+            result = self.bots._ensure_chief("user-1", [chief])
+
+        self.assertEqual(result[0]["skillIds"], ["group-intake"])
+        update.assert_not_called()
 
     def test_empty_signup_installs_chief_from_the_public_catalog(self) -> None:
         template = {

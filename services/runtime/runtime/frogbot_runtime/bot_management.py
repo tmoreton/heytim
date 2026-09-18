@@ -239,6 +239,32 @@ def bot_management_tools(context: dict, tracker: BotMutationTracker) -> list[Any
             separators=(",", ":"),
         )
 
+    def skill_value(
+        name: str,
+        description: str,
+        instructions: str,
+        required_tool_ids: list[str] | None,
+        allowed_tool_ids: set[str],
+    ) -> dict:
+        value = {
+            "name": _text(name, "name", MAX_SKILL_NAME_CHARS),
+            "description": _text(
+                description, "description", MAX_SKILL_DESCRIPTION_CHARS
+            ),
+            "instructions": _text(
+                instructions, "instructions", MAX_SKILL_INSTRUCTIONS_CHARS
+            ),
+            "requiredToolIds": _ids(
+                required_tool_ids, "required_tool_ids", allowed_tool_ids
+            ),
+        }
+        if any(
+            str(item.get("name", "")).strip().casefold() == value["name"].casefold()
+            for item in context["skills"]
+        ):
+            raise ValueError("A skill with that name already exists")
+        return value
+
     @tool
     def create_skill_for_self(
         name: str,
@@ -254,27 +280,56 @@ def bot_management_tools(context: dict, tracker: BotMutationTracker) -> list[Any
         call no more tools and finish the response immediately so the platform can
         safely create and attach the skill.
         """
-        value = {
-            "name": _text(name, "name", MAX_SKILL_NAME_CHARS),
-            "description": _text(
-                description, "description", MAX_SKILL_DESCRIPTION_CHARS
-            ),
-            "instructions": _text(
-                instructions, "instructions", MAX_SKILL_INSTRUCTIONS_CHARS
-            ),
-            "requiredToolIds": _ids(
-                required_tool_ids, "required_tool_ids", self_tool_ids
-            ),
-        }
-        if any(
-            str(item.get("name", "")).strip().casefold() == value["name"].casefold()
-            for item in context["skills"]
-        ):
-            raise ValueError("A skill with that name already exists")
+        value = skill_value(
+            name, description, instructions, required_tool_ids, self_tool_ids
+        )
         tracker.stage("create_skill", value)
         return (
             f"{value['name']} is ready to be created and attached to "
             f"{context['currentBot']['name']} when this reply completes. "
+            "Finish the response now without calling another tool."
+        )
+
+    @tool
+    def create_skill_for_bot(
+        bot_id_or_name: str,
+        name: str,
+        description: str,
+        instructions: str,
+        required_tool_ids: list[str] | None = None,
+    ) -> str:
+        """As Chief, create one private skill for an existing non-Chief bot.
+
+        Use only tools that bot already has. Inspect list_bot_options when its
+        identity or capabilities are uncertain. The user must explicitly request
+        the skill. After success, call no more tools and finish the response.
+        """
+        identifier = _text(bot_id_or_name, "bot_id_or_name", 80).casefold()
+        matches = [
+            item
+            for item in bots
+            if str(item.get("id", "")).casefold() == identifier
+            or str(item.get("name", "")).strip().casefold() == identifier
+        ]
+        if len(matches) != 1:
+            raise ValueError(
+                "Bot not found or name is ambiguous; call list_bot_options first"
+            )
+        target = matches[0]
+        if target.get("systemRole") == "chief":
+            raise ValueError("Use create_skill_for_self for Chief")
+        target_tool_ids = {
+            tool_id
+            for tool_id in target.get("toolIds", [])
+            if isinstance(tool_id, str) and tool_id != "bot_manager"
+        }
+        value = skill_value(
+            name, description, instructions, required_tool_ids, target_tool_ids
+        )
+        tracker.stage("create_skill", {**value, "targetBotId": target["id"]})
+        return (
+            f"{value['name']} is ready to be created and attached to "
+            f"{target['name']} when this reply completes. "
             "Finish the response now without calling another tool."
         )
 
@@ -465,7 +520,13 @@ def bot_management_tools(context: dict, tracker: BotMutationTracker) -> list[Any
         remember_for_user,
     ]
     if context["canManageBots"]:
-        tools.extend([list_bot_options, install_bot_template, create_bot, update_bot])
+        tools.extend([
+            list_bot_options,
+            install_bot_template,
+            create_bot,
+            update_bot,
+            create_skill_for_bot,
+        ])
     return tools
 
 
