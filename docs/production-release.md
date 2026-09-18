@@ -1,8 +1,8 @@
-# FroggyBot production release gate
+# HeyTim production release gate
 
 The repository is release-hardened, but a production release is not complete merely because the code passes locally.
 The configured AWS account, third-party approvals, monitored alert destination, device evidence, and controlled
-deployment are external release inputs. The **Deploy FroggyBot production release** workflow fails closed until
+deployment are external release inputs. The **Deploy HeyTim production release** workflow fails closed until
 they are present. Production temporarily shares management account `188757775631` with development while the dedicated
 member account's Lambda quota increase is pending; target-scoped stacks, KMS keys, storage, and secrets remain separate.
 AgentCore resources use the `FrogBotProduction` physical project namespace in this temporary shared-account posture;
@@ -17,8 +17,8 @@ the platform API-key credential providers remain account-scoped.
    rotating customer-managed KMS key for AgentCore memory and retain its ARN.
 3. Perform the first AgentCore and Amplify bootstrap with that reviewed principal. The Amplify stack creates the
    recurring least-privilege GitHub OIDC deployment role; its trust subject is
-   `repo:tmoreton@5090418/frogbot@1356546597:environment:production`, using GitHub's immutable owner and repository
-   IDs. Save the `githubDeployRoleArn` output as
+   `repo:tmoreton@5090418/heytim-platform@1356546597:environment:production`, using GitHub's immutable owner and repository
+   IDs. The previous repository name remains trusted only during the transition. Save the `githubDeployRoleArn` output as
    `AWS_DEPLOY_ROLE_ARN`, then use the workflow for every later release. Never use account-root access.
 4. Create a production Amplify app and production/sandbox SNS APNs platform applications. Subscribe an accountable
    team or incident system to the generated service-alarm topic and confirm the subscription.
@@ -85,7 +85,7 @@ permissions from protected environment secrets immediately before deployment and
 1. Merge a clean, reviewed commit to `main`; confirm application, backend, runtime, AgentCore, Apple, dependency,
    provider-contract, and security workflows pass. Create and publish a stable GitHub Release from that commit with a
    tag such as `v6.1.0`. Drafts and pre-releases do not deploy production; the tagged commit must be on `main`.
-2. Publishing the release starts **Deploy FroggyBot production release**. It validates the tag, target/account, and approvals, verifies and
+2. Publishing the release starts **Deploy HeyTim production release**. It validates the tag, target/account, and approvals, verifies and
    audits dependencies, deploys AgentCore then Amplify, generates the client outputs, hardens runtime logs, configures
    AgentCore alarms and APNs delivery feedback, seeds the private meme-template catalog when absent, verifies every
    referenced template image along with storage/PITR/alerts/public API, and preserves the exact production client
