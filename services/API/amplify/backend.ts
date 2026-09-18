@@ -31,6 +31,7 @@ import {
   slackOAuthSecretArn, xOAuthSecretArn, youtubeSearchDailyLimit,
 } from './infrastructure/app-settings';
 import { addBrowserAccess } from './infrastructure/browser-access';
+import { addBotEmailReceiving } from './infrastructure/bot-email';
 import { addProductionAutofix } from './infrastructure/autofix';
 import { addGithubDeploymentRole } from './infrastructure/deployment-role';
 import { addHttpApi } from './infrastructure/http-api';
@@ -181,6 +182,9 @@ const logsKey = new Key(stack, 'LogsKey', {
   enableKeyRotation: true,
   removalPolicy: RemovalPolicy.RETAIN,
 });
+if (deploymentEnvironment === 'production') {
+  addBotEmailReceiving({ stack, table, logsKey });
+}
 logsKey.addAlias(`alias/frogbot-${deploymentEnvironment}-logs`);
 logsKey.addToResourcePolicy(
   new PolicyStatement({
@@ -354,6 +358,9 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
     FROGBOT_MEMORY_ID: memoryId,
     FILES_BUCKET_NAME: filesBucket.bucketName,
     PUBLIC_WEB_BASE_URL,
+    BOT_EMAIL_AVAILABLE:
+      deploymentEnvironment === 'production' && process.env.FROGBOT_BOT_EMAIL_AVAILABLE === 'true'
+        ? 'true' : 'false',
     CAPABILITY_CATALOG_URL,
     FROGBOT_MONTHLY_RUN_UNIT_LIMIT: String(monthlyRunUnitLimit),
     FROGBOT_USER_WINDOW_RUN_UNIT_LIMIT: String(userWindowRunUnitLimit),

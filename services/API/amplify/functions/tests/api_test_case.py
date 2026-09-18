@@ -14,9 +14,9 @@ class ConditionalCheckFailedException(Exception):
 
 
 class TransactionCanceledException(Exception):
-    def __init__(self, failed_index: int = 0) -> None:
+    def __init__(self, failed_index: int = 0, item_count: int = 2) -> None:
         super().__init__("transaction cancelled")
-        reasons = [{"Code": "None"}, {"Code": "None"}]
+        reasons = [{"Code": "None"} for _ in range(item_count)]
         reasons[failed_index] = {"Code": "ConditionalCheckFailed"}
         self.response = {
             "Error": {"Code": "TransactionCanceledException"},
@@ -134,11 +134,21 @@ class FakeTable:
             or state.get("accountStatus") in {"DELETING", "DELETED"}
         ):
             raise TransactionCanceledException(0)
-        put = TransactItems[1]["Put"]
+        if (
+            len(TransactItems) > 2
+            and "ConditionCheck" in TransactItems[1]
+            and "emailToken" in TransactItems[1]["ConditionCheck"].get("ConditionExpression", "")
+        ):
+            guard = TransactItems[1]["ConditionCheck"]
+            current = self.items.get(self._storage_key(guard["Key"]))
+            expected = guard.get("ExpressionAttributeValues", {}).get(":expectedEmailToken")
+            if not current or current.get("emailToken") != expected:
+                raise TransactionCanceledException(1, len(TransactItems))
+        put = TransactItems[-1]["Put"]
         put_item = put["Item"]
         current = self.items.get(self._storage_key(put_item))
         if put.get("ConditionExpression") == "attribute_not_exists(pk)" and current:
-            raise TransactionCanceledException(1)
+            raise TransactionCanceledException(len(TransactItems) - 1, len(TransactItems))
         for operation in TransactItems:
             put = operation.get("Put")
             if put:
@@ -243,6 +253,7 @@ class ApiTestCase(unittest.TestCase):
             cls.attachments = importlib.import_module("api.attachments")
             cls.bot_documents = importlib.import_module("api.bot_documents")
             cls.bots = importlib.import_module("api.bots")
+            cls.bot_inbox = importlib.import_module("api.bot_inbox")
             cls.direct_chat = importlib.import_module("api.direct_chat")
             cls.groups = importlib.import_module("api.groups")
             cls.group_messages = importlib.import_module("api.group_messages")

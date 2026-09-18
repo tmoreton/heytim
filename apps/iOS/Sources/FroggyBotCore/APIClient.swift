@@ -192,6 +192,24 @@ public final class FrogBotAPI: Sendable {
   public func deleteBot(_ id: String) async throws {
     let _: EmptyResponse = try await request(.botDelete, parameters: ["botId": id])
   }
+  public func botInbox(_ id: String, cursor: String? = nil) async throws -> BotInboxPage {
+    try await request(
+      .botInboxList, parameters: ["botId": id],
+      queryItems: cursor.map { [URLQueryItem(name: "cursor", value: $0)] } ?? [])
+  }
+  public func enableBotInbox(_ id: String) async throws -> BotInboxState {
+    try await request(.botInboxEnable, parameters: ["botId": id], body: EmptyResponse())
+  }
+  public func disableBotInbox(_ id: String) async throws -> BotInboxState {
+    try await request(.botInboxDisable, parameters: ["botId": id])
+  }
+  public func rotateBotInbox(_ id: String) async throws -> BotInboxState {
+    try await request(.botInboxRotate, parameters: ["botId": id], body: EmptyResponse())
+  }
+  public func deleteBotInboxMessage(_ messageId: String, botId: String) async throws {
+    let _: EmptyResponse = try await request(
+      .botInboxMessageDelete, parameters: ["botId": botId, "messageId": messageId])
+  }
   public func clearBot(_ id: String, forgetMemory: Bool = false) async throws {
     let _: EmptyResponse = try await request(
       .botMessagesClear, parameters: ["botId": id], body: ["forgetMemory": forgetMemory])

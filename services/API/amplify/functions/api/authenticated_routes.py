@@ -10,6 +10,13 @@ from .attachments import (
     _download_group_file,
 )
 from .bot_documents import _list_bot_documents
+from .bot_inbox import (
+    delete_inbox_message,
+    disable_bot_inbox,
+    enable_bot_inbox,
+    list_bot_inbox,
+    rotate_bot_inbox,
+)
 from .bots import (
     _bootstrap,
     _clear_bot_chat,
@@ -395,6 +402,29 @@ def _bot_route(
     return None
 
 
+def _bot_inbox_route(
+    user_id: str,
+    _display_name: str,
+    method: str,
+    path: str,
+    params: dict,
+    event: dict,
+) -> dict | None:
+    bot_id = params.get("botId", "")
+    if method == "GET":
+        query = event.get("queryStringParameters") or {}
+        return _response(200, list_bot_inbox(user_id, bot_id, query.get("cursor")))
+    if method == "POST" and path.endswith("/rotate"):
+        return _response(200, rotate_bot_inbox(user_id, bot_id))
+    if method == "POST":
+        return _response(200, enable_bot_inbox(user_id, bot_id))
+    if method == "DELETE" and "messageId" in params:
+        return _response(200, delete_inbox_message(user_id, bot_id, params["messageId"]))
+    if method == "DELETE":
+        return _response(200, disable_bot_inbox(user_id, bot_id))
+    return None
+
+
 def _direct_chat_route(
     user_id: str,
     _display_name: str,
@@ -519,6 +549,7 @@ def _skill_route(
 
 _HANDLERS: dict[str, Route] = {
     "bot": _bot_route,
+    "botInbox": _bot_inbox_route,
     "browser": browser_session_route,
     "directChat": _direct_chat_route,
     "fileAndDevice": _file_and_device_route,

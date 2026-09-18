@@ -27,6 +27,11 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case botCreate
     case botUpdate
     case botDelete
+    case botInboxList
+    case botInboxEnable
+    case botInboxDisable
+    case botInboxRotate
+    case botInboxMessageDelete
     case botMemoryList
     case botMemoryCreate
     case botMemoryUpdate
@@ -230,6 +235,36 @@ public enum GeneratedAPIContract {
             id: .botDelete,
             method: .delete,
             pathTemplate: "/bots/{botId}",
+            access: .authenticated
+        ),
+        .botInboxList: APIContractRoute(
+            id: .botInboxList,
+            method: .get,
+            pathTemplate: "/bots/{botId}/inbox",
+            access: .authenticated
+        ),
+        .botInboxEnable: APIContractRoute(
+            id: .botInboxEnable,
+            method: .post,
+            pathTemplate: "/bots/{botId}/inbox",
+            access: .authenticated
+        ),
+        .botInboxDisable: APIContractRoute(
+            id: .botInboxDisable,
+            method: .delete,
+            pathTemplate: "/bots/{botId}/inbox",
+            access: .authenticated
+        ),
+        .botInboxRotate: APIContractRoute(
+            id: .botInboxRotate,
+            method: .post,
+            pathTemplate: "/bots/{botId}/inbox/rotate",
+            access: .authenticated
+        ),
+        .botInboxMessageDelete: APIContractRoute(
+            id: .botInboxMessageDelete,
+            method: .delete,
+            pathTemplate: "/bots/{botId}/inbox/{messageId}",
             access: .authenticated
         ),
         .botMemoryList: APIContractRoute(

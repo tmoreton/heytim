@@ -81,6 +81,8 @@ def _put_bot(
     system_role: str | None = None,
     require_active_account: bool = False,
     create_only: bool = False,
+    expected_email_token: str | None = None,
+    check_email_token: bool = False,
 ) -> dict:
     bot_id = bot_id or str(uuid.uuid4())
     current = _now()
@@ -118,6 +120,8 @@ def _put_bot(
     for key in ("templateId", "templateVersion"):
         if key in values:
             item[key] = values[key]
+    if "emailToken" in values:
+        item["emailToken"] = values["emailToken"]
     if require_active_account:
         try:
             put_user_item_while_account_active(
@@ -139,7 +143,24 @@ def _put_bot(
                 return _public_bot(existing)
             raise
     else:
-        table.put_item(Item=item)
+        if check_email_token:
+            condition = "attribute_exists(pk) AND attribute_not_exists(emailInboxClosing) AND "
+            values = {}
+            if expected_email_token is None:
+                condition += "attribute_not_exists(emailToken)"
+            else:
+                condition += "emailToken = :expectedEmailToken"
+                values[":expectedEmailToken"] = expected_email_token
+            try:
+                table.put_item(
+                    Item=item,
+                    ConditionExpression=condition,
+                    **({"ExpressionAttributeValues": values} if values else {}),
+                )
+            except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
+                raise ApiError(409, "This bot changed. Please try saving again.") from exc
+        else:
+            table.put_item(Item=item)
     return _public_bot(item)
 
 
@@ -294,6 +315,7 @@ def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:
             "createdAt": previous["createdAt"],
             "lastMessage": previous.get("lastMessage", "Ready when you are."),
             "lastMessageAt": previous.get("lastMessageAt", previous["createdAt"]),
+            **({"emailToken": previous["emailToken"]} if "emailToken" in previous else {}),
             **(
                 {"templateId": previous["templateId"]}
                 if "templateId" in previous
@@ -306,7 +328,10 @@ def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:
             ),
         }
     )
-    return _put_bot(user_id, values, bot_id, previous.get("systemRole"))
+    return _put_bot(
+        user_id, values, bot_id, previous.get("systemRole"),
+        expected_email_token=previous.get("emailToken"), check_email_token=True,
+    )
 
 
 def _forget_bot_conversation(user_id: str, bot_id: str) -> dict[str, bool]:
@@ -420,9 +445,21 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
             resource_label="bot workspace file",
         )
 
+    # Close the route before listing messages so a concurrent receiver cannot
+    # create an inbox item after the deletion list has been collected.
+    table.update_item(
+        Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot_id)},
+        UpdateExpression="SET emailInboxClosing = :closing REMOVE emailToken",
+        ConditionExpression="attribute_exists(pk)",
+        ExpressionAttributeValues={":closing": True},
+    )
+    inbox_messages = _partition_items(_user_pk(user_id), f"INBOX#{bot_id}#")
+
     with table.batch_writer() as batch:
         for turn in turns:
             batch.delete_item(Key={"pk": turn["pk"], "sk": turn["sk"]})
+        for message in inbox_messages:
+            batch.delete_item(Key={"pk": message["pk"], "sk": message["sk"]})
         for schedule_item in schedules:
             batch.delete_item(
                 Key={"pk": schedule_item["pk"], "sk": schedule_item["sk"]}
