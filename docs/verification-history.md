@@ -10,13 +10,19 @@ the current checkout or environment still has the same status.
   gates, 454 API/worker tests, 266 runtime tests, dependency audit, AgentCore deployment, Amplify deployment, and
   production resource verification. Local AgentCore validation and Apple unit tests also passed; the native release
   runner passed the iPhone UI suite. Python and JavaScript/TypeScript CodeQL analysis passed.
+- The separate website/catalog CI job identified a 600-line source-size gate in three touched backend modules.
+  Commit `6845192` moved their functions into focused modules without changing behavior. The full hosted
+  [verification run](https://github.com/tmoreton/frogbot/actions/runs/35361014024) and CodeQL passed. A
+  [backend-only production run](https://github.com/tmoreton/frogbot/actions/runs/35361037087) deployed that exact
+  commit and passed service checks, dependency audit, AgentCore/Amplify deployment, and resource verification.
+  The signed webhook smoke check passed again against the updated API.
 - The production API accepted a correctly signed synthetic GitHub `issues.opened` delivery and replay with HTTP 202
   (`matchedRoutines: 0`) and rejected a bad signature with HTTP 401. This proves the deployed signature boundary,
   not routine deduplication or a live GitHub delivery. The existing GitHub App has Issues permission but its webhook
   is disabled and its event list is empty. A 48-byte random signing secret was added to the existing production App
   secret; enabling the App webhook, selecting Issues, configuring its URL and matching secret, and testing a real
-  delivery remain open. The settings UI was unavailable because the Mac was locked; the App configuration API returned
-  HTTP 404 while the webhook was disabled.
+  delivery remain open. The App configuration API returned HTTP 404 while the webhook was disabled. GitHub's settings
+  UI then required a fresh account confirmation, so the event subscription was not changed during this release.
 - The release runner uploaded both iPhone and Mac TestFlight packages for version `6.2.5`, build `20260918145216`,
   to App Store Connect. Apple's processing and availability in TestFlight must still be checked there.
 - The cloud computer remains deferred. Durable bot/room files use the existing encrypted S3 storage and explicit
