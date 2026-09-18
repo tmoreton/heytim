@@ -43,7 +43,7 @@ import XCTest
       app.launchArguments = ["--ui-testing", "--ui-testing-delayed-bot-switch"]
       app.launchForUITesting()
 
-      let sidebar = app.buttons["FroggyBot"]
+      let sidebar = app.buttons["Hey Tim"]
       XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
       sidebar.tap()
       let researcher = app.staticTexts["Research Bot"].firstMatch
@@ -138,12 +138,12 @@ import XCTest
     }
   }
 
-  func testNativeSignInMatchesTheFroggyBotFlow() {
+  func testNativeSignInMatchesTheHeyTimFlow() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing-auth"]
     app.launchForUITesting()
 
-    XCTAssertTrue(app.staticTexts["FroggyBot"].firstMatch.waitForExistence(timeout: 10))
+    XCTAssertTrue(app.staticTexts["Hey Tim"].firstMatch.waitForExistence(timeout: 10))
     XCTAssertTrue(app.staticTexts["Welcome back"].waitForExistence(timeout: 5))
     XCTAssertTrue(app.textFields["Email address"].exists)
     XCTAssertTrue(app.buttons["Continue"].exists)
@@ -167,7 +167,7 @@ import XCTest
       XCTAssertFalse(chiefTitles.isEmpty)
       XCTAssertTrue(
         chiefTitles.allSatisfy { $0.frame.isEmpty || $0.frame.maxY <= details.frame.maxY + 16 })
-      app.buttons["FroggyBot"].tap()
+      app.buttons["Hey Tim"].tap()
     #endif
     XCTAssertTrue(app.searchFields["Search chats"].waitForExistence(timeout: 5))
     #if os(macOS)
@@ -238,7 +238,7 @@ import XCTest
     XCTAssertTrue(latestMessage.isHittable)
     XCTAssertLessThan(latestMessage.frame.maxY, composer.frame.minY)
     #if os(iOS)
-      app.buttons["FroggyBot"].tap()
+      app.buttons["Hey Tim"].tap()
     #endif
     XCTAssertTrue(sidebarChief.waitForExistence(timeout: 5))
     XCTAssertFalse(sidebarChief.label.localizedCaseInsensitiveContains("working"))
@@ -381,13 +381,13 @@ import XCTest
     wait(for: [rootLinksDisappear], timeout: 5)
   }
 
-  func testAccountSettingsUsesTheFroggyBotLayout() {
+  func testAccountSettingsUsesTheHeyTimLayout() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing"]
     app.launchForUITesting()
 
     #if os(iOS)
-      let sidebar = app.buttons["FroggyBot"]
+      let sidebar = app.buttons["Hey Tim"]
       XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
       sidebar.tap()
     #endif
@@ -430,9 +430,9 @@ import XCTest
     XCTAssertTrue(exportMemory.waitForExistence(timeout: 5))
 
     #if os(macOS)
-      let aboutValue = app.staticTexts["FroggyBot for Apple"]
+      let aboutValue = app.staticTexts["Hey Tim for Apple"]
     #else
-      let aboutValue = app.staticTexts["App, FroggyBot for Apple"]
+      let aboutValue = app.staticTexts["App, Hey Tim for Apple"]
     #endif
     for _ in 0..<4 where !aboutValue.exists { app.swipeUp() }
     XCTAssertTrue(aboutValue.waitForExistence(timeout: 5))
@@ -492,7 +492,7 @@ import XCTest
       app.launchArguments = ["--ui-testing"]
       app.launchForUITesting()
 
-      let sidebar = app.buttons["FroggyBot"]
+      let sidebar = app.buttons["Hey Tim"]
       XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
       sidebar.tap()
       let settings = app.buttons["sidebar.settings"]
@@ -519,7 +519,7 @@ import XCTest
     app.launchForUITesting()
 
     #if os(iOS)
-      app.buttons["FroggyBot"].tap()
+      app.buttons["Hey Tim"].tap()
     #endif
     let create = app.descendants(matching: .any)["sidebar.create"].firstMatch
     XCTAssertTrue(create.waitForExistence(timeout: 10))
@@ -550,7 +550,7 @@ import XCTest
     app.launchForUITesting()
 
     #if os(iOS)
-      let sidebar = app.buttons["FroggyBot"]
+      let sidebar = app.buttons["Hey Tim"]
       XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
       sidebar.tap()
     #endif
@@ -580,7 +580,7 @@ import XCTest
     app.launchForUITesting()
 
     #if os(iOS)
-      app.buttons["FroggyBot"].tap()
+      app.buttons["Hey Tim"].tap()
     #endif
     XCTAssertTrue(app.buttons["sidebar.settings"].waitForExistence(timeout: 10))
     app.buttons["sidebar.settings"].tap()
@@ -614,7 +614,7 @@ import XCTest
     app.launchForUITesting()
 
     #if os(iOS)
-      let sidebar = app.buttons["FroggyBot"]
+      let sidebar = app.buttons["Hey Tim"]
       XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
       sidebar.tap()
     #endif
