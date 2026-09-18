@@ -14,8 +14,13 @@ import UniformTypeIdentifiers
   }
 
   func testGeneratedContractIncludesEveryBackendRoute() throws {
-    XCTAssertEqual(APIRouteID.allCases.count, 76)
-    XCTAssertEqual(GeneratedAPIContract.routes.count, APIRouteID.allCases.count)
+    XCTAssertEqual(Set(GeneratedAPIContract.routes.keys), Set(APIRouteID.allCases))
+    XCTAssertEqual(
+      try GeneratedAPIContract.route(.githubSkillsScan).pathTemplate,
+      "/skills/github/scan")
+    XCTAssertEqual(
+      try GeneratedAPIContract.route(.githubSkillPreview).pathTemplate,
+      "/skills/github/preview")
   }
 
   func testRouteParametersAndCursorAreSafelyEncoded() throws {
