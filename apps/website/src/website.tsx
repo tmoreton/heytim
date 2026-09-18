@@ -23,7 +23,7 @@ export function Website({ pathname }: { pathname: string }) {
     : route === '/sms' ? <Sms /> : route === '/contribute' ? <Contribute />
     : route === '/invite' ? <OpenApp invite />
     : route === '/download' || route === '/app' ? <OpenApp />
-    : <main className="doc-page" id="main"><h1>This page has hopped away.</h1><p>Try the skills library or return home.</p><a className="button" href="/">Back to home</a></main>;
+    : <main className="doc-page" id="main"><h1>We couldn’t find that page.</h1><p>Try the skills library or return home.</p><a className="button" href="/">Back to home</a></main>;
   return <>
     <a className="skip-link" href="#main">Skip to content</a>
     <header className="site-header">
