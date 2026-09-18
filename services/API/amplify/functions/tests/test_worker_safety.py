@@ -369,7 +369,7 @@ class WorkerSafetyTests(WorkerTestCase):
 
         cleanup.assert_called_once_with("user-1", "username-1")
 
-    def test_scheduled_work_pauses_for_interactive_tool_approval(self) -> None:
+    def test_scheduled_work_pauses_after_specific_tool_call(self) -> None:
         turn = {
             "pk": "CHAT#user-1#bot-1",
             "sk": "TURN#now#turn-1",
@@ -388,20 +388,21 @@ class WorkerSafetyTests(WorkerTestCase):
             "toolIds": ["browser"],
         }
         with (
-            patch.object(
-                self.direct_job.catalog,
-                "unapproved_tools",
-                return_value=[{"id": "browser", "name": "Interactive browser"}],
-            ),
             patch.object(self.direct_job, "_update_schedule_result") as update_schedule,
-            patch.object(self.direct_job, "_invoke") as invoke,
+            patch.object(self.direct_job, "_invoke", return_value=self.direct_job._invoke.__globals__["AgentInvocationResult"](
+                text="Approval required.", pending_approval={
+                    "id": "approval-1", "digest": "a" * 64, "toolUseId": "tool-1",
+                    "toolName": "browser", "input": {"url": "https://example.com"},
+                    "expiresAt": "2099-09-18T12:00:00+00:00",
+                }
+            )) as invoke,
         ):
             self.direct_job._process_agent_reply(
                 {"messageId": "queue-1"},
                 {"userId": "user-1", "botId": "bot-1", "turnKey": turn["sk"]},
             )
 
-        invoke.assert_not_called()
+        invoke.assert_called_once()
         update_schedule.assert_called_once_with(turn, "awaiting_approval", "now")
         approval_update = self.table.updates[-1]
         self.assertEqual(
@@ -409,7 +410,7 @@ class WorkerSafetyTests(WorkerTestCase):
             "AWAITING_APPROVAL",
         )
 
-    def test_unapproved_direct_work_is_returned_to_the_approval_state(self) -> None:
+    def test_direct_work_pauses_with_specific_proposal(self) -> None:
         turn = {
             "pk": "CHAT#user-1#bot-1",
             "sk": "TURN#now#turn-1",
@@ -431,27 +432,28 @@ class WorkerSafetyTests(WorkerTestCase):
                 "approval_tool_names",
                 return_value=["Interactive browser"],
             ),
-            patch.object(
-                self.direct_job.catalog,
-                "unapproved_tools",
-                return_value=[{"id": "browser", "name": "Interactive browser"}],
-            ),
-            patch.object(self.direct_job, "_invoke") as invoke,
+            patch.object(self.direct_job, "_invoke", return_value=self.direct_job._invoke.__globals__["AgentInvocationResult"](
+                text="Approval required.", pending_approval={
+                    "id": "approval-1", "digest": "a" * 64, "toolUseId": "tool-1",
+                    "toolName": "browser", "input": {"url": "https://example.com"},
+                    "expiresAt": "2099-09-18T12:00:00+00:00",
+                }
+            )) as invoke,
         ):
             self.direct_job._process_agent_reply(
                 {"messageId": "queue-1"},
                 {"userId": "user-1", "botId": "bot-1", "turnKey": turn["sk"]},
             )
 
-        invoke.assert_not_called()
+        invoke.assert_called_once()
         approval_update = self.table.updates[-1]
         self.assertEqual(
             approval_update["ExpressionAttributeValues"][":awaiting"],
             "AWAITING_APPROVAL",
         )
         self.assertEqual(
-            approval_update["ExpressionAttributeValues"][":approvalToolIds"],
-            ["browser"],
+            approval_update["ExpressionAttributeValues"][":proposal"]["toolName"],
+            "browser",
         )
 
     def test_generated_artifacts_become_owned_downloadable_file_records(self) -> None:

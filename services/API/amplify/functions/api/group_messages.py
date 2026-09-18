@@ -9,6 +9,7 @@ from shared.group_chat import (
     plan_group_reply_round,
     select_group_reply_targets,
 )
+from shared.workflows import group_run_record, task_metadata
 
 from .attachments import _public_file, _resolve_group_attachments
 from .bots import _get_bot
@@ -27,6 +28,7 @@ from .support import (
     sqs,
     table,
 )
+from .workspaces import _resolve_workspace_files
 
 
 def _list_group_message_page(
@@ -86,12 +88,26 @@ def _list_group_message_page(
                     "completedAt": item.get("completedAt"),
                     "activityUpdatedAt": item.get("activityUpdatedAt"),
                     "status": str(item.get("status", "COMPLETE")).lower(),
-                    "allowedActions": ["saveDecision"] if can_save_decision else [],
+                    "allowedActions": (["approveOnce", "reject"]
+                                       if item.get("status") == "AWAITING_APPROVAL"
+                                       and item.get("billingUserId") == user_id
+                                       and item.get("botOwnerId") == user_id
+                                       else ["saveDecision"] if can_save_decision else []),
+                    "approvalTools": ([item["approvalRequest"].get("toolName")]
+                                      if isinstance(item.get("approvalRequest"), dict) else None),
+                    "approvalInput": (json.dumps(item["approvalRequest"].get("input"),
+                                                 sort_keys=True, ensure_ascii=False, indent=2)
+                                      if isinstance(item.get("approvalRequest"), dict) else None),
                     "activity": item.get("activity", []),
                     "roundId": item.get("roundId"),
                     "roundPosition": item.get("roundPosition"),
                     "roundSize": item.get("roundSize"),
                     "roundRole": item.get("roundRole"),
+                    "runId": item.get("runId"),
+                    "taskId": item.get("taskId"),
+                    "taskRole": item.get("taskRole"),
+                    "source": item.get("source"),
+                    "routineId": item.get("routineId"),
                     "attachments": [
                         _public_file(file)
                         for source in ("attachments", "artifacts")
@@ -128,19 +144,30 @@ def _send_group_message(
         raise ApiError(409, "Add Chief before asking the full bot team") from exc
     for group_bot in reply_bots:
         source_bot = _get_bot(group_bot["botOwnerId"], group_bot["botId"])
-        if catalog.approval_tool_names(
+        if group_bot["botOwnerId"] != user_id and catalog.approval_tool_names(
             group_bot["botOwnerId"], source_bot.get("toolIds", [])
         ):
             raise ApiError(
                 409,
-                "Interactive tools currently require approval in a direct chat.",
+                "A room can only approve actions for its requester's own bot.",
             )
     raw_text = value.get("text", "")
     if not isinstance(raw_text, str) or raw_text.strip():
         _validate_string(raw_text, "text", MESSAGE_MAX_LENGTH)
+    raw_attachment_ids = value.get("attachmentIds") or []
+    raw_workspace_ids = value.get("workspaceFileIds") or []
+    if (isinstance(raw_attachment_ids, list) and isinstance(raw_workspace_ids, list)
+        and len(raw_attachment_ids) + len(raw_workspace_ids) > 5):
+        raise ApiError(400, "Attach up to 5 files per message")
     attachments = _resolve_group_attachments(
         user_id, group_id, value.get("attachmentIds")
     )
+    uploaded_attachments = attachments
+    attachments = attachments + _resolve_workspace_files(
+        user_id, "group", group_id, value.get("workspaceFileIds")
+    )
+    if len(attachments) > 5:
+        raise ApiError(400, "Attach up to 5 files per message")
     if attachments and isinstance(raw_text, str) and not raw_text.strip():
         raw_text = "Please review the attached files."
     text = _validate_string(raw_text, "text", MESSAGE_MAX_LENGTH)
@@ -183,6 +210,7 @@ def _send_group_message(
                 "roundPosition": order,
                 "roundSize": len(reply_bots),
                 "roundRole": group_bot["roundRole"],
+                **task_metadata(message_id, reply_id, group_bot["roundRole"]),
                 "coordinatorBotId": coordinator_bot_id,
                 "text": "",
                 "createdAt": current,
@@ -191,10 +219,16 @@ def _send_group_message(
         )
     with table.batch_writer() as batch:
         batch.put_item(Item=message)
-        for attachment in attachments:
+        for attachment in uploaded_attachments:
             batch.put_item(Item=attachment)
         for reply in replies:
             batch.put_item(Item=reply)
+        if replies:
+            batch.put_item(Item=group_run_record(
+                _group_pk(group_id), message_id, user_id, "chat", current,
+                [reply["id"] for reply in replies],
+                [reply["sk"] for reply in replies],
+            ))
         batch.put_item(
             Item={
                 **meta,

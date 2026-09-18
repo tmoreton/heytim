@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
+from strands.agent.agent_result import AgentResult
 from strands_stan import harness_agent
 
+from frogbot_runtime.action_approval import approval_configuration, pending_approval
 from frogbot_runtime.configuration import bot_configuration
 from frogbot_runtime.conversation import conversation_manager
 from frogbot_runtime.memory import (
@@ -63,6 +65,7 @@ async def run_agent(payload, context):
         youtube_search_quota=(provider_quota or {}).get("youtubeSearch")
     )
     config = bot_configuration(payload, session_id, actor_id, messages, usage)
+    approval = approval_configuration(payload, actor_id)
     log.info(
         "Invoking FroggyBot session %s with %d history messages",
         session_id,
@@ -72,6 +75,7 @@ async def run_agent(payload, context):
     agent = None
     completed = False
     terminal_error = None
+    approval_request = None
     try:
         model = await load_model(usage)
         agent = harness_agent(
@@ -89,6 +93,8 @@ async def run_agent(payload, context):
             memory_store=memories,
             context_management="auto",
             conversation_manager=conversation_manager(),
+            **({"hooks": [approval[0]], "session_manager": approval[1],
+                "agent_id": f"turn-{payload['memory']['eventId']}"} if approval else {}),
         )
         try:
             # Leave time to save the outcome before AgentCore retires the session.
@@ -97,9 +103,21 @@ async def run_agent(payload, context):
                 if payload.get("runtimeJob")
                 else min(AGENT_RUN_TIMEOUT_SECONDS, 720)
             )
+            resume = payload.get("actionApproval")
+            prompt = ([{"interruptResponse": {
+                "interruptId": resume["id"],
+                "response": {"digest": resume["digest"], "toolUseId": resume["toolUseId"]},
+            }}] if resume else messages)
             async for event in stream_with_token_recovery(
-                agent, messages, logger=log, timeout_seconds=budget
+                agent, prompt, logger=log, timeout_seconds=budget
             ):
+                if isinstance(event, dict) and "stop" in event:
+                    proposed = pending_approval(AgentResult(*event["stop"]))
+                    if proposed:
+                        if not approval:
+                            raise ValueError("Approval hook is unavailable")
+                        await approval[1].save_snapshot(agent, is_latest=True)
+                        approval_request = proposed
                 if not isinstance(event, dict) or "event" not in event:
                     continue
                 block_start = event["event"].get("contentBlockStart")
@@ -137,7 +155,11 @@ async def run_agent(payload, context):
         ):
             control["usage"] = usage_report
         if config.background_work.pending:
+            if approval_request:
+                raise ValueError("Background work cannot be combined with an interrupted tool call")
             control["pendingWork"] = config.background_work.pending
+        elif approval_request:
+            control["pendingApproval"] = approval_request
         elif terminal_error:
             control["terminalError"] = terminal_error
         else:

@@ -27,6 +27,7 @@ from .mcp_connections import (
 from .memes import meme_tools
 from .provider_connections import provider_connection_tools
 from .repository_workspace import repository_workspace_tool
+from .workspace_sync import workspace_sync_tool
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,7 @@ def resolve_capabilities(
     bot_management: dict | None = None,
     image_references: list[dict] | None = None,
     usage: Any = None,
+    workspace_files: list[dict] | None = None,
 ) -> CapabilityConfiguration:
     bindings = tool_bindings(bot)
     skills = dynamic_skills(bot)
@@ -91,6 +93,8 @@ def resolve_capabilities(
         artifact_prefix=artifact_prefix,
     )
     tools.extend(managed_tools)
+    if interpreter and workspace_files:
+        tools.append(workspace_sync_tool(interpreter, workspace_files))
     github_binding = next(
         (
             item

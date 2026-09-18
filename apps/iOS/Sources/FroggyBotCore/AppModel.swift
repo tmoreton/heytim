@@ -40,8 +40,9 @@ public final class AppModel {
   private struct ComposerDraft: Sendable {
     var text = ""
     var attachments: [Attachment] = []
+    var workspaceFiles: [Attachment] = []
 
-    var isEmpty: Bool { text.isEmpty && attachments.isEmpty }
+    var isEmpty: Bool { text.isEmpty && attachments.isEmpty && workspaceFiles.isEmpty }
   }
 
   private static let pushLogger = Logger(subsystem: "com.frogbot.app", category: "push")
@@ -61,6 +62,7 @@ public final class AppModel {
   public var errorMessage: String?
   public var sheet: AppSheet?
   public var pendingAttachments: [Attachment] = []
+  public var pendingWorkspaceFiles: [Attachment] = []
   public var composerText = ""
   public var groupReplyBotId: String? = "all"
   public private(set) var uploadsInProgress = 0
@@ -196,6 +198,7 @@ public final class AppModel {
     errorMessage = nil
     sheet = nil
     pendingAttachments = []
+    pendingWorkspaceFiles = []
     composerText = ""
     groupReplyBotId = "all"
     uploadsInProgress = 0
@@ -229,7 +232,10 @@ public final class AppModel {
     } ?? ""
   }
   public var canStop: Bool {
-    selectedBot != nil
+    if selectedGroup != nil {
+      return messages.contains(where: { !$0.isUser && $0.isActive && $0.roundId != nil })
+    }
+    return selectedBot != nil
       && messages.last(where: { !$0.isUser })?.allowedActions?.contains("cancel") == true
   }
   public var constraints: AppConstraints { bootstrap?.constraints ?? .serviceDefaults }
@@ -419,15 +425,20 @@ public final class AppModel {
 
   public func send() async {
     let requestedSession = sessionGeneration
-    let submitted = ComposerDraft(text: composerText, attachments: pendingAttachments)
+    let submitted = ComposerDraft(
+      text: composerText, attachments: pendingAttachments,
+      workspaceFiles: pendingWorkspaceFiles)
     let text = submitted.text.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard let selection, !text.isEmpty || !submitted.attachments.isEmpty, !isSending,
+    guard let selection, !text.isEmpty || !submitted.attachments.isEmpty
+      || !submitted.workspaceFiles.isEmpty, !isSending,
       !isUploading
     else { return }
     let attachmentIds = submitted.attachments.map(\.id)
+    let workspaceFileIds = submitted.workspaceFiles.map(\.id)
     let replyBotId = selection.kind == .group ? activeGroupReplyBotId : nil
     composerText = ""
     pendingAttachments = []
+    pendingWorkspaceFiles = []
     composerDrafts[selection] = nil
     isSending = true
     sendingSelection = selection
@@ -457,11 +468,13 @@ public final class AppModel {
     }
     do {
       if selection.kind == .bot {
-        try await api.sendMessage(bot: selection.id, text: text, attachments: attachmentIds)
+        try await api.sendMessage(
+          bot: selection.id, text: text, attachments: attachmentIds,
+          workspaceFiles: workspaceFileIds)
       } else {
         try await api.sendMessage(
           group: selection.id, text: text, replyBotId: replyBotId,
-          attachments: attachmentIds)
+          attachments: attachmentIds, workspaceFiles: workspaceFileIds)
       }
     } catch {
       guard sessionIsCurrent(requestedSession, api: api) else { return }
@@ -481,6 +494,16 @@ public final class AppModel {
   }
 
   public func stop() async {
+    if let group = selectedGroup,
+      let runId = messages.last(where: { !$0.isUser && $0.isActive && $0.roundId != nil })?.roundId,
+      let api, !demoMode
+    {
+      do {
+        try await api.cancelGroupRun(groupId: group.id, runId: runId)
+        try await loadMessages()
+      } catch { present(error) }
+      return
+    }
     guard let bot = selectedBot,
       let turn = messages.last(where: { !$0.isUser && $0.isActive }),
       let api, !demoMode
@@ -492,18 +515,25 @@ public final class AppModel {
   }
 
   public func approve(_ message: ChatMessage, always: Bool) async {
-    guard let bot = selectedBot, let api, !demoMode else { return }
+    guard let api, !demoMode else { return }
     do {
-      try await api.approve(botId: bot.id, turnId: Self.directTurnID(message.id), always: always)
+      if let group = selectedGroup, let runId = message.runId, let taskId = message.taskId {
+        try await api.decideGroupAction(groupId: group.id, runId: runId, taskId: taskId, approved: true)
+      } else if let bot = selectedBot {
+        try await api.approve(botId: bot.id, turnId: Self.directTurnID(message.id), always: false)
+      } else { return }
       try await loadMessages()
-      if always { await refreshBootstrap() }
     } catch { present(error) }
   }
 
   public func reject(_ message: ChatMessage) async {
-    guard let bot = selectedBot, let api, !demoMode else { return }
+    guard let api, !demoMode else { return }
     do {
-      try await api.cancel(botId: bot.id, turnId: Self.directTurnID(message.id))
+      if let group = selectedGroup, let runId = message.runId, let taskId = message.taskId {
+        try await api.decideGroupAction(groupId: group.id, runId: runId, taskId: taskId, approved: false)
+      } else if let bot = selectedBot {
+        try await api.cancel(botId: bot.id, turnId: Self.directTurnID(message.id))
+      } else { return }
       try await loadMessages()
     } catch { present(error) }
   }
@@ -518,6 +548,15 @@ public final class AppModel {
   }
 
   public func removeAttachment(_ id: String) { pendingAttachments.removeAll { $0.id == id } }
+  public func removeWorkspaceFile(_ id: String) {
+    pendingWorkspaceFiles.removeAll { $0.id == id }
+  }
+  public func addWorkspaceFile(_ file: Attachment) {
+    guard selection != nil, remainingAttachmentSlots > 0,
+      !pendingWorkspaceFiles.contains(where: { $0.id == file.id })
+    else { return }
+    pendingWorkspaceFiles.append(file)
+  }
 
   public func registerPush(_ token: Data, platform: String) async {
     pushToken = token
@@ -759,7 +798,9 @@ public final class AppModel {
 
   private func saveVisibleDraft() {
     guard let selection else { return }
-    let draft = ComposerDraft(text: composerText, attachments: pendingAttachments)
+    let draft = ComposerDraft(
+      text: composerText, attachments: pendingAttachments,
+      workspaceFiles: pendingWorkspaceFiles)
     composerDrafts[selection] = draft.isEmpty ? nil : draft
   }
 
@@ -769,11 +810,13 @@ public final class AppModel {
     guard let value else {
       composerText = ""
       pendingAttachments = []
+      pendingWorkspaceFiles = []
       return
     }
     let draft = composerDrafts.removeValue(forKey: value) ?? ComposerDraft()
     composerText = draft.text
     pendingAttachments = draft.attachments
+    pendingWorkspaceFiles = draft.workspaceFiles
   }
 
   @discardableResult private func transitionSelection(
@@ -793,7 +836,7 @@ public final class AppModel {
 
   private func append(_ attachment: Attachment, to target: ConversationSelection) {
     if selection == target {
-      guard pendingAttachments.count < constraints.maxAttachmentsPerMessage,
+      guard pendingAttachments.count + pendingWorkspaceFiles.count < constraints.maxAttachmentsPerMessage,
         !pendingAttachments.contains(where: { $0.id == attachment.id })
       else { return }
       pendingAttachments.append(attachment)
@@ -801,7 +844,7 @@ public final class AppModel {
     }
 
     var draft = composerDrafts[target] ?? ComposerDraft()
-    guard draft.attachments.count < constraints.maxAttachmentsPerMessage,
+    guard draft.attachments.count + draft.workspaceFiles.count < constraints.maxAttachmentsPerMessage,
       !draft.attachments.contains(where: { $0.id == attachment.id })
     else { return }
     draft.attachments.append(attachment)
@@ -811,8 +854,9 @@ public final class AppModel {
   private func availableAttachmentSlots(for target: ConversationSelection) -> Int {
     let attachmentCount =
       selection == target
-      ? pendingAttachments.count
-      : composerDrafts[target]?.attachments.count ?? 0
+      ? pendingAttachments.count + pendingWorkspaceFiles.count
+      : (composerDrafts[target]?.attachments.count ?? 0)
+        + (composerDrafts[target]?.workspaceFiles.count ?? 0)
     return max(
       0, constraints.maxAttachmentsPerMessage - attachmentCount - uploadsInProgress)
   }
@@ -820,10 +864,13 @@ public final class AppModel {
   private func restoreSubmittedDraft(_ submitted: ComposerDraft, for target: ConversationSelection)
   {
     if selection == target {
-      let current = ComposerDraft(text: composerText, attachments: pendingAttachments)
+      let current = ComposerDraft(
+        text: composerText, attachments: pendingAttachments,
+        workspaceFiles: pendingWorkspaceFiles)
       let restored = mergedDraft(submitted, with: current)
       composerText = restored.text
       pendingAttachments = restored.attachments
+      pendingWorkspaceFiles = restored.workspaceFiles
     } else {
       composerDrafts[target] = mergedDraft(
         submitted, with: composerDrafts[target] ?? ComposerDraft())
@@ -845,7 +892,12 @@ public final class AppModel {
     let attachments = (submitted.attachments + current.attachments)
       .filter { attachmentIDs.insert($0.id).inserted }
       .prefix(constraints.maxAttachmentsPerMessage)
-    return ComposerDraft(text: text, attachments: Array(attachments))
+    var workspaceIDs = Set<String>()
+    let workspaceFiles = (submitted.workspaceFiles + current.workspaceFiles)
+      .filter { workspaceIDs.insert($0.id).inserted }
+      .prefix(max(0, constraints.maxAttachmentsPerMessage - attachments.count))
+    return ComposerDraft(
+      text: text, attachments: Array(attachments), workspaceFiles: Array(workspaceFiles))
   }
 
   @discardableResult private func chooseAvailableSelection() -> Bool {

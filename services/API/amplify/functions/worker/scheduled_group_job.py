@@ -6,6 +6,7 @@ from boto3.dynamodb.conditions import Attr, Key
 from shared.group_chat import group_bots, plan_group_reply_round
 from shared.keys import group_message_sk
 from shared.schedules import occurrence_time, scheduled_turn_id
+from shared.workflows import group_run_record, task_metadata
 
 from .group_job import _process_group_agent_round
 from .scheduled_job import _request_string
@@ -80,10 +81,16 @@ def _process_scheduled_group_round(record: dict, request: dict) -> None:
             "botOwnerId": member["botOwnerId"], "billingUserId": user_id, "roundId": message_id,
             "roundPosition": position, "roundSize": len(team), "roundRole": member["roundRole"],
             "coordinatorBotId": team[0]["botId"], "createdAt": created_at,
+            **task_metadata(message_id, reply_id, member["roundRole"]),
             "status": "PENDING" if position == 1 else "WAITING", "text": "",
             "source": "schedule", "scheduleId": schedule_id, "scheduleName": message["scheduleName"], "userId": user_id,
         })
         replies.append({"botId": reply["authorId"], "botOwnerId": reply["botOwnerId"], "replyKey": reply["sk"], "roundRole": reply["roundRole"], "coordinatorBotId": reply["coordinatorBotId"]})
+    _put_once(group_run_record(
+        group_key, message_id, user_id, "schedule", created_at,
+        [scheduled_turn_id(message_id, str(position)) for position in range(1, len(team) + 1)],
+        [entry["replyKey"] for entry in replies],
+    ))
     if request.get("nextReplyIndex", 0) == 0:
         table.update_item(Key=_schedule_key(user_id, schedule_id),
             UpdateExpression="SET lastRunAt = :now, lastStatus = :status",

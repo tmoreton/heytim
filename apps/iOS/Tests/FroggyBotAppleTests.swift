@@ -444,16 +444,19 @@ import UniformTypeIdentifiers
 
     model.composerText = "Chief draft"
     model.pendingAttachments = [Self.attachment("chief-file")]
-    XCTAssertEqual(model.remainingAttachmentSlots, 4)
+    model.addWorkspaceFile(Self.attachment("saved-file"))
+    XCTAssertEqual(model.remainingAttachmentSlots, 3)
 
     model.select(group)
     XCTAssertEqual(model.composerText, "")
     XCTAssertTrue(model.pendingAttachments.isEmpty)
+    XCTAssertTrue(model.pendingWorkspaceFiles.isEmpty)
     model.composerText = "Team draft"
 
     model.select(bot)
     XCTAssertEqual(model.composerText, "Chief draft")
     XCTAssertEqual(model.pendingAttachments.map(\.id), ["chief-file"])
+    XCTAssertEqual(model.pendingWorkspaceFiles.map(\.id), ["saved-file"])
     model.select(group)
     XCTAssertEqual(model.composerText, "Team draft")
   }

@@ -19,6 +19,7 @@ from .instructions import (
 )
 from .memes import image_attachments_from_messages
 from .request import image_references_from_payload
+from .workspace_sync import workspace_files_from_payload
 
 MAX_INSTRUCTIONS_CHARS = 12_000
 
@@ -62,6 +63,7 @@ def bot_configuration(
     continuation_context = continuation_instructions(payload)
     team_context = team_instructions(payload.get("team"))
     artifact_prefix = artifact_prefix_from_payload(payload, actor_id)
+    workspace_files = workspace_files_from_payload(payload, actor_id)
     image_references = image_references_from_payload(payload, actor_id)
     if not image_references:
         image_references = [
@@ -81,8 +83,18 @@ def bot_configuration(
         bot_management=bot_management_from_payload(payload),
         image_references=image_references,
         usage=usage,
+        workspace_files=workspace_files,
     )
     instructions = base_instructions(name.strip(), prompt.strip())
+    if workspace_files and any(
+        getattr(candidate, "tool_name", None) == "load_workspace_files"
+        for candidate in capabilities.tools
+    ):
+        instructions += (
+            "\n\nThe user selected durable workspace files for this turn. "
+            "Call load_workspace_files before using them in code_interpreter. "
+            "Those files persist in the app workspace across code sessions."
+        )
     for context in (
         team_context,
         image_reference_instructions(image_references),

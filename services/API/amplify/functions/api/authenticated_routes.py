@@ -35,6 +35,14 @@ from .direct_chat import (
 )
 from .github_skills import preview_github_skill, scan_github_skills
 from .group_messages import _list_group_message_page, _send_group_message
+from .group_routines import (
+    _delete_group_routine,
+    _list_group_routine_runs,
+    _list_group_routines,
+    _preview_group_routine,
+    _save_group_routine,
+)
+from .group_runs import _cancel_group_run, _decide_group_action
 from .group_schedules import group_schedule_route
 from .groups import (
     _create_group,
@@ -81,8 +89,72 @@ from .sharing import (
     _unregister_push_token,
 )
 from .support import ApiError, _body, _response
+from .workspaces import (
+    _add_workspace_file,
+    _delete_workspace_file,
+    _download_workspace_file,
+    _export_workspace_files,
+    _list_workspace_files,
+)
 
 Route = Callable[[str, str, str, str, dict, dict], dict | None]
+
+
+def _workspace_route(
+    user_id: str, _display_name: str, method: str, path: str, params: dict, event: dict
+) -> dict | None:
+    kind = "bot" if path.startswith("/bots/") else "group"
+    scope_id = params.get("botId", "") if kind == "bot" else params.get("groupId", "")
+    file_id = params.get("workspaceFileId", "")
+    if method == "GET" and path.endswith("/export"):
+        return _response(200, _export_workspace_files(user_id, kind, scope_id))
+    if method == "GET" and path.endswith("/download"):
+        return _response(200, _download_workspace_file(user_id, kind, scope_id, file_id))
+    if method == "DELETE":
+        return _response(200, _delete_workspace_file(user_id, kind, scope_id, file_id))
+    if method == "GET":
+        return _response(200, _list_workspace_files(user_id, kind, scope_id))
+    if method == "POST":
+        return _response(201, _add_workspace_file(user_id, kind, scope_id, _body(event)))
+    return None
+
+
+def _group_routine_route(
+    user_id: str, _display_name: str, method: str, path: str, params: dict, event: dict
+) -> dict | None:
+    group_id = params.get("groupId", "")
+    routine_id = params.get("routineId", "")
+    if method == "POST" and path.endswith("/preview"):
+        return _response(200, _preview_group_routine(user_id, group_id, _body(event)))
+    if method == "GET" and path.endswith("/runs"):
+        return _response(200, _list_group_routine_runs(user_id, group_id))
+    if method == "GET":
+        return _response(200, _list_group_routines(user_id, group_id))
+    if method == "POST":
+        return _response(201, _save_group_routine(user_id, group_id, _body(event)))
+    if method == "PUT":
+        return _response(200, _save_group_routine(user_id, group_id, _body(event), routine_id))
+    if method == "DELETE":
+        return _response(200, _delete_group_routine(user_id, group_id, routine_id))
+    return None
+
+
+def _group_run_route(
+    user_id: str, _display_name: str, method: str, path: str, params: dict, event: dict
+) -> dict | None:
+    if method == "POST" and path.endswith("/cancel"):
+        return _response(202, _cancel_group_run(
+            user_id, params.get("groupId", ""), params.get("runId", "")
+        ))
+    if method == "POST" and path.endswith("/approval"):
+        decision = _body(event).get("approved")
+        if not isinstance(decision, bool):
+            raise ApiError(400, "approved must be true or false")
+        return _response(202, _decide_group_action(
+            user_id, params.get("groupId", ""), params.get("runId", ""),
+            params.get("taskId", ""), decision,
+        ))
+    return None
 
 
 def _library_route(
@@ -453,10 +525,13 @@ _HANDLERS: dict[str, Route] = {
     "groupAdmin": _group_admin_route,
     "groupMessage": _group_message_route,
     "groupSchedule": group_schedule_route,
+    "groupRoutine": _group_routine_route,
+    "groupRun": _group_run_route,
     "library": _library_route,
     "schedule": _schedule_route,
     "sharing": _sharing_route,
     "skill": _skill_route,
+    "workspace": _workspace_route,
 }
 ROUTE_HANDLERS: dict[str, Route] = {
     f"{route['method']} {route['path']}": _HANDLERS[route["handler"]]

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from .attachments import _public_file
 
 
@@ -46,7 +48,7 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
                     "startedAt": turn.get("startedAt", turn["createdAt"]),
                     "status": status,
                     "allowedActions": (
-                        ["reject", "approveOnce", "approveAlways"]
+                        ["reject", "approveOnce"]
                         if status == "awaiting_approval"
                         else ["cancel"]
                         if status in {"pending", "running"}
@@ -96,7 +98,7 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
                     "startedAt": turn.get("startedAt", turn["createdAt"]),
                     "status": str(turn.get("status", "PENDING")).lower(),
                     "allowedActions": (
-                        ["reject", "approveOnce", "approveAlways"]
+                        ["reject", "approveOnce"]
                         if turn.get("status") == "AWAITING_APPROVAL"
                         else ["cancel"]
                         if turn.get("status") in {"PENDING", "RUNNING"}
@@ -111,6 +113,14 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
                     **(
                         {"approvalTools": turn["approvalTools"]}
                         if isinstance(turn.get("approvalTools"), list)
+                        else {"approvalTools": [turn["approvalRequest"]["toolName"]]}
+                        if isinstance(turn.get("approvalRequest"), dict)
+                        else {}
+                    ),
+                    **(
+                        {"approvalInput": json.dumps(turn["approvalRequest"].get("input"),
+                                                      sort_keys=True, ensure_ascii=False, indent=2)}
+                        if isinstance(turn.get("approvalRequest"), dict)
                         else {}
                     ),
                 }

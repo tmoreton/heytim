@@ -5,9 +5,15 @@ import logging
 from typing import Any
 
 from .account_cleanup import _delete_account
+from .approval_job import process_approval_expiry
 from .background_work import _process_background_work
 from .direct_job import _process_agent_reply
-from .group_job import _process_group_agent_reply, _process_group_agent_round
+from .event_routine_job import _process_event_group_round, _process_group_decision_event
+from .group_job import (
+    _process_group_agent_contributor,
+    _process_group_agent_reply,
+    _process_group_agent_round,
+)
 from .memory_cleanup_job import _delete_memory_actor, _delete_memory_session
 from .notifications import _check_push_receipts, _send_push_notification
 from .scheduled_group_job import _process_scheduled_group_round
@@ -46,11 +52,23 @@ def _process(record: dict) -> None:
     if request_type == "BACKGROUND_WORK_POLL":
         _process_background_work(record, request)
         return
+    if request_type == "APPROVAL_EXPIRY":
+        process_approval_expiry(request)
+        return
     if request_type == "GROUP_AGENT_REPLY":
         _process_group_agent_reply(record, request)
         return
     if request_type == "GROUP_AGENT_ROUND":
         _process_group_agent_round(record, request)
+        return
+    if request_type == "GROUP_AGENT_CONTRIBUTOR":
+        _process_group_agent_contributor(record, request)
+        return
+    if request_type == "GROUP_DECISION_EVENT":
+        _process_group_decision_event(request)
+        return
+    if request_type == "EVENT_GROUP_ROUND":
+        _process_event_group_round(record, request)
         return
     if request_type == "SCHEDULED_AGENT_REPLY":
         _process_scheduled_agent_reply(record, request)

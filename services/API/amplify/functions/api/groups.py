@@ -186,6 +186,17 @@ def _public_decision(item: dict) -> dict:
     }
 
 
+def _queue_decision_event(group_id: str, decision_id: str) -> None:
+    sqs.send_message(
+        QueueUrl=QUEUE_URL,
+        MessageBody=json.dumps({
+            "type": "GROUP_DECISION_EVENT",
+            "groupId": group_id,
+            "decisionId": decision_id,
+        }),
+    )
+
+
 def _save_group_decision(
     user_id: str, display_name: str, group_id: str, value: dict
 ) -> dict:
@@ -201,6 +212,7 @@ def _save_group_decision(
         None,
     )
     if existing:
+        _queue_decision_event(group_id, existing["id"])
         return _public_decision(existing)
     source = next(
         (
@@ -227,6 +239,7 @@ def _save_group_decision(
         "id": decision_id,
         "text": source["text"].strip()[:4_000],
         "sourceMessageId": message_id,
+        **({"sourceMessageKey": source["sk"]} if isinstance(source.get("sk"), str) else {}),
         "sourceAuthorName": str(source.get("authorName", "FroggyBot"))[:60],
         "createdById": user_id,
         "createdByName": display_name[:60],
@@ -240,8 +253,10 @@ def _save_group_decision(
             ConsistentRead=True,
         ).get("Item")
         if winner:
+            _queue_decision_event(group_id, winner["id"])
             return _public_decision(winner)
         raise
+    _queue_decision_event(group_id, decision_id)
     return _public_decision(decision)
 
 

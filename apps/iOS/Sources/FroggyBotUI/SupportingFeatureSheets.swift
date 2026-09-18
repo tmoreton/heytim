@@ -645,6 +645,469 @@ struct DocumentsView: View {
   }
 }
 
+struct GroupRoutinesView: View {
+  @Bindable var model: AppModel
+  let groupId: String
+  @State private var routines: [GroupRoutine] = []
+  @State private var runs: [GroupRoutineRun] = []
+  @State private var editing: GroupRoutine?
+  @State private var deleteCandidate: GroupRoutine?
+  @State private var creating = false
+  @State private var loading = false
+
+  private var isOwner: Bool {
+    model.bootstrap?.groups.first(where: { $0.id == groupId })?.isOwner == true
+  }
+
+  var body: some View {
+    List {
+      Section("Event routines") {
+        ForEach(routines) { routine in
+          HStack {
+            VStack(alignment: .leading, spacing: 4) {
+              Text(routine.name)
+              Text(routine.trigger.eventType == "github.issue.opened"
+                   ? "Repository issue · \(routine.trigger.repositoryName ?? "Repository")"
+                   : "Saved room decision")
+                .froggyFont(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text(routine.enabled ? "On" : "Off")
+              .foregroundStyle(routine.enabled ? FrogTheme.green : .secondary)
+            if isOwner {
+              Button("Edit", systemImage: "pencil") { editing = routine }
+                .labelStyle(.iconOnly)
+            }
+          }
+          .contextMenu {
+            if isOwner {
+              Button("Edit") { editing = routine }
+              Button("Delete", role: .destructive) {
+                deleteCandidate = routine
+              }
+            }
+          }
+        }
+        if routines.isEmpty && !loading {
+          Text("No event routines yet.").foregroundStyle(.secondary)
+        }
+      }
+      Section("Recent runs") {
+        ForEach(runs) { run in
+          VStack(alignment: .leading, spacing: 3) {
+            Text(routines.first(where: { $0.id == run.routineId })?.name ?? "Event routine")
+            Text("\(run.eventType) · \(run.status.capitalized)")
+              .froggyFont(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+        if runs.isEmpty && !loading {
+          Text("No event runs yet.").foregroundStyle(.secondary)
+        }
+      }
+    }
+    .froggyListSurface()
+    .froggyNavigationTitle("Event routines")
+    .toolbarTitleDisplayMode(.inline)
+    .toolbar {
+      if isOwner {
+        ToolbarItem(placement: .primaryAction) {
+          Button("New routine", systemImage: "plus") { creating = true }
+        }
+      }
+    }
+    .overlay { if loading && routines.isEmpty { ProgressView("Loading routines…") } }
+    .refreshable { await load() }
+    .task { await load() }
+    .sheet(isPresented: $creating) {
+      GroupRoutineEditor(model: model, groupId: groupId, existing: nil) {
+        Task { await load() }
+      }
+    }
+    .sheet(item: $editing) { routine in
+      GroupRoutineEditor(model: model, groupId: groupId, existing: routine) {
+        Task { await load() }
+      }
+    }
+    .confirmationDialog(
+      "Delete this event routine?", isPresented: Binding(
+        get: { deleteCandidate != nil },
+        set: { if !$0 { deleteCandidate = nil } })
+    ) {
+      if let deleteCandidate {
+        Button("Delete \(deleteCandidate.name)", role: .destructive) {
+          Task { await delete(deleteCandidate) }
+          self.deleteCandidate = nil
+        }
+      }
+    }
+  }
+
+  private func load() async {
+    guard let api = model.api else { return }
+    loading = true
+    defer { loading = false }
+    do {
+      async let loadedRoutines = api.groupRoutines(groupId)
+      async let loadedRuns = api.groupRoutineRuns(groupId)
+      routines = try await loadedRoutines
+      runs = try await loadedRuns
+    } catch { model.present(error) }
+  }
+
+  private func delete(_ routine: GroupRoutine) async {
+    guard let api = model.api else { return }
+    do {
+      try await api.deleteGroupRoutine(routine.id, groupId: groupId)
+      await load()
+    } catch { model.present(error) }
+  }
+}
+
+private struct GroupRoutineEditor: View {
+  @Bindable var model: AppModel
+  let groupId: String
+  let existing: GroupRoutine?
+  let onSaved: () -> Void
+  @Environment(\.dismiss) private var dismiss
+  @State private var name: String
+  @State private var prompt: String
+  @State private var enabled: Bool
+  @State private var eventType: String
+  @State private var connectionId: String
+  @State private var repositoryId: Int
+  @State private var connections: [Capability] = []
+  @State private var saving = false
+  @State private var sampleText = ""
+  @State private var previewText: String?
+  @State private var previewing = false
+
+  init(model: AppModel, groupId: String, existing: GroupRoutine?, onSaved: @escaping () -> Void) {
+    self.model = model
+    self.groupId = groupId
+    self.existing = existing
+    self.onSaved = onSaved
+    _name = State(initialValue: existing?.name ?? "")
+    _prompt = State(initialValue: existing?.prompt ?? "")
+    _enabled = State(initialValue: existing?.enabled ?? false)
+    _eventType = State(initialValue: existing?.trigger.eventType ?? "group.decision.saved")
+    _connectionId = State(initialValue: existing?.trigger.connectionId ?? "")
+    _repositoryId = State(initialValue: existing?.trigger.repositoryId ?? 0)
+  }
+
+  private var githubConnections: [Capability] {
+    connections.filter { $0.provider == "github" && $0.connectionStatus == "connected" }
+  }
+  private var selectedRepositories: [ConnectedRepository] {
+    githubConnections.first(where: { $0.id == connectionId })?.repositories ?? []
+  }
+  private var canSave: Bool {
+    !saving && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && (eventType != "github.issue.opened" || (!connectionId.isEmpty && repositoryId > 0))
+  }
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        TextField("Name", text: $name)
+        TextField("What should the bots do?", text: $prompt, axis: .vertical)
+          .lineLimit(4...12)
+        Picker("When", selection: $eventType) {
+          Text("A room decision is saved").tag("group.decision.saved")
+          Text("A repository issue opens").tag("github.issue.opened")
+        }
+        if eventType == "github.issue.opened" {
+          Picker("Connected account", selection: $connectionId) {
+            Text("Choose account").tag("")
+            ForEach(githubConnections) { connection in
+              Text(connection.connectedAccount ?? connection.name).tag(connection.id)
+            }
+          }
+          Picker("Repository", selection: $repositoryId) {
+            Text("Choose repository").tag(0)
+            ForEach(selectedRepositories) { repository in
+              Text(repository.name).tag(repository.id)
+            }
+          }
+        }
+        Toggle("Enabled", isOn: $enabled)
+        Section("Preview") {
+          TextField(
+            eventType == "github.issue.opened" ? "Sample issue title" : "Sample decision",
+            text: $sampleText, axis: .vertical)
+          Button("Preview prompt") { Task { await preview() } }
+            .disabled(previewing || sampleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+          if let previewText {
+            Text(previewText)
+              .froggyFont(.callout)
+              .textSelection(.enabled)
+          }
+        }
+        Text("Event routines can use read-only room tools. An external write will need a separate, exact-action approval before it is enabled.")
+          .froggyFont(.footnote)
+          .foregroundStyle(.secondary)
+      }
+      .froggyNavigationTitle(existing == nil ? "New routine" : "Edit routine")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { dismiss() }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save") { Task { await save() } }
+            .disabled(!canSave)
+        }
+      }
+      .task {
+        guard let api = model.api else { return }
+        do { connections = try await api.connections() }
+        catch { model.present(error) }
+      }
+      .onChange(of: connectionId) { _, _ in repositoryId = 0 }
+    }
+  }
+
+  private func save() async {
+    guard let api = model.api, canSave else { return }
+    saving = true
+    defer { saving = false }
+    do {
+      let trigger = GroupRoutineTrigger(
+        eventType: eventType,
+        connectionId: eventType == "github.issue.opened" ? connectionId : nil,
+        repositoryId: eventType == "github.issue.opened" ? repositoryId : nil)
+      _ = try await api.saveGroupRoutine(
+        GroupRoutineDraft(name: name, prompt: prompt, trigger: trigger, enabled: enabled),
+        groupId: groupId, id: existing?.id)
+      onSaved()
+      dismiss()
+    } catch { model.present(error) }
+  }
+
+  private func preview() async {
+    guard let api = model.api else { return }
+    previewing = true
+    defer { previewing = false }
+    do {
+      let trigger = GroupRoutineTrigger(
+        eventType: eventType,
+        connectionId: eventType == "github.issue.opened" ? connectionId : nil,
+        repositoryId: eventType == "github.issue.opened" ? repositoryId : nil)
+      let request = GroupRoutinePreviewRequest(
+        prompt: prompt, trigger: trigger,
+        decisionText: eventType == "group.decision.saved" ? sampleText : nil,
+        issue: eventType == "github.issue.opened"
+          ? .init(number: 1, title: sampleText, body: "Sample issue body") : nil)
+      previewText = try await api.previewGroupRoutine(request, groupId: groupId).prompt
+    } catch { model.present(error) }
+  }
+}
+
+struct WorkspaceFilePickerView: View {
+  @Bindable var model: AppModel
+  let selection: ConversationSelection
+  let onSelect: (Attachment) -> Void
+  @Environment(\.dismiss) private var dismiss
+  @State private var files: [Attachment] = []
+  @State private var loading = false
+
+  var body: some View {
+    NavigationStack {
+      List(files) { file in
+        Button {
+          onSelect(file)
+          dismiss()
+        } label: {
+          HStack {
+            Label(file.name, systemImage: "doc")
+            Spacer()
+            Text(ByteCountFormatter.string(fromByteCount: Int64(file.size), countStyle: .file))
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+      .overlay {
+        if loading { ProgressView("Loading saved files…") }
+        else if files.isEmpty {
+          ContentUnavailableView("No saved files", systemImage: "folder")
+        }
+      }
+      .froggyNavigationTitle("Saved files")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { dismiss() }
+        }
+      }
+      .task {
+        guard let api = model.api else { return }
+        loading = true
+        defer { loading = false }
+        do { files = try await api.workspaceFiles(for: selection).files }
+        catch { model.present(error) }
+      }
+    }
+  }
+}
+
+struct WorkspaceFilesView: View {
+  @Bindable var model: AppModel
+  let selection: ConversationSelection
+  @State private var snapshot: WorkspaceSnapshot?
+  @State private var loading = false
+  @State private var busy = false
+  @State private var importing = false
+  @State private var previewURL: URL?
+  @State private var deleteCandidate: Attachment?
+  @State private var exportDocument: MemoryExportDocument?
+  @State private var showingExporter = false
+
+  var body: some View {
+    List {
+      if let snapshot {
+        Section {
+          ForEach(snapshot.files) { file in
+            HStack {
+              Button {
+                Task { await open(file) }
+              } label: {
+                Label(file.name, systemImage: "doc")
+              }
+              .buttonStyle(.plain)
+              Spacer()
+              Text(ByteCountFormatter.string(fromByteCount: Int64(file.size), countStyle: .file))
+                .foregroundStyle(.secondary)
+              Button("Delete", systemImage: "trash", role: .destructive) {
+                deleteCandidate = file
+              }
+              .labelStyle(.iconOnly)
+              .disabled(busy)
+            }
+          }
+        } header: {
+          Text("Persistent files")
+        } footer: {
+          Text("\(snapshot.fileCount) of \(snapshot.limits.files) files · \(ByteCountFormatter.string(fromByteCount: Int64(snapshot.totalBytes), countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: Int64(snapshot.limits.bytes), countStyle: .file))")
+        }
+      }
+      if snapshot?.files.isEmpty == true {
+        ContentUnavailableView("No saved files", systemImage: "folder", description: Text("Add a file to use it in a later code session."))
+      }
+      if snapshot?.files.isEmpty == false {
+        Text("The exported download list contains links that expire after five minutes. Save the files you need before the links expire.")
+          .froggyFont(.footnote)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .froggyListSurface()
+    .froggyNavigationTitle("Workspace files")
+    .toolbarTitleDisplayMode(.inline)
+    .toolbar {
+      ToolbarItem(placement: .primaryAction) {
+        Button("Add file", systemImage: "plus") { importing = true }
+          .disabled(busy || loading || snapshot?.fileCount == snapshot?.limits.files)
+      }
+      ToolbarItem(placement: .primaryAction) {
+        Button("Export download list", systemImage: "square.and.arrow.up") {
+          Task { await export() }
+        }
+        .disabled(busy || snapshot?.files.isEmpty != false)
+      }
+    }
+    .overlay {
+      if loading && snapshot == nil { ProgressView("Loading files…") }
+    }
+    .refreshable { await load() }
+    .task { await load() }
+    .quickLookPreview($previewURL)
+    .onChange(of: previewURL) { previous, current in
+      if previous != current { FrogBotAPI.removeDownloadedPreview(at: previous) }
+    }
+    .fileImporter(
+      isPresented: $importing, allowedContentTypes: [.image, .pdf, .plainText, .data]
+    ) { result in
+      switch result {
+      case .success(let url): Task { await add(url) }
+      case .failure(let error): model.present(error)
+      }
+    }
+    .fileExporter(
+      isPresented: $showingExporter, document: exportDocument,
+      contentType: .json, defaultFilename: "froggybot-workspace-links"
+    ) { result in
+      if case .failure(let error) = result { model.present(error) }
+      exportDocument = nil
+    }
+    .confirmationDialog(
+      "Delete this workspace file?", isPresented: Binding(
+        get: { deleteCandidate != nil },
+        set: { if !$0 { deleteCandidate = nil } })
+    ) {
+      if let deleteCandidate {
+        Button("Delete \(deleteCandidate.name)", role: .destructive) {
+          Task { await delete(deleteCandidate) }
+          self.deleteCandidate = nil
+        }
+      }
+    }
+  }
+
+  private func load() async {
+    guard let api = model.api else { return }
+    loading = true
+    defer { loading = false }
+    do { snapshot = try await api.workspaceFiles(for: selection) }
+    catch { model.present(error) }
+  }
+
+  private func add(_ url: URL) async {
+    guard let api = model.api else { return }
+    busy = true
+    let access = url.startAccessingSecurityScopedResource()
+    defer {
+      if access { url.stopAccessingSecurityScopedResource() }
+      busy = false
+    }
+    do {
+      let upload = try await api.upload(try UploadAsset(url: url))
+      _ = try await api.addWorkspaceFile(upload.id, to: selection)
+      await load()
+    } catch { model.present(error) }
+  }
+
+  private func open(_ file: Attachment) async {
+    guard let api = model.api else { return }
+    do {
+      previewURL = try await api.downloadFile(
+        fileId: file.id, name: file.name,
+        groupId: selection.kind == .group ? selection.id : nil)
+    } catch { model.present(error) }
+  }
+
+  private func delete(_ file: Attachment) async {
+    guard let api = model.api else { return }
+    busy = true
+    defer { busy = false }
+    do {
+      try await api.deleteWorkspaceFile(file.id, from: selection)
+      await load()
+    } catch { model.present(error) }
+  }
+
+  private func export() async {
+    guard let api = model.api else { return }
+    busy = true
+    defer { busy = false }
+    do {
+      let manifest = try await api.workspaceExport(for: selection)
+      let encoder = JSONEncoder()
+      encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+      exportDocument = MemoryExportDocument(data: try encoder.encode(manifest))
+      showingExporter = true
+    } catch { model.present(error) }
+  }
+}
+
 struct ShareView: View {
   @Bindable var model: AppModel
   let selection: ConversationSelection

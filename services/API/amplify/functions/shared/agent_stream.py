@@ -57,6 +57,7 @@ def read_agent_stream(
     final_text = ""
     saw_message_frame = False
     saw_pending_work_control = False
+    saw_pending_approval_control = False
     terminal_error = ""
     last_stop_reason = ""
 
@@ -72,6 +73,8 @@ def read_agent_stream(
             pending_work = control.get("pendingWork")
             if isinstance(pending_work, list) and pending_work:
                 saw_pending_work_control = True
+            if isinstance(control.get("pendingApproval"), dict):
+                saw_pending_approval_control = True
             raw_error = control.get("terminalError")
             if isinstance(raw_error, dict):
                 message = raw_error.get("message")
@@ -127,6 +130,8 @@ def read_agent_stream(
         result = "".join(message_chunks).strip() or "".join(fallback_chunks).strip()
     if not result and saw_pending_work_control:
         return "Background work started."
+    if not result and saw_pending_approval_control:
+        return "Approval required."
     if not result:
         detail = f" (last stop reason: {last_stop_reason})" if last_stop_reason else ""
         raise ValueError(f"AgentCore stream ended without a completed assistant turn{detail}")

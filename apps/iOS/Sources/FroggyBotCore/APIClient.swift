@@ -211,25 +211,97 @@ public final class FrogBotAPI: Sendable {
       .groupMessagesList, parameters: ["groupId": id],
       queryItems: cursor.map { [.init(name: "cursor", value: $0)] } ?? [])
   }
-  public func sendMessage(bot id: String, text: String, attachments: [String] = []) async throws {
+  public func sendMessage(
+    bot id: String, text: String, attachments: [String] = [], workspaceFiles: [String] = []
+  ) async throws {
     let _: EmptyResponse = try await request(
       .botMessageSend, parameters: ["botId": id],
-      body: SendMessageBody(text: text, attachmentIds: attachments, replyBotId: nil))
+      body: SendMessageBody(
+        text: text, attachmentIds: attachments, workspaceFileIds: workspaceFiles,
+        replyBotId: nil))
   }
   public func sendMessage(
-    group id: String, text: String, replyBotId: String? = nil, attachments: [String] = []
+    group id: String, text: String, replyBotId: String? = nil, attachments: [String] = [],
+    workspaceFiles: [String] = []
   ) async throws {
     let _: EmptyResponse = try await request(
       .groupMessageSend, parameters: ["groupId": id],
-      body: SendMessageBody(text: text, attachmentIds: attachments, replyBotId: replyBotId))
+      body: SendMessageBody(
+        text: text, attachmentIds: attachments, workspaceFileIds: workspaceFiles,
+        replyBotId: replyBotId))
   }
   public func cancel(botId: String, turnId: String) async throws {
     let _: EmptyResponse = try await request(
       .botMessageCancel, parameters: ["botId": botId, "turnId": turnId])
   }
+  public func cancelGroupRun(groupId: String, runId: String) async throws {
+    let _: EmptyResponse = try await request(
+      .groupRunCancel, parameters: ["groupId": groupId, "runId": runId],
+      body: EmptyResponse())
+  }
+
+  public func workspaceFiles(for selection: ConversationSelection) async throws -> WorkspaceSnapshot {
+    let route: APIRouteID = selection.kind == .bot ? .botWorkspaceList : .groupWorkspaceList
+    return try await request(route, parameters: workspaceParameters(selection))
+  }
+  public func addWorkspaceFile(_ fileId: String, to selection: ConversationSelection) async throws -> Attachment {
+    let route: APIRouteID = selection.kind == .bot ? .botWorkspaceAdd : .groupWorkspaceAdd
+    return try await request(route, parameters: workspaceParameters(selection), body: ["fileId": fileId])
+  }
+  public func deleteWorkspaceFile(_ fileId: String, from selection: ConversationSelection) async throws {
+    let route: APIRouteID = selection.kind == .bot ? .botWorkspaceDelete : .groupWorkspaceDelete
+    let _: EmptyResponse = try await request(
+      route, parameters: workspaceParameters(selection, fileId: fileId))
+  }
+  public func workspaceExport(for selection: ConversationSelection) async throws -> WorkspaceExport {
+    let route: APIRouteID = selection.kind == .bot ? .botWorkspaceExport : .groupWorkspaceExport
+    return try await request(route, parameters: workspaceParameters(selection))
+  }
+  public func workspaceDownloadURL(_ fileId: String, selection: ConversationSelection) async throws -> URL {
+    let route: APIRouteID = selection.kind == .bot ? .botWorkspaceDownload : .groupWorkspaceDownload
+    let value: StringEnvelope = try await request(
+      route, parameters: workspaceParameters(selection, fileId: fileId))
+    guard let url = URL(string: value.url) else { throw APIError.invalidResponse }
+    return url
+  }
+  public func groupRoutines(_ groupId: String) async throws -> [GroupRoutine] {
+    let envelope: ArrayEnvelope<GroupRoutine> = try await request(
+      .groupRoutinesList, parameters: ["groupId": groupId])
+    return envelope.values
+  }
+  public func saveGroupRoutine(_ draft: GroupRoutineDraft, groupId: String, id: String? = nil) async throws -> GroupRoutine {
+    try await request(
+      id == nil ? .groupRoutineCreate : .groupRoutineUpdate,
+      parameters: ["groupId": groupId, "routineId": id ?? ""], body: draft)
+  }
+  public func deleteGroupRoutine(_ id: String, groupId: String) async throws {
+    let _: EmptyResponse = try await request(
+      .groupRoutineDelete, parameters: ["groupId": groupId, "routineId": id])
+  }
+  public func groupRoutineRuns(_ groupId: String) async throws -> [GroupRoutineRun] {
+    let envelope: ArrayEnvelope<GroupRoutineRun> = try await request(
+      .groupRoutineRuns, parameters: ["groupId": groupId])
+    return envelope.values
+  }
+  public func previewGroupRoutine(_ draft: GroupRoutinePreviewRequest, groupId: String) async throws -> GroupRoutinePreview {
+    try await request(.groupRoutinePreview, parameters: ["groupId": groupId], body: draft)
+  }
+
+  private func workspaceParameters(_ selection: ConversationSelection, fileId: String? = nil)
+    -> [String: String]
+  {
+    [selection.kind == .bot ? "botId" : "groupId": selection.id,
+     "workspaceFileId": fileId ?? ""]
+  }
   public func approve(botId: String, turnId: String, always: Bool) async throws {
     let _: EmptyResponse = try await request(
       .botMessageApprove, parameters: ["botId": botId, "turnId": turnId], body: ["always": always])
+  }
+  public func decideGroupAction(groupId: String, runId: String, taskId: String, approved: Bool) async throws {
+    let _: EmptyResponse = try await request(
+      .groupTaskApproval,
+      parameters: ["groupId": groupId, "runId": runId, "taskId": taskId],
+      body: ["approved": approved])
   }
 
   public func saveGroup(_ draft: GroupDraft, id: String? = nil) async throws -> BotGroup {
@@ -563,6 +635,7 @@ public final class FrogBotAPI: Sendable {
 private struct SendMessageBody: Codable {
   var text: String
   var attachmentIds: [String]
+  var workspaceFileIds: [String]
   var replyBotId: String?
 }
 private struct BrowserBody: Codable {

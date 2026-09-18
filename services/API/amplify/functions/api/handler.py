@@ -7,6 +7,7 @@ from . import authenticated_routes
 from .account import _begin_account_deletion
 from .external_oauth import _external_callback
 from .github_oauth import _github_callback
+from .github_webhook import github_issue_webhook
 from .google_oauth import _google_callback
 from .sharing import _public_invite_preview
 from .support import (
@@ -24,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 
 def _public_route(event: dict, method: str, path: str, params: dict) -> dict | None:
+    if method == "POST" and path == "/public/webhooks/github":
+        return github_issue_webhook(event)
     if method == "GET" and path.startswith("/public/invites/"):
         return _response(
             200,

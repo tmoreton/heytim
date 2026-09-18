@@ -32,7 +32,9 @@ logger = logging.getLogger(__name__)
 def _attachment_spec(filename: Any, size: Any) -> dict:
     clean_name = _validate_string(filename, "filename", 200)
     clean_name = clean_name.replace("\\", "/").rsplit("/", 1)[-1].strip()
-    if not clean_name or clean_name in {".", ".."}:
+    if not clean_name or clean_name in {".", ".."} or any(
+        ord(char) < 32 or ord(char) == 127 for char in clean_name
+    ):
         raise ApiError(400, "filename is invalid")
     extension = f".{clean_name.rsplit('.', 1)[-1].lower()}" if "." in clean_name else ""
     format_spec = ATTACHMENT_FORMATS.get(extension)

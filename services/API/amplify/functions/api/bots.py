@@ -21,6 +21,7 @@ from shared.client_contract import (
 )
 from shared.connection_providers import connection_providers
 from shared.memory_identity import direct_session_id, memory_actor_id
+from shared.storage import delete_object_versions
 from shared.work_state import processing_summary
 
 from .bot_documents import _delete_bot_documents, _preserve_bot_documents
@@ -36,6 +37,7 @@ from .message_views import (
     messages_from_turns as _messages_from_turns,  # noqa: F401 - public test helper
 )
 from .support import (
+    FILES_BUCKET_NAME,
     QUEUE_URL,
     ApiError,
     _bot_sk,
@@ -50,6 +52,7 @@ from .support import (
     _user_state_key,
     _validate_string,
     catalog,
+    s3,
     sqs,
     table,
 )
@@ -569,6 +572,16 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
 
     revoked_shares = _revoke_bot_shares(user_id, bot_id)
     document_deletion = _delete_bot_documents(user_id, bot_id, turns)
+    workspace_files = _partition_items(
+        _user_pk(user_id), f"WORKSPACE_FILE#BOT#{bot_id}#"
+    )
+    if FILES_BUCKET_NAME:
+        delete_object_versions(
+            s3,
+            FILES_BUCKET_NAME,
+            f"users/{memory_actor_id(user_id)}/bots/{bot_id}/workspace/",
+            resource_label="bot workspace file",
+        )
 
     with table.batch_writer() as batch:
         for turn in turns:
@@ -577,6 +590,10 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
             batch.delete_item(
                 Key={"pk": schedule_item["pk"], "sk": schedule_item["sk"]}
             )
+        for workspace_file in workspace_files:
+            batch.delete_item(Key={"pk": workspace_file["pk"], "sk": workspace_file["sk"]})
+            batch.delete_item(Key={"pk": workspace_file["pk"], "sk": f"FILE#{workspace_file['id']}"})
+        batch.delete_item(Key={"pk": _user_pk(user_id), "sk": f"WORKSPACE#BOT#{bot_id}"})
         for key in group_bot_keys:
             batch.delete_item(Key=key)
         for meta in group_meta_updates:

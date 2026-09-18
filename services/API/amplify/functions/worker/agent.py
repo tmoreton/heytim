@@ -82,6 +82,7 @@ class AgentInvocationResult:
     usage: dict | None = None
     terminal_error: str | None = None
     usage_event_id: str | None = None
+    pending_approval: dict | None = None
 
 
 def _continuation_payload(value: list[dict] | None) -> list[dict]:
@@ -97,6 +98,29 @@ def _continuation_payload(value: list[dict] | None) -> list[dict]:
             result["exitCode"] = int(exit_code)
         results.append(result)
     return results
+
+
+def _workspace_payload_files(value: list[dict] | None) -> list[dict]:
+    selected = []
+    for item in value or []:
+        if not isinstance(item, dict) or item.get("source") != "workspace":
+            continue
+        if not all(key in item for key in ("workspaceFileId", "name", "size", "objectKey")):
+            raise ValueError("Workspace attachment metadata is incomplete")
+        size = item["size"]
+        if isinstance(size, Decimal):
+            if size != size.to_integral_value():
+                raise ValueError("Workspace file size is invalid")
+            size = int(size)
+        if type(size) is not int:
+            raise ValueError("Workspace file size is invalid")
+        selected.append({
+            "workspaceFileId": item["workspaceFileId"],
+            "name": item["name"],
+            "size": size,
+            "objectKey": item["objectKey"],
+        })
+    return selected
 
 
 def _get_history(
@@ -116,7 +140,7 @@ def _get_history(
         if turn.get("userText"):
             content = [{"text": turn["userText"]}]
             if turn.get("id") == current_event_id:
-                content.extend(_attachment_blocks(turn, user_id))
+                content.extend(_attachment_blocks(turn, user_id, bot_id))
             messages.append({"role": "user", "content": content})
         if turn.get("assistantText") and turn.get("status") == "COMPLETE":
             messages.append(
@@ -142,16 +166,75 @@ def _recent_image_references(user_id: str, bot_id: str) -> list[dict]:
 
 
 def _get_group_history(
-    group_id: str, bot_id: str, current_message_id: str | None = None
+    group_id: str,
+    bot_id: str,
+    current_message_id: str | None = None,
+    parallel_role: str | None = None,
+    current_message_sk: str | None = None,
 ) -> list[dict]:
-    items = table.query(
-        KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
-        ExpressionAttributeValues={":pk": _group_pk(group_id), ":prefix": "MESSAGE#"},
-        ScanIndexForward=False,
-        Limit=40,
-        ConsistentRead=True,
-    ).get("Items", [])
+    if parallel_role in {"contributor", "synthesizer"} and current_message_id and current_message_sk:
+        items = table.query(
+            KeyConditionExpression="pk = :pk AND sk <= :cutoff",
+            ExpressionAttributeValues={":pk": _group_pk(group_id), ":cutoff": current_message_sk},
+            ScanIndexForward=False,
+            Limit=40,
+            ConsistentRead=True,
+        ).get("Items", [])
+        round_prefix = current_message_sk.rsplit("#", 2)[0] + "#"
+        round_items = table.query(
+            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+            ExpressionAttributeValues={":pk": _group_pk(group_id), ":prefix": round_prefix},
+            ConsistentRead=True,
+        ).get("Items", [])
+        by_key = {item["sk"]: item for item in items if item.get("entity", "GROUP_MESSAGE") == "GROUP_MESSAGE"}
+        for item in round_items:
+            if item.get("roundId") != current_message_id:
+                continue
+            if item.get("roundRole") == "lead" or (
+                parallel_role == "synthesizer" and item.get("roundRole") == "contributor"
+            ):
+                by_key[item["sk"]] = item
+        items = list(by_key.values())
+    else:
+        items = table.query(
+            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+            ExpressionAttributeValues={":pk": _group_pk(group_id), ":prefix": "MESSAGE#"},
+            ScanIndexForward=False,
+            Limit=40,
+            ConsistentRead=True,
+        ).get("Items", [])
+    if parallel_role in {"contributor", "synthesizer"} and current_message_id and not current_message_sk:
+        current = next(
+            (item for item in items if item.get("id") == current_message_id), None
+        )
+        if not current:
+            raise ValueError("The group run input is no longer available")
+        cutoff = current["sk"]
+        items = [
+            item for item in items
+            if item.get("sk", "") <= cutoff
+            or (
+                item.get("roundId") == current_message_id
+                and item.get("roundRole") == "lead"
+            )
+            or (
+                parallel_role == "synthesizer"
+                and item.get("roundId") == current_message_id
+                and item.get("roundRole") == "contributor"
+            )
+        ]
     history = group_history_from_items(items, bot_id)
+    if parallel_role == "synthesizer" and current_message_id:
+        for item in items:
+            if (
+                item.get("roundId") == current_message_id
+                and item.get("roundRole") == "contributor"
+                and item.get("status") == "ERROR"
+            ):
+                history.append({
+                    "role": "user",
+                    "content": [{"text": f"[{item.get('authorName', 'Specialist')} could not complete the assignment]: {str(item.get('text', 'Unknown error'))[:600]}"}],
+                })
     if current_message_id:
         message = next(
             (item for item in items if item.get("id") == current_message_id), None
@@ -357,6 +440,8 @@ def _invoke(
     lease_owner: str | None = None,
     resume_request: dict | None = None,
     allow_bot_management: bool = False,
+    workspace_files: list[dict] | None = None,
+    action_approval: dict | None = None,
 ) -> AgentInvocationResult:
     if runtime_result is not None:
         error = runtime_result.get("terminalError", {}).get("message")
@@ -366,6 +451,7 @@ def _invoke(
             bot_mutations=runtime_result.get("botMutations", []),
             usage=runtime_result.get("usage"), terminal_error=error,
             usage_event_id=runtime_result.get("usageEventId"),
+            pending_approval=runtime_result.get("pendingApproval"),
         )
     runtime_billing_user_id = billing_user_id if billing_user_id is not None else user_id
     if (
@@ -480,6 +566,10 @@ def _invoke(
         payload["group"] = group_context
     if attachment_prefix is not None:
         payload["attachmentPrefix"] = attachment_prefix
+    if workspace_files:
+        selected_workspace_files = _workspace_payload_files(workspace_files)
+        if selected_workspace_files:
+            payload["workspaceFiles"] = selected_workspace_files
     if group_context is None and event_id and any(
         tool.get("runtime", {}).get("kind") == "agentcore"
         and tool.get("runtime", {}).get("name") == "browser"
@@ -497,6 +587,8 @@ def _invoke(
     normalized_continuation = _continuation_payload(continuation)
     if normalized_continuation:
         payload["continuation"] = normalized_continuation
+    if action_approval is not None:
+        payload["actionApproval"] = action_approval
     if work_key is not None and lease_owner and resume_request is not None:
         work = runtime_work(payload, normalized_continuation)
         if uses_youtube_search:
@@ -559,9 +651,10 @@ def _invoke(
     pending_work: list[dict] = []
     bot_mutations: list[dict] = []
     usage: dict | None = None
+    pending_approval: dict | None = None
 
     def capture_control(control: dict) -> None:
-        nonlocal usage
+        nonlocal usage, pending_approval
         raw_work = control.get("pendingWork")
         if isinstance(raw_work, list):
             pending_work.extend(item for item in raw_work if isinstance(item, dict))
@@ -573,6 +666,8 @@ def _invoke(
         raw_usage = control.get("usage")
         if isinstance(raw_usage, dict):
             usage = raw_usage
+        if isinstance(control.get("pendingApproval"), dict):
+            pending_approval = control["pendingApproval"]
 
     try:
         text = read_agent_stream(
@@ -594,4 +689,5 @@ def _invoke(
         pending_work=pending_work,
         bot_mutations=bot_mutations,
         usage=usage,
+        pending_approval=pending_approval,
     )

@@ -6,6 +6,7 @@ from shared.invites import revoke_invite_access
 from shared.keys import group_pk, user_pk
 from shared.storage import delete_object_versions
 from shared.work_state import is_in_flight
+from shared.workflows import github_subscription_key
 
 
 def has_pending_work(items: list[dict], *, bot_id: str | None = None) -> bool:
@@ -90,6 +91,9 @@ def purge_group(
     with table.batch_writer() as batch:
         for item in items:
             batch.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
+            trigger = item.get("trigger", {})
+            if item.get("entity") == "GROUP_ROUTINE" and trigger.get("eventType") == "github.issue.opened":
+                batch.delete_item(Key=github_subscription_key(trigger, group_id, item["id"]))
         for member_id in members:
             batch.delete_item(Key={"pk": user_pk(member_id), "sk": f"GROUP#{group_id}"})
         for token, _token_hash in invites:

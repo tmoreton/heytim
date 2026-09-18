@@ -1047,6 +1047,12 @@ private struct ConversationInspector: View {
   }
 
   @ViewBuilder private var conversationActions: some View {
+    FeatureLink {
+      WorkspaceFilesView(model: model, selection: selection)
+    } label: {
+      Label("Workspace Files", systemImage: "folder")
+    }
+    .accessibilityIdentifier("conversation.workspace-files")
     if actions.contains("schedule") {
       FeatureLink {
         SchedulesView(model: model, selection: selection, showsDismissButton: false)
@@ -1108,6 +1114,12 @@ private struct ConversationInspector: View {
         .accessibilityIdentifier("bot.tools-and-skills")
       }
     } else if let group = selectedGroup {
+      FeatureLink {
+        GroupRoutinesView(model: model, groupId: group.id)
+      } label: {
+        Label("Event Routines", systemImage: "bolt.badge.clock")
+      }
+      .accessibilityIdentifier("conversation.event-routines")
       if actions.contains("viewMemory") || actions.contains("manageMemory") {
         FeatureLink {
           MemoriesView(model: model, groupId: group.id, showsDismissButton: false)
@@ -1221,7 +1233,7 @@ private struct MessageBubble: View {
   private var awaitingApproval: Bool {
     message.status == "awaiting_approval"
       || message.allowedActions?.contains(where: {
-        ["reject", "approveOnce", "approveAlways"].contains($0)
+        ["reject", "approveOnce"].contains($0)
       }) == true
   }
   private var activity: [String] {
@@ -1292,9 +1304,18 @@ private struct MessageBubble: View {
               Label("Approval Needed", systemImage: "checkmark.shield")
                 .froggyFont(.headline)
               Text(
-                "This reply may use \(message.approvalTools?.joined(separator: ", ") ?? "an interactive tool") to take action."
+                "Review the exact \(message.approvalTools?.joined(separator: ", ") ?? "tool") call below."
               )
               .froggyFont(.callout).foregroundStyle(.secondary)
+              if let input = message.approvalInput {
+                ScrollView {
+                  Text(input).font(.system(.caption, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+                }
+                .frame(maxHeight: 180)
+                .accessibilityLabel("Proposed tool arguments")
+              }
               Button("Review Action", systemImage: "checkmark.shield") {
                 reviewingApproval = true
               }
@@ -1374,17 +1395,12 @@ private struct MessageBubble: View {
       if message.allowedActions?.contains("approveOnce") == true {
         Button("Allow Once") { Task { await model.approve(message, always: false) } }
       }
-      if message.allowedActions?.contains("approveAlways") == true {
-        Button("Always Allow") { Task { await model.approve(message, always: true) } }
-      }
       if message.allowedActions?.contains("reject") == true {
         Button("Don’t Allow", role: .destructive) { Task { await model.reject(message) } }
       }
       Button("Cancel", role: .cancel) {}
     } message: {
-      Text(
-        "Allowing once applies only to this reply. Always Allow saves this permission for future replies from this bot."
-      )
+      Text("Allow Once executes only the displayed tool call. Further actions need separate approval.")
     }
   }
 
@@ -1636,6 +1652,7 @@ private struct Composer: View {
   var composerFocused: FocusState<Bool>.Binding
   let onSubmit: () -> Void
   @State private var showingPhotoPicker = false
+  @State private var showingWorkspacePicker = false
   @State private var selectedPhotos: [PhotosPickerItem] = []
   @State private var dictationPrefix = ""
   @State private var dictationSelection: ConversationSelection?
@@ -1644,7 +1661,9 @@ private struct Composer: View {
   var body: some View {
     VStack(spacing: 0) {
       if model.selectedGroup != nil { replyPicker }
-      if !model.pendingAttachments.isEmpty { attachmentPicker }
+      if !model.pendingAttachments.isEmpty || !model.pendingWorkspaceFiles.isEmpty {
+        attachmentPicker
+      }
       #if os(macOS)
         macComposer
       #else
@@ -1667,6 +1686,13 @@ private struct Composer: View {
       maxSelectionCount: max(1, model.remainingAttachmentSlots),
       matching: .images,
       preferredItemEncoding: .compatible)
+    .sheet(isPresented: $showingWorkspacePicker) {
+      if let selection = model.selection {
+        WorkspaceFilePickerView(model: model, selection: selection) { file in
+          if model.selection == selection { model.addWorkspaceFile(file) }
+        }
+      }
+    }
     .onChange(of: selectedPhotos) { _, items in
       guard !items.isEmpty else { return }
       guard let target = model.selection else {
@@ -1840,6 +1866,10 @@ private struct Composer: View {
       .disabled(model.remainingAttachmentSlots == 0 || model.isSending || model.isUploading)
       Button("Choose Files", systemImage: "folder") { importing = true }
         .disabled(model.remainingAttachmentSlots == 0 || model.isSending || model.isUploading)
+      Button("Saved Workspace File", systemImage: "folder.badge.plus") {
+        showingWorkspacePicker = true
+      }
+      .disabled(model.remainingAttachmentSlots == 0 || model.isSending || model.isUploading)
     } label: {
       Label("Add attachment", systemImage: "plus")
         #if os(macOS)
@@ -1917,6 +1947,7 @@ private struct Composer: View {
   private var canSend: Bool {
     !model.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       || !model.pendingAttachments.isEmpty
+      || !model.pendingWorkspaceFiles.isEmpty
   }
 
   private var canSubmit: Bool {
@@ -1931,6 +1962,19 @@ private struct Composer: View {
             Image(systemName: "paperclip")
             Text(item.name).froggyFont(.caption, weight: .semibold).lineLimit(1)
             Button { model.removeAttachment(item.id) } label: {
+              Image(systemName: "xmark.circle.fill")
+                .frame(minWidth: 44, minHeight: 44)
+            }
+            .buttonStyle(.plain).accessibilityLabel("Remove \(item.name)")
+          }
+          .padding(.leading, 11).padding(.trailing, 2).frame(minHeight: 44)
+          .background(.quaternary, in: Capsule())
+        }
+        ForEach(model.pendingWorkspaceFiles) { item in
+          HStack(spacing: 7) {
+            Image(systemName: "folder")
+            Text(item.name).froggyFont(.caption, weight: .semibold).lineLimit(1)
+            Button { model.removeWorkspaceFile(item.id) } label: {
               Image(systemName: "xmark.circle.fill")
                 .frame(minWidth: 44, minHeight: 44)
             }

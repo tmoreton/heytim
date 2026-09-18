@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 
+from shared.action_grants import approval_grant_digest
+from shared.time import utc_now_iso
 from shared.work_state import is_claimable
 
 from .agent import _invoke, agent_failure_message
+from .approval_job import delete_approval_snapshot, queue_approval_expiry
 from .artifacts import _collect_generated_artifacts, _delete_generated_artifacts
 from .background_work import _queue_background_poll
 from .bot_mutations import apply_bot_mutations
@@ -57,34 +61,6 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             user_id, bot_id, turn_key, turn, bot, turn["assistantText"]
         )
         return
-    unapproved_tools = catalog.unapproved_tools(
-        user_id,
-        bot.get("toolIds", []),
-        bot.get("alwaysAllowedToolIds", []),
-    )
-    approval_tools = [item["name"] for item in unapproved_tools]
-    approval_tool_ids = [item["id"] for item in unapproved_tools]
-    if approval_tools and not turn.get("approvedAt"):
-        try:
-            table.update_item(
-                Key=turn_key,
-                UpdateExpression=(
-                    "SET #status = :awaiting, approvalTools = :approvalTools, "
-                    "approvalToolIds = :approvalToolIds"
-                ),
-                ConditionExpression="#status = :pending",
-                ExpressionAttributeNames={"#status": "status"},
-                ExpressionAttributeValues={
-                    ":pending": "PENDING",
-                    ":awaiting": "AWAITING_APPROVAL",
-                    ":approvalTools": approval_tools,
-                    ":approvalToolIds": approval_tool_ids,
-                },
-            )
-        except table.meta.client.exceptions.ConditionalCheckFailedException:
-            pass
-        _update_schedule_result(turn, "awaiting_approval", turn["createdAt"])
-        return
     if not is_claimable(turn.get("status")):
         if turn.get("status") in {"COMPLETE", "ERROR"}:
             _update_schedule_result(
@@ -134,6 +110,31 @@ def _process_agent_reply(record: dict, request: dict) -> None:
     attempt = begin_attempt(record, lambda: None)
     configuration_changed = False
     try:
+        decision = turn.get("approvalDecision")
+        if decision and not turn.get("runtimeResult"):
+            proposal = turn.get("approvalRequest")
+            if (
+                not isinstance(proposal, dict)
+                or any(decision.get(key) != proposal.get(key) for key in ("id", "digest", "toolUseId"))
+                or not catalog.approval_tool_names(user_id, bot.get("toolIds", []))
+                or turn.get("approvalGrantDigest") != approval_grant_digest(catalog, user_id, bot)
+                or datetime.fromisoformat(proposal["expiresAt"].replace("Z", "+00:00")) <= datetime.now(UTC)
+                or turn.get("approvalConsumedAt")
+            ):
+                raise ValueError("Approval expired, changed, or its outcome is uncertain")
+            table.update_item(
+                Key=turn_key,
+                UpdateExpression="SET approvalConsumedAt = :now",
+                ConditionExpression=(
+                    "#status = :running AND leaseOwner = :owner AND "
+                    "approvalDecision = :decision AND attribute_not_exists(approvalConsumedAt)"
+                ),
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={
+                    ":running": "RUNNING", ":owner": lease_owner,
+                    ":decision": decision, ":now": utc_now_iso(),
+                },
+            )
         result = _invoke(
             user_id,
             bot_id,
@@ -145,6 +146,11 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             runtime_result=turn.get("runtimeResult"),
             work_key=turn_key, lease_owner=lease_owner, resume_request=request,
             allow_bot_management=turn.get("source") != "schedule",
+            workspace_files=turn.get("attachments", []),
+            action_approval=(
+                {key: decision[key] for key in ("id", "digest", "toolUseId")}
+                if decision and not turn.get("runtimeResult") else None
+            ),
         )
         record_invocation_usage(
             user_id,
@@ -153,13 +159,38 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             work_type=("schedule" if turn.get("source") == "schedule" else "direct"),
             bot_id=bot_id,
         )
-        if result.bot_mutations and (result.pending_work or result.terminal_error):
+        if result.bot_mutations and (result.pending_work or result.pending_approval or result.terminal_error):
             raise ValueError(
                 "A bot, skill, or memory change cannot be combined with unfinished or failed work"
             )
         if result.pending_work:
             if _pause_work(turn_key, lease_owner, result.pending_work):
                 _queue_background_poll(turn_key, request)
+            return
+        if result.pending_approval:
+            proposal = result.pending_approval
+            if not all(isinstance(proposal.get(key), str) and proposal[key]
+                       for key in ("id", "digest", "toolUseId", "toolName", "expiresAt")):
+                raise ValueError("Approval proposal is invalid")
+            queue_approval_expiry(turn_key, proposal, "direct")
+            table.update_item(
+                Key=turn_key,
+                UpdateExpression=(
+                    "SET #status = :awaiting, approvalRequest = :proposal, approvalGrantDigest = :grant, "
+                    "activity = :activity, activityUpdatedAt = :now "
+                    "REMOVE leaseOwner, leaseExpiresAt, approvalDecision, approvalConsumedAt, runtimeResult"
+                ),
+                ConditionExpression="#status = :running AND leaseOwner = :owner",
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={
+                    ":awaiting": "AWAITING_APPROVAL", ":running": "RUNNING",
+                    ":owner": lease_owner, ":proposal": proposal,
+                    ":grant": approval_grant_digest(catalog, user_id, bot),
+                    ":activity": ["Approval needed for " + proposal["toolName"]],
+                    ":now": utc_now_iso(),
+                },
+            )
+            _update_schedule_result(turn, "awaiting_approval", turn["createdAt"])
             return
         if result.terminal_error:
             record_terminal_error(result.terminal_error)
@@ -173,6 +204,11 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             )
             if not completed_at:
                 return
+            if decision:
+                try:
+                    delete_approval_snapshot("direct", user_id, turn["id"], bot_id)
+                except Exception:
+                    logger.exception("Could not remove completed approval snapshot")
             _update_schedule_result(turn, "error", completed_at)
             _queue_reply_notification(
                 user_id, bot_id, turn_key, turn, bot, result.terminal_error
@@ -219,6 +255,11 @@ def _process_agent_reply(record: dict, request: dict) -> None:
     if not completed_at:
         cleanup_artifacts()
         return
+    if decision:
+        try:
+            delete_approval_snapshot("direct", user_id, turn["id"], bot_id)
+        except Exception:
+            logger.exception("Could not remove completed approval snapshot")
     try:
         table.update_item(
             Key=_bot_key(user_id, bot_id),

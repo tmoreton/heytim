@@ -27,7 +27,7 @@ RUNTIME_HEARTBEAT_GRACE_SECONDS = 180
 def runtime_work(payload: dict, continuation: list[dict]) -> dict:
     prefix = payload["artifacts"]["prefix"].replace("/artifacts/", "/runs/")
     job_id = hashlib.sha256(
-        json.dumps(continuation, sort_keys=True).encode()
+        json.dumps({"continuation": continuation, "approval": payload.get("actionApproval")}, sort_keys=True).encode()
     ).hexdigest()
     key = f"{prefix}/{job_id}/state.json"
     payload["runtimeJob"] = {"id": job_id}
@@ -150,7 +150,7 @@ def poll_runtime_work(
             return
     result = {
         key: state[key]
-        for key in ("text", "pendingWork", "usage", "terminalError", "botMutations")
+        for key in ("text", "pendingWork", "pendingApproval", "usage", "terminalError", "botMutations")
         if key in state
     }
     result["usageEventId"] = f"runtime:{work['sessionId']}"

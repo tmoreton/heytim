@@ -39,7 +39,14 @@ def _s3_source(
         raise TypeError("attachment S3 location must be an object")
     uri = location.get("uri")
     prefix = f"s3://{FILES_BUCKET_NAME}/{group_prefix or f'users/{actor_id}/'}"
-    if not isinstance(uri, str) or not uri.startswith(prefix) or len(uri) > 1024:
+    workspace_prefix = (
+        f"s3://{FILES_BUCKET_NAME}/{group_prefix[:-len('uploads/')]}workspace/"
+        if group_prefix else None
+    )
+    if not isinstance(uri, str) or len(uri) > 1024 or not (
+        uri.startswith(prefix)
+        or (workspace_prefix is not None and uri.startswith(workspace_prefix))
+    ):
         raise ValueError("attachment source is outside the FroggyBot file store")
     key = uri[len(f"s3://{FILES_BUCKET_NAME}/") :]
     if _s3 is None:

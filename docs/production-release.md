@@ -72,8 +72,8 @@ deferred and absent from the registry for this release.
   documented read scopes are present.
 - X: the paid/access tier supports expected traffic and the production callback and read-only scopes are approved.
 - Notion: the public integration is approved, read-content is the only content capability, and revocation was tested.
-- GitHub: the App uses selected repositories, documented permissions, no webhook, and the temporary user token is
-  revoked after installation ownership is verified.
+- GitHub: the App uses selected repositories, documented permissions, a signed Issues webhook, and the temporary user token is
+  revoked after installation ownership is verified. Confirm a delivery and replay against the production endpoint.
 
 ## Release and evidence
 

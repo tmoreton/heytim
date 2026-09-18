@@ -47,7 +47,7 @@ def group_schedule_route(user_id: str, _display_name: str, method: str, path: st
     return _response(201 if method == "POST" else 200, _save_group_schedule(user_id, group_id, _body(event), schedule_id or None))
 
 
-def _group_schedule_team(user_id: str, group_id: str) -> list[dict]:
+def _group_schedule_team(user_id: str, group_id: str, *, allow_approval: bool = False) -> list[dict]:
     _, items = _require_group_member(user_id, group_id, owner=True)
     try:
         team = plan_group_reply_round(group_bots(items), True)
@@ -57,8 +57,9 @@ def _group_schedule_team(user_id: str, group_id: str) -> list[dict]:
         raise ApiError(409, "Add bots before scheduling this group")
     for member in team:
         bot = _get_bot(member["botOwnerId"], member["botId"])
-        if catalog.approval_tool_names(member["botOwnerId"], bot.get("toolIds", [])):
-            raise ApiError(409, "Scheduled groups require bots without interactive tools")
+        if (catalog.approval_tool_names(member["botOwnerId"], bot.get("toolIds", []))
+                and (not allow_approval or member["botOwnerId"] != user_id)):
+            raise ApiError(409, "Automatic actions require the room owner's own bot and approval")
     return team
 
 

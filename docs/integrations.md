@@ -81,7 +81,7 @@ Leave **Request user authorization (OAuth) during installation** off. FroggyBot 
 setup URL, then starts a separate PKCE-protected GitHub authorization to verify that the installation belongs to the
 connecting user.
 
-No webhook is required. Configure repository permissions for Contents (read and write), Issues (read and write), Pull
+Configure the webhook URL `https://API_HOST/public/webhooks/github` and subscribe to the Issues event. Set a random secret of at least 32 characters in the App and as `webhookSecret` in the JSON below. Configure repository permissions for Contents (read and write), Issues (read and write), Pull
 requests (read and write), and Metadata (read). The installer chooses repositories. Store the configuration in a
 secret named `frogbot/oauth/github-production`:
 
@@ -91,7 +91,8 @@ secret named `frogbot/oauth/github-production`:
   "clientId": "Iv1.example",
   "clientSecret": "replace-with-github-client-secret",
   "privateKey": "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----",
-  "slug": "froggybot"
+  "slug": "froggybot",
+  "webhookSecret": "replace-with-random-webhook-secret"
 }
 ```
 

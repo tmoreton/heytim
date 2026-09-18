@@ -17,6 +17,7 @@ public enum HTTPMethod: String, Sendable {
 public enum APIRouteID: String, CaseIterable, Sendable {
     case publicInvite
     case publicCatalog
+    case githubWebhook
     case googleOAuthCallback
     case githubOAuthCallback
     case xOAuthCallback
@@ -30,6 +31,11 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case botMemoryCreate
     case botMemoryUpdate
     case botMemoryDelete
+    case botWorkspaceList
+    case botWorkspaceAdd
+    case botWorkspaceExport
+    case botWorkspaceDownload
+    case botWorkspaceDelete
     case botDocuments
     case botMessagesList
     case botMessageSend
@@ -56,6 +62,11 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case groupMemoryCreate
     case groupMemoryUpdate
     case groupMemoryDelete
+    case groupWorkspaceList
+    case groupWorkspaceAdd
+    case groupWorkspaceExport
+    case groupWorkspaceDownload
+    case groupWorkspaceDelete
     case groupInviteCreate
     case groupInviteJoin
     case groupMemberDelete
@@ -68,6 +79,14 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case groupScheduleDelete
     case groupScheduleRun
     case groupScheduleRuns
+    case groupRunCancel
+    case groupTaskApproval
+    case groupRoutinesList
+    case groupRoutineRuns
+    case groupRoutineCreate
+    case groupRoutineUpdate
+    case groupRoutineDelete
+    case groupRoutinePreview
     case pushTokenPut
     case pushTokenDelete
     case uploadCreate
@@ -153,6 +172,12 @@ public enum GeneratedAPIContract {
             pathTemplate: "/public/catalog",
             access: .publicAccess
         ),
+        .githubWebhook: APIContractRoute(
+            id: .githubWebhook,
+            method: .post,
+            pathTemplate: "/public/webhooks/github",
+            access: .publicAccess
+        ),
         .googleOAuthCallback: APIContractRoute(
             id: .googleOAuthCallback,
             method: .get,
@@ -229,6 +254,36 @@ public enum GeneratedAPIContract {
             id: .botMemoryDelete,
             method: .delete,
             pathTemplate: "/bots/{botId}/memory/{memoryRecordId}",
+            access: .authenticated
+        ),
+        .botWorkspaceList: APIContractRoute(
+            id: .botWorkspaceList,
+            method: .get,
+            pathTemplate: "/bots/{botId}/workspace/files",
+            access: .authenticated
+        ),
+        .botWorkspaceAdd: APIContractRoute(
+            id: .botWorkspaceAdd,
+            method: .post,
+            pathTemplate: "/bots/{botId}/workspace/files",
+            access: .authenticated
+        ),
+        .botWorkspaceExport: APIContractRoute(
+            id: .botWorkspaceExport,
+            method: .get,
+            pathTemplate: "/bots/{botId}/workspace/export",
+            access: .authenticated
+        ),
+        .botWorkspaceDownload: APIContractRoute(
+            id: .botWorkspaceDownload,
+            method: .get,
+            pathTemplate: "/bots/{botId}/workspace/files/{workspaceFileId}/download",
+            access: .authenticated
+        ),
+        .botWorkspaceDelete: APIContractRoute(
+            id: .botWorkspaceDelete,
+            method: .delete,
+            pathTemplate: "/bots/{botId}/workspace/files/{workspaceFileId}",
             access: .authenticated
         ),
         .botDocuments: APIContractRoute(
@@ -387,6 +442,36 @@ public enum GeneratedAPIContract {
             pathTemplate: "/groups/{groupId}/memory/{memoryRecordId}",
             access: .authenticated
         ),
+        .groupWorkspaceList: APIContractRoute(
+            id: .groupWorkspaceList,
+            method: .get,
+            pathTemplate: "/groups/{groupId}/workspace/files",
+            access: .authenticated
+        ),
+        .groupWorkspaceAdd: APIContractRoute(
+            id: .groupWorkspaceAdd,
+            method: .post,
+            pathTemplate: "/groups/{groupId}/workspace/files",
+            access: .authenticated
+        ),
+        .groupWorkspaceExport: APIContractRoute(
+            id: .groupWorkspaceExport,
+            method: .get,
+            pathTemplate: "/groups/{groupId}/workspace/export",
+            access: .authenticated
+        ),
+        .groupWorkspaceDownload: APIContractRoute(
+            id: .groupWorkspaceDownload,
+            method: .get,
+            pathTemplate: "/groups/{groupId}/workspace/files/{workspaceFileId}/download",
+            access: .authenticated
+        ),
+        .groupWorkspaceDelete: APIContractRoute(
+            id: .groupWorkspaceDelete,
+            method: .delete,
+            pathTemplate: "/groups/{groupId}/workspace/files/{workspaceFileId}",
+            access: .authenticated
+        ),
         .groupInviteCreate: APIContractRoute(
             id: .groupInviteCreate,
             method: .post,
@@ -457,6 +542,54 @@ public enum GeneratedAPIContract {
             id: .groupScheduleRuns,
             method: .get,
             pathTemplate: "/groups/{groupId}/runs",
+            access: .authenticated
+        ),
+        .groupRunCancel: APIContractRoute(
+            id: .groupRunCancel,
+            method: .post,
+            pathTemplate: "/groups/{groupId}/runs/{runId}/cancel",
+            access: .authenticated
+        ),
+        .groupTaskApproval: APIContractRoute(
+            id: .groupTaskApproval,
+            method: .post,
+            pathTemplate: "/groups/{groupId}/runs/{runId}/tasks/{taskId}/approval",
+            access: .authenticated
+        ),
+        .groupRoutinesList: APIContractRoute(
+            id: .groupRoutinesList,
+            method: .get,
+            pathTemplate: "/groups/{groupId}/routines",
+            access: .authenticated
+        ),
+        .groupRoutineRuns: APIContractRoute(
+            id: .groupRoutineRuns,
+            method: .get,
+            pathTemplate: "/groups/{groupId}/routines/runs",
+            access: .authenticated
+        ),
+        .groupRoutineCreate: APIContractRoute(
+            id: .groupRoutineCreate,
+            method: .post,
+            pathTemplate: "/groups/{groupId}/routines",
+            access: .authenticated
+        ),
+        .groupRoutineUpdate: APIContractRoute(
+            id: .groupRoutineUpdate,
+            method: .put,
+            pathTemplate: "/groups/{groupId}/routines/{routineId}",
+            access: .authenticated
+        ),
+        .groupRoutineDelete: APIContractRoute(
+            id: .groupRoutineDelete,
+            method: .delete,
+            pathTemplate: "/groups/{groupId}/routines/{routineId}",
+            access: .authenticated
+        ),
+        .groupRoutinePreview: APIContractRoute(
+            id: .groupRoutinePreview,
+            method: .post,
+            pathTemplate: "/groups/{groupId}/routines/preview",
             access: .authenticated
         ),
         .pushTokenPut: APIContractRoute(

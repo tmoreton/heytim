@@ -106,6 +106,110 @@ public struct Attachment: Codable, Identifiable, Hashable, Sendable {
 
 public typealias BotDocument = Attachment
 
+public struct WorkspaceSnapshot: Codable, Sendable {
+  public struct Limits: Codable, Sendable {
+    public var files: Int
+    public var bytes: Int
+  }
+  public var workspaceVersion: Int
+  public var files: [Attachment]
+  public var fileCount: Int
+  public var totalBytes: Int
+  public var limits: Limits
+}
+
+public struct WorkspaceExport: Codable, Sendable {
+  public struct File: Codable, Sendable {
+    public var id: String
+    public var name: String
+    public var size: Int
+    public var url: String
+  }
+  public var workspaceVersion: Int
+  public var scope: String
+  public var files: [File]
+}
+
+public struct GroupRoutineTrigger: Codable, Hashable, Sendable {
+  public var kind: String
+  public var eventType: String
+  public var connectionId: String?
+  public var installationId: String?
+  public var repositoryId: Int?
+  public var repositoryName: String?
+
+  public init(eventType: String, connectionId: String? = nil, repositoryId: Int? = nil) {
+    self.kind = "event"
+    self.eventType = eventType
+    self.connectionId = connectionId
+    self.repositoryId = repositoryId
+  }
+}
+
+public struct GroupRoutine: Codable, Identifiable, Hashable, Sendable {
+  public var id: String
+  public var name: String
+  public var prompt: String
+  public var trigger: GroupRoutineTrigger
+  public var enabled: Bool
+  public var createdAt: String
+  public var updatedAt: String
+}
+
+public struct GroupRoutineDraft: Codable, Sendable {
+  public var name: String
+  public var prompt: String
+  public var trigger: GroupRoutineTrigger
+  public var enabled: Bool
+
+  public init(name: String, prompt: String, trigger: GroupRoutineTrigger, enabled: Bool) {
+    self.name = name
+    self.prompt = prompt
+    self.trigger = trigger
+    self.enabled = enabled
+  }
+}
+
+public struct GroupRoutineRun: Codable, Identifiable, Sendable {
+  public var id: String
+  public var routineId: String
+  public var eventType: String
+  public var occurrenceId: String
+  public var status: String
+  public var createdAt: String
+  public var updatedAt: String?
+  public var completedAt: String?
+}
+
+public struct GroupRoutinePreviewRequest: Codable, Sendable {
+  public struct SampleIssue: Codable, Sendable {
+    public var number: Int
+    public var title: String
+    public var body: String
+    public init(number: Int, title: String, body: String) {
+      self.number = number
+      self.title = title
+      self.body = body
+    }
+  }
+  public var prompt: String
+  public var trigger: GroupRoutineTrigger
+  public var decisionText: String?
+  public var issue: SampleIssue?
+  public init(prompt: String, trigger: GroupRoutineTrigger, decisionText: String? = nil, issue: SampleIssue? = nil) {
+    self.prompt = prompt
+    self.trigger = trigger
+    self.decisionText = decisionText
+    self.issue = issue
+  }
+}
+
+public struct GroupRoutinePreview: Codable, Sendable {
+  public var eventType: String
+  public var prompt: String
+  public var wouldRun: Bool
+}
+
 public struct ChatMessage: Codable, Identifiable, Hashable, Sendable {
   public var id: String
   public var role: String
@@ -120,10 +224,13 @@ public struct ChatMessage: Codable, Identifiable, Hashable, Sendable {
   public var activity: [String]?
   public var attachments: [Attachment]?
   public var approvalTools: [String]?
+  public var approvalInput: String?
   public var roundId: String?
   public var roundPosition: Int?
   public var roundSize: Int?
   public var roundRole: String?
+  public var runId: String?
+  public var taskId: String?
   public var createdAt: String
   public var startedAt: String?
   public var completedAt: String?

@@ -16,7 +16,7 @@ class BotDocumentTests(ApiTestCase):
         ]
         with (
             patch.object(self.bots, "_get_bot", return_value={"id": "bot-1"}),
-            patch.object(self.bots, "_partition_items", side_effect=[turns, []]),
+            patch.object(self.bots, "_partition_items", side_effect=[turns, [], []]),
             patch.object(self.bots, "_schedule_items", return_value=[]),
             patch.object(self.bots, "_revoke_bot_shares", return_value=0),
             patch.object(

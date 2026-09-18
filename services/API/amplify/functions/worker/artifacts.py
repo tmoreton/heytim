@@ -18,12 +18,16 @@ from .support import (
 )
 
 
-def _attachment_blocks(turn: dict, user_id: str) -> list[dict]:
+def _attachment_blocks(turn: dict, user_id: str, bot_id: str | None = None) -> list[dict]:
     attachments = turn.get("attachments", [])
     if not isinstance(attachments, list):
         raise TypeError("Turn attachments must be a list")
     blocks = []
     user_prefix = f"users/{memory_actor_id(user_id)}/uploads/"
+    workspace_prefix = (
+        f"users/{memory_actor_id(user_id)}/bots/{bot_id}/workspace/"
+        if bot_id else None
+    )
     for index, attachment in enumerate(attachments, start=1):
         if not isinstance(attachment, dict):
             raise TypeError("Turn attachment must be an object")
@@ -34,7 +38,14 @@ def _attachment_blocks(turn: dict, user_id: str) -> list[dict]:
             kind not in {"image", "document"}
             or not isinstance(file_format, str)
             or not isinstance(object_key, str)
-            or not object_key.startswith(user_prefix)
+            or not (
+                object_key.startswith(user_prefix)
+                or (
+                    workspace_prefix is not None
+                    and object_key.startswith(workspace_prefix)
+                    and attachment.get("botId") == bot_id
+                )
+            )
         ):
             raise ValueError("Turn attachment metadata is invalid")
         source = {"s3Location": {"uri": f"s3://{FILES_BUCKET_NAME}/{object_key}"}}
@@ -59,6 +70,7 @@ def _group_attachment_blocks(message: dict, group_id: str) -> list[dict]:
         raise TypeError("Group message attachments must be a list")
     blocks = []
     group_prefix = f"groups/{group_id}/uploads/"
+    workspace_prefix = f"groups/{group_id}/workspace/"
     for index, attachment in enumerate(attachments, start=1):
         if not isinstance(attachment, dict):
             raise TypeError("Group message attachment must be an object")
@@ -69,7 +81,7 @@ def _group_attachment_blocks(message: dict, group_id: str) -> list[dict]:
             kind not in {"image", "document"}
             or not isinstance(file_format, str)
             or not isinstance(object_key, str)
-            or not object_key.startswith(group_prefix)
+            or not object_key.startswith((group_prefix, workspace_prefix))
         ):
             raise ValueError("Group message attachment metadata is invalid")
         source = {"s3Location": {"uri": f"s3://{FILES_BUCKET_NAME}/{object_key}"}}

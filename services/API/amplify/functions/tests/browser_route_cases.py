@@ -150,16 +150,16 @@ class BrowserRouteCases:
         queued = json.loads(self.sqs.send_message.call_args.kwargs["MessageBody"])
         self.assertEqual(queued["type"], "AGENT_REPLY")
         self.assertEqual(queued["botId"], "bot-1")
-        direct.catalog.unapproved_tools.assert_called_once_with("user-1", ["browser"], [])
+        direct.catalog.unapproved_tools.assert_not_called()
 
     def test_send_message_resume_enqueueing_does_not_bypass_required_approval(self):
         direct, checked, released = self._send_integration(
             "READY", "ENQUEUEING", [{"id": "browser", "name": "Browser"}],
         )
         result = direct._send_message("user-1", "bot-1", {"text": self.module.RESUME_PROMPT})
-        self.assertEqual(result["status"], "awaiting_approval")
+        self.assertEqual(result["status"], "pending")
         checked.assert_called_once()
         released.assert_called_once()
-        self.sqs.send_message.assert_not_called()
+        self.sqs.send_message.assert_called_once()
         turn = next(item for item in self.data_table.put if item.get("entity") == "TURN")
-        self.assertEqual(turn["approvalToolIds"], ["browser"])
+        self.assertNotIn("approvalToolIds", turn)

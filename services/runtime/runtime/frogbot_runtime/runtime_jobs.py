@@ -86,7 +86,7 @@ class RunState:
         event = value.get("event", value)
         control = event.get("frogbotControl")
         if isinstance(control, dict):
-            for key in ("usage", "pendingWork", "terminalError", "botMutations"):
+            for key in ("usage", "pendingWork", "pendingApproval", "terminalError", "botMutations"):
                 if key in control:
                     self.value[key] = control[key]
             return
@@ -116,6 +116,7 @@ class RunState:
             not self.value.get("terminalError")
             and not self.value["text"]
             and not self.value["pendingWork"]
+            and not self.value.get("pendingApproval")
         ):
             self.fail(
                 "The agent stopped without a completed answer. Verify completed external actions before continuing."

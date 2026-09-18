@@ -116,7 +116,7 @@ class ApiSafetyTests(ApiTestCase):
         self.assertEqual(running[1]["allowedActions"], ["cancel"])
         self.assertEqual(
             approval[1]["allowedActions"],
-            ["reject", "approveOnce", "approveAlways"],
+            ["reject", "approveOnce"],
         )
 
     def test_clearing_chat_revokes_only_conversation_shares(self) -> None:
@@ -292,14 +292,13 @@ class ApiSafetyTests(ApiTestCase):
                 "user-1", "bot-1", {"text": "Book the first option"}
             )
 
-        self.assertEqual(result["status"], "awaiting_approval")
+        self.assertEqual(result["status"], "pending")
         turn = next(
             item for item in self.data_table.put if item.get("entity") == "TURN"
         )
-        self.assertEqual(turn["status"], "AWAITING_APPROVAL")
-        self.assertEqual(turn["approvalTools"], ["Interactive browser"])
-        self.assertEqual(turn["approvalToolIds"], ["browser"])
-        self.sqs.send_message.assert_not_called()
+        self.assertEqual(turn["status"], "PENDING")
+        self.assertNotIn("approvalTools", turn)
+        self.sqs.send_message.assert_called_once()
 
     def test_always_allowed_interactive_message_starts_without_approval(self) -> None:
         with (
@@ -347,11 +346,11 @@ class ApiSafetyTests(ApiTestCase):
             {"turnId": "turn-1", "status": "pending", "alwaysAllowed": False},
         )
         approval_update = self.data_table.updated[-1]
-        self.assertEqual(approval_update["ConditionExpression"], "#status = :awaiting")
+        self.assertEqual(approval_update["ConditionExpression"], "#status = :awaiting AND attribute_not_exists(approvalRequest)")
         message = self.sqs.send_message.call_args.kwargs["MessageBody"]
         self.assertIn('"turnKey": "TURN#now#turn-1"', message)
 
-    def test_always_approving_remembers_only_the_turn_tools(self) -> None:
+    def test_always_approval_is_rejected_without_changing_bot_grants(self) -> None:
         turn = {
             "pk": "CHAT#user-1#bot-1",
             "sk": "TURN#now#turn-1",
@@ -377,18 +376,33 @@ class ApiSafetyTests(ApiTestCase):
                     {"id": "home", "name": "Home Assistant"},
                     {"id": "browser", "name": "Interactive browser"},
                 ],
-            ),
+            ),self.assertRaises(self.support.ApiError) as error
         ):
-            result = self.direct_chat._approve_bot_turn(
-                "user-1", "bot-1", "turn-1", always=True
-            )
+            self.direct_chat._approve_bot_turn("user-1", "bot-1", "turn-1", always=True)
+        self.assertEqual(error.exception.status_code, 400)
+        self.assertFalse(self.data_table.updated)
 
-        self.assertTrue(result["alwaysAllowed"])
-        bot_update = self.data_table.updated[-1]
-        self.assertEqual(
-            bot_update["ExpressionAttributeValues"][":tools"],
-            ["home", "browser"],
-        )
+    def test_exact_approval_binds_saved_proposal_and_expires(self) -> None:
+        from datetime import UTC, datetime, timedelta
+        proposal = {
+            "id": "interrupt-1", "digest": "a" * 64, "toolUseId": "tool-1",
+            "toolName": "github_create_issue", "input": {"title": "Review"},
+            "expiresAt": (datetime.now(UTC) + timedelta(minutes=10)).isoformat(),
+        }
+        turn = {"pk": "CHAT#user-1#bot-1", "sk": "TURN#now#turn-1",
+                "id": "turn-1", "userId": "user-1", "botId": "bot-1",
+                "status": "AWAITING_APPROVAL", "approvalRequest": proposal,
+                "approvalGrantDigest": "grant-1"}
+        with (patch.object(self.direct_chat, "_get_bot", return_value={"toolIds": ["github"]}),
+              patch.object(self.direct_chat, "_get_turn", return_value=turn),
+              patch.object(self.direct_chat, "approval_grant_digest", return_value="grant-1"),
+              patch.object(self.direct_chat.catalog, "approval_tool_names", return_value=["GitHub"])):
+            self.direct_chat._approve_bot_turn("user-1", "bot-1", "turn-1")
+        values = self.data_table.updated[-1]["ExpressionAttributeValues"]
+        self.assertEqual(values[":proposal"], proposal)
+        self.assertEqual(values[":decision"]["digest"], proposal["digest"])
+        self.assertEqual(len(values[":decision"]["executionKey"]), 36)
+        self.assertIn("approvalRequest = :proposal", self.data_table.updated[-1]["ConditionExpression"])
 
     def test_imported_bot_never_inherits_always_allowed_tools(self) -> None:
         self.data_table.put_item(
