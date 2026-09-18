@@ -17,12 +17,14 @@ the current checkout or environment still has the same status.
   commit and passed service checks, dependency audit, AgentCore/Amplify deployment, and resource verification.
   The signed webhook smoke check passed again against the updated API.
 - The production API accepted a correctly signed synthetic GitHub `issues.opened` delivery and replay with HTTP 202
-  (`matchedRoutines: 0`) and rejected a bad signature with HTTP 401. This proves the deployed signature boundary,
-  not routine deduplication or a live GitHub delivery. The existing GitHub App has Issues permission but its webhook
-  is disabled and its event list is empty. A 48-byte random signing secret was added to the existing production App
-  secret; enabling the App webhook, selecting Issues, configuring its URL and matching secret, and testing a real
-  delivery remain open. The App configuration API returned HTTP 404 while the webhook was disabled. GitHub's settings
-  UI then required a fresh account confirmation, so the event subscription was not changed during this release.
+  (`matchedRoutines: 0`) and rejected a bad signature with HTTP 401. This verifies signature handling for the issue
+  route, but no routine matched, so it does not verify routine deduplication. After account confirmation, the GitHub
+  App webhook was activated at the production `/public/webhooks/github` URL with SSL verification enabled. Its secret
+  was set to the matching 48-byte random value stored in `frogbot/oauth/github-production`, and the App was subscribed
+  to Issues events. The GitHub App API confirmed the URL, JSON format, configured secret, and `issues` event. A real
+  GitHub `installation.new_permissions_accepted` webhook delivery reached the production endpoint and received HTTP
+  200 (`{"accepted":false}`), as expected for an event outside the issue routine trigger. A live `issues.opened`
+  delivery with a matching routine remains untested.
 - The release runner uploaded both iPhone and Mac TestFlight packages for version `6.2.5`, build `20260918145216`,
   to App Store Connect. Apple's processing and availability in TestFlight must still be checked there.
 - The cloud computer remains deferred. Durable bot/room files use the existing encrypted S3 storage and explicit
