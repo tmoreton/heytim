@@ -1,6 +1,6 @@
 # Workflow runs, event routines, and durable workspaces
 
-**Status:** Implemented locally; production release and live event verification pending.
+**Status:** Released in v6.2.5; live GitHub App delivery and room pilots pending.
 **Date:** September 18, 2026
 
 ## Decision

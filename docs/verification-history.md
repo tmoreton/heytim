@@ -3,6 +3,26 @@
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-09-18 — workflow, routine, workspace, and approval release
+
+- Released commit `2bc8fed` as [`v6.2.5`](https://github.com/tmoreton/frogbot/releases/tag/v6.2.5).
+  [Production run `35357358258`](https://github.com/tmoreton/frogbot/actions/runs/35357358258) passed its release
+  gates, 454 API/worker tests, 266 runtime tests, dependency audit, AgentCore deployment, Amplify deployment, and
+  production resource verification. Local AgentCore validation and Apple unit tests also passed; the native release
+  runner passed the iPhone UI suite. Python and JavaScript/TypeScript CodeQL analysis passed.
+- The production API accepted a correctly signed synthetic GitHub `issues.opened` delivery and replay with HTTP 202
+  (`matchedRoutines: 0`) and rejected a bad signature with HTTP 401. This proves the deployed signature boundary,
+  not routine deduplication or a live GitHub delivery. The existing GitHub App has Issues permission but its webhook
+  is disabled and its event list is empty. A 48-byte random signing secret was added to the existing production App
+  secret; enabling the App webhook, selecting Issues, configuring its URL and matching secret, and testing a real
+  delivery remain open. The settings UI was unavailable because the Mac was locked; the App configuration API returned
+  HTTP 404 while the webhook was disabled.
+- The release runner uploaded both iPhone and Mac TestFlight packages for version `6.2.5`, build `20260918145216`,
+  to App Store Connect. Apple's processing and availability in TestFlight must still be checked there.
+- The cloud computer remains deferred. Durable bot/room files use the existing encrypted S3 storage and explicit
+  Code Interpreter sync; this release does not provision an always-on computer. Live room concurrency, one-use
+  approval resume, and workspace sync still need a disposable production pilot before broad activation.
+
 ## 2026-09-14 — Mac message recovery and native TestFlight refresh
 
 - Committed release revision `8cbe7ab`. CloudWatch tied the Mac desktop “Something went wrong” response to an old

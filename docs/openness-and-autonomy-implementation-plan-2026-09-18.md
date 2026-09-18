@@ -1,7 +1,7 @@
 # FroggyBot implementation plan: openness and autonomous work
 
 **Date:** September 18, 2026
-**Status:** Milestones 1–4 implemented locally. Deployment and live integration verification pending.
+**Status:** Milestones 1–4 released in v6.2.5. Live room and GitHub App pilots pending.
 **Basis:** [Grok Bot and openness audit](grokbot-openness-audit-2026-09-18.md) and this checkout.
 
 ## Implementation started
