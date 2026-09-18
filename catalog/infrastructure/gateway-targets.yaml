@@ -1,17 +1,17 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: FroggyBot external research targets whose API-key placement is not expressible in AgentCore project schema v1.
+Description: HeyTim external research targets whose API-key placement is not expressible in AgentCore project schema v1.
 
 Parameters:
   GatewayIdentifier:
     Type: String
     AllowedPattern: '^([0-9a-z][-]?){1,100}-[0-9a-z]{10}$'
-    Description: Existing FroggyBot AgentCore Gateway ID.
+    Description: Existing HeyTim AgentCore Gateway ID.
   GatewayRoleName:
     Type: String
     AllowedPattern: '[\w+=,.@-]+'
     MinLength: 1
     MaxLength: 64
-    Description: Existing FroggyBot AgentCore Gateway execution role name.
+    Description: Existing HeyTim AgentCore Gateway execution role name.
   SchemaBucketName:
     Type: String
     Default: bedrock-agentcore-gateway-frogbot-188757775631-use1
@@ -21,7 +21,7 @@ Parameters:
     Type: String
     Default: skills-v29
     AllowedPattern: 'skills-v[1-9][0-9]*'
-    Description: FroggyBot Skills release containing the deployed schemas.
+    Description: HeyTim Skills release containing the deployed schemas.
   XCredentialProviderName:
     Type: String
     Default: FrogBotXApi
