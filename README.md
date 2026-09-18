@@ -23,7 +23,8 @@ agentcore/                     Declarative AWS resources and deployment wrapper
 `apps/iOS` builds **both iOS and macOS**. There is no public browser chat. The
 website's `/app` and `/invite` routes help people open the installed Apple app.
 The backend's existing users, data, and AWS resource identities remain stable
-through the brand change. The public app and catalog move to `app.heytim.ai`.
+through the brand change. The public website and bot catalog live at `heytim.ai`;
+`app.heytim.ai` remains an app-link and catalog alias for existing clients.
 
 ## Local development
 
