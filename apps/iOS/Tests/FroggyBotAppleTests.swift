@@ -579,6 +579,34 @@ import UniformTypeIdentifiers
     XCTAssertEqual(model.bootstrap?.bots.first?.processing, nil)
   }
 
+  #if os(iOS)
+    func testLaunchAndRefreshLeaveChatListUnselected() async throws {
+      let bootstrapData = try JSONEncoder().encode(DemoData.bootstrap)
+      MockURLProtocol.handler = { request in
+        XCTAssertEqual(request.url?.path, "/bootstrap")
+        return (
+          HTTPURLResponse(
+            url: try XCTUnwrap(request.url), statusCode: 200, httpVersion: nil,
+            headerFields: nil)!,
+          bootstrapData
+        )
+      }
+      let api = FrogBotAPI(
+        baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+      ) { "id-token" }
+      let model = AppModel(api: api)
+
+      await model.load()
+      XCTAssertNotNil(model.bootstrap)
+      XCTAssertNil(model.selection)
+      XCTAssertTrue(model.messages.isEmpty)
+
+      let refreshed = await model.refreshBootstrap()
+      XCTAssertTrue(refreshed)
+      XCTAssertNil(model.selection)
+    }
+  #endif
+
   func testBootstrapRefreshLoadsMessagesForAReplacementSelection() async throws {
     var writer = try XCTUnwrap(DemoData.bootstrap.bots.first)
     writer.id = "writer"

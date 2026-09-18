@@ -2,6 +2,21 @@ import XCTest
 
 @MainActor final class FroggyBotAppleUITests: XCTestCase {
   #if os(iOS)
+    func testLaunchShowsChatListBeforeOpeningAConversation() {
+      let app = XCUIApplication()
+      app.launchArguments = ["--ui-testing", "--ui-testing-chat-list-launch"]
+      app.launchForUITesting()
+
+      let chief = app.staticTexts["Chief"].firstMatch
+      XCTAssertTrue(chief.waitForExistence(timeout: 10))
+      XCTAssertTrue(chief.isHittable)
+      XCTAssertFalse(app.descendants(matching: .any)["chat.composer"].firstMatch.exists)
+
+      chief.tap()
+      XCTAssertTrue(
+        app.descendants(matching: .any)["chat.composer"].firstMatch.waitForExistence(timeout: 10))
+    }
+
     func testAssistantReplyUsesFullMobileTranscriptWidth() {
       let app = XCUIApplication()
       app.launchArguments = ["--ui-testing"]

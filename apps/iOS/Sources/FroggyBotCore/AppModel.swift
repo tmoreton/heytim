@@ -126,6 +126,10 @@ public final class AppModel {
       } else {
         messages = DemoData.messages
       }
+      if arguments.contains("--ui-testing-chat-list-launch") {
+        selection = nil
+        messages = []
+      }
       if !isLoadingMessages { loadedMessagesSelection = selection }
       #if DEBUG
         // Keep the destination in the option itself: macOS can interpret a
@@ -854,6 +858,10 @@ public final class AppModel {
         return false
       }
     }
+    #if os(iOS)
+      // On iOS, an unselected chat means the conversation list is the home screen.
+      if selection == nil { return false }
+    #endif
     if let group = bootstrap.groups.first {
       return transitionSelection(to: .init(kind: .group, id: group.id))
     } else if let bot = bootstrap.bots.first {
