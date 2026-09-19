@@ -1,0 +1,59 @@
+name: Report a bug
+description: Report a reproducible problem in HeyTim or this repository.
+title: "Bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Thanks for helping improve HeyTim. Do not include credentials, private
+        conversations, customer data, or security vulnerabilities. Report
+        security issues privately using the link below the issue form list.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - iPhone app
+        - Mac app
+        - Website or public catalog
+        - API or agent runtime
+        - Documentation or contributor tooling
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Choose …
+        3. See …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: App version, TestFlight build, release tag, or commit SHA when known.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Device, operating-system version, browser, and other relevant details.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials, private conversations, and personal information.
+          required: true
+

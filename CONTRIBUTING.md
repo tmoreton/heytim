@@ -2,6 +2,11 @@
 
 Issues, bug reports, and focused design proposals are welcome.
 
+Use the repository issue forms for bugs and product ideas, and read the
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before participating. Product support,
+beta access, security reports, and licensing questions have separate private
+channels in [`SUPPORT.md`](SUPPORT.md).
+
 HeyTim uses a source-available, dual-licensing model. To preserve the ability to
 offer both PolyForm Noncommercial and commercial licenses, the project is not
 currently accepting unsolicited source-code, documentation, bot, skill, or data

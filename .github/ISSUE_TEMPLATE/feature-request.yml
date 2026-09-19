@@ -1,0 +1,29 @@
+name: Suggest an improvement
+description: Propose a focused product, documentation, or developer-experience improvement.
+title: "Idea: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem should this solve?
+      description: Describe the person, situation, and current friction before proposing a feature.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What would a good outcome look like?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds
+      description: Share anything you already tried or considered.
+  - type: textarea
+    id: safety
+    attributes:
+      label: Privacy, safety, or compatibility considerations
+      description: Note any data, permissions, external actions, or migration concerns.
+

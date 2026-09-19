@@ -1,0 +1,9 @@
+* @tmoreton
+
+# Changes to trust boundaries and release paths always require owner review.
+/.github/ @tmoreton
+/agentcore/ @tmoreton
+/services/API/amplify/auth/ @tmoreton
+/services/API/amplify/infrastructure/ @tmoreton
+/services/API/amplify/functions/shared/ @tmoreton
+/scripts/ @tmoreton

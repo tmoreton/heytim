@@ -1,5 +1,8 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
+  - name: Product support and beta access
+    url: mailto:support@heytim.ai?subject=HeyTim%20support
+    about: Get account help or request access to the private beta.
   - name: Security report
     url: mailto:support@heytim.ai?subject=HeyTim%20security%20report
     about: Send security reports privately instead of opening a public issue.

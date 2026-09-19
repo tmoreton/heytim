@@ -103,9 +103,9 @@ tool approval remain server-enforced. Skills are reviewed instructions, never
 downloaded executable code or credentials.
 
 The Expo reference archive is at
-`/Users/tmoreton/Code/FrogBot-Expo-archive-20260915`. Original history also remains
-in Git. The imported catalog began from public commit `62a1f53`; verified local
-bundles preserve the retired repositories. See
+an offline maintainer-controlled location. Original history also remains in Git.
+The imported catalog began from public commit `62a1f53`; verified local bundles
+preserve the retired repositories. See
 [migration notes](docs/monorepo-migration.md).
 
 ## Guides
@@ -117,6 +117,8 @@ bundles preserve the retired repositories. See
 - [Production release](docs/production-release.md)
 - [Operations and recovery](docs/operations.md)
 - [Integrations](docs/integrations.md)
+- [Public launch checklist](docs/public-launch-checklist.md)
+- [Support](SUPPORT.md)
 - [Catalog contribution and safety](catalog/CONTRIBUTING.md)
 
 ## Licensing and contributions

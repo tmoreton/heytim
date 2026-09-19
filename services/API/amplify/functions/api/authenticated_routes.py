@@ -548,11 +548,7 @@ def _skill_route(
         )
     if method == "POST" and path.startswith("/skills/") and path.endswith("/share"):
         return _response(201, _share_skill(user_id, params.get("skillId", "")))
-    if (
-        method == "POST"
-        and path.startswith("/skill-shares/")
-        and path.endswith("/import")
-    ):
+    if method == "POST" and path.startswith("/skill-shares/") and path.endswith("/import"):
         return _response(201, _import_skill(user_id, params.get("token", "")))
     return None
 
