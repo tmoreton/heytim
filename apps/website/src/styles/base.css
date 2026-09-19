@@ -1,13 +1,25 @@
 :root {
-  --ink: #171713;
-  --muted: #68635b;
-  --faint: #8d887f;
-  --paper: #f4f2ec;
-  --card: #fffefa;
-  --line: #d9d5ca;
-  --accent: #A15B00;
-  --accent-dark: #2B2924;
-  --accent-soft: #FFF1D3;
+  --ink: #292731;
+  --muted: #64606b;
+  --faint: #8b8791;
+  --paper: #fff9ef;
+  --card: #ffffff;
+  --line: #e7ded1;
+  --accent: #a64c00;
+  --accent-dark: #3f3948;
+  --accent-soft: #fff0bd;
+  --sun: #ffbc3b;
+  --sun-hover: #ffad18;
+  --sky: #3984f6;
+  --sky-soft: #e3f1ff;
+  --mint: #58beaa;
+  --mint-soft: #ddf7ef;
+  --lavender: #8a76e8;
+  --lavender-soft: #eee9ff;
+  --coral: #f46a27;
+  --coral-soft: #ffe8dc;
+  --rose: #e95383;
+  --rose-soft: #ffe5ee;
   --white: #ffffff;
   color-scheme: light;
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -19,7 +31,10 @@ html { scroll-behavior: smooth; }
 body {
   margin: 0;
   color: var(--ink);
-  background: var(--paper);
+  background:
+    radial-gradient(circle at 4% 3%, rgba(255, 188, 59, 0.22), transparent 28rem),
+    radial-gradient(circle at 96% 18%, rgba(57, 132, 246, 0.15), transparent 30rem),
+    linear-gradient(180deg, #fffbf4 0%, #f7fbff 48%, var(--paper) 100%);
   -webkit-font-smoothing: antialiased;
 }
 button, input { font: inherit; }
@@ -63,8 +78,8 @@ img { display: block; max-width: 100%; }
   cursor: pointer;
   font-weight: 800;
 }
-.button { color: var(--white); background: var(--accent); }
-.button:hover, .button:focus-visible { background: #754100; transform: translateY(-1px); }
+.button { color: #292510; background: var(--sun); }
+.button:hover, .button:focus-visible { background: var(--sun-hover); transform: translateY(-1px); }
 .button-secondary { color: var(--ink); border: 1px solid #c9c5ba; background: rgba(255, 255, 255, 0.55); }
 .button-secondary:hover, .button-secondary:focus-visible { border-color: var(--accent); color: var(--accent); }
 
