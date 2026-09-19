@@ -102,13 +102,13 @@ if (freeMonthlyCredits > monthlyRunUnitLimit || plusMonthlyCredits > monthlyRunU
   throw new Error('Plan credits cannot exceed HEYTIM_MONTHLY_RUN_UNIT_LIMIT.');
 }
 
-export const stripeSecretArn = optionalProviderSetting('HEYTIM_STRIPE_SECRET_ARN');
+export const stripeSecretId = optionalProviderSetting('HEYTIM_STRIPE_SECRET_ID');
 export const stripePlusPriceId = optionalProviderSetting('HEYTIM_STRIPE_PLUS_PRICE_ID');
-if (Boolean(stripeSecretArn) !== Boolean(stripePlusPriceId)) {
-  throw new Error('HEYTIM_STRIPE_SECRET_ARN and HEYTIM_STRIPE_PLUS_PRICE_ID must be set together.');
+if (Boolean(stripeSecretId) !== Boolean(stripePlusPriceId)) {
+  throw new Error('HEYTIM_STRIPE_SECRET_ID and HEYTIM_STRIPE_PLUS_PRICE_ID must be set together.');
 }
-if (stripeSecretArn && !stripeSecretArn.startsWith('arn:aws:secretsmanager:')) {
-  throw new Error('HEYTIM_STRIPE_SECRET_ARN must be an AWS Secrets Manager ARN.');
+if (stripeSecretId && !/^[A-Za-z0-9/_+=.@-]{1,512}$/.test(stripeSecretId)) {
+  throw new Error('HEYTIM_STRIPE_SECRET_ID must be an AWS Secrets Manager secret name.');
 }
 if (stripePlusPriceId && !/^price_[A-Za-z0-9]+$/.test(stripePlusPriceId)) {
   throw new Error('HEYTIM_STRIPE_PLUS_PRICE_ID must be a Stripe Price ID.');
@@ -123,7 +123,7 @@ if (!['true', 'false'].includes(stripeAutomaticTaxValue)) {
   throw new Error('HEYTIM_STRIPE_AUTOMATIC_TAX must be true or false.');
 }
 export const stripeAutomaticTax = stripeAutomaticTaxValue === 'true';
-export const stripeAvailable = Boolean(stripeSecretArn && stripePlusPriceId);
+export const stripeAvailable = Boolean(stripeSecretId && stripePlusPriceId);
 if (stripeLiveMode && !stripeAvailable) {
   throw new Error('Stripe must be configured before enabling live mode.');
 }

@@ -1,3 +1,4 @@
+import { ArnFormat, Stack } from 'aws-cdk-lib';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { Function as LambdaFunction } from 'aws-cdk-lib/aws-lambda';
 
@@ -9,7 +10,7 @@ import {
   stripeAvailable,
   stripeLiveMode,
   stripePlusPriceId,
-  stripeSecretArn,
+  stripeSecretId,
 } from './app-settings';
 
 export function addStripeBilling(
@@ -26,12 +27,19 @@ export function addStripeBilling(
     workerFunction.addEnvironment(name, value);
   }
   apiFunction.addEnvironment('HEYTIM_PLUS_PRICE_CENTS', String(plusPriceCents));
-  apiFunction.addEnvironment('STRIPE_SECRET_ARN', stripeSecretArn);
+  apiFunction.addEnvironment('STRIPE_SECRET_ID', stripeSecretId);
   apiFunction.addEnvironment('STRIPE_PLUS_PRICE_ID', stripePlusPriceId);
   apiFunction.addEnvironment('STRIPE_LIVE_MODE', String(stripeLiveMode));
   apiFunction.addEnvironment('STRIPE_AUTOMATIC_TAX', String(stripeAutomaticTax));
   apiFunction.addEnvironment('STRIPE_API_VERSION', '2026-08-26.dahlia');
-  if (stripeSecretArn) {
+  if (stripeSecretId) {
+    const stack = Stack.of(apiFunction);
+    const stripeSecretArn = stack.formatArn({
+      service: 'secretsmanager',
+      resource: 'secret',
+      resourceName: `${stripeSecretId}-*`,
+      arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+    });
     apiFunction.addToRolePolicy(
       new PolicyStatement({
         actions: ['secretsmanager:GetSecretValue'],

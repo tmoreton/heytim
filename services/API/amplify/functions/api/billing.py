@@ -57,8 +57,8 @@ def _stripe_configuration() -> dict[str, str]:
         raise ApiError(503, "Subscriptions are not available yet")
     if _secret_cache is not None:
         return _secret_cache
-    secret_arn = os.environ.get("STRIPE_SECRET_ARN", "")
-    if not secret_arn:
+    secret_id = os.environ.get("STRIPE_SECRET_ID", "")
+    if not secret_id:
         raise ApiError(503, "Subscriptions are not configured")
     client = boto3.client(
         "secretsmanager",
@@ -69,7 +69,7 @@ def _stripe_configuration() -> dict[str, str]:
         ),
     )
     try:
-        raw = client.get_secret_value(SecretId=secret_arn).get("SecretString", "")
+        raw = client.get_secret_value(SecretId=secret_id).get("SecretString", "")
         value = json.loads(raw)
     except Exception as exc:
         raise ApiError(503, "Subscriptions are temporarily unavailable") from exc

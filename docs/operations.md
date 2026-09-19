@@ -48,7 +48,7 @@ functions:
 | `HEYTIM_USAGE_WINDOW_SECONDS` | 60 | 10–3,600 | Fixed-window duration in seconds |
 | `HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT` | 100 | 3–1,000,000 | Maximum conservative YouTube tool-call capacity HeyTim may reserve per Pacific-time quota day |
 
-Stripe is optional and fail-safe. Without both `HEYTIM_STRIPE_SECRET_ARN` and
+Stripe is optional and fail-safe. Without both `HEYTIM_STRIPE_SECRET_ID` and
 `HEYTIM_STRIPE_PLUS_PRICE_ID`, the API reports preview mode and the existing
 `HEYTIM_MONTHLY_RUN_UNIT_LIMIT` remains in force. The Secrets Manager value is JSON containing `secretKey` and
 `webhookSecret`. Configure Stripe to send `checkout.session.completed` and

@@ -229,33 +229,6 @@ jobs:
             exit 1
           fi
 
-      - name: Provision Stripe billing secret
-        env:
-          STRIPE_SECRET_KEY: ${{ secrets.HEYTIM_STRIPE_SECRET_KEY }}
-          STRIPE_WEBHOOK_SECRET: ${{ secrets.HEYTIM_STRIPE_WEBHOOK_SECRET }}
-          STRIPE_PLUS_PRICE_ID: ${{ vars.HEYTIM_STRIPE_PLUS_PRICE_ID }}
-        run: |
-          if [[ -z "$STRIPE_SECRET_KEY" && -z "$STRIPE_WEBHOOK_SECRET" && -z "$STRIPE_PLUS_PRICE_ID" ]]; then
-            echo 'HEYTIM_STRIPE_SECRET_ARN=' >> "$GITHUB_ENV"
-            exit 0
-          fi
-          secret_name='heytim/stripe/production'
-          secret_value="$(jq -nc \
-            --arg secretKey "$STRIPE_SECRET_KEY" \
-            --arg webhookSecret "$STRIPE_WEBHOOK_SECRET" \
-            '{secretKey:$secretKey,webhookSecret:$webhookSecret}')"
-          if secret_arn="$(aws secretsmanager describe-secret \
-            --secret-id "$secret_name" --query ARN --output text 2>/dev/null)"; then
-            aws secretsmanager put-secret-value \
-              --secret-id "$secret_arn" --secret-string "$secret_value" >/dev/null
-          else
-            secret_arn="$(aws secretsmanager create-secret \
-              --name "$secret_name" \
-              --description 'Stripe server and webhook credentials for HeyTim billing.' \
-              --secret-string "$secret_value" --query ARN --output text)"
-          fi
-          echo "HEYTIM_STRIPE_SECRET_ARN=$secret_arn" >> "$GITHUB_ENV"
-
       - uses: actions/setup-node@v7
         with:
           node-version: 22.23.2
@@ -340,6 +313,7 @@ jobs:
           HEYTIM_HUBSPOT_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_HUBSPOT_OAUTH_SECRET_ARN }}
           HEYTIM_JIRA_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_JIRA_OAUTH_SECRET_ARN }}
           HEYTIM_ZOOM_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_ZOOM_OAUTH_SECRET_ARN }}
+          HEYTIM_STRIPE_SECRET_ID: ${{ vars.HEYTIM_STRIPE_PLUS_PRICE_ID != '' && 'heytim/stripe/production' || '' }}
           HEYTIM_STRIPE_PLUS_PRICE_ID: ${{ vars.HEYTIM_STRIPE_PLUS_PRICE_ID }}
           HEYTIM_STRIPE_LIVE_MODE: ${{ vars.HEYTIM_STRIPE_LIVE_MODE || 'false' }}
           HEYTIM_STRIPE_AUTOMATIC_TAX: ${{ vars.HEYTIM_STRIPE_AUTOMATIC_TAX || 'false' }}
@@ -351,6 +325,36 @@ jobs:
           HEYTIM_APNS_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_APPLICATION_ARN }}
           HEYTIM_APNS_SANDBOX_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_SANDBOX_APPLICATION_ARN }}
         run: npx ampx pipeline-deploy --branch main --app-id "${{ vars.AMPLIFY_APP_ID }}" --outputs-out-dir .
+
+      - name: Provision Stripe billing secret
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.HEYTIM_STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.HEYTIM_STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PLUS_PRICE_ID: ${{ vars.HEYTIM_STRIPE_PLUS_PRICE_ID }}
+        run: |
+          if [[ -z "$STRIPE_SECRET_KEY" && -z "$STRIPE_WEBHOOK_SECRET" && -z "$STRIPE_PLUS_PRICE_ID" ]]; then
+            exit 0
+          fi
+          secret_name='heytim/stripe/production'
+          secret_value="$(jq -nc \
+            --arg secretKey "$STRIPE_SECRET_KEY" \
+            --arg webhookSecret "$STRIPE_WEBHOOK_SECRET" \
+            '{secretKey:$secretKey,webhookSecret:$webhookSecret}')"
+          for attempt in {1..6}; do
+            if secret_arn="$(aws secretsmanager describe-secret \
+              --secret-id "$secret_name" --query ARN --output text 2>/dev/null)"; then
+              aws secretsmanager put-secret-value \
+                --secret-id "$secret_arn" --secret-string "$secret_value" >/dev/null && exit 0
+            elif aws secretsmanager create-secret \
+              --name "$secret_name" \
+              --description 'Stripe server and webhook credentials for HeyTim billing.' \
+              --secret-string "$secret_value" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          echo 'Could not provision the Stripe billing secret after the deployment role update.' >&2
+          exit 1
 
       - name: Generate release client configuration
         working-directory: services/API
