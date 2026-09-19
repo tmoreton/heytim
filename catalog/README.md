@@ -87,7 +87,7 @@ The X and YouTube targets are the one deployment exception to the main AgentCore
 Before deploying that template, retrieve each provider's managed secret ARN with
 `aws bedrock-agentcore-control get-api-key-credential-provider --name <provider-name> --query 'apiKeySecretArn.secretArn' --output text`
 and pass the exact values as `XCredentialSecretArn` and `YouTubeCredentialSecretArn`. The template scopes the gateway role to
-those two provider and secret ARNs plus the deployed `FrogBot-FrogBotTools` workload identity; do not replace them with
+those two provider and secret ARNs plus the deployed `HeyTim-FrogBotTools` workload identity; do not replace them with
 account-wide wildcards.
 
 Release these targets before publishing bots that depend on them: tag the reviewed catalog commit with its

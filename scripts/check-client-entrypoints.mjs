@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const website = JSON.parse(await readFile(path.join(root, 'apps/website/package.json'), 'utf8'));
 const dependencies = { ...website.dependencies, ...website.devDependencies };
-if (Object.keys(dependencies).some((name) => /expo|react-native|amplify|froggybot\/(client|preview)/.test(name))) {
+if (Object.keys(dependencies).some((name) => /expo|react-native|amplify|heytim\/(client|preview)/.test(name))) {
   throw new Error('The public website must not depend on the retired chat/native/auth stack.');
 }
 if (!dependencies.vite || !dependencies.react || !website.scripts.build.includes('vite build')) {

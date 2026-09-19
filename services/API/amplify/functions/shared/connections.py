@@ -128,8 +128,8 @@ class ConnectionMixin(ConnectionLifecycleMixin):
             Description="User OAuth or installation grant for a HeyTim connection",
             SecretString=credential,
             Tags=[
-                {"Key": "frogbot:resource", "Value": "connection"},
-                {"Key": "frogbot:connection-id", "Value": connection_id},
+                {"Key": "heytim:resource", "Value": "connection"},
+                {"Key": "heytim:connection-id", "Value": connection_id},
             ],
         )
         arn = response.get("ARN")

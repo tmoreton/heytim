@@ -1,4 +1,4 @@
-# FroggyBot Product, UX, and Functional Audit
+# HeyTim Product, UX, and Functional Audit
 
 ## Implementation follow-through — September 8, 2026
 
@@ -19,15 +19,15 @@ Two categories remain outside a safe code-only implementation: a production AWS 
 
 ## Original executive verdict (pre-remediation)
 
-FroggyBot has a real product, not merely a promising interface. Direct chat, group rooms, specialist bots, scheduled work, generated files, memory controls, invitations, and approval flows are implemented; the repository's complete verification suite passes. The product is visually coherent on desktop and mobile, and the live application demonstrates that it can generate and deliver useful files. Its most distinctive interaction—the team round—also works end to end: a Chief frames the work, specialists contribute in sequence, and the Chief synthesizes the result.
+HeyTim has a real product, not merely a promising interface. Direct chat, group rooms, specialist bots, scheduled work, generated files, memory controls, invitations, and approval flows are implemented; the repository's complete verification suite passes. The product is visually coherent on desktop and mobile, and the live application demonstrates that it can generate and deliver useful files. Its most distinctive interaction—the team round—also works end to end: a Chief frames the work, specialists contribute in sequence, and the Chief synthesizes the result.
 
-The strongest market position is narrower than “an AI team.” Grok Bot, Claude Cowork, ChatGPT, Poe, and Microsoft all cover meaningful parts of that territory. FroggyBot's opportunity is to become **the shared decision room: one conversation in which several people and several trusted AI specialists make a decision and leave with the work done**. The combination of human group participation, explicit reply routing, room-isolated memory, visible specialist contributions, and downloadable outputs is unusually coherent. None of the reviewed competitors makes that complete loop its primary product promise.[^1][^2][^3][^4][^5]
+The strongest market position is narrower than “an AI team.” Grok Bot, Claude Cowork, ChatGPT, Poe, and Microsoft all cover meaningful parts of that territory. HeyTim's opportunity is to become **the shared decision room: one conversation in which several people and several trusted AI specialists make a decision and leave with the work done**. The combination of human group participation, explicit reply routing, room-isolated memory, visible specialist contributions, and downloadable outputs is unusually coherent. None of the reviewed competitors makes that complete loop its primary product promise.[^1][^2][^3][^4][^5]
 
 The product should not yet be described as broadly launch-ready. The signature group experience cannot accept shared reference files, scheduled jobs lack a run inbox and history, the preview experience makes orchestration look generic, and important web accessibility failures allow keyboard focus to escape into hidden or background interfaces. The only configured AWS target explicitly says it is a development environment rather than a production baseline. These are tractable gaps, but several sit directly in the path of the product's main promise.
 
 The recommended decision is therefore:
 
-1. Position FroggyBot around group decisions and completed outcomes, not around generic autonomous agents.
+1. Position HeyTim around group decisions and completed outcomes, not around generic autonomous agents.
 2. Make one realistic shared-room scenario exceptional before expanding the feature surface.
 3. Treat group files, trustworthy run visibility, accessibility, and a production deployment baseline as release gates.
 4. Build the next moat around decision provenance, room-scoped trust, and reusable group workflows—not a cloud desktop or an unrestricted tool marketplace.
@@ -45,7 +45,7 @@ This audit combines six forms of evidence:
 
 The audit did not include moderated usability sessions, destructive tests against a live account, App Store review, a full assistive-technology test matrix, or laboratory performance measurement. Findings about user comprehension should therefore be validated with target users, while the observed functional and accessibility defects are directly reproducible.
 
-## The product FroggyBot should be
+## The product HeyTim should be
 
 The product currently contains three overlapping mental models:
 
@@ -66,7 +66,7 @@ That job gives every major feature a clear role:
 - The **artifact** is the usable outcome.
 - The **schedule or routine** keeps the outcome current.
 
-This product model also creates a useful boundary. FroggyBot does not need to become a general remote computer to deliver its core value. It needs to be exceptional at collaborative deliberation, traceable synthesis, and follow-through.
+This product model also creates a useful boundary. HeyTim does not need to become a general remote computer to deliver its core value. It needs to be exceptional at collaborative deliberation, traceable synthesis, and follow-through.
 
 ## Experience audit
 
@@ -74,9 +74,9 @@ This product model also creates a useful boundary. FroggyBot does not need to be
 
 The public site communicates the benefit better than the in-product terminology. “Turn group talk into a plan everyone can use” is concrete, human, and well aligned with the strongest use case. The pages are visually confident, the public bot library is searchable and categorized, and the “Add this bot” handoff correctly opens the relevant template for an already signed-in member.
 
-The acquisition loop is incomplete for anyone who is not already invited. “Open FroggyBot” leads to a sign-in page that says the product is for existing members only. That may be intentional during a private beta, but it produces a dead end after the marketing site has generated interest. The product should explicitly label the beta state and offer one next action: request access, join a waitlist, or ask an existing member for an invite. If growth is meant to be invitation-led, the site should explain that rather than making it look like a failed signup.
+The acquisition loop is incomplete for anyone who is not already invited. “Open HeyTim” leads to a sign-in page that says the product is for existing members only. That may be intentional during a private beta, but it produces a dead end after the marketing site has generated interest. The product should explicitly label the beta state and offer one next action: request access, join a waitlist, or ask an existing member for an invite. If growth is meant to be invitation-led, the site should explain that rather than making it look like a failed signup.
 
-The bot library is attractive but asks visitors to infer value from names and taglines. Each template should include one representative request and one compact result preview. “Event Planner” becomes much more credible when the card shows a sample run-of-show, budget, and downloadable checklist. Example outputs are especially important because FroggyBot is selling completion rather than conversation.
+The bot library is attractive but asks visitors to infer value from names and taglines. Each template should include one representative request and one compact result preview. “Event Planner” becomes much more credible when the card shows a sample run-of-show, budget, and downloadable checklist. Example outputs are especially important because HeyTim is selling completion rather than conversation.
 
 **Verdict:** strong message and visual credibility; weak conversion path and insufficient proof.
 
@@ -110,7 +110,7 @@ Sidebar previews need a presentation pass. Live previews can expose raw Markdown
 
 ### 4. Group rooms and team rounds
 
-Group rooms are FroggyBot's strategic center. The tested room successfully supported a people-only message, adding two specialists, selecting a reply target, and completing a Chief-led team round. Progress states made the orchestration legible instead of presenting a long silent wait. That transparency is one of the product's best pieces of interaction design.
+Group rooms are HeyTim's strategic center. The tested room successfully supported a people-only message, adding two specialists, selecting a reply target, and completing a Chief-led team round. Progress states made the orchestration legible instead of presenting a long silent wait. That transparency is one of the product's best pieces of interaction design.
 
 The reply controls—people only, a specific bot, Chief, or team—are powerful but require clearer language. “People only” describes who will not answer rather than what will happen. “Chief” and “Team” assume the user already understands the roster hierarchy. A clearer set could be:
 
@@ -127,7 +127,7 @@ Room context is currently split across a bar labeled “Shared memory,” a “P
 
 - **Files and links** — source material available to the room.
 - **Pinned facts** — constraints or decisions people deliberately maintain.
-- **What FroggyBot learned** — editable inferred preferences, with source and date.
+- **What HeyTim learned** — editable inferred preferences, with source and date.
 
 The next collaboration layer should record decisions and owners, not imitate every consumer-chat feature. Threaded replies, reactions, mentions, unread markers, and mute settings will eventually matter, but a decision ledger is more differentiating. A completed team answer should offer “Save decision,” “Assign next steps,” and “Create/update routine.”
 
@@ -135,7 +135,7 @@ The next collaboration layer should record decisions and owners, not imitate eve
 
 ### 5. Bots, skills, and tools
 
-FroggyBot offers unusually deep customization: identity, prompt, skills, required tools, optional tools, private connections, and approval behavior. The skills-and-tools screen explains the conceptual difference among prompt, skills, and tools better than most developer-oriented products. Private-tool boundaries and interactive approval controls reinforce trust.
+HeyTim offers unusually deep customization: identity, prompt, skills, required tools, optional tools, private connections, and approval behavior. The skills-and-tools screen explains the conceptual difference among prompt, skills, and tools better than most developer-oriented products. Private-tool boundaries and interactive approval controls reinforce trust.
 
 The editor nonetheless presents the system's internal model too early. A user creating “Neighborhood Event Helper” should not need to reason through a long form of prompt, skills, required tools, extra tools, and approvals before seeing value. Provide two layers:
 
@@ -144,7 +144,7 @@ The editor nonetheless presents the system's internal model too early. A user cr
 
 Templates should remain editable, but editing should start from an outcome description and example tasks. When an advanced setting creates risk—such as allowing an interactive tool—the interface should explain the consequence in user language at the point of choice.
 
-The best long-term learning loop is “save what worked.” Grok Bot already lets users turn successful work into a reusable skill and supports routines with run records.[^1] FroggyBot should let a room convert a strong turn into a reusable room routine without requiring the user to reverse-engineer a prompt. This would connect the product's best moment to retention.
+The best long-term learning loop is “save what worked.” Grok Bot already lets users turn successful work into a reusable skill and supports routines with run records.[^1] HeyTim should let a room convert a strong turn into a reusable room routine without requiring the user to reverse-engineer a prompt. This would connect the product's best moment to retention.
 
 **Verdict:** powerful foundation; too much power-user configuration before value.
 
@@ -178,17 +178,17 @@ The current documents surface behaves like a per-bot file list. The stronger mod
 - Is it a draft, accepted decision, or superseded version?
 - Can a scheduled run keep it current?
 
-Grok Bot emphasizes previews, evidence, and action logs for outputs.[^1] FroggyBot can differentiate by tying those properties to a multi-person decision: not only “the agent created this,” but “the room accepted this after these constraints were resolved.”
+Grok Bot emphasizes previews, evidence, and action logs for outputs.[^1] HeyTim can differentiate by tying those properties to a multi-person decision: not only “the agent created this,” but “the room accepted this after these constraints were resolved.”
 
 **Verdict:** important working capability; promote it from a hidden utility to the proof of completion.
 
 ### 8. Memory, privacy, and trust
 
-The architecture's separation of private bot memory and group-scoped memory is one of FroggyBot's strongest trust decisions. Group members can manage learned group memory, and private direct-chat context is not intended to leak into a room. Interactive tool approvals also default toward explicit human control. These choices should be visible product benefits, not implementation details.
+The architecture's separation of private bot memory and group-scoped memory is one of HeyTim's strongest trust decisions. Group members can manage learned group memory, and private direct-chat context is not intended to leak into a room. Interactive tool approvals also default toward explicit human control. These choices should be visible product benefits, not implementation details.
 
 Trust needs provenance. A learned memory should show where it came from, when it was learned, where it is used, and who can see it. “Shared with this group” and “Learned from conversation” are a good start. Add a plain-language privacy summary when a bot joins a room: what it can access, which private sources remain unavailable, and which actions require approval.
 
-Grok's bots share one user-scoped computer, which its documentation explicitly says is not a security boundary.[^1] FroggyBot should lean into the opposite mental model: **rooms are bounded contexts, and adding a specialist does not silently import its private history**. That is legible, safe, and well suited to family and small-team collaboration.
+Grok's bots share one user-scoped computer, which its documentation explicitly says is not a security boundary.[^1] HeyTim should lean into the opposite mental model: **rooms are bounded contexts, and adding a specialist does not silently import its private history**. That is legible, safe, and well suited to family and small-team collaboration.
 
 **Verdict:** strong architectural differentiation; make scope and provenance continuously visible.
 
@@ -248,9 +248,9 @@ The engineering baseline is healthier than the UX gaps might imply. The Septembe
 
 ## Competitive landscape
 
-The competitive set divides into four shapes: autonomous agent workspaces, AI project workspaces, bot marketplaces, and enterprise collaboration platforms. FroggyBot should learn from each without inheriting all of their complexity.
+The competitive set divides into four shapes: autonomous agent workspaces, AI project workspaces, bot marketplaces, and enterprise collaboration platforms. HeyTim should learn from each without inheriting all of their complexity.
 
-| Capability | FroggyBot | Grok Bot | ChatGPT | Claude Cowork | Poe | Copilot in Teams |
+| Capability | HeyTim | Grok Bot | ChatGPT | Claude Cowork | Poe | Copilot in Teams |
 | --- | --- | --- | --- | --- | --- | --- |
 | Persistent named specialists | Strong | Core product | GPTs/agents, less room-centric | Plugins/subagents | Large bot marketplace | Agents |
 | Several people in one live AI room | Core direction | Not the primary documented model | Group chats retired; shared projects remain | Shared projects, not shared live task sessions | Users and bots can be mentioned in chats | Native channels/group/meeting chats |
@@ -265,31 +265,31 @@ The competitive set divides into four shapes: autonomous agent workspaces, AI pr
 
 Grok Bot is the closest conceptual competitor for the “team of agents” claim. It offers persistent named bots, a shared cloud computer, files, browser and terminal use, multi-bot coordination, parallel work, context handoffs, routines, event triggers, run records, approvals, searchable history, and teach-by-demonstration.[^1] Its design language emphasizes a roster of coworkers, visible progress, and removing management overhead.
 
-Trying to match that feature-for-feature would pull FroggyBot into expensive infrastructure and a security model that is not necessary for the initial wedge. FroggyBot's advantage is that the room belongs to a human group and has an explicit context boundary. The comparison should be “make this decision with us,” not “operate my computer for me.”
+Trying to match that feature-for-feature would pull HeyTim into expensive infrastructure and a security model that is not necessary for the initial wedge. HeyTim's advantage is that the room belongs to a human group and has an explicit context boundary. The comparison should be “make this decision with us,” not “operate my computer for me.”
 
 ### ChatGPT
 
 ChatGPT has broad familiarity, shared projects, project files and instructions, project-only memory, connected apps, saved project sources, and scheduled tasks. OpenAI's help center says ChatGPT group chats were retired on July 9, 2026; users can retain content by converting a group chat into a standard conversation.[^2] This removes a direct first-party group-chat surface but does not remove ChatGPT's distribution, model quality, or project collaboration.
 
-FroggyBot should exploit the product-shape gap: a persistent live room with several humans and explicit specialist roles. It cannot win by offering a generic single-assistant chat with folders.
+HeyTim should exploit the product-shape gap: a persistent live room with several humans and explicit specialist roles. It cannot win by offering a generic single-assistant chat with folders.
 
 ### Claude Cowork
 
 Claude Cowork combines projects, files, instructions, memory, plugins, connectors, subagents, scheduled tasks, and continuity across web, desktop, and mobile.[^3] It is a strong benchmark for a calm knowledge-work interface and progressive disclosure. Its shared projects support common context, but its documented model is still centered on individual task sessions rather than a shared live conversation among several people.
 
-FroggyBot should borrow Cowork's clarity around project context and plugins while preserving the immediacy of a group chat. It should not expose every configuration primitive in the primary flow.
+HeyTim should borrow Cowork's clarity around project context and plugins while preserving the immediacy of a group chat. It should not expose every configuration primitive in the primary flow.
 
 ### Poe
 
 Poe is the marketplace and multi-bot comparison. Its developer platform supports mentioning bots and users within the same chat and constructing multi-model workflows.[^4] It has far greater breadth and creator supply, but that breadth makes consistent trust, shared memory, and outcome quality harder to guarantee.
 
-FroggyBot should prefer a curated specialist roster and a coherent room contract. “Eight specialists that reliably finish common group jobs” is more valuable for the initial audience than hundreds of bots with uneven behavior.
+HeyTim should prefer a curated specialist roster and a coherent room contract. “Eight specialists that reliably finish common group jobs” is more valuable for the initial audience than hundreds of bots with uneven behavior.
 
 ### Microsoft Copilot in Teams
 
 Microsoft lets organizations publish agents into Teams and add or mention them in channels, group chats, and meeting chats, with enterprise sharing and administration.[^5] This is formidable inside Microsoft-centered workplaces.
 
-FroggyBot should avoid competing first on enterprise administration. Its opening is cross-context, consumer-friendly collaboration for families, friends, community organizers, and small project teams who do not want to configure a Microsoft tenant or build a Copilot Studio agent.
+HeyTim should avoid competing first on enterprise administration. Its opening is cross-context, consumer-friendly collaboration for families, friends, community organizers, and small project teams who do not want to configure a Microsoft tenant or build a Copilot Studio agent.
 
 ## Differentiation to own
 
@@ -297,7 +297,7 @@ FroggyBot should avoid competing first on enterprise administration. Its opening
 
 Recommended product sentence:
 
-> **FroggyBot is the shared room where people and AI specialists make a decision and leave with the work done.**
+> **HeyTim is the shared room where people and AI specialists make a decision and leave with the work done.**
 
 Shorter campaign line:
 
@@ -390,7 +390,7 @@ Run three research tracks in parallel after the release gates:
 
 ## Launch decision checklist
 
-FroggyBot is ready for a controlled design-partner beta now, provided expectations are explicit and support is close. Broader public promotion should wait until all of the following are true:
+HeyTim is ready for a controlled design-partner beta now, provided expectations are explicit and support is close. Broader public promotion should wait until all of the following are true:
 
 - Group rooms accept and correctly scope shared files.
 - The preview demonstrates a credible team result and artifact.

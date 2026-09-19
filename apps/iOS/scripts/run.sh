@@ -6,8 +6,8 @@ usage() {
 Usage: ./scripts/run.sh [--build-only] <ios|macos>
 
 Environment:
-  FROGGYBOT_DERIVED_DATA  Optional DerivedData directory.
-  FROGGYBOT_SIMULATOR_ID  Optional iPhone simulator UUID.
+  HEYTIM_DERIVED_DATA  Optional DerivedData directory.
+  HEYTIM_SIMULATOR_ID  Optional iPhone simulator UUID.
 EOF
 }
 
@@ -24,13 +24,13 @@ if [[ -z "$platform" || $# -ne 1 ]]; then
 fi
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
-  echo "The FroggyBot SwiftUI app requires macOS and Xcode." >&2
+  echo "The HeyTim SwiftUI app requires macOS and Xcode." >&2
   exit 1
 fi
 
 apple_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-project="$apple_root/FroggyBotApple.xcodeproj"
-derived_data="${FROGGYBOT_DERIVED_DATA:-/tmp/FroggyBotAppleDerivedData}"
+project="$apple_root/HeyTimApple.xcodeproj"
+derived_data="${HEYTIM_DERIVED_DATA:-/tmp/HeyTimAppleDerivedData}"
 
 "$apple_root/scripts/prepare-transcription.sh"
 
@@ -38,13 +38,13 @@ case "$platform" in
   macos)
     xcodebuild build -quiet \
       -project "$project" \
-      -scheme FroggyBotApple \
+      -scheme HeyTimApple \
       -configuration Debug \
       -destination 'platform=macOS' \
       -derivedDataPath "$derived_data" \
       CODE_SIGNING_ALLOWED=NO
 
-    app_path="$derived_data/Build/Products/Debug/FroggyBot.app"
+    app_path="$derived_data/Build/Products/Debug/HeyTim.app"
     if [[ "$build_only" == false ]]; then
       open "$app_path"
       echo "Opened $app_path"
@@ -53,7 +53,7 @@ case "$platform" in
     fi
     ;;
   ios)
-    simulator_id="${FROGGYBOT_SIMULATOR_ID:-}"
+    simulator_id="${HEYTIM_SIMULATOR_ID:-}"
     if [[ -z "$simulator_id" ]]; then
       simulator_id="$(xcrun simctl list devices available | sed -nE '/iPhone/ s/.*\(([0-9A-F-]{36})\).*/\1/p' | head -1)"
     fi
@@ -66,19 +66,19 @@ case "$platform" in
     xcrun simctl bootstatus "$simulator_id" -b
     xcodebuild build -quiet \
       -project "$project" \
-      -scheme FroggyBotApple \
+      -scheme HeyTimApple \
       -configuration Debug \
       -destination "id=$simulator_id" \
       -derivedDataPath "$derived_data" \
       ONLY_ACTIVE_ARCH=YES \
       CODE_SIGNING_ALLOWED=NO
 
-    app_path="$derived_data/Build/Products/Debug-iphonesimulator/FroggyBot.app"
+    app_path="$derived_data/Build/Products/Debug-iphonesimulator/HeyTim.app"
     if [[ "$build_only" == false ]]; then
       open -a Simulator
       xcrun simctl install "$simulator_id" "$app_path"
       xcrun simctl launch "$simulator_id" ai.heytim.app
-      echo "Launched FroggyBot on iPhone simulator $simulator_id"
+      echo "Launched HeyTim on iPhone simulator $simulator_id"
     else
       echo "Built $app_path"
     fi

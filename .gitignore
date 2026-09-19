@@ -1,7 +1,7 @@
 .DS_Store
 **/__pycache__/
 **/node_modules/
-packages/frogbot-transcription/ios/Generated/
+packages/heytim-transcription/ios/Generated/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/

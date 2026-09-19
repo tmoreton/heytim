@@ -71,7 +71,7 @@ export function classifyPaths(paths) {
         || path === 'services/API/amplify/functions/api/api-contract.json'
         || path === 'services/API/scripts/generate-api-contract.mjs',
       backend: path.startsWith('services/API/')
-        || path.startsWith('packages/froggybot-contract/'),
+        || path.startsWith('packages/heytim-contract/'),
       runtime: path.startsWith('services/runtime/')
         || path.startsWith('evaluators/')
         || path === 'agentcore/agentcore.json',

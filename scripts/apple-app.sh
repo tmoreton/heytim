@@ -6,7 +6,7 @@ apple_root="$repository_root/apps/iOS"
 
 usage() {
   cat <<'EOF'
-FroggyBot Apple app
+HeyTim Apple app
 
 Usage:
   ./scripts/apple-app.sh open
@@ -35,7 +35,7 @@ case "$command" in
       usage >&2
       exit 2
     fi
-    open "$apple_root/FroggyBotApple.xcodeproj"
+    open "$apple_root/HeyTimApple.xcodeproj"
     ;;
   build)
     exec "$apple_root/scripts/run.sh" --build-only "$@"

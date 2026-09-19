@@ -44,14 +44,14 @@ TEST_TOOLS = [
     ),
     _tool(
         "calculator",
-        "frogbot",
+        "heytim",
         "read",
         {"kind": "local", "name": "calculator"},
         "Calculate a result",
     ),
     _tool(
         "current_time",
-        "frogbot",
+        "heytim",
         "read",
         {"kind": "local", "name": "current_time"},
         "Read a timezone",
@@ -262,8 +262,8 @@ class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
             {
                 "web": ("stan", "read"),
                 "web_search": ("agentcore-gateway", "read"),
-                "calculator": ("frogbot", "read"),
-                "current_time": ("frogbot", "read"),
+                "calculator": ("heytim", "read"),
+                "current_time": ("heytim", "read"),
                 "delegate": ("stan", "sandbox"),
                 "browser": ("agentcore", "interactive"),
             },
@@ -345,7 +345,7 @@ class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
             "owner@example.com",
             "refresh-token",
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/google-ABC123",
+            "heytim/oauth/google-ABC123",
         )
 
         self.assertNotIn("hasCredential", saved)
@@ -369,7 +369,7 @@ class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
             "permission-1",
             "refresh-token",
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/google-ABC123",
+            "heytim/oauth/google-ABC123",
             [
                 "https://www.googleapis.com/auth/drive.readonly",
                 "https://www.googleapis.com/auth/documents.readonly",
@@ -423,7 +423,7 @@ class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
                 "expiresAt": 2_000_000_000,
             },
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/microsoft-production-ABC123",
+            "heytim/oauth/microsoft-production-ABC123",
             scopes,
         )
 
@@ -451,7 +451,7 @@ class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
                     "expiresAt": 2_000_000_000,
                 },
                 "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-                "frogbot/oauth/microsoft-production-ABC123",
+                "heytim/oauth/microsoft-production-ABC123",
                 ["User.Read", "Mail.Read", "Mail.Send"],
             )
 
@@ -465,7 +465,7 @@ class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
                 "expiresAt": 2_000_000_000,
             },
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/jira-production-ABC123",
+            "heytim/oauth/jira-production-ABC123",
             ["offline_access", "read:jira-work"],
         )
         access = self.catalog.validate_jira_project_access(

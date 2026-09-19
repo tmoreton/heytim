@@ -20,7 +20,7 @@ RUNTIME_ROOT = Path(__file__).resolve().parents[1] / "runtime"
 if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
-from frogbot_runtime.configuration import bot_configuration
+from heytim_runtime.configuration import bot_configuration
 from model.load import (
     _load_openrouter_model,
     _openrouter_api_key,
@@ -336,7 +336,7 @@ async def judge_scenario(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Compare public FroggyBot behavior across GLM model variants."
+        description="Compare public HeyTim behavior across GLM model variants."
     )
     parser.add_argument(
         "--scenario",

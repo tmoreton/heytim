@@ -29,7 +29,7 @@ def schedule_expression(
 
 def scheduler_name(user_id: str, schedule_id: str) -> str:
     digest = hashlib.sha256(f"{user_id}:{schedule_id}".encode()).hexdigest()
-    return f"frogbot-{digest[:40]}"
+    return f"heytim-{digest[:40]}"
 
 
 def occurrence_time(value: object, fallback: datetime | None = None) -> str:

@@ -47,7 +47,7 @@ RESUME_PROMPT = (
 
 def managed_session_name(user_id: str, bot_id: str) -> str:
     digest = hashlib.sha256(f"{memory_actor_id(user_id)}:bot:{bot_id}".encode()).hexdigest()
-    return f"frogbot-browser-{digest[:48]}"
+    return f"heytim-browser-{digest[:48]}"
 
 
 def _iso(epoch: int) -> str:
@@ -244,8 +244,8 @@ class BrowserSessionService:
             # A fresh name after explicit forgetting; repeated creates use one token.
             suffix = hashlib.sha256(record["profileCreateToken"].encode()).hexdigest()[:40]
             result = self.control.create_browser_profile(
-                name=f"frogbot_{suffix}", clientToken=record["profileCreateToken"],
-                tags={"frogbot:managed-by": "FrogBot"},
+                name=f"heytim_{suffix}", clientToken=record["profileCreateToken"],
+                tags={"heytim:managed-by": "HeyTim"},
             )
             record = self.store.write(record, profileId=result["profileId"])
         if record.get("resumeState") != "WAIT_PROFILE":
@@ -329,8 +329,8 @@ class BrowserSessionService:
                 if record.get("profileCreateToken") and not record.get("profileId"):
                     suffix = hashlib.sha256(record["profileCreateToken"].encode()).hexdigest()[:40]
                     result = self.control.create_browser_profile(
-                        name=f"frogbot_{suffix}", clientToken=record["profileCreateToken"],
-                        tags={"frogbot:managed-by": "FrogBot"},
+                        name=f"heytim_{suffix}", clientToken=record["profileCreateToken"],
+                        tags={"heytim:managed-by": "HeyTim"},
                     )
                     record = self.store.write(record, profileId=result["profileId"])
                 if record.get("profileId"):

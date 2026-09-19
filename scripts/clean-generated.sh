@@ -25,8 +25,8 @@ generated_paths=(
   "$repository_root/apps/website/public/skills"
   "$repository_root/apps/website/public/tools"
   "$repository_root/apps/website/public/bots"
-  "$repository_root/packages/frogbot-transcription/.build"
-  "$repository_root/packages/frogbot-transcription/.swiftpm"
+  "$repository_root/packages/heytim-transcription/.build"
+  "$repository_root/packages/heytim-transcription/.swiftpm"
   "$repository_root/services/runtime/.pytest_cache"
   "$repository_root/services/runtime/.ruff_cache"
   "$repository_root/services/runtime/evals/results"
@@ -49,13 +49,13 @@ if [[ "$prune_archives" == true ]]; then
   if [[ -d "$archive_root" ]]; then
     for platform in iOS macOS; do
       latest_archive="$(find "$archive_root" -maxdepth 1 -type d \
-        -name "FroggyBot-$platform-*.xcarchive" -print | sort | tail -n 1)"
+        -name "HeyTim-$platform-*.xcarchive" -print | sort | tail -n 1)"
       while IFS= read -r archive; do
         [[ -n "$archive" && "$archive" != "$latest_archive" ]] || continue
         rm -rf -- "$archive"
         printf 'Removed %s\n' "${archive#"$repository_root/"}"
       done < <(find "$archive_root" -maxdepth 1 -type d \
-        -name "FroggyBot-$platform-*.xcarchive" -print | sort)
+        -name "HeyTim-$platform-*.xcarchive" -print | sort)
     done
   fi
 fi

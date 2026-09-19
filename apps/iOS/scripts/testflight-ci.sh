@@ -5,7 +5,7 @@ required_values=(
   APPLE_TEAM_ID APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID
   APP_STORE_CONNECT_PRIVATE_KEY APPLE_DISTRIBUTION_CERTIFICATE_BASE64
   APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD APPLE_DEVELOPMENT_CERTIFICATE_BASE64
-  APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD FROGGYBOT_BUILD_NUMBER
+  APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD HEYTIM_BUILD_NUMBER
 )
 missing=()
 for name in "${required_values[@]}"; do
@@ -17,8 +17,8 @@ if (( ${#missing[@]} > 0 )); then
 fi
 
 apple_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-temporary_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/FroggyBotSigning.XXXXXX")"
-keychain="$temporary_root/froggybot-signing.keychain-db"
+temporary_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/HeyTimSigning.XXXXXX")"
+keychain="$temporary_root/heytim-signing.keychain-db"
 certificate="$temporary_root/distribution.p12"
 development_certificate="$temporary_root/development.p12"
 signing_intermediate="$temporary_root/AppleWWDRCAG3.cer"
@@ -86,5 +86,5 @@ codesign --force --sign "$signing_identity" --keychain "$keychain" \
 umask 022
 
 APP_STORE_CONNECT_KEY_PATH="$api_key" \
-  FROGGYBOT_SIGNING_KEYCHAIN="$keychain" \
+  HEYTIM_SIGNING_KEYCHAIN="$keychain" \
   "$apple_root/scripts/testflight.sh" all

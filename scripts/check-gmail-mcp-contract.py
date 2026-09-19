@@ -1,4 +1,4 @@
-"""Fail when Google's preview Gmail MCP no longer matches FroggyBot's safe contract."""
+"""Fail when Google's preview Gmail MCP no longer matches HeyTim's safe contract."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def _catalog() -> list[dict[str, Any]]:
         headers={
             "accept": "application/json, text/event-stream",
             "content-type": "application/json",
-            "user-agent": "FroggyBot-provider-contract/1.0",
+            "user-agent": "HeyTim-provider-contract/1.0",
         },
         method="POST",
     )

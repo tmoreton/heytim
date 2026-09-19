@@ -35,7 +35,7 @@ type AutofixResources = {
 function runtimeId(runtimeArn: string): string {
   const value = runtimeArn.split('/').at(-1) ?? '';
   if (!/^[A-Za-z][A-Za-z0-9_-]{0,95}$/.test(value)) {
-    throw new Error('FROGBOT_AGENT_RUNTIME_ARN does not contain a valid runtime id.');
+    throw new Error('HEYTIM_AGENT_RUNTIME_ARN does not contain a valid runtime id.');
   }
   return value;
 }
@@ -73,7 +73,7 @@ export function addProductionAutofix({
       AUTOFIX_ALLOWED_LOG_GROUPS: [workerLogGroup.logGroupName, runtimeLogGroupName].join(','),
       AUTOFIX_GITHUB_APP_SECRET_ARN: githubAppSecretArn,
       AUTOFIX_REPOSITORY: 'tmoreton/heytim-platform',
-      AUTOFIX_EVENT_TYPE: 'froggybot-production-error',
+      AUTOFIX_EVENT_TYPE: 'heytim-production-error',
       AUTOFIX_COOLDOWN_HOURS: '6',
       AUTOFIX_DAILY_LIMIT: '3',
       AUTOFIX_RELEASE_SHA: /^[a-f0-9]{40}$/.test(process.env.GITHUB_SHA ?? '')
@@ -90,7 +90,7 @@ export function addProductionAutofix({
   new SubscriptionFilter(stack, 'WorkerAutofixSubscription', {
     logGroup: workerLogGroup,
     destination: new LambdaDestination(dispatcher),
-    filterPattern: FilterPattern.literal('"FROGBOT_TERMINAL_ERROR"'),
+    filterPattern: FilterPattern.literal('"HEYTIM_TERMINAL_ERROR"'),
   });
 
   const runtimeLogGroupArn = stack.formatArn({
@@ -111,7 +111,7 @@ export function addProductionAutofix({
     'AgentRuntimeAutofixSubscription',
     {
       destinationArn: dispatcher.functionArn,
-      filterPattern: '"FROGBOT_TERMINAL_ERROR"',
+      filterPattern: '"HEYTIM_TERMINAL_ERROR"',
       logGroupName: runtimeLogGroupName,
     },
   );

@@ -208,7 +208,10 @@ export function addGithubDeploymentRole({
     })],
     conditions: {
       'ForAnyValue:StringEquals': {
-        'kms:ResourceAliases': 'alias/frogbot-production-logs',
+        'kms:ResourceAliases': [
+          'alias/frogbot-production-logs',
+          'alias/heytim-production-logs',
+        ],
       },
     },
   }));
@@ -227,12 +230,12 @@ export function addGithubDeploymentRole({
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['cloudwatch:PutMetricAlarm'],
-    resources: [stack.formatArn({
+    resources: ['FroggyBot', 'HeyTim'].map(name => stack.formatArn({
       service: 'cloudwatch',
       resource: 'alarm',
-      resourceName: 'FroggyBot-production-*',
+      resourceName: `${name}-production-*`,
       arnFormat: ArnFormat.COLON_RESOURCE_NAME,
-    })],
+    })),
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['cloudwatch:DescribeAlarms'],

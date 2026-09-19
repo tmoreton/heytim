@@ -9,8 +9,8 @@
 | `services/API` | Amplify application backend, API contract, public client configuration |
 | `services/runtime` | AgentCore Python agent loop, tools, evaluations and packaging |
 | `catalog` | Reviewed bots, skills, tool schemas, validation, and gateway-target definitions |
-| `packages/froggybot-contract` | Generated TypeScript API contract and contract tests |
-| `packages/frogbot-transcription` | Native Swift transcription core and pinned model preparation |
+| `packages/heytim-contract` | Generated TypeScript API contract and contract tests |
+| `packages/heytim-transcription` | Native Swift transcription core and pinned model preparation |
 | `agentcore` | Declarative AWS resources and generated deployment wrapper |
 
 The directory name `apps/iOS` is intentional: one SwiftUI project still builds

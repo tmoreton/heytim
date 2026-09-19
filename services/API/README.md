@@ -1,4 +1,4 @@
-# FroggyBot application backend
+# HeyTim application backend
 
 This service owns the Amplify Gen 2 application backend: Cognito, the HTTP API, persistence, queues, schedules, workers, and operational tests. It deploys independently from the shared SwiftUI app in `apps/iOS`. The public Vite website is marketing-only and does not authenticate or call private chat APIs.
 
@@ -7,7 +7,7 @@ npm install
 npm run contract:generate
 npm run outputs:apple
 npm run verify
-npm run sandbox -- --once --identifier frogbot --profile YOUR_AWS_PROFILE
+npm run sandbox -- --once --identifier heytim --profile YOUR_AWS_PROFILE
 ```
 
 Run commands from this directory. Resource construct names in `amplify/backend.ts` are stable deployment identities and must not be renamed as part of source reorganizations.
@@ -16,8 +16,8 @@ Run commands from this directory. Resource construct names in `amplify/backend.t
 
 ## Native Apple notifications
 
-Create production and sandbox APNs platform applications in Amazon SNS using the Apple signing key owned by the release account. Set their ARNs as `FROGBOT_APNS_APPLICATION_ARN` and `FROGBOT_APNS_SANDBOX_APPLICATION_ARN` before the Amplify deployment. The API then creates per-device endpoints and the worker delivers directly through SNS. Existing Expo registrations continue to work unchanged.
+Create production and sandbox APNs platform applications in Amazon SNS using the Apple signing key owned by the release account. Set their ARNs as `HEYTIM_APNS_APPLICATION_ARN` and `HEYTIM_APNS_SANDBOX_APPLICATION_ARN` before the Amplify deployment. The API then creates per-device endpoints and the worker delivers directly through SNS. Existing Expo registrations continue to work unchanged.
 
-Local Amplify sandboxes default to same-account SNS platform applications named `FroggyBot` when those variables are omitted. This keeps repeated sandbox deployments from silently removing native notification delivery. Set the variables explicitly when an account uses different application names; production still requires the production ARN.
+Local Amplify sandboxes default to same-account SNS platform applications named `HeyTim` when those variables are omitted. This keeps repeated sandbox deployments from silently removing native notification delivery. Set the variables explicitly when an account uses different application names; production still requires the production ARN.
 
 Never store an Apple `.p8` key, APNs token, or signing certificate in this repository. CI should supply the two platform application ARNs as environment variables.

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from frogbot_runtime import repository_workspace
+from heytim_runtime import repository_workspace
 
 
 def test_repository_archive_is_staged_without_putting_token_in_sandbox(
@@ -47,7 +47,7 @@ def test_repository_archive_is_staged_without_putting_token_in_sandbox(
     )
 
     assert result["status"] == "success"
-    assert uploaded == {"path": "frogbot-repository.tar.gz", "content": b"archive"}
+    assert uploaded == {"path": "heytim-repository.tar.gz", "content": b"archive"}
     assert "workspace/owner-repo" in commands[0]
     assert "private-token" not in commands[0]
 

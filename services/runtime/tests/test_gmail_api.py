@@ -7,8 +7,8 @@ from email.parser import BytesParser
 
 import pytest
 
-from frogbot_runtime import capabilities, gmail_api
-from frogbot_runtime.mcp_connections import GMAIL_MCP_ENDPOINT, _bounded_tool_name
+from heytim_runtime import capabilities, gmail_api
+from heytim_runtime.mcp_connections import GMAIL_MCP_ENDPOINT, _bounded_tool_name
 
 CONNECTION_ID = "connection_1234567890abcdef1234"
 BINDING = {

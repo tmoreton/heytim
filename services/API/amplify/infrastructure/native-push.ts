@@ -17,7 +17,7 @@ export function resolveNativePushApplicationArns(
   const namedApplicationArn = (platform: 'APNS' | 'APNS_SANDBOX') => stack.formatArn({
     service: 'sns',
     resource: `app/${platform}`,
-    resourceName: 'FroggyBot',
+    resourceName: 'HeyTim',
     arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
   });
   return {
@@ -71,7 +71,7 @@ export function addNativePushFeedbackRole(
 ): Role | undefined {
   const applications = applicationArns.filter(Boolean);
   if (applications.length === 0) return undefined;
-  const applicationNames = [...new Set(applications.map(arn => arn.split('/').at(-1) ?? 'FroggyBot'))];
+  const applicationNames = [...new Set(applications.map(arn => arn.split('/').at(-1) ?? 'HeyTim'))];
   for (const [index, applicationName] of applicationNames.entries()) {
     for (const status of ['Success', 'Failure'] as const) {
       new LogGroup(stack, `NativePush${index}${status}Logs`, {

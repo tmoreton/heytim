@@ -13,7 +13,7 @@ account, or all three optional API-key variables below:
   APP_STORE_CONNECT_KEY_ID
   APP_STORE_CONNECT_ISSUER_ID
 
-FROGGYBOT_BUILD_NUMBER may set an explicit numeric build number.
+HEYTIM_BUILD_NUMBER may set an explicit numeric build number.
 EOF
 }
 
@@ -50,9 +50,9 @@ if [[ ! "$team_id" =~ ^[[:alnum:]]+$ ]]; then
   exit 2
 fi
 
-build_number="${FROGGYBOT_BUILD_NUMBER:-$(date -u +%Y%m%d%H%M%S)}"
+build_number="${HEYTIM_BUILD_NUMBER:-$(date -u +%Y%m%d%H%M%S)}"
 if [[ ! "$build_number" =~ ^[0-9]+$ ]]; then
-  echo "FROGGYBOT_BUILD_NUMBER must contain only digits." >&2
+  echo "HEYTIM_BUILD_NUMBER must contain only digits." >&2
   exit 2
 fi
 
@@ -62,7 +62,7 @@ export_options="$apple_root/Resources/TestFlightExportOptions.plist"
 
 if [[ "$dry_run" == true ]]; then
   for release_platform in "${platforms[@]}"; do
-    FROGGYBOT_BUILD_NUMBER="$build_number" "$apple_root/scripts/archive.sh" --dry-run "$release_platform"
+    HEYTIM_BUILD_NUMBER="$build_number" "$apple_root/scripts/archive.sh" --dry-run "$release_platform"
   done
   echo "Upload destination: App Store Connect / TestFlight"
   exit 0
@@ -79,16 +79,16 @@ fi
 # The model/framework cache and downloaded client configuration become app
 # resources. A cache saved under a restrictive umask must not make Mac package
 # contents unreadable after App Store installation.
-chmod -R a+rX "$repository_root/packages/frogbot-transcription/ios/Generated"
+chmod -R a+rX "$repository_root/packages/heytim-transcription/ios/Generated"
 chmod a+r "$apple_root/Resources/amplify_outputs.json"
 
-if [[ -n "${FROGGYBOT_SIGNING_KEYCHAIN:-}" ]]; then
-  if [[ ! -f "$FROGGYBOT_SIGNING_KEYCHAIN" ]]; then
-    echo "CI signing keychain not found: $FROGGYBOT_SIGNING_KEYCHAIN" >&2
+if [[ -n "${HEYTIM_SIGNING_KEYCHAIN:-}" ]]; then
+  if [[ ! -f "$HEYTIM_SIGNING_KEYCHAIN" ]]; then
+    echo "CI signing keychain not found: $HEYTIM_SIGNING_KEYCHAIN" >&2
     exit 1
   fi
   # Keep local development identities out of the release archive's search path.
-  security list-keychains -d user -s "$FROGGYBOT_SIGNING_KEYCHAIN"
+  security list-keychains -d user -s "$HEYTIM_SIGNING_KEYCHAIN"
 fi
 
 key_path="${APP_STORE_CONNECT_KEY_PATH:-}"
@@ -110,10 +110,10 @@ for release_platform in "${platforms[@]}"; do
     ios) platform_label="iOS" ;;
     macos) platform_label="macOS" ;;
   esac
-  archive_path="$apple_root/Archives/FroggyBot-$platform_label-$build_number.xcarchive"
+  archive_path="$apple_root/Archives/HeyTim-$platform_label-$build_number.xcarchive"
   export_path="$apple_root/Archives/TestFlight-$platform_label-$build_number"
 
-  FROGGYBOT_BUILD_NUMBER="$build_number" "$apple_root/scripts/archive.sh" "$release_platform"
+  HEYTIM_BUILD_NUMBER="$build_number" "$apple_root/scripts/archive.sh" "$release_platform"
 
   if [[ -e "$export_path" ]]; then
     echo "TestFlight export directory already exists: $export_path" >&2

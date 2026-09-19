@@ -5,10 +5,10 @@ import { fileURLToPath } from 'node:url';
 const serviceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repositoryRoot = resolve(serviceRoot, '../..');
 const contractPath = resolve(serviceRoot, 'amplify/functions/api/api-contract.json');
-const outputPath = resolve(repositoryRoot, 'packages/froggybot-contract/src/api-contract.generated.ts');
+const outputPath = resolve(repositoryRoot, 'packages/heytim-contract/src/api-contract.generated.ts');
 const swiftOutputPath = resolve(
   repositoryRoot,
-  'apps/iOS/Sources/FroggyBotCore/APIRoutes.generated.swift',
+  'apps/iOS/Sources/HeyTimCore/APIRoutes.generated.swift',
 );
 const contract = JSON.parse(readFileSync(contractPath, 'utf8'));
 

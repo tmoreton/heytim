@@ -11,11 +11,11 @@ class PushRegistrationTests(ApiTestCase):
         super().setUp()
         self.apns_token = "ab" * 32
         self.application_arn = (
-            "arn:aws:sns:us-east-1:123456789012:app/APNS_SANDBOX/FroggyBot"
+            "arn:aws:sns:us-east-1:123456789012:app/APNS_SANDBOX/HeyTim"
         )
         self.endpoint_arn = (
             "arn:aws:sns:us-east-1:123456789012:"
-            "endpoint/APNS_SANDBOX/FroggyBot/device"
+            "endpoint/APNS_SANDBOX/HeyTim/device"
         )
 
     def test_legacy_expo_registration_remains_compatible(self):

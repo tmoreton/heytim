@@ -7,14 +7,14 @@ on:
   pull_request:
 
 concurrency:
-  group: frogbot-app-${{ github.event_name }}-${{ github.ref }}
+  group: heytim-app-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
     name: Select affected verification suites
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
+    runs-on: [self-hosted, macOS, ARM64, heytim-ci]
     permissions:
       contents: read
     outputs:
@@ -48,7 +48,7 @@ jobs:
     name: Audit production dependencies
     needs: changes
     if: needs.changes.outputs.dependencies == 'true'
-    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
+    runs-on: [self-hosted, macOS, ARM64, heytim-ci]
     permissions:
       contents: read
     steps:
@@ -63,7 +63,7 @@ jobs:
     name: Verify public website and catalog
     needs: changes
     if: needs.changes.outputs.application == 'true'
-    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
+    runs-on: [self-hosted, macOS, ARM64, heytim-ci]
     permissions:
       contents: read
     defaults:
@@ -92,7 +92,7 @@ jobs:
     name: Verify application backend
     needs: changes
     if: needs.changes.outputs.backend == 'true'
-    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
+    runs-on: [self-hosted, macOS, ARM64, heytim-ci]
     permissions:
       contents: read
     defaults:
@@ -122,7 +122,7 @@ jobs:
     name: Verify AgentCore runtime
     needs: changes
     if: needs.changes.outputs.runtime == 'true'
-    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
+    runs-on: [self-hosted, macOS, ARM64, heytim-ci]
     permissions:
       contents: read
     defaults:
@@ -153,7 +153,7 @@ jobs:
     name: Verify AgentCore configuration
     needs: changes
     if: needs.changes.outputs.agentcore == 'true'
-    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
+    runs-on: [self-hosted, macOS, ARM64, heytim-ci]
     permissions:
       contents: read
     defaults:

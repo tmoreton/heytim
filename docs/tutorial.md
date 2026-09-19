@@ -1,4 +1,4 @@
-# FroggyBot tutorial
+# HeyTim tutorial
 
 This guide explains the repository in the order a new contributor should learn it. Start with the
 local Apple app, follow one message through the system, and only then move into AWS infrastructure.
@@ -35,12 +35,12 @@ credentials are needed. Browser chat is deliberately not part of this site.
 
 Read the primary Apple path in this order:
 
-1. `apps/iOS/App/FroggyBotAppleApp.swift` is the application entry.
-2. `Sources/FroggyBotUI/MainView.swift` chooses authentication or the signed-in product and owns adaptive navigation.
-3. `Sources/FroggyBotCore/AppModel.swift` coordinates application state and actions.
-4. `Sources/FroggyBotCore/APIClient.swift` sends authenticated requests through generated routes.
-5. `Sources/FroggyBotUI/MarkdownMessageView.swift` and the feature sheets render the product surface.
-6. `Sources/FroggyBotPlatform/` isolates Keychain, APNs, dictation, and platform lifecycle behavior.
+1. `apps/iOS/App/HeyTimAppleApp.swift` is the application entry.
+2. `Sources/HeyTimUI/MainView.swift` chooses authentication or the signed-in product and owns adaptive navigation.
+3. `Sources/HeyTimCore/AppModel.swift` coordinates application state and actions.
+4. `Sources/HeyTimCore/APIClient.swift` sends authenticated requests through generated routes.
+5. `Sources/HeyTimUI/MarkdownMessageView.swift` and the feature sheets render the product surface.
+6. `Sources/HeyTimPlatform/` isolates Keychain, APNs, dictation, and platform lifecycle behavior.
 
 The retired Expo source is preserved outside the repository; see [migration notes](monorepo-migration.md).
 
@@ -50,7 +50,7 @@ When signed in, `APIClient.swift` sends an authenticated HTTP request.
 Follow a direct message through these files:
 
 ```text
-apps/iOS/Sources/FroggyBotCore/APIClient.swift
+apps/iOS/Sources/HeyTimCore/APIClient.swift
   -> services/API/amplify/functions/api/handler.py
   -> services/API/amplify/functions/api/direct_chat.py
   -> SQS
@@ -80,16 +80,16 @@ matching file under `services/API/amplify/functions/api` or
 The deployed runtime starts in `services/runtime/runtime/main.py`. The `runtime/` directory is the production-only
 CodeZip boundary; tests, offline evaluations, and packaging checks remain outside it. Read its supporting modules in this order:
 
-1. `runtime/frogbot_runtime/request.py` validates the invocation and loads approved attachments.
-2. `runtime/frogbot_runtime/configuration.py` builds direct or group instructions.
-3. `runtime/frogbot_runtime/capability_contract.py` validates enabled tools and pinned skills.
-4. `runtime/frogbot_runtime/local_tools.py`, `agentcore_adapters.py`, and `gateway_tools.py` isolate capability implementations.
-5. `runtime/frogbot_runtime/background_work.py` starts long commands without holding open a model request.
-6. `runtime/frogbot_runtime/memory.py` recalls and records long-term memory.
-7. `runtime/frogbot_runtime/artifacts.py` exposes generated files to the agent.
+1. `runtime/heytim_runtime/request.py` validates the invocation and loads approved attachments.
+2. `runtime/heytim_runtime/configuration.py` builds direct or group instructions.
+3. `runtime/heytim_runtime/capability_contract.py` validates enabled tools and pinned skills.
+4. `runtime/heytim_runtime/local_tools.py`, `agentcore_adapters.py`, and `gateway_tools.py` isolate capability implementations.
+5. `runtime/heytim_runtime/background_work.py` starts long commands without holding open a model request.
+6. `runtime/heytim_runtime/memory.py` recalls and records long-term memory.
+7. `runtime/heytim_runtime/artifacts.py` exposes generated files to the agent.
 8. The renderer modules turn text into PDF, Word, Excel, PowerPoint, or PNG files. Direct outputs stay private to the
    person; group outputs are downloadable by current group members.
-9. `runtime/frogbot_runtime/telemetry.py` removes sensitive model content from traces.
+9. `runtime/heytim_runtime/telemetry.py` removes sensitive model content from traces.
 
 One runtime serves every bot. Bot name, prompt, tools, skill versions, user identity, and conversation
 identity arrive in the request rather than being hard-coded into separate deployments.
@@ -144,7 +144,7 @@ descriptions, bindings, skill instructions, and external API schemas live in `ca
 
 Connections are declared in the backend's public-safe provider manifest, which drives the Connections screen and
 generic authorization route. Secret-bearing OAuth adapters remain provider-specific and server-side. Shared services
-use FroggyBot-owned credentials, so users never paste developer keys into the app. Private account data uses
+use HeyTim-owned credentials, so users never paste developer keys into the app. Private account data uses
 provider-specific OAuth or a GitHub App installation; the backend encrypts each user's grant in Secrets Manager and
 the runtime fetches it only for the selected connection.
 Connected accounts never appear in public catalog responses or shared bot and skill snapshots. Existing custom MCP
@@ -154,7 +154,7 @@ bearer/API-key records are legacy-only and deliberately ignored by both the cata
 
 Use the narrowest path that fits the feature:
 
-1. Add or update shared TypeScript types in `packages/froggybot-contract/src/types.ts`.
+1. Add or update shared TypeScript types in `packages/heytim-contract/src/types.ts`.
 2. Add the operation to the contract interface and the Swift API client in `apps/iOS`.
 3. Add native test fixtures and unit coverage in `apps/iOS/Tests`.
 4. Keep native platform adapters separate from SwiftUI screens and app state.

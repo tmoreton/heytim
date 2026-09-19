@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://froggybot.com/contracts/group-context.v1.schema.json",
-  "title": "FroggyBot group runtime context v1",
+  "$id": "https://heytim.ai/contracts/group-context.v1.schema.json",
+  "title": "HeyTim group runtime context v1",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "name", "memory", "people", "bots", "decisions", "round"],

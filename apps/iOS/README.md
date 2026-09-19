@@ -2,7 +2,7 @@
 
 This is Hey Tim's primary client and the only supported source for iPhone and Mac builds. The single native SwiftUI target uses the same Cognito account, HTTP API, data, bots, groups, schedules, skills, connections, files, and browser sessions on both platforms. The Expo application is archived outside the repository; `apps/website` is the public marketing site and skills library.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the code-sharing boundary, backend-first decisions, feature surface, and verification model. The native-first Apple design direction and the small set of FroggyBot brand elements shared with Expo are recorded in [DESIGN_PARITY.md](DESIGN_PARITY.md).
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the code-sharing boundary, backend-first decisions, feature surface, and verification model. The native-first Apple design direction and the small set of HeyTim brand elements shared with Expo are recorded in [DESIGN_PARITY.md](DESIGN_PARITY.md).
 
 The app is one multiplatform Xcode target. Shared models, state, networking, and SwiftUI views compile for both Apple platforms; small adapters handle application lifecycle, notifications, secure storage, file picking, windows, and web views. The folder is named `iOS` but still includes the native macOS app.
 
@@ -15,7 +15,7 @@ From the repository root, use the supported entry point for a repeatable build a
 ./scripts/apple-app.sh run macos
 ```
 
-Use `build` instead of `run` to compile without launching, or `./scripts/apple-app.sh open` to open `FroggyBotApple.xcodeproj` in Xcode. Select the `FroggyBotApple` scheme and choose either an iPhone simulator or My Mac. The minimum versions are iOS 17 and macOS 14.
+Use `build` instead of `run` to compile without launching, or `./scripts/apple-app.sh open` to open `HeyTimApple.xcodeproj` in Xcode. Select the `HeyTimApple` scheme and choose either an iPhone simulator or My Mac. The minimum versions are iOS 17 and macOS 14.
 
 The root build commands prepare the checksum-pinned transcription frameworks and model automatically. To prepare
 them without building:
@@ -62,7 +62,7 @@ APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh archive macos
 The script gives each archive a UTC timestamp build number, prepares the transcription dependencies, and writes the result under the ignored `Archives/` directory. It deliberately does not upload. To supply a known build number instead:
 
 ```bash
-APPLE_TEAM_ID=YOURTEAMID FROGGYBOT_BUILD_NUMBER=202609130200 ./scripts/apple-app.sh archive ios
+APPLE_TEAM_ID=YOURTEAMID HEYTIM_BUILD_NUMBER=202609130200 ./scripts/apple-app.sh archive ios
 ```
 
 To archive and upload directly for TestFlight processing:
@@ -97,7 +97,7 @@ Verification builds the same target for Mac and iPhone, runs unit and iPhone UI 
 simulator, and runs the on-device transcription package tests. UI tests use `--ui-testing`, which never contacts AWS,
 alters real user data, or reuses a developer's simulator.
 
-For Mac navigation and resize changes, also run the `FroggyBotAppleUI` scheme on
+For Mac navigation and resize changes, also run the `HeyTimAppleUI` scheme on
 My Mac with development signing enabled. The Mac tests cover bot/group Details
 over the full chat area, a stationary sidebar, actual window and divider drags,
 draft preservation, and feature-page dismissal. Do not run Mac UI tests with
@@ -111,12 +111,12 @@ not need push, microphone, or file-access entitlements; the overrides below are
 only for UI testing and must not be used for release archives.
 
 ```bash
-xcodebuild test -project apps/iOS/FroggyBotApple.xcodeproj \
-  -scheme FroggyBotAppleUI -destination 'platform=macOS' \
+xcodebuild test -project apps/iOS/HeyTimApple.xcodeproj \
+  -scheme HeyTimAppleUI -destination 'platform=macOS' \
   -parallel-testing-enabled NO \
-  -only-testing:FroggyBotAppleUITests/FroggyBotAppleUITests/testMacDetailsCoverChatAndRemainStableWhenResizing \
-  -only-testing:FroggyBotAppleUITests/FroggyBotAppleUITests/testMacFeaturePagesCoverChatWithoutMovingSidebar \
-  -only-testing:FroggyBotAppleUITests/FroggyBotAppleUITests/testMacSavingRootBotEditorReturnsToChat \
+  -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testMacDetailsCoverChatAndRemainStableWhenResizing \
+  -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testMacFeaturePagesCoverChatWithoutMovingSidebar \
+  -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testMacSavingRootBotEditorReturnsToChat \
   DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic \
   CODE_SIGN_IDENTITY='Apple Development' \
   PRODUCT_BUNDLE_IDENTIFIER=ai.heytim.app.uitesting CODE_SIGN_ENTITLEMENTS=

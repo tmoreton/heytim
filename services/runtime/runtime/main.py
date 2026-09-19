@@ -4,19 +4,19 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from strands.agent.agent_result import AgentResult
 from strands_stan import harness_agent
 
-from frogbot_runtime.action_approval import approval_configuration, pending_approval
-from frogbot_runtime.configuration import bot_configuration
-from frogbot_runtime.conversation import conversation_manager
-from frogbot_runtime.memory import (
+from heytim_runtime.action_approval import approval_configuration, pending_approval
+from heytim_runtime.configuration import bot_configuration
+from heytim_runtime.conversation import conversation_manager
+from heytim_runtime.memory import (
     latest_assistant_text,
     memory_context_from_payload,
     memory_stores,
     message_text,
     record_completed_turn,
 )
-from frogbot_runtime.request import messages_from_payload
-from frogbot_runtime.runtime_jobs import start_runtime_job
-from frogbot_runtime.streaming import (
+from heytim_runtime.request import messages_from_payload
+from heytim_runtime.runtime_jobs import start_runtime_job
+from heytim_runtime.streaming import (
     AGENT_IDLE_TIMEOUT_SECONDS,
     AGENT_RUN_TIMEOUT_SECONDS,
     AgentIncompleteTurnError,
@@ -24,7 +24,7 @@ from frogbot_runtime.streaming import (
     AgentRunTimeoutError,
     stream_with_token_recovery,
 )
-from frogbot_runtime.telemetry import install_private_tracer
+from heytim_runtime.telemetry import install_private_tracer
 from model.load import load_model
 from model.usage import ProviderCallLimitExceeded, UsageAccumulator
 
@@ -125,7 +125,7 @@ async def run_agent(payload, context):
                     continue
                 yield event
                 if "metadata" in event["event"]:
-                    yield {"frogbotControl": {"usage": usage.snapshot()}}
+                    yield {"heytimControl": {"usage": usage.snapshot()}}
         except AgentRunTimeoutError:
             terminal_error = {
                 "code": "TURN_TIMEOUT",
@@ -169,7 +169,7 @@ async def run_agent(payload, context):
                 config.capability_configuration.bot_mutations.pending
             )
         if control:
-            yield {"frogbotControl": control}
+            yield {"heytimControl": control}
     finally:
         try:
             await config.close()

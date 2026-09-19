@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-runtime_arn="${FROGBOT_AGENT_RUNTIME_ARN:-}"
-gateway_arn="${FROGBOT_AGENT_GATEWAY_ARN:-}"
-alarm_topic_arn="${FROGBOT_ALARM_TOPIC_ARN:-}"
+runtime_arn="${HEYTIM_AGENT_RUNTIME_ARN:-}"
+gateway_arn="${HEYTIM_AGENT_GATEWAY_ARN:-}"
+alarm_topic_arn="${HEYTIM_ALARM_TOPIC_ARN:-}"
 aws_region="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
 
 for required in runtime_arn gateway_arn alarm_topic_arn aws_region; do
@@ -17,7 +17,7 @@ put_error_rate_alarm() {
   local name="$1"
   local resource_arn="$2"
   local metrics_file
-  metrics_file="$(mktemp /tmp/frogbot-agentcore-metrics.XXXXXX.json)"
+  metrics_file="$(mktemp /tmp/heytim-agentcore-metrics.XXXXXX.json)"
   trap 'rm -f "$metrics_file"' RETURN
   jq -n --arg resource "$resource_arn" '[
     {
@@ -97,14 +97,14 @@ put_metric_alarm() {
     "$@"
 }
 
-put_error_rate_alarm FroggyBot-production-runtime-error-rate "$runtime_arn"
-put_metric_alarm FroggyBot-production-runtime-throttles \
+put_error_rate_alarm HeyTim-production-runtime-error-rate "$runtime_arn"
+put_metric_alarm HeyTim-production-runtime-throttles \
   'AgentCore runtime throttled an invocation.' "$runtime_arn" Throttles --statistic Sum 0 3 1
-put_metric_alarm FroggyBot-production-runtime-latency-p99 \
+put_metric_alarm HeyTim-production-runtime-latency-p99 \
   'AgentCore runtime p99 latency exceeded two minutes.' "$runtime_arn" Latency --extended-statistic p99 120000 3 2 \
   --evaluate-low-sample-count-percentile ignore
-put_error_rate_alarm FroggyBot-production-gateway-error-rate "$gateway_arn"
-put_metric_alarm FroggyBot-production-gateway-throttles \
+put_error_rate_alarm HeyTim-production-gateway-error-rate "$gateway_arn"
+put_metric_alarm HeyTim-production-gateway-throttles \
   'AgentCore gateway throttled a request.' "$gateway_arn" Throttles --statistic Sum 0 3 1
 
 echo 'AgentCore production alarms are configured.'

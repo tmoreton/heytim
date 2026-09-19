@@ -12,10 +12,10 @@ for (let index = 2; index < process.argv.length; index += 2) {
   options.set(key.slice(2), value);
 }
 
-const apiUrl = process.env.FROGBOT_API_URL;
-const accessToken = process.env.FROGBOT_ACCESS_TOKEN;
+const apiUrl = process.env.HEYTIM_API_URL;
+const accessToken = process.env.HEYTIM_ACCESS_TOKEN;
 if (!apiUrl || !accessToken) {
-  throw new Error('Set FROGBOT_API_URL and FROGBOT_ACCESS_TOKEN before running the load test.');
+  throw new Error('Set HEYTIM_API_URL and HEYTIM_ACCESS_TOKEN before running the load test.');
 }
 
 const positiveInteger = (name, fallback) => {

@@ -42,5 +42,5 @@ class WorkerHealthEventTests(unittest.TestCase):
             record_terminal_error(RuntimeError("secret-bearing failure"))
 
         rendered = json.dumps(log_error.call_args.args)
-        self.assertIn("FROGBOT_TERMINAL_ERROR", rendered)
+        self.assertIn("HEYTIM_TERMINAL_ERROR", rendered)
         self.assertNotIn("secret-bearing", rendered)

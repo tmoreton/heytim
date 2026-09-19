@@ -15,8 +15,8 @@ services/
   runtime/                     AgentCore Python runtime, tools and evaluations
 catalog/                       Reviewed bots, skills, tool schemas and validation
 packages/
-  froggybot-contract/          Generated TypeScript route contract and tests
-  frogbot-transcription/       Native Swift transcription core
+  heytim-contract/             Generated TypeScript route contract and tests
+  heytim-transcription/        Native Swift transcription core
 agentcore/                     Declarative AWS resources and deployment wrapper
 ```
 
@@ -46,7 +46,7 @@ uv sync --project services/runtime --frozen
 ```
 
 The native speech model and frameworks are prepared and checksum-verified by
-`packages/frogbot-transcription/scripts/prepare-apple.sh`. These large generated
+`packages/heytim-transcription/scripts/prepare-apple.sh`. These large generated
 assets are intentionally not committed.
 
 ## Verify

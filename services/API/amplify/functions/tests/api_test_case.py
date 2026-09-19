@@ -210,7 +210,7 @@ class ApiTestCase(unittest.TestCase):
             "FILES_BUCKET_NAME": "frogbot-user-files-123-us-east-1",
             "GOOGLE_OAUTH_SECRET_ARN": (
                 "arn:aws:secretsmanager:us-east-1:123:secret:"
-                "frogbot/oauth/google-ABC123"
+                "heytim/oauth/google-ABC123"
             ),
             "GOOGLE_OAUTH_REDIRECT_URI": (
                 "https://api.example.com/public/oauth/google/callback"

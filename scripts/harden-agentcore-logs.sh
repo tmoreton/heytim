@@ -5,8 +5,8 @@ set -euo pipefail
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 "$repository_root/scripts/assert-release-ready.sh" --aws --post-deploy
 
-runtime_arn="${FROGBOT_AGENT_RUNTIME_ARN:?Set FROGBOT_AGENT_RUNTIME_ARN}"
-logs_key_arn="${FROGBOT_LOGS_KMS_KEY_ARN:?Set FROGBOT_LOGS_KMS_KEY_ARN}"
+runtime_arn="${HEYTIM_AGENT_RUNTIME_ARN:?Set HEYTIM_AGENT_RUNTIME_ARN}"
+logs_key_arn="${HEYTIM_LOGS_KMS_KEY_ARN:?Set HEYTIM_LOGS_KMS_KEY_ARN}"
 region="${AWS_REGION:-us-east-1}"
 runtime_id="${runtime_arn##*/}"
 

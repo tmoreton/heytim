@@ -4,13 +4,13 @@ import json
 
 import pytest
 
-from frogbot_runtime import artifacts
-from frogbot_runtime.bot_management import (
+from heytim_runtime import artifacts
+from heytim_runtime.bot_management import (
     BotMutationTracker,
     bot_management_from_payload,
     bot_management_tools,
 )
-from frogbot_runtime.configuration import bot_configuration
+from heytim_runtime.configuration import bot_configuration
 
 
 def _context() -> dict:

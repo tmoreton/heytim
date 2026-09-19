@@ -4,7 +4,7 @@ Updated September 17, 2026.
 
 ## Product lens
 
-FroggyBot's niche is group coordination: invite people easily, preserve editable shared memory, reach a decision, and automatically produce the itinerary, budget, list, brief, or file everyone can use.
+HeyTim's niche is group coordination: invite people easily, preserve editable shared memory, reach a decision, and automatically produce the itinerary, budget, list, brief, or file everyone can use.
 
 The public catalog should contain workflows that materially change how a result is produced. Generic writing, summarizing, brainstorming, teaching, and planning remain available through the base model without separate skills.
 
@@ -53,13 +53,13 @@ Morning Brief and Meeting Prep use only read or sandbox capabilities, so they ca
 
 ## Connection model
 
-FroggyBot supports three capability sources:
+HeyTim supports three capability sources:
 
-1. FroggyBot built-ins maintained by the project.
+1. HeyTim built-ins maintained by the project.
 2. Community skills and connector definitions merged into this public repository.
 3. Private instruction-only skills created directly in the app, plus reviewed provider account connections.
 
-FroggyBot-owned keys for shared services stay server-side and are never entered by users. Private account access uses provider-specific OAuth; its per-user credentials are encrypted, retrieved only by the runtime, and excluded from prompts, skill documents, bot shares, and skill shares. Existing custom MCP connections remain viewable and removable as legacy records, but users cannot add or edit developer-key connections.
+HeyTim-owned keys for shared services stay server-side and are never entered by users. Private account access uses provider-specific OAuth; its per-user credentials are encrypted, retrieved only by the runtime, and excluded from prompts, skill documents, bot shares, and skill shares. Existing custom MCP connections remain viewable and removable as legacy records, but users cannot add or edit developer-key connections.
 
 ## Next integrations
 
@@ -69,16 +69,16 @@ The clearest remaining product tool is **read-only maps and places**: reliable p
 
 ## AgentCore and Strands review
 
-The September 2026 review found no missing general-purpose agent engine component. FroggyBot already uses AgentCore Runtime, Memory, Gateway web search, Browser, Code Interpreter, Identity for platform keys, traces, a structural online evaluator, and production alarms. Strands supplies per-bot skills, delegation, task lists, streaming, memory access, and bounded context handling. The app backend owns chat history, group coordination, approvals, account scoping, and long-running work. A second AgentCore Harness would duplicate that custom orchestration rather than simplify it.
+The September 2026 review found no missing general-purpose agent engine component. HeyTim already uses AgentCore Runtime, Memory, Gateway web search, Browser, Code Interpreter, Identity for platform keys, traces, a structural online evaluator, and production alarms. Strands supplies per-bot skills, delegation, task lists, streaming, memory access, and bounded context handling. The app backend owns chat history, group coordination, approvals, account scoping, and long-running work. A second AgentCore Harness would duplicate that custom orchestration rather than simplify it.
 
 One runtime default was worth tightening: for a bot with no selected skills, Stan could scan a local skills directory. The runtime now passes `skills_dir=None`, leaving only the validated per-bot `AgentSkills` plugin. Stan's existing context offloader is enabled by `context_management="auto"`; the runtime also supplies a summarizing conversation manager, so a second offloader is unnecessary. [Strands skills](https://strandsagents.com/docs/user-guide/concepts/plugins/skills/), [Strands context offloader](https://strandsagents.com/docs/user-guide/concepts/plugins/context-offloader/).
 
-The next quality investment is **behavioral evaluation of actual skill and tool selection**. The checked-in scenario matrix pre-activates selected skills and runs without external tools; the deployed online evaluator detects structural completion failures. Neither proves that Chief chooses the right skill or that an agent calls the right connected tool for a realistic request. Start with synthetic accounts and deterministic tool stubs in an offline regression suite. AgentCore now offers skill-selection and skill-instruction evaluators, but they require skill and conversation content in traces; assess that against FroggyBot's content-minimizing telemetry before enabling them on private production chats. [AgentCore skill evaluators](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/skill-evaluators.html).
+The next quality investment is **behavioral evaluation of actual skill and tool selection**. The checked-in scenario matrix pre-activates selected skills and runs without external tools; the deployed online evaluator detects structural completion failures. Neither proves that Chief chooses the right skill or that an agent calls the right connected tool for a realistic request. Start with synthetic accounts and deterministic tool stubs in an offline regression suite. AgentCore now offers skill-selection and skill-instruction evaluators, but they require skill and conversation content in traces; assess that against HeyTim's content-minimizing telemetry before enabling them on private production chats. [AgentCore skill evaluators](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/skill-evaluators.html).
 
 Keep the following platform features out of the default build until there is a specific need:
 
-- **AgentCore Policy:** it evaluates actions through Gateway; FroggyBot's Gateway tools are currently read-only, while private-account actions have separate approval and authorization paths. Adding a policy engine now would not cover those paths. [AgentCore Policy](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy.html).
-- **AWS Agent Registry:** the reviewed, versioned FroggyBot catalog already owns public bot, skill, and tool discovery. Registry becomes useful for multiple teams or accounts publishing independent agents. [AgentCore release notes](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/release-notes.html).
+- **AgentCore Policy:** it evaluates actions through Gateway; HeyTim's Gateway tools are currently read-only, while private-account actions have separate approval and authorization paths. Adding a policy engine now would not cover those paths. [AgentCore Policy](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy.html).
+- **AWS Agent Registry:** the reviewed, versioned HeyTim catalog already owns public bot, skill, and tool discovery. Registry becomes useful for multiple teams or accounts publishing independent agents. [AgentCore release notes](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/release-notes.html).
 - **AgentCore Consent Portal:** it requires a JWT-authenticated Gateway and an OpenID Connect provider, while this app uses its own reviewed OAuth flows and an IAM-authenticated Gateway. Revisit only if account consent moves to AgentCore Identity. [AgentCore release notes](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/release-notes.html).
 - **AgentCore payments, A2A, and another sandbox:** no current chatbot workflow needs agent payments, a public agent-to-agent endpoint, or a second code/browser execution system.
 

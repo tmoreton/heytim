@@ -33,7 +33,7 @@ QUEUE_URL = os.environ["QUEUE_URL"]
 FILES_BUCKET_NAME = os.environ["FILES_BUCKET_NAME"]
 SCHEDULE_GROUP_NAME = os.environ.get("SCHEDULE_GROUP_NAME", "")
 USER_POOL_ID = os.environ.get("USER_POOL_ID", "")
-FROGBOT_MEMORY_ID = os.environ.get("FROGBOT_MEMORY_ID")
+HEYTIM_MEMORY_ID = os.environ.get("HEYTIM_MEMORY_ID")
 # Keep the lease and message visibility beyond six times the 14-minute Lambda
 # timeout, as recommended for SQS event sources. Agent jobs release this lease
 # after dispatch; their independent eight-hour lifetime is tracked by polling.

@@ -10,7 +10,7 @@ class ConnectionCatalogCases:
             "owner@example.com",
             "first-token",
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/google-ABC123",
+            "heytim/oauth/google-ABC123",
         )
         first_item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
         first_secret = first_item["secretArn"]
@@ -20,7 +20,7 @@ class ConnectionCatalogCases:
             "owner@example.com",
             "second-token",
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/google-ABC123",
+            "heytim/oauth/google-ABC123",
         )
         second_item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
 
@@ -31,7 +31,7 @@ class ConnectionCatalogCases:
     def test_distinct_gmail_accounts_keep_distinct_grants(self) -> None:
         client_secret = (
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/google-ABC123"
+            "heytim/oauth/google-ABC123"
         )
         first = self.catalog.save_gmail_connection(
             "owner", "first@example.com", "first-token", client_secret
@@ -73,7 +73,7 @@ class ConnectionCatalogCases:
              {"id": 202, "name": "example-org/two"}],
             {"metadata": "read", "contents": "write"},
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/github-ABC123",
+            "heytim/oauth/github-ABC123",
         )
         access = self.catalog.validate_github_repository_access(
             "owner", [github["id"]], {github["id"]: [101]}
@@ -101,7 +101,7 @@ class ConnectionCatalogCases:
             "owner@example.com",
             "refresh-token",
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/google-ABC123",
+            "heytim/oauth/google-ABC123",
         )
         self.table.put_item(
             Item={
@@ -122,7 +122,7 @@ class ConnectionCatalogCases:
             "owner@example.com",
             "refresh-token",
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/google-ABC123",
+            "heytim/oauth/google-ABC123",
         )
         skill = self.catalog.save_skill(
             "owner",

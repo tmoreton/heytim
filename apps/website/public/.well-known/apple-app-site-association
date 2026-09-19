@@ -4,12 +4,12 @@
     "details": [
       {
         "appIDs": [
-          "GVXC5FQ2RP.com.frogbot.app"
+          "GVXC5FQ2RP.com.heytim.app"
         ],
         "components": [
           {
             "/": "/invite",
-            "comment": "Open FroggyBot invitation links in the installed iOS app."
+            "comment": "Open HeyTim invitation links in the installed iOS app."
           }
         ]
       }
@@ -17,12 +17,12 @@
   },
   "activitycontinuation": {
     "apps": [
-      "GVXC5FQ2RP.com.frogbot.app"
+      "GVXC5FQ2RP.com.heytim.app"
     ]
   },
   "webcredentials": {
     "apps": [
-      "GVXC5FQ2RP.com.frogbot.app"
+      "GVXC5FQ2RP.com.heytim.app"
     ]
   }
 }

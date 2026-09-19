@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock
 import anyio
 import nest_asyncio
 
-from frogbot_runtime.agentcore_adapters import PersistentAgentCoreBrowser
+from heytim_runtime.agentcore_adapters import PersistentAgentCoreBrowser
 
 
 async def invoke(browser, action):

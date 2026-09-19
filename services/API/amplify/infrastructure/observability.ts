@@ -114,7 +114,7 @@ export function addObservability({
   const terminalErrorMetrics = terminalSignals.map(({ id, category }) =>
     new MetricFilter(stack, `${id}TerminalErrorMetric`, {
       logGroup: workerLogGroup,
-      filterPattern: FilterPattern.literal(`"FROGBOT_TERMINAL_ERROR category=${category}"`),
+      filterPattern: FilterPattern.literal(`"HEYTIM_TERMINAL_ERROR category=${category}"`),
       metricNamespace: `${stack.stackName}/AgentHealth`,
       metricName: `${id}TerminalErrors`,
       metricValue: '1',

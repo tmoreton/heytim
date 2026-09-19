@@ -6,15 +6,15 @@ require 'pathname'
 require 'xcodeproj'
 
 root = File.expand_path('..', __dir__)
-project_path = File.join(root, 'FroggyBotApple.xcodeproj')
+project_path = File.join(root, 'HeyTimApple.xcodeproj')
 FileUtils.rm_rf(project_path)
 project = Xcodeproj::Project.new(project_path)
 project.root_object.attributes['LastSwiftUpdateCheck'] = '2660'
 project.root_object.attributes['LastUpgradeCheck'] = '2660'
 
-app = project.new_target(:application, 'FroggyBotApple', :ios, '17.0')
-tests = project.new_target(:unit_test_bundle, 'FroggyBotAppleTests', :ios, '17.0')
-ui_tests = project.new_target(:ui_test_bundle, 'FroggyBotAppleUITests', :ios, '17.0')
+app = project.new_target(:application, 'HeyTimApple', :ios, '17.0')
+tests = project.new_target(:unit_test_bundle, 'HeyTimAppleTests', :ios, '17.0')
+ui_tests = project.new_target(:ui_test_bundle, 'HeyTimAppleUITests', :ios, '17.0')
 tests.add_dependency(app)
 ui_tests.add_dependency(app)
 
@@ -35,15 +35,15 @@ app.build_configurations.each do |config|
   config.build_settings.merge!(common)
   config.build_settings.merge!(
     'PRODUCT_BUNDLE_IDENTIFIER' => 'ai.heytim.app',
-    'PRODUCT_NAME' => 'FroggyBot',
-    'PRODUCT_MODULE_NAME' => 'FroggyBotApple',
+    'PRODUCT_NAME' => 'HeyTim',
+    'PRODUCT_MODULE_NAME' => 'HeyTimApple',
     'ASSETCATALOG_COMPILER_APPICON_NAME' => 'AppIcon',
     'INFOPLIST_FILE' => 'Resources/Info.plist',
     'MARKETING_VERSION' => '1.0.0',
     'CURRENT_PROJECT_VERSION' => '202609130148',
-    'CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]' => release ? 'Resources/FroggyBot-iOS-Release.entitlements' : 'Resources/FroggyBot-iOS.entitlements',
-    'CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]' => 'Resources/FroggyBot-iOS.entitlements',
-    'CODE_SIGN_ENTITLEMENTS[sdk=macosx*]' => release ? 'Resources/FroggyBot-macOS-Release.entitlements' : 'Resources/FroggyBot-macOS.entitlements',
+    'CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]' => release ? 'Resources/HeyTim-iOS-Release.entitlements' : 'Resources/HeyTim-iOS.entitlements',
+    'CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]' => 'Resources/HeyTim-iOS.entitlements',
+    'CODE_SIGN_ENTITLEMENTS[sdk=macosx*]' => release ? 'Resources/HeyTim-macOS-Release.entitlements' : 'Resources/HeyTim-macOS.entitlements',
     'ENABLE_APP_SANDBOX[sdk=macosx*]' => 'YES',
     'ENABLE_HARDENED_RUNTIME[sdk=macosx*]' => 'YES',
     'ENABLE_USER_SCRIPT_SANDBOXING[sdk=iphoneos*]' => 'NO',
@@ -58,9 +58,9 @@ end
     config.build_settings.merge!(
       'PRODUCT_BUNDLE_IDENTIFIER' => identifier,
       'GENERATE_INFOPLIST_FILE' => 'YES',
-      'TEST_HOST[sdk=iphoneos*]' => '$(BUILT_PRODUCTS_DIR)/FroggyBot.app/FroggyBot',
-      'TEST_HOST[sdk=iphonesimulator*]' => '$(BUILT_PRODUCTS_DIR)/FroggyBot.app/FroggyBot',
-      'TEST_HOST[sdk=macosx*]' => '$(BUILT_PRODUCTS_DIR)/FroggyBot.app/Contents/MacOS/FroggyBot',
+      'TEST_HOST[sdk=iphoneos*]' => '$(BUILT_PRODUCTS_DIR)/HeyTim.app/HeyTim',
+      'TEST_HOST[sdk=iphonesimulator*]' => '$(BUILT_PRODUCTS_DIR)/HeyTim.app/HeyTim',
+      'TEST_HOST[sdk=macosx*]' => '$(BUILT_PRODUCTS_DIR)/HeyTim.app/Contents/MacOS/HeyTim',
       'BUNDLE_LOADER' => '$(TEST_HOST)',
     )
   end
@@ -70,7 +70,7 @@ ui_tests.build_configurations.each do |config|
   config.build_settings.merge!(
     'PRODUCT_BUNDLE_IDENTIFIER' => 'ai.heytim.app.uitests',
     'GENERATE_INFOPLIST_FILE' => 'YES',
-    'TEST_TARGET_NAME' => 'FroggyBotApple',
+    'TEST_TARGET_NAME' => 'HeyTimApple',
   )
 end
 
@@ -85,7 +85,7 @@ resource_files.each do |relative|
   ref = project.main_group.new_file(relative)
   app.resources_build_phase.add_file_reference(ref)
 end
-%w[Resources/Info.plist Resources/FroggyBot-iOS.entitlements Resources/FroggyBot-iOS-Release.entitlements Resources/FroggyBot-macOS.entitlements Resources/FroggyBot-macOS-Release.entitlements].each do |relative|
+%w[Resources/Info.plist Resources/HeyTim-iOS.entitlements Resources/HeyTim-iOS-Release.entitlements Resources/HeyTim-macOS.entitlements Resources/HeyTim-macOS-Release.entitlements].each do |relative|
   project.main_group.new_file(relative)
 end
 
@@ -99,11 +99,11 @@ Dir.glob(File.join(root, 'UITests', '*.swift')).sort.each do |path|
 end
 
 local_package = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
-local_package.relative_path = '../../packages/frogbot-transcription'
+local_package.relative_path = '../../packages/heytim-transcription'
 project.root_object.package_references << local_package
 nemotron = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
 nemotron.package = local_package
-nemotron.product_name = 'FroggyBotNemotron'
+nemotron.product_name = 'HeyTimNemotron'
 app.package_product_dependencies << nemotron
 build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
 build_file.product_ref = nemotron
@@ -135,7 +135,7 @@ scheme = Xcodeproj::XCScheme.new
 scheme.configure_with_targets(app, tests, launch_target: true)
 scheme.add_build_target(ui_tests, false)
 scheme.add_test_target(ui_tests)
-scheme.save_as(project_path, 'FroggyBotApple', true)
+scheme.save_as(project_path, 'HeyTimApple', true)
 
 # Keep Mac unit-test verification isolated from the UI-test target. The Mac
 # verification build intentionally disables code signing, and including the UI
@@ -143,7 +143,7 @@ scheme.save_as(project_path, 'FroggyBotApple', true)
 # Gatekeeper repeatedly rejects even though only unit tests were requested.
 unit_scheme = Xcodeproj::XCScheme.new
 unit_scheme.configure_with_targets(app, tests, launch_target: true)
-unit_scheme.save_as(project_path, 'FroggyBotAppleUnit', true)
+unit_scheme.save_as(project_path, 'HeyTimAppleUnit', true)
 
 # Keep a focused UI-test scheme so simulator checks do not also assemble the
 # large speech-model unit-test bundle. The main scheme remains the complete
@@ -157,5 +157,5 @@ ui_scheme.configure_with_targets(app, ui_tests, launch_target: true)
 ui_scheme.test_action.xml_element.attributes['selectedDebuggerIdentifier'] = ''
 ui_scheme.test_action.xml_element.attributes['selectedLauncherIdentifier'] =
   'Xcode.IDEFoundation.Launcher.PosixSpawn'
-ui_scheme.save_as(project_path, 'FroggyBotAppleUI', true)
+ui_scheme.save_as(project_path, 'HeyTimAppleUI', true)
 puts project_path

@@ -4,7 +4,7 @@ from io import BytesIO
 
 import pytest
 
-from frogbot_runtime.request import (
+from heytim_runtime.request import (
     MAX_CONTENT_BLOCKS_PER_MESSAGE,
     MAX_HISTORY_MESSAGES,
     MAX_HISTORY_TEXT_CHARS,
@@ -98,7 +98,7 @@ def test_unreviewed_content_is_rejected() -> None:
 def test_latest_user_message_accepts_reviewed_s3_documents(monkeypatch) -> None:
     actor_id = "a" * 64
     monkeypatch.setattr(
-        "frogbot_runtime.request.FILES_BUCKET_NAME",
+        "heytim_runtime.request.FILES_BUCKET_NAME",
         "frogbot-user-files-123-us-east-1",
     )
     requested = []
@@ -108,7 +108,7 @@ def test_latest_user_message_accepts_reviewed_s3_documents(monkeypatch) -> None:
             requested.append(request)
             return {"ContentLength": 14, "Body": BytesIO(b"Quarterly data")}
 
-    monkeypatch.setattr("frogbot_runtime.request._s3", FakeS3())
+    monkeypatch.setattr("heytim_runtime.request._s3", FakeS3())
     messages = messages_from_payload(
         {
             "messages": [
@@ -147,7 +147,7 @@ def test_latest_user_message_accepts_reviewed_s3_documents(monkeypatch) -> None:
 
 def test_attachment_from_another_bucket_is_rejected(monkeypatch) -> None:
     monkeypatch.setattr(
-        "frogbot_runtime.request.FILES_BUCKET_NAME",
+        "heytim_runtime.request.FILES_BUCKET_NAME",
         "frogbot-user-files-123-us-east-1",
     )
     with pytest.raises(ValueError, match="outside"):
@@ -178,7 +178,7 @@ def test_attachment_from_another_bucket_is_rejected(monkeypatch) -> None:
 
 def test_attachment_from_another_user_is_rejected(monkeypatch) -> None:
     monkeypatch.setattr(
-        "frogbot_runtime.request.FILES_BUCKET_NAME",
+        "heytim_runtime.request.FILES_BUCKET_NAME",
         "frogbot-user-files-123-us-east-1",
     )
     with pytest.raises(ValueError, match="outside"):
@@ -212,7 +212,7 @@ def test_recent_image_references_are_user_bound_and_not_added_to_history(
 ) -> None:
     actor_id = "a" * 64
     monkeypatch.setattr(
-        "frogbot_runtime.request.FILES_BUCKET_NAME",
+        "heytim_runtime.request.FILES_BUCKET_NAME",
         "frogbot-user-files-123-us-east-1",
     )
 
@@ -220,7 +220,7 @@ def test_recent_image_references_are_user_bound_and_not_added_to_history(
         def get_object(self, **_request):
             return {"ContentLength": 9, "Body": BytesIO(b"image-ref")}
 
-    monkeypatch.setattr("frogbot_runtime.request._s3", FakeS3())
+    monkeypatch.setattr("heytim_runtime.request._s3", FakeS3())
     payload = {
         "messages": [{"role": "user", "content": [{"text": "Use my logo"}]}],
         "imageReferences": [
@@ -255,7 +255,7 @@ def test_recent_image_references_are_user_bound_and_not_added_to_history(
 def test_group_message_accepts_only_its_room_scoped_attachment(monkeypatch) -> None:
     group_id = "12345678-1234-1234-1234-123456789012"
     monkeypatch.setattr(
-        "frogbot_runtime.request.FILES_BUCKET_NAME",
+        "heytim_runtime.request.FILES_BUCKET_NAME",
         "frogbot-user-files-123-us-east-1",
     )
 
@@ -263,7 +263,7 @@ def test_group_message_accepts_only_its_room_scoped_attachment(monkeypatch) -> N
         def get_object(self, **_request):
             return {"ContentLength": 9, "Body": BytesIO(b"Room file")}
 
-    monkeypatch.setattr("frogbot_runtime.request._s3", FakeS3())
+    monkeypatch.setattr("heytim_runtime.request._s3", FakeS3())
     payload = {
         "group": {"name": "Trip"},
         "attachmentPrefix": f"groups/{group_id}/uploads/",

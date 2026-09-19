@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from frogbot_runtime import workspace_sync
+from heytim_runtime import workspace_sync
 
 FILE_ID = "12345678-1234-4234-8234-123456789abc"
 ACTOR = "a" * 64

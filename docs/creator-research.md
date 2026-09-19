@@ -26,7 +26,7 @@ Do not copy a creator's personality or manufacture personal anecdotes. A useful 
 | [Matthew Berman / Forward Future](https://forwardfuture.com/) | AI coverage and practical product demonstrations. |
 | [Matt Wolfe](https://mattwolfe.com/) | Tool discovery and accessible packaging for a broader audience. |
 
-The saved FrogBot configuration identifies the personal channel as `@HeyTimDev`. Initial public browsing was insufficient, but the September 8 live pilot subsequently resolved channel ID `UCC8yAE278hIstZpHiC0VBLg` through the YouTube tool and inspected public metrics for three recent Mobile Coding Agent episodes. This is a small public-data sample, not a private analytics audit. The work channel remains unresolved; resolve official links from Strands' site before attributing content.
+The saved HeyTim configuration identifies the personal channel as `@HeyTimDev`. Initial public browsing was insufficient, but the September 8 live pilot subsequently resolved channel ID `UCC8yAE278hIstZpHiC0VBLg` through the YouTube tool and inspected public metrics for three recent Mobile Coding Agent episodes. This is a small public-data sample, not a private analytics audit. The work channel remains unresolved; resolve official links from Strands' site before attributing content.
 
 Compare views at comparable video ages and separate Shorts from long-form tutorials. Public views, likes and comments do not reveal click-through rate, retention or why a video performed well. [YouTube Analytics channel reports](https://developers.google.com/youtube/analytics/channel_reports) require channel-owner OAuth authorization. An owner-supplied Studio export is a usable input in the meantime.
 

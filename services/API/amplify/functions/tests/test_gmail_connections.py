@@ -34,7 +34,7 @@ class GmailConnectionTests(unittest.TestCase):
             refresh_token,
             (
                 "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-                "frogbot/oauth/google-ABC123"
+                "heytim/oauth/google-ABC123"
             ),
         )
         item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
@@ -43,7 +43,7 @@ class GmailConnectionTests(unittest.TestCase):
     def test_oauth_connection_is_private_and_tool_filtered(self) -> None:
         client_secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/google-ABC123"
+            "heytim/oauth/google-ABC123"
         )
         saved = self.catalog.save_gmail_connection(
             "owner",
@@ -189,7 +189,7 @@ class GmailConnectionTests(unittest.TestCase):
                 "new-refresh-token",
                 (
                     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-                    "frogbot/oauth/google-ABC123"
+                    "heytim/oauth/google-ABC123"
                 ),
             )
 
@@ -234,7 +234,7 @@ class GmailConnectionTests(unittest.TestCase):
                 "new-refresh-token",
                 (
                     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-                    "frogbot/oauth/google-ABC123"
+                    "heytim/oauth/google-ABC123"
                 ),
             )
 
@@ -275,7 +275,7 @@ class GmailConnectionTests(unittest.TestCase):
                 "second-refresh-token",
                 (
                     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-                    "frogbot/oauth/google-ABC123"
+                    "heytim/oauth/google-ABC123"
                 ),
             )
 

@@ -35,7 +35,7 @@ _dynamodb = boto3.resource("dynamodb", config=_AWS_CONFIG)
 _secrets = boto3.client("secretsmanager", config=_AWS_CONFIG)
 _table = _dynamodb.Table(os.environ.get("TABLE_NAME", "missing"))
 
-_MARKER = "FROGBOT_TERMINAL_ERROR "
+_MARKER = "HEYTIM_TERMINAL_ERROR "
 _SAFE_SOURCE = re.compile(r"[a-z0-9_.-]{1,64}")
 _SAFE_CATEGORY = re.compile(r"[a-z][a-z0-9_-]{0,31}")
 _SAFE_CODE = re.compile(r"[A-Z][A-Z0-9_]{0,63}")

@@ -1,6 +1,6 @@
 # Provider integrations
 
-FroggyBot has two integration layers:
+HeyTim has two integration layers:
 
 - Public research remains available through the web tools. X and YouTube search require their own connected accounts.
 - Private account access is optional and user-scoped. The backend stores OAuth refresh grants or a GitHub App
@@ -62,14 +62,14 @@ exact redirect URI:
 https://API_HOST/public/oauth/google/callback
 ```
 
-Store the downloaded web-client JSON in a secret named `frogbot/oauth/google-production`, then set
-`FROGBOT_GOOGLE_OAUTH_SECRET_ARN` to its full ARN. Gmail requests `gmail.readonly` plus `gmail.compose`; YouTube
+Store the downloaded web-client JSON in a secret named `heytim/oauth/google-production`, then set
+`HEYTIM_GOOGLE_OAUTH_SECRET_ARN` to its full ARN. Gmail requests `gmail.readonly` plus `gmail.compose`; YouTube
 requests only `youtube.readonly`. Google Workspace requests `drive.readonly`, `documents.readonly`,
 `calendar.calendarlist.readonly`, `calendar.events.freebusy`, and `calendar.events.readonly`. User authentication does
 not move YouTube calls outside the Google project's quota.
 The Workspace MCP services are in Google's Developer Preview and require access to that program before live use.
 
-### FroggyBot GitHub App
+### HeyTim GitHub App
 
 Create a GitHub App and set both its callback URL and post-installation setup URL to:
 
@@ -77,13 +77,13 @@ Create a GitHub App and set both its callback URL and post-installation setup UR
 https://API_HOST/public/oauth/github/callback
 ```
 
-Leave **Request user authorization (OAuth) during installation** off. FroggyBot receives the installation ID at the
+Leave **Request user authorization (OAuth) during installation** off. HeyTim receives the installation ID at the
 setup URL, then starts a separate PKCE-protected GitHub authorization to verify that the installation belongs to the
 connecting user.
 
 Configure the webhook URL `https://API_HOST/public/webhooks/github` and subscribe to the Issues event. Set a random secret of at least 32 characters in the App and as `webhookSecret` in the JSON below. Configure repository permissions for Contents (read and write), Issues (read and write), Pull
 requests (read and write), and Metadata (read). The installer chooses repositories. Store the configuration in a
-secret named `frogbot/oauth/github-production`:
+secret named `heytim/oauth/github-production`:
 
 ```json
 {
@@ -91,12 +91,12 @@ secret named `frogbot/oauth/github-production`:
   "clientId": "Iv1.example",
   "clientSecret": "replace-with-github-client-secret",
   "privateKey": "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----",
-  "slug": "froggybot",
+  "slug": "heytim",
   "webhookSecret": "replace-with-random-webhook-secret"
 }
 ```
 
-Set `FROGBOT_GITHUB_APP_SECRET_ARN` to the full secret ARN. The setup and authorization callbacks briefly use a
+Set `HEYTIM_GITHUB_APP_SECRET_ARN` to the full secret ARN. The setup and authorization callbacks briefly use a
 GitHub user OAuth token to verify that the signed-in user can see the returned installation ID, immediately revoke
 that token, and persist only the installation ID, selected repository IDs, and granted permission levels.
 
@@ -108,7 +108,7 @@ Create a confidential X OAuth 2.0 client with Authorization Code + PKCE and this
 https://API_HOST/public/oauth/x/callback
 ```
 
-Store the client in a secret named `frogbot/oauth/x-production`:
+Store the client in a secret named `heytim/oauth/x-production`:
 
 ```json
 {
@@ -117,13 +117,13 @@ Store the client in a secret named `frogbot/oauth/x-production`:
 }
 ```
 
-Set `FROGBOT_X_OAUTH_SECRET_ARN` to the full secret ARN. FroggyBot stores rotating user refresh tokens server-side and
+Set `HEYTIM_X_OAUTH_SECRET_ARN` to the full secret ARN. HeyTim stores rotating user refresh tokens server-side and
 writes the replacement back to the same per-user secret before using it.
 
 ### Slack OAuth app
 
 Create a Slack app with OAuth v2 and this redirect URL. Internal testing may begin in the owner workspace, but a
-general FroggyBot release requires Slack's distribution review and installation flow for other workspaces:
+general HeyTim release requires Slack's distribution review and installation flow for other workspaces:
 
 ```text
 https://API_HOST/public/oauth/provider/callback
@@ -132,8 +132,8 @@ https://API_HOST/public/oauth/provider/callback
 Enable token rotation before installing the app. Request these user-token scopes only:
 `search:read.public`, `search:read.private`, `search:read.mpim`, `search:read.im`, `search:read.files`,
 `search:read.users`, `channels:history`, `groups:history`, `im:history`, and `mpim:history`. Do not add bot scopes or
-events. Store `clientId` and `clientSecret` in `frogbot/oauth/slack-production`, then set
-`FROGBOT_SLACK_OAUTH_SECRET_ARN`. Slack access tokens expire after 12 hours when rotation is enabled; every successful
+events. Store `clientId` and `clientSecret` in `heytim/oauth/slack-production`, then set
+`HEYTIM_SLACK_OAUTH_SECRET_ARN`. Slack access tokens expire after 12 hours when rotation is enabled; every successful
 refresh replaces both the access and one-use refresh token in the per-user secret.
 
 ### Microsoft 365 and Teams OAuth app
@@ -143,31 +143,31 @@ Register a Microsoft identity-platform web app and add the shared callback URL a
 `User.Read`, `Team.ReadBasic.All`, `Channel.ReadBasic.All`, and `ChannelMessage.Read.All` through a separate connection.
 Both flows request `openid`, `profile`, `email`, and `offline_access`. Teams channel-message consent may require an
 organization administrator. Store `clientId`
-and `clientSecret` in `frogbot/oauth/microsoft-production`, then set `FROGBOT_MICROSOFT_OAUTH_SECRET_ARN`.
+and `clientSecret` in `heytim/oauth/microsoft-production`, then set `HEYTIM_MICROSOFT_OAUTH_SECRET_ARN`.
 
 ### Notion public connection
 
 Create a public Notion connection with the shared callback URL above. Enable read-content capability only, leave insert
-and update content disabled, and let each installer choose the pages available to FroggyBot. Store `clientId` and
-`clientSecret` in `frogbot/oauth/notion-production`, then set `FROGBOT_NOTION_OAUTH_SECRET_ARN`.
+and update content disabled, and let each installer choose the pages available to HeyTim. Store `clientId` and
+`clientSecret` in `heytim/oauth/notion-production`, then set `HEYTIM_NOTION_OAUTH_SECRET_ARN`.
 
 ### HubSpot OAuth app
 
 Register a HubSpot OAuth app with the shared callback URL. Request only `crm.objects.contacts.read`,
 `crm.objects.companies.read`, and `crm.objects.deals.read`. Store `clientId` and `clientSecret` in
-`frogbot/oauth/hubspot-production`, then set `FROGBOT_HUBSPOT_OAUTH_SECRET_ARN`.
+`heytim/oauth/hubspot-production`, then set `HEYTIM_HUBSPOT_OAUTH_SECRET_ARN`.
 
 ### Jira OAuth app
 
 Register an Atlassian 3LO app with the shared callback URL and request `offline_access` and `read:jira-work`.
 Use a site-restricted grant; the callback rejects grants that expose more than one Jira site. Store `clientId` and
-`clientSecret` in `frogbot/oauth/jira-production`, then set `FROGBOT_JIRA_OAUTH_SECRET_ARN`.
+`clientSecret` in `heytim/oauth/jira-production`, then set `HEYTIM_JIRA_OAUTH_SECRET_ARN`.
 
 ### Zoom OAuth app
 
 Register a user-managed Zoom OAuth app with the shared callback URL. Add granular scopes `user:read:user`,
 `meeting:read:list_meetings`, and `meeting:read:meeting`. Store `clientId` and `clientSecret` in
-`frogbot/oauth/zoom-production`, then set `FROGBOT_ZOOM_OAUTH_SECRET_ARN`.
+`heytim/oauth/zoom-production`, then set `HEYTIM_ZOOM_OAUTH_SECRET_ARN`.
 
 ## Deployment boundary
 

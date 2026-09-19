@@ -20,17 +20,17 @@ type BotEmailProps = {
 
 export function addBotEmailReceiving({ stack, table, logsKey }: BotEmailProps): void {
   const domain = 'bots.heytim.ai';
-  const stage = process.env.FROGBOT_BOT_EMAIL_STAGE;
+  const stage = process.env.HEYTIM_BOT_EMAIL_STAGE;
   if (stage !== 'identity' && stage !== 'receive') {
-    throw new Error('Set FROGBOT_BOT_EMAIL_STAGE to identity or receive for production.');
+    throw new Error('Set HEYTIM_BOT_EMAIL_STAGE to identity or receive for production.');
   }
-  if (process.env.FROGBOT_BOT_EMAIL_AVAILABLE === 'true' && stage !== 'receive') {
+  if (process.env.HEYTIM_BOT_EMAIL_AVAILABLE === 'true' && stage !== 'receive') {
     throw new Error('Bot email cannot be available before its receiver is deployed.');
   }
-  const configuredRuleSet = process.env.FROGBOT_SES_RULE_SET_NAME?.trim();
-  const ruleSetName = configuredRuleSet || 'frogbot-production-bot-mail';
+  const configuredRuleSet = process.env.HEYTIM_SES_RULE_SET_NAME?.trim();
+  const ruleSetName = configuredRuleSet || 'heytim-production-bot-mail';
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(ruleSetName)) {
-    throw new Error('FROGBOT_SES_RULE_SET_NAME must be a valid SES receipt rule set name.');
+    throw new Error('HEYTIM_SES_RULE_SET_NAME must be a valid SES receipt rule set name.');
   }
   const identity = new CfnEmailIdentity(stack, 'BotEmailIdentity', {
     emailIdentity: domain,
@@ -81,7 +81,7 @@ export function addBotEmailReceiving({ stack, table, logsKey }: BotEmailProps): 
       TABLE_NAME: table.tableName,
       MAIL_BUCKET_NAME: bucket.bucketName,
       MAIL_TOPIC_ARN: topic.topicArn,
-      MAIL_PROCESSING_ENABLED: process.env.FROGBOT_BOT_EMAIL_AVAILABLE === 'true' ? 'true' : 'false',
+      MAIL_PROCESSING_ENABLED: process.env.HEYTIM_BOT_EMAIL_AVAILABLE === 'true' ? 'true' : 'false',
     },
   });
   table.grantReadWriteData(receiver);
@@ -95,7 +95,7 @@ export function addBotEmailReceiving({ stack, table, logsKey }: BotEmailProps): 
     assumedBy: new ServicePrincipal('ses.amazonaws.com', {
       conditions: { StringEquals: {
         'aws:SourceAccount': stack.account,
-        'aws:SourceArn': `arn:aws:ses:${stack.region}:${stack.account}:receipt-rule-set/${ruleSetName}:receipt-rule/FroggyBotBotInbox`,
+        'aws:SourceArn': `arn:aws:ses:${stack.region}:${stack.account}:receipt-rule-set/${ruleSetName}:receipt-rule/HeyTimBotInbox`,
       } },
     }),
   });
@@ -110,7 +110,7 @@ export function addBotEmailReceiving({ stack, table, logsKey }: BotEmailProps): 
   const rule = new CfnReceiptRule(stack, 'BotEmailReceiptRule', {
     ruleSetName,
     rule: {
-      name: 'FroggyBotBotInbox',
+      name: 'HeyTimBotInbox',
       enabled: true,
       scanEnabled: true,
       recipients: [domain],

@@ -1,6 +1,6 @@
 # Cost-efficient deployment architecture
 
-FroggyBot remains a monorepo while its clients and services share API contracts, generated routes, production client
+HeyTim remains a monorepo while its clients and services share API contracts, generated routes, production client
 configuration, and coordinated releases. Separate repositories would make those changes harder to review atomically
 without reducing the largest build cost. Reconsider a split only when the Apple client, browser client, or backend has
 an independent owner and release cadence with a versioned contract between repositories.
@@ -16,7 +16,7 @@ an independent owner and release cadence with a versioned contract between repos
 | TestFlight | Dependent step of a successful release deployment | Repository-scoped `frogbot-macmini` runner |
 | Provider contract probe and constrained autofix | Scheduled or explicitly trusted events | Repository-scoped `frogbot-macmini` runner |
 
-The Mac mini is intentionally limited to this private repository and has the custom `frogbot-apple` and `frogbot-ci`
+The Mac mini is intentionally limited to this private repository and has the custom `heytim-apple` and `heytim-ci`
 labels. Jobs also require the default `self-hosted`, `macOS`, and `ARM64` labels. Pull requests from forks cannot
 execute on the persistent runner. The runner is installed as the `homelab` user's launch agent and updates itself
 using the standard GitHub runner update channel. One runner processes jobs sequentially, avoiding concurrent builds
@@ -36,7 +36,7 @@ has been stable long enough to replace the current gate.
 
 ## Mac mini operations
 
-The runner is installed at `/Users/homelab/ActionsRunners/frogbot`. From the Mac mini:
+The runner retains its legacy registered name and install path at `/Users/homelab/ActionsRunners/frogbot`. From the Mac mini:
 
 ```bash
 cd /Users/homelab/ActionsRunners/frogbot

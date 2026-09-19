@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - apps/iOS/**
-      - packages/frogbot-transcription/**
+      - packages/heytim-transcription/**
       - services/API/amplify/functions/api/api-contract.json
       - services/API/scripts/generate-api-contract.mjs
       - scripts/apple-app.sh
@@ -14,7 +14,7 @@ on:
   pull_request:
     paths:
       - apps/iOS/**
-      - packages/frogbot-transcription/**
+      - packages/heytim-transcription/**
       - services/API/amplify/functions/api/api-contract.json
       - services/API/scripts/generate-api-contract.mjs
       - scripts/apple-app.sh
@@ -23,7 +23,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: frogbot-apple-${{ github.event_name }}-${{ github.ref }}
+  group: heytim-apple-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -32,7 +32,7 @@ permissions:
 jobs:
   apple:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, macOS, ARM64, frogbot-apple]
+    runs-on: [self-hosted, macOS, ARM64, heytim-apple]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -41,7 +41,7 @@ jobs:
       - name: Cache native transcription assets
         uses: actions/cache@v6
         with:
-          path: packages/frogbot-transcription/ios/Generated
-          key: frogbot-nemotron-apple-v3
+          path: packages/heytim-transcription/ios/Generated
+          key: heytim-nemotron-apple-v3
       - name: Verify iPhone and Mac app
         run: ./scripts/verify.sh apple

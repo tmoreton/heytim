@@ -90,7 +90,7 @@ def record_terminal_error(message: object, *, source: str = "worker") -> None:
     # arguments, and identifiers. The repair workflow receives only these
     # bounded structural fields.
     logger.error(
-        "FROGBOT_TERMINAL_ERROR %s",
+        "HEYTIM_TERMINAL_ERROR %s",
         json.dumps(
             terminal_error_event(message, source=source),
             sort_keys=True,

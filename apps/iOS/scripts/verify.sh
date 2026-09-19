@@ -2,8 +2,8 @@
 set -euo pipefail
 
 apple_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-project="$apple_root/FroggyBotApple.xcodeproj"
-derived_data="$(mktemp -d /tmp/FroggyBotAppleVerification.XXXXXX)"
+project="$apple_root/HeyTimApple.xcodeproj"
+derived_data="$(mktemp -d /tmp/HeyTimAppleVerification.XXXXXX)"
 temporary_simulator=false
 
 run_with_timeout() {
@@ -44,18 +44,18 @@ trap cleanup EXIT
 "$apple_root/scripts/prepare-transcription.sh"
 
 (
-  cd "$apple_root/../../packages/frogbot-transcription"
+  cd "$apple_root/../../packages/heytim-transcription"
   swift test
 )
 
 run_with_timeout 1200 'macOS unit tests' xcodebuild test -quiet \
   -project "$project" \
-  -scheme FroggyBotAppleUnit \
+  -scheme HeyTimAppleUnit \
   -destination 'platform=macOS' \
   -derivedDataPath "$derived_data" \
   -parallel-testing-enabled NO \
   -maximum-parallel-testing-workers 1 \
-  -only-testing:FroggyBotAppleTests \
+  -only-testing:HeyTimAppleTests \
   CODE_SIGNING_ALLOWED=NO
 
 # The speech model is intentionally embedded in the application, but Xcode also
@@ -66,7 +66,7 @@ if [[ -d "$derived_data/Build" ]]; then
   find "$derived_data/Build" -depth -delete
 fi
 
-simulator_id="${FROGGYBOT_SIMULATOR_ID:-}"
+simulator_id="${HEYTIM_SIMULATOR_ID:-}"
 if [[ -z "$simulator_id" ]]; then
   runtime_id="$(xcrun simctl list runtimes available | sed -nE '/^iOS / s/.* - (com\.apple\.CoreSimulator\.SimRuntime\.[^ ]+)$/\1/p' | tail -1)"
   device_type="$(xcrun simctl list devicetypes | sed -nE '/^iPhone/ s/.*\((com\.apple\.CoreSimulator\.SimDeviceType\.[^)]+)\)$/\1/p' | head -1)"
@@ -74,7 +74,7 @@ if [[ -z "$simulator_id" ]]; then
     echo "No available iOS simulator runtime and iPhone device type were found." >&2
     exit 1
   fi
-  simulator_id="$(xcrun simctl create "FroggyBot Verification $$" "$device_type" "$runtime_id")"
+  simulator_id="$(xcrun simctl create "HeyTim Verification $$" "$device_type" "$runtime_id")"
   temporary_simulator=true
 fi
 if [[ -z "$simulator_id" ]]; then
@@ -85,7 +85,7 @@ xcrun simctl boot "$simulator_id" 2>/dev/null || true
 run_with_timeout 600 'iOS simulator boot' xcrun simctl bootstatus "$simulator_id" -b
 run_with_timeout 1200 'iOS UI tests' xcodebuild test -quiet \
   -project "$project" \
-  -scheme FroggyBotAppleUI \
+  -scheme HeyTimAppleUI \
   -destination "id=$simulator_id" \
   -derivedDataPath "$derived_data" \
   -parallel-testing-enabled NO \

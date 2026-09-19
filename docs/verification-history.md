@@ -1,4 +1,7 @@
-# FroggyBot verification history
+# HeyTim verification history
+
+Names in dated entries are preserved exactly as they existed when the evidence
+was recorded, including legacy repository, cloud-resource, secret, and bundle IDs.
 
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.

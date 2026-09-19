@@ -36,7 +36,7 @@ def _read_url(url: str, maximum_bytes: int) -> bytes:
         raise ValueError("Imgflip returned an unsupported source URL")
     request = urllib.request.Request(
         url,
-        headers={"User-Agent": "FroggyBot meme-template sync/1.0"},
+        headers={"User-Agent": "HeyTim meme-template sync/1.0"},
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         final = urllib.parse.urlparse(response.geturl())

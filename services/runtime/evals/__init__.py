@@ -1,1 +1,1 @@
-"""Behavioral evaluation tools for the FroggyBot runtime."""
+"""Behavioral evaluation tools for the HeyTim runtime."""

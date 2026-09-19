@@ -7,8 +7,8 @@ import io
 import pytest
 from PIL import Image, ImageDraw
 
-from frogbot_runtime import artifacts, image_generation
-from frogbot_runtime.image_generation import image_generation_tools
+from heytim_runtime import artifacts, image_generation
+from heytim_runtime.image_generation import image_generation_tools
 from model.usage import (
     ProviderCallLimitExceeded,
     ProviderCallLimits,

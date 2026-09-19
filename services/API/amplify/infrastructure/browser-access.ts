@@ -19,8 +19,8 @@ export function addBrowserAccess(
       actions: ['s3:GetObject', 's3:GetObjectVersion'],
       resources: [mobileView.bucket.arnForObjects(mobileView.s3ObjectKey)],
     }));
-    fn.addEnvironment('FROGBOT_BROWSER_EXTENSION_BUCKET', mobileView.s3BucketName);
-    fn.addEnvironment('FROGBOT_BROWSER_EXTENSION_KEY', mobileView.s3ObjectKey);
+    fn.addEnvironment('HEYTIM_BROWSER_EXTENSION_BUCKET', mobileView.s3BucketName);
+    fn.addEnvironment('HEYTIM_BROWSER_EXTENSION_KEY', mobileView.s3ObjectKey);
   }
   const browserArn = stack.formatArn({
     service: 'bedrock-agentcore',
@@ -54,17 +54,27 @@ export function addBrowserAccess(
       actions: ['bedrock-agentcore:CreateBrowserProfile'],
       // CreateBrowserProfile has no resource-level authorization in AWS.
       resources: ['*'],
-      conditions: { StringEquals: { 'aws:RequestTag/frogbot:managed-by': 'FrogBot' } },
+      conditions: { StringEquals: { 'aws:RequestTag/heytim:managed-by': 'HeyTim' } },
     }));
     fn.addToRolePolicy(new PolicyStatement({
       actions: ['bedrock-agentcore:TagResource'],
       resources: [profilesArn],
       conditions: {
-        StringEquals: { 'aws:RequestTag/frogbot:managed-by': 'FrogBot' },
-        'ForAllValues:StringEquals': { 'aws:TagKeys': ['frogbot:managed-by'] },
+        StringEquals: { 'aws:RequestTag/heytim:managed-by': 'HeyTim' },
+        'ForAllValues:StringEquals': { 'aws:TagKeys': ['heytim:managed-by'] },
       },
     }));
   }
+  api.addToRolePolicy(new PolicyStatement({
+    actions: [
+      'bedrock-agentcore:GetBrowserProfile',
+      'bedrock-agentcore:DeleteBrowserProfile',
+      'bedrock-agentcore:SaveBrowserSessionProfile',
+      'bedrock-agentcore:StartBrowserSession',
+    ],
+    resources: [profilesArn],
+    conditions: { StringEquals: { 'aws:ResourceTag/heytim:managed-by': 'HeyTim' } },
+  }));
   api.addToRolePolicy(new PolicyStatement({
     actions: [
       'bedrock-agentcore:GetBrowserProfile',
@@ -82,6 +92,14 @@ export function addBrowserAccess(
       'bedrock-agentcore:StopBrowserSession',
     ],
     resources: [browserArn],
+  }));
+  worker.addToRolePolicy(new PolicyStatement({
+    actions: [
+      'bedrock-agentcore:StartBrowserSession',
+      'bedrock-agentcore:DeleteBrowserProfile',
+    ],
+    resources: [profilesArn],
+    conditions: { StringEquals: { 'aws:ResourceTag/heytim:managed-by': 'HeyTim' } },
   }));
   worker.addToRolePolicy(new PolicyStatement({
     actions: [

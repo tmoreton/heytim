@@ -21,34 +21,34 @@ log = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 PRIMARY_MODEL_ID = os.environ.get(
-    "FROGBOT_PRIMARY_MODEL_ID", "deepseek/deepseek-v4.1-flash"
+    "HEYTIM_PRIMARY_MODEL_ID", "deepseek/deepseek-v4.1-flash"
 )
-PRIMARY_REASONING_EFFORT = os.environ.get("FROGBOT_REASONING_EFFORT", "high")
-FALLBACK_MODEL_ID = os.environ.get("FROGBOT_FALLBACK_MODEL_ID", "z-ai/glm-5.3")
+PRIMARY_REASONING_EFFORT = os.environ.get("HEYTIM_REASONING_EFFORT", "high")
+FALLBACK_MODEL_ID = os.environ.get("HEYTIM_FALLBACK_MODEL_ID", "z-ai/glm-5.3")
 FALLBACK_REASONING_EFFORT = os.environ.get(
-    "FROGBOT_FALLBACK_REASONING_EFFORT", "high"
+    "HEYTIM_FALLBACK_REASONING_EFFORT", "high"
 )
 OPENROUTER_BASE_URL = os.environ.get(
-    "FROGBOT_OPENROUTER_BASE_URL",
+    "HEYTIM_OPENROUTER_BASE_URL",
     "https://openrouter.ai/api/v1",
 )
 OPENROUTER_CREDENTIAL_PROVIDER = os.environ.get(
-    "FROGBOT_OPENROUTER_CREDENTIAL_PROVIDER",
+    "HEYTIM_OPENROUTER_CREDENTIAL_PROVIDER",
     "FrogBot_OpenRouter",
 )
 SUPPORTED_REASONING_EFFORTS = {"low", "high", "max"}
 PRIMARY_RESPONSE_TIMEOUT_SECONDS = int(
-    os.environ.get("FROGBOT_PRIMARY_RESPONSE_TIMEOUT_SECONDS", "120")
+    os.environ.get("HEYTIM_PRIMARY_RESPONSE_TIMEOUT_SECONDS", "120")
 )
 if not 15 <= PRIMARY_RESPONSE_TIMEOUT_SECONDS <= 600:
     raise ValueError(
-        "FROGBOT_PRIMARY_RESPONSE_TIMEOUT_SECONDS must be between 15 and 600"
+        "HEYTIM_PRIMARY_RESPONSE_TIMEOUT_SECONDS must be between 15 and 600"
     )
 OPENROUTER_MAX_ATTEMPTS = int(
-    os.environ.get("FROGBOT_OPENROUTER_MAX_ATTEMPTS", "2")
+    os.environ.get("HEYTIM_OPENROUTER_MAX_ATTEMPTS", "2")
 )
 if not 1 <= OPENROUTER_MAX_ATTEMPTS <= 4:
-    raise ValueError("FROGBOT_OPENROUTER_MAX_ATTEMPTS must be between 1 and 4")
+    raise ValueError("HEYTIM_OPENROUTER_MAX_ATTEMPTS must be between 1 and 4")
 MAX_RETRY_AFTER_SECONDS = 150.0
 
 

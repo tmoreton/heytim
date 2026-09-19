@@ -4,45 +4,45 @@ import json
 
 import pytest
 
-from frogbot_runtime import provider_connections
-from frogbot_runtime.mcp_connections import _bounded_tool_name
+from heytim_runtime import provider_connections
+from heytim_runtime.mcp_connections import _bounded_tool_name
 
 USER_SECRET = (
     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-    "frogbot/connections/abcdef1234567890abcdef12/"
+    "heytim/connections/abcdef1234567890abcdef12/"
     "connection_1234567890abcdef1234-abcdef123456-ABC123"
 )
 GOOGLE_SECRET = (
     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-    "frogbot/oauth/google-production-ABC123"
+    "heytim/oauth/google-production-ABC123"
 )
 X_SECRET = (
     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-    "frogbot/oauth/x-production-ABC123"
+    "heytim/oauth/x-production-ABC123"
 )
 SLACK_SECRET = (
     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-    "frogbot/oauth/slack-production-ABC123"
+    "heytim/oauth/slack-production-ABC123"
 )
 MICROSOFT_SECRET = (
     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-    "frogbot/oauth/microsoft-production-ABC123"
+    "heytim/oauth/microsoft-production-ABC123"
 )
 NOTION_SECRET = (
     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-    "frogbot/oauth/notion-production-ABC123"
+    "heytim/oauth/notion-production-ABC123"
 )
 HUBSPOT_SECRET = (
     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-    "frogbot/oauth/hubspot-production-ABC123"
+    "heytim/oauth/hubspot-production-ABC123"
 )
 JIRA_SECRET = (
     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-    "frogbot/oauth/jira-production-ABC123"
+    "heytim/oauth/jira-production-ABC123"
 )
 ZOOM_SECRET = (
     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-    "frogbot/oauth/zoom-production-ABC123"
+    "heytim/oauth/zoom-production-ABC123"
 )
 
 

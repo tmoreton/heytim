@@ -20,17 +20,17 @@ class BrowserSdkTests(unittest.TestCase):
                               aws_access_key_id="TEST", aws_secret_access_key="TEST")
         request = {"browserIdentifier": "aws.browser.v1", "sessionTimeoutSeconds": 3600,
                    "name": managed_session_name("user-1", "bot-1"), "clientToken": "a" * 36,
-                   "profileConfiguration": {"profileIdentifier": "frogbot_test-0123456789"}}
+                   "profileConfiguration": {"profileIdentifier": "heytim_test-0123456789"}}
         validate_parameters(request, client.meta.service_model.operation_model("StartBrowserSession").input_shape)
         validate_parameters({"browserIdentifier": "aws.browser.v1", "sessionId": "session1",
                              "streamUpdate": {"automationStreamUpdate": {"streamStatus": "DISABLED"}}},
                             client.meta.service_model.operation_model("UpdateBrowserStream").input_shape)
         validate_parameters({"browserIdentifier": "aws.browser.v1", "sessionId": "session1",
-                             "profileIdentifier": "frogbot_test-0123456789", "clientToken": "a" * 36},
+                             "profileIdentifier": "heytim_test-0123456789", "clientToken": "a" * 36},
                             client.meta.service_model.operation_model("SaveBrowserSessionProfile").input_shape)
         control = boto3.client("bedrock-agentcore-control", region_name="us-east-1",
                                aws_access_key_id="TEST", aws_secret_access_key="TEST")
-        validate_parameters({"name": "frogbot_test", "tags": {"frogbot:managed-by": "FrogBot"},
+        validate_parameters({"name": "heytim_test", "tags": {"heytim:managed-by": "HeyTim"},
                              "clientToken": "a" * 36},
                             control.meta.service_model.operation_model("CreateBrowserProfile").input_shape)
         with patch.object(boto3, "Session") as session:

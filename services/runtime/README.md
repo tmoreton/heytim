@@ -1,4 +1,4 @@
-# FroggyBot AgentCore runtime
+# HeyTim AgentCore runtime
 
 The runtime uses Strands through the vendored Stan harness declared in `pyproject.toml`. A caller sends validated
 conversation history plus one bot configuration. Each request creates a Strands agent with only that
@@ -12,11 +12,11 @@ Conversation history is persisted by the application backend in DynamoDB. AgentC
 private user-scoped preferences and facts plus per-bot summaries in direct chats. Group invocations instead
 receive an isolated group actor and shared group session, so they recall only group preferences, facts, and summaries.
 The worker supplies stable, non-PII identifiers, and completed turns are written with an idempotency token.
-FrogBot passes a balanced, recall-only AgentCore store to Stan. Stan owns the Strands `MemoryManager`, injects
+HeyTim passes a balanced, recall-only AgentCore store to Stan. Stan owns the Strands `MemoryManager`, injects
 the store on each model turn, exposes semantic search, and gives delegated agents a read-only view of the same
 scope. Durable writes remain explicit AgentCore events after completed top-level turns.
 
-The latest user turn may contain reviewed image or document blocks stored in FroggyBot's private S3
+The latest user turn may contain reviewed image or document blocks stored in HeyTim's private S3
 bucket. Image tools also receive a bounded list of the five most recent images from that same private bot
 conversation, without adding old binary attachments to the model's message history. Both uploads and generated artifacts are bound to the invoking user's hashed identity. When
 requested, the runtime can save downloadable text, Markdown, CSV, JSON, HTML, PDF, Word, Excel, and
@@ -60,22 +60,22 @@ are summarized once they reach 20% of the model context window. The API key is s
 AgentCore Identity as `FrogBot_OpenRouter`; it is never placed in runtime environment variables. Model selection stays
 deploy-time configurable through these non-secret values in `agentcore/agentcore.json`:
 
-- `FROGBOT_PRIMARY_MODEL_ID` — default for every task; defaults to `deepseek/deepseek-v4.1-flash`
-- `FROGBOT_REASONING_EFFORT` — default-model reasoning; defaults to `high`
-- `FROGBOT_FALLBACK_MODEL_ID` — used only after a pre-response primary failure; defaults to `z-ai/glm-5.3`
-- `FROGBOT_FALLBACK_REASONING_EFFORT` — fallback reasoning; defaults to `high`
-- `FROGBOT_OPENROUTER_BASE_URL` — the OpenRouter OpenAI-compatible endpoint
-- `FROGBOT_OPENROUTER_CREDENTIAL_PROVIDER` — the AgentCore Identity credential name
-- `FROGBOT_OPENROUTER_MAX_ATTEMPTS` — total attempts before a pre-response OpenRouter failure is returned
-- `FROGBOT_MAX_MODEL_CALLS_PER_RUNTIME_RUN` — hard pre-dispatch model-attempt cap; defaults to `24`
-- `FROGBOT_MAX_PROVIDER_TOOL_CALLS_PER_RUNTIME_RUN` — combined gateway/image dispatch cap; defaults to `24`
-- `FROGBOT_MAX_IMAGE_CALLS_PER_RUNTIME_RUN` — image-generation sub-cap; defaults to `2`
-- `FROGBOT_CONTEXT_COMPRESSION_THRESHOLD` — ratio that triggers tool-pair-safe history summarization
-- `FROGBOT_MEME_TEMPLATE_PREFIX` — private S3 prefix containing `catalog.json` and normalized template PNGs
-- `FROGBOT_IMAGE_MODEL_ID` — OpenRouter image model; defaults to `openai/gpt-image-2.5-sunburst`
-- `FROGBOT_IMAGE_QUALITY` — requested image quality; defaults to `high`
-- `FROGBOT_IMAGE_REQUEST_TIMEOUT_SECONDS` — maximum duration of one OpenRouter image request
-- `FROGBOT_IMAGE_MAX_ATTEMPTS` — total attempts for retryable OpenRouter image failures
+- `HEYTIM_PRIMARY_MODEL_ID` — default for every task; defaults to `deepseek/deepseek-v4.1-flash`
+- `HEYTIM_REASONING_EFFORT` — default-model reasoning; defaults to `high`
+- `HEYTIM_FALLBACK_MODEL_ID` — used only after a pre-response primary failure; defaults to `z-ai/glm-5.3`
+- `HEYTIM_FALLBACK_REASONING_EFFORT` — fallback reasoning; defaults to `high`
+- `HEYTIM_OPENROUTER_BASE_URL` — the OpenRouter OpenAI-compatible endpoint
+- `HEYTIM_OPENROUTER_CREDENTIAL_PROVIDER` — the AgentCore Identity credential name
+- `HEYTIM_OPENROUTER_MAX_ATTEMPTS` — total attempts before a pre-response OpenRouter failure is returned
+- `HEYTIM_MAX_MODEL_CALLS_PER_RUNTIME_RUN` — hard pre-dispatch model-attempt cap; defaults to `24`
+- `HEYTIM_MAX_PROVIDER_TOOL_CALLS_PER_RUNTIME_RUN` — combined gateway/image dispatch cap; defaults to `24`
+- `HEYTIM_MAX_IMAGE_CALLS_PER_RUNTIME_RUN` — image-generation sub-cap; defaults to `2`
+- `HEYTIM_CONTEXT_COMPRESSION_THRESHOLD` — ratio that triggers tool-pair-safe history summarization
+- `HEYTIM_MEME_TEMPLATE_PREFIX` — private S3 prefix containing `catalog.json` and normalized template PNGs
+- `HEYTIM_IMAGE_MODEL_ID` — OpenRouter image model; defaults to `openai/gpt-image-2.5-sunburst`
+- `HEYTIM_IMAGE_QUALITY` — requested image quality; defaults to `high`
+- `HEYTIM_IMAGE_REQUEST_TIMEOUT_SECONDS` — maximum duration of one OpenRouter image request
+- `HEYTIM_IMAGE_MAX_ATTEMPTS` — total attempts for retryable OpenRouter image failures
 
 The three per-runtime-run caps are enforced before network dispatch. Reaching one returns a terminal result instead
 of retrying the over-limit call. They bound one AgentCore invocation; a durable cross-invocation dollar ledger is a
@@ -101,7 +101,7 @@ missing, then verifies the catalog and every referenced template image before a
 release can pass.
 
 The full Imgflip database is user-generated, changes continuously, and is not mirrored by this project. Add any
-other template only after confirming that FroggyBot has the right to store and use it.
+other template only after confirming that HeyTim has the right to store and use it.
 
 ## Develop
 
@@ -141,14 +141,14 @@ Run from `services/runtime`:
 uv lock --check
 uv run --frozen python scripts/codezip.py source
 cd ../..
-agentcore package --runtime FrogBot
+agentcore package --runtime HeyTim
 ```
 
 Then verify the produced archive:
 
 ```bash
 cd services/runtime
-uv run --frozen python scripts/codezip.py archive ../../agentcore/FrogBot.zip
+uv run --frozen python scripts/codezip.py archive ../../agentcore/HeyTim.zip
 ```
 
 The archive check fails if required runtime packages are absent, development content is present, or
@@ -172,5 +172,5 @@ comparison are written under `evals/results/`, which is intentionally ignored by
 Before a catalog release is published, evaluate its proposed bot and skill definitions directly:
 
 ```bash
-uv run --frozen python -m evals.run_matrix --catalog /path/to/frogbot-skills/catalog.json
+uv run --frozen python -m evals.run_matrix --catalog /path/to/heytim-skills/catalog.json
 ```

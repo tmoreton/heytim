@@ -14,7 +14,7 @@ from bedrock_agentcore.runtime.app import SESSION_HEADER
 from botocore.exceptions import ClientError
 from starlette.testclient import TestClient
 
-from frogbot_runtime import runtime_jobs as jobs
+from heytim_runtime import runtime_jobs as jobs
 
 
 class Store:
@@ -67,7 +67,7 @@ def test_duplicate_dispatch_claims_once_and_preserves_cancellation(monkeypatch):
     monkeypatch.setattr(jobs, "Thread", thread)
     for _ in range(2):
         result = asyncio.run(jobs.start_runtime_job(app, payload, context, MagicMock()))
-        assert result["frogbotControl"]["runtimeJobAccepted"]
+        assert result["heytimControl"]["runtimeJobAccepted"]
     assert app.add_async_task.call_count == 1
     assert thread.return_value.start.call_count == 1
     assert json.loads(store.objects[f"{key}.cancel"])["cancelled"]
@@ -89,7 +89,7 @@ def test_background_execution_saves_progress_and_terminal_output(monkeypatch):
         yield {"event": {"messageStart": {}}}
         yield {"event": {"contentBlockDelta": {"delta": {"text": "Verified PR #12."}}}}
         yield {"event": {"messageStop": {"stopReason": "end_turn"}}}
-        yield {"frogbotControl": {"usage": {"models": [{"modelId": "test"}]}}}
+        yield {"heytimControl": {"usage": {"models": [{"modelId": "test"}]}}}
 
     asyncio.run(jobs._execute(store, "run", state, runner, {}, None))
     saved = json.loads(store.objects["run"])
@@ -110,7 +110,7 @@ def test_background_failures_never_become_false_completion(failure):
             raise RuntimeError("tool failed")
         if failure == "terminal":
             yield {
-                "frogbotControl": {
+                "heytimControl": {
                     "terminalError": {"code": "TURN_TIMEOUT", "message": "limit"}
                 }
             }

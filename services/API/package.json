@@ -1,5 +1,5 @@
 {
-  "name": "@froggybot/api",
+  "name": "@heytim/api",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "outputs:apple:production:check": "node scripts/sync-apple-outputs.mjs --check --require-production",
     "typecheck": "tsc --noEmit",
     "test": "PYTHONPATH=amplify/functions uv run --project ../runtime --frozen python -m unittest discover -s amplify/functions/tests -p 'test_*.py'",
-    "verify": "npm run contract:check && npm run outputs:apple:check && npm --prefix ../../packages/froggybot-contract test && npm run typecheck && npm test",
+    "verify": "npm run contract:check && npm run outputs:apple:check && npm --prefix ../../packages/heytim-contract test && npm run typecheck && npm test",
     "load:test": "node scripts/authenticated-load-test.mjs",
     "workflow:test": "node scripts/authenticated-workflow-test.mjs",
     "sandbox": "ampx sandbox --outputs-out-dir ."

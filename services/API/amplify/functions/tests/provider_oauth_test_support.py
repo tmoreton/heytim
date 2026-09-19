@@ -8,12 +8,12 @@ class ExternalProviderOAuthCases:
         state = "zoom-callback-state-with-enough-entropy"
         secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/zoom-production-ABC123"
+            "heytim/oauth/zoom-production-ABC123"
         )
         self.data_table.put_item(Item={
             **self.external._state_key(state),
             "userId": "user-1", "provider": "zoom", "verifier": "verifier-token",
-            "returnUrl": "froggybot://app?connection=zoom",
+            "returnUrl": "heytim://app?connection=zoom",
             "clientSecretArn": secret_arn, "expiresAt": 2_000,
         })
         with (
@@ -39,12 +39,12 @@ class ExternalProviderOAuthCases:
         state = "teams-callback-state-with-enough-entropy"
         secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/microsoft-production-ABC123"
+            "heytim/oauth/microsoft-production-ABC123"
         )
         self.data_table.put_item(Item={
             **self.external._state_key(state),
             "userId": "user-1", "provider": "microsoft_teams", "verifier": "verifier-token",
-            "returnUrl": "froggybot://app?connection=microsoft_teams",
+            "returnUrl": "heytim://app?connection=microsoft_teams",
             "clientSecretArn": secret_arn, "expiresAt": 2_000,
         })
         with (
@@ -72,7 +72,7 @@ class ExternalProviderOAuthCases:
         site_id = "11223344-a1b2-3b33-c444-def123456789"
         secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/jira-production-ABC123"
+            "heytim/oauth/jira-production-ABC123"
         )
         self.data_table.put_item(
             Item={
@@ -80,7 +80,7 @@ class ExternalProviderOAuthCases:
                 "userId": "user-1",
                 "provider": "jira",
                 "verifier": "verifier-token",
-                "returnUrl": "froggybot://app?connection=jira",
+                "returnUrl": "heytim://app?connection=jira",
                 "clientSecretArn": secret_arn,
                 "expiresAt": 2_000,
             }
@@ -115,7 +115,7 @@ class ExternalProviderOAuthCases:
         state = "hubspot-callback-state-with-enough-entropy"
         secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/hubspot-production-ABC123"
+            "heytim/oauth/hubspot-production-ABC123"
         )
         self.data_table.put_item(
             Item={
@@ -123,7 +123,7 @@ class ExternalProviderOAuthCases:
                 "userId": "user-1",
                 "provider": "hubspot",
                 "verifier": "verifier-token",
-                "returnUrl": "froggybot://app?connection=hubspot",
+                "returnUrl": "heytim://app?connection=hubspot",
                 "clientSecretArn": secret_arn,
                 "expiresAt": 2_000,
             }
@@ -167,7 +167,7 @@ class ExternalProviderOAuthCases:
         state = "microsoft-callback-state-with-enough-entropy"
         secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/microsoft-production-ABC123"
+            "heytim/oauth/microsoft-production-ABC123"
         )
         self.data_table.put_item(
             Item={
@@ -175,7 +175,7 @@ class ExternalProviderOAuthCases:
                 "userId": "user-1",
                 "provider": "microsoft",
                 "verifier": "verifier-token",
-                "returnUrl": "froggybot://app?connection=microsoft",
+                "returnUrl": "heytim://app?connection=microsoft",
                 "clientSecretArn": secret_arn,
                 "expiresAt": 2_000,
             }
@@ -241,7 +241,7 @@ class ExternalProviderOAuthCases:
                 ],
             ),
         ):
-            value = {"returnUrl": "froggybot://app?oauth=connection"}
+            value = {"returnUrl": "heytim://app?oauth=connection"}
             slack = self.external._begin_slack_authorization("user-1", value)
             microsoft = self.external._begin_microsoft_authorization("user-1", value)
             notion = self.external._begin_notion_authorization("user-1", value)
@@ -279,7 +279,7 @@ class ExternalProviderOAuthCases:
         state = "slack-callback-state-with-enough-entropy"
         secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/slack-production-ABC123"
+            "heytim/oauth/slack-production-ABC123"
         )
         self.data_table.put_item(
             Item={
@@ -287,7 +287,7 @@ class ExternalProviderOAuthCases:
                 "userId": "user-1",
                 "provider": "slack",
                 "verifier": "verifier-token",
-                "returnUrl": "froggybot://app?connection=slack",
+                "returnUrl": "heytim://app?connection=slack",
                 "clientSecretArn": secret_arn,
                 "expiresAt": 2_000,
             }
@@ -335,7 +335,7 @@ class ExternalProviderOAuthCases:
         state = "notion-callback-state-with-enough-entropy"
         secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-            "frogbot/oauth/notion-production-ABC123"
+            "heytim/oauth/notion-production-ABC123"
         )
         self.data_table.put_item(
             Item={
@@ -343,7 +343,7 @@ class ExternalProviderOAuthCases:
                 "userId": "user-1",
                 "provider": "notion",
                 "verifier": "verifier-token",
-                "returnUrl": "froggybot://app?connection=notion",
+                "returnUrl": "heytim://app?connection=notion",
                 "clientSecretArn": secret_arn,
                 "expiresAt": 2_000,
             }

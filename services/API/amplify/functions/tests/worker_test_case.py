@@ -234,7 +234,7 @@ class WorkerTestCase(unittest.TestCase):
             "FILES_BUCKET_NAME": "frogbot-user-files-123-us-east-1",
             "SCHEDULE_GROUP_NAME": "schedules",
             "USER_POOL_ID": "us-east-1_pool",
-            "FROGBOT_MEMORY_ID": "memory-1",
+            "HEYTIM_MEMORY_ID": "memory-1",
         }
         boto3 = ModuleType("boto3")
         boto3.resource = resource

@@ -6,8 +6,8 @@ import json
 import pytest
 from PIL import Image
 
-from frogbot_runtime import artifacts, meme_templates
-from frogbot_runtime.memes import image_attachments_from_messages, meme_tools
+from heytim_runtime import artifacts, meme_templates
+from heytim_runtime.memes import image_attachments_from_messages, meme_tools
 
 
 class FakeNoSuchKey(Exception):
