@@ -130,6 +130,14 @@ normalize_macos_onnxruntime() {
   local current="$framework/Versions/Current"
   local component root_component version_component
 
+  remove_redundant_link() {
+    local path="$1" expected_target="$2"
+    [[ -e "$path" || -L "$path" ]] || return 0
+    [[ -L "$path" && "$(readlink "$path")" == "$expected_target" ]] \
+      || fail "ONNX Runtime macOS framework has an unexpected redundant link at $path"
+    find "$path" -maxdepth 0 -delete
+  }
+
   [[ -f "$version/onnxruntime" ]] \
     || fail "ONNX Runtime macOS framework is missing its versioned binary"
   if [[ -d "$current" && ! -L "$current" ]]; then
@@ -139,10 +147,25 @@ normalize_macos_onnxruntime() {
   [[ -L "$current" && "$(readlink "$current")" == "A" ]] \
     || fail "ONNX Runtime macOS framework has an invalid Current link"
 
+  # Some reviewed upstream archives already contain the canonical framework
+  # links plus harmless duplicated links inside Versions/A. Remove only those
+  # exact duplicates before validating the normalized layout.
+  remove_redundant_link "$version/A" A
+  remove_redundant_link "$version/Headers/Headers" Versions/Current/Headers
+  remove_redundant_link "$version/Resources/Resources" Versions/Current/Resources
+
   for component in onnxruntime Headers Resources; do
     root_component="$framework/$component"
     version_component="$version/$component"
-    [[ -e "$root_component" && -e "$version_component" ]] \
+    [[ -e "$version_component" ]] \
+      || fail "ONNX Runtime macOS framework is missing $component"
+    if [[ -L "$root_component" ]]; then
+      [[ "$(readlink "$root_component")" == "Versions/Current/$component" \
+        && -e "$root_component" ]] \
+        || fail "ONNX Runtime macOS framework has an invalid $component link"
+      continue
+    fi
+    [[ -e "$root_component" ]] \
       || fail "ONNX Runtime macOS framework is missing $component"
     if [[ -d "$root_component" ]]; then
       diff -qr "$root_component" "$version_component" >/dev/null \
@@ -155,10 +178,24 @@ normalize_macos_onnxruntime() {
     ln -s "Versions/Current/$component" "$root_component"
   done
 
-  [[ -d "$framework/Modules" && ! -e "$version/Modules" ]] \
-    || fail "ONNX Runtime macOS framework has an unexpected Modules layout"
-  mv "$framework/Modules" "$version/Modules"
-  ln -s Versions/Current/Modules "$framework/Modules"
+  root_component="$framework/Modules"
+  version_component="$version/Modules"
+  if [[ -L "$root_component" ]]; then
+    [[ "$(readlink "$root_component")" == "Versions/Current/Modules" \
+      && -d "$root_component" ]] \
+      || fail "ONNX Runtime macOS framework has an invalid Modules link"
+  else
+    [[ -d "$root_component" ]] \
+      || fail "ONNX Runtime macOS framework is missing Modules"
+    if [[ -d "$version_component" ]]; then
+      diff -qr "$root_component" "$version_component" >/dev/null \
+        || fail "duplicate ONNX Runtime Modules directories differ"
+      find "$root_component" -depth -delete
+    else
+      mv "$root_component" "$version_component"
+    fi
+    ln -s Versions/Current/Modules "$root_component"
+  fi
 
   for component in onnxruntime Headers Modules Resources; do
     [[ -L "$framework/$component" && -e "$framework/$component" ]] \
