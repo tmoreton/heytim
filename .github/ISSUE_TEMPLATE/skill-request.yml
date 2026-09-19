@@ -1,0 +1,22 @@
+name: Request a skill
+description: Suggest a reusable playbook for the public HeyTim library.
+title: "Skill: "
+labels: [skill-request]
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What should this skill help someone accomplish?
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example request
+      description: Show how a person would naturally ask for this help.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Important limits or safety boundaries

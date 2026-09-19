@@ -13,17 +13,17 @@ export function Contribute() {
 
     <h2>Submit a bot</h2>
     <ol>
-      <li><a href="https://github.com/tmoreton/heytim-bots/issues/new">Open a public contribution request</a> with the bot’s name, purpose, and proposed instructions.</li>
+      <li><a href="https://github.com/tmoreton/heytim/issues/new">Open a public contribution request</a> with the bot’s name, purpose, and proposed instructions.</li>
       <li>Write a focused prompt, reference existing skill IDs, and list only tools the bot directly requires. The app decides model and speed settings.</li>
       <li>Include realistic scenarios and expected behavior so reviewers can test the result.</li>
       <li>Maintainers review usefulness, clarity, safety, and least privilege, then integrate accepted contributions into the central HeyTim catalog.</li>
     </ol>
-    <p>The public repository is a publishing mirror and contribution inbox. The website and catalog are maintained together with the app, so edits to the old public source do not publish automatically.</p>
-    <p><a className="button" href="https://github.com/tmoreton/heytim-bots/issues">View contribution requests</a></p>
+    <p>The public monorepo is the source of truth for the website, catalog, app, and services. Maintainers implement accepted proposals there; outside pull requests remain closed until a contributor agreement process is published.</p>
+    <p><a className="button" href="https://github.com/tmoreton/heytim/issues">View contribution requests</a></p>
 
     <h2>Contribute a supporting skill</h2>
     <p>Skills stay in the codebase as reusable, readable instructions that multiple bots can share. If a bot needs a new way of working, add a focused <code>SKILL.md</code>, register it in <code>catalog.json</code>, and reference it from the bot.</p>
-    <p><a className="button-secondary" href="https://github.com/tmoreton/heytim-bots/issues/new?template=skill-request.yml">Request a skill</a></p>
+    <p><a className="button-secondary" href="https://github.com/tmoreton/heytim/issues/new?template=skill-request.yml">Request a skill</a></p>
 
     <h2>Propose a tool</h2>
     <p>Tools can access services or take actions, so they require server-side implementation and a stricter review. Start with a tool request that states:</p>
@@ -34,7 +34,7 @@ export function Contribute() {
       <li>whether each action is read-only, sandboxed, or interactive; and</li>
       <li>the smallest permissions that can support the use case.</li>
     </ul>
-    <p><a className="button-secondary" href="https://github.com/tmoreton/heytim-bots/issues/new?template=tool-request.yml">Propose a tool</a></p>
+    <p><a className="button-secondary" href="https://github.com/tmoreton/heytim/issues/new?template=tool-request.yml">Propose a tool</a></p>
 
     <h2>What happens after review</h2>
     <p>Accepted bots appear in the directory without an app release. Installing one creates a private, editable copy; future catalog changes do not rewrite it. Supporting skills remain versioned so existing bots stay predictable.</p>

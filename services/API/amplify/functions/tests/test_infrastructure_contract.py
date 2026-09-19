@@ -164,6 +164,10 @@ class InfrastructureContractTests(unittest.TestCase):
             "repo:tmoreton@5090418/heytim-platform@1356546597:environment:production",
             self.deployment_role,
         )
+        self.assertIn(
+            "repo:tmoreton@5090418/heytim@1356546597:environment:production",
+            self.deployment_role,
+        )
         self.assertNotIn(
             "repo:tmoreton/heytim:environment:production", self.deployment_role
         )

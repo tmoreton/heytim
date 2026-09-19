@@ -1,0 +1,3 @@
+# Chromium extension manifest signing keys are public identifiers, not credentials.
+4500ec3959d2ab52a1530cfa090fab8c32c46632:services/froggybot-api/amplify/browser-extension/manifest.json:generic-api-key:6
+39dcbc49f38f76d4a9c16fb39a0cc9d1fbc33ab9:apps/froggybot/amplify/browser-extension/manifest.json:generic-api-key:6

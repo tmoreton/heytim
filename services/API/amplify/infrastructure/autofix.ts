@@ -72,7 +72,7 @@ export function addProductionAutofix({
       TABLE_NAME: table.tableName,
       AUTOFIX_ALLOWED_LOG_GROUPS: [workerLogGroup.logGroupName, runtimeLogGroupName].join(','),
       AUTOFIX_GITHUB_APP_SECRET_ARN: githubAppSecretArn,
-      AUTOFIX_REPOSITORY: 'tmoreton/heytim-platform',
+      AUTOFIX_REPOSITORY: 'tmoreton/heytim',
       AUTOFIX_EVENT_TYPE: 'heytim-production-error',
       AUTOFIX_COOLDOWN_HOURS: '6',
       AUTOFIX_DAILY_LIMIT: '3',

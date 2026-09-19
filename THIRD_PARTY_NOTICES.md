@@ -1,0 +1,41 @@
+# Third-party notices
+
+HeyTim's PolyForm license applies only to first-party work. Third-party software,
+models, and generated artifacts retain their original licenses.
+
+## Vendored source distributions
+
+The repository includes these Python wheels so deployment can reproduce the
+reviewed runtime without substituting an unverified package:
+
+- `services/runtime/vendor/strands_agents_stan-0.0.1.dev53+g325058d51-py3-none-any.whl`
+  — Strands Agents Stan, Apache License 2.0. Copyright Amazon.com, Inc. or
+  its affiliates. The wheel contains its complete `LICENSE` and `NOTICE` files.
+- `services/API/amplify/functions/vendor/websocket_client-1.9.0-py3-none-any.whl`
+  — websocket-client 1.9.0, Apache License 2.0. The wheel contains its complete
+  `LICENSE` file.
+
+The vendored wheels are unmodified package archives. Their SHA-256 checksums are
+validated by the repository's dependency and packaging checks.
+
+## Native transcription distribution
+
+The native transcription build prepares the following components without
+committing the generated model and frameworks:
+
+- NVIDIA Nemotron 3.5 ASR Streaming 0.6B under OpenMDW 1.1;
+- sherpa-onnx 1.13.8 under Apache License 2.0; and
+- ONNX Runtime 1.28.2 under the MIT License.
+
+Pinned revisions, source links, and distribution details are recorded in
+[`packages/heytim-transcription/ios/Notices/THIRD_PARTY_NOTICES.md`](packages/heytim-transcription/ios/Notices/THIRD_PARTY_NOTICES.md).
+The preparation script bundles the complete applicable license texts with the
+generated application resources.
+
+## Package-manager dependencies
+
+JavaScript and Python dependencies are identified in their lockfiles and are not
+relicensed by HeyTim. A distributed binary or hosted build must continue to
+include every notice required by those dependencies. Run
+`scripts/audit-dependencies.sh` and the native transcription preparation checks
+before a release that changes dependency versions.

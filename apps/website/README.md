@@ -24,8 +24,8 @@ The build copies only the public allowlist from `../../catalog`: `catalog.json`,
 catalog data.
 Never copy `services/API/amplify_outputs.json` or secrets into this site.
 
-`../../scripts/deploy-website.sh` publishes the same built site to `heytim.ai`
-and the `app.heytim.ai` alias, each with its own Pages domain file. Website
-publishing and Apple TestFlight releases are independent; a website-only change
-need not rebuild an app. See `../../docs/monorepo-migration.md` for hosting
-history.
+The monorepo's Pages workflow builds and publishes `heytim.ai`. The separate
+`../../scripts/deploy-website.sh` command refreshes only the temporary
+`app.heytim.ai` compatibility mirror. Website publishing and Apple TestFlight
+releases are independent; a website-only change need not rebuild an app. See
+`../../docs/monorepo-migration.md` for hosting history.

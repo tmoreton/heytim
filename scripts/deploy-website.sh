@@ -12,12 +12,13 @@ fi
 "$repository_root/scripts/verify.sh" application
 source_revision="$(git -C "$repository_root" rev-parse HEAD)"
 if [[ "$mode" == --dry-run ]]; then
-  echo "Verified website $source_revision. Would publish apps/website/dist to tmoreton/heytim-web:main and tmoreton/heytim-bots:gh-pages."
+  echo "Verified website $source_revision. GitHub Actions publishes heytim.ai from this repository; this script would refresh the app.heytim.ai compatibility mirror."
   exit 0
 fi
 
-# Both public repositories are artifact mirrors, not separate maintained sources.
-# The bot repository's main branch and historical catalog tags are untouched.
+# The canonical heytim.ai site deploys from this monorepo's Pages workflow.
+# This compatibility mirror remains until app.heytim.ai is moved to a DNS-level
+# redirect. Its main branch and historical catalog tags are always untouched.
 gh auth status >/dev/null
 staging="$(mktemp -d /tmp/heytim-website-publish.XXXXXX)"
 
@@ -40,6 +41,5 @@ publish_mirror() {
   echo "Published $domain from HeyTim $source_revision. Recoverable checkout: $checkout"
 }
 
-publish_mirror tmoreton/heytim-web main heytim.ai
 publish_mirror tmoreton/heytim-bots gh-pages app.heytim.ai
-echo "Check both Pages builds before announcing the website live."
+echo "Check the app.heytim.ai Pages build before announcing the website live."

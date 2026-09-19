@@ -1,0 +1,32 @@
+name: Request a tool
+description: Propose a reviewed action or service connection.
+title: "Tool: "
+labels: [tool-request]
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What should people be able to do?
+    validations:
+      required: true
+  - type: textarea
+    id: actions
+    attributes:
+      label: Exact actions the tool needs
+    validations:
+      required: true
+  - type: dropdown
+    id: access
+    attributes:
+      label: Does it change anything outside HeyTim?
+      options:
+        - No, it only reads data
+        - Yes, it creates or changes data
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Data and authentication involved
+      description: Describe what the tool reads or writes and how users authorize it.

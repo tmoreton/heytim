@@ -58,10 +58,10 @@ are performed by the release command above and reported separately.
 
 ## Public hosting
 
-`apps/website` is the maintained source for the HeyTim website. The deployment
-script publishes its checked Vite output to `tmoreton/heytim-web:main` for
-`heytim.ai` and `tmoreton/heytim-bots:gh-pages` for the `app.heytim.ai` alias.
-Both repositories are artifact mirrors; no backend, Apple source, private
-configuration, or credentials are copied there. Historic catalog source and
-tagged skill releases remain on the bot repository's main branch. A separate
-legacy Pages mirror keeps `froggybot.com` links working for older clients.
+`apps/website` is the maintained source for the HeyTim website. The monorepo's
+Pages workflow publishes its checked Vite output directly to `heytim.ai`.
+`tmoreton/heytim-bots:gh-pages` temporarily serves the `app.heytim.ai` alias;
+its main branch and tagged skill releases remain available for compatibility
+with installed catalog versions. `tmoreton/heytim-web` can be retired after the
+new Pages site is live. A separate legacy Pages mirror keeps `froggybot.com`
+links working for older clients.

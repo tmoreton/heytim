@@ -17,8 +17,8 @@ the platform API-key credential providers remain account-scoped.
    rotating customer-managed KMS key for AgentCore memory and retain its ARN.
 3. Perform the first AgentCore and Amplify bootstrap with that reviewed principal. The Amplify stack creates the
    recurring least-privilege GitHub OIDC deployment role; its trust subject is
-   `repo:tmoreton@5090418/heytim-platform@1356546597:environment:production`, using GitHub's immutable owner and repository
-   IDs. The previous repository name remains trusted only during the transition. Save the `githubDeployRoleArn` output as
+   `repo:tmoreton@5090418/heytim@1356546597:environment:production`, using GitHub's immutable owner and repository
+   IDs. The `heytim-platform` and `frogbot` names remain trusted only during the transition. Save the `githubDeployRoleArn` output as
    `AWS_DEPLOY_ROLE_ARN`, then use the workflow for every later release. Never use account-root access.
 4. Create a production Amplify app and production/sandbox SNS APNs platform applications. Subscribe an accountable
    team or incident system to the generated service-alarm topic and confirm the subscription.

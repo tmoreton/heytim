@@ -34,7 +34,7 @@ docs/                        Catalog decisions and maintainer notes
 4. Write a concise `SKILL.md` with only `name` and `description` in its frontmatter.
 5. Add an `evals.json` file with realistic matches, near-misses, and outcome expectations.
 6. Add the public metadata and reviewed `requiredToolIds` to `catalog.json`.
-7. Run the checks below and open a pull request.
+7. Run the checks below and open a maintainer change after the proposal is approved.
 
 ```bash
 python3 scripts/validate_catalog.py
@@ -42,7 +42,7 @@ npm --prefix ../apps/website run build
 python3 -m unittest discover -s tests
 ```
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for the complete review rules and a copyable catalog example. If you only have an idea, use the [skill request form](https://github.com/tmoreton/heytim-bots/issues/new?template=skill-request.yml).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for the complete review rules and a copyable catalog example. If you only have an idea, use the [skill request form](https://github.com/tmoreton/heytim/issues/new?template=skill-request.yml).
 
 You do not need a pull request to make a private instruction-only skill. Add it directly in the HeyTim app. Repository review is required to make a bot, skill, or tool publicly discoverable.
 
@@ -65,7 +65,7 @@ Installing a public bot never asks the user for a developer API key. HeyTim supp
 
 ## Propose a tool
 
-Tools can access services or take actions. A public proposal must describe the exact actions, data involved, authentication, external side effects, and least permissions needed. Contributors may open a focused pull request directly or start with a [tool request](https://github.com/tmoreton/heytim-bots/issues/new?template=tool-request.yml) when the shape is still uncertain.
+Tools can access services or take actions. A public proposal must describe the exact actions, data involved, authentication, external side effects, and least permissions needed. Contributors should start with a [tool request](https://github.com/tmoreton/heytim/issues/new?template=tool-request.yml); outside pull requests are not accepted until the monorepo publishes a contributor agreement process.
 
 A remote integration stays hosted by its provider or contributor. Shared public services use HeyTim-owned credentials; private account data requires a reviewed OAuth connection with the least permissions needed. Public built-ins maintained by HeyTim are enabled only after their server-side binding is deployed and tested. Secrets and executable integration code never live in this repository or the app bundle.
 

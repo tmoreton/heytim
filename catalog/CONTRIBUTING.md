@@ -1,11 +1,17 @@
 # Contributing
 
-HeyTim Bots accepts small, reviewable additions that help a person or group reach a concrete outcome.
+HeyTim welcomes catalog ideas and issue reports. Because the project uses a
+dual-licensing model, it is not currently accepting outside pull requests until
+a contributor agreement process is published. See the monorepo's
+[`CONTRIBUTING.md`](../CONTRIBUTING.md).
+
+The implementation guidance below is for maintainers. It also shows the expected
+shape of a proposal so ideas can be reviewed before implementation.
 
 These instructions are relative to `catalog/` in the HeyTim monorepo.
 Maintainers make changes here; public contributors can submit proposals through
-the [public issue tracker](https://github.com/tmoreton/heytim-bots/issues). That
-repository is a publishing mirror and contribution inbox, not a second source.
+the [public issue tracker](https://github.com/tmoreton/heytim/issues). This
+monorepo is the only maintained source.
 
 ## Choose the right contribution
 
@@ -50,7 +56,7 @@ When a required integration needs authentication, the tool proposal must explain
 
 ## Add a skill
 
-1. Search `catalog.json` and open pull requests for overlap.
+1. Search `catalog.json` and existing proposals for overlap.
 2. Copy the closest existing skill folder and rename it with a lowercase, hyphenated ID.
 3. Keep the package instruction-only: one `SKILL.md`, one `evals.json`, and optional `.md`, `.txt`, or `.json` references.
 4. Write a description that states the outcome and when the skill applies.
@@ -112,7 +118,8 @@ Preserve its ID. If instructions change behavior, increment its integer `version
 
 ## Propose a tool
 
-Open a focused pull request, or use the tool request first when you want design feedback. Include:
+Open a focused internal change after the proposal is approved. Public contributors
+should use the tool request form. Include:
 
 - the user outcome and exact actions;
 - what information is read, stored, created, or changed;
@@ -121,7 +128,7 @@ Open a focused pull request, or use the tool request first when you want design 
 - rate limits, cost, and failure behavior; and
 - the smallest permissions that support the outcome.
 
-Community pull requests never add secrets or hosted executable code. Public built-ins maintained by HeyTim use reviewed OpenAPI schemas under `tools/<provider>/openapi.yaml`. A remote integration needs a reviewed runtime binding; when it requires authentication, it uses either a HeyTim-owned service credential or provider OAuth for private account access.
+Catalog changes never add secrets or hosted executable code. Public built-ins maintained by HeyTim use reviewed OpenAPI schemas under `tools/<provider>/openapi.yaml`. A remote integration needs a reviewed runtime binding; when it requires authentication, it uses either a HeyTim-owned service credential or provider OAuth for private account access.
 
 ## Run the checks
 
