@@ -73,7 +73,7 @@ public struct BotInboxPage: Codable, Sendable {
 public struct BotDraft: Codable, Equatable, Sendable {
   public var name = ""
   public var tagline = ""
-  // Chief owns Tim amber. New custom bots start with the service's supported teal.
+  // Chief owns Tim yellow. New custom bots start with the service's supported teal.
   public var color = "#58BEAA"
   public var prompt = ""
   public var toolIds: [String] = []

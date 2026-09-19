@@ -490,7 +490,7 @@ private struct BotEditor: View {
 
   private var colorOptions: [BotColorOption] {
     if editingBot?.systemRole == "chief" {
-      return [BotColorOption(value: "#FFBC3B", name: "Tim amber")]
+      return [BotColorOption(value: "#FFBC3B", name: "Tim yellow")]
     }
     return customBotColors
   }
