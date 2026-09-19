@@ -1230,7 +1230,7 @@ public enum DemoData {
       createdAt: "2026-09-13T11:00:01.000Z", status: "running"),
     ChatMessage(
       id: "group-pending", role: "assistant", authorType: "bot", authorId: "chief",
-      authorName: "Chief", authorColor: "#F47721", text: "", roundId: "round-1",
+      authorName: "Chief", authorColor: "#FFBC3B", text: "", roundId: "round-1",
       roundPosition: 2, roundSize: 3, roundRole: "synthesizer",
       createdAt: "2026-09-13T11:00:02.000Z", status: "pending"),
     ChatMessage(

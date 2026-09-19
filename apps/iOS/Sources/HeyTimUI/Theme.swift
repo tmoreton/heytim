@@ -191,11 +191,10 @@ private struct FroggyNavigationTitleModifier: ViewModifier {
 }
 
 public enum FrogTheme {
-  // Tim's bright yellow anchors a friendlier palette shared by every bot.
+  // Tim's logo yellow is the single brand accent throughout the app.
   public static let brand = Color(hex: "#FFBC3B")
-  public static let brandDark = Color(hex: "#E69A00")
   public static let brandInk = Color(hex: "#292510")
-  public static let mascot = Color(hex: "#FFBC3B")
+  public static let mascot = brand
   public static let sky = Color(hex: "#3984F6")
   public static let mint = Color(hex: "#58BEAA")
   public static let coral = Color(hex: "#F46A27")
@@ -233,7 +232,7 @@ public enum FrogTheme {
   }
 
   // The dark palette stays comfortably dim without falling back to near-black system surfaces.
-  public static let accent = adaptive(light: RGB(166, 76, 0), dark: RGB(255, 211, 101))
+  public static let accent = brand
   public static let canvas = adaptive(light: RGB(255, 248, 236), dark: RGB(54, 51, 62))
   public static let appBackground = adaptive(light: RGB(255, 253, 250), dark: RGB(50, 47, 57))
   public static let pageBackground = adaptive(light: RGB(247, 241, 232), dark: RGB(61, 57, 69))
@@ -251,8 +250,8 @@ public enum FrogTheme {
   public static let selected = accent.opacity(0.12)
   public static let teamBubble = accent.opacity(0.10)
   public static let teamBorder = accent.opacity(0.35)
-  public static let approval = Color.yellow.opacity(0.16)
-  public static let approvalBorder = Color.orange.opacity(0.55)
+  public static let approval = brand.opacity(0.16)
+  public static let approvalBorder = brand.opacity(0.55)
   public static let danger = Color.red
 
   // Compatibility names used by the first native implementation.

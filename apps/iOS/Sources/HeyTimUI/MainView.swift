@@ -1169,7 +1169,7 @@ private struct ConversationInspector: View {
 
   private var colorOptions: [BotColorOption] {
     editingBot?.systemRole == "chief"
-      ? [BotColorOption(value: "#FFBC3B", name: "Tim amber")]
+      ? [BotColorOption(value: "#FFBC3B", name: "Tim yellow")]
       : customBotColors
   }
 
