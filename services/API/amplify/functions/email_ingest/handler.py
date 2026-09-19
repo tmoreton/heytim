@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import logging
 import os
 import re
+import uuid
 from datetime import UTC, datetime
 from email import policy
 from email.header import decode_header, make_header
@@ -27,8 +29,10 @@ logger.setLevel(logging.INFO)
 
 table = boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"])
 s3 = boto3.client("s3")
+sqs = boto3.client("sqs")
 MAIL_BUCKET_NAME = os.environ["MAIL_BUCKET_NAME"]
 MAIL_TOPIC_ARN = os.environ["MAIL_TOPIC_ARN"]
+JOB_QUEUE_URL = os.environ.get("JOB_QUEUE_URL", "")
 MAX_PREVIEW_BYTES = 10 * 1024 * 1024
 MAX_BODY_CHARS = 7_000
 
@@ -121,7 +125,65 @@ def _preview(raw: bytes, mail: dict) -> dict:
         "attachmentNames": attachments,
         "messageIdHeader": _decoded_header(str(message.get("Message-ID", "")), 320),
         "inReplyTo": _decoded_header(str(message.get("In-Reply-To", "")), 320),
+        "references": _decoded_header(str(message.get("References", "")), 640),
+        "autoSubmitted": _decoded_header(str(message.get("Auto-Submitted", "")), 80),
     }
+
+
+def _reply_body(value: str) -> str:
+    lines = value.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    kept: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if re.match(r"^On .+ wrote:$", stripped, re.IGNORECASE):
+            break
+        if stripped.lower() in {
+            "-----original message-----",
+            "________________________________",
+        }:
+            break
+        kept.append(line)
+    while kept and (not kept[-1].strip() or kept[-1].lstrip().startswith(">")):
+        kept.pop()
+    return _clean_text("\n".join(kept), MAX_BODY_CHARS) or value
+
+
+def _automatic_delivery(bot: dict, preview: dict, mail: dict, authentication: str) -> bool:
+    owner = bot.get("emailOwnerAddress")
+    header_sender = preview.get("from")
+    envelope_sender = mail.get("source")
+    auto_submitted = str(preview.get("autoSubmitted", "")).strip().lower()
+    return bool(
+        JOB_QUEUE_URL
+        and bot.get("emailInboundMode") == "automatic"
+        and authentication == "verified"
+        and isinstance(owner, str)
+        and isinstance(header_sender, str)
+        and isinstance(envelope_sender, str)
+        and hmac.compare_digest(header_sender.strip().lower(), owner.strip().lower())
+        and hmac.compare_digest(envelope_sender.strip().lower(), owner.strip().lower())
+        and auto_submitted in {"", "no"}
+    )
+
+
+def _queue_automatic_turn(
+    user_id: str,
+    bot: dict,
+    inbox_key: str,
+    turn_id: str,
+) -> None:
+    sqs.send_message(
+        QueueUrl=JOB_QUEUE_URL,
+        MessageBody=json.dumps(
+            {
+                "type": "EMAIL_INBOUND",
+                "userId": user_id,
+                "botId": bot["id"],
+                "inboxKey": inbox_key,
+                "turnId": turn_id,
+            }
+        ),
+    )
 
 
 def _received_time(value: object) -> str:
@@ -174,6 +236,12 @@ def _process_notification(notification: dict) -> None:
     )
     for address, user_id, bot in candidates:
         digest = hashlib.sha256(f"{message_id}\0{address}".encode()).hexdigest()[:24]
+        automatic = _automatic_delivery(bot, preview, mail, authentication)
+        linked_turn_id = (
+            str(uuid.uuid5(uuid.NAMESPACE_URL, f"heytim-email:{message_id}:{address}"))
+            if automatic
+            else None
+        )
         item = {
             "pk": user_pk(user_id),
             "sk": f"INBOX#{bot['id']}#{received_at}#{digest}",
@@ -184,6 +252,13 @@ def _process_notification(notification: dict) -> None:
             "sesMessageId": message_id,
             "rawObjectKey": key,
             "authentication": authentication,
+            "disposition": "automatic" if automatic else "review",
+            **({"linkedTurnId": linked_turn_id} if linked_turn_id else {}),
+            **(
+                {"conversationBody": _reply_body(preview["body"])}
+                if automatic
+                else {}
+            ),
             **preview,
         }
         try:
@@ -197,8 +272,16 @@ def _process_notification(notification: dict) -> None:
                     },
                 },
             )
-        except (AccountInactiveError, UserItemConflictError, UserItemGuardFailedError):
+        except UserItemConflictError:
+            existing = table.get_item(
+                Key={"pk": item["pk"], "sk": item["sk"]}, ConsistentRead=True
+            ).get("Item")
+            if not existing or existing.get("sesMessageId") != message_id:
+                continue
+        except (AccountInactiveError, UserItemGuardFailedError):
             continue
+        if automatic:
+            _queue_automatic_turn(user_id, bot, item["sk"], linked_turn_id)
 
 
 def handler(event: dict, _context: object) -> dict:

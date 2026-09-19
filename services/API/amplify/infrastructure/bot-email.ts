@@ -2,6 +2,7 @@ import { CfnOutput, Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Table } from 'aws-cdk-lib/aws-dynamodb';
 import { PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { Code, Function as LambdaFunction, Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
+import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket, BucketEncryption } from 'aws-cdk-lib/aws-s3';
 import { CfnEmailIdentity, CfnReceiptRule, CfnReceiptRuleSet } from 'aws-cdk-lib/aws-ses';
@@ -10,15 +11,22 @@ import { LambdaSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
 import path from 'node:path';
 
-import { FUNCTION_ASSET_EXCLUDES } from './app-settings';
+import { FUNCTION_ASSET_EXCLUDES, PUBLIC_WEB_BASE_URL } from './app-settings';
 
 type BotEmailProps = {
   stack: Stack;
   table: Table;
   logsKey: import('aws-cdk-lib/aws-kms').Key;
+  jobs: Queue;
 };
 
-export function addBotEmailReceiving({ stack, table, logsKey }: BotEmailProps): void {
+export type BotEmailResources = {
+  outboundQueue: Queue;
+};
+
+export function addBotEmailReceiving(
+  { stack, table, logsKey, jobs }: BotEmailProps,
+): BotEmailResources | undefined {
   const domain = 'bots.heytim.ai';
   const stage = process.env.HEYTIM_BOT_EMAIL_STAGE;
   if (stage !== 'identity' && stage !== 'receive') {
@@ -47,7 +55,7 @@ export function addBotEmailReceiving({ stack, table, logsKey }: BotEmailProps): 
     new CfnOutput(stack, `BotEmailDkimName${index}`, { value: name });
     new CfnOutput(stack, `BotEmailDkimValue${index}`, { value });
   }
-  if (stage === 'identity') return;
+  if (stage === 'identity') return undefined;
 
   const bucket = new Bucket(stack, 'IncomingBotMail', {
     blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
@@ -81,6 +89,7 @@ export function addBotEmailReceiving({ stack, table, logsKey }: BotEmailProps): 
       TABLE_NAME: table.tableName,
       MAIL_BUCKET_NAME: bucket.bucketName,
       MAIL_TOPIC_ARN: topic.topicArn,
+      JOB_QUEUE_URL: jobs.queueUrl,
       MAIL_PROCESSING_ENABLED: process.env.HEYTIM_BOT_EMAIL_AVAILABLE === 'true' ? 'true' : 'false',
     },
   });
@@ -89,7 +98,54 @@ export function addBotEmailReceiving({ stack, table, logsKey }: BotEmailProps): 
     actions: ['dynamodb:TransactWriteItems'], resources: [table.tableArn],
   }));
   bucket.grantRead(receiver, 'received/*');
+  jobs.grantSendMessages(receiver);
   topic.addSubscription(new LambdaSubscription(receiver, { deadLetterQueue: deliveryFailures }));
+
+  const outboundFailures = new Queue(stack, 'BotEmailOutboxFailures', {
+    encryption: QueueEncryption.SQS_MANAGED,
+    enforceSSL: true,
+    retentionPeriod: Duration.days(14),
+  });
+  const outboundQueue = new Queue(stack, 'BotEmailOutbox', {
+    encryption: QueueEncryption.SQS_MANAGED,
+    enforceSSL: true,
+    visibilityTimeout: Duration.minutes(2),
+    retentionPeriod: Duration.days(4),
+    deadLetterQueue: { queue: outboundFailures, maxReceiveCount: 3 },
+  });
+  const sender = new LambdaFunction(stack, 'BotEmailSender', {
+    runtime: Runtime.PYTHON_3_14,
+    handler: 'email_send.handler.handler',
+    code: Code.fromAsset(path.resolve('amplify/functions'), {
+      exclude: FUNCTION_ASSET_EXCLUDES,
+    }),
+    memorySize: 512,
+    timeout: Duration.seconds(20),
+    tracing: Tracing.ACTIVE,
+    logGroup: new LogGroup(stack, 'BotEmailSenderLogs', {
+      encryptionKey: logsKey,
+      retention: RetentionDays.ONE_MONTH,
+      removalPolicy: RemovalPolicy.RETAIN,
+    }),
+    environment: {
+      TABLE_NAME: table.tableName,
+      MAIL_QUEUE_ARN: outboundQueue.queueArn,
+      PUBLIC_WEB_BASE_URL,
+    },
+  });
+  table.grantReadWriteData(sender);
+  sender.addEventSource(new SqsEventSource(outboundQueue, {
+    batchSize: 10,
+    maxConcurrency: 5,
+    reportBatchItemFailures: true,
+  }));
+  sender.addToRolePolicy(new PolicyStatement({
+    actions: ['ses:SendEmail'],
+    resources: [stack.formatArn({
+      service: 'ses', resource: 'identity', resourceName: domain,
+    })],
+  }));
+  sender.node.addDependency(identity);
 
   const receiveRole = new Role(stack, 'BotEmailSesDeliveryRole', {
     assumedBy: new ServicePrincipal('ses.amazonaws.com', {
@@ -131,4 +187,5 @@ export function addBotEmailReceiving({ stack, table, logsKey }: BotEmailProps): 
   new CfnOutput(stack, 'BotEmailRuleSetName', {
     value: ruleSetName,
   });
+  return { outboundQueue };
 }

@@ -45,6 +45,19 @@ public struct BotInboxState: Codable, Sendable {
   public var available: Bool
   public var enabled: Bool
   public var address: String?
+  public var incomingMode: String?
+  public var responseMode: String?
+  public var allowedSender: String?
+}
+
+public struct BotEmailPreferences: Encodable, Sendable {
+  public var incomingMode: String
+  public var responseMode: String
+
+  public init(incomingMode: String, responseMode: String) {
+    self.incomingMode = incomingMode
+    self.responseMode = responseMode
+  }
 }
 
 public struct BotInboxMessage: Codable, Identifiable, Hashable, Sendable {
@@ -55,6 +68,8 @@ public struct BotInboxMessage: Codable, Identifiable, Hashable, Sendable {
   public var receivedAt: String
   public var attachmentNames: [String]
   public var authentication: String
+  public var disposition: String?
+  public var linkedTurnId: String?
 
   public var draftText: String {
     let content = String(body.prefix(7_000))
@@ -68,6 +83,9 @@ public struct BotInboxPage: Codable, Sendable {
   public var address: String?
   public var messages: [BotInboxMessage]
   public var nextToken: String?
+  public var incomingMode: String?
+  public var responseMode: String?
+  public var allowedSender: String?
 }
 
 public struct BotDraft: Codable, Equatable, Sendable {

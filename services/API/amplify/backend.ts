@@ -184,9 +184,6 @@ const logsKey = new Key(stack, 'LogsKey', {
   enableKeyRotation: true,
   removalPolicy: RemovalPolicy.RETAIN,
 });
-if (deploymentEnvironment === 'production') {
-  addBotEmailReceiving({ stack, table, logsKey });
-}
 logsKey.addAlias(`alias/heytim-${deploymentEnvironment}-logs`);
 logsKey.addToResourcePolicy(
   new PolicyStatement({
@@ -312,6 +309,9 @@ const jobs = new Queue(stack, 'AgentJobs', {
   retentionPeriod: Duration.days(4),
   deadLetterQueue: { queue: deadLetterQueue, maxReceiveCount: 3 },
 });
+const botEmail = deploymentEnvironment === 'production'
+  ? addBotEmailReceiving({ stack, table, logsKey, jobs })
+  : undefined;
 const catalogRefresh = new Rule(stack, 'CatalogRefresh', {
   schedule: Schedule.rate(Duration.minutes(5)),
 });
@@ -400,6 +400,7 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
     HEYTIM_MEMORY_ID: memoryId,
     FILES_BUCKET_NAME: filesBucket.bucketName,
     PUBLIC_WEB_BASE_URL,
+    EMAIL_QUEUE_URL: botEmail?.outboundQueue.queueUrl ?? '',
     CAPABILITY_CATALOG_URL,
     HEYTIM_MONTHLY_RUN_UNIT_LIMIT: String(monthlyRunUnitLimit),
     HEYTIM_USER_WINDOW_RUN_UNIT_LIMIT: String(userWindowRunUnitLimit),
@@ -465,6 +466,7 @@ workerFunction.addToRolePolicy(
 );
 jobs.grantSendMessages(apiFunction);
 jobs.grantSendMessages(workerFunction);
+botEmail?.outboundQueue.grantSendMessages(workerFunction);
 taskScheduleGroup.grantWriteSchedules(apiFunction);
 taskScheduleGroup.grantDeleteSchedules(apiFunction);
 taskScheduleGroup.grantDeleteSchedules(workerFunction);

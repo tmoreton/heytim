@@ -8,6 +8,7 @@ from .account_cleanup import _delete_account
 from .approval_job import process_approval_expiry
 from .background_work import _process_background_work
 from .direct_job import _process_agent_reply
+from .email_inbound_job import _process_email_inbound
 from .event_routine_job import _process_event_group_round, _process_group_decision_event
 from .group_job import (
     _process_group_agent_contributor,
@@ -48,6 +49,9 @@ def _process(record: dict) -> None:
         return
     if request_type == "PUSH_RECEIPTS":
         _check_push_receipts(request)
+        return
+    if request_type == "EMAIL_INBOUND":
+        _process_email_inbound(record, request)
         return
     if request_type == "BACKGROUND_WORK_POLL":
         _process_background_work(record, request)

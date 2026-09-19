@@ -19,6 +19,8 @@ struct BotInboxView: View {
   @State private var showsRotateConfirmation = false
   @State private var showsDraftConfirmation = false
   @State private var pendingDiscussion: BotInboxMessage?
+  @State private var incomingMode = "review"
+  @State private var responseMode = "appOnly"
 
   var body: some View {
     Form {
@@ -44,7 +46,32 @@ struct BotInboxView: View {
       } header: {
         Text("Address")
       } footer: {
-        Text("Incoming email is saved here for you to review. Your bot does not act on it automatically. Replacing the address stops delivery to the old address.")
+        Text("Incoming email is saved here. Choose below whether your bot uses verified messages automatically. Replacing the address stops delivery to the old address.")
+      }
+
+      if page?.enabled == true {
+        Section {
+          Picker("Incoming messages", selection: $incomingMode) {
+            Text("Review before using").tag("review")
+            Text("Send to bot automatically").tag("automatic")
+          }
+          Picker("Bot responses", selection: $responseMode) {
+            Text("In the app only").tag("appOnly")
+            Text("Reply to email conversations").tag("emailReplies")
+            Text("Email every response").tag("allResponses")
+          }
+          if let sender = page?.allowedSender {
+            LabeledContent("Allowed sender", value: sender)
+          }
+          Button("Save email preferences") {
+            Task { await savePreferences() }
+          }
+          .disabled(working || !preferencesChanged)
+        } header: {
+          Text("Email behavior")
+        } footer: {
+          Text("Automatic messages run only when they come from your verified sign-in email and pass email authentication. Approvals still require the app.")
+        }
       }
 
       Section("Received email") {
@@ -64,8 +91,17 @@ struct BotInboxView: View {
                   Text("Attachments are listed but cannot be opened here yet.")
                     .froggyFont(.caption).foregroundStyle(.secondary)
                 }
-                Button("Discuss with bot", systemImage: "bubble.left") {
-                  discuss(message)
+                if message.linkedTurnId != nil {
+                  Label(
+                    message.disposition == "automatic"
+                      ? "Sent to bot automatically" : "Added to bot conversation",
+                    systemImage: message.disposition == "automatic" ? "bolt.fill" : "checkmark.circle.fill"
+                  )
+                    .froggyFont(.caption).foregroundStyle(.secondary)
+                } else {
+                  Button("Discuss with bot", systemImage: "bubble.left") {
+                    discuss(message)
+                  }
                 }
                 Button("Delete email", systemImage: "trash", role: .destructive) {
                   Task { await delete(message) }
@@ -148,6 +184,11 @@ struct BotInboxView: View {
     return date.formatted(date: .abbreviated, time: .shortened)
   }
 
+  private var preferencesChanged: Bool {
+    incomingMode != (page?.incomingMode ?? "review")
+      || responseMode != (page?.responseMode ?? "appOnly")
+  }
+
   private func copy(_ address: String) {
     #if os(iOS)
       UIPasteboard.general.string = address
@@ -169,6 +210,7 @@ struct BotInboxView: View {
 
   private func useInChat(_ message: BotInboxMessage) {
     model.composerText = message.draftText
+    model.composerInboxMessageId = message.id
     model.sheet = nil
   }
 
@@ -181,9 +223,13 @@ struct BotInboxView: View {
       if earlier, let current = page {
         page = BotInboxPage(
           available: next.available, enabled: next.enabled, address: next.address,
-          messages: current.messages + next.messages, nextToken: next.nextToken)
+          messages: current.messages + next.messages, nextToken: next.nextToken,
+          incomingMode: next.incomingMode, responseMode: next.responseMode,
+          allowedSender: next.allowedSender)
       } else {
         page = next
+        incomingMode = next.incomingMode ?? "review"
+        responseMode = next.responseMode ?? "appOnly"
       }
       errorMessage = nil
     } catch {
@@ -202,6 +248,13 @@ struct BotInboxView: View {
 
   private func rotate() async {
     await change { try await $0.rotateBotInbox(botId) }
+  }
+
+  private func savePreferences() async {
+    await change {
+      try await $0.updateBotEmailPreferences(
+        botId, incomingMode: incomingMode, responseMode: responseMode)
+    }
   }
 
   private func change(_ action: (HeyTimAPI) async throws -> BotInboxState) async {

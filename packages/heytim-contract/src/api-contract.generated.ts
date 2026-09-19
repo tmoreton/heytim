@@ -14,6 +14,7 @@ export const apiContractPaths = {
   "botDelete": "/bots/{botId}",
   "botInboxList": "/bots/{botId}/inbox",
   "botInboxEnable": "/bots/{botId}/inbox",
+  "botInboxUpdate": "/bots/{botId}/inbox",
   "botInboxDisable": "/bots/{botId}/inbox",
   "botInboxRotate": "/bots/{botId}/inbox/rotate",
   "botInboxMessageDelete": "/bots/{botId}/inbox/{messageId}",

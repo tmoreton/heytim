@@ -18,7 +18,11 @@ from .job_lifecycle import (
     begin_attempt,
     finish_failed_attempt,
 )
-from .notifications import _queue_reply_notification, _update_schedule_result
+from .notifications import (
+    _queue_email_delivery,
+    _queue_reply_notification,
+    _update_schedule_result,
+)
 from .progress import progress_updater
 from .support import _account_is_active, _bot_key, _turn_pk, catalog, table
 from .usage import record_invocation_usage
@@ -191,6 +195,9 @@ def _process_agent_reply(record: dict, request: dict) -> None:
                 },
             )
             _update_schedule_result(turn, "awaiting_approval", turn["createdAt"])
+            _queue_email_delivery(
+                user_id, bot_id, turn, bot, event="approval"
+            )
             return
         if result.terminal_error:
             record_terminal_error(result.terminal_error)

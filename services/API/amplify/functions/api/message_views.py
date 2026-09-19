@@ -22,6 +22,8 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
                         "scheduleName": turn.get("scheduleName", "Scheduled task"),
                     }
                     if turn.get("source") == "schedule"
+                    else {"source": "email"}
+                    if turn.get("source") == "email"
                     else {}
                 ),
                 **(

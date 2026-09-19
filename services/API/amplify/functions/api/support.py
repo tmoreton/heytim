@@ -250,6 +250,26 @@ def _display_name(event: dict) -> str:
     return "HeyTim user"
 
 
+def _verified_email(event: dict) -> str | None:
+    claims = _claims(event)
+    verified = claims.get("email_verified")
+    if verified not in {True, "true", "True", "1"}:
+        return None
+    value = claims.get("email")
+    if not isinstance(value, str):
+        return None
+    email = value.strip().lower()
+    if (
+        not email
+        or len(email) > 320
+        or email.count("@") != 1
+        or any(character in email for character in "\r\n\x00")
+    ):
+        return None
+    local, domain = email.rsplit("@", 1)
+    return email if local and "." in domain and not domain.startswith(".") else None
+
+
 def _push_token_id(token: str, provider: str = "expo") -> str:
     identity = token if provider == "expo" else f"{provider}:{token}"
     return hashlib.sha256(identity.encode("utf-8")).hexdigest()
@@ -421,7 +441,10 @@ def _bot_color(item: dict) -> str:
 def _public_bot(item: dict) -> dict:
     bot = {
         key: value for key, value in item.items()
-        if key not in {"pk", "sk", "entity", "emailToken", "emailInboxClosing"}
+        if key not in {
+            "pk", "sk", "entity", "emailToken", "emailInboxClosing",
+            "emailOwnerAddress",
+        }
     }
     bot["emailEnabled"] = bool(item.get("emailToken"))
     bot["color"] = _bot_color(item)

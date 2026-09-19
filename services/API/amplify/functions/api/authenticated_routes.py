@@ -16,6 +16,7 @@ from .bot_inbox import (
     enable_bot_inbox,
     list_bot_inbox,
     rotate_bot_inbox,
+    update_bot_email_preferences,
 )
 from .bots import (
     _bootstrap,
@@ -95,7 +96,7 @@ from .sharing import (
     _share_skill,
     _unregister_push_token,
 )
-from .support import ApiError, _body, _response
+from .support import ApiError, _body, _response, _verified_email
 from .workspaces import (
     _add_workspace_file,
     _delete_workspace_file,
@@ -416,8 +417,17 @@ def _bot_inbox_route(
         return _response(200, list_bot_inbox(user_id, bot_id, query.get("cursor")))
     if method == "POST" and path.endswith("/rotate"):
         return _response(200, rotate_bot_inbox(user_id, bot_id))
+    if method == "PUT":
+        return _response(
+            200,
+            update_bot_email_preferences(
+                user_id, bot_id, _body(event), _verified_email(event)
+            ),
+        )
     if method == "POST":
-        return _response(200, enable_bot_inbox(user_id, bot_id))
+        return _response(
+            200, enable_bot_inbox(user_id, bot_id, _verified_email(event))
+        )
     if method == "DELETE" and "messageId" in params:
         return _response(200, delete_inbox_message(user_id, bot_id, params["messageId"]))
     if method == "DELETE":

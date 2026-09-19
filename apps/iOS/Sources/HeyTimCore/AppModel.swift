@@ -41,8 +41,11 @@ public final class AppModel {
     var text = ""
     var attachments: [Attachment] = []
     var workspaceFiles: [Attachment] = []
+    var inboxMessageId: String?
 
-    var isEmpty: Bool { text.isEmpty && attachments.isEmpty && workspaceFiles.isEmpty }
+    var isEmpty: Bool {
+      text.isEmpty && attachments.isEmpty && workspaceFiles.isEmpty && inboxMessageId == nil
+    }
   }
 
   private static let pushLogger = Logger(subsystem: "ai.heytim.app", category: "push")
@@ -64,6 +67,7 @@ public final class AppModel {
   public var pendingAttachments: [Attachment] = []
   public var pendingWorkspaceFiles: [Attachment] = []
   public var composerText = ""
+  public var composerInboxMessageId: String?
   public var groupReplyBotId: String? = "all"
   public private(set) var uploadsInProgress = 0
   public var deepLinkInvite: (kind: String, token: String)?
@@ -200,6 +204,7 @@ public final class AppModel {
     pendingAttachments = []
     pendingWorkspaceFiles = []
     composerText = ""
+    composerInboxMessageId = nil
     groupReplyBotId = "all"
     uploadsInProgress = 0
     deepLinkInvite = nil
@@ -427,7 +432,7 @@ public final class AppModel {
     let requestedSession = sessionGeneration
     let submitted = ComposerDraft(
       text: composerText, attachments: pendingAttachments,
-      workspaceFiles: pendingWorkspaceFiles)
+      workspaceFiles: pendingWorkspaceFiles, inboxMessageId: composerInboxMessageId)
     let text = submitted.text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard let selection, !text.isEmpty || !submitted.attachments.isEmpty
       || !submitted.workspaceFiles.isEmpty, !isSending,
@@ -437,6 +442,7 @@ public final class AppModel {
     let workspaceFileIds = submitted.workspaceFiles.map(\.id)
     let replyBotId = selection.kind == .group ? activeGroupReplyBotId : nil
     composerText = ""
+    composerInboxMessageId = nil
     pendingAttachments = []
     pendingWorkspaceFiles = []
     composerDrafts[selection] = nil
@@ -470,7 +476,7 @@ public final class AppModel {
       if selection.kind == .bot {
         try await api.sendMessage(
           bot: selection.id, text: text, attachments: attachmentIds,
-          workspaceFiles: workspaceFileIds)
+          workspaceFiles: workspaceFileIds, inboxMessageId: submitted.inboxMessageId)
       } else {
         try await api.sendMessage(
           group: selection.id, text: text, replyBotId: replyBotId,
@@ -800,7 +806,7 @@ public final class AppModel {
     guard let selection else { return }
     let draft = ComposerDraft(
       text: composerText, attachments: pendingAttachments,
-      workspaceFiles: pendingWorkspaceFiles)
+      workspaceFiles: pendingWorkspaceFiles, inboxMessageId: composerInboxMessageId)
     composerDrafts[selection] = draft.isEmpty ? nil : draft
   }
 
@@ -809,12 +815,14 @@ public final class AppModel {
     groupReplyBotId = "all"
     guard let value else {
       composerText = ""
+      composerInboxMessageId = nil
       pendingAttachments = []
       pendingWorkspaceFiles = []
       return
     }
     let draft = composerDrafts.removeValue(forKey: value) ?? ComposerDraft()
     composerText = draft.text
+    composerInboxMessageId = draft.inboxMessageId
     pendingAttachments = draft.attachments
     pendingWorkspaceFiles = draft.workspaceFiles
   }
@@ -866,9 +874,10 @@ public final class AppModel {
     if selection == target {
       let current = ComposerDraft(
         text: composerText, attachments: pendingAttachments,
-        workspaceFiles: pendingWorkspaceFiles)
+        workspaceFiles: pendingWorkspaceFiles, inboxMessageId: composerInboxMessageId)
       let restored = mergedDraft(submitted, with: current)
       composerText = restored.text
+      composerInboxMessageId = restored.inboxMessageId
       pendingAttachments = restored.attachments
       pendingWorkspaceFiles = restored.workspaceFiles
     } else {
@@ -897,7 +906,8 @@ public final class AppModel {
       .filter { workspaceIDs.insert($0.id).inserted }
       .prefix(max(0, constraints.maxAttachmentsPerMessage - attachments.count))
     return ComposerDraft(
-      text: text, attachments: Array(attachments), workspaceFiles: Array(workspaceFiles))
+      text: text, attachments: Array(attachments), workspaceFiles: Array(workspaceFiles),
+      inboxMessageId: current.inboxMessageId ?? submitted.inboxMessageId)
   }
 
   @discardableResult private func chooseAvailableSelection() -> Bool {

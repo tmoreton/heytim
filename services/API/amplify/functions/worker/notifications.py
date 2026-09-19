@@ -12,6 +12,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from shared.push_delivery import receipt_key, receipt_status, ticket_status
 
 from .support import (
+    EMAIL_QUEUE_URL,
     EXPO_PUSH_URL,
     EXPO_RECEIPTS_URL,
     QUEUE_URL,
@@ -507,10 +508,42 @@ def _queue_reply_notification(
         QueueUrl=QUEUE_URL,
         MessageBody=json.dumps(payload),
     )
+    _queue_email_delivery(user_id, bot_id, turn, bot, event="reply")
     table.update_item(
         Key=turn_key,
         UpdateExpression="SET notificationQueued = :queued",
         ExpressionAttributeValues={":queued": True},
+    )
+
+
+def _queue_email_delivery(
+    user_id: str,
+    bot_id: str,
+    turn: dict,
+    bot: dict,
+    *,
+    event: str,
+) -> None:
+    mode = bot.get("emailDeliveryMode", "appOnly")
+    if (
+        not EMAIL_QUEUE_URL
+        or mode == "appOnly"
+        or (mode == "emailReplies" and turn.get("source") != "email")
+        or not isinstance(bot.get("emailToken"), str)
+        or not isinstance(bot.get("emailOwnerAddress"), str)
+    ):
+        return
+    sqs.send_message(
+        QueueUrl=EMAIL_QUEUE_URL,
+        MessageBody=json.dumps(
+            {
+                "userId": user_id,
+                "botId": bot_id,
+                "turnId": turn["id"],
+                "turnKey": turn["sk"],
+                "event": event,
+            }
+        ),
     )
 
 

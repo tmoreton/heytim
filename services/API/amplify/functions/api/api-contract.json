@@ -16,6 +16,7 @@
     { "id": "botDelete", "method": "DELETE", "path": "/bots/{botId}", "access": "authenticated", "handler": "bot" },
     { "id": "botInboxList", "method": "GET", "path": "/bots/{botId}/inbox", "access": "authenticated", "handler": "botInbox" },
     { "id": "botInboxEnable", "method": "POST", "path": "/bots/{botId}/inbox", "access": "authenticated", "handler": "botInbox" },
+    { "id": "botInboxUpdate", "method": "PUT", "path": "/bots/{botId}/inbox", "access": "authenticated", "handler": "botInbox" },
     { "id": "botInboxDisable", "method": "DELETE", "path": "/bots/{botId}/inbox", "access": "authenticated", "handler": "botInbox" },
     { "id": "botInboxRotate", "method": "POST", "path": "/bots/{botId}/inbox/rotate", "access": "authenticated", "handler": "botInbox" },
     { "id": "botInboxMessageDelete", "method": "DELETE", "path": "/bots/{botId}/inbox/{messageId}", "access": "authenticated", "handler": "botInbox" },

@@ -120,8 +120,14 @@ def _put_bot(
     for key in ("templateId", "templateVersion"):
         if key in values:
             item[key] = values[key]
-    if "emailToken" in values:
-        item["emailToken"] = values["emailToken"]
+    for key in (
+        "emailToken",
+        "emailInboundMode",
+        "emailDeliveryMode",
+        "emailOwnerAddress",
+    ):
+        if key in values:
+            item[key] = values[key]
     if require_active_account:
         try:
             put_user_item_while_account_active(
@@ -316,6 +322,15 @@ def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:
             "lastMessage": previous.get("lastMessage", "Ready when you are."),
             "lastMessageAt": previous.get("lastMessageAt", previous["createdAt"]),
             **({"emailToken": previous["emailToken"]} if "emailToken" in previous else {}),
+            **{
+                key: previous[key]
+                for key in (
+                    "emailInboundMode",
+                    "emailDeliveryMode",
+                    "emailOwnerAddress",
+                )
+                if key in previous
+            },
             **(
                 {"templateId": previous["templateId"]}
                 if "templateId" in previous

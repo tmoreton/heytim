@@ -1291,6 +1291,10 @@ private struct MessageBubble: View {
               .foregroundStyle(mine ? FrogTheme.accent : FrogTheme.statusText)
           }
           .padding(.horizontal, plainAssistantMessage ? 0 : 6)
+        } else if message.source == "email" {
+          Text("Email")
+            .froggyFont(.caption)
+            .foregroundStyle(.secondary)
         } else if message.source == "schedule" {
           Text("Scheduled · \(message.scheduleName ?? "Recurring task")")
             .froggyFont(.caption, weight: .bold).foregroundStyle(FrogTheme.statusText)

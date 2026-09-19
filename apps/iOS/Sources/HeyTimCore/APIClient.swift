@@ -200,6 +200,13 @@ public final class HeyTimAPI: Sendable {
   public func enableBotInbox(_ id: String) async throws -> BotInboxState {
     try await request(.botInboxEnable, parameters: ["botId": id], body: EmptyResponse())
   }
+  public func updateBotEmailPreferences(
+    _ id: String, incomingMode: String, responseMode: String
+  ) async throws -> BotInboxState {
+    try await request(
+      .botInboxUpdate, parameters: ["botId": id],
+      body: BotEmailPreferences(incomingMode: incomingMode, responseMode: responseMode))
+  }
   public func disableBotInbox(_ id: String) async throws -> BotInboxState {
     try await request(.botInboxDisable, parameters: ["botId": id])
   }
@@ -230,13 +237,14 @@ public final class HeyTimAPI: Sendable {
       queryItems: cursor.map { [.init(name: "cursor", value: $0)] } ?? [])
   }
   public func sendMessage(
-    bot id: String, text: String, attachments: [String] = [], workspaceFiles: [String] = []
+    bot id: String, text: String, attachments: [String] = [], workspaceFiles: [String] = [],
+    inboxMessageId: String? = nil
   ) async throws {
     let _: EmptyResponse = try await request(
       .botMessageSend, parameters: ["botId": id],
       body: SendMessageBody(
         text: text, attachmentIds: attachments, workspaceFileIds: workspaceFiles,
-        replyBotId: nil))
+        replyBotId: nil, inboxMessageId: inboxMessageId))
   }
   public func sendMessage(
     group id: String, text: String, replyBotId: String? = nil, attachments: [String] = [],
@@ -246,7 +254,7 @@ public final class HeyTimAPI: Sendable {
       .groupMessageSend, parameters: ["groupId": id],
       body: SendMessageBody(
         text: text, attachmentIds: attachments, workspaceFileIds: workspaceFiles,
-        replyBotId: replyBotId))
+        replyBotId: replyBotId, inboxMessageId: nil))
   }
   public func cancel(botId: String, turnId: String) async throws {
     let _: EmptyResponse = try await request(
@@ -655,6 +663,7 @@ private struct SendMessageBody: Codable {
   var attachmentIds: [String]
   var workspaceFileIds: [String]
   var replyBotId: String?
+  var inboxMessageId: String?
 }
 private struct BrowserBody: Codable {
   var groupId: String?

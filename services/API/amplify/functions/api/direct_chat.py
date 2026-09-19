@@ -14,6 +14,7 @@ from shared.memory_identity import direct_session_id
 from shared.work_state import is_in_flight
 
 from .attachments import _resolve_attachments
+from .bot_inbox import inbox_message
 from .bots import _get_bot
 from .schedules import _get_schedule
 from .support import (
@@ -133,6 +134,7 @@ def _start_bot_turn(
     text: str,
     schedule_item: dict | None = None,
     attachments: list[dict] | None = None,
+    email_context: dict | None = None,
 ) -> dict:
     turn_id = str(uuid.uuid4())
     current = _now()
@@ -149,6 +151,19 @@ def _start_bot_turn(
     }
     if attachments:
         item["attachments"] = attachments
+    if email_context:
+        item.update(
+            {
+                "source": "email",
+                "emailSender": email_context.get("from", ""),
+                "emailRecipient": email_context.get("recipient", ""),
+                "emailSubject": email_context.get("subject", ""),
+                "emailSesMessageId": email_context.get("sesMessageId", ""),
+                "emailMessageIdHeader": email_context.get("messageIdHeader", ""),
+                "emailInReplyTo": email_context.get("inReplyTo", ""),
+                "emailReferences": email_context.get("references", ""),
+            }
+        )
     if schedule_item:
         item.update(
             {
@@ -303,6 +318,11 @@ def _steer_active_turns(user_id: str, bot_id: str, turns: list[dict]) -> list[st
 
 def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
     _get_bot(user_id, bot_id)
+    email_context = (
+        inbox_message(user_id, bot_id, value.get("inboxMessageId"))
+        if value.get("inboxMessageId") is not None
+        else None
+    )
     raw_text = value.get("text", "")
     if not isinstance(raw_text, str) or raw_text.strip():
         _validate_string(raw_text, "text", MESSAGE_MAX_LENGTH)
@@ -332,7 +352,23 @@ def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
             bot_id,
             text,
             attachments=attachments or None,
+            email_context=email_context,
         )
+        if email_context:
+            try:
+                table.update_item(
+                    Key={"pk": email_context["pk"], "sk": email_context["sk"]},
+                    UpdateExpression=(
+                        "SET disposition = :manual, linkedTurnId = :turnId"
+                    ),
+                    ConditionExpression="attribute_exists(pk)",
+                    ExpressionAttributeValues={
+                        ":manual": "manual",
+                        ":turnId": result["turnId"],
+                    },
+                )
+            except table.meta.client.exceptions.ConditionalCheckFailedException:
+                pass
         if steered_turn_ids:
             result["steeredTurnIds"] = steered_turn_ids
         return result
