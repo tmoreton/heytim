@@ -29,6 +29,7 @@ export function addBotEmailReceiving(
   { stack, table, logsKey, jobs }: BotEmailProps,
 ): BotEmailResources | undefined {
   const domain = 'bots.heytim.ai';
+  const mailFromDomain = `mail.${domain}`;
   const stage = process.env.HEYTIM_BOT_EMAIL_STAGE;
   if (stage !== 'identity' && stage !== 'receive') {
     throw new Error('Set HEYTIM_BOT_EMAIL_STAGE to identity or receive for production.');
@@ -43,6 +44,10 @@ export function addBotEmailReceiving(
   }
   const identity = new CfnEmailIdentity(stack, 'BotEmailIdentity', {
     emailIdentity: domain,
+    mailFromAttributes: {
+      behaviorOnMxFailure: 'USE_DEFAULT_VALUE',
+      mailFromDomain,
+    },
   });
   const dnsZone = new CfnHostedZone(stack, 'BotEmailDnsZone', {
     name: domain,
@@ -72,6 +77,32 @@ export function addBotEmailReceiving(
     });
     record.applyRemovalPolicy(RemovalPolicy.RETAIN);
   }
+  const mailFromMxRecord = new CfnRecordSet(stack, 'BotEmailMailFromMxRecord', {
+    hostedZoneId: dnsZone.attrId,
+    name: mailFromDomain,
+    type: 'MX',
+    ttl: '300',
+    resourceRecords: [`10 feedback-smtp.${stack.region}.amazonses.com`],
+  });
+  mailFromMxRecord.applyRemovalPolicy(RemovalPolicy.RETAIN);
+  const mailFromSpfRecord = new CfnRecordSet(stack, 'BotEmailMailFromSpfRecord', {
+    hostedZoneId: dnsZone.attrId,
+    name: mailFromDomain,
+    type: 'TXT',
+    ttl: '300',
+    resourceRecords: ['"v=spf1 include:amazonses.com ~all"'],
+  });
+  mailFromSpfRecord.applyRemovalPolicy(RemovalPolicy.RETAIN);
+  const dmarcRecord = new CfnRecordSet(stack, 'BotEmailDmarcRecord', {
+    hostedZoneId: dnsZone.attrId,
+    name: `_dmarc.${domain}`,
+    type: 'TXT',
+    ttl: '300',
+    resourceRecords: ['"v=DMARC1; p=none; adkim=s; aspf=r; pct=100"'],
+  });
+  dmarcRecord.applyRemovalPolicy(RemovalPolicy.RETAIN);
+  identity.addDependency(mailFromMxRecord);
+  identity.addDependency(mailFromSpfRecord);
   if (stage === 'identity') return undefined;
 
   const mxRecord = new CfnRecordSet(stack, 'BotEmailMxRecord', {

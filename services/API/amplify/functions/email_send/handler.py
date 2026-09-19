@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import unicodedata
 from datetime import UTC, datetime
 from email.headerregistry import Address
 from email.message import EmailMessage
@@ -14,7 +15,7 @@ import boto3
 from boto3.dynamodb.conditions import Attr
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
-from shared.bot_inbox import mail_address
+from shared.bot_inbox import MAIL_DOMAIN, mail_address
 from shared.keys import bot_key, turn_pk, user_state_key
 
 logger = logging.getLogger(__name__)
@@ -110,9 +111,20 @@ def _thread_header(value: object) -> str | None:
     return clean
 
 
+def _sender_address(bot_name: str) -> str:
+    ascii_name = (
+        unicodedata.normalize("NFKD", bot_name).encode("ascii", "ignore").decode("ascii")
+    )
+    local_part = re.sub(r"[^a-z0-9]+", "-", ascii_name.lower()).strip("-")
+    local_part = local_part[:48].rstrip("-") or "assistant"
+    return f"{local_part}@{MAIL_DOMAIN}"
+
+
 def _message(bot: dict, turn: dict, route: str, event: str) -> EmailMessage:
     bot_name = _clean_header(bot.get("name"), 80) or "Your bot"
     original_subject = _clean_header(turn.get("emailSubject"), 180)
+    in_reply_to = _thread_header(turn.get("emailMessageIdHeader"))
+    references = _thread_header(turn.get("emailReferences"))
     if event == "approval":
         subject = f"Action needed: {bot_name} is waiting for approval"
         answer = (
@@ -120,40 +132,55 @@ def _message(bot: dict, turn: dict, route: str, event: str) -> EmailMessage:
             "Open Hey Tim to review the exact action. Email replies cannot approve actions."
         )
     else:
-        subject = (
-            original_subject
-            if original_subject.lower().startswith("re:")
-            else f"Re: {original_subject}"
-            if original_subject
-            else f"{bot_name} replied"
-        )
+        is_email_reply = turn.get("source") == "email" or in_reply_to is not None
+        if original_subject and is_email_reply:
+            subject = (
+                original_subject
+                if original_subject.lower().startswith("re:")
+                else f"Re: {original_subject}"
+            )
+        else:
+            subject = original_subject or f"{bot_name} replied in Hey Tim"
         answer = str(turn.get("assistantText", "")).strip()
     answer = answer[:MAX_EMAIL_ANSWER_CHARS]
-    footer = "Open Hey Tim to see the complete conversation and approve any actions."
+    if event == "approval":
+        footer = f"Email notifications are enabled for {bot_name} in Hey Tim."
+        link_label = "Open Hey Tim to review this action and manage email preferences"
+    else:
+        footer = (
+            f"Email responses are enabled for {bot_name} in Hey Tim. "
+            "Reply to continue this conversation."
+        )
+        link_label = "Open Hey Tim to manage email preferences"
     message = EmailMessage()
-    message["From"] = Address(display_name=f"{bot_name} via Hey Tim", addr_spec=route)
+    sender = _sender_address(bot_name)
+    message["From"] = Address(display_name=f"{bot_name} via Hey Tim", addr_spec=sender)
     message["To"] = bot["emailOwnerAddress"]
-    message["Reply-To"] = route
+    message["Reply-To"] = Address(display_name=bot_name, addr_spec=route)
     message["Subject"] = subject
     message["Auto-Submitted"] = "auto-generated"
     message["X-Auto-Response-Suppress"] = "All"
-    in_reply_to = _thread_header(turn.get("emailMessageIdHeader"))
-    references = _thread_header(turn.get("emailReferences"))
     if in_reply_to:
         message["In-Reply-To"] = in_reply_to
     if references or in_reply_to:
         message["References"] = " ".join(
             value for value in (references, in_reply_to) if value
         )
-    message.set_content(f"{answer}\n\n---\n{footer}\n{PUBLIC_WEB_BASE_URL}")
+    message.set_content(
+        f"{answer}\n\n---\n{footer}\n{link_label}: {PUBLIC_WEB_BASE_URL}"
+    )
     message.add_alternative(
         (
             '<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;'
-            'line-height:1.55;color:#171714">'
+            'line-height:1.55;color:#171714;max-width:640px;margin:0 auto">'
+            f'<p style="font-size:14px;font-weight:600;color:#376b4b;margin:0 0 20px">'
+            f'{html.escape(bot_name)} <span style="font-weight:400;color:#77736b">'
+            'via Hey Tim</span></p>'
             f'<div style="white-space:pre-wrap">{html.escape(answer)}</div>'
             '<hr style="border:0;border-top:1px solid #e7e3da;margin:24px 0">'
-            f'<p style="color:#77736b">{html.escape(footer)} '
-            f'<a href="{html.escape(PUBLIC_WEB_BASE_URL, quote=True)}">Open Hey Tim</a>.</p>'
+            f'<p style="color:#77736b;font-size:13px">{html.escape(footer)} '
+            f'<a style="color:#376b4b" href="{html.escape(PUBLIC_WEB_BASE_URL, quote=True)}">'
+            f'{html.escape(link_label)}</a>.</p>'
             "</div>"
         ),
         subtype="html",
@@ -202,8 +229,9 @@ def _process(request: dict) -> None:
     try:
         route = mail_address(user_id, bot_id, token)
         message = _message(bot, turn, route, event)
+        sender = _sender_address(_clean_header(bot.get("name"), 80) or "Your bot")
         response = ses.send_email(
-            FromEmailAddress=route,
+            FromEmailAddress=sender,
             Destination={"ToAddresses": [owner]},
             ReplyToAddresses=[route],
             Content={"Raw": {"Data": message.as_bytes()}},

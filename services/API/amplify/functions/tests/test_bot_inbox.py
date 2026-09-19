@@ -6,6 +6,8 @@ import io
 import os
 import sys
 import uuid
+from email import policy
+from email.parser import BytesParser
 from unittest.mock import MagicMock, patch
 
 from api_test_case import ApiTestCase
@@ -374,7 +376,7 @@ class BotMailSenderTests(ApiTestCase):
             sys.modules.pop("email_send.handler", None)
             cls.sender = importlib.import_module("email_send.handler")
 
-    def test_sender_uses_the_bot_route_and_verified_owner(self) -> None:
+    def test_sender_uses_a_clean_from_address_and_private_reply_route(self) -> None:
         user_id = str(uuid.uuid4())
         bot = {
             "pk": f"USER#{user_id}",
@@ -411,9 +413,33 @@ class BotMailSenderTests(ApiTestCase):
 
         request = self.ses.send_email.call_args.kwargs
         address = mail_address(user_id, "bot-1", bot["emailToken"])
-        self.assertEqual(request["FromEmailAddress"], address)
+        self.assertEqual(request["FromEmailAddress"], "scout@bots.heytim.ai")
         self.assertEqual(request["Destination"], {"ToAddresses": ["owner@example.com"]})
-        raw = request["Content"]["Raw"]["Data"].decode("utf-8")
+        raw_bytes = request["Content"]["Raw"]["Data"]
+        raw = raw_bytes.decode("utf-8")
+        parsed = BytesParser(policy=policy.default).parsebytes(raw_bytes)
+        self.assertIn("From: Scout via Hey Tim <scout@bots.heytim.ai>", raw)
+        self.assertEqual(parsed["Reply-To"].addresses[0].display_name, "Scout")
+        self.assertEqual(parsed["Reply-To"].addresses[0].addr_spec, address)
         self.assertIn("Subject: Re: Question", raw)
         self.assertIn("In-Reply-To: <owner-1@example.com>", raw)
         self.assertIn("Here is the answer.", raw)
+
+    def test_app_response_does_not_pretend_to_be_an_email_reply(self) -> None:
+        route = "private-route@bots.heytim.ai"
+        message = self.sender._message(
+            {"name": "R\u00e9sum\u00e9 Helper", "emailOwnerAddress": "owner@example.com"},
+            {
+                "source": "app",
+                "emailSubject": "Weekly summary",
+                "assistantText": "Here is your summary.",
+            },
+            route,
+            "reply",
+        )
+
+        self.assertEqual(message["From"], "R\u00e9sum\u00e9 Helper via Hey Tim <resume-helper@bots.heytim.ai>")
+        self.assertEqual(message["Reply-To"].addresses[0].display_name, "R\u00e9sum\u00e9 Helper")
+        self.assertEqual(message["Reply-To"].addresses[0].addr_spec, route)
+        self.assertEqual(message["Subject"], "Weekly summary")
+        self.assertNotIn("Re:", message["Subject"])

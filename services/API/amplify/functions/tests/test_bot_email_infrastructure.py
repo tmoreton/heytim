@@ -42,3 +42,15 @@ class BotEmailInfrastructureTests(unittest.TestCase):
         )
         self.assertIn("`BotEmailDkimRecord${index}`", self.infrastructure)
         self.assertIn("value: Fn.join(',', dnsZone.attrNameServers)", self.infrastructure)
+
+    def test_outbound_mail_has_aligned_spf_dmarc_and_a_custom_return_path(self) -> None:
+        self.assertIn("const mailFromDomain = `mail.${domain}`", self.infrastructure)
+        self.assertIn("mailFromDomain,", self.infrastructure)
+        self.assertIn("behaviorOnMxFailure: 'USE_DEFAULT_VALUE'", self.infrastructure)
+        self.assertIn("new CfnRecordSet(stack, 'BotEmailMailFromMxRecord'", self.infrastructure)
+        self.assertIn(
+            "resourceRecords: [`10 feedback-smtp.${stack.region}.amazonses.com`]",
+            self.infrastructure,
+        )
+        self.assertIn('"v=spf1 include:amazonses.com ~all"', self.infrastructure)
+        self.assertIn('"v=DMARC1; p=none; adkim=s; aspf=r; pct=100"', self.infrastructure)
