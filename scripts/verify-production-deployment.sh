@@ -63,7 +63,7 @@ bucket_encryption="$(aws s3api get-bucket-encryption \
   exit 1
 }
 
-meme_prefix="$(jq -r '.runtimes[] | select(.name == "HeyTim") | .envVars[] | select(.name == "HEYTIM_MEME_TEMPLATE_PREFIX") | .value' "$repository_root/agentcore/agentcore.json")"
+meme_prefix="$(jq -r '.runtimes[] | select(.name == "FrogBot") | .envVars[] | select(.name == "HEYTIM_MEME_TEMPLATE_PREFIX") | .value' "$repository_root/agentcore/agentcore.json")"
 [[ -n "$meme_prefix" ]] || { echo 'Meme template prefix is missing.' >&2; exit 1; }
 meme_catalog="$(mktemp)"
 trap 'find "$meme_catalog" -delete 2>/dev/null || true' EXIT

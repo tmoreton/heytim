@@ -27,7 +27,9 @@ if (!memoryKeyArn?.startsWith(expectedKeyPrefix)) {
   throw new Error(`HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN must identify a key in ${production.account}/${production.region}.`);
 }
 
-const runtime = spec.runtimes?.find(item => item.name === 'HeyTim');
+// AgentCore keeps the original physical runtime name so production updates in
+// place instead of replacing the deployed runtime and its attached resources.
+const runtime = spec.runtimes?.find(item => item.name === 'FrogBot');
 if (!runtime || runtime.authorizerType !== 'AWS_IAM') {
   throw new Error('The HeyTim production runtime must use AWS_IAM authorization.');
 }
