@@ -191,47 +191,57 @@ private struct FroggyNavigationTitleModifier: ViewModifier {
 }
 
 public enum FrogTheme {
-  // Tim's amber identity uses a deeper tone for readable controls on light surfaces.
-  public static let brand = Color(hex: "#A15B00")
-  public static let brandDark = Color(hex: "#754100")
+  // Tim's bright yellow anchors a friendlier palette shared by every bot.
+  public static let brand = Color(hex: "#FFBC3B")
+  public static let brandDark = Color(hex: "#E69A00")
+  public static let brandInk = Color(hex: "#292510")
   public static let mascot = Color(hex: "#FFBC3B")
-  public static let accent: Color = {
+  public static let sky = Color(hex: "#3984F6")
+  public static let mint = Color(hex: "#58BEAA")
+  public static let coral = Color(hex: "#F46A27")
+  public static let lavender = Color(hex: "#8A76E8")
+  public static let rose = Color(hex: "#E95383")
+
+  private struct RGB {
+    let red: CGFloat
+    let green: CGFloat
+    let blue: CGFloat
+
+    init(_ red: Int, _ green: Int, _ blue: Int) {
+      self.red = CGFloat(red) / 255
+      self.green = CGFloat(green) / 255
+      self.blue = CGFloat(blue) / 255
+    }
+  }
+
+  private static func adaptive(light: RGB, dark: RGB) -> Color {
     #if os(iOS)
-      Color(
+      return Color(
         uiColor: UIColor { traits in
-          traits.userInterfaceStyle == .dark
-            ? UIColor(red: 1, green: 196 / 255, blue: 87 / 255, alpha: 1)
-            : UIColor(red: 161 / 255, green: 91 / 255, blue: 0, alpha: 1)
+          let value = traits.userInterfaceStyle == .dark ? dark : light
+          return UIColor(red: value.red, green: value.green, blue: value.blue, alpha: 1)
         })
     #else
-      Color(
+      return Color(
         nsColor: NSColor(name: nil) { appearance in
           let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-          return isDark
-            ? NSColor(srgbRed: 1, green: 196 / 255, blue: 87 / 255, alpha: 1)
-            : NSColor(srgbRed: 161 / 255, green: 91 / 255, blue: 0, alpha: 1)
+          let value = isDark ? dark : light
+          return NSColor(
+            srgbRed: value.red, green: value.green, blue: value.blue, alpha: 1)
         })
     #endif
-  }()
-  #if os(iOS)
-    public static let canvas = Color(uiColor: .systemGroupedBackground)
-    public static let appBackground = Color(uiColor: .systemBackground)
-    public static let pageBackground = Color(uiColor: .secondarySystemGroupedBackground)
-    public static let drawer = Color(uiColor: .systemGroupedBackground)
-    public static let surface = Color(uiColor: .secondarySystemBackground)
-    public static let border = Color(uiColor: .separator)
-    public static let subtleBorder = Color(uiColor: .quaternaryLabel)
-    public static let assistantBubble = Color(uiColor: .secondarySystemBackground)
-  #else
-    public static let canvas = Color(nsColor: .underPageBackgroundColor)
-    public static let appBackground = Color(nsColor: .windowBackgroundColor)
-    public static let pageBackground = Color(nsColor: .underPageBackgroundColor)
-    public static let drawer = Color(nsColor: .controlBackgroundColor)
-    public static let surface = Color(nsColor: .controlBackgroundColor)
-    public static let border = Color(nsColor: .separatorColor)
-    public static let subtleBorder = Color(nsColor: .quaternaryLabelColor)
-    public static let assistantBubble = Color(nsColor: .controlBackgroundColor)
-  #endif
+  }
+
+  // The dark palette stays comfortably dim without falling back to near-black system surfaces.
+  public static let accent = adaptive(light: RGB(166, 76, 0), dark: RGB(255, 211, 101))
+  public static let canvas = adaptive(light: RGB(255, 248, 236), dark: RGB(54, 51, 62))
+  public static let appBackground = adaptive(light: RGB(255, 253, 250), dark: RGB(50, 47, 57))
+  public static let pageBackground = adaptive(light: RGB(247, 241, 232), dark: RGB(61, 57, 69))
+  public static let drawer = adaptive(light: RGB(255, 247, 232), dark: RGB(58, 55, 66))
+  public static let surface = adaptive(light: RGB(255, 255, 255), dark: RGB(70, 65, 77))
+  public static let border = adaptive(light: RGB(222, 212, 200), dark: RGB(114, 105, 120))
+  public static let subtleBorder = adaptive(light: RGB(234, 224, 212), dark: RGB(98, 91, 105))
+  public static let assistantBubble = adaptive(light: RGB(244, 240, 234), dark: RGB(73, 69, 80))
   public static let text = Color.primary
   public static let textSoft = Color.primary
   public static let muted = Color.secondary
@@ -422,12 +432,12 @@ extension View {
   @ViewBuilder func froggyGlassButton(prominent: Bool = false, tint: Color? = nil) -> some View {
     if #available(iOS 26.0, macOS 26.0, *) {
       if prominent {
-        buttonStyle(.glassProminent).tint(tint)
+        buttonStyle(.glassProminent).tint(tint).foregroundStyle(FrogTheme.brandInk)
       } else {
         buttonStyle(.glass)
       }
     } else if prominent {
-      buttonStyle(.borderedProminent).tint(tint)
+      buttonStyle(.borderedProminent).tint(tint).foregroundStyle(FrogTheme.brandInk)
     } else {
       buttonStyle(.bordered).tint(tint)
     }

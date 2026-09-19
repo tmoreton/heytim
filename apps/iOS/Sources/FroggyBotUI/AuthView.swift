@@ -17,6 +17,7 @@ public struct AuthView: View {
   public var body: some View {
     ZStack {
       FrogTheme.canvas.ignoresSafeArea()
+      welcomingBackdrop
       #if os(macOS)
         GeometryReader { geometry in
           signInContent(minHeight: geometry.size.height)
@@ -26,6 +27,30 @@ public struct AuthView: View {
       #endif
     }
     .foregroundStyle(FrogTheme.text)
+  }
+
+  private var welcomingBackdrop: some View {
+    GeometryReader { geometry in
+      ZStack {
+        Circle()
+          .fill(FrogTheme.mascot.opacity(0.18))
+          .frame(width: geometry.size.width * 0.62)
+          .blur(radius: 80)
+          .offset(x: -geometry.size.width * 0.34, y: -geometry.size.height * 0.34)
+        Circle()
+          .fill(FrogTheme.sky.opacity(0.13))
+          .frame(width: geometry.size.width * 0.54)
+          .blur(radius: 90)
+          .offset(x: geometry.size.width * 0.37, y: -geometry.size.height * 0.12)
+        Circle()
+          .fill(FrogTheme.lavender.opacity(0.11))
+          .frame(width: geometry.size.width * 0.48)
+          .blur(radius: 90)
+          .offset(x: geometry.size.width * 0.3, y: geometry.size.height * 0.4)
+      }
+    }
+    .ignoresSafeArea()
+    .allowsHitTesting(false)
   }
 
   private func signInContent(minHeight: CGFloat) -> some View {
@@ -86,9 +111,9 @@ public struct AuthView: View {
       } label: {
         Group {
           if auth.isBusy {
-            ProgressView().tint(.white)
+            ProgressView().tint(FrogTheme.brandInk)
           } else {
-            Text(primaryLabel).foregroundStyle(.white)
+            Text(primaryLabel).foregroundStyle(FrogTheme.brandInk)
           }
         }
         .froggyFont(size: 16, weight: .semibold, relativeTo: .body)

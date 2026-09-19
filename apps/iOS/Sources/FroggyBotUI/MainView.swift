@@ -1329,7 +1329,7 @@ private struct MessageBubble: View {
             } else if !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
               MarkdownMessageView(
                 message.text, expandsToFill: !mine,
-                baseColor: mine ? .white : FrogTheme.textSoft)
+                baseColor: mine ? FrogTheme.brandInk : FrogTheme.textSoft)
             }
 
             ForEach(message.attachments ?? []) { attachment in
@@ -1789,7 +1789,7 @@ private struct Composer: View {
             }
             .accessibilityLabel("Send message")
             .buttonStyle(.plain)
-            .foregroundStyle(canSubmit ? Color.white : Color.secondary)
+            .foregroundStyle(canSubmit ? FrogTheme.brandInk : Color.secondary)
             .background(
               canSubmit ? FrogTheme.brand : Color.primary.opacity(0.08), in: Circle())
             .overlay(Circle().stroke(FrogTheme.border.opacity(0.7), lineWidth: 0.5))
