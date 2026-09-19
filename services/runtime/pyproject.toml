@@ -16,11 +16,11 @@ dependencies = [
     # patch releases are frequent, so pin both halves to keep deployed bundles
     # identical to the version verified in uv.lock.
     "boto3 == 1.43.90",
-    "botocore==1.43.92",
+    "botocore==1.43.95",
     "cyclopts == 4.25.2",
     # The toolkit resolves its first supported AgentCore target as manylinux2014.
     # Pin compiled transitive packages to versions that publish that ARM64 wheel.
-    "greenlet==3.5.5",
+    "greenlet==3.5.6",
     # Direct dependency: hardened remote MCP transports use HTTPX directly.
     "httpx == 0.28.1",
     # CodeZip resolves HTTPX transitives afresh; keep the packaged version
@@ -28,10 +28,10 @@ dependencies = [
     "idna == 3.19",
     # CodeZip resolves transitive packages afresh. Keep the compiled gRPC wheel
     # identical to the version exercised by the locked runtime environment.
-    "grpcio == 1.83.1",
+    "grpcio==1.84.0",
     # CodeZip resolves OpenAI transitives afresh; keep the packaged parser on
     # the exact version exercised by the locked runtime environment.
-    "jiter == 0.16.0",
+    "jiter==0.17.0",
     # Direct dependency: the hardened remote transport uses MCP's streamable HTTP API.
     "mcp >= 1.29.1, < 2.0.0",
     "mcp-proxy-for-aws >= 1.6.0, < 2.0.0",
@@ -42,27 +42,27 @@ dependencies = [
     "pillow == 12.3.0",
     # CodeZip resolves this browser dependency afresh instead of using uv.lock.
     # Keep the deployed driver identical to the version exercised by tests.
-    "playwright == 1.62.0",
+    "playwright==1.63.0",
     # AgentCore CodeZip resolves transitives afresh; keep the packaged version
     # aligned with the runtime lockfile and its integration test.
     "platformdirs == 4.11.8",
     # CodeZip resolves FastMCP transitives afresh; keep this on the locked version.
     "py-key-value-aio == 0.4.5",
     # Keep fresh CodeZip resolution on the already-tested lockfile versions.
-    "propcache == 0.5.2",
+    "propcache==0.5.4",
     "python-docx >= 1.2.0, < 2.0.0",
     "python-pptx >= 1.0.2, < 2.0.0",
     "reportlab>=4.4.4,<6.0.0",
     # CodeZip resolves afresh; deploy the version exercised by our runtime tests.
-    "strands-agents[openai]==1.55.1",
-    "strands-agents-tools[agent_core_browser,agent_core_code_interpreter] == 0.8.8",
+    "strands-agents[openai]==1.56.0",
+    "strands-agents-tools[agent_core_browser,agent_core_code_interpreter]==0.8.9",
     "strands-agents-stan",
     # AgentCore's package builder otherwise takes the newest Uvicorn release,
     # which can drift from the dependency-complete archive verified in uv.lock.
-    "uvicorn == 0.52.4",
-    "urllib3 == 2.7.0",
+    "uvicorn==0.53.0",
+    "urllib3==2.8.0",
     "wcwidth == 0.8.3",
-    "yarl == 1.24.5",
+    "yarl==1.25.1",
     # CodeZip resolves transitive instrumentation dependencies afresh. Keep its
     # ARM64 wheel identical to the version recorded in uv.lock.
     "wrapt==2.4.1",
