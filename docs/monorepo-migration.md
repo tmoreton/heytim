@@ -26,12 +26,11 @@ isolated browser viewer, and Expo transcription bridge. Source at the starting
 commit `cad69c2` is also recoverable from this repository's history. Existing
 local cleanup changes were retained. No cloud data or credentials were removed.
 
-The public catalog was imported from `/Users/tmoreton/Code/frogbot-skills`,
-repository `tmoreton/frog-bots`, commit `62a1f53`. That checkout matched remote
-`main` at import time and remains untouched for history/reference. The monorepo
-is now the maintained source. The protocol field `tmoreton/frogbot-skills` and
-release `skills-v26` remain stable; they are trusted catalog identities, not
-filesystem paths. Bump versions for future behavior changes as before.
+The public catalog was imported from the former catalog repository at commit
+`62a1f53`. The monorepo is now the maintained source, the trusted catalog
+repository identity is `tmoreton/heytim`, and the coordinated cutover release is
+`skills-v30`. Verified repository bundles preserve the retired histories outside
+the working tree.
 
 ## Verification and release
 
@@ -60,8 +59,6 @@ are performed by the release command above and reported separately.
 
 `apps/website` is the maintained source for the HeyTim website. The monorepo's
 Pages workflow publishes its checked Vite output directly to `heytim.ai`.
-`tmoreton/heytim-bots:gh-pages` temporarily serves the `app.heytim.ai` alias;
-its main branch and tagged skill releases remain available for compatibility
-with installed catalog versions. `tmoreton/heytim-web` can be retired after the
-new Pages site is live. A separate legacy Pages mirror keeps `froggybot.com`
-links working for older clients.
+The app, API, runtime, and evaluation tools all read the catalog from that domain.
+The superseded `heytim-web` and `heytim-bots` repositories are not compatibility
+targets and can be deleted after the new Pages deployment is verified.

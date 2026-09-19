@@ -33,7 +33,7 @@
   "custom": {
     "environment": "production",
     "apiUrl": "https://twrxzanvwg.execute-api.us-east-1.amazonaws.com",
-    "shareBaseUrl": "https://app.heytim.ai/invite",
+    "shareBaseUrl": "https://heytim.ai/invite",
     "dataTableName": "amplify-d1tu46ki1836w1-main-branch-6ca713cbb2-FrogBotAppE7B48881-JFCXVU7AR8CZ-Data666C94C7-11QZBY5HST87M",
     "inviteTableName": "amplify-d1tu46ki1836w1-main-branch-6ca713cbb2-auth179371D7-1XFXVPVDVYJ2M-InviteAccess65794604-MMIJ330UTNUS",
     "filesBucketName": "frogbot-production-user-files-188757775631-us-east-1",

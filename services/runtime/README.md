@@ -172,5 +172,5 @@ comparison are written under `evals/results/`, which is intentionally ignored by
 Before a catalog release is published, evaluate its proposed bot and skill definitions directly:
 
 ```bash
-uv run --frozen python -m evals.run_matrix --catalog /path/to/heytim-skills/catalog.json
+uv run --frozen python -m evals.run_matrix --catalog /path/to/heytim/catalog/catalog.json
 ```

@@ -27,7 +27,7 @@ X_SCOPES = ("tweet.read", "users.read", "offline.access")
 OAUTH_STATE_SECONDS = 10 * 60
 CALLBACK_BUDGET_SECONDS = 12.0
 REQUEST_MAX_SECONDS = 4.0
-DEFAULT_RETURN_URL = "https://app.heytim.ai/app?oauth=x"
+DEFAULT_RETURN_URL = "https://heytim.ai/app?oauth=x"
 
 _secrets_manager = None
 logger = logging.getLogger(__name__)

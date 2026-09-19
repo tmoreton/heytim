@@ -69,8 +69,7 @@ closed if an SDK update no longer matches the reviewed wrapper.
 `npm run browser:build` generates the viewer and decoder assets; it runs before
 web development/export. Generated assets are ignored in Git. WebView is a new
 native dependency: iOS requires a new app build, not only a JavaScript update.
-The native viewer origin uses the app host, `https://app.heytim.ai`, not the
-separate marketing site, and can be set at
+The native viewer origin uses `https://heytim.ai` and can be set at
 build time with `EXPO_PUBLIC_BROWSER_VIEWER_ORIGIN`.
 
 The backend API timeout is 29 seconds; browser mutation clients wait 40 seconds.

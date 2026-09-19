@@ -820,7 +820,7 @@ import UniformTypeIdentifiers
   func testInvitationLinksMatchWebAndNativeFormats() throws {
     XCTAssertEqual(
       InvitationParser.parse(
-        try XCTUnwrap(URL(string: "https://app.heytim.ai/invite?kind=group&token=abc%2B123"))),
+        try XCTUnwrap(URL(string: "https://heytim.ai/invite?kind=group&token=abc%2B123"))),
       PendingInvitation(kind: "group", token: "abc+123")
     )
     XCTAssertEqual(

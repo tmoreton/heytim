@@ -1,8 +1,9 @@
 # HeyTim Bots
 
 This directory is the maintained monorepo source for HeyTim's ready-made bots,
-reusable skills and reviewed tool definitions. Imported from the former public
-`tmoreton/heytim-bots` repository at commit `62a1f53`; its history remains there.
+reusable skills and reviewed tool definitions. It was imported from the former
+catalog repository at commit `62a1f53`; a verified local bundle preserves that
+repository's complete history.
 
 - [heytim.ai](https://heytim.ai) is built from `../apps/website` using Vite and React.
 - `bots/` contains evaluation scenarios for the small bot configurations in `catalog.json`.

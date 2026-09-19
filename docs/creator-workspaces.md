@@ -2,7 +2,12 @@
 
 ## What is implemented
 
-The proposed `skills-v22` public release replaces the overlapping creator portion of [catalog PR #2](https://github.com/tmoreton/heytim-skills/pull/2) with two focused bots: Creator Studio combines public YouTube strategy with Thumbnail Director, while Trend Scout compares dated signals from YouTube, recent X posts, and the web. The older GitHub Engineer, Twitter Research, YouTube Research, Reddit Research, and Thumbnail Studio proposal remains unreleased and should not be merged wholesale.
+The `skills-v22` public release replaced an unmerged proposal from the retired
+catalog repository with two focused bots: Creator Studio combines public YouTube
+strategy with Thumbnail Director, while Trend Scout compares dated signals from
+YouTube, recent X posts, and the web. The older GitHub Engineer, Twitter Research,
+YouTube Research, Reddit Research, and Thumbnail Studio proposal remains
+unreleased and should not be merged wholesale.
 
 The application supports group-owned scheduled tasks using the existing scheduler, queue, worker and push pipeline. The group owner opens **Tasks & runs**, chooses a time and IANA timezone, and can save, pause, delete or run a task immediately. A scheduled round asks Chief to scope the task, runs the specialists, then asks Chief for the final synthesis. Only the final reply queues completion notifications. A 07:00 schedule starts research at 07:00; notification delivery follows completion, not an exact 07:00 deadline.
 

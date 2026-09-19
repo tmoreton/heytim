@@ -32,7 +32,7 @@ from .support import ApiError, _ensure_account_active, catalog, table
 OAUTH_STATE_SECONDS = 10 * 60
 CALLBACK_BUDGET_SECONDS = 24.0
 REQUEST_MAX_SECONDS = 5.0
-DEFAULT_RETURN_URL = "https://app.heytim.ai/app?oauth=github"
+DEFAULT_RETURN_URL = "https://heytim.ai/app?oauth=github"
 REDIRECT_ENV = "GITHUB_OAUTH_REDIRECT_URI"
 
 _secrets_manager = None

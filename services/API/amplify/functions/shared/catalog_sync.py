@@ -33,13 +33,13 @@ from .time import utc_now_iso as _now
 
 CATALOG_URL = os.environ.get(
     "CAPABILITY_CATALOG_URL",
-    "https://app.heytim.ai/catalog.json",
+    "https://heytim.ai/catalog.json",
 )
-ALLOWED_REPOSITORY = "tmoreton/heytim-bots"
+ALLOWED_REPOSITORY = "tmoreton/heytim"
 SYNC_SECONDS = 300
 SYNC_LEASE_SECONDS = 180
 SYNC_RETRY_SECONDS = 60
-TRUSTED_CATALOG_HOST = "app.heytim.ai"
+TRUSTED_CATALOG_HOST = "heytim.ai"
 TRUSTED_CATALOG_PATHS = ("/catalog.json", "/skills/")
 _last_sync_at = 0.0
 _local_sync_delay = SYNC_SECONDS

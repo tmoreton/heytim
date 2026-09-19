@@ -63,7 +63,7 @@ AGENT_RUNTIME_ARN = os.environ.get("AGENT_RUNTIME_ARN")
 AGENT_RUNTIME_QUALIFIER = os.environ.get("AGENT_RUNTIME_QUALIFIER", "DEFAULT")
 HEYTIM_MEMORY_ID = os.environ.get("HEYTIM_MEMORY_ID")
 FILES_BUCKET_NAME = os.environ.get("FILES_BUCKET_NAME")
-PUBLIC_WEB_BASE_URL = os.environ.get("PUBLIC_WEB_BASE_URL", "https://app.heytim.ai")
+PUBLIC_WEB_BASE_URL = os.environ.get("PUBLIC_WEB_BASE_URL", "https://heytim.ai")
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)

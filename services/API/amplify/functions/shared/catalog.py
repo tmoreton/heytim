@@ -32,8 +32,8 @@ from .catalog_sync import CatalogSyncMixin
 from .connections import ConnectionMixin
 from .time import utc_now_iso as _now
 
-PUBLIC_WEB_BASE_URL = os.environ.get("PUBLIC_WEB_BASE_URL", "https://app.heytim.ai")
-CATALOG_REPOSITORY_URL = "https://github.com/tmoreton/heytim-bots"
+PUBLIC_WEB_BASE_URL = os.environ.get("PUBLIC_WEB_BASE_URL", "https://heytim.ai")
+CATALOG_REPOSITORY_URL = "https://github.com/tmoreton/heytim"
 
 __all__ = [
     "CatalogError",

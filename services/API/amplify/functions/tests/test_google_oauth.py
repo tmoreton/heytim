@@ -76,8 +76,8 @@ class GoogleOAuthTests(unittest.TestCase):
             "heytim://app?connection=gmail",
         )
         self.assertEqual(
-            self.google_oauth._return_url("https://app.heytim.ai/app?connection=gmail"),
-            "https://app.heytim.ai/app?connection=gmail",
+            self.google_oauth._return_url("https://heytim.ai/app?connection=gmail"),
+            "https://heytim.ai/app?connection=gmail",
         )
         with self.assertRaises(self.google_oauth.ApiError) as rejected:
             self.google_oauth._return_url("heytim://other?connection=gmail")

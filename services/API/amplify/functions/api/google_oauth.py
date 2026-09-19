@@ -43,9 +43,9 @@ GOOGLE_PROVIDER_SCOPES = {
 OAUTH_STATE_SECONDS = 10 * 60
 OAUTH_CALLBACK_BUDGET_SECONDS = 12.0
 OAUTH_REQUEST_MAX_SECONDS = 4.0
-DEFAULT_RETURN_URL = "https://app.heytim.ai/app?oauth=gmail"
+DEFAULT_RETURN_URL = "https://heytim.ai/app?oauth=gmail"
 ALLOWED_WEB_RETURN_HOSTS = {
-    "app.heytim.ai",
+    "heytim.ai",
     "heytim.expo.app",
     "localhost",
 }

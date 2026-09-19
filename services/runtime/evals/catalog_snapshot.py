@@ -6,8 +6,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-CATALOG_URL = "https://app.heytim.ai/catalog.json"
-TRUSTED_REPOSITORY = "tmoreton/heytim-skills"
+CATALOG_URL = "https://heytim.ai/catalog.json"
+TRUSTED_REPOSITORY = "tmoreton/heytim"
 
 
 def _json_from_url(url: str) -> dict[str, Any]:
@@ -99,7 +99,7 @@ def load_catalog_snapshot(
         if skill_id in skills:
             raise ValueError(f"Duplicate capability catalog skill: {skill_id}")
         document = (
-            _text_from_url(f"https://app.heytim.ai/{path}")
+            _text_from_url(f"https://heytim.ai/{path}")
             if catalog_root is None
             else _text_from_path(catalog_root / path)
         )

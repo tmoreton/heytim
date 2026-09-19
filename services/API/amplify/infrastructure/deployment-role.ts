@@ -82,12 +82,8 @@ export function addGithubDeploymentRole({
         StringEquals: {
           'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
           // GitHub's customized OIDC subject includes the immutable repository ID.
-          // Accept every historic name during the rename; retire old subjects after release.
-          'token.actions.githubusercontent.com:sub': [
-            'repo:tmoreton@5090418/frogbot@1356546597:environment:production',
-            'repo:tmoreton@5090418/heytim-platform@1356546597:environment:production',
+          'token.actions.githubusercontent.com:sub':
             'repo:tmoreton@5090418/heytim@1356546597:environment:production',
-          ],
         },
       },
       'sts:AssumeRoleWithWebIdentity',

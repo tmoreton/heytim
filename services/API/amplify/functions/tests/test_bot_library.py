@@ -71,7 +71,7 @@ class BotCatalogTests(unittest.TestCase):
                 "_fetch_json",
                 return_value={
                     "schemaVersion": 3,
-                    "repository": "tmoreton/heytim-bots",
+                    "repository": "tmoreton/heytim",
                     "release": "skills-v11",
                     "tools": test_catalog.TEST_TOOLS,
                     "skills": [raw_skill],

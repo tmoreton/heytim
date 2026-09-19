@@ -20,12 +20,11 @@ the `kind` and `token` expected by the existing native invitation parser.
 
 The build copies only the public allowlist from `../../catalog`: `catalog.json`,
 `skills/`, `bots/`, and `tools/`. The production API reads the catalog at
-`https://app.heytim.ai/catalog.json`. Older installed versions keep their pinned
-catalog data.
+`https://heytim.ai/catalog.json`.
 Never copy `services/API/amplify_outputs.json` or secrets into this site.
 
-The monorepo's Pages workflow builds and publishes `heytim.ai`. The separate
-`../../scripts/deploy-website.sh` command refreshes only the temporary
-`app.heytim.ai` compatibility mirror. Website publishing and Apple TestFlight
+The monorepo's Pages workflow builds and publishes `heytim.ai`. The
+`../../scripts/deploy-website.sh` command verifies the release and queues that
+workflow. Website publishing and Apple TestFlight
 releases are independent; a website-only change need not rebuild an app. See
 `../../docs/monorepo-migration.md` for hosting history.

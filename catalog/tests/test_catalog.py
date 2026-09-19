@@ -12,7 +12,7 @@ OUTPUT = ROOT.parent / "apps" / "website" / "dist"
 class CatalogTests(unittest.TestCase):
     def test_catalog_points_at_current_repository(self) -> None:
         catalog = json.loads((ROOT / "catalog.json").read_text())
-        self.assertEqual(catalog["repository"], "tmoreton/heytim-bots")
+        self.assertEqual(catalog["repository"], "tmoreton/heytim")
 
     def test_gateway_targets_default_to_the_catalog_release(self) -> None:
         catalog = json.loads((ROOT / "catalog.json").read_text())

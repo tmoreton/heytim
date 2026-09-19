@@ -34,11 +34,10 @@ or catalog boundaries should remain one reviewable commit or pull request.
 ## Publishing model
 
 - `tmoreton/heytim` is the only source of truth.
-- `tmoreton/heytim-web` is a retiring artifact mirror. `tmoreton/heytim-bots`
-  remains a compatibility archive for immutable catalog tags and the temporary
-  `app.heytim.ai` Pages alias. Neither is independently maintained source.
-- Built website or catalog artifacts may be pushed to a deployment mirror, but
-  maintainers never edit that mirror directly or merge it back as source.
+- The GitHub Pages workflow publishes the website and catalog at `heytim.ai`
+  from the same reviewed commit.
+- The superseded `tmoreton/heytim-web` and `tmoreton/heytim-bots` repositories
+  were archived as verified Git bundles before deletion; they are not release targets.
 - Production credentials, customer data, signing material, and secret values do
   not belong in any source repository.
 
@@ -74,8 +73,8 @@ first-party code. The policy applies to catalog bots and skills as well as code.
 - [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) records the vendored wheels
   and native transcription components; their complete license texts travel with
   the applicable archives or generated application resources.
-- The renamed repository keeps historic OIDC subjects temporarily while the live
-  production role also trusts the immutable `heytim` repository identity.
+- The production deployment role trusts only the immutable `heytim` repository
+  identity.
 
 Before selling commercial licenses, have qualified counsel review the commercial
 agreement and the chosen copyright owner. Add a contributor agreement workflow

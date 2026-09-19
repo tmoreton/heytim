@@ -17,7 +17,7 @@ from evals.run_matrix import (
 def test_catalog_snapshot_uses_schema_three_bot_catalog(monkeypatch) -> None:
     catalog = {
         "schemaVersion": 3,
-        "repository": "tmoreton/heytim-skills",
+        "repository": "tmoreton/heytim",
         "release": "skills-v42",
         "skills": [
             {
@@ -51,7 +51,7 @@ def test_catalog_snapshot_rejects_retired_schema(monkeypatch) -> None:
         "_json_from_url",
         lambda _url: {
             "schemaVersion": 2,
-            "repository": "tmoreton/heytim-skills",
+            "repository": "tmoreton/heytim",
         },
     )
 
@@ -71,7 +71,7 @@ def test_catalog_snapshot_can_load_a_proposed_local_release(tmp_path) -> None:
         json.dumps(
             {
                 "schemaVersion": 3,
-                "repository": "tmoreton/heytim-skills",
+                "repository": "tmoreton/heytim",
                 "release": "skills-v99",
                 "skills": [
                     {

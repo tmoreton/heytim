@@ -39,7 +39,7 @@ BOT_FIELDS = {
     "skillIds",
     "toolIds",
 }
-REPOSITORY = "tmoreton/heytim-bots"
+REPOSITORY = "tmoreton/heytim"
 GATEWAY_TARGETS = ROOT / "infrastructure" / "gateway-targets.yaml"
 
 

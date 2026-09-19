@@ -168,16 +168,16 @@ class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
 
     def test_catalog_fetches_only_from_the_reviewed_repository(self) -> None:
         trusted = (
-            "https://app.heytim.ai/catalog.json",
-            "https://app.heytim.ai/skills/trip-planner/SKILL.md",
+            "https://heytim.ai/catalog.json",
+            "https://heytim.ai/skills/trip-planner/SKILL.md",
         )
         for url in trusted:
             self.assertEqual(sync_module._trusted_catalog_url(url), url)
         for url in (
-            "http://app.heytim.ai/catalog.json",
+            "http://heytim.ai/catalog.json",
             "https://example.com/catalog.json",
-            "https://app.heytim.ai/private/catalog.json",
-            "https://app.heytim.ai/catalog.json?ref=other",
+            "https://heytim.ai/private/catalog.json",
+            "https://heytim.ai/catalog.json?ref=other",
         ):
             with self.subTest(url=url), self.assertRaises(CatalogError):
                 sync_module._trusted_catalog_url(url)
@@ -531,7 +531,7 @@ class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
         self.assertEqual(search["actions"], ["Search sources"])
         self.assertEqual(
             result["contributionUrl"],
-            "https://github.com/tmoreton/heytim-bots/blob/main/CONTRIBUTING.md",
+            "https://github.com/tmoreton/heytim/blob/main/CONTRIBUTING.md",
         )
     def test_runtime_resolves_dynamodb_decimal_skill_versions(self) -> None:
         skill = self.catalog.resolve_for_runtime({"planner": Decimal(1)})

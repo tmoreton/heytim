@@ -157,15 +157,15 @@ class InfrastructureContractTests(unittest.TestCase):
 
     def test_github_deployment_trust_uses_immutable_repository_ids(self) -> None:
         self.assertIn(
+            "repo:tmoreton@5090418/heytim@1356546597:environment:production",
+            self.deployment_role,
+        )
+        self.assertNotIn(
             "repo:tmoreton@5090418/frogbot@1356546597:environment:production",
             self.deployment_role,
         )
-        self.assertIn(
+        self.assertNotIn(
             "repo:tmoreton@5090418/heytim-platform@1356546597:environment:production",
-            self.deployment_role,
-        )
-        self.assertIn(
-            "repo:tmoreton@5090418/heytim@1356546597:environment:production",
             self.deployment_role,
         )
         self.assertNotIn(

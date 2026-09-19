@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
-  "repository": "tmoreton/heytim-bots",
-  "release": "skills-v29",
+  "repository": "tmoreton/heytim",
+  "release": "skills-v30",
   "tools": [
     {
       "id": "web",
