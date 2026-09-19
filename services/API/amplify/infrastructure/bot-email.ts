@@ -166,7 +166,9 @@ export function addBotEmailReceiving(
     reportBatchItemFailures: true,
   }));
   sender.addToRolePolicy(new PolicyStatement({
-    actions: ['ses:SendEmail'],
+    // SES v2 authorizes messages with Raw content against SendRawEmail even
+    // though the SDK operation is named SendEmail.
+    actions: ['ses:SendEmail', 'ses:SendRawEmail'],
     resources: [stack.formatArn({
       service: 'ses', resource: 'identity', resourceName: domain,
     })],

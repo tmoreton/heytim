@@ -20,7 +20,9 @@ class BotEmailInfrastructureTests(unittest.TestCase):
         self.assertIn("handler: 'email_send.handler.handler'", self.infrastructure)
 
     def test_sender_permission_is_scoped_to_the_bot_domain_identity(self) -> None:
-        self.assertIn("actions: ['ses:SendEmail']", self.infrastructure)
+        self.assertIn(
+            "actions: ['ses:SendEmail', 'ses:SendRawEmail']", self.infrastructure
+        )
         self.assertIn("resource: 'identity', resourceName: domain", self.infrastructure)
         self.assertNotIn("actions: ['ses:*']", self.infrastructure)
 
