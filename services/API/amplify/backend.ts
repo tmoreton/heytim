@@ -29,6 +29,7 @@ import {
   notionOAuthSecretArn,
   runtimeArn, runtimeQualifier, usageWindowSeconds, userWindowRunUnitLimit,
   slackOAuthSecretArn, xOAuthSecretArn, youtubeSearchDailyLimit,
+  stripeAvailable,
 } from './infrastructure/app-settings';
 import { addBrowserAccess } from './infrastructure/browser-access';
 import { addBotEmailReceiving } from './infrastructure/bot-email';
@@ -45,6 +46,7 @@ import {
 import { addObservability } from './infrastructure/observability';
 import { addPublicAvailabilityProbe } from './infrastructure/production-readiness';
 import { addProviderConnectionAccess } from './infrastructure/provider-connections';
+import { addStripeBilling } from './infrastructure/stripe-billing';
 const backend = defineBackend({ auth, preSignUp });
 // Keep the original construct identity so the rename updates the live stack
 // instead of replacing customer data, auth, and file resources.
@@ -416,6 +418,7 @@ addBrowserAccess(stack, apiFunction, workerFunction);
 inviteAccess.grantReadWriteData(apiFunction);
 inviteAccess.grantReadWriteData(workerFunction);
 table.grantReadWriteData(workerFunction);
+addStripeBilling(apiFunction, workerFunction);
 addNativePushAccess(apiFunction, workerFunction, [
   nativePushApplications.production,
   nativePushApplications.sandbox,
@@ -581,6 +584,8 @@ backend.addOutput({
   custom: {
     environment: deploymentEnvironment,
     apiUrl: httpApi.apiEndpoint,
+    billingAvailable: stripeAvailable,
+    stripeWebhookUrl: `${httpApi.apiEndpoint}/public/webhooks/stripe`,
     shareBaseUrl: `${PUBLIC_WEB_BASE_URL}/invite`,
     dataTableName: table.tableName,
     inviteTableName: inviteAccess.tableName,

@@ -96,9 +96,16 @@ private struct AppRoot: View {
       }
     }
     .onOpenURL { url in
-      if auth.phase == .signedIn, ConnectionAuthorizationCallback(url: url) != nil {
+      let billingWebReturn = ["heytim.ai", "www.heytim.ai"].contains(url.host ?? "")
+        && url.path == "/billing"
+      let billingAppReturn = url.scheme == "heytim" && url.host == "app"
+        && URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
+          .contains(where: { $0.name == "billing" }) == true
+      if auth.phase == .signedIn, billingWebReturn || billingAppReturn {
+        NotificationCenter.default.post(name: .heyTimBillingDidReturn, object: nil)
+      } else if auth.phase == .signedIn, ConnectionAuthorizationCallback(url: url) != nil {
         Task { await model.handleConnectionCallback(url) }
-      } else if auth.phase == .signedIn, ["heytim", "heytim"].contains(url.scheme ?? ""), url.host == "app" {
+      } else if auth.phase == .signedIn, url.scheme == "heytim", url.host == "app" {
         Task { await model.refreshBootstrap() }
       } else if auth.phase == .signedIn {
         model.handle(url: url)

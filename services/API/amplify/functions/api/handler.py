@@ -5,6 +5,7 @@ from typing import Any
 
 from . import authenticated_routes
 from .account import _begin_account_deletion
+from .billing import stripe_webhook
 from .external_oauth import _external_callback
 from .github_oauth import _github_callback
 from .github_webhook import github_issue_webhook
@@ -27,6 +28,8 @@ logger = logging.getLogger(__name__)
 def _public_route(event: dict, method: str, path: str, params: dict) -> dict | None:
     if method == "POST" and path == "/public/webhooks/github":
         return github_issue_webhook(event)
+    if method == "POST" and path == "/public/webhooks/stripe":
+        return stripe_webhook(event)
     if method == "GET" and path.startswith("/public/invites/"):
         return _response(
             200,

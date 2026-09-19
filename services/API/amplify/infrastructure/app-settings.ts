@@ -89,6 +89,44 @@ export const usageWindowSeconds = boundedIntegerSetting(
 export const youtubeSearchDailyLimit = boundedIntegerSetting(
   'HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT', 100, 3, 1_000_000, true,
 );
+export const freeMonthlyCredits = boundedIntegerSetting(
+  'HEYTIM_FREE_MONTHLY_CREDITS', 30, 1, 1_000_000,
+);
+export const plusMonthlyCredits = boundedIntegerSetting(
+  'HEYTIM_PLUS_MONTHLY_CREDITS', 300, 1, 1_000_000,
+);
+export const plusPriceCents = boundedIntegerSetting(
+  'HEYTIM_PLUS_PRICE_CENTS', 2_000, 1, 10_000_000,
+);
+if (freeMonthlyCredits > monthlyRunUnitLimit || plusMonthlyCredits > monthlyRunUnitLimit) {
+  throw new Error('Plan credits cannot exceed HEYTIM_MONTHLY_RUN_UNIT_LIMIT.');
+}
+
+export const stripeSecretArn = optionalProviderSetting('HEYTIM_STRIPE_SECRET_ARN');
+export const stripePlusPriceId = optionalProviderSetting('HEYTIM_STRIPE_PLUS_PRICE_ID');
+if (Boolean(stripeSecretArn) !== Boolean(stripePlusPriceId)) {
+  throw new Error('HEYTIM_STRIPE_SECRET_ARN and HEYTIM_STRIPE_PLUS_PRICE_ID must be set together.');
+}
+if (stripeSecretArn && !stripeSecretArn.startsWith('arn:aws:secretsmanager:')) {
+  throw new Error('HEYTIM_STRIPE_SECRET_ARN must be an AWS Secrets Manager ARN.');
+}
+if (stripePlusPriceId && !/^price_[A-Za-z0-9]+$/.test(stripePlusPriceId)) {
+  throw new Error('HEYTIM_STRIPE_PLUS_PRICE_ID must be a Stripe Price ID.');
+}
+const stripeLiveModeValue = process.env.HEYTIM_STRIPE_LIVE_MODE ?? 'false';
+if (!['true', 'false'].includes(stripeLiveModeValue)) {
+  throw new Error('HEYTIM_STRIPE_LIVE_MODE must be true or false.');
+}
+export const stripeLiveMode = stripeLiveModeValue === 'true';
+const stripeAutomaticTaxValue = process.env.HEYTIM_STRIPE_AUTOMATIC_TAX ?? 'false';
+if (!['true', 'false'].includes(stripeAutomaticTaxValue)) {
+  throw new Error('HEYTIM_STRIPE_AUTOMATIC_TAX must be true or false.');
+}
+export const stripeAutomaticTax = stripeAutomaticTaxValue === 'true';
+export const stripeAvailable = Boolean(stripeSecretArn && stripePlusPriceId);
+if (stripeLiveMode && !stripeAvailable) {
+  throw new Error('Stripe must be configured before enabling live mode.');
+}
 
 export const runtimeArn = requiredSetting('HEYTIM_AGENT_RUNTIME_ARN');
 export const runtimeQualifier = process.env.HEYTIM_AGENT_RUNTIME_QUALIFIER ?? 'DEFAULT';

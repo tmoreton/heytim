@@ -9,6 +9,7 @@ from .attachments import (
     _download_file,
     _download_group_file,
 )
+from .billing import billing_route
 from .bot_documents import _list_bot_documents
 from .bot_inbox import (
     delete_inbox_message,
@@ -554,6 +555,7 @@ def _skill_route(
 
 
 _HANDLERS: dict[str, Route] = {
+    "billing": billing_route,
     "bot": _bot_route,
     "botInbox": _bot_inbox_route,
     "browser": browser_session_route,

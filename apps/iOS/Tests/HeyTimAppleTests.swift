@@ -31,6 +31,44 @@ import UniformTypeIdentifiers
     XCTAssertEqual(path, "/bots/bot%2Fwith%20spaces/messages?cursor=a+b/%3D")
   }
 
+  func testBillingAPIUsesSummaryCheckoutAndPortalRoutes() async throws {
+    var requests: [(String, String)] = []
+    MockURLProtocol.handler = { request in
+      requests.append((request.httpMethod ?? "", request.url?.path ?? ""))
+      switch request.url?.path {
+      case "/billing":
+        return Self.response(
+          for: request,
+          body: #"{"plan":"free","status":"free","creditsUsed":7,"creditsRemaining":23,"creditLimit":30,"resetsAt":"2026-10-01T00:00:00Z","cancelAtPeriodEnd":false,"billingAvailable":true,"checkoutAvailable":true,"managementAvailable":false,"supportedStorefrontCountryCode":"USA","price":{"currency":"usd","unitAmount":2000,"interval":"month"},"mode":"test"}"#)
+      case "/billing/checkout":
+        let body = try Self.jsonBody(request)
+        XCTAssertEqual(body["storefrontCountryCode"] as? String, "USA")
+        XCTAssertNotNil(body["requestId"] as? String)
+        return Self.response(
+          for: request, body: #"{"url":"https://checkout.stripe.com/test"}"#)
+      case "/billing/portal":
+        return Self.response(
+          for: request, body: #"{"url":"https://billing.stripe.com/test"}"#)
+      default:
+        throw APIError.invalidResponse
+      }
+    }
+    let api = HeyTimAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+
+    let summary = try await api.billingSummary()
+    let checkout = try await api.createBillingCheckout(storefrontCountryCode: "USA")
+    let portal = try await api.createBillingPortal()
+
+    XCTAssertEqual(summary.creditsRemaining, 23)
+    XCTAssertEqual(checkout.host, "checkout.stripe.com")
+    XCTAssertEqual(portal.host, "billing.stripe.com")
+    XCTAssertEqual(requests.map { "\($0.0) \($0.1)" }, [
+      "GET /billing", "POST /billing/checkout", "POST /billing/portal",
+    ])
+  }
+
   func testPollingBackoffIsBoundedAndJittered() {
     XCTAssertEqual(AppModel.nextPollingDelay(base: 1_500, failures: 0), 1_500)
     XCTAssertEqual(AppModel.nextPollingDelay(base: 1_500, failures: 1, random: 0), 2_400)

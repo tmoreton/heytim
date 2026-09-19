@@ -10,6 +10,10 @@
           {
             "/": "/invite",
             "comment": "Open HeyTim invitation links in the installed iOS app."
+          },
+          {
+            "/": "/billing*",
+            "comment": "Return to HeyTim after Stripe checkout or billing management."
           }
         ]
       }

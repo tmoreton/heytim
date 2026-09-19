@@ -3,6 +3,7 @@ import { Privacy } from './pages/privacy';
 import { Terms } from './pages/terms';
 import { Sms } from './pages/sms';
 import { Contribute } from './pages/contribute';
+import { BillingReturn } from './pages/billing';
 import { Library } from './library';
 import { OpenApp } from './open-app';
 import { normalizePathname } from './route';
@@ -14,6 +15,7 @@ export const pages: Record<string, string> = {
   '/sms': 'SMS program — HeyTim', '/contribute': 'Contribute — HeyTim',
   '/download': 'Get the Apple app — HeyTim', '/app': 'Open HeyTim',
   '/invite': 'You’re invited — HeyTim',
+  '/billing': 'Return to HeyTim — Billing',
 };
 
 export function Website({ pathname }: { pathname: string }) {
@@ -23,6 +25,7 @@ export function Website({ pathname }: { pathname: string }) {
     : route === '/privacy' ? <Privacy /> : route === '/terms' ? <Terms />
     : route === '/sms' ? <Sms /> : route === '/contribute' ? <Contribute />
     : route === '/invite' ? <OpenApp invite />
+    : route === '/billing' ? <BillingReturn />
     : route === '/download' || route === '/app' ? <OpenApp />
     : <main className="doc-page" id="main"><h1>We couldn’t find that page.</h1><p>Try the skills library or return home.</p><a className="button" href="/">Back to home</a></main>;
   return <>

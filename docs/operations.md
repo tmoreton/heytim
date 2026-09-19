@@ -29,8 +29,10 @@ The API and worker reserve product-funded provider capacity before starting paid
 run unit; a coordinated group round atomically reserves one unit for every planned bot reply; and creation of a
 new remote browser session costs one unit. Refreshing an existing live browser session costs no additional unit.
 A durable admission marker makes API/SQS retries, scheduled retries, direct background continuations, and
-uncertain browser starts idempotent. This is the quota and circuit-breaker foundation only—it is not payment
-checkout, subscription accounting, or an invoice ledger.
+uncertain browser starts idempotent. When Stripe is configured, the same atomic admission reads the user's
+signed-webhook-derived entitlement: Free receives 30 calendar-month credits and Plus receives 300 credits per
+Stripe subscription period. The system does not treat a browser redirect as proof of payment and does not store
+card details. Provider token/cost records remain operational telemetry rather than an invoice ledger.
 
 The Amplify backend validates these deployment environment settings and passes them to both API and worker
 functions:
@@ -38,10 +40,23 @@ functions:
 | Setting | Default | Allowed range | Meaning |
 | --- | ---: | ---: | --- |
 | `HEYTIM_MONTHLY_RUN_UNIT_LIMIT` | 1,000 | 1–1,000,000 | Maximum run units admitted for one billing user in a UTC calendar month |
+| `HEYTIM_FREE_MONTHLY_CREDITS` | 30 | 1–1,000,000 | Free-plan work credits per UTC calendar month when Stripe billing is configured |
+| `HEYTIM_PLUS_MONTHLY_CREDITS` | 300 | 1–1,000,000 | Plus work credits per Stripe subscription period |
+| `HEYTIM_PLUS_PRICE_CENTS` | 2,000 | 1–10,000,000 | Displayed recurring Plus price in USD cents; the configured Stripe Price remains authoritative at checkout |
 | `HEYTIM_USER_WINDOW_RUN_UNIT_LIMIT` | 30 | 1–10,000 | Maximum run units admitted for one billing user in a short fixed window |
 | `HEYTIM_GLOBAL_WINDOW_RUN_UNIT_LIMIT` | 300 | 1–100,000 | Maximum run units admitted across the service in that fixed window |
 | `HEYTIM_USAGE_WINDOW_SECONDS` | 60 | 10–3,600 | Fixed-window duration in seconds |
 | `HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT` | 100 | 3–1,000,000 | Maximum conservative YouTube tool-call capacity HeyTim may reserve per Pacific-time quota day |
+
+Stripe is optional and fail-safe. Without both `HEYTIM_STRIPE_SECRET_ARN` and
+`HEYTIM_STRIPE_PLUS_PRICE_ID`, the API reports preview mode and the existing
+`HEYTIM_MONTHLY_RUN_UNIT_LIMIT` remains in force. The Secrets Manager value is JSON containing `secretKey` and
+`webhookSecret`. Configure Stripe to send `checkout.session.completed` and
+`customer.subscription.created`, `.updated`, and `.deleted` events to the Amplify output
+`stripeWebhookUrl`. Keep `HEYTIM_STRIPE_LIVE_MODE=false` for test keys and events; switch it only with matching live
+keys, Price, and webhook endpoint. Keep `HEYTIM_STRIPE_AUTOMATIC_TAX=false` until Stripe has a verified head-office
+address and the required tax registrations. Webhook signatures are verified over the raw request, event IDs are retained for
+idempotency, and out-of-order subscription events cannot replace newer state.
 
 YouTube access has a separate provider budget. Before every runtime session with public search or a connected
 YouTube channel, the worker atomically reserves three calls from the shared Pacific-time daily counter. The lease is

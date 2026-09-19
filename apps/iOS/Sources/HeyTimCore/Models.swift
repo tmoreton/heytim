@@ -925,6 +925,32 @@ public struct BrowserViewport: Codable, Sendable {
   public var height: Int
 }
 
+public struct BillingSummary: Codable, Equatable, Sendable {
+  public struct Price: Codable, Equatable, Sendable {
+    public var currency: String
+    public var unitAmount: Int
+    public var interval: String
+  }
+
+  public var plan: String
+  public var status: String
+  public var creditsUsed: Int
+  public var creditsRemaining: Int
+  public var creditLimit: Int
+  public var resetsAt: String
+  public var cancelAtPeriodEnd: Bool
+  public var billingAvailable: Bool
+  public var checkoutAvailable: Bool
+  public var managementAvailable: Bool
+  public var supportedStorefrontCountryCode: String
+  public var price: Price
+  public var mode: String
+}
+
+public struct BillingSession: Codable, Equatable, Sendable {
+  public var url: String
+}
+
 public struct UploadAsset: Sendable {
   public var url: URL
   public var name: String

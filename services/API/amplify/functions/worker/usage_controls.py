@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Any
 
 from botocore.exceptions import BotoCoreError, ClientError
+from shared.billing import entitlement_for_user
 
 from .support import table
 
@@ -277,7 +278,7 @@ def admit_run(
     *,
     run_units: int = 1,
     now: datetime | None = None,
-    limits: UsageLimits = USAGE_LIMITS,
+    limits: UsageLimits | None = None,
     allow_duplicate_during_circuit: bool = False,
 ) -> AdmissionDecision:
     """Atomically reserve a logical run before any product-funded provider call.
@@ -295,8 +296,26 @@ def admit_run(
         raise ValueError(f"run_units must be between 1 and {MAX_RUN_UNITS}")
 
     recorded_at = (now or datetime.now(UTC)).astimezone(UTC)
+    usage_period = f"month:{recorded_at.strftime('%Y-%m')}"
+    counter_sort_key = f"USAGE_LIMIT#MONTH#{recorded_at.strftime('%Y-%m')}"
+    effective_limits = limits
+    if effective_limits is None:
+        try:
+            entitlement = entitlement_for_user(table, safe_user_id, now=recorded_at)
+        except Exception as exc:
+            raise UsageControlUnavailable("Billing entitlement is unavailable") from exc
+        effective_limits = UsageLimits(
+            monthly_run_units=min(
+                entitlement.credit_limit, USAGE_LIMITS.monthly_run_units
+            ),
+            user_window_run_units=USAGE_LIMITS.user_window_run_units,
+            global_window_run_units=USAGE_LIMITS.global_window_run_units,
+            window_seconds=USAGE_LIMITS.window_seconds,
+        )
+        usage_period = entitlement.period_key
+        counter_sort_key = entitlement.counter_sort_key
     epoch = int(recorded_at.timestamp())
-    window_start = epoch - (epoch % limits.window_seconds)
+    window_start = epoch - (epoch % effective_limits.window_seconds)
     month = recorded_at.strftime("%Y-%m")
     marker_key = {
         "pk": f"USER#{safe_user_id}",
@@ -305,7 +324,7 @@ def admit_run(
     account_key = {"pk": f"USER#{safe_user_id}", "sk": "STATE"}
     month_key = {
         "pk": f"USER#{safe_user_id}",
-        "sk": f"USAGE_LIMIT#MONTH#{month}",
+        "sk": counter_sort_key,
     }
     user_window_key = {
         "pk": f"USER#{safe_user_id}",
@@ -330,18 +349,20 @@ def admit_run(
     if _circuit_is_open():
         return AdmissionDecision(False, "circuit_open")
 
-    if run_units > limits.monthly_run_units:
+    if run_units > effective_limits.monthly_run_units:
         return AdmissionDecision(False, "monthly_limit")
-    if run_units > limits.user_window_run_units:
+    if run_units > effective_limits.user_window_run_units:
         return AdmissionDecision(False, "user_rate_limit")
-    if run_units > limits.global_window_run_units:
+    if run_units > effective_limits.global_window_run_units:
         return AdmissionDecision(False, "global_rate_limit")
 
     timestamp = recorded_at.isoformat(timespec="milliseconds").replace("+00:00", "Z")
     admission_expiry = int(
         (recorded_at + timedelta(days=ADMISSION_RETENTION_DAYS)).timestamp()
     )
-    rate_expiry = epoch + max(RATE_COUNTER_RETENTION_SECONDS, limits.window_seconds * 2)
+    rate_expiry = epoch + max(
+        RATE_COUNTER_RETENTION_SECONDS, effective_limits.window_seconds * 2
+    )
     marker_item = {
         **marker_key,
         "entity": "USAGE_ADMISSION",
@@ -349,6 +370,7 @@ def admit_run(
         "runId": safe_run_id,
         "runUnits": run_units,
         "usageMonth": month,
+        "usagePeriod": usage_period,
         "windowStart": window_start,
         "createdAt": timestamp,
         "expiresAt": admission_expiry,
@@ -425,7 +447,7 @@ def admit_run(
             "Update": counter_update(
                 month_key,
                 entity="USAGE_MONTH_COUNTER",
-                limit=limits.monthly_run_units,
+                limit=effective_limits.monthly_run_units,
                 expiry=admission_expiry,
             )
         },
@@ -433,7 +455,7 @@ def admit_run(
             "Update": counter_update(
                 user_window_key,
                 entity="USAGE_USER_WINDOW_COUNTER",
-                limit=limits.user_window_run_units,
+                limit=effective_limits.user_window_run_units,
                 expiry=rate_expiry,
             )
         },
@@ -441,7 +463,7 @@ def admit_run(
             "Update": counter_update(
                 global_window_key,
                 entity="USAGE_GLOBAL_WINDOW_COUNTER",
-                limit=limits.global_window_run_units,
+                limit=effective_limits.global_window_run_units,
                 expiry=rate_expiry,
             )
         },
@@ -469,7 +491,7 @@ def admit_run(
             month_key=month_key,
             user_window_key=user_window_key,
             global_window_key=global_window_key,
-            limits=limits,
+            limits=effective_limits,
             allow_duplicate_during_circuit=allow_duplicate_during_circuit,
         )
     except (BotoCoreError, ClientError):
@@ -483,7 +505,7 @@ def admit_run(
                 month_key=month_key,
                 user_window_key=user_window_key,
                 global_window_key=global_window_key,
-                limits=limits,
+                limits=effective_limits,
                 allow_duplicate_during_circuit=allow_duplicate_during_circuit,
             )
         except UsageControlUnavailable as reconciliation_error:

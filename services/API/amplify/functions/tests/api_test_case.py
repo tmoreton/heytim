@@ -249,6 +249,7 @@ class ApiTestCase(unittest.TestCase):
             ),
         ):
             cls.handler = importlib.import_module("api.handler")
+            cls.billing = importlib.import_module("api.billing")
             cls.support = importlib.import_module("api.support")
             cls.attachments = importlib.import_module("api.attachments")
             cls.bot_documents = importlib.import_module("api.bot_documents")

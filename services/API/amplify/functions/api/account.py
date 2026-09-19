@@ -6,6 +6,7 @@ from shared.account_cleanup import AccountCleanupConfig, AccountCleanupService
 from shared.memory_identity import memory_actor_id
 from shared.storage import delete_object_versions
 
+from .billing import cancel_stripe_subscription_for_account
 from .memories import _delete_user_memory as _delete_memory
 from .support import (
     AGENT_RUNTIME_ARN,
@@ -45,6 +46,7 @@ def _delete_user_memory(user_id: str) -> dict[str, int]:
 
 
 def _begin_account_deletion(user_id: str, username: str) -> dict:
+    cancel_stripe_subscription_for_account(user_id)
     started_at = _now()
     try:
         table.update_item(

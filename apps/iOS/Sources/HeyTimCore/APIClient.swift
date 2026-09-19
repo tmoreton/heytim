@@ -577,6 +577,29 @@ public final class HeyTimAPI: Sendable {
     let _: EmptyResponse = try await request(.accountDelete)
   }
 
+  public func billingSummary() async throws -> BillingSummary {
+    try await request(.billingSummary)
+  }
+
+  public func createBillingCheckout(storefrontCountryCode: String) async throws -> URL {
+    let value: BillingSession = try await request(
+      .billingCheckout,
+      body: BillingRequest(
+        requestId: UUID().uuidString.lowercased(),
+        storefrontCountryCode: storefrontCountryCode))
+    guard let url = URL(string: value.url) else { throw APIError.invalidResponse }
+    return url
+  }
+
+  public func createBillingPortal() async throws -> URL {
+    let value: BillingSession = try await request(
+      .billingPortal,
+      body: BillingRequest(
+        requestId: UUID().uuidString.lowercased(), storefrontCountryCode: nil))
+    guard let url = URL(string: value.url) else { throw APIError.invalidResponse }
+    return url
+  }
+
   public func upload(_ asset: UploadAsset) async throws -> Attachment {
     let ticket: UploadTicket = try await request(
       .uploadCreate, body: UploadRequest(filename: asset.name, size: asset.size))
@@ -679,6 +702,10 @@ private struct PushRegistration: Codable {
 private struct UploadRequest: Codable {
   var filename: String
   var size: Int
+}
+private struct BillingRequest: Codable {
+  var requestId: String
+  var storefrontCountryCode: String?
 }
 
 extension Data {

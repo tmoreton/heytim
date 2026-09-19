@@ -18,11 +18,15 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case publicInvite
     case publicCatalog
     case githubWebhook
+    case stripeWebhook
     case googleOAuthCallback
     case githubOAuthCallback
     case xOAuthCallback
     case providerOAuthCallback
     case bootstrap
+    case billingSummary
+    case billingCheckout
+    case billingPortal
     case botTemplateInstall
     case botCreate
     case botUpdate
@@ -184,6 +188,12 @@ public enum GeneratedAPIContract {
             pathTemplate: "/public/webhooks/github",
             access: .publicAccess
         ),
+        .stripeWebhook: APIContractRoute(
+            id: .stripeWebhook,
+            method: .post,
+            pathTemplate: "/public/webhooks/stripe",
+            access: .publicAccess
+        ),
         .googleOAuthCallback: APIContractRoute(
             id: .googleOAuthCallback,
             method: .get,
@@ -212,6 +222,24 @@ public enum GeneratedAPIContract {
             id: .bootstrap,
             method: .get,
             pathTemplate: "/bootstrap",
+            access: .authenticated
+        ),
+        .billingSummary: APIContractRoute(
+            id: .billingSummary,
+            method: .get,
+            pathTemplate: "/billing",
+            access: .authenticated
+        ),
+        .billingCheckout: APIContractRoute(
+            id: .billingCheckout,
+            method: .post,
+            pathTemplate: "/billing/checkout",
+            access: .authenticated
+        ),
+        .billingPortal: APIContractRoute(
+            id: .billingPortal,
+            method: .post,
+            pathTemplate: "/billing/portal",
             access: .authenticated
         ),
         .botTemplateInstall: APIContractRoute(

@@ -46,6 +46,12 @@ export function addGithubDeploymentRole({
     resourceName: `bedrock-agentcore-identity!default/apikey/${name}-*`,
     arnFormat: ArnFormat.COLON_RESOURCE_NAME,
   }));
+  const stripeSecretArn = stack.formatArn({
+    service: 'secretsmanager',
+    resource: 'secret',
+    resourceName: 'heytim/stripe/production-*',
+    arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+  });
   const productionOnlineEvaluationRoleArn = stack.formatArn({
     service: 'iam',
     region: '',
@@ -165,6 +171,14 @@ export function addGithubDeploymentRole({
       'secretsmanager:PutSecretValue',
     ],
     resources: credentialSecretArns,
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: [
+      'secretsmanager:CreateSecret',
+      'secretsmanager:DescribeSecret',
+      'secretsmanager:PutSecretValue',
+    ],
+    resources: [stripeSecretArn],
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['bedrock-agentcore:ListGatewayTargets'],

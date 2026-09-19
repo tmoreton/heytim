@@ -2,8 +2,13 @@ import SwiftUI
 import AuthenticationServices
 import Observation
 import QuickLook
+import StoreKit
 import UniformTypeIdentifiers
 import UserNotifications
+
+extension Notification.Name {
+  static let heyTimBillingDidReturn = Notification.Name("HeyTimBillingDidReturn")
+}
 
 #if os(iOS)
   import UIKit
@@ -1211,6 +1216,13 @@ struct AccountView: View {
   @State private var exportingMemory = false
   @State private var memoryExportDocument: MemoryExportDocument?
   @State private var showingMemoryExporter = false
+  @State private var billing: BillingSummary?
+  @State private var loadingBilling = true
+  @State private var billingBusy = false
+  @State private var billingError: String?
+  @State private var storefrontCountryCode: String?
+  @Environment(\.openURL) private var openURL
+  @Environment(\.scenePhase) private var scenePhase
 
   var body: some View {
     Form {
@@ -1239,6 +1251,8 @@ struct AccountView: View {
           Label("Connected Accounts", systemImage: "link")
         }
       }
+
+      billingSection
 
       Section {
         Picker("Appearance", selection: $appearance) {
@@ -1380,7 +1394,13 @@ struct AccountView: View {
       }
     }
     .task { await load() }
-    .refreshable { await loadLinks() }
+    .refreshable { await load() }
+    .onReceive(NotificationCenter.default.publisher(for: .heyTimBillingDidReturn)) { _ in
+      Task { await loadBilling() }
+    }
+    .onChange(of: scenePhase) { _, phase in
+      if phase == .active { Task { await loadBilling() } }
+    }
     .fileExporter(
       isPresented: $showingMemoryExporter,
       document: memoryExportDocument,
@@ -1448,6 +1468,93 @@ struct AccountView: View {
     }
   }
 
+  @ViewBuilder private var billingSection: some View {
+    Section {
+      if loadingBilling, billing == nil {
+        HStack {
+          Spacer()
+          ProgressView()
+          Spacer()
+        }
+      } else if let billing {
+        LabeledContent("Plan") {
+          Text(billing.plan == "plus" ? "Plus" : billing.plan == "preview" ? "Preview" : "Free")
+            .fontWeight(.semibold)
+        }
+        VStack(alignment: .leading, spacing: 8) {
+          ProgressView(
+            value: Double(min(billing.creditsUsed, billing.creditLimit)),
+            total: Double(max(1, billing.creditLimit)))
+            .tint(FrogTheme.accent)
+          HStack {
+            Text("\(billing.creditsUsed) of \(billing.creditLimit) work credits used")
+            Spacer()
+            Text("\(billing.creditsRemaining) left")
+          }
+          .froggyFont(.caption)
+          .foregroundStyle(.secondary)
+          if let resetDate = billing.resetsAt.froggyDate {
+            Text("Resets \(resetDate.formatted(.dateTime.month(.abbreviated).day().year()))")
+              .froggyFont(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        if billing.plan == "plus", billing.managementAvailable {
+          Button { startBillingPortal() } label: {
+            billingButtonLabel("Manage Subscription", systemImage: "creditcard")
+          }
+          .disabled(billingBusy)
+        } else if billing.checkoutAvailable,
+          storefrontCountryCode == billing.supportedStorefrontCountryCode
+        {
+          Button { startCheckout(countryCode: billing.supportedStorefrontCountryCode) } label: {
+            billingButtonLabel("Upgrade to Plus — \(priceLabel(billing.price))", systemImage: "sparkles")
+          }
+          .disabled(billingBusy)
+        } else if billing.billingAvailable, storefrontCountryCode != nil,
+          storefrontCountryCode != billing.supportedStorefrontCountryCode
+        {
+          Text("Plus web checkout is currently available in the U.S. only.")
+            .froggyFont(.footnote)
+            .foregroundStyle(.secondary)
+        }
+
+        if billing.cancelAtPeriodEnd, let resetDate = billing.resetsAt.froggyDate {
+          Text("Plus remains active until \(resetDate.formatted(.dateTime.month(.abbreviated).day().year())).")
+            .froggyFont(.footnote)
+            .foregroundStyle(.secondary)
+        }
+        if billing.billingAvailable, billing.mode == "test" {
+          Label("Test billing is enabled. No live charge will be made.", systemImage: "testtube.2")
+            .froggyFont(.footnote)
+            .foregroundStyle(.secondary)
+        }
+      }
+
+      if let billingError {
+        Label(billingError, systemImage: "exclamationmark.triangle")
+          .froggyFont(.footnote)
+          .foregroundStyle(.orange)
+        Button("Try Again") { Task { await loadBilling() } }
+      }
+    } header: {
+      Text("Usage & Plan")
+    } footer: {
+      Text("A work credit covers one bot reply or one planned group reply. Token and provider usage is still measured privately for cost and reliability.")
+    }
+  }
+
+  @ViewBuilder private func billingButtonLabel(
+    _ title: String, systemImage: String
+  ) -> some View {
+    if billingBusy {
+      Label { Text("Opening…") } icon: { ProgressView() }
+    } else {
+      Label(title, systemImage: systemImage)
+    }
+  }
+
   private var isNotificationPermissionGranted: Bool {
     #if os(iOS)
       notificationAuthorization == .authorized || notificationAuthorization == .provisional
@@ -1484,8 +1591,57 @@ struct AccountView: View {
 
   private func load() async {
     async let notificationLoad: Void = refreshNotificationStatus()
-    await loadLinks()
+    async let linksLoad: Void = loadLinks()
+    async let billingLoad: Void = loadBilling()
+    _ = await (linksLoad, billingLoad)
     _ = await notificationLoad
+  }
+
+  private func loadBilling() async {
+    loadingBilling = true
+    defer { loadingBilling = false }
+    if storefrontCountryCode == nil {
+      let storefront = await Storefront.current
+      storefrontCountryCode = storefront?.countryCode ?? Locale.current.region?.identifier
+    }
+    do {
+      billing = try await model.requireAPI().billingSummary()
+      billingError = nil
+    } catch {
+      billingError = error.localizedDescription
+    }
+  }
+
+  private func startCheckout(countryCode: String) {
+    billingBusy = true
+    Task {
+      defer { billingBusy = false }
+      do {
+        openURL(try await model.requireAPI().createBillingCheckout(
+          storefrontCountryCode: countryCode))
+      } catch {
+        model.present(error)
+      }
+    }
+  }
+
+  private func startBillingPortal() {
+    billingBusy = true
+    Task {
+      defer { billingBusy = false }
+      do {
+        openURL(try await model.requireAPI().createBillingPortal())
+      } catch {
+        model.present(error)
+      }
+    }
+  }
+
+  private func priceLabel(_ price: BillingSummary.Price) -> String {
+    let amount = Double(price.unitAmount) / 100
+    let formatted = amount.formatted(
+      .currency(code: price.currency.uppercased()).precision(.fractionLength(0...2)))
+    return "\(formatted)/\(price.interval)"
   }
 
   private func loadLinks() async {

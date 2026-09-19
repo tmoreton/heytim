@@ -36,6 +36,9 @@ Set these non-secret variables:
 - `HEYTIM_APNS_APPLICATION_ARN` and optional `HEYTIM_APNS_SANDBOX_APPLICATION_ARN`
 - `HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT` based on the verified Google project quota
 - `HEYTIM_MONTHLY_BUDGET_USD`
+- Optional Stripe launch variables: `HEYTIM_STRIPE_PLUS_PRICE_ID`, `HEYTIM_STRIPE_LIVE_MODE` (start with `false`),
+  `HEYTIM_STRIPE_AUTOMATIC_TAX` (start with `false`), `HEYTIM_FREE_MONTHLY_CREDITS`,
+  `HEYTIM_PLUS_MONTHLY_CREDITS`, and `HEYTIM_PLUS_PRICE_CENTS`
 - `HEYTIM_GOOGLE_REVIEW_APPROVED`, `HEYTIM_SLACK_REVIEW_APPROVED`,
   `HEYTIM_X_REVIEW_APPROVED`, and `HEYTIM_NOTION_REVIEW_APPROVED` set to `true` only after the provider's
   production verification/distribution requirements are complete
@@ -52,6 +55,9 @@ Set these environment secrets:
   `HEYTIM_SLACK_OAUTH_SECRET_ARN`, `HEYTIM_NOTION_OAUTH_SECRET_ARN`
 - Optional: `HEYTIM_MICROSOFT_OAUTH_SECRET_ARN`, `HEYTIM_HUBSPOT_OAUTH_SECRET_ARN`,
   `HEYTIM_JIRA_OAUTH_SECRET_ARN`, `HEYTIM_ZOOM_OAUTH_SECRET_ARN`
+- Optional until subscriptions are enabled: `HEYTIM_STRIPE_SECRET_KEY` and
+  `HEYTIM_STRIPE_WEBHOOK_SECRET`. Set both only with the Stripe Price variable. The release workflow stores them in
+  the production account's `heytim/stripe/production` Secrets Manager secret and passes only its ARN to Lambda.
 - `FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY`, containing the App Store Connect `.p8` key
 - `FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64`, containing a base64-encoded Apple Distribution `.p12`, and
   `FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD`
@@ -73,6 +79,12 @@ backend deployment if any Apple signing value above is missing.
 
 Set optional provider secrets only after the corresponding OAuth app is configured and reviewed. Meta and LinkedIn remain
 deferred and absent from the registry for this release.
+
+Before enabling Stripe, create the monthly Plus Product/Price, configure the customer portal, register the deployed
+`stripeWebhookUrl`, and exercise checkout, renewal/update, cancellation, webhook replay, account deletion, and a failed
+payment in test mode. Confirm the app's Usage & Plan screen refreshes through `https://heytim.ai/billing`, that the
+associated-domain entitlement is present in the signed build, and that the App Store listing and review notes describe
+the U.S.-only external web purchase flow. Do not set `HEYTIM_STRIPE_LIVE_MODE=true` until this evidence is recorded.
 
 ## Provider evidence
 
