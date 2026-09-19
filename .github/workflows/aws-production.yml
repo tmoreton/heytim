@@ -84,6 +84,7 @@ jobs:
           STRIPE_SECRET_KEY: ${{ secrets.HEYTIM_STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.HEYTIM_STRIPE_WEBHOOK_SECRET }}
           STRIPE_PLUS_PRICE_ID: ${{ vars.HEYTIM_STRIPE_PLUS_PRICE_ID }}
+          STRIPE_LIVE_MODE: ${{ vars.HEYTIM_STRIPE_LIVE_MODE || 'false' }}
           APNS_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_APPLICATION_ARN }}
           GOOGLE_REVIEW_APPROVED: ${{ vars.HEYTIM_GOOGLE_REVIEW_APPROVED }}
           SLACK_REVIEW_APPROVED: ${{ vars.HEYTIM_SLACK_REVIEW_APPROVED }}
@@ -136,8 +137,25 @@ jobs:
             [[ -n "${!name}" ]] && ((stripe_value_count += 1))
           done
           if (( stripe_value_count != 0 && stripe_value_count != ${#stripe_values[@]} )); then
-            echo 'Stripe test key, webhook secret, and Plus Price ID must be configured together.' >&2
+            echo 'Stripe API key, webhook secret, and Plus Price ID must be configured together.' >&2
             exit 1
+          fi
+          if (( stripe_value_count == ${#stripe_values[@]} )); then
+            stripe_mode='test'
+            [[ "$STRIPE_LIVE_MODE" == true ]] && stripe_mode='live'
+            if [[ "$STRIPE_SECRET_KEY" != sk_${stripe_mode}_* \
+              && "$STRIPE_SECRET_KEY" != rk_${stripe_mode}_* ]]; then
+              echo "Stripe API key is not a valid $stripe_mode key." >&2
+              exit 1
+            fi
+            if [[ "$STRIPE_WEBHOOK_SECRET" != whsec_* ]]; then
+              echo 'Stripe webhook signing secret is invalid.' >&2
+              exit 1
+            fi
+            if [[ "$STRIPE_PLUS_PRICE_ID" != price_* ]]; then
+              echo 'Stripe Plus Price ID is invalid.' >&2
+              exit 1
+            fi
           fi
           attestations=(
             GOOGLE_REVIEW_APPROVED SLACK_REVIEW_APPROVED X_REVIEW_APPROVED

@@ -51,6 +51,16 @@ def _stripe_automatic_tax() -> bool:
     return os.environ.get("STRIPE_AUTOMATIC_TAX", "false").lower() == "true"
 
 
+def _valid_stripe_api_key(value: Any) -> bool:
+    if not isinstance(value, str) or any(character.isspace() for character in value):
+        return False
+    mode = "live" if _stripe_live_mode() else "test"
+    return any(
+        value.startswith(prefix) and len(value) > len(prefix)
+        for prefix in (f"sk_{mode}_", f"rk_{mode}_")
+    )
+
+
 def _stripe_configuration() -> dict[str, str]:
     global _secret_cache
     if not billing_available():
@@ -79,7 +89,7 @@ def _stripe_configuration() -> dict[str, str]:
     webhook_secret = value.get("webhookSecret") or value.get(
         "STRIPE_WEBHOOK_SECRET"
     )
-    if not isinstance(secret_key, str) or not secret_key.startswith("sk_"):
+    if not _valid_stripe_api_key(secret_key):
         raise ApiError(503, "Subscriptions are not configured")
     if not isinstance(webhook_secret, str) or not webhook_secret.startswith("whsec_"):
         raise ApiError(503, "Subscriptions are not configured")

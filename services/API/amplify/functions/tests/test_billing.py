@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import json
 import time
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from api_test_case import ApiTestCase
 
@@ -37,6 +37,59 @@ class BillingTests(ApiTestCase):
         self.assertEqual(result["creditsRemaining"], 23)
         self.assertTrue(result["checkoutAvailable"])
         self.assertEqual(result["price"]["unitAmount"], 2000)
+
+    def test_stripe_configuration_accepts_live_restricted_key(self) -> None:
+        secrets = MagicMock()
+        secrets.get_secret_value.return_value = {
+            "SecretString": json.dumps(
+                {
+                    "secretKey": "rk_live_restrictedvalue",
+                    "webhookSecret": "whsec_value",
+                }
+            )
+        }
+        self.billing._secret_cache = None
+        with (
+            patch.dict(
+                self.billing.os.environ,
+                {
+                    "HEYTIM_STRIPE_AVAILABLE": "true",
+                    "STRIPE_LIVE_MODE": "true",
+                    "STRIPE_SECRET_ID": "heytim/stripe/production",
+                },
+            ),
+            patch.object(self.billing.boto3, "client", return_value=secrets),
+        ):
+            result = self.billing._stripe_configuration()
+        self.billing._secret_cache = None
+
+        self.assertEqual(result["secretKey"], "rk_live_restrictedvalue")
+
+    def test_stripe_configuration_rejects_non_key_text(self) -> None:
+        secrets = MagicMock()
+        secrets.get_secret_value.return_value = {
+            "SecretString": json.dumps(
+                {
+                    "secretKey": "Copy this key now. It will not be shown again.",
+                    "webhookSecret": "whsec_value",
+                }
+            )
+        }
+        self.billing._secret_cache = None
+        with (
+            patch.dict(
+                self.billing.os.environ,
+                {
+                    "HEYTIM_STRIPE_AVAILABLE": "true",
+                    "STRIPE_LIVE_MODE": "true",
+                    "STRIPE_SECRET_ID": "heytim/stripe/production",
+                },
+            ),
+            patch.object(self.billing.boto3, "client", return_value=secrets),
+            self.assertRaisesRegex(self.billing.ApiError, "Subscriptions are not configured"),
+        ):
+            self.billing._stripe_configuration()
+        self.billing._secret_cache = None
 
     def test_webhook_requires_and_accepts_valid_stripe_signature(self) -> None:
         body = json.dumps(
