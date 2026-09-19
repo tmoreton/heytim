@@ -16,7 +16,7 @@ Chief has both group-specific skills and access to specialist templates because 
 
 ## Ideas checked
 
-| Source | Useful pattern | FroggyBot decision |
+| Source | Useful pattern | HeyTim decision |
 | --- | --- | --- |
 | [mattpocock/skills](https://github.com/mattpocock/skills/blob/main/README.md) | Small, composable skills; distinguish explicitly invoked orchestration from reusable workflow guidance. | Make Skill Builder activate for an explicit reusable workflow request. Keep Chief's default set narrow. |
 | [Anthropic skill creator](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md) | Define triggers, near misses, expected outputs, and iterate with examples. | Add realistic positive, negative, and outcome cases to Skill Builder's `evals.json`. |
@@ -28,7 +28,7 @@ Chief has both group-specific skills and access to specialist templates because 
 - **Team Handoff:** add an opt-in skill if real Chief-to-bot or person-to-person handoffs repeatedly lose decisions, inputs, or ownership. Chief already requests these fields in its base prompt, so another default skill would duplicate it today.
 - **Meeting Follow Through:** add an opt-in skill if users need a recurring workflow that turns meeting notes into decisions, owners, and due dates. Meeting Prep handles work before a meeting, and Group Decision handles unresolved choices; observe the gap before adding a package.
 
-The reviewed repositories target coding agents and sometimes bundle scripts or tool integrations. FroggyBot public skills remain instruction-only under this catalog's validation and review rules.
+The reviewed repositories target coding agents and sometimes bundle scripts or tool integrations. HeyTim public skills remain instruction-only under this catalog's validation and review rules.
 
 Catalog release `skills-v28` includes Skill Builder and supersedes the unshipped `skills-v27` audit changes. Publication still needs the matching backend deployment and versioned gateway schema assets before the public API and website can agree.
 

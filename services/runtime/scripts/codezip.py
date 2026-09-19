@@ -16,12 +16,12 @@ LOCK_PATH = RUNTIME_ROOT / "uv.lock"
 GENERATED_PATHS = (
     REPOSITORY_ROOT / "agentcore/.cache",
     REPOSITORY_ROOT / "agentcore/cdk/cdk.out",
-    REPOSITORY_ROOT / "agentcore/FrogBot",
-    REPOSITORY_ROOT / "agentcore/FrogBot.zip",
+    REPOSITORY_ROOT / "agentcore/HeyTim",
+    REPOSITORY_ROOT / "agentcore/HeyTim.zip",
 )
 SOURCE_TOP_LEVEL = {
     "attachments-policy.json",
-    "frogbot_runtime",
+    "heytim_runtime",
     "group_context.py",
     "main.py",
     "model",
@@ -30,7 +30,7 @@ REQUIRED_ARCHIVE_PATHS = {
     "bedrock_agentcore/",
     "boto3/",
     "docx/",
-    "frogbot_runtime/",
+    "heytim_runtime/",
     "httpx/",
     "mcp/",
     "model/",

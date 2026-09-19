@@ -6,14 +6,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from frogbot_runtime import agentcore_adapters, capabilities, gateway_tools
-from frogbot_runtime.background_work import (
+from heytim_runtime import agentcore_adapters, capabilities, gateway_tools
+from heytim_runtime.background_work import (
     BackgroundWorkTracker,
     start_background_command,
 )
-from frogbot_runtime.capability_contract import tool_bindings
-from frogbot_runtime.configuration import bot_configuration
-from frogbot_runtime.local_tools import calculate
+from heytim_runtime.capability_contract import tool_bindings
+from heytim_runtime.configuration import bot_configuration
+from heytim_runtime.local_tools import calculate
 from model.usage import (
     YOUTUBE_QUOTA_TIME_ZONE,
     ProviderCallLimitExceeded,
@@ -280,7 +280,7 @@ def test_calculator_accepts_arithmetic_and_rejects_code() -> None:
 def test_gateway_dispatches_are_counted_without_arguments(monkeypatch) -> None:
     accumulator = UsageAccumulator(youtube_search_quota=_youtube_quota())
     client = object.__new__(gateway_tools.MeteredMCPClient)
-    client._frogbot_usage = accumulator
+    client._heytim_usage = accumulator
 
     monkeypatch.setattr(
         gateway_tools.MCPClient,
@@ -323,7 +323,7 @@ def test_gateway_dispatch_limit_blocks_before_provider_call(monkeypatch) -> None
         youtube_search_quota=_youtube_quota(),
     )
     client = object.__new__(gateway_tools.MeteredMCPClient)
-    client._frogbot_usage = accumulator
+    client._heytim_usage = accumulator
     provider_calls = []
     monkeypatch.setattr(
         gateway_tools.MCPClient,
@@ -341,7 +341,7 @@ def test_gateway_dispatch_limit_blocks_before_provider_call(monkeypatch) -> None
 def test_youtube_search_lease_blocks_fourth_dispatch(monkeypatch) -> None:
     accumulator = UsageAccumulator(youtube_search_quota=_youtube_quota())
     client = object.__new__(gateway_tools.MeteredMCPClient)
-    client._frogbot_usage = accumulator
+    client._heytim_usage = accumulator
     provider_calls = []
     monkeypatch.setattr(
         gateway_tools.MCPClient,
@@ -365,7 +365,7 @@ def test_youtube_search_requires_current_reserved_day(monkeypatch) -> None:
     accumulator = UsageAccumulator(youtube_search_quota=quota)
     accumulator._youtube_quota_day = lambda: "2099-01-01"
     client = object.__new__(gateway_tools.MeteredMCPClient)
-    client._frogbot_usage = accumulator
+    client._heytim_usage = accumulator
     provider_calls = []
     monkeypatch.setattr(
         gateway_tools.MCPClient,
@@ -403,7 +403,7 @@ def test_code_interpreter_reconnects_ready_session_after_cold_start(
             return {
                 "items": [
                     {
-                        "name": "frogbot-conversation-1",
+                        "name": "heytim-conversation-1",
                         "codeInterpreterIdentifier": "aws.codeinterpreter.v1",
                         "sessionId": "session-123",
                     }
@@ -413,12 +413,12 @@ def test_code_interpreter_reconnects_ready_session_after_cold_start(
     monkeypatch.setattr(agentcore_adapters, "CodeInterpreterClient", FakeClient)
     interpreter = agentcore_adapters.PersistentAgentCoreCodeInterpreter(
         region="us-east-1",
-        session_name="frogbot-conversation-1",
+        session_name="heytim-conversation-1",
     )
 
     session_name, error = interpreter._ensure_session(None)
 
-    assert session_name == "frogbot-conversation-1"
+    assert session_name == "heytim-conversation-1"
     assert error is None
     session = interpreter._sessions[session_name]
     assert session.session_id == "session-123"
@@ -441,7 +441,7 @@ def test_browser_reconnects_ready_session_after_cold_start(monkeypatch) -> None:
             return {
                 "items": [
                     {
-                        "name": "frogbot-conversation-1",
+                        "name": "heytim-conversation-1",
                         "browserIdentifier": "aws.browser.v1",
                         "sessionId": "browser-session-123",
                     }
@@ -463,7 +463,7 @@ def test_browser_reconnects_ready_session_after_cold_start(monkeypatch) -> None:
     monkeypatch.setattr(agentcore_adapters, "BrowserClient", FakeClient)
     browser = agentcore_adapters.PersistentAgentCoreBrowser(
         region="us-east-1",
-        session_name="frogbot-conversation-1",
+        session_name="heytim-conversation-1",
         session_timeout=7200,
     )
     browser._playwright = SimpleNamespace(chromium=FakeChromium())

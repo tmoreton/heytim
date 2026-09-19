@@ -60,7 +60,7 @@ export function addHttpApi({
   });
 
   const defaultStage = httpApi.defaultStage?.node.defaultChild as CfnStage | undefined;
-  if (!defaultStage) throw new Error('FroggyBot HTTP API must have a default stage.');
+  if (!defaultStage) throw new Error('HeyTim HTTP API must have a default stage.');
   defaultStage.accessLogSettings = {
     destinationArn: apiAccessLogGroup.logGroupArn,
     format: JSON.stringify({

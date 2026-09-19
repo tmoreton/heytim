@@ -14,7 +14,7 @@ Parameters:
     Description: Existing HeyTim AgentCore Gateway execution role name.
   SchemaBucketName:
     Type: String
-    Default: bedrock-agentcore-gateway-frogbot-188757775631-use1
+    Default: bedrock-agentcore-gateway-heytim-188757775631-use1
     AllowedPattern: '[a-z0-9.-]{3,63}'
     Description: Private bucket containing immutable schema release objects.
   Release:
@@ -82,7 +82,7 @@ Resources:
     DependsOn: GatewaySchemaAccessPolicy
     Properties:
       GatewayIdentifier: !Ref GatewayIdentifier
-      Name: FrogBotXSearch
+      Name: HeyTimXSearch
       Description: Read-only search of recent public X posts.
       TargetConfiguration:
         Mcp:
@@ -104,7 +104,7 @@ Resources:
     DependsOn: GatewaySchemaAccessPolicy
     Properties:
       GatewayIdentifier: !Ref GatewayIdentifier
-      Name: FrogBotYouTube
+      Name: HeyTimYouTube
       Description: Read-only YouTube search, public metadata, and comments.
       TargetConfiguration:
         Mcp:

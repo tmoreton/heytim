@@ -46,8 +46,7 @@ OAUTH_REQUEST_MAX_SECONDS = 4.0
 DEFAULT_RETURN_URL = "https://app.heytim.ai/app?oauth=gmail"
 ALLOWED_WEB_RETURN_HOSTS = {
     "app.heytim.ai",
-    "app.froggybot.com",
-    "frogbot.expo.app",
+    "heytim.expo.app",
     "localhost",
 }
 
@@ -94,7 +93,7 @@ def _return_url(value: Any) -> str:
         raise ApiError(400, "The return link is invalid", code="invalid_return_url")
     parsed = urllib.parse.urlsplit(value)
     is_native = (
-        parsed.scheme in {"heytim", "frogbot", "froggybot"}
+        parsed.scheme in {"heytim"}
         and parsed.hostname == "app"
         and parsed.path in {"", "/"}
         and parsed.fragment == ""

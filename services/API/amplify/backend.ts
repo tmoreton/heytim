@@ -46,6 +46,8 @@ import { addObservability } from './infrastructure/observability';
 import { addPublicAvailabilityProbe } from './infrastructure/production-readiness';
 import { addProviderConnectionAccess } from './infrastructure/provider-connections';
 const backend = defineBackend({ auth, preSignUp });
+// Keep the original construct identity so the rename updates the live stack
+// instead of replacing customer data, auth, and file resources.
 const stack = backend.createStack('FrogBotApp');
 const nativePushApplications = resolveNativePushApplicationArns(
   stack,
@@ -103,7 +105,7 @@ const inviteAccess = new Table(backend.auth.stack, 'InviteAccess', {
   deletionProtection: deploymentEnvironment === 'production',
   encryption: TableEncryption.CUSTOMER_MANAGED,
   encryptionKey: new Key(backend.auth.stack, 'InviteDataKey', {
-    description: 'Encrypts FroggyBot invitation records.',
+    description: 'Encrypts HeyTim invitation records.',
     enableKeyRotation: true,
     removalPolicy: RemovalPolicy.RETAIN,
   }),
@@ -127,7 +129,7 @@ backend.preSignUp.resources.lambda.addToRolePolicy(
 );
 
 const dataKey = new Key(stack, 'DataKey', {
-  description: 'Encrypts FroggyBot customer messages, settings, and files.',
+  description: 'Encrypts HeyTim customer messages, settings, and files.',
   enableKeyRotation: true,
   removalPolicy: RemovalPolicy.RETAIN,
 });
@@ -178,14 +180,14 @@ const filesBucket = new Bucket(stack, 'UserFiles', {
 });
 
 const logsKey = new Key(stack, 'LogsKey', {
-  description: 'Encrypts FroggyBot application and audit logs.',
+  description: 'Encrypts HeyTim application and audit logs.',
   enableKeyRotation: true,
   removalPolicy: RemovalPolicy.RETAIN,
 });
 if (deploymentEnvironment === 'production') {
   addBotEmailReceiving({ stack, table, logsKey });
 }
-logsKey.addAlias(`alias/frogbot-${deploymentEnvironment}-logs`);
+logsKey.addAlias(`alias/heytim-${deploymentEnvironment}-logs`);
 logsKey.addToResourcePolicy(
   new PolicyStatement({
     effect: Effect.ALLOW,
@@ -355,18 +357,18 @@ const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
     USER_POOL_ID: backend.auth.resources.userPool.userPoolId,
     AGENT_RUNTIME_ARN: runtimeArn,
     AGENT_RUNTIME_QUALIFIER: runtimeQualifier,
-    FROGBOT_MEMORY_ID: memoryId,
+    HEYTIM_MEMORY_ID: memoryId,
     FILES_BUCKET_NAME: filesBucket.bucketName,
     PUBLIC_WEB_BASE_URL,
     BOT_EMAIL_AVAILABLE:
-      deploymentEnvironment === 'production' && process.env.FROGBOT_BOT_EMAIL_AVAILABLE === 'true'
+      deploymentEnvironment === 'production' && process.env.HEYTIM_BOT_EMAIL_AVAILABLE === 'true'
         ? 'true' : 'false',
     CAPABILITY_CATALOG_URL,
-    FROGBOT_MONTHLY_RUN_UNIT_LIMIT: String(monthlyRunUnitLimit),
-    FROGBOT_USER_WINDOW_RUN_UNIT_LIMIT: String(userWindowRunUnitLimit),
-    FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT: String(globalWindowRunUnitLimit),
-    FROGBOT_USAGE_WINDOW_SECONDS: String(usageWindowSeconds),
-    FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT: String(youtubeSearchDailyLimit),
+    HEYTIM_MONTHLY_RUN_UNIT_LIMIT: String(monthlyRunUnitLimit),
+    HEYTIM_USER_WINDOW_RUN_UNIT_LIMIT: String(userWindowRunUnitLimit),
+    HEYTIM_GLOBAL_WINDOW_RUN_UNIT_LIMIT: String(globalWindowRunUnitLimit),
+    HEYTIM_USAGE_WINDOW_SECONDS: String(usageWindowSeconds),
+    HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT: String(youtubeSearchDailyLimit),
     ...nativePushEnvironment(nativePushApplications.production, nativePushApplications.sandbox),
   },
 });
@@ -395,15 +397,15 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
     SCHEDULE_ROLE_ARN: taskScheduleRole.roleArn,
     INVITE_TABLE_NAME: inviteAccess.tableName,
     USER_POOL_ID: backend.auth.resources.userPool.userPoolId,
-    FROGBOT_MEMORY_ID: memoryId,
+    HEYTIM_MEMORY_ID: memoryId,
     FILES_BUCKET_NAME: filesBucket.bucketName,
     PUBLIC_WEB_BASE_URL,
     CAPABILITY_CATALOG_URL,
-    FROGBOT_MONTHLY_RUN_UNIT_LIMIT: String(monthlyRunUnitLimit),
-    FROGBOT_USER_WINDOW_RUN_UNIT_LIMIT: String(userWindowRunUnitLimit),
-    FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT: String(globalWindowRunUnitLimit),
-    FROGBOT_USAGE_WINDOW_SECONDS: String(usageWindowSeconds),
-    FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT: String(youtubeSearchDailyLimit),
+    HEYTIM_MONTHLY_RUN_UNIT_LIMIT: String(monthlyRunUnitLimit),
+    HEYTIM_USER_WINDOW_RUN_UNIT_LIMIT: String(userWindowRunUnitLimit),
+    HEYTIM_GLOBAL_WINDOW_RUN_UNIT_LIMIT: String(globalWindowRunUnitLimit),
+    HEYTIM_USAGE_WINDOW_SECONDS: String(usageWindowSeconds),
+    HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT: String(youtubeSearchDailyLimit),
     ...nativePushEnvironment(nativePushApplications.production, nativePushApplications.sandbox),
   },
 });
@@ -434,6 +436,12 @@ filesBucket.grantReadWrite(workerFunction);
 const connectionSecretsArn = stack.formatArn({
   service: 'secretsmanager',
   resource: 'secret',
+  resourceName: 'heytim/connections/*',
+  arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+});
+const legacyConnectionSecretsArn = stack.formatArn({
+  service: 'secretsmanager',
+  resource: 'secret',
   resourceName: 'frogbot/connections/*',
   arnFormat: ArnFormat.COLON_RESOURCE_NAME,
 });
@@ -446,13 +454,13 @@ apiFunction.addToRolePolicy(
       'secretsmanager:DeleteSecret',
       'secretsmanager:TagResource',
     ],
-    resources: [connectionSecretsArn],
+    resources: [connectionSecretsArn, legacyConnectionSecretsArn],
   }),
 );
 workerFunction.addToRolePolicy(
   new PolicyStatement({
     actions: ['secretsmanager:GetSecretValue', 'secretsmanager:DeleteSecret'],
-    resources: [connectionSecretsArn],
+    resources: [connectionSecretsArn, legacyConnectionSecretsArn],
   }),
 );
 jobs.grantSendMessages(apiFunction);

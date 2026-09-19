@@ -46,16 +46,16 @@ class UsageLimits:
 
 USAGE_LIMITS = UsageLimits(
     monthly_run_units=_bounded_integer_environment(
-        "FROGBOT_MONTHLY_RUN_UNIT_LIMIT", 1_000, 1, 1_000_000
+        "HEYTIM_MONTHLY_RUN_UNIT_LIMIT", 1_000, 1, 1_000_000
     ),
     user_window_run_units=_bounded_integer_environment(
-        "FROGBOT_USER_WINDOW_RUN_UNIT_LIMIT", 30, 1, 10_000
+        "HEYTIM_USER_WINDOW_RUN_UNIT_LIMIT", 30, 1, 10_000
     ),
     global_window_run_units=_bounded_integer_environment(
-        "FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT", 300, 1, 100_000
+        "HEYTIM_GLOBAL_WINDOW_RUN_UNIT_LIMIT", 300, 1, 100_000
     ),
     window_seconds=_bounded_integer_environment(
-        "FROGBOT_USAGE_WINDOW_SECONDS", 60, 10, 3_600
+        "HEYTIM_USAGE_WINDOW_SECONDS", 60, 10, 3_600
     ),
 )
 

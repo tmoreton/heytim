@@ -23,75 +23,75 @@
       },
       "envVars": [
         {
-          "name": "FROGBOT_FILES_BUCKET",
+          "name": "HEYTIM_FILES_BUCKET",
           "value": "frogbot-user-files-188757775631-us-east-1"
         },
         {
-          "name": "FROGBOT_POINTS_SCREENSHOT_DOMAINS",
+          "name": "HEYTIM_POINTS_SCREENSHOT_DOMAINS",
           "value": "aa.com,aeroplan.com,aircanada.com,airfrance.com,alaskaair.com,all.accor.com,britishairways.com,choicehotels.com,delta.com,emirates.com,flyingblue.com,hilton.com,hyatt.com,ihg.com,jetblue.com,klm.com,marriott.com,qantas.com,qatarairways.com,singaporeair.com,southwest.com,united.com,virginatlantic.com,wyndhamhotels.com"
         },
         {
-          "name": "FROGBOT_MEME_TEMPLATE_PREFIX",
+          "name": "HEYTIM_MEME_TEMPLATE_PREFIX",
           "value": "meme-templates/v1"
         },
         {
-          "name": "FROGBOT_IMAGE_MODEL_ID",
+          "name": "HEYTIM_IMAGE_MODEL_ID",
           "value": "openai/gpt-image-2.5-sunburst"
         },
         {
-          "name": "FROGBOT_IMAGE_QUALITY",
+          "name": "HEYTIM_IMAGE_QUALITY",
           "value": "high"
         },
         {
-          "name": "FROGBOT_IMAGE_REQUEST_TIMEOUT_SECONDS",
+          "name": "HEYTIM_IMAGE_REQUEST_TIMEOUT_SECONDS",
           "value": "300"
         },
         {
-          "name": "FROGBOT_IMAGE_MAX_ATTEMPTS",
+          "name": "HEYTIM_IMAGE_MAX_ATTEMPTS",
           "value": "2"
         },
         {
-          "name": "FROGBOT_PRIMARY_MODEL_ID",
+          "name": "HEYTIM_PRIMARY_MODEL_ID",
           "value": "deepseek/deepseek-v4.1-flash"
         },
         {
-          "name": "FROGBOT_REASONING_EFFORT",
+          "name": "HEYTIM_REASONING_EFFORT",
           "value": "high"
         },
         {
-          "name": "FROGBOT_FALLBACK_MODEL_ID",
+          "name": "HEYTIM_FALLBACK_MODEL_ID",
           "value": "z-ai/glm-5.3"
         },
         {
-          "name": "FROGBOT_FALLBACK_REASONING_EFFORT",
+          "name": "HEYTIM_FALLBACK_REASONING_EFFORT",
           "value": "high"
         },
         {
-          "name": "FROGBOT_OPENROUTER_BASE_URL",
+          "name": "HEYTIM_OPENROUTER_BASE_URL",
           "value": "https://openrouter.ai/api/v1"
         },
         {
-          "name": "FROGBOT_OPENROUTER_CREDENTIAL_PROVIDER",
+          "name": "HEYTIM_OPENROUTER_CREDENTIAL_PROVIDER",
           "value": "FrogBot_OpenRouter"
         },
         {
-          "name": "FROGBOT_PRIMARY_RESPONSE_TIMEOUT_SECONDS",
+          "name": "HEYTIM_PRIMARY_RESPONSE_TIMEOUT_SECONDS",
           "value": "120"
         },
         {
-          "name": "FROGBOT_OPENROUTER_MAX_ATTEMPTS",
+          "name": "HEYTIM_OPENROUTER_MAX_ATTEMPTS",
           "value": "2"
         },
         {
-          "name": "FROGBOT_CONTEXT_COMPRESSION_THRESHOLD",
+          "name": "HEYTIM_CONTEXT_COMPRESSION_THRESHOLD",
           "value": "0.20"
         },
         {
-          "name": "FROGBOT_AGENT_RUN_TIMEOUT_SECONDS",
+          "name": "HEYTIM_AGENT_RUN_TIMEOUT_SECONDS",
           "value": "28800"
         },
         {
-          "name": "FROGBOT_AGENT_IDLE_TIMEOUT_SECONDS",
+          "name": "HEYTIM_AGENT_IDLE_TIMEOUT_SECONDS",
           "value": "360"
         },
         {
@@ -179,7 +179,7 @@
       "config": {
         "codeBased": {
           "managed": {
-            "codeLocation": "evaluators/frogbot_run_integrity",
+            "codeLocation": "evaluators/heytim_run_integrity",
             "entrypoint": "lambda_function.handler",
             "timeoutSeconds": 30
           }
@@ -227,7 +227,7 @@
       "description": "Critical behavior checks for research, browser, image, bot management, and failover",
       "config": {
         "managed": {
-          "location": "datasets/FrogBotRegression.jsonl"
+          "location": "datasets/HeyTimRegression.jsonl"
         }
       }
     }

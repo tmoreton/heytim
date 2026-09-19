@@ -86,7 +86,7 @@ class AgentStreamTests(unittest.TestCase):
             _line({"messageStart": {"role": "assistant"}}),
             _line({"contentBlockDelta": {"delta": {"text": "Work started."}}}),
             _line({"messageStop": {"stopReason": "end_turn"}}),
-            _line({"frogbotControl": {"pendingWork": pending}}),
+            _line({"heytimControl": {"pendingWork": pending}}),
         ]
 
         answer = read_agent_stream(lines, on_control=controls.append)
@@ -107,7 +107,7 @@ class AgentStreamTests(unittest.TestCase):
                 }
             ),
             _line({"messageStop": {"stopReason": "tool_use"}}),
-            _line({"frogbotControl": {"pendingWork": pending}}),
+            _line({"heytimControl": {"pendingWork": pending}}),
         ]
 
         answer = read_agent_stream(lines, on_control=controls.append)
@@ -119,7 +119,7 @@ class AgentStreamTests(unittest.TestCase):
         lines = [
             _line({"messageStart": {"role": "assistant"}}),
             _line({"messageStop": {"stopReason": "tool_use"}}),
-            _line({"frogbotControl": {"usage": {"models": []}}}),
+            _line({"heytimControl": {"usage": {"models": []}}}),
         ]
 
         with self.assertRaisesRegex(ValueError, "without a completed assistant turn"):
@@ -129,7 +129,7 @@ class AgentStreamTests(unittest.TestCase):
         lines = [
             _line(
                 {
-                    "frogbotControl": {
+                    "heytimControl": {
                         "terminalError": {
                             "code": "TURN_TIMEOUT",
                             "message": "This response exceeded its time limit.",

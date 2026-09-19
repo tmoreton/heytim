@@ -1,6 +1,6 @@
 # Private browser login handoff
 
-FroggyBot opens a live view of the **bot's AWS browser**, not an ordinary local
+HeyTim opens a live view of the **bot's AWS browser**, not an ordinary local
 browser tab. Direct-chat web links now route into that bot browser. External
 Safari/Chrome sign-ins still do not authenticate the bot.
 
@@ -69,7 +69,7 @@ closed if an SDK update no longer matches the reviewed wrapper.
 `npm run browser:build` generates the viewer and decoder assets; it runs before
 web development/export. Generated assets are ignored in Git. WebView is a new
 native dependency: iOS requires a new app build, not only a JavaScript update.
-The native viewer origin uses the app host, `https://app.froggybot.com`, not the
+The native viewer origin uses the app host, `https://app.heytim.ai`, not the
 separate marketing site, and can be set at
 build time with `EXPO_PUBLIC_BROWSER_VIEWER_ORIGIN`.
 
@@ -80,7 +80,7 @@ access is scoped to managed profile tags. AWS requires CreateBrowserProfile on
 ARNs and resource tags.
 
 The unrelated long-run recursion override remains off. Deploy browser changes
-with `FROGBOT_ALLOW_RECURSIVE_POLLS=false` (or unset); the worker retains
+with `HEYTIM_ALLOW_RECURSIVE_POLLS=false` (or unset); the worker retains
 `RecursiveLoop: Terminate`. The eight-hour polling-chain issue is not resolved
 by this feature.
 
@@ -94,8 +94,8 @@ historical results below do not validate those newer edits.
 - Runtime version 46 READY at 21:54 UTC; deployment changed only the code archive.
 - Backend deployment completed at 22:01 UTC with five authenticated routes;
   the continuation-scope refinement deployed at 22:22 UTC.
-- The corrected web viewer deployed at 22:22 UTC on `app.froggybot.com` and
-  `frogbot.expo.app`. Native source/bundling is implemented, but no new iOS
+- The corrected web viewer deployed at 22:22 UTC on `app.heytim.ai` and
+  `heytim.expo.app`. Native source/bundling is implemented, but no new iOS
   binary was built or released in this change.
 - 147 runtime tests plus five packaging tests passed. Packaging is pinned to the
   tested Strands 1.55.0 rather than silently resolving the new 1.55.1 release.

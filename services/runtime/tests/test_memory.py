@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from strands.memory import MemoryEntry
 
-from frogbot_runtime import memory
+from heytim_runtime import memory
 
 
 def test_memory_context_validates_worker_identity_envelope() -> None:
@@ -77,7 +77,7 @@ def test_completed_turn_uses_event_id_as_idempotency_token(monkeypatch) -> None:
         "USER",
         "ASSISTANT",
     ]
-    assert request["metadata"]["frogbotScope"]["stringValue"] == "personal"
+    assert request["metadata"]["heytimScope"]["stringValue"] == "personal"
 
 
 def test_balanced_store_round_robins_categories() -> None:

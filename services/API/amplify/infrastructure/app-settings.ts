@@ -1,18 +1,15 @@
 export const PUBLIC_WEB_BASE_URL = 'https://app.heytim.ai';
 export const CAPABILITY_CATALOG_URL = `${PUBLIC_WEB_BASE_URL}/catalog.json`;
-export const deploymentEnvironment = process.env.FROGBOT_ENVIRONMENT ?? 'development';
+export const deploymentEnvironment = process.env.HEYTIM_ENVIRONMENT ?? 'development';
 if (!/^[a-z][a-z0-9-]{0,20}$/.test(deploymentEnvironment)) {
-  throw new Error('FROGBOT_ENVIRONMENT must be a short lowercase environment name.');
+  throw new Error('HEYTIM_ENVIRONMENT must be a short lowercase environment name.');
 }
 
 const PRODUCTION_WEB_ORIGINS = [
   PUBLIC_WEB_BASE_URL,
   'https://heytim.ai',
   'https://www.heytim.ai',
-  'https://app.froggybot.com',
-  'https://froggybot.com',
-  'https://www.froggybot.com',
-  'https://frogbot.expo.app',
+  'https://heytim.expo.app',
 ];
 export const ALLOWED_WEB_ORIGINS = deploymentEnvironment === 'production'
   ? PRODUCTION_WEB_ORIGINS
@@ -60,7 +57,7 @@ function requiredSetting(name: string): string {
 
 function stagedProviderSetting(name: string): string {
   const value = process.env[name]?.trim() ?? '';
-  if ((process.env.FROGBOT_ENVIRONMENT ?? 'development') === 'production' && !value) {
+  if ((process.env.HEYTIM_ENVIRONMENT ?? 'development') === 'production' && !value) {
     throw new Error(name + ' must be set before deploying production.');
   }
   return value;
@@ -79,46 +76,46 @@ function optionalPlatformApplicationArn(name: string): string {
 }
 
 export const monthlyRunUnitLimit = boundedIntegerSetting(
-  'FROGBOT_MONTHLY_RUN_UNIT_LIMIT', 1_000, 1, 1_000_000,
+  'HEYTIM_MONTHLY_RUN_UNIT_LIMIT', 1_000, 1, 1_000_000,
 );
 export const userWindowRunUnitLimit = boundedIntegerSetting(
-  'FROGBOT_USER_WINDOW_RUN_UNIT_LIMIT', 30, 1, 10_000,
+  'HEYTIM_USER_WINDOW_RUN_UNIT_LIMIT', 30, 1, 10_000,
 );
 export const globalWindowRunUnitLimit = boundedIntegerSetting(
-  'FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT', 300, 1, 100_000,
+  'HEYTIM_GLOBAL_WINDOW_RUN_UNIT_LIMIT', 300, 1, 100_000,
 );
 export const usageWindowSeconds = boundedIntegerSetting(
-  'FROGBOT_USAGE_WINDOW_SECONDS', 60, 10, 3_600,
+  'HEYTIM_USAGE_WINDOW_SECONDS', 60, 10, 3_600,
 );
 export const youtubeSearchDailyLimit = boundedIntegerSetting(
-  'FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT', 100, 3, 1_000_000, true,
+  'HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT', 100, 3, 1_000_000, true,
 );
 
-export const runtimeArn = requiredSetting('FROGBOT_AGENT_RUNTIME_ARN');
-export const runtimeQualifier = process.env.FROGBOT_AGENT_RUNTIME_QUALIFIER ?? 'DEFAULT';
+export const runtimeArn = requiredSetting('HEYTIM_AGENT_RUNTIME_ARN');
+export const runtimeQualifier = process.env.HEYTIM_AGENT_RUNTIME_QUALIFIER ?? 'DEFAULT';
 if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/.test(runtimeQualifier)) {
-  throw new Error('FROGBOT_AGENT_RUNTIME_QUALIFIER is invalid.');
+  throw new Error('HEYTIM_AGENT_RUNTIME_QUALIFIER is invalid.');
 }
-export const memoryId = requiredSetting('FROGBOT_MEMORY_ID');
-export const memoryKmsKeyArn = requiredSetting('FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN');
-export const googleOAuthSecretArn = requiredSetting('FROGBOT_GOOGLE_OAUTH_SECRET_ARN');
-export const githubAppSecretArn = requiredSetting('FROGBOT_GITHUB_APP_SECRET_ARN');
-export const xOAuthSecretArn = requiredSetting('FROGBOT_X_OAUTH_SECRET_ARN');
-export const slackOAuthSecretArn = stagedProviderSetting('FROGBOT_SLACK_OAUTH_SECRET_ARN');
-export const microsoftOAuthSecretArn = optionalProviderSetting('FROGBOT_MICROSOFT_OAUTH_SECRET_ARN');
-export const notionOAuthSecretArn = stagedProviderSetting('FROGBOT_NOTION_OAUTH_SECRET_ARN');
-export const hubspotOAuthSecretArn = optionalProviderSetting('FROGBOT_HUBSPOT_OAUTH_SECRET_ARN');
-export const jiraOAuthSecretArn = optionalProviderSetting('FROGBOT_JIRA_OAUTH_SECRET_ARN');
-export const zoomOAuthSecretArn = optionalProviderSetting('FROGBOT_ZOOM_OAUTH_SECRET_ARN');
-export const apnsApplicationArn = optionalPlatformApplicationArn('FROGBOT_APNS_APPLICATION_ARN');
-export const apnsSandboxApplicationArn = optionalPlatformApplicationArn('FROGBOT_APNS_SANDBOX_APPLICATION_ARN');
+export const memoryId = requiredSetting('HEYTIM_MEMORY_ID');
+export const memoryKmsKeyArn = requiredSetting('HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN');
+export const googleOAuthSecretArn = requiredSetting('HEYTIM_GOOGLE_OAUTH_SECRET_ARN');
+export const githubAppSecretArn = requiredSetting('HEYTIM_GITHUB_APP_SECRET_ARN');
+export const xOAuthSecretArn = requiredSetting('HEYTIM_X_OAUTH_SECRET_ARN');
+export const slackOAuthSecretArn = stagedProviderSetting('HEYTIM_SLACK_OAUTH_SECRET_ARN');
+export const microsoftOAuthSecretArn = optionalProviderSetting('HEYTIM_MICROSOFT_OAUTH_SECRET_ARN');
+export const notionOAuthSecretArn = stagedProviderSetting('HEYTIM_NOTION_OAUTH_SECRET_ARN');
+export const hubspotOAuthSecretArn = optionalProviderSetting('HEYTIM_HUBSPOT_OAUTH_SECRET_ARN');
+export const jiraOAuthSecretArn = optionalProviderSetting('HEYTIM_JIRA_OAUTH_SECRET_ARN');
+export const zoomOAuthSecretArn = optionalProviderSetting('HEYTIM_ZOOM_OAUTH_SECRET_ARN');
+export const apnsApplicationArn = optionalPlatformApplicationArn('HEYTIM_APNS_APPLICATION_ARN');
+export const apnsSandboxApplicationArn = optionalPlatformApplicationArn('HEYTIM_APNS_SANDBOX_APPLICATION_ARN');
 if (deploymentEnvironment === 'production' && !apnsApplicationArn) {
-  throw new Error('Set FROGBOT_APNS_APPLICATION_ARN before deploying production.');
+  throw new Error('Set HEYTIM_APNS_APPLICATION_ARN before deploying production.');
 }
-if (deploymentEnvironment === 'production' && !process.env.FROGBOT_MONTHLY_BUDGET_USD) {
-  throw new Error('FROGBOT_MONTHLY_BUDGET_USD must be set before deploying production.');
+if (deploymentEnvironment === 'production' && !process.env.HEYTIM_MONTHLY_BUDGET_USD) {
+  throw new Error('HEYTIM_MONTHLY_BUDGET_USD must be set before deploying production.');
 }
-export const monthlyBudgetUsd = Number(process.env.FROGBOT_MONTHLY_BUDGET_USD ?? '100');
+export const monthlyBudgetUsd = Number(process.env.HEYTIM_MONTHLY_BUDGET_USD ?? '100');
 if (!Number.isFinite(monthlyBudgetUsd) || monthlyBudgetUsd <= 0) {
-  throw new Error('FROGBOT_MONTHLY_BUDGET_USD must be a positive number.');
+  throw new Error('HEYTIM_MONTHLY_BUDGET_USD must be a positive number.');
 }

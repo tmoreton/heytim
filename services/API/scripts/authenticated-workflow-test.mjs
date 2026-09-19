@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-const apiUrl = process.env.FROGBOT_API_URL;
-const idToken = process.env.FROGBOT_ID_TOKEN;
+const apiUrl = process.env.HEYTIM_API_URL;
+const idToken = process.env.HEYTIM_ID_TOKEN;
 if (!apiUrl || !idToken) {
-  throw new Error('Set FROGBOT_API_URL and FROGBOT_ID_TOKEN before running the workflow test.');
+  throw new Error('Set HEYTIM_API_URL and HEYTIM_ID_TOKEN before running the workflow test.');
 }
-if (process.env.FROGBOT_DISPOSABLE_ACCOUNT !== '1') {
-  throw new Error('This test deletes its account. Set FROGBOT_DISPOSABLE_ACCOUNT=1 only for a disposable test user.');
+if (process.env.HEYTIM_DISPOSABLE_ACCOUNT !== '1') {
+  throw new Error('This test deletes its account. Set HEYTIM_DISPOSABLE_ACCOUNT=1 only for a disposable test user.');
 }
 
 const terminalStatuses = new Set(['complete', 'cancelled', 'error']);
@@ -62,7 +62,7 @@ try {
     skillIds: [],
   });
 
-  const attachmentText = 'FroggyBot authenticated attachment workflow passed.';
+  const attachmentText = 'HeyTim authenticated attachment workflow passed.';
   const attachmentBytes = new TextEncoder().encode(attachmentText);
   const ticket = await request('POST', '/uploads', {
     filename: `workflow-${botSuffix}.txt`,

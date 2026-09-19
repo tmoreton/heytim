@@ -7,13 +7,13 @@ from pathlib import Path
 from typing import Any
 
 CATALOG_URL = "https://app.heytim.ai/catalog.json"
-TRUSTED_REPOSITORY = "tmoreton/froggybot-skills"
+TRUSTED_REPOSITORY = "tmoreton/heytim-skills"
 
 
 def _json_from_url(url: str) -> dict[str, Any]:
     request = urllib.request.Request(
         url,
-        headers={"accept": "application/json", "user-agent": "FroggyBot-Evals/1.0"},
+        headers={"accept": "application/json", "user-agent": "HeyTim-Evals/1.0"},
     )
     with urllib.request.urlopen(request, timeout=10) as response:  # nosec B310
         value = json.loads(response.read(1_000_001).decode("utf-8"))
@@ -25,7 +25,7 @@ def _json_from_url(url: str) -> dict[str, Any]:
 def _text_from_url(url: str) -> str:
     request = urllib.request.Request(
         url,
-        headers={"accept": "text/plain", "user-agent": "FroggyBot-Evals/1.0"},
+        headers={"accept": "text/plain", "user-agent": "HeyTim-Evals/1.0"},
     )
     with urllib.request.urlopen(request, timeout=10) as response:  # nosec B310
         return response.read(100_001).decode("utf-8")
@@ -107,7 +107,7 @@ def load_catalog_snapshot(
             "id": skill_id,
             "version": raw.get("version", 1),
             "name": raw.get("name", skill_id),
-            "description": raw.get("description", "Reviewed FroggyBot skill"),
+            "description": raw.get("description", "Reviewed HeyTim skill"),
             "instructions": _skill_instructions(document),
             "requiredToolIds": raw.get("requiredToolIds", []),
         }

@@ -16,7 +16,7 @@ on:
           - backend-only
 
 concurrency:
-  group: frogbot-production-release
+  group: heytim-production-release
   cancel-in-progress: false
 
 permissions:
@@ -69,28 +69,28 @@ jobs:
         env:
           AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           AMPLIFY_APP_ID: ${{ vars.AMPLIFY_APP_ID }}
-          FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN }}
-          FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT: ${{ vars.FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT }}
-          FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT: ${{ vars.FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT }}
-          FROGBOT_MONTHLY_BUDGET_USD: ${{ vars.FROGBOT_MONTHLY_BUDGET_USD }}
+          HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN }}
+          HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT: ${{ vars.HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT }}
+          HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT: ${{ vars.HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT }}
+          HEYTIM_MONTHLY_BUDGET_USD: ${{ vars.HEYTIM_MONTHLY_BUDGET_USD }}
           AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
           AGENTCORE_CREDENTIAL_FROGBOTXAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTXAPI }}
           AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI }}
-          GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_GOOGLE_OAUTH_SECRET_ARN }}
-          GITHUB_APP_SECRET_ARN: ${{ secrets.FROGBOT_GITHUB_APP_SECRET_ARN }}
-          X_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_X_OAUTH_SECRET_ARN }}
-          SLACK_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_SLACK_OAUTH_SECRET_ARN }}
-          NOTION_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_NOTION_OAUTH_SECRET_ARN }}
-          APNS_APPLICATION_ARN: ${{ vars.FROGBOT_APNS_APPLICATION_ARN }}
-          GOOGLE_REVIEW_APPROVED: ${{ vars.FROGBOT_GOOGLE_REVIEW_APPROVED }}
-          SLACK_REVIEW_APPROVED: ${{ vars.FROGBOT_SLACK_REVIEW_APPROVED }}
-          X_REVIEW_APPROVED: ${{ vars.FROGBOT_X_REVIEW_APPROVED }}
-          NOTION_REVIEW_APPROVED: ${{ vars.FROGBOT_NOTION_REVIEW_APPROVED }}
-          RELEASE_COMPLIANCE_APPROVED: ${{ vars.FROGBOT_RELEASE_COMPLIANCE_APPROVED }}
-          APNS_DEVICE_SMOKE_APPROVED: ${{ vars.FROGBOT_APNS_DEVICE_SMOKE_APPROVED }}
-          APPLE_TEAM_ID: ${{ vars.FROGBOT_APPLE_TEAM_ID }}
-          APP_STORE_CONNECT_KEY_ID: ${{ vars.FROGBOT_APP_STORE_CONNECT_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ vars.FROGBOT_APP_STORE_CONNECT_ISSUER_ID }}
+          GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_GOOGLE_OAUTH_SECRET_ARN }}
+          GITHUB_APP_SECRET_ARN: ${{ secrets.HEYTIM_GITHUB_APP_SECRET_ARN }}
+          X_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_X_OAUTH_SECRET_ARN }}
+          SLACK_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_SLACK_OAUTH_SECRET_ARN }}
+          NOTION_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_NOTION_OAUTH_SECRET_ARN }}
+          APNS_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_APPLICATION_ARN }}
+          GOOGLE_REVIEW_APPROVED: ${{ vars.HEYTIM_GOOGLE_REVIEW_APPROVED }}
+          SLACK_REVIEW_APPROVED: ${{ vars.HEYTIM_SLACK_REVIEW_APPROVED }}
+          X_REVIEW_APPROVED: ${{ vars.HEYTIM_X_REVIEW_APPROVED }}
+          NOTION_REVIEW_APPROVED: ${{ vars.HEYTIM_NOTION_REVIEW_APPROVED }}
+          RELEASE_COMPLIANCE_APPROVED: ${{ vars.HEYTIM_RELEASE_COMPLIANCE_APPROVED }}
+          APNS_DEVICE_SMOKE_APPROVED: ${{ vars.HEYTIM_APNS_DEVICE_SMOKE_APPROVED }}
+          APPLE_TEAM_ID: ${{ vars.HEYTIM_APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY }}
           APPLE_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64 }}
           APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
@@ -104,8 +104,8 @@ jobs:
           fi
           required_values=(
             AWS_DEPLOY_ROLE_ARN AMPLIFY_APP_ID
-            FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN
-            FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT FROGBOT_MONTHLY_BUDGET_USD
+            HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN
+            HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT HEYTIM_MONTHLY_BUDGET_USD
             AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER
             AGENTCORE_CREDENTIAL_FROGBOTXAPI AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI
             GOOGLE_OAUTH_SECRET_ARN GITHUB_APP_SECRET_ARN X_OAUTH_SECRET_ARN
@@ -140,15 +140,15 @@ jobs:
           if [[ "$RELEASE_SCOPE" == full ]]; then
             if ! printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" \
               | openssl pkey -check -noout >/dev/null 2>&1; then
-              echo 'FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY is not a valid private key.' >&2
+              echo 'HEYTIM_APP_STORE_CONNECT_PRIVATE_KEY is not a valid private key.' >&2
               exit 1
             fi
-            certificate_bundle="$RUNNER_TEMP/froggybot-distribution.p12"
-            development_bundle="$RUNNER_TEMP/froggybot-development.p12"
+            certificate_bundle="$RUNNER_TEMP/heytim-distribution.p12"
+            development_bundle="$RUNNER_TEMP/heytim-development.p12"
             trap 'find "$certificate_bundle" "$development_bundle" -delete 2>/dev/null || true' EXIT
             if ! printf '%s' "$APPLE_DISTRIBUTION_CERTIFICATE_BASE64" \
               | base64 --decode > "$certificate_bundle"; then
-              echo 'FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64 is not valid base64.' >&2
+              echo 'HEYTIM_APPLE_DISTRIBUTION_CERTIFICATE_BASE64 is not valid base64.' >&2
               exit 1
             fi
             if ! openssl pkcs12 -in "$certificate_bundle" \
@@ -171,7 +171,7 @@ jobs:
             fi
             if ! printf '%s' "$APPLE_DEVELOPMENT_CERTIFICATE_BASE64" \
               | base64 --decode > "$development_bundle"; then
-              echo 'FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_BASE64 is not valid base64.' >&2
+              echo 'HEYTIM_APPLE_DEVELOPMENT_CERTIFICATE_BASE64 is not valid base64.' >&2
               exit 1
             fi
             if ! openssl pkcs12 -in "$development_bundle" \
@@ -251,9 +251,9 @@ jobs:
 
       - name: Deploy AgentCore production target
         env:
-          FROGBOT_ENVIRONMENT: production
-          FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN }}
-          FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT: ${{ vars.FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT }}
+          HEYTIM_ENVIRONMENT: production
+          HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN }}
+          HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT: ${{ vars.HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT }}
           AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
           AGENTCORE_CREDENTIAL_FROGBOTXAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTXAPI }}
           AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI }}
@@ -269,42 +269,42 @@ jobs:
 
       - name: Resolve deployed AgentCore resources
         run: |
-          agentcore status --target production --json > /tmp/frogbot-production-status.json
+          agentcore status --target production --json > /tmp/heytim-production-status.json
           target='.deployedState.targets.production.resources'
-          runtime_arn="$(jq -r "$target.runtimes.FrogBot.runtimeArn // empty" /tmp/frogbot-production-status.json)"
-          memory_arn="$(jq -r "$target.memories.FrogBotMemory.memoryArn // empty" /tmp/frogbot-production-status.json)"
-          gateway_arn="$(jq -r "$target.mcp.gateways.FrogBotTools.gatewayArn // empty" /tmp/frogbot-production-status.json)"
+          runtime_arn="$(jq -r "$target.runtimes.FrogBot.runtimeArn // empty" /tmp/heytim-production-status.json)"
+          memory_arn="$(jq -r "$target.memories.FrogBotMemory.memoryArn // empty" /tmp/heytim-production-status.json)"
+          gateway_arn="$(jq -r "$target.mcp.gateways.FrogBotTools.gatewayArn // empty" /tmp/heytim-production-status.json)"
           if [[ "$runtime_arn" != arn:aws:bedrock-agentcore:* ]] \
             || [[ "$memory_arn" != arn:aws:bedrock-agentcore:* ]] \
             || [[ "$gateway_arn" != arn:aws:bedrock-agentcore:* ]]; then
             echo 'AgentCore production resources are not ready.' >&2
             exit 1
           fi
-          echo "FROGBOT_AGENT_RUNTIME_ARN=$runtime_arn" >> "$GITHUB_ENV"
-          echo "FROGBOT_MEMORY_ID=${memory_arn##*/}" >> "$GITHUB_ENV"
-          echo "FROGBOT_AGENT_GATEWAY_ARN=$gateway_arn" >> "$GITHUB_ENV"
+          echo "HEYTIM_AGENT_RUNTIME_ARN=$runtime_arn" >> "$GITHUB_ENV"
+          echo "HEYTIM_MEMORY_ID=${memory_arn##*/}" >> "$GITHUB_ENV"
+          echo "HEYTIM_AGENT_GATEWAY_ARN=$gateway_arn" >> "$GITHUB_ENV"
 
       - name: Deploy Amplify production backend
         working-directory: services/API
         env:
-          FROGBOT_ENVIRONMENT: production
-          FROGBOT_BOT_EMAIL_STAGE: identity
-          FROGBOT_SES_RULE_SET_NAME: inboxai-inboxai-cc
-          FROGBOT_BOT_EMAIL_AVAILABLE: 'false'
-          FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN }}
-          FROGBOT_GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_GOOGLE_OAUTH_SECRET_ARN }}
-          FROGBOT_GITHUB_APP_SECRET_ARN: ${{ secrets.FROGBOT_GITHUB_APP_SECRET_ARN }}
-          FROGBOT_X_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_X_OAUTH_SECRET_ARN }}
-          FROGBOT_SLACK_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_SLACK_OAUTH_SECRET_ARN }}
-          FROGBOT_NOTION_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_NOTION_OAUTH_SECRET_ARN }}
-          FROGBOT_MICROSOFT_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_MICROSOFT_OAUTH_SECRET_ARN }}
-          FROGBOT_HUBSPOT_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_HUBSPOT_OAUTH_SECRET_ARN }}
-          FROGBOT_JIRA_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_JIRA_OAUTH_SECRET_ARN }}
-          FROGBOT_ZOOM_OAUTH_SECRET_ARN: ${{ secrets.FROGBOT_ZOOM_OAUTH_SECRET_ARN }}
-          FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT: ${{ vars.FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT }}
-          FROGBOT_MONTHLY_BUDGET_USD: ${{ vars.FROGBOT_MONTHLY_BUDGET_USD }}
-          FROGBOT_APNS_APPLICATION_ARN: ${{ vars.FROGBOT_APNS_APPLICATION_ARN }}
-          FROGBOT_APNS_SANDBOX_APPLICATION_ARN: ${{ vars.FROGBOT_APNS_SANDBOX_APPLICATION_ARN }}
+          HEYTIM_ENVIRONMENT: production
+          HEYTIM_BOT_EMAIL_STAGE: identity
+          HEYTIM_SES_RULE_SET_NAME: inboxai-inboxai-cc
+          HEYTIM_BOT_EMAIL_AVAILABLE: 'false'
+          HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN }}
+          HEYTIM_GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_GOOGLE_OAUTH_SECRET_ARN }}
+          HEYTIM_GITHUB_APP_SECRET_ARN: ${{ secrets.HEYTIM_GITHUB_APP_SECRET_ARN }}
+          HEYTIM_X_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_X_OAUTH_SECRET_ARN }}
+          HEYTIM_SLACK_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_SLACK_OAUTH_SECRET_ARN }}
+          HEYTIM_NOTION_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_NOTION_OAUTH_SECRET_ARN }}
+          HEYTIM_MICROSOFT_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_MICROSOFT_OAUTH_SECRET_ARN }}
+          HEYTIM_HUBSPOT_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_HUBSPOT_OAUTH_SECRET_ARN }}
+          HEYTIM_JIRA_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_JIRA_OAUTH_SECRET_ARN }}
+          HEYTIM_ZOOM_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_ZOOM_OAUTH_SECRET_ARN }}
+          HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT: ${{ vars.HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT }}
+          HEYTIM_MONTHLY_BUDGET_USD: ${{ vars.HEYTIM_MONTHLY_BUDGET_USD }}
+          HEYTIM_APNS_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_APPLICATION_ARN }}
+          HEYTIM_APNS_SANDBOX_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_SANDBOX_APPLICATION_ARN }}
         run: npx ampx pipeline-deploy --branch main --app-id "${{ vars.AMPLIFY_APP_ID }}" --outputs-out-dir .
 
       - name: Generate release client configuration
@@ -317,7 +317,7 @@ jobs:
           outputs='../API/amplify_outputs.json'
           config='../../agentcore/agentcore.json'
           bucket="$(jq -r '.custom.filesBucketName // empty' "$outputs")"
-          prefix="$(jq -r '.runtimes[] | select(.name == "FrogBot") | .envVars[] | select(.name == "FROGBOT_MEME_TEMPLATE_PREFIX") | .value' "$config")"
+          prefix="$(jq -r '.runtimes[] | select(.name == "FrogBot") | .envVars[] | select(.name == "HEYTIM_MEME_TEMPLATE_PREFIX") | .value' "$config")"
           if [[ -z "$bucket" || -z "$prefix" ]]; then
             echo 'Production meme-template storage configuration is missing.' >&2
             exit 1
@@ -343,14 +343,14 @@ jobs:
             echo 'One or more production observability outputs are missing.' >&2
             exit 1
           fi
-          echo "FROGBOT_LOGS_KMS_KEY_ARN=$logs_key_arn" >> "$GITHUB_ENV"
-          echo "FROGBOT_ALARM_TOPIC_ARN=$alarm_topic_arn" >> "$GITHUB_ENV"
-          echo "FROGBOT_NATIVE_PUSH_FEEDBACK_ROLE_ARN=$feedback_role_arn" >> "$GITHUB_ENV"
+          echo "HEYTIM_LOGS_KMS_KEY_ARN=$logs_key_arn" >> "$GITHUB_ENV"
+          echo "HEYTIM_ALARM_TOPIC_ARN=$alarm_topic_arn" >> "$GITHUB_ENV"
+          echo "HEYTIM_NATIVE_PUSH_FEEDBACK_ROLE_ARN=$feedback_role_arn" >> "$GITHUB_ENV"
 
       - name: Configure runtime logs, alarms, and push feedback
         env:
-          FROGBOT_APNS_APPLICATION_ARN: ${{ vars.FROGBOT_APNS_APPLICATION_ARN }}
-          FROGBOT_APNS_SANDBOX_APPLICATION_ARN: ${{ vars.FROGBOT_APNS_SANDBOX_APPLICATION_ARN }}
+          HEYTIM_APNS_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_APPLICATION_ARN }}
+          HEYTIM_APNS_SANDBOX_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_SANDBOX_APPLICATION_ARN }}
         run: |
           ./scripts/harden-agentcore-logs.sh
           ./scripts/configure-agentcore-observability.sh
@@ -358,13 +358,13 @@ jobs:
 
       - name: Verify deployed production resources
         env:
-          FROGBOT_APNS_APPLICATION_ARN: ${{ vars.FROGBOT_APNS_APPLICATION_ARN }}
-          FROGBOT_APNS_SANDBOX_APPLICATION_ARN: ${{ vars.FROGBOT_APNS_SANDBOX_APPLICATION_ARN }}
+          HEYTIM_APNS_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_APPLICATION_ARN }}
+          HEYTIM_APNS_SANDBOX_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_SANDBOX_APPLICATION_ARN }}
         run: ./scripts/verify-production-deployment.sh
 
       - name: Stage production client configuration
         run: |
-          staging="$RUNNER_TEMP/frogbot-production-client-configuration"
+          staging="$RUNNER_TEMP/heytim-production-client-configuration"
           install -d "$staging/services/API" "$staging/apps/iOS/Resources"
           install -m 0600 services/API/amplify_outputs.json "$staging/services/API/amplify_outputs.json"
           install -m 0600 apps/iOS/Resources/amplify_outputs.json \
@@ -373,16 +373,16 @@ jobs:
       - name: Preserve production client configuration
         uses: actions/upload-artifact@v7
         with:
-          name: frogbot-production-client-configuration-${{ github.sha }}
+          name: heytim-production-client-configuration-${{ github.sha }}
           if-no-files-found: error
           retention-days: 30
-          path: ${{ runner.temp }}/frogbot-production-client-configuration
+          path: ${{ runner.temp }}/heytim-production-client-configuration
 
   apple:
     name: Release SwiftUI apps to TestFlight
     needs: deploy
     if: ${{ github.event_name == 'release' || inputs.release_scope == 'full' }}
-    runs-on: [self-hosted, macOS, ARM64, frogbot-apple]
+    runs-on: [self-hosted, macOS, ARM64, heytim-apple]
     timeout-minutes: 120
     environment: production
     permissions:
@@ -397,14 +397,14 @@ jobs:
       - name: Restore production client configuration
         uses: actions/download-artifact@v8
         with:
-          name: frogbot-production-client-configuration-${{ github.sha }}
+          name: heytim-production-client-configuration-${{ github.sha }}
           path: .
 
       - name: Cache native transcription assets
         uses: actions/cache@v6
         with:
-          path: packages/frogbot-transcription/ios/Generated
-          key: frogbot-nemotron-apple-v3
+          path: packages/heytim-transcription/ios/Generated
+          key: heytim-nemotron-apple-v3
 
       - name: Select Apple build number
         id: apple-build
@@ -412,14 +412,14 @@ jobs:
 
       - name: Verify, sign, and upload iPhone and Mac builds
         env:
-          APPLE_TEAM_ID: ${{ vars.FROGBOT_APPLE_TEAM_ID }}
-          APP_STORE_CONNECT_KEY_ID: ${{ vars.FROGBOT_APP_STORE_CONNECT_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ vars.FROGBOT_APP_STORE_CONNECT_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ vars.HEYTIM_APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY }}
           APPLE_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64 }}
           APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
           APPLE_DEVELOPMENT_CERTIFICATE_BASE64: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_BASE64 }}
           APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD }}
-          FROGGYBOT_BUILD_NUMBER: ${{ steps.apple-build.outputs.number }}
-          FROGGYBOT_MARKETING_VERSION: ${{ needs.deploy.outputs.release_version }}
+          HEYTIM_BUILD_NUMBER: ${{ steps.apple-build.outputs.number }}
+          HEYTIM_MARKETING_VERSION: ${{ needs.deploy.outputs.release_version }}
         run: ./apps/iOS/scripts/testflight-ci.sh

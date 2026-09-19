@@ -14,7 +14,7 @@ test('documentation-only changes skip product verification suites', () => {
 });
 
 test('Apple-only changes stay out of non-Apple suites', () => {
-  assert.deepEqual(classifyPaths(['apps/iOS/Sources/FroggyBotUI/MainView.swift']), {
+  assert.deepEqual(classifyPaths(['apps/iOS/Sources/HeyTimUI/MainView.swift']), {
     dependencies: false,
     application: false,
     backend: false,

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image, ImageDraw
 
-from frogbot_runtime import agentcore_adapters, points_screenshots
+from heytim_runtime import agentcore_adapters, points_screenshots
 
 
 def test_points_screenshot_captures_one_verified_official_price_card(

@@ -2,7 +2,7 @@
 
 ## What is implemented
 
-The proposed `skills-v22` public release replaces the overlapping creator portion of [catalog PR #2](https://github.com/tmoreton/froggybot-skills/pull/2) with two focused bots: Creator Studio combines public YouTube strategy with Thumbnail Director, while Trend Scout compares dated signals from YouTube, recent X posts, and the web. The older GitHub Engineer, Twitter Research, YouTube Research, Reddit Research, and Thumbnail Studio proposal remains unreleased and should not be merged wholesale.
+The proposed `skills-v22` public release replaces the overlapping creator portion of [catalog PR #2](https://github.com/tmoreton/heytim-skills/pull/2) with two focused bots: Creator Studio combines public YouTube strategy with Thumbnail Director, while Trend Scout compares dated signals from YouTube, recent X posts, and the web. The older GitHub Engineer, Twitter Research, YouTube Research, Reddit Research, and Thumbnail Studio proposal remains unreleased and should not be merged wholesale.
 
 The application supports group-owned scheduled tasks using the existing scheduler, queue, worker and push pipeline. The group owner opens **Tasks & runs**, chooses a time and IANA timezone, and can save, pause, delete or run a task immediately. A scheduled round asks Chief to scope the task, runs the specialists, then asks Chief for the final synthesis. Only the final reply queues completion notifications. A 07:00 schedule starts research at 07:00; notification delivery follows completion, not an exact 07:00 deadline.
 
@@ -56,7 +56,7 @@ coworkers.
 
 ## Install another profile
 
-1. Install the reviewed public bots individually from the app library once the catalog PR is approved and released. Install the FroggyBot GitHub App on only the required repositories if private repository access is needed. Bot installation does not itself grant repository access.
+1. Install the reviewed public bots individually from the app library once the catalog PR is approved and released. Install the HeyTim GitHub App on only the required repositories if private repository access is needed. Bot installation does not itself grant repository access.
 2. Create a scheduled research group containing Chief and Trend Scout. Keep Creator Studio in direct chat because its image tool prevents group replies. Set the group's audience, subject, channel identifiers, voice and source watchlist in its notebook. Do not paste credentials into a notebook or prompt.
 3. Use [creator-workspaces.json](../examples/creator-workspaces.json) as a profile example, replacing Heytim.dev and Strands with the new subjects. It installs both public creator bots but adds only Trend Scout to the scheduled groups. The example schedules are daily at 07:00 America/New_York and research/draft only. Adapt the timezone explicitly for other users.
 4. Run a small manual research trial and inspect actual source links, missing data, costs and the final result before enabling recurrence.

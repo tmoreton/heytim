@@ -39,7 +39,7 @@ export const handler: PreSignUpTriggerHandler = async (event) => {
   const token = event.request.clientMetadata?.inviteToken?.trim();
   const kind = event.request.clientMetadata?.inviteKind?.trim();
   if (!tableName || !token || !kind || !inviteKinds.has(kind) || token.length > 128) {
-    throw new Error('A valid FroggyBot invitation is required to create an account.');
+    throw new Error('A valid HeyTim invitation is required to create an account.');
   }
 
   const { Item: invite } = await client.send(
@@ -51,7 +51,7 @@ export const handler: PreSignUpTriggerHandler = async (event) => {
   );
   const now = Math.floor(Date.now() / 1000);
   if (!invite || invite.kind !== kind || typeof invite.expiresAt !== 'number' || invite.expiresAt < now) {
-    throw new Error('This FroggyBot invitation is invalid or has expired.');
+    throw new Error('This HeyTim invitation is invalid or has expired.');
   }
 
   return event;

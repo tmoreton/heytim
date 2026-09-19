@@ -4,8 +4,8 @@ set -euo pipefail
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 outputs_file="$repository_root/services/API/amplify_outputs.json"
 target_file="$repository_root/agentcore/aws-targets.json"
-runtime_arn="${FROGBOT_AGENT_RUNTIME_ARN:-}"
-gateway_arn="${FROGBOT_AGENT_GATEWAY_ARN:-}"
+runtime_arn="${HEYTIM_AGENT_RUNTIME_ARN:-}"
+gateway_arn="${HEYTIM_AGENT_GATEWAY_ARN:-}"
 aws_region="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
 
 "$repository_root/scripts/assert-release-ready.sh" --aws --post-deploy
@@ -63,7 +63,7 @@ bucket_encryption="$(aws s3api get-bucket-encryption \
   exit 1
 }
 
-meme_prefix="$(jq -r '.runtimes[] | select(.name == "FrogBot") | .envVars[] | select(.name == "FROGBOT_MEME_TEMPLATE_PREFIX") | .value' "$repository_root/agentcore/agentcore.json")"
+meme_prefix="$(jq -r '.runtimes[] | select(.name == "HeyTim") | .envVars[] | select(.name == "HEYTIM_MEME_TEMPLATE_PREFIX") | .value' "$repository_root/agentcore/agentcore.json")"
 [[ -n "$meme_prefix" ]] || { echo 'Meme template prefix is missing.' >&2; exit 1; }
 meme_catalog="$(mktemp)"
 trap 'find "$meme_catalog" -delete 2>/dev/null || true' EXIT
@@ -105,11 +105,11 @@ confirmed_subscriptions="$(aws sns list-subscriptions-by-topic \
 (( confirmed_subscriptions > 0 )) || { echo 'The production alarm topic has no confirmed subscriber.' >&2; exit 1; }
 
 expected_alarms=(
-  FroggyBot-production-runtime-error-rate
-  FroggyBot-production-runtime-throttles
-  FroggyBot-production-runtime-latency-p99
-  FroggyBot-production-gateway-error-rate
-  FroggyBot-production-gateway-throttles
+  HeyTim-production-runtime-error-rate
+  HeyTim-production-runtime-throttles
+  HeyTim-production-runtime-latency-p99
+  HeyTim-production-gateway-error-rate
+  HeyTim-production-gateway-throttles
 )
 alarm_count="$(aws cloudwatch describe-alarms \
   --alarm-names "${expected_alarms[@]}" \
@@ -117,7 +117,7 @@ alarm_count="$(aws cloudwatch describe-alarms \
   --output text)"
 [[ "$alarm_count" == "${#expected_alarms[@]}" ]] || { echo 'One or more AgentCore production alarms are missing.' >&2; exit 1; }
 
-for application_arn in "${FROGBOT_APNS_APPLICATION_ARN:-}" "${FROGBOT_APNS_SANDBOX_APPLICATION_ARN:-}"; do
+for application_arn in "${HEYTIM_APNS_APPLICATION_ARN:-}" "${HEYTIM_APNS_SANDBOX_APPLICATION_ARN:-}"; do
   [[ -n "$application_arn" ]] || continue
   attributes="$(aws sns get-platform-application-attributes \
     --platform-application-arn "$application_arn" \

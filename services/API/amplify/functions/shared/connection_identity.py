@@ -7,7 +7,7 @@ import uuid
 def _secret_name(user_id: str, connection_id: str) -> str:
     owner = hashlib.sha256(user_id.encode("utf-8")).hexdigest()[:24]
     revision = uuid.uuid4().hex[:12]
-    return f"frogbot/connections/{owner}/{connection_id}-{revision}"
+    return f"heytim/connections/{owner}/{connection_id}-{revision}"
 
 
 def _connection_id(provider: str, user_id: str, account_id: str) -> str:

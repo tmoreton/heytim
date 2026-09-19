@@ -4,7 +4,7 @@ import json
 import logging
 from unittest.mock import MagicMock
 
-from frogbot_runtime.failure_events import record_runtime_failure, runtime_failure_event
+from heytim_runtime.failure_events import record_runtime_failure, runtime_failure_event
 
 
 def _failure(message: str) -> RuntimeError:
@@ -29,5 +29,5 @@ def test_runtime_failure_marker_contains_only_sanitized_json() -> None:
     record_runtime_failure(logger, _failure("secret-bearing failure"))
 
     rendered = json.dumps(logger.error.call_args.args)
-    assert "FROGBOT_TERMINAL_ERROR" in rendered
+    assert "HEYTIM_TERMINAL_ERROR" in rendered
     assert "secret-bearing" not in rendered

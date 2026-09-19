@@ -194,6 +194,12 @@ export class AgentCoreStack extends Stack {
       const connectionSecretsArn = this.formatArn({
         service: 'secretsmanager',
         resource: 'secret',
+        resourceName: 'heytim/connections/*',
+        arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+      });
+      const legacyConnectionSecretsArn = this.formatArn({
+        service: 'secretsmanager',
+        resource: 'secret',
         resourceName: 'frogbot/connections/*',
         arnFormat: ArnFormat.COLON_RESOURCE_NAME,
       });
@@ -201,7 +207,7 @@ export class AgentCoreStack extends Stack {
         this.formatArn({
           service: 'secretsmanager',
           resource: 'secret',
-          resourceName: `frogbot/oauth/${provider}-*`,
+          resourceName: `heytim/oauth/${provider}-*`,
           arnFormat: ArnFormat.COLON_RESOURCE_NAME,
         })
       );
@@ -233,13 +239,13 @@ export class AgentCoreStack extends Stack {
         environment.runtime.role.addToPrincipalPolicy(
           new iam.PolicyStatement({
             actions: ['secretsmanager:GetSecretValue'],
-            resources: [connectionSecretsArn, ...providerConfigurationArns],
+            resources: [connectionSecretsArn, legacyConnectionSecretsArn, ...providerConfigurationArns],
           })
         );
         environment.runtime.role.addToPrincipalPolicy(
           new iam.PolicyStatement({
             actions: ['secretsmanager:PutSecretValue'],
-            resources: [connectionSecretsArn],
+            resources: [connectionSecretsArn, legacyConnectionSecretsArn],
           })
         );
       }

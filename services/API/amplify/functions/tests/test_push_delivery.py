@@ -105,7 +105,7 @@ class PushDeliveryTests(WorkerTestCase):
             "tokenId": "native-1",
             "token": "ab" * 32,
             "provider": "apns",
-            "endpointArn": "arn:aws:sns:us-east-1:123:endpoint/APNS/FroggyBot/one",
+            "endpointArn": "arn:aws:sns:us-east-1:123:endpoint/APNS/HeyTim/one",
             "environment": "production",
         }
         self.sns.publish.return_value = {"MessageId": "message-native-1"}
@@ -139,7 +139,7 @@ class PushDeliveryTests(WorkerTestCase):
             "tokenId": "native-1",
             "token": "ab" * 32,
             "provider": "apns",
-            "endpointArn": "arn:aws:sns:us-east-1:123:endpoint/APNS/FroggyBot/one",
+            "endpointArn": "arn:aws:sns:us-east-1:123:endpoint/APNS/HeyTim/one",
             "environment": "production",
         }
         self.sns.reset_mock()

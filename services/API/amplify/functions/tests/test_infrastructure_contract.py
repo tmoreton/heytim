@@ -59,7 +59,7 @@ class InfrastructureContractTests(unittest.TestCase):
             "table.grantReadWriteData", 1
         )[0]
         self.assertIn("recursiveLoop: RecursiveLoop.ALLOW", worker)
-        self.assertNotIn("FROGBOT_ALLOW_RECURSIVE_POLLS", self.backend)
+        self.assertNotIn("HEYTIM_ALLOW_RECURSIVE_POLLS", self.backend)
         self.assertEqual(worker.count("recursiveLoop:"), 1)
 
     def test_access_log_5xx_responses_raise_an_alarm(self) -> None:
@@ -81,7 +81,7 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("enabled: deploymentEnvironment === 'production'", self.backend)
         self.assertIn("AgentRuntimeAutofixSubscription", self.autofix)
         self.assertIn("WorkerAutofixSubscription", self.autofix)
-        self.assertEqual(self.autofix.count("FROGBOT_TERMINAL_ERROR"), 2)
+        self.assertEqual(self.autofix.count("HEYTIM_TERMINAL_ERROR"), 2)
         self.assertIn("AUTOFIX_COOLDOWN_HOURS: '6'", self.autofix)
         self.assertIn("AUTOFIX_DAILY_LIMIT: '3'", self.autofix)
         self.assertIn("actions: ['secretsmanager:GetSecretValue']", self.autofix)
@@ -142,7 +142,7 @@ class InfrastructureContractTests(unittest.TestCase):
             "deploymentEnvironment === 'production' && !apnsApplicationArn",
             self.settings,
         )
-        self.assertIn("FROGBOT_APNS_APPLICATION_ARN", self.production_workflow)
+        self.assertIn("HEYTIM_APNS_APPLICATION_ARN", self.production_workflow)
         self.assertIn(
             "NOTION_OAUTH_SECRET_ARN APNS_APPLICATION_ARN", self.production_workflow
         )
@@ -165,7 +165,7 @@ class InfrastructureContractTests(unittest.TestCase):
             self.deployment_role,
         )
         self.assertNotIn(
-            "repo:tmoreton/frogbot:environment:production", self.deployment_role
+            "repo:tmoreton/heytim:environment:production", self.deployment_role
         )
 
     def test_production_release_provisions_and_verifies_meme_templates(self) -> None:
@@ -193,7 +193,7 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn('git merge-base --is-ancestor "$GITHUB_SHA" origin/main', self.production_workflow)
         self.assertIn("release_version: ${{ steps.release.outputs.version }}", self.production_workflow)
         self.assertIn(
-            "FROGGYBOT_MARKETING_VERSION: ${{ needs.deploy.outputs.release_version }}",
+            "HEYTIM_MARKETING_VERSION: ${{ needs.deploy.outputs.release_version }}",
             self.production_workflow,
         )
         self.assertIn("run: ./apps/iOS/scripts/testflight-ci.sh", self.production_workflow)
@@ -218,18 +218,18 @@ class InfrastructureContractTests(unittest.TestCase):
             self.settings,
         )
         self.assertIn(
-            "'FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT', 100, 3, 1_000_000, true",
+            "'HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT', 100, 3, 1_000_000, true",
             self.settings,
         )
         self.assertIn(
-            "FROGBOT_MONTHLY_BUDGET_USD must be set before deploying production",
+            "HEYTIM_MONTHLY_BUDGET_USD must be set before deploying production",
             self.settings,
         )
 
     def test_sandbox_uses_the_existing_named_native_push_applications(self) -> None:
         self.assertIn("resolveNativePushApplicationArns", self.backend)
         self.assertIn("resource: `app/${platform}`", self.native_push)
-        self.assertIn("resourceName: 'FroggyBot'", self.native_push)
+        self.assertIn("resourceName: 'HeyTim'", self.native_push)
         self.assertIn("arnFormat: ArnFormat.SLASH_RESOURCE_NAME", self.native_push)
         self.assertIn("applicationArn || namedApplicationArn('APNS')", self.native_push)
         self.assertIn(
@@ -239,20 +239,20 @@ class InfrastructureContractTests(unittest.TestCase):
 
     def test_managed_connection_provider_secrets_are_scoped(self) -> None:
         for name in (
-            "FROGBOT_GOOGLE_OAUTH_SECRET_ARN",
-            "FROGBOT_GITHUB_APP_SECRET_ARN",
-            "FROGBOT_X_OAUTH_SECRET_ARN",
-            "FROGBOT_SLACK_OAUTH_SECRET_ARN",
-            "FROGBOT_NOTION_OAUTH_SECRET_ARN",
+            "HEYTIM_GOOGLE_OAUTH_SECRET_ARN",
+            "HEYTIM_GITHUB_APP_SECRET_ARN",
+            "HEYTIM_X_OAUTH_SECRET_ARN",
+            "HEYTIM_SLACK_OAUTH_SECRET_ARN",
+            "HEYTIM_NOTION_OAUTH_SECRET_ARN",
         ):
             self.assertIn(name, self.settings)
             self.assertIn(name, self.production_workflow)
-        self.assertIn("FROGBOT_MICROSOFT_OAUTH_SECRET_ARN", self.settings)
+        self.assertIn("HEYTIM_MICROSOFT_OAUTH_SECRET_ARN", self.settings)
         for name in (
-            "FROGBOT_MICROSOFT_OAUTH_SECRET_ARN",
-            "FROGBOT_HUBSPOT_OAUTH_SECRET_ARN",
-            "FROGBOT_JIRA_OAUTH_SECRET_ARN",
-            "FROGBOT_ZOOM_OAUTH_SECRET_ARN",
+            "HEYTIM_MICROSOFT_OAUTH_SECRET_ARN",
+            "HEYTIM_HUBSPOT_OAUTH_SECRET_ARN",
+            "HEYTIM_JIRA_OAUTH_SECRET_ARN",
+            "HEYTIM_ZOOM_OAUTH_SECRET_ARN",
         ):
             self.assertIn(name, self.settings)
             self.assertIn(name, self.production_workflow)
@@ -269,11 +269,11 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("dynamodb:TransactWriteItems", self.backend)
         self.assertIn("bedrock-agentcore:InvokeAgentRuntimeForUser", self.backend)
         for setting in (
-            "FROGBOT_MONTHLY_RUN_UNIT_LIMIT",
-            "FROGBOT_USER_WINDOW_RUN_UNIT_LIMIT",
-            "FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT",
-            "FROGBOT_USAGE_WINDOW_SECONDS",
-            "FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT",
+            "HEYTIM_MONTHLY_RUN_UNIT_LIMIT",
+            "HEYTIM_USER_WINDOW_RUN_UNIT_LIMIT",
+            "HEYTIM_GLOBAL_WINDOW_RUN_UNIT_LIMIT",
+            "HEYTIM_USAGE_WINDOW_SECONDS",
+            "HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT",
         ):
             self.assertIn(setting, self.backend)
 
@@ -282,22 +282,22 @@ class InfrastructureContractTests(unittest.TestCase):
             "const workerFunction =", 1
         )[0]
         for setting in (
-            "FROGBOT_MONTHLY_RUN_UNIT_LIMIT",
-            "FROGBOT_USER_WINDOW_RUN_UNIT_LIMIT",
-            "FROGBOT_GLOBAL_WINDOW_RUN_UNIT_LIMIT",
-            "FROGBOT_USAGE_WINDOW_SECONDS",
-            "FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT",
+            "HEYTIM_MONTHLY_RUN_UNIT_LIMIT",
+            "HEYTIM_USER_WINDOW_RUN_UNIT_LIMIT",
+            "HEYTIM_GLOBAL_WINDOW_RUN_UNIT_LIMIT",
+            "HEYTIM_USAGE_WINDOW_SECONDS",
+            "HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT",
         ):
             self.assertIn(setting, api)
         self.assertGreaterEqual(self.backend.count("dynamodb:TransactWriteItems"), 2)
 
     def test_memory_clients_can_use_the_configured_encryption_key(self) -> None:
         self.assertIn(
-            "memoryKmsKeyArn = requiredSetting('FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN')",
+            "memoryKmsKeyArn = requiredSetting('HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN')",
             self.settings,
         )
         self.assertIn("addMemoryAccess({", self.backend)
-        self.assertIn("policyName: 'FrogBotManagedMemoryKeyAccess'", self.memory_access)
+        self.assertIn("policyName: 'HeyTimManagedMemoryKeyAccess'", self.memory_access)
         self.assertIn(
             "memoryKeyAccess.attachToRole(apiFunction.role!)", self.memory_access
         )
@@ -313,7 +313,7 @@ class InfrastructureContractTests(unittest.TestCase):
             self.assertIn(action, self.memory_access)
         self.assertIn("resources: [memoryKmsKeyArn]", self.memory_access)
         self.assertIn(
-            "FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN }}",
+            "HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN }}",
             self.production_workflow,
         )
 
@@ -339,7 +339,10 @@ class InfrastructureContractTests(unittest.TestCase):
 
         for policy in (api_policy, worker_policy):
             self.assertIn("'secretsmanager:GetSecretValue'", policy)
-            self.assertIn("resources: [connectionSecretsArn]", policy)
+            self.assertIn(
+                "resources: [connectionSecretsArn, legacyConnectionSecretsArn]",
+                policy,
+            )
 
     def test_production_deploy_role_scopes_company_credentials(self) -> None:
         self.assertNotIn("bedrock-agentcore:*", self.deployment_role)

@@ -1,6 +1,6 @@
 # Account-owned bot workflows
 
-FroggyBot can provision a repeatable specialist workflow without adding another
+HeyTim can provision a repeatable specialist workflow without adding another
 AgentCore runtime or hard-coding a user's private connection IDs. A workflow pack
 combines private skills, account-owned bots, provider requirements, an optional
 training turn, and optional direct schedules. The installer resolves the exact

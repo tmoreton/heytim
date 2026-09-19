@@ -32,7 +32,7 @@ import os
 from urllib.request import Request, urlopen
 
 def handler(_event, _context):
-    request = Request(os.environ["PROBE_URL"], headers={"User-Agent": "FroggyBotAvailabilityProbe/1"})
+    request = Request(os.environ["PROBE_URL"], headers={"User-Agent": "HeyTimAvailabilityProbe/1"})
     with urlopen(request, timeout=10) as response:
         if response.status != 200:
             raise RuntimeError(f"Unexpected public catalog status: {response.status}")

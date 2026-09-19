@@ -1,8 +1,8 @@
-"""Install a reviewed creator pack through FrogBot's existing application handlers.
+"""Install a reviewed creator pack through HeyTim's existing application handlers.
 
 This operator utility requires IAM permission to invoke the application's API Lambda.
 It resolves the exact Cognito email first; it never changes authentication or IAM.
-Public definitions come from the separate frogbot-skills catalog. Connections and
+Public definitions come from the separate heytim-skills catalog. Connections and
 approval grants are preserved, never copied from a template or another account.
 """
 from __future__ import annotations

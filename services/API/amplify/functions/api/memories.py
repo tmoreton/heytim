@@ -15,7 +15,7 @@ from shared.memory_identity import (
 
 from .support import (
     FILES_BUCKET_NAME,
-    FROGBOT_MEMORY_ID,
+    HEYTIM_MEMORY_ID,
     ApiError,
     _partition_items,
     _user_pk,
@@ -31,13 +31,13 @@ _TOPIC_PATTERN = re.compile(
 
 
 def _memory_pages(operation: str, result_key: str, **request) -> list[dict]:
-    if not FROGBOT_MEMORY_ID:
+    if not HEYTIM_MEMORY_ID:
         return []
     items = []
     while True:
         try:
             response = getattr(agentcore, operation)(
-                memoryId=FROGBOT_MEMORY_ID, maxResults=100, **request
+                memoryId=HEYTIM_MEMORY_ID, maxResults=100, **request
             )
         except agentcore.exceptions.ResourceNotFoundException:
             return items
@@ -49,7 +49,7 @@ def _memory_pages(operation: str, result_key: str, **request) -> list[dict]:
 
 
 def _delete_user_memory(user_id: str) -> dict[str, int]:
-    return delete_user_memory(agentcore, FROGBOT_MEMORY_ID, user_id)
+    return delete_user_memory(agentcore, HEYTIM_MEMORY_ID, user_id)
 
 
 def _namespace_kind(namespace: str, actor_id: str) -> str | None:
@@ -142,7 +142,7 @@ def _list_bot_memories(user_id: str, bot_id: str) -> dict:
                 "content": _readable_content("summary", content),
                 "createdAt": _created_at(record.get("createdAt")),
                 "scope": "bot",
-                "source": _metadata_string(record, "frogbotSource") or "learned",
+                "source": _metadata_string(record, "heytimSource") or "learned",
                 "botId": bot_id,
                 "botName": bot["name"],
             }
@@ -155,7 +155,7 @@ def _create_bot_memory(user_id: str, bot_id: str, body: dict) -> dict:
     # The summary namespace is the existing per-session store searched by this bot.
     # A manual note here stays out of the account-wide facts/preferences stores.
     bot = _require_bot_memory_access(user_id, bot_id)
-    if not FROGBOT_MEMORY_ID:
+    if not HEYTIM_MEMORY_ID:
         raise ApiError(503, "Memory is unavailable")
     content = body.get("content")
     if not isinstance(content, str) or not content.strip():
@@ -165,7 +165,7 @@ def _create_bot_memory(user_id: str, bot_id: str, body: dict) -> dict:
         raise ApiError(400, f"Memory must be {MAX_MEMORY_CHARS:,} characters or fewer")
     created_at = datetime.now(UTC)
     response = agentcore.batch_create_memory_records(
-        memoryId=FROGBOT_MEMORY_ID,
+        memoryId=HEYTIM_MEMORY_ID,
         records=[
             {
                 "requestIdentifier": str(uuid.uuid4()),
@@ -173,8 +173,8 @@ def _create_bot_memory(user_id: str, bot_id: str, body: dict) -> dict:
                 "content": {"text": content},
                 "timestamp": created_at,
                 "metadata": {
-                    "frogbotScope": {"stringValue": "bot"},
-                    "frogbotSource": {"stringValue": "manual"},
+                    "heytimScope": {"stringValue": "bot"},
+                    "heytimSource": {"stringValue": "manual"},
                 },
             }
         ],
@@ -198,7 +198,7 @@ def _create_bot_memory(user_id: str, bot_id: str, body: dict) -> dict:
 
 
 def _list_user_memories(user_id: str) -> dict:
-    if not FROGBOT_MEMORY_ID:
+    if not HEYTIM_MEMORY_ID:
         return {"records": [], "rawConversationRetentionDays": 30}
     actor_id = memory_actor_id(user_id)
     bot_sessions = _bot_sessions(user_id)
@@ -239,13 +239,13 @@ def _list_user_memories(user_id: str) -> dict:
                 "content": _readable_content(kind, content),
                 "createdAt": _created_at(record.get("createdAt")),
                 "scope": "personal",
-                "source": _metadata_string(record, "frogbotSource") or "learned",
+                "source": _metadata_string(record, "heytimSource") or "learned",
             }
             if kind == "summary":
                 parts = namespace.strip("/").split("/")
                 if len(parts) >= 3:
                     item.update(bot_sessions.get(parts[2], {}))
-                item["scope"] = _metadata_string(record, "frogbotScope") or "personal"
+                item["scope"] = _metadata_string(record, "heytimScope") or "personal"
             records.append(item)
     records.sort(key=lambda item: item["createdAt"], reverse=True)
     return {"records": records, "rawConversationRetentionDays": 30}
@@ -254,7 +254,7 @@ def _list_user_memories(user_id: str) -> dict:
 def _create_user_memory(
     user_id: str, body: dict, *, request_identifier: str | None = None
 ) -> dict:
-    if not FROGBOT_MEMORY_ID:
+    if not HEYTIM_MEMORY_ID:
         raise ApiError(503, "Memory is unavailable")
     kind = body.get("kind")
     plural = EDITABLE_MEMORY_KINDS.get(kind)
@@ -268,7 +268,7 @@ def _create_user_memory(
         raise ApiError(400, f"Memory must be {MAX_MEMORY_CHARS:,} characters or fewer")
     created_at = datetime.now(UTC)
     response = agentcore.batch_create_memory_records(
-        memoryId=FROGBOT_MEMORY_ID,
+        memoryId=HEYTIM_MEMORY_ID,
         records=[
             {
                 "requestIdentifier": request_identifier or str(uuid.uuid4()),
@@ -276,8 +276,8 @@ def _create_user_memory(
                 "content": {"text": content},
                 "timestamp": created_at,
                 "metadata": {
-                    "frogbotScope": {"stringValue": "personal"},
-                    "frogbotSource": {"stringValue": "manual"},
+                    "heytimScope": {"stringValue": "personal"},
+                    "heytimSource": {"stringValue": "manual"},
                 },
             }
         ],
@@ -308,7 +308,7 @@ def _require_group_memory_access(
 
 def _list_group_memories(user_id: str, group_id: str) -> dict:
     _require_group_memory_access(user_id, group_id)
-    if not FROGBOT_MEMORY_ID:
+    if not HEYTIM_MEMORY_ID:
         return {"records": [], "rawConversationRetentionDays": 30}
     actor_id = group_memory_actor_id(group_id)
     records = []
@@ -333,7 +333,7 @@ def _list_group_memories(user_id: str, group_id: str) -> dict:
                     "content": _readable_content(kind, content),
                     "createdAt": _created_at(record.get("createdAt")),
                     "scope": "group",
-                    "source": _metadata_string(record, "frogbotSource") or "learned",
+                    "source": _metadata_string(record, "heytimSource") or "learned",
                 }
             )
     records.sort(key=lambda item: item["createdAt"], reverse=True)
@@ -342,7 +342,7 @@ def _list_group_memories(user_id: str, group_id: str) -> dict:
 
 def _create_group_memory(user_id: str, group_id: str, body: dict) -> dict:
     _require_group_memory_access(user_id, group_id, owner=True)
-    if not FROGBOT_MEMORY_ID:
+    if not HEYTIM_MEMORY_ID:
         raise ApiError(503, "Memory is unavailable")
     content = body.get("content")
     if not isinstance(content, str) or not content.strip():
@@ -352,7 +352,7 @@ def _create_group_memory(user_id: str, group_id: str, body: dict) -> dict:
         raise ApiError(400, f"Memory must be {MAX_MEMORY_CHARS:,} characters or fewer")
     created_at = datetime.now(UTC)
     response = agentcore.batch_create_memory_records(
-        memoryId=FROGBOT_MEMORY_ID,
+        memoryId=HEYTIM_MEMORY_ID,
         records=[
             {
                 "requestIdentifier": str(uuid.uuid4()),
@@ -360,8 +360,8 @@ def _create_group_memory(user_id: str, group_id: str, body: dict) -> dict:
                 "content": {"text": content},
                 "timestamp": created_at,
                 "metadata": {
-                    "frogbotScope": {"stringValue": "group"},
-                    "frogbotSource": {"stringValue": "manual"},
+                    "heytimScope": {"stringValue": "group"},
+                    "heytimSource": {"stringValue": "manual"},
                 },
             }
         ],
@@ -386,11 +386,11 @@ def _owned_group_memory_record(
     user_id: str, group_id: str, record_id: str
 ) -> tuple[dict, str, str]:
     _require_group_memory_access(user_id, group_id, owner=True)
-    if not FROGBOT_MEMORY_ID or not record_id.startswith("mem-"):
+    if not HEYTIM_MEMORY_ID or not record_id.startswith("mem-"):
         raise ApiError(404, "Memory not found")
     try:
         record = agentcore.get_memory_record(
-            memoryId=FROGBOT_MEMORY_ID,
+            memoryId=HEYTIM_MEMORY_ID,
             memoryRecordId=record_id,
         ).get("memoryRecord", {})
     except agentcore.exceptions.ResourceNotFoundException as exc:
@@ -431,7 +431,7 @@ def _update_group_memory(
     if isinstance(metadata, dict) and metadata:
         update["metadata"] = metadata
     response = agentcore.batch_update_memory_records(
-        memoryId=FROGBOT_MEMORY_ID,
+        memoryId=HEYTIM_MEMORY_ID,
         records=[update],
     )
     if response.get("failedRecords"):
@@ -442,14 +442,14 @@ def _update_group_memory(
         "content": content,
         "createdAt": _created_at(record.get("createdAt")),
         "scope": "group",
-        "source": _metadata_string(record, "frogbotSource") or "learned",
+        "source": _metadata_string(record, "heytimSource") or "learned",
     }
 
 
 def _delete_group_memory_record(user_id: str, group_id: str, record_id: str) -> dict:
     _owned_group_memory_record(user_id, group_id, record_id)
     response = agentcore.batch_delete_memory_records(
-        memoryId=FROGBOT_MEMORY_ID,
+        memoryId=HEYTIM_MEMORY_ID,
         records=[{"memoryRecordId": record_id}],
     )
     if response.get("failedRecords"):
@@ -458,11 +458,11 @@ def _delete_group_memory_record(user_id: str, group_id: str, record_id: str) -> 
 
 
 def _owned_memory_record(user_id: str, record_id: str) -> tuple[dict, str, str]:
-    if not FROGBOT_MEMORY_ID or not record_id.startswith("mem-"):
+    if not HEYTIM_MEMORY_ID or not record_id.startswith("mem-"):
         raise ApiError(404, "Memory not found")
     try:
         record = agentcore.get_memory_record(
-            memoryId=FROGBOT_MEMORY_ID,
+            memoryId=HEYTIM_MEMORY_ID,
             memoryRecordId=record_id,
         ).get("memoryRecord", {})
     except agentcore.exceptions.ResourceNotFoundException as exc:
@@ -519,7 +519,7 @@ def _update_user_memory(user_id: str, record_id: str, body: dict) -> dict:
     if isinstance(metadata, dict) and metadata:
         update["metadata"] = metadata
     response = agentcore.batch_update_memory_records(
-        memoryId=FROGBOT_MEMORY_ID,
+        memoryId=HEYTIM_MEMORY_ID,
         records=[update],
     )
     if response.get("failedRecords"):
@@ -529,8 +529,8 @@ def _update_user_memory(user_id: str, record_id: str, body: dict) -> dict:
         "kind": kind,
         "content": content,
         "createdAt": _created_at(record.get("createdAt")),
-        "scope": _metadata_string(record, "frogbotScope") or "personal",
-        "source": _metadata_string(record, "frogbotSource") or "learned",
+        "scope": _metadata_string(record, "heytimScope") or "personal",
+        "source": _metadata_string(record, "heytimSource") or "learned",
     }
     if kind == "summary":
         parts = namespace.strip("/").split("/")
@@ -542,7 +542,7 @@ def _update_user_memory(user_id: str, record_id: str, body: dict) -> dict:
 def _delete_user_memory_record(user_id: str, record_id: str) -> dict:
     _owned_memory_record(user_id, record_id)
     response = agentcore.batch_delete_memory_records(
-        memoryId=FROGBOT_MEMORY_ID,
+        memoryId=HEYTIM_MEMORY_ID,
         records=[{"memoryRecordId": record_id}],
     )
     if response.get("failedRecords"):

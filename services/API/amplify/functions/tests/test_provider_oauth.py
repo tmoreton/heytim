@@ -32,14 +32,14 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
         state = "github-state-token-with-enough-entropy"
         app_secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123:secret:"
-            "frogbot/oauth/github-production-ABC123"
+            "heytim/oauth/github-production-ABC123"
         )
         self.data_table.put_item(
             Item={
                 **self.github._state_key(state),
                 "userId": "user-1",
                 "provider": "github",
-                "returnUrl": "froggybot://app?connection=github",
+                "returnUrl": "heytim://app?connection=github",
                 "appSecretArn": app_secret_arn,
                 "redirectUri": GITHUB_REDIRECT_URI,
                 "verifier": "github-pkce-verifier-with-enough-entropy-1234567890",
@@ -51,7 +51,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             "clientId": "client-id",
             "clientSecret": "client-secret-long-enough",
             "privateKey": "private-key",
-            "slug": "froggybot",
+            "slug": "heytim",
         }
         with (
             patch.object(self.github.time, "time", return_value=1_000),
@@ -83,7 +83,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             patch.object(
                 self.github,
                 "_installation_repositories",
-                return_value=[{"id": 101, "name": "frog-owner/froggybot"}],
+                return_value=[{"id": 101, "name": "frog-owner/heytim"}],
             ),
             patch.object(self.catalog, "save_github_connection") as save,
             patch.object(self.github, "_revoke_user_token") as revoke,
@@ -100,7 +100,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             "user-1",
             "frog-owner",
             "12345",
-            [{"id": 101, "name": "frog-owner/froggybot"}],
+            [{"id": 101, "name": "frog-owner/heytim"}],
             {"metadata": "read", "contents": "write"},
             app_secret_arn,
         )
@@ -125,14 +125,14 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
         verifier = "github-pkce-verifier-with-enough-entropy-1234567890"
         app_secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123:secret:"
-            "frogbot/oauth/github-production-ABC123"
+            "heytim/oauth/github-production-ABC123"
         )
         config = {
             "appId": "77",
             "clientId": "client-id",
             "clientSecret": "client-secret-long-enough",
             "privateKey": "private-key",
-            "slug": "froggybot",
+            "slug": "heytim",
         }
         with (
             patch.dict(
@@ -152,7 +152,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             ),
         ):
             response = self.github._begin_github_authorization(
-                "user-1", {"returnUrl": "froggybot://app?connection=github"}
+                "user-1", {"returnUrl": "heytim://app?connection=github"}
             )
 
         location = response["authorizationUrl"]
@@ -178,14 +178,14 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
         install_state = "github-install-state-with-enough-entropy"
         app_secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123:secret:"
-            "frogbot/oauth/github-production-ABC123"
+            "heytim/oauth/github-production-ABC123"
         )
         self.data_table.put_item(
             Item={
                 **self.github._state_key(state),
                 "userId": "user-1",
                 "provider": "github",
-                "returnUrl": "froggybot://app?connection=github",
+                "returnUrl": "heytim://app?connection=github",
                 "appSecretArn": app_secret_arn,
                 "redirectUri": GITHUB_REDIRECT_URI,
                 "verifier": "github-pkce-verifier-with-enough-entropy-1234567890",
@@ -197,7 +197,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             "clientId": "client-id",
             "clientSecret": "client-secret-long-enough",
             "privateKey": "private-key",
-            "slug": "froggybot",
+            "slug": "heytim",
         }
         with (
             patch.object(self.github.time, "time", return_value=1_000),
@@ -222,7 +222,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             )
 
         self.assertIn(
-            "https://github.com/apps/froggybot/installations/new?",
+            "https://github.com/apps/heytim/installations/new?",
             response["headers"]["location"],
         )
         saved_state = self.data_table.items[
@@ -238,14 +238,14 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
         verifier = "github-pkce-verifier-with-enough-entropy-1234567890"
         app_secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123:secret:"
-            "frogbot/oauth/github-production-ABC123"
+            "heytim/oauth/github-production-ABC123"
         )
         self.data_table.put_item(
             Item={
                 **self.github._state_key(state),
                 "userId": "user-1",
                 "provider": "github",
-                "returnUrl": "froggybot://app?connection=github",
+                "returnUrl": "heytim://app?connection=github",
                 "appSecretArn": app_secret_arn,
                 "expiresAt": 2_000,
             }
@@ -255,7 +255,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             "clientId": "client-id",
             "clientSecret": "client-secret-long-enough",
             "privateKey": "private-key",
-            "slug": "froggybot",
+            "slug": "heytim",
         }
         with (
             patch.dict(
@@ -303,7 +303,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
     def test_youtube_oauth_uses_only_readonly_scope_and_saves_channel(self) -> None:
         state = "youtube-state-token-with-enough-entropy"
         client_secret_arn = (
-            "arn:aws:secretsmanager:us-east-1:123:secret:frogbot/oauth/google-ABC123"
+            "arn:aws:secretsmanager:us-east-1:123:secret:heytim/oauth/google-ABC123"
         )
         self.data_table.put_item(
             Item={
@@ -311,7 +311,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
                 "userId": "user-1",
                 "provider": "youtube",
                 "verifier": "verifier",
-                "returnUrl": "froggybot://app?connection=youtube",
+                "returnUrl": "heytim://app?connection=youtube",
                 "clientSecretArn": client_secret_arn,
                 "expiresAt": 2_000,
             }
@@ -353,7 +353,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
     def test_google_workspace_oauth_saves_one_read_only_mcp_bundle(self) -> None:
         state = "workspace-state-token-with-enough-entropy"
         client_secret_arn = (
-            "arn:aws:secretsmanager:us-east-1:123:secret:frogbot/oauth/google-ABC123"
+            "arn:aws:secretsmanager:us-east-1:123:secret:heytim/oauth/google-ABC123"
         )
         self.data_table.put_item(
             Item={
@@ -361,7 +361,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
                 "userId": "user-1",
                 "provider": "google_workspace",
                 "verifier": "verifier",
-                "returnUrl": "froggybot://app?connection=google_workspace",
+                "returnUrl": "heytim://app?connection=google_workspace",
                 "clientSecretArn": client_secret_arn,
                 "expiresAt": 2_000,
             }
@@ -404,7 +404,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
         verifier = "x-verifier-token-with-enough-entropy"
         secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123:secret:"
-            "frogbot/oauth/x-production-ABC123"
+            "heytim/oauth/x-production-ABC123"
         )
         environment = {
             "X_OAUTH_REDIRECT_URI": "https://api.example.com/public/oauth/x/callback"
@@ -422,7 +422,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             patch.object(self.x.time, "time", return_value=1_000),
         ):
             result = self.x._begin_x_authorization(
-                "user-1", {"returnUrl": "froggybot://app?connection=x"}
+                "user-1", {"returnUrl": "heytim://app?connection=x"}
             )
 
         query = dict(
@@ -439,7 +439,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
         state = "x-callback-state-token-with-enough-entropy"
         secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123:secret:"
-            "frogbot/oauth/x-production-ABC123"
+            "heytim/oauth/x-production-ABC123"
         )
         self.data_table.put_item(
             Item={
@@ -447,7 +447,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
                 "userId": "user-1",
                 "provider": "x",
                 "verifier": "verifier-token",
-                "returnUrl": "froggybot://app?connection=x",
+                "returnUrl": "heytim://app?connection=x",
                 "clientSecretArn": secret_arn,
                 "expiresAt": 2_000,
             }
@@ -461,7 +461,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
         with (
             patch.object(self.x.time, "time", return_value=1_000),
             patch.object(self.x, "_exchange_code", return_value=token),
-            patch.object(self.x, "_profile", return_value=("12345", "@froggybot")),
+            patch.object(self.x, "_profile", return_value=("12345", "@heytim")),
             patch.object(self.catalog, "save_oauth_api_connection") as save,
         ):
             response = self.x._x_callback(
@@ -473,7 +473,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
         save.assert_called_once_with(
             "user-1",
             "x",
-            "@froggybot",
+            "@heytim",
             "12345",
             "refresh-token",
             secret_arn,
@@ -489,7 +489,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
         state = "x-incomplete-scope-state-with-enough-entropy"
         secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123:secret:"
-            "frogbot/oauth/x-production-ABC123"
+            "heytim/oauth/x-production-ABC123"
         )
         self.data_table.put_item(
             Item={
@@ -497,7 +497,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
                 "userId": "user-1",
                 "provider": "x",
                 "verifier": "verifier-token",
-                "returnUrl": "froggybot://app?connection=x",
+                "returnUrl": "heytim://app?connection=x",
                 "clientSecretArn": secret_arn,
                 "expiresAt": 2_000,
             }

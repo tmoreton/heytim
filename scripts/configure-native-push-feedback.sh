@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-feedback_role_arn="${FROGBOT_NATIVE_PUSH_FEEDBACK_ROLE_ARN:-}"
-production_arn="${FROGBOT_APNS_APPLICATION_ARN:-}"
-sandbox_arn="${FROGBOT_APNS_SANDBOX_APPLICATION_ARN:-}"
+feedback_role_arn="${HEYTIM_NATIVE_PUSH_FEEDBACK_ROLE_ARN:-}"
+production_arn="${HEYTIM_APNS_APPLICATION_ARN:-}"
+sandbox_arn="${HEYTIM_APNS_SANDBOX_APPLICATION_ARN:-}"
 aws_region="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
 
 if [[ -z "$feedback_role_arn" || -z "$production_arn" || -z "$aws_region" ]]; then
-  echo 'FROGBOT_NATIVE_PUSH_FEEDBACK_ROLE_ARN, FROGBOT_APNS_APPLICATION_ARN, and AWS_REGION are required.' >&2
+  echo 'HEYTIM_NATIVE_PUSH_FEEDBACK_ROLE_ARN, HEYTIM_APNS_APPLICATION_ARN, and AWS_REGION are required.' >&2
   exit 2
 fi
 

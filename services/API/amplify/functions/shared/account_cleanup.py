@@ -312,7 +312,7 @@ class AccountCleanupService:
             request["nextToken"] = next_token
 
     def stop_tool_sessions(self, session_ids: set[str]) -> None:
-        names = {f"frogbot-{session_id}" for session_id in session_ids}
+        names = {f"heytim-{session_id}" for session_id in session_ids}
         if not names:
             return
         for item in self.ready_tool_sessions(

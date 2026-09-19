@@ -316,7 +316,7 @@ def test_usage_tracker_aggregates_each_model_call() -> None:
                         "totalTokens": 125,
                         "reasoningTokens": 10,
                     },
-                    "frogbotProviderCostUsd": "0.000123",
+                    "heytimProviderCostUsd": "0.000123",
                 }
             }
         ],
@@ -360,7 +360,7 @@ def test_usage_tracker_observes_structured_output_metadata() -> None:
                     "outputTokens": 10,
                     "totalTokens": 50,
                 },
-                "frogbotProviderCostUsd": "0.00005",
+                "heytimProviderCostUsd": "0.00005",
             }
         }
 
@@ -434,7 +434,7 @@ def test_openrouter_model_preserves_provider_cost_and_reasoning_tokens() -> None
         }
     )
 
-    assert event["metadata"]["frogbotProviderCostUsd"] == "0.000123"
+    assert event["metadata"]["heytimProviderCostUsd"] == "0.000123"
     assert event["metadata"]["usage"]["cacheReadInputTokens"] == 40
     assert event["metadata"]["usage"]["cacheWriteInputTokens"] == 15
     assert event["metadata"]["usage"]["reasoningTokens"] == 10

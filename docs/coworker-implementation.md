@@ -108,10 +108,10 @@ are recorded below.
 - All four final notification submissions reached ACCEPTED with receipt checks
   queued. Receipts were still PENDING_RECEIPTS at inspection; no device-delivery
   claim is made.
-- App/web release: [run 34370708360](https://github.com/tmoreton/frogbot/actions/runs/34370708360)
+- App/web release: [run 34370708360](https://github.com/tmoreton/heytim-platform/actions/runs/34370708360)
   succeeded for `bc4289a`, including all three verification jobs, the production
   over-the-air update and desktop web publication. The JavaScript bundle served
-  by `app.froggybot.com` contains both new inline-response composer hints.
+  by `app.heytim.ai` contains both new inline-response composer hints.
 
 **Content quality is not yet a pass:** the personal lead reused prior research as
 if the new request were a duplicate and synthesized prematurely. A draft used
@@ -148,7 +148,7 @@ source URLs and stage discipline remain work for the evidence-contract checkpoin
   `node apps/website/scripts/chat-layout-browser-test.mjs http://localhost:8082`.
   The runner only accepts localhost preview URLs and creates an isolated browser
   session. It saves screenshots in a temporary directory and closes its session.
-- Released commit `a02c2ca` in successful [run 34374392873](https://github.com/tmoreton/frogbot/actions/runs/34374392873):
+- Released commit `a02c2ca` in successful [run 34374392873](https://github.com/tmoreton/heytim-platform/actions/runs/34374392873):
   all three verification jobs, the production mobile update, and desktop web
   publication completed. The live site returned HTTP 200 and served
   `entry-5ff6df0893cba66f043da7f77417dccc.js`, containing the new horizontal-table
@@ -178,8 +178,8 @@ source URLs and stage discipline remain work for the evidence-contract checkpoin
   tests, 173 backend tests, 26 app tests, 2 infrastructure tests, configuration
   validation, type checks, lint, security checks, Expo Doctor and web export.
 - Runtime and worker deployment completed from commit `32c6fd8`; AgentCore reports
-  READY with `FROGBOT_AGENT_RUN_TIMEOUT_SECONDS=720` and
-  `FROGBOT_AGENT_IDLE_TIMEOUT_SECONDS=180`. A structured live invocation returned
+  READY with `HEYTIM_AGENT_RUN_TIMEOUT_SECONDS=720` and
+  `HEYTIM_AGENT_IDLE_TIMEOUT_SECONDS=180`. A structured live invocation returned
   HTTP 200 and `runtime reliability smoke passed` using GLM-5.3 Flash.
 - The marketplace work was completed directly after the agent failed. Branch
   `add-strands-agents-plugin` contains commit `5ba44db7` with one file and 14 added

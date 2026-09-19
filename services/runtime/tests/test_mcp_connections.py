@@ -11,7 +11,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from frogbot_runtime import github_app, mcp_connections
+from heytim_runtime import github_app, mcp_connections
 
 
 @lru_cache(maxsize=1)
@@ -64,12 +64,12 @@ def test_github_app_connection_mints_installation_token_server_side(
 ) -> None:
     user_secret = (
         "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-        "frogbot/connections/abcdef1234567890abcdef12/"
+        "heytim/connections/abcdef1234567890abcdef12/"
         "connection_1234567890abcdef1234-abcdef123456-ABC123"
     )
     app_secret = (
         "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-        "frogbot/oauth/github-production-ABC123"
+        "heytim/oauth/github-production-ABC123"
     )
 
     class FakeSecrets:
@@ -161,7 +161,7 @@ def test_legacy_bearer_connection_is_rejected(monkeypatch) -> None:
                 "authType": "bearer",
                 "secretArn": (
                     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-                    "frogbot/connections/abcdef1234567890abcdef12/"
+                    "heytim/connections/abcdef1234567890abcdef12/"
                     "connection_1234567890abcdef1234-abcdef123456-ABC123"
                 ),
             },
@@ -219,12 +219,12 @@ def test_http_transport_does_not_follow_redirects() -> None:
 def test_google_oauth_connection_refreshes_token_and_filters_tools(monkeypatch) -> None:
     user_secret = (
         "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-        "frogbot/connections/abcdef1234567890abcdef12/"
+        "heytim/connections/abcdef1234567890abcdef12/"
         "connection_1234567890abcdef1234-abcdef123456-ABC123"
     )
     client_secret = (
         "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-        "frogbot/oauth/google-production-ABC123"
+        "heytim/oauth/google-production-ABC123"
     )
 
     class FakeSecrets:
@@ -289,12 +289,12 @@ def test_google_workspace_bundle_refreshes_once_and_isolates_server_tools(
 ) -> None:
     user_secret = (
         "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-        "frogbot/connections/abcdef1234567890abcdef12/"
+        "heytim/connections/abcdef1234567890abcdef12/"
         "connection_1234567890abcdef1234-abcdef123456-ABC123"
     )
     client_secret = (
         "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-        "frogbot/oauth/google-production-ABC123"
+        "heytim/oauth/google-production-ABC123"
     )
 
     class FakeSecrets:
@@ -385,12 +385,12 @@ def test_google_workspace_bundle_rejects_unreviewed_tools(monkeypatch) -> None:
                 "oauthProvider": "google",
                 "secretArn": (
                     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-                    "frogbot/connections/abcdef1234567890abcdef12/"
+                    "heytim/connections/abcdef1234567890abcdef12/"
                     "connection_1234567890abcdef1234-abcdef123456-ABC123"
                 ),
                 "oauthClientSecretArn": (
                     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-                    "frogbot/oauth/google-production-ABC123"
+                    "heytim/oauth/google-production-ABC123"
                 ),
                 "scopes": list(mcp_connections.GOOGLE_WORKSPACE_SCOPES),
                 "servers": servers,
@@ -412,12 +412,12 @@ def test_existing_google_workspace_bundle_remains_valid_without_sheets(monkeypat
             "oauthProvider": "google",
             "secretArn": (
                 "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-                "frogbot/connections/abcdef1234567890abcdef12/"
+                "heytim/connections/abcdef1234567890abcdef12/"
                 "connection_1234567890abcdef1234-abcdef123456-ABC123"
             ),
             "oauthClientSecretArn": (
                 "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-                "frogbot/oauth/google-production-ABC123"
+                "heytim/oauth/google-production-ABC123"
             ),
             "scopes": list(mcp_connections.GOOGLE_WORKSPACE_SCOPES),
             "servers": servers,
@@ -518,12 +518,12 @@ def test_google_oauth_connection_rejects_destructive_tools(monkeypatch) -> None:
                 "oauthProvider": "google",
                 "secretArn": (
                     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-                    "frogbot/connections/abcdef1234567890abcdef12/"
+                    "heytim/connections/abcdef1234567890abcdef12/"
                     "connection_1234567890abcdef1234-abcdef123456-ABC123"
                 ),
                 "oauthClientSecretArn": (
                     "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-                    "frogbot/oauth/google-ABC123"
+                    "heytim/oauth/google-ABC123"
                 ),
                 "allowedTools": ["search_threads", "trash_thread"],
             },

@@ -1,4 +1,4 @@
-"""Fail when Google's generally available Gmail REST contract stops matching FrogBot."""
+"""Fail when Google's generally available Gmail REST contract stops matching HeyTim."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ REQUIRED_METHODS = {
 def _discovery() -> dict[str, Any]:
     request = urllib.request.Request(
         DISCOVERY_URL,
-        headers={"accept": "application/json", "user-agent": "FroggyBot-contract/1.0"},
+        headers={"accept": "application/json", "user-agent": "HeyTim-contract/1.0"},
     )
     try:
         with urllib.request.urlopen(  # nosec B310 - fixed Google discovery host.
@@ -70,7 +70,7 @@ def main() -> int:
         for problem in problems:
             print(f"- {problem}", file=sys.stderr)
         return 1
-    print("Gmail API contract is compatible with FrogBot's seven read/draft tools.")
+    print("Gmail API contract is compatible with HeyTim's seven read/draft tools.")
     return 0
 
 

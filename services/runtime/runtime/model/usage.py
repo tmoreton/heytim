@@ -56,13 +56,13 @@ class ProviderCallLimits:
 
 PROVIDER_CALL_LIMITS = ProviderCallLimits(
     model_calls=_bounded_integer_environment(
-        "FROGBOT_MAX_MODEL_CALLS_PER_RUNTIME_RUN", 24, 1, 100
+        "HEYTIM_MAX_MODEL_CALLS_PER_RUNTIME_RUN", 24, 1, 100
     ),
     provider_tool_calls=_bounded_integer_environment(
-        "FROGBOT_MAX_PROVIDER_TOOL_CALLS_PER_RUNTIME_RUN", 24, 1, 100
+        "HEYTIM_MAX_PROVIDER_TOOL_CALLS_PER_RUNTIME_RUN", 24, 1, 100
     ),
     image_calls=_bounded_integer_environment(
-        "FROGBOT_MAX_IMAGE_CALLS_PER_RUNTIME_RUN", 2, 1, 10
+        "HEYTIM_MAX_IMAGE_CALLS_PER_RUNTIME_RUN", 2, 1, 10
     ),
     youtube_search_calls=YOUTUBE_SEARCH_MAX_CALLS,
 )
@@ -175,7 +175,7 @@ class UsageAccumulator:
                 model[field] += _nonnegative_int(usage.get(field))
 
             provider_cost = _nonnegative_decimal(
-                metadata.get("frogbotProviderCostUsd")
+                metadata.get("heytimProviderCostUsd")
             )
             if provider_cost is not None:
                 model["providerCostUsd"] += provider_cost
@@ -279,7 +279,7 @@ class OpenRouterUsageModel(OpenAIModel):
 
         provider_cost = _nonnegative_decimal(getattr(raw_usage, "cost", None))
         if provider_cost is not None:
-            metadata["frogbotProviderCostUsd"] = format(provider_cost, "f")
+            metadata["heytimProviderCostUsd"] = format(provider_cost, "f")
 
         usage = metadata.get("usage")
         if isinstance(usage, dict):

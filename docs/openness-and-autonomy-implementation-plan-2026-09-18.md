@@ -1,4 +1,4 @@
-# FroggyBot implementation plan: openness and autonomous work
+# HeyTim implementation plan: openness and autonomous work
 
 **Date:** September 18, 2026
 **Status:** Milestones 1–4 released in v6.2.5. Live room and GitHub App pilots pending.

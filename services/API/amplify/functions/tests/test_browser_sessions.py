@@ -127,7 +127,7 @@ class BrowserSessionTests(BrowserRouteCases, BrowserDisplayCases, BrowserRecover
             "name": self.module.managed_session_name("user-1", "bot-1"), "status": "READY",
             "streams": {"automationStream": {"streamStatus": "ENABLED"}},
         }
-        self.cp.create_browser_profile.return_value = {"profileId": "frogbot_test-0123456789"}
+        self.cp.create_browser_profile.return_value = {"profileId": "heytim_test-0123456789"}
         self.cp.get_browser_profile.return_value = {"status": "READY", "lastSavedBrowserSessionId": "session1"}
         self.now = 1789000000
         self.signer = MagicMock(return_value="https://example.test/live?X-Amz-Security-Token=SECRET")
@@ -268,7 +268,7 @@ class BrowserSessionTests(BrowserRouteCases, BrowserDisplayCases, BrowserRecover
         self.assertNotEqual(self.store_module.context_key("user-1", "bot-1"),
                             self.store_module.context_key("user-1", "bot-2"))
         actor = hashlib.sha256(b"user:user-1").hexdigest()
-        expected = "frogbot-browser-" + hashlib.sha256(f"{actor}:bot:bot-1".encode()).hexdigest()[:48]
+        expected = "heytim-browser-" + hashlib.sha256(f"{actor}:bot:bot-1".encode()).hexdigest()[:48]
         self.service.open()
         self.assertEqual(self.dp.start_browser_session.call_args.kwargs["name"], expected)
         self.assertLessEqual(len(expected), 100)
@@ -319,9 +319,9 @@ class BrowserSessionTests(BrowserRouteCases, BrowserDisplayCases, BrowserRecover
         self.service.resume(True, self.enqueue)
         self.assertTrue(self.service.get()["hasSavedLogin"])
         self.assertEqual(self.record()["profileVersion"], 1)
-        self.assertEqual(self.cp.create_browser_profile.call_args.kwargs["tags"], {"frogbot:managed-by": "FrogBot"})
+        self.assertEqual(self.cp.create_browser_profile.call_args.kwargs["tags"], {"heytim:managed-by": "HeyTim"})
         self.assertEqual(self.dp.save_browser_session_profile.call_args.kwargs["profileIdentifier"],
-                         "frogbot_test-0123456789")
+                         "heytim_test-0123456789")
 
     def test_async_profile_save_can_be_polled_without_resaving_or_double_enqueue(self):
         self.service.open()
@@ -339,7 +339,7 @@ class BrowserSessionTests(BrowserRouteCases, BrowserDisplayCases, BrowserRecover
         # Observed from two real AWS saves: HTTP 200 omits lastUpdatedAt.
         self.dp.save_browser_session_profile.return_value = {
             "browserIdentifier": "aws.browser.v1", "sessionId": "session1",
-            "profileIdentifier": "frogbot_test-0123456789",
+            "profileIdentifier": "heytim_test-0123456789",
         }
         self.assertEqual(self.service.resume(True, self.enqueue)["status"], "ready")
         self.enqueue.assert_called_once()
@@ -403,7 +403,7 @@ class BrowserSessionTests(BrowserRouteCases, BrowserDisplayCases, BrowserRecover
         self.service.runtime_session()
         self.assertEqual(self.dp.start_browser_session.call_count, 2)
         self.assertEqual(self.dp.start_browser_session.call_args.kwargs["profileConfiguration"],
-                         {"profileIdentifier": "frogbot_test-0123456789"})
+                         {"profileIdentifier": "heytim_test-0123456789"})
         self.cp.delete_browser_profile.assert_not_called()
 
     def test_expired_profile_session_restores_with_new_idempotency_token(self):
@@ -441,7 +441,7 @@ class BrowserSessionTests(BrowserRouteCases, BrowserDisplayCases, BrowserRecover
         self.service.resume(True, self.enqueue)
         self.cp.delete_browser_profile.side_effect = TimeoutError()
         self.assert_error(503, lambda: self.service.close(forget=True))
-        self.assertEqual(self.record()["profileId"], "frogbot_test-0123456789")
+        self.assertEqual(self.record()["profileId"], "heytim_test-0123456789")
         self.assert_error(409, self.service.runtime_session)
         self.cp.delete_browser_profile.side_effect = None
         self.assertFalse(self.service.close(forget=True)["hasSavedLogin"])

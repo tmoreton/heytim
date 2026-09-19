@@ -3,6 +3,8 @@ import type { AgentCoreProjectSpec, AwsDeploymentTarget } from '@aws/agentcore-c
 export const UNCONFIGURED_AWS_ACCOUNT = '000000000000';
 
 export function filesBucketName(target: AwsDeploymentTarget): string {
+  // This bucket predates the product rename. Its physical name stays stable so
+  // existing uploads and generated artifacts remain available.
   const prefix = target.name === 'production' ? 'frogbot-production-user-files' : 'frogbot-user-files';
   return `${prefix}-${target.account}-${target.region}`;
 }
@@ -14,7 +16,7 @@ export function filesKeyAlias(target: AwsDeploymentTarget): string {
 export function bindSpecToTarget(
   source: AgentCoreProjectSpec,
   target: AwsDeploymentTarget,
-  productionMemoryKeyArn = process.env.FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN?.trim(),
+  productionMemoryKeyArn = process.env.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN?.trim(),
   sharedProductionAccount = false
 ): AgentCoreProjectSpec {
   // The JSON remains the behavioral source of truth. This copy only resolves
@@ -35,9 +37,9 @@ export function bindSpecToTarget(
 
   for (const runtime of mutable.runtimes ?? []) {
     const bucket = filesBucketName(target);
-    const existing = (runtime.envVars ?? []).find((item: { name?: string }) => item.name === 'FROGBOT_FILES_BUCKET');
+    const existing = (runtime.envVars ?? []).find((item: { name?: string }) => item.name === 'HEYTIM_FILES_BUCKET');
     if (existing) existing.value = bucket;
-    else (runtime.envVars ??= []).push({ name: 'FROGBOT_FILES_BUCKET', value: bucket });
+    else (runtime.envVars ??= []).push({ name: 'HEYTIM_FILES_BUCKET', value: bucket });
 
     // attachments-policy.json documents the local/default target contract.
     // The stack installs its target-scoped equivalent to avoid hardcoded
@@ -59,7 +61,7 @@ export function bindSpecToTarget(
 
 export function assertProductionTargetConfigured(
   targets: AwsDeploymentTarget[],
-  allowSharedAccount = process.env.FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT === 'true'
+  allowSharedAccount = process.env.HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT === 'true'
 ): AwsDeploymentTarget {
   const development = targets.find(target => target.name === 'development');
   const production = targets.find(target => target.name === 'production');
@@ -71,7 +73,7 @@ export function assertProductionTargetConfigured(
   }
   if (production.account === development.account && !allowSharedAccount) {
     throw new Error(
-      'Production must use a different AWS account from development unless FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT=true.'
+      'Production must use a different AWS account from development unless HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT=true.'
     );
   }
   return production;

@@ -11,7 +11,7 @@ from botocore.config import Config
 
 
 class Application:
-    """Small authenticated adapter around FrogBot's deployed API Lambda."""
+    """Small authenticated adapter around HeyTim's deployed API Lambda."""
 
     def __init__(
         self,

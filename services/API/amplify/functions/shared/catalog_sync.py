@@ -251,7 +251,7 @@ class CatalogSyncMixin:
                     "description": _validate_text(
                         raw.get("description"), "tool description", 240
                     ),
-                    "provider": str(raw.get("provider", "frogbot"))[:80],
+                    "provider": str(raw.get("provider", "heytim"))[:80],
                     "risk": risk,
                     "credential": str(raw.get("credential", ""))[:80],
                     "runtime": _validate_runtime_binding(raw.get("runtime")),

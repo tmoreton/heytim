@@ -68,7 +68,7 @@ def read_agent_stream(
         if not event:
             continue
 
-        control = event.get("frogbotControl")
+        control = event.get("heytimControl")
         if isinstance(control, dict):
             pending_work = control.get("pendingWork")
             if isinstance(pending_work, list) and pending_work:

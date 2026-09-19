@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from frogbot_runtime import artifacts, image_generation
-from frogbot_runtime.configuration import (
+from heytim_runtime import artifacts, image_generation
+from heytim_runtime.configuration import (
     INLINE_DELIVERY_INSTRUCTIONS,
     bot_configuration,
 )

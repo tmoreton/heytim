@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from frogbot_runtime import agentcore_adapters
-from frogbot_runtime.browser_session import managed_browser_from_payload
+from heytim_runtime import agentcore_adapters
+from heytim_runtime.browser_session import managed_browser_from_payload
 
 ACTOR = "a" * 64
 BOT = "github-engineer"
@@ -19,7 +19,7 @@ def reference():
     return {
         "browserIdentifier": "aws.browser.v1",
         "sessionId": "01M240KWTNDNGN7BD73X0226MY",
-        "sessionName": "frogbot-browser-"
+        "sessionName": "heytim-browser-"
         + hashlib.sha256(f"{ACTOR}:bot:{BOT}".encode()).hexdigest()[:48],
         "actorId": ACTOR,
         "botId": BOT,

@@ -9,7 +9,7 @@ const targets = JSON.parse(await readFile(path.join(root, 'agentcore/aws-targets
 const spec = JSON.parse(await readFile(path.join(root, 'agentcore/agentcore.json'), 'utf8'));
 const development = targets.find(target => target.name === 'development');
 const production = targets.find(target => target.name === 'production');
-const sharedProductionAccountAllowed = process.env.FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT === 'true';
+const sharedProductionAccountAllowed = process.env.HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT === 'true';
 
 if (!development || !production) throw new Error('Development and production targets are both required.');
 if (production.account === '000000000000') {
@@ -17,22 +17,22 @@ if (production.account === '000000000000') {
 }
 if (production.account === development.account && !sharedProductionAccountAllowed) {
   throw new Error(
-    'Production must use a different AWS account from development unless FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT=true.',
+    'Production must use a different AWS account from development unless HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT=true.',
   );
 }
 
-const memoryKeyArn = process.env.FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN?.trim();
+const memoryKeyArn = process.env.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN?.trim();
 const expectedKeyPrefix = `arn:aws:kms:${production.region}:${production.account}:key/`;
 if (!memoryKeyArn?.startsWith(expectedKeyPrefix)) {
-  throw new Error(`FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN must identify a key in ${production.account}/${production.region}.`);
+  throw new Error(`HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN must identify a key in ${production.account}/${production.region}.`);
 }
 
-const runtime = spec.runtimes?.find(item => item.name === 'FrogBot');
+const runtime = spec.runtimes?.find(item => item.name === 'HeyTim');
 if (!runtime || runtime.authorizerType !== 'AWS_IAM') {
-  throw new Error('The FrogBot production runtime must use AWS_IAM authorization.');
+  throw new Error('The HeyTim production runtime must use AWS_IAM authorization.');
 }
 if (runtime.instrumentation?.enableOtel !== true) {
-  throw new Error('OpenTelemetry must remain enabled for the FrogBot runtime.');
+  throw new Error('OpenTelemetry must remain enabled for the HeyTim runtime.');
 }
 const capture = runtime.envVars?.find(
   item => item.name === 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
@@ -42,7 +42,7 @@ if (capture !== 'NO_CONTENT') {
 }
 const gateway = spec.agentCoreGateways?.find(item => item.name === 'FrogBotTools');
 if (!gateway || gateway.authorizerType !== 'AWS_IAM') {
-  throw new Error('The FrogBot tools gateway must use AWS_IAM authorization.');
+  throw new Error('The HeyTim tools gateway must use AWS_IAM authorization.');
 }
 
 const posture =

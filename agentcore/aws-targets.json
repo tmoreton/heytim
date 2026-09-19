@@ -1,7 +1,7 @@
 [
   {
     "name": "development",
-    "description": "Live FrogBot development environment; not a production baseline",
+    "description": "Live HeyTim development environment; not a production baseline",
     "account": "188757775631",
     "region": "us-east-1"
   },

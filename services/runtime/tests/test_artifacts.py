@@ -10,7 +10,7 @@ import pytest
 from openpyxl import load_workbook
 from PIL import Image, ImageDraw
 
-from frogbot_runtime import artifacts
+from heytim_runtime import artifacts
 
 
 class FakeS3:

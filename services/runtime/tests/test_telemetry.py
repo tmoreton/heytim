@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from strands.telemetry import tracer as tracer_module
 
-from frogbot_runtime.telemetry import PrivateTracer, install_private_tracer
+from heytim_runtime.telemetry import PrivateTracer, install_private_tracer
 
 
 def test_private_tracer_does_not_forward_system_prompt_metadata() -> None:
@@ -13,7 +13,7 @@ def test_private_tracer_does_not_forward_system_prompt_metadata() -> None:
         tracer_module.Tracer, "start_agent_span", return_value="span"
     ) as start:
         result = tracer.start_agent_span(
-            messages=[], agent_name="FroggyBot", system_prompt="private prompt"
+            messages=[], agent_name="HeyTim", system_prompt="private prompt"
         )
 
     assert result == "span"

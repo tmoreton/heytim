@@ -9,16 +9,6 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from frogbot_runtime.artifacts import artifact_prefix_from_payload
-from frogbot_runtime.memory import memory_context_from_payload
-from frogbot_runtime.request import (
-    DOCUMENT_FORMATS,
-    IMAGE_FORMATS,
-    MAX_ATTACHMENT_BYTES,
-    MAX_ATTACHMENTS,
-    MAX_MESSAGE_CHARS,
-    messages_from_payload,
-)
 from group_context import (
     GROUP_CONTEXT_SCHEMA_VERSION,
     MAX_BOTS,
@@ -29,6 +19,16 @@ from group_context import (
     MAX_ROUND_REPLIES,
     ROUND_ROLES,
     collaboration_instructions,
+)
+from heytim_runtime.artifacts import artifact_prefix_from_payload
+from heytim_runtime.memory import memory_context_from_payload
+from heytim_runtime.request import (
+    DOCUMENT_FORMATS,
+    IMAGE_FORMATS,
+    MAX_ATTACHMENT_BYTES,
+    MAX_ATTACHMENTS,
+    MAX_MESSAGE_CHARS,
+    messages_from_payload,
 )
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -45,7 +45,7 @@ ATTACHMENTS_POLICY = (
 )
 CLIENT_CONNECTION_SURFACES = (
     REPOSITORY_ROOT
-    / "apps/iOS/Sources/FroggyBotUI/SupportingFeatureSheets.swift",
+    / "apps/iOS/Sources/HeyTimUI/SupportingFeatureSheets.swift",
 )
 
 
@@ -166,20 +166,23 @@ def test_runtime_can_read_provider_configuration_but_rotate_only_user_grants() -
     policy = json.loads(ATTACHMENTS_POLICY.read_text(encoding="utf-8"))
     statements = {item["Sid"]: item for item in policy["Statement"]}
 
-    readable = set(statements["ReadFrogBotConnectionCredentials"]["Resource"])
-    assert any("secret:frogbot/connections/*" in arn for arn in readable)
-    assert any("secret:frogbot/oauth/google-*" in arn for arn in readable)
-    assert any("secret:frogbot/oauth/github-*" in arn for arn in readable)
-    assert any("secret:frogbot/oauth/x-*" in arn for arn in readable)
-    assert any("secret:frogbot/oauth/slack-*" in arn for arn in readable)
-    assert any("secret:frogbot/oauth/microsoft-*" in arn for arn in readable)
-    assert any("secret:frogbot/oauth/notion-*" in arn for arn in readable)
-    assert any("secret:frogbot/oauth/hubspot-*" in arn for arn in readable)
-    assert any("secret:frogbot/oauth/jira-*" in arn for arn in readable)
+    readable = set(statements["ReadHeyTimConnectionCredentials"]["Resource"])
+    assert any("secret:heytim/connections/*" in arn for arn in readable)
+    assert any("secret:heytim/oauth/google-*" in arn for arn in readable)
+    assert any("secret:heytim/oauth/github-*" in arn for arn in readable)
+    assert any("secret:heytim/oauth/x-*" in arn for arn in readable)
+    assert any("secret:heytim/oauth/slack-*" in arn for arn in readable)
+    assert any("secret:heytim/oauth/microsoft-*" in arn for arn in readable)
+    assert any("secret:heytim/oauth/notion-*" in arn for arn in readable)
+    assert any("secret:heytim/oauth/hubspot-*" in arn for arn in readable)
+    assert any("secret:heytim/oauth/jira-*" in arn for arn in readable)
 
-    rotatable = statements["RotateFrogBotUserOAuthTokens"]["Resource"]
-    assert rotatable.endswith("secret:frogbot/connections/*")
-    assert "/oauth/" not in rotatable
+    rotatable = statements["RotateHeyTimUserOAuthTokens"]["Resource"]
+    if isinstance(rotatable, str):
+        rotatable = [rotatable]
+    assert any(arn.endswith("secret:heytim/connections/*") for arn in rotatable)
+    assert any(arn.endswith("secret:frogbot/connections/*") for arn in rotatable)
+    assert all("/oauth/" not in arn for arn in rotatable)
 
 
 def test_connection_clients_are_provider_and_authentication_agnostic() -> None:
@@ -192,7 +195,7 @@ def test_connection_clients_are_provider_and_authentication_agnostic() -> None:
 
     apple_demo = (
         REPOSITORY_ROOT
-        / "apps/iOS/Sources/FroggyBotCore/AppModel.swift"
+        / "apps/iOS/Sources/HeyTimCore/AppModel.swift"
     ).read_text(encoding="utf-8")
     assert "static let connectionProviders" not in apple_demo
 

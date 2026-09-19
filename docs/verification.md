@@ -1,4 +1,4 @@
-# FroggyBot verification
+# HeyTim verification
 
 This is the single source of truth for local and continuous verification. The checks are read-only with respect to AWS:
 they validate source, build local artifacts, and run tests, but do not deploy infrastructure or publish the app.

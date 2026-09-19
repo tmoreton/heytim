@@ -2,7 +2,7 @@ name: Repair sanitized production failures
 
 on:
   repository_dispatch:
-    types: [froggybot-production-error]
+    types: [heytim-production-error]
   workflow_dispatch:
     inputs:
       incident:
@@ -11,7 +11,7 @@ on:
         type: string
 
 concurrency:
-  group: froggybot-autofix-${{ github.event.client_payload.fingerprint || github.run_id }}
+  group: heytim-autofix-${{ github.event.client_payload.fingerprint || github.run_id }}
   cancel-in-progress: false
 
 permissions:
@@ -20,7 +20,7 @@ permissions:
 jobs:
   generate:
     name: Generate constrained patch
-    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
+    runs-on: [self-hosted, macOS, ARM64, heytim-ci]
     timeout-minutes: 30
     environment: production
     permissions:
@@ -40,27 +40,27 @@ jobs:
           AUTOFIX_INCIDENT_JSON: ${{ github.event_name == 'repository_dispatch' && toJSON(github.event.client_payload) || inputs.incident }}
           OPENROUTER_API_KEY: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
         run: |
-          install -d "$RUNNER_TEMP/froggybot-autofix"
+          install -d "$RUNNER_TEMP/heytim-autofix"
           uv run --project services/runtime --frozen \
             python services/runtime/autofix_agent.py \
             --root . \
-            --patch-out "$RUNNER_TEMP/froggybot-autofix/proposed.patch" \
-            --metadata-out "$RUNNER_TEMP/froggybot-autofix/metadata.json"
+            --patch-out "$RUNNER_TEMP/heytim-autofix/proposed.patch" \
+            --metadata-out "$RUNNER_TEMP/heytim-autofix/metadata.json"
 
       - name: Preserve proposed patch without credentials
         uses: actions/upload-artifact@v7
         with:
-          name: froggybot-autofix-${{ github.run_id }}
+          name: heytim-autofix-${{ github.run_id }}
           if-no-files-found: error
           retention-days: 7
           path: |
-            ${{ runner.temp }}/froggybot-autofix/proposed.patch
-            ${{ runner.temp }}/froggybot-autofix/metadata.json
+            ${{ runner.temp }}/heytim-autofix/proposed.patch
+            ${{ runner.temp }}/heytim-autofix/metadata.json
 
   verify-server:
     name: Verify server and AgentCore
     needs: generate
-    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
+    runs-on: [self-hosted, macOS, ARM64, heytim-ci]
     timeout-minutes: 45
     permissions:
       contents: read
@@ -70,10 +70,10 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v8
         with:
-          name: froggybot-autofix-${{ github.run_id }}
-          path: ${{ runner.temp }}/froggybot-autofix
+          name: heytim-autofix-${{ github.run_id }}
+          path: ${{ runner.temp }}/heytim-autofix
       - name: Apply the isolated patch artifact
-        run: git apply --check "$RUNNER_TEMP/froggybot-autofix/proposed.patch" && git apply "$RUNNER_TEMP/froggybot-autofix/proposed.patch"
+        run: git apply --check "$RUNNER_TEMP/heytim-autofix/proposed.patch" && git apply "$RUNNER_TEMP/heytim-autofix/proposed.patch"
       - uses: actions/setup-node@v7
         with:
           node-version: 22.23.2
@@ -96,7 +96,7 @@ jobs:
   verify-application:
     name: Verify website and catalog
     needs: generate
-    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
+    runs-on: [self-hosted, macOS, ARM64, heytim-ci]
     timeout-minutes: 30
     permissions:
       contents: read
@@ -106,10 +106,10 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v8
         with:
-          name: froggybot-autofix-${{ github.run_id }}
-          path: ${{ runner.temp }}/froggybot-autofix
+          name: heytim-autofix-${{ github.run_id }}
+          path: ${{ runner.temp }}/heytim-autofix
       - name: Apply the isolated patch artifact
-        run: git apply --check "$RUNNER_TEMP/froggybot-autofix/proposed.patch" && git apply "$RUNNER_TEMP/froggybot-autofix/proposed.patch"
+        run: git apply --check "$RUNNER_TEMP/heytim-autofix/proposed.patch" && git apply "$RUNNER_TEMP/heytim-autofix/proposed.patch"
       - uses: actions/setup-node@v7
         with:
           node-version: 22.23.2
@@ -125,7 +125,7 @@ jobs:
   verify-apple:
     name: Verify iPhone and Mac
     needs: generate
-    runs-on: [self-hosted, macOS, ARM64, frogbot-apple]
+    runs-on: [self-hosted, macOS, ARM64, heytim-apple]
     timeout-minutes: 45
     permissions:
       contents: read
@@ -137,22 +137,22 @@ jobs:
         run: echo /opt/homebrew/bin >> "$GITHUB_PATH"
       - uses: actions/download-artifact@v8
         with:
-          name: froggybot-autofix-${{ github.run_id }}
-          path: ${{ runner.temp }}/froggybot-autofix
+          name: heytim-autofix-${{ github.run_id }}
+          path: ${{ runner.temp }}/heytim-autofix
       - name: Apply the isolated patch artifact
-        run: git apply --check "$RUNNER_TEMP/froggybot-autofix/proposed.patch" && git apply "$RUNNER_TEMP/froggybot-autofix/proposed.patch"
+        run: git apply --check "$RUNNER_TEMP/heytim-autofix/proposed.patch" && git apply "$RUNNER_TEMP/heytim-autofix/proposed.patch"
       - name: Cache native transcription assets
         uses: actions/cache@v6
         with:
-          path: packages/frogbot-transcription/ios/Generated
-          key: frogbot-nemotron-apple-v3
+          path: packages/heytim-transcription/ios/Generated
+          key: heytim-nemotron-apple-v3
       - name: Run iPhone and Mac verification
         run: ./scripts/verify.sh apple
 
   analyze:
     name: Analyze ${{ matrix.language }}
     needs: generate
-    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
+    runs-on: [self-hosted, macOS, ARM64, heytim-ci]
     timeout-minutes: 20
     permissions:
       actions: read
@@ -168,10 +168,10 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v8
         with:
-          name: froggybot-autofix-${{ github.run_id }}
-          path: ${{ runner.temp }}/froggybot-autofix
+          name: heytim-autofix-${{ github.run_id }}
+          path: ${{ runner.temp }}/heytim-autofix
       - name: Apply the isolated patch artifact
-        run: git apply --check "$RUNNER_TEMP/froggybot-autofix/proposed.patch" && git apply "$RUNNER_TEMP/froggybot-autofix/proposed.patch"
+        run: git apply --check "$RUNNER_TEMP/heytim-autofix/proposed.patch" && git apply "$RUNNER_TEMP/heytim-autofix/proposed.patch"
       - uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
@@ -183,7 +183,7 @@ jobs:
   publish:
     name: Open pull request and apply merge policy
     needs: [generate, verify-server, verify-application, verify-apple, analyze]
-    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
+    runs-on: [self-hosted, macOS, ARM64, heytim-ci]
     timeout-minutes: 10
     permissions:
       contents: write
@@ -195,14 +195,14 @@ jobs:
           fetch-depth: 0
       - uses: actions/download-artifact@v8
         with:
-          name: froggybot-autofix-${{ github.run_id }}
-          path: ${{ runner.temp }}/froggybot-autofix
+          name: heytim-autofix-${{ github.run_id }}
+          path: ${{ runner.temp }}/heytim-autofix
       - name: Publish the already-tested patch
         env:
           GH_TOKEN: ${{ github.token }}
           AUTOFIX_INCIDENT_JSON: ${{ github.event_name == 'repository_dispatch' && toJSON(github.event.client_payload) || inputs.incident }}
         run: |
-          artifact="$RUNNER_TEMP/froggybot-autofix"
+          artifact="$RUNNER_TEMP/heytim-autofix"
           fingerprint="$(jq -r '.fingerprint' "$artifact/metadata.json")"
           if [[ ! "$fingerprint" =~ ^[a-f0-9]{24}$ ]]; then
             echo 'Autofix metadata fingerprint is invalid.' >&2
@@ -260,7 +260,7 @@ jobs:
 
           title="Autofix production failure ${fingerprint}"
           pr_url="$(gh pr create --base main --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/autofix-pr.md")"
-          gh label create autofix --color 1F883D --description 'Generated by the guarded FroggyBot repair workflow' --force
+          gh label create autofix --color 1F883D --description 'Generated by the guarded HeyTim repair workflow' --force
           gh pr edit "$pr_url" --add-label autofix
 
           eligible="$(jq -r '.autoMergeEligible' "$artifact/metadata.json")"

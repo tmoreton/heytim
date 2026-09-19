@@ -63,7 +63,7 @@ def test_patch_parser_rejects_renames_and_credentials() -> None:
 
 def test_only_small_repairs_with_regression_tests_can_auto_merge() -> None:
     safe = patch_for(
-        "services/runtime/runtime/frogbot_runtime/streaming.py",
+        "services/runtime/runtime/heytim_runtime/streaming.py",
         "services/runtime/tests/test_streaming.py",
     )
     paths = validate_patch(safe)
@@ -80,7 +80,7 @@ def test_only_small_repairs_with_regression_tests_can_auto_merge() -> None:
 
 
 def test_source_change_without_a_test_requires_review() -> None:
-    patch = patch_for("services/runtime/runtime/frogbot_runtime/streaming.py")
+    patch = patch_for("services/runtime/runtime/heytim_runtime/streaming.py")
     eligible, reasons = classify_patch(patch, validate_patch(patch))
     assert not eligible
     assert "no regression test change" in reasons

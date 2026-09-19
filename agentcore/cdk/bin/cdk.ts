@@ -64,7 +64,7 @@ async function main() {
   if (targets.length === 0) {
     throw new Error('No deployment targets configured. Please define targets in agentcore/aws-targets.json');
   }
-  if (process.env.FROGBOT_ENVIRONMENT === 'production') {
+  if (process.env.HEYTIM_ENVIRONMENT === 'production') {
     assertProductionTargetConfigured(targets);
   }
 
@@ -125,7 +125,7 @@ async function main() {
 
   const app = new App();
   const developmentTarget = targets.find(target => target.name === 'development');
-  const sharedAccountOverride = process.env.FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT === 'true';
+  const sharedAccountOverride = process.env.HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT === 'true';
 
   for (const target of targets) {
     const env = toEnvironment(target);

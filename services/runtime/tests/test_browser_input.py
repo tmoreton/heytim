@@ -6,8 +6,8 @@ import json
 import pytest
 from jsonschema import Draft202012Validator
 
-from frogbot_runtime.agentcore_adapters import PersistentAgentCoreBrowser
-from frogbot_runtime.browser_input import (
+from heytim_runtime.agentcore_adapters import PersistentAgentCoreBrowser
+from heytim_runtime.browser_input import (
     MAX_ENCODED_BROWSER_INPUT_CHARS,
     CompatibleBrowserInput,
 )

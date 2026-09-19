@@ -22,7 +22,7 @@ verify_agentcore() {
 
   section "AgentCore evaluators"
   (
-    cd "$repository_root/evaluators/frogbot_run_integrity"
+    cd "$repository_root/evaluators/heytim_run_integrity"
     uv run --project "$repository_root/services/runtime" --frozen pytest -q
   )
 
@@ -44,7 +44,7 @@ verify_runtime() {
 }
 
 verify_backend() {
-  section "FroggyBot application backend"
+  section "HeyTim application backend"
   (
     cd "$repository_root/services/API"
     npm run verify
@@ -58,7 +58,7 @@ verify_application() {
   node "$repository_root/scripts/check-client-entrypoints.mjs"
 
   section "API contract"
-  npm --prefix "$repository_root/packages/froggybot-contract" test
+  npm --prefix "$repository_root/packages/heytim-contract" test
 
   section "Public catalog"
   python3 "$repository_root/catalog/scripts/validate_catalog.py"

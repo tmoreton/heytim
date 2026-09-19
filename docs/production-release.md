@@ -5,13 +5,13 @@ The configured AWS account, third-party approvals, monitored alert destination, 
 deployment are external release inputs. The **Deploy HeyTim production release** workflow fails closed until
 they are present. Production temporarily shares management account `188757775631` with development while the dedicated
 member account's Lambda quota increase is pending; target-scoped stacks, KMS keys, storage, and secrets remain separate.
-AgentCore resources use the `FrogBotProduction` physical project namespace in this temporary shared-account posture;
+AgentCore resources use the legacy `FrogBotProduction` physical project namespace in this temporary shared-account posture;
 the platform API-key credential providers remain account-scoped.
 
 ## One-time production bootstrap
 
 1. Use the configured production AWS account in `us-east-1` and do not rename either target. While production shares
-   the management account, set `FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT=true`. Remove that variable when the target
+   the management account, set `HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT=true`. Remove that variable when the target
    returns to dedicated member account `820323452649`.
 2. Bootstrap CDK and the AgentCore token vault with a reviewed IAM Identity Center or administrator role. Create a
    rotating customer-managed KMS key for AgentCore memory and retain its ARN.
@@ -29,32 +29,43 @@ the platform API-key credential providers remain account-scoped.
 
 Set these non-secret variables:
 
-- `AWS_DEPLOY_ROLE_ARN`, `AMPLIFY_APP_ID`, `FROGBOT_AGENTCORE_MEMORY_KMS_KEY_ARN`
-- `FROGBOT_ALLOW_SHARED_PRODUCTION_ACCOUNT=true` only while production and development share an AWS account
-- `FROGBOT_APPLE_TEAM_ID`, `FROGBOT_APP_STORE_CONNECT_KEY_ID`, and
-  `FROGBOT_APP_STORE_CONNECT_ISSUER_ID`
-- `FROGBOT_APNS_APPLICATION_ARN` and optional `FROGBOT_APNS_SANDBOX_APPLICATION_ARN`
-- `FROGBOT_YOUTUBE_SEARCH_DAILY_LIMIT` based on the verified Google project quota
-- `FROGBOT_MONTHLY_BUDGET_USD`
-- `FROGBOT_GOOGLE_REVIEW_APPROVED`, `FROGBOT_SLACK_REVIEW_APPROVED`,
-  `FROGBOT_X_REVIEW_APPROVED`, and `FROGBOT_NOTION_REVIEW_APPROVED` set to `true` only after the provider's
+- `AWS_DEPLOY_ROLE_ARN`, `AMPLIFY_APP_ID`, `HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN`
+- `HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT=true` only while production and development share an AWS account
+- `HEYTIM_APPLE_TEAM_ID`, `HEYTIM_APP_STORE_CONNECT_KEY_ID`, and
+  `HEYTIM_APP_STORE_CONNECT_ISSUER_ID`
+- `HEYTIM_APNS_APPLICATION_ARN` and optional `HEYTIM_APNS_SANDBOX_APPLICATION_ARN`
+- `HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT` based on the verified Google project quota
+- `HEYTIM_MONTHLY_BUDGET_USD`
+- `HEYTIM_GOOGLE_REVIEW_APPROVED`, `HEYTIM_SLACK_REVIEW_APPROVED`,
+  `HEYTIM_X_REVIEW_APPROVED`, and `HEYTIM_NOTION_REVIEW_APPROVED` set to `true` only after the provider's
   production verification/distribution requirements are complete
-- `FROGBOT_RELEASE_COMPLIANCE_APPROVED=true` only after privacy policy, terms, support and deletion disclosures,
+- `HEYTIM_RELEASE_COMPLIANCE_APPROVED=true` only after privacy policy, terms, support and deletion disclosures,
   data-retention statements, and store metadata match the deployed behavior
-- `FROGBOT_APNS_DEVICE_SMOKE_APPROVED=true` only after a production-signed build receives and opens a notification
+- `HEYTIM_APNS_DEVICE_SMOKE_APPROVED=true` only after a production-signed build receives and opens a notification
   on a physical device
 
 Set these environment secrets:
 
 - `AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER`, `AGENTCORE_CREDENTIAL_FROGBOTXAPI`,
   `AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI`
-- `FROGBOT_GOOGLE_OAUTH_SECRET_ARN`, `FROGBOT_GITHUB_APP_SECRET_ARN`, `FROGBOT_X_OAUTH_SECRET_ARN`,
-  `FROGBOT_SLACK_OAUTH_SECRET_ARN`, `FROGBOT_NOTION_OAUTH_SECRET_ARN`
-- Optional: `FROGBOT_MICROSOFT_OAUTH_SECRET_ARN`, `FROGBOT_HUBSPOT_OAUTH_SECRET_ARN`,
-  `FROGBOT_JIRA_OAUTH_SECRET_ARN`, `FROGBOT_ZOOM_OAUTH_SECRET_ARN`
+- `HEYTIM_GOOGLE_OAUTH_SECRET_ARN`, `HEYTIM_GITHUB_APP_SECRET_ARN`, `HEYTIM_X_OAUTH_SECRET_ARN`,
+  `HEYTIM_SLACK_OAUTH_SECRET_ARN`, `HEYTIM_NOTION_OAUTH_SECRET_ARN`
+- Optional: `HEYTIM_MICROSOFT_OAUTH_SECRET_ARN`, `HEYTIM_HUBSPOT_OAUTH_SECRET_ARN`,
+  `HEYTIM_JIRA_OAUTH_SECRET_ARN`, `HEYTIM_ZOOM_OAUTH_SECRET_ARN`
 - `FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY`, containing the App Store Connect `.p8` key
 - `FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64`, containing a base64-encoded Apple Distribution `.p12`, and
   `FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD`
+- `FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_BASE64`, containing a base64-encoded Apple Development `.p12`, and
+  `FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD`
+
+The three `AGENTCORE_CREDENTIAL_FROGBOT_*` keys and the currently configured
+`FROGBOT_APP_*` Apple signing secret keys are compatibility names for protected
+values that GitHub cannot reveal or rename. The workflow maps them into HeyTim's
+runtime variables. Keep those protected names until their values are deliberately
+rotated into new `HEYTIM_*` secrets. Likewise, the AgentCore resource names,
+existing Cognito logical IDs, storage bucket names, KMS aliases, and deployed-state
+records retain their original physical identifiers so this branding change updates
+the live product in place instead of replacing accounts, memory, or user files.
 
 The `production` environment must allow deployment from `main` and tags matching `v*`. The workflow still verifies
 that a release tag has the exact `vMAJOR.MINOR.PATCH` form and points to a commit on `main`. A full release stops before
@@ -100,7 +111,7 @@ permissions from protected environment secrets immediately before deployment and
    production client-configuration artifact, place its two files at their recorded repository paths, then run
    `APPLE_TEAM_ID=GVXC5FQ2RP ./scripts/apple-app.sh testflight ios` from a clean checkout of the same commit. Manual
    runs remain available for recovery and use the version in the checked-in Xcode project unless an explicit
-   `FROGGYBOT_MARKETING_VERSION` is supplied for a local archive.
+   `HEYTIM_MARKETING_VERSION` is supplied for a local archive.
 3. Confirm the iPhone build completes App Store Connect processing and complete the App Store/TestFlight compliance forms.
    The preserved configuration artifact remains available for local reproduction and incident review.
 4. Run an authenticated disposable-user workflow and the agreed concurrency test against production. Verify OAuth

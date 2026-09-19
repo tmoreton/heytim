@@ -94,8 +94,8 @@ test('target bindings isolate production storage and memory encryption', () => {
     name: 'testproject',
     runtimes: [
       {
-        name: 'FrogBot',
-        envVars: [{ name: 'FROGBOT_FILES_BUCKET', value: 'development-bucket' }],
+        name: 'HeyTim',
+        envVars: [{ name: 'HEYTIM_FILES_BUCKET', value: 'development-bucket' }],
         additionalPolicies: ['attachments-policy.json'],
       },
     ],
@@ -112,7 +112,7 @@ test('target bindings isolate production storage and memory encryption', () => {
   expect((source as unknown as { name: string }).name).toBe('testproject');
   expect(filesBucketName(target)).toBe('frogbot-production-user-files-123456789012-us-east-1');
   expect(bound.runtimes[0].envVars).toContainEqual({
-    name: 'FROGBOT_FILES_BUCKET',
+    name: 'HEYTIM_FILES_BUCKET',
     value: 'frogbot-production-user-files-123456789012-us-east-1',
   });
   expect(bound.runtimes[0].additionalPolicies).toEqual([]);
@@ -251,6 +251,8 @@ test('authoritative AgentCore config preserves the runtime wiring contract', asy
     credentials: Array<{ name: string }>;
     agentCoreGateways: Array<{ name: string; authorizerType: string; targets: Array<{ connectorId: string }> }>;
   };
+  // The deployed runtime identity remains stable while its implementation and
+  // environment contract use HeyTim names.
   const runtime = actual.runtimes.find(item => item.name === 'FrogBot');
 
   expect(runtime).toMatchObject({
@@ -267,7 +269,7 @@ test('authoritative AgentCore config preserves the runtime wiring contract', asy
       .readdirSync(runtimeRoot)
       .filter(item => item !== '__pycache__' && item !== '.DS_Store')
       .sort()
-  ).toEqual(['attachments-policy.json', 'frogbot_runtime', 'group_context.py', 'main.py', 'model'].sort());
+  ).toEqual(['attachments-policy.json', 'heytim_runtime', 'group_context.py', 'main.py', 'model'].sort());
   expect(fs.existsSync(path.resolve(runtimeRoot, '..', 'pyproject.toml'))).toBe(true);
   expect(fs.existsSync(path.resolve(runtimeRoot, '..', 'uv.lock'))).toBe(true);
   expect(runtime?.envVars).toContainEqual({

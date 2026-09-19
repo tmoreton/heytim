@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from strands.types.exceptions import MaxTokensReachedException
 
-from frogbot_runtime.streaming import (
+from heytim_runtime.streaming import (
     INCOMPLETE_TURN_CONTINUATION_PROMPT,
     AgentIncompleteTurnError,
     AgentRunStalledError,

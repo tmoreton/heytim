@@ -71,8 +71,8 @@ class BrowserWorkerContractTests(WorkerTestCase):
         policy = infrastructure.read_text()
         self.assertIn("account: 'aws'", policy)
         self.assertIn("resourceName: 'aws.browser.v1'", policy)
-        self.assertIn("aws:RequestTag/frogbot:managed-by", policy)
-        self.assertIn("aws:ResourceTag/frogbot:managed-by", policy)
+        self.assertIn("aws:RequestTag/heytim:managed-by", policy)
+        self.assertIn("aws:ResourceTag/heytim:managed-by", policy)
         self.assertNotIn("ListBrowserProfiles", policy)
         self.assertNotIn("authenticatedUserIamRole", policy)
         # API now uses fixed CDP commands BEFORE signing human access. Neither

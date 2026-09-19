@@ -1,4 +1,4 @@
-# FroggyBot architecture
+# HeyTim architecture
 
 This repository deliberately separates deployment units from reusable client packages:
 
@@ -8,7 +8,7 @@ apps/website/         Vite + React public website and skills directory
 catalog/              Reviewed bot, skill, and tool definitions
 packages/             API contract and native transcription
 services/API/         Serverless application backend
-services/runtime/     AgentCore runtime shared by every FroggyBot personality
+services/runtime/     AgentCore runtime shared by every HeyTim personality
 agentcore/            Declarative AgentCore infrastructure
 ```
 
@@ -23,8 +23,8 @@ windows, and web views. It is the only source for local Apple builds, archives, 
 consumed by the API. All public pages are prerendered; search and filtering hydrate
 in React. No chat, Cognito, Expo, or native dependencies are included.
 
-`packages/froggybot-contract` owns shared types and generated routes.
-`packages/frogbot-transcription` owns the reusable native Swift transcription core.
+`packages/heytim-contract` owns shared types and generated routes.
+`packages/heytim-transcription` owns the reusable native Swift transcription core.
 The Expo app, its browser viewer, controller hooks, and preview/API clients have
 been archived outside the monorepo. See [migration notes](monorepo-migration.md).
 
@@ -51,7 +51,7 @@ The SQS worker uses the same pattern: its handler routes jobs, and focused worke
 invoke AgentCore, persist results, and send final-response notifications.
 
 `services/API/amplify/functions/api/api-contract.json` is the single authored HTTP route contract. Amplify CDK and the
-Python dispatcher load it directly; a checked-in generated TypeScript map in `packages/froggybot-contract` gives clients typed URL construction.
+Python dispatcher load it directly; a checked-in generated TypeScript map in `packages/heytim-contract` gives clients typed URL construction.
 The contract check prevents those consumers from drifting. Expected API failures carry stable codes independently
 of their human-readable messages, so clients can choose safe UI behavior without matching English text.
 
@@ -97,7 +97,7 @@ expire after 400 days.
 ## Agent runtime
 
 `services/runtime/runtime/main.py` is only the AgentCore transport adapter. The production-only `runtime/`
-directory is the CodeZip source boundary: `frogbot_runtime/request.py` normalizes untrusted invocation payloads,
+directory is the CodeZip source boundary: `heytim_runtime/request.py` normalizes untrusted invocation payloads,
 `configuration.py` builds per-bot and per-group instructions, `capability_contract.py` validates the reviewed
 allowlist, and the local, AgentCore, and gateway adapter modules assemble only the tools and skills enabled for that bot.
 Stan and Strands stay behind this boundary so the mobile/API layers do not duplicate agent logic.
@@ -127,7 +127,7 @@ until the user changes them, forgets them, or deletes the account. Group memory 
 than being mixed into a participant's private memory.
 
 Public skills contain versioned instructions plus approved tool references, never executable code. Managed
-FroggyBot integrations stay in narrow AgentCore Gateway targets and use company-owned service credentials. Users
+HeyTim integrations stay in narrow AgentCore Gateway targets and use company-owned service credentials. Users
 never enter those developer keys. Private account data uses provider-specific OAuth or a GitHub App installation;
 each user's grant is encrypted
 in Secrets Manager, resolved only during invocation, and omitted from prompts, telemetry, catalog responses, and

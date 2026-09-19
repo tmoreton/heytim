@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import main as runtime_main
 import pytest
 
-from frogbot_runtime.configuration import BotConfiguration
+from heytim_runtime.configuration import BotConfiguration
 from model.usage import ProviderCallLimitExceeded
 
 
@@ -105,9 +105,9 @@ def test_provider_call_limit_becomes_terminal_result_without_retry(monkeypatch):
     events = asyncio.run(collect())
 
     terminal = next(
-        event["frogbotControl"]["terminalError"]
+        event["heytimControl"]["terminalError"]
         for event in events
-        if "terminalError" in event.get("frogbotControl", {})
+        if "terminalError" in event.get("heytimControl", {})
     )
     assert terminal["code"] == "PROVIDER_CALL_LIMIT"
     assert "provider-call safety limit" in terminal["message"]

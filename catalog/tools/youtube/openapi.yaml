@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: FroggyBot YouTube Research
+  title: HeyTim YouTube Research
   version: 1.0.0
   description: Restricted read-only access to public YouTube search and metadata.
 servers:

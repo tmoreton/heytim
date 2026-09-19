@@ -3,32 +3,32 @@
 set -euo pipefail
 
 drill_region="${AWS_REGION:-us-east-1}"
-outputs_file="${FROGBOT_OUTPUTS_FILE:-services/API/amplify_outputs.json}"
+outputs_file="${HEYTIM_OUTPUTS_FILE:-services/API/amplify_outputs.json}"
 
 if ! command -v aws >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
   echo "The recovery drill requires the AWS CLI and jq." >&2
   exit 1
 fi
 if [[ ! -f "$outputs_file" ]]; then
-  echo "Cannot find $outputs_file. Deploy the backend first or set FROGBOT_OUTPUTS_FILE." >&2
+  echo "Cannot find $outputs_file. Deploy the backend first or set HEYTIM_OUTPUTS_FILE." >&2
   exit 1
 fi
 
-drill_bucket="${FROGBOT_FILES_BUCKET_NAME:-$(jq -r '.custom.filesBucketName // empty' "$outputs_file")}"
-drill_source_table="${FROGBOT_DATA_TABLE_NAME:-$(jq -r '.custom.dataTableName // empty' "$outputs_file")}"
-if [[ ! "$drill_bucket" =~ ^frogbot(-production)?-user-files-[0-9]{12}-[a-z0-9-]+$ ]]; then
-  echo "Refusing to run: the resolved bucket is not a FroggyBot user-files bucket." >&2
+drill_bucket="${HEYTIM_FILES_BUCKET_NAME:-$(jq -r '.custom.filesBucketName // empty' "$outputs_file")}"
+drill_source_table="${HEYTIM_DATA_TABLE_NAME:-$(jq -r '.custom.dataTableName // empty' "$outputs_file")}"
+if [[ ! "$drill_bucket" =~ ^heytim(-production)?-user-files-[0-9]{12}-[a-z0-9-]+$ ]]; then
+  echo "Refusing to run: the resolved bucket is not a HeyTim user-files bucket." >&2
   exit 1
 fi
-if [[ ! "$drill_source_table" =~ ^amplify-frogbot-.*-Data[[:alnum:]-]+$ ]]; then
-  echo "Refusing to run: the resolved table is not a FroggyBot data table." >&2
+if [[ ! "$drill_source_table" =~ ^amplify-heytim-.*-Data[[:alnum:]-]+$ ]]; then
+  echo "Refusing to run: the resolved table is not a HeyTim data table." >&2
   exit 1
 fi
 
 drill_stamp="$(date -u '+%Y%m%d%H%M%S')"
 drill_id="$(uuidgen | tr '[:upper:]' '[:lower:]')"
 drill_key="recovery-drills/${drill_stamp}-${drill_id}.txt"
-drill_restore_table="FroggyBotRecoveryDrill-${drill_stamp}"
+drill_restore_table="HeyTimRecoveryDrill-${drill_stamp}"
 drill_dir="$(mktemp -d)"
 drill_v1_file="$drill_dir/version-one.txt"
 drill_v2_file="$drill_dir/version-two.txt"
@@ -66,7 +66,7 @@ cleanup() {
 trap cleanup EXIT
 
 aws sts get-caller-identity >/dev/null
-if [[ "${FROGBOT_SKIP_DYNAMODB_RESTORE:-0}" != "1" ]]; then
+if [[ "${HEYTIM_SKIP_DYNAMODB_RESTORE:-0}" != "1" ]]; then
   aws dynamodb describe-continuous-backups \
     --region "$drill_region" \
     --table-name "$drill_source_table" \
@@ -109,8 +109,8 @@ if [[ "${FROGBOT_SKIP_DYNAMODB_RESTORE:-0}" != "1" ]]; then
   fi
 fi
 
-printf 'FroggyBot recovery drill version one\n' >"$drill_v1_file"
-printf 'FroggyBot recovery drill version two\n' >"$drill_v2_file"
+printf 'HeyTim recovery drill version one\n' >"$drill_v1_file"
+printf 'HeyTim recovery drill version two\n' >"$drill_v2_file"
 drill_v1_hash="$(shasum -a 256 "$drill_v1_file" | awk '{print $1}')"
 
 drill_v1_id="$(aws s3api put-object \
@@ -145,7 +145,7 @@ if [[ "$drill_restored_hash" != "$drill_v1_hash" ]]; then
   exit 1
 fi
 
-if [[ "${FROGBOT_SKIP_DYNAMODB_RESTORE:-0}" != "1" ]]; then
+if [[ "${HEYTIM_SKIP_DYNAMODB_RESTORE:-0}" != "1" ]]; then
   echo "DynamoDB point-in-time restore: passed"
 fi
 echo "S3 version restore: passed"

@@ -9,7 +9,7 @@ import test_api_safety
 GOOGLE_ENV = {
     "GOOGLE_OAUTH_SECRET_ARN": (
         "arn:aws:secretsmanager:us-east-1:123:secret:"
-        "frogbot/oauth/google-ABC123"
+        "heytim/oauth/google-ABC123"
     ),
     "GOOGLE_OAUTH_REDIRECT_URI": (
         "https://api.example.com/public/oauth/google/callback"
@@ -51,7 +51,7 @@ class GoogleOAuthTests(unittest.TestCase):
             patch.object(self.google_oauth.time, "time", return_value=1_000),
         ):
             result = self.google_oauth._begin_gmail_authorization(
-                "user-1", {"returnUrl": "frogbot://app?oauth=gmail"}
+                "user-1", {"returnUrl": "heytim://app?oauth=gmail"}
             )
 
         query = result["authorizationUrl"].split("?", 1)[1]
@@ -72,15 +72,15 @@ class GoogleOAuthTests(unittest.TestCase):
             "heytim://app?connection=gmail",
         )
         self.assertEqual(
-            self.google_oauth._return_url("froggybot://app?connection=gmail"),
-            "froggybot://app?connection=gmail",
+            self.google_oauth._return_url("heytim://app?connection=gmail"),
+            "heytim://app?connection=gmail",
         )
         self.assertEqual(
             self.google_oauth._return_url("https://app.heytim.ai/app?connection=gmail"),
             "https://app.heytim.ai/app?connection=gmail",
         )
         with self.assertRaises(self.google_oauth.ApiError) as rejected:
-            self.google_oauth._return_url("froggybot://other?connection=gmail")
+            self.google_oauth._return_url("heytim://other?connection=gmail")
         self.assertEqual(rejected.exception.code, "invalid_return_url")
 
     def test_callback_consumes_state_and_creates_connection(self) -> None:
@@ -90,7 +90,7 @@ class GoogleOAuthTests(unittest.TestCase):
             "userId": "user-1",
             "provider": "gmail",
             "verifier": "verifier",
-            "returnUrl": "frogbot://app?oauth=gmail",
+            "returnUrl": "heytim://app?oauth=gmail",
             "clientSecretArn": GOOGLE_ENV["GOOGLE_OAUTH_SECRET_ARN"],
             "expiresAt": 2_000,
         }
@@ -150,7 +150,7 @@ class GoogleOAuthTests(unittest.TestCase):
                 "userId": "user-1",
                 "provider": "gmail",
                 "verifier": "verifier",
-                "returnUrl": "frogbot://app?oauth=gmail",
+                "returnUrl": "heytim://app?oauth=gmail",
                 "clientSecretArn": GOOGLE_ENV["GOOGLE_OAUTH_SECRET_ARN"],
                 "expiresAt": 2_000,
             }
@@ -192,7 +192,7 @@ class GoogleOAuthTests(unittest.TestCase):
             "userId": "user-1",
             "provider": "gmail",
             "verifier": "verifier",
-            "returnUrl": "frogbot://app?oauth=gmail",
+            "returnUrl": "heytim://app?oauth=gmail",
             "clientSecretArn": GOOGLE_ENV["GOOGLE_OAUTH_SECRET_ARN"],
             "expiresAt": 2_000,
         }
@@ -229,7 +229,7 @@ class GoogleOAuthTests(unittest.TestCase):
                 "userId": "user-1",
                 "provider": "gmail",
                 "verifier": "verifier",
-                "returnUrl": "frogbot://app?oauth=gmail",
+                "returnUrl": "heytim://app?oauth=gmail",
                 "clientSecretArn": GOOGLE_ENV["GOOGLE_OAUTH_SECRET_ARN"],
                 "expiresAt": 2_000,
             }

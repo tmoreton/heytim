@@ -96,7 +96,7 @@ def summarize(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def markdown_report(report: dict[str, Any]) -> str:
     lines = [
-        "# FroggyBot model behavioral evaluation",
+        "# HeyTim model behavioral evaluation",
         "",
         f"Run: {report['createdAt']}",
         f"Catalog release: {report['catalogRelease']}",

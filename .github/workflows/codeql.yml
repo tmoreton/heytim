@@ -39,7 +39,7 @@ jobs:
   analyze:
     name: Analyze ${{ matrix.language }}
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, macOS, ARM64, frogbot-ci]
+    runs-on: [self-hosted, macOS, ARM64, heytim-ci]
     permissions:
       actions: read
       security-events: write

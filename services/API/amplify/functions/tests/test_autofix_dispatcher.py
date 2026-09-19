@@ -46,7 +46,7 @@ class AutofixDispatcherTests(unittest.TestCase):
             "fingerprint": "a" * 24,
         }
         incidents = dispatcher.extract_incidents(
-            logs_event("ERROR FROGBOT_TERMINAL_ERROR " + json.dumps(marker))
+            logs_event("ERROR HEYTIM_TERMINAL_ERROR " + json.dumps(marker))
         )
 
         self.assertEqual(len(incidents), 1)
@@ -69,7 +69,7 @@ class AutofixDispatcherTests(unittest.TestCase):
         }
         self.assertEqual(
             dispatcher.extract_incidents(
-                logs_event("FROGBOT_TERMINAL_ERROR " + json.dumps(marker))
+                logs_event("HEYTIM_TERMINAL_ERROR " + json.dumps(marker))
             ),
             [],
         )
@@ -86,7 +86,7 @@ class AutofixDispatcherTests(unittest.TestCase):
             "location": "direct_job.py:_process_agent_reply:185",
             "fingerprint": "c" * 24,
         }
-        event = logs_event("FROGBOT_TERMINAL_ERROR " + json.dumps(marker))
+        event = logs_event("HEYTIM_TERMINAL_ERROR " + json.dumps(marker))
         claimed = ({"pk": "one", "sk": "two"}, {"pk": "one", "sk": "day"})
         with (
             patch.object(dispatcher, "_claim_incident", return_value=claimed),

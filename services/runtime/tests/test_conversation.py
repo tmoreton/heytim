@@ -1,4 +1,4 @@
-from frogbot_runtime.conversation import (
+from heytim_runtime.conversation import (
     CONTEXT_COMPRESSION_THRESHOLD,
     conversation_manager,
 )

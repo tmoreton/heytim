@@ -80,13 +80,13 @@ class ApiRoutingTests(unittest.TestCase):
                 "POST",
                 "/connections/gmail/authorization",
                 {"providerId": "gmail"},
-                {"body": '{"returnUrl":"frogbot://app"}'},
+                {"body": '{"returnUrl":"heytim://app"}'},
                 route_key="POST /connections/{providerId}/authorization",
             )
 
         self.assertEqual(json.loads(response["body"]), authorization)
         begin.assert_called_once_with(
-            "user-1", "gmail", {"returnUrl": "frogbot://app"}
+            "user-1", "gmail", {"returnUrl": "heytim://app"}
         )
 
     def test_api_errors_expose_stable_codes(self) -> None:

@@ -1,6 +1,6 @@
 # Native Apple design direction
 
-The Expo app is FroggyBot's feature and behavior reference, not a component or pixel-level blueprint. The Apple client
+The Expo app is HeyTim's feature and behavior reference, not a component or pixel-level blueprint. The Apple client
 keeps the same account, conversations, capabilities, terminology, and brand identity while choosing the most natural
 SwiftUI interaction for iPhone and Mac. The Expo source is preserved as the browser client and migration reference;
 its native release paths are deprecated.
@@ -13,7 +13,7 @@ its native release paths are deprecated.
   Glass adapt automatically.
 - Use semantic text styles and system control sizing so Dynamic Type, keyboard navigation, VoiceOver, pointer input,
   and Mac menu commands work without parallel custom implementations.
-- Preserve FroggyBot identity through the frog mark, bot and group avatars, green tint, friendly language, and custom
+- Preserve HeyTim identity through the frog mark, bot and group avatars, green tint, friendly language, and custom
   message bubbles. Product identity belongs in content; platform chrome belongs to Apple.
 - Keep custom Liquid Glass restrained to an important floating action such as Send. Standard navigation and toolbar
   controls receive the system appearance automatically on current OS releases.
@@ -55,7 +55,7 @@ Drafts and pending attachments stay with the conversation where they were create
 
 ## Brand guidance
 
-- FroggyBot green is the app tint and identifies primary actions, selection, progress, and bot identity.
+- HeyTim green is the app tint and identifies primary actions, selection, progress, and bot identity.
 - User messages may remain green; assistant, team, approval, and error messages use semantic adaptive surfaces.
 - Frog, bot, person, and group avatars are product assets rather than substitutes for system navigation controls.
 - Avoid fixed light-only canvases, custom imitations of sidebars or sheets, and hard-coded text colors.

@@ -44,7 +44,7 @@ def open_options(body: dict) -> tuple[str | None, str | None]:
 
 
 def extension_configuration() -> list:
-    bucket, key = os.getenv("FROGBOT_BROWSER_EXTENSION_BUCKET"), os.getenv("FROGBOT_BROWSER_EXTENSION_KEY")
+    bucket, key = os.getenv("HEYTIM_BROWSER_EXTENSION_BUCKET"), os.getenv("HEYTIM_BROWSER_EXTENSION_KEY")
     return [{"location": {"s3": {"bucket": bucket, "prefix": key}}}] if bucket and key else []
 
 

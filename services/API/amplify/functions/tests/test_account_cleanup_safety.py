@@ -35,7 +35,7 @@ class AccountCleanupSafetyTests(ApiTestCase):
         }
 
         with patch.object(
-            self.memories, "FROGBOT_MEMORY_ID", "FrogBotMemory-abcdefghij"
+            self.memories, "HEYTIM_MEMORY_ID", "FrogBotMemory-abcdefghij"
         ):
             result = self.account._delete_user_memory("user-1")
 
@@ -55,7 +55,7 @@ class AccountCleanupSafetyTests(ApiTestCase):
                 side_effect=self.agentcore.exceptions.ResourceNotFoundException(),
             ),
             patch.object(
-                self.memories, "FROGBOT_MEMORY_ID", "FrogBotMemory-abcdefghij"
+                self.memories, "HEYTIM_MEMORY_ID", "FrogBotMemory-abcdefghij"
             ),
         ):
             result = self.account._delete_user_memory("user-without-memory")
@@ -82,7 +82,7 @@ class AccountCleanupSafetyTests(ApiTestCase):
                 "entity": "PUSH_TOKEN",
                 "tokenId": "push-1",
                 "endpointArn": (
-                    "arn:aws:sns:us-east-1:123:endpoint/APNS/FroggyBot/push-1"
+                    "arn:aws:sns:us-east-1:123:endpoint/APNS/HeyTim/push-1"
                 ),
             },
             {
@@ -137,7 +137,7 @@ class AccountCleanupSafetyTests(ApiTestCase):
         delete_schedule.assert_called_once()
         self.sns.delete_endpoint.assert_called_once_with(
             EndpointArn=(
-                "arn:aws:sns:us-east-1:123:endpoint/APNS/FroggyBot/push-1"
+                "arn:aws:sns:us-east-1:123:endpoint/APNS/HeyTim/push-1"
             )
         )
         self.cognito.admin_user_global_sign_out.assert_called_once_with(

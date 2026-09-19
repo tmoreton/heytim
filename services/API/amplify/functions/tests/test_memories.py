@@ -56,12 +56,12 @@ class MemoryTests(unittest.TestCase):
                     },
                     "namespaces": ["/summaries/actor/session-1/"],
                     "createdAt": datetime(2026, 9, 3, tzinfo=UTC),
-                    "metadata": {"frogbotScope": {"stringValue": "bot"}},
+                    "metadata": {"heytimScope": {"stringValue": "bot"}},
                 }
             ],
         ]
         with (
-            patch.object(self.memories, "FROGBOT_MEMORY_ID", "memory-1"),
+            patch.object(self.memories, "HEYTIM_MEMORY_ID", "memory-1"),
             patch.object(self.memories, "memory_actor_id", return_value="actor"),
             patch.object(
                 self.memories,
@@ -91,7 +91,7 @@ class MemoryTests(unittest.TestCase):
             }
         }
         with (
-            patch.object(self.memories, "FROGBOT_MEMORY_ID", "memory-1"),
+            patch.object(self.memories, "HEYTIM_MEMORY_ID", "memory-1"),
             patch.object(self.memories, "memory_actor_id", return_value="actor"),
             self.assertRaises(self.support.ApiError) as raised,
         ):
@@ -113,7 +113,7 @@ class MemoryTests(unittest.TestCase):
             "createdAt": datetime(2026, 9, 7, tzinfo=UTC),
         }
         with (
-            patch.object(self.memories, "FROGBOT_MEMORY_ID", "memory-1"),
+            patch.object(self.memories, "HEYTIM_MEMORY_ID", "memory-1"),
             patch.object(
                 self.memories, "_require_bot_memory_access", return_value={"name": "JOPbot"}
             ),
@@ -140,7 +140,7 @@ class MemoryTests(unittest.TestCase):
             "failedRecords": [],
         }
         with (
-            patch.object(self.memories, "FROGBOT_MEMORY_ID", "memory-1"),
+            patch.object(self.memories, "HEYTIM_MEMORY_ID", "memory-1"),
             patch.object(
                 self.memories, "_require_bot_memory_access", return_value={"name": "JOPbot"}
             ),
@@ -156,7 +156,7 @@ class MemoryTests(unittest.TestCase):
 
         created = self.agentcore.batch_create_memory_records.call_args.kwargs["records"][0]
         self.assertEqual(created["namespaces"], ["/summaries/actor/session-own/"])
-        self.assertEqual(created["metadata"]["frogbotScope"]["stringValue"], "bot")
+        self.assertEqual(created["metadata"]["heytimScope"]["stringValue"], "bot")
         self.assertEqual(result["botId"], "bot-1")
 
     def test_bot_memory_cannot_edit_or_forget_another_bots_record(self) -> None:
@@ -194,7 +194,7 @@ class MemoryTests(unittest.TestCase):
             "failedRecords": [],
         }
         with (
-            patch.object(self.memories, "FROGBOT_MEMORY_ID", "memory-1"),
+            patch.object(self.memories, "HEYTIM_MEMORY_ID", "memory-1"),
             patch.object(self.memories, "memory_actor_id", return_value="actor"),
         ):
             result = self.memories._create_user_memory(
@@ -209,7 +209,7 @@ class MemoryTests(unittest.TestCase):
             record["requestIdentifier"], "12345678-1234-1234-1234-123456789012"
         )
         self.assertEqual(record["namespaces"], ["/facts/actor/"])
-        self.assertEqual(record["metadata"]["frogbotSource"]["stringValue"], "manual")
+        self.assertEqual(record["metadata"]["heytimSource"]["stringValue"], "manual")
         self.assertEqual(result["scope"], "personal")
 
     def test_group_memory_requires_owner_and_uses_group_namespace(self) -> None:
@@ -218,7 +218,7 @@ class MemoryTests(unittest.TestCase):
             "failedRecords": [],
         }
         with (
-            patch.object(self.memories, "FROGBOT_MEMORY_ID", "memory-1"),
+            patch.object(self.memories, "HEYTIM_MEMORY_ID", "memory-1"),
             patch.object(
                 self.memories, "group_memory_actor_id", return_value="group-actor"
             ),
@@ -242,7 +242,7 @@ class MemoryTests(unittest.TestCase):
             "createdAt": datetime(2026, 9, 6, tzinfo=UTC),
         }
         with (
-            patch.object(self.memories, "FROGBOT_MEMORY_ID", "memory-1"),
+            patch.object(self.memories, "HEYTIM_MEMORY_ID", "memory-1"),
             patch.object(
                 self.memories, "group_memory_actor_id", return_value="group-actor"
             ),
@@ -270,7 +270,7 @@ class MemoryTests(unittest.TestCase):
             "failedRecords": [],
         }
         with (
-            patch.object(self.memories, "FROGBOT_MEMORY_ID", "memory-1"),
+            patch.object(self.memories, "HEYTIM_MEMORY_ID", "memory-1"),
             patch.object(
                 self.memories,
                 "_owned_memory_record",
@@ -301,7 +301,7 @@ class MemoryTests(unittest.TestCase):
             "failedRecords": [],
         }
         with (
-            patch.object(self.memories, "FROGBOT_MEMORY_ID", "memory-1"),
+            patch.object(self.memories, "HEYTIM_MEMORY_ID", "memory-1"),
             patch.object(self.memories, "_owned_memory_record") as owned,
         ):
             result = self.memories._delete_user_memory_record("user-1", "mem-owned")
