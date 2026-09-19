@@ -288,7 +288,7 @@ jobs:
         working-directory: services/API
         env:
           HEYTIM_ENVIRONMENT: production
-          HEYTIM_BOT_EMAIL_STAGE: identity
+          HEYTIM_BOT_EMAIL_STAGE: receive
           HEYTIM_SES_RULE_SET_NAME: inboxai-inboxai-cc
           HEYTIM_BOT_EMAIL_AVAILABLE: 'false'
           HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN }}
