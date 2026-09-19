@@ -112,6 +112,8 @@ def _return_url(value: Any) -> str:
 
 
 def _state_key(state: str) -> dict:
+    # OAuth state is a high-entropy, single-use nonce rather than a human password.
+    # Hashing here keeps the bearer value out of the DynamoDB partition key.
     digest = hashlib.sha256(state.encode("utf-8")).hexdigest()
     return {"pk": f"OAUTH#{digest}", "sk": "STATE"}
 

@@ -5,6 +5,7 @@ import { Sms } from './pages/sms';
 import { Contribute } from './pages/contribute';
 import { Library } from './library';
 import { OpenApp } from './open-app';
+import { normalizePathname } from './route';
 
 export const pages: Record<string, string> = {
   '/': 'HeyTim — Turn group talk into action',
@@ -16,7 +17,7 @@ export const pages: Record<string, string> = {
 };
 
 export function Website({ pathname }: { pathname: string }) {
-  const route = pathname.replace(/\/+$/, '') || '/';
+  const route = normalizePathname(pathname);
   const content = route === '/' ? <Home />
     : route === '/library' ? <Library kind="bots" /> : route === '/skills' ? <Library />
     : route === '/privacy' ? <Privacy /> : route === '/terms' ? <Terms />

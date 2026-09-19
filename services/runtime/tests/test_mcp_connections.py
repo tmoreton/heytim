@@ -444,14 +444,18 @@ def test_workspace_resource_selection_exposes_only_selected_service_tools(monkey
             {"endpoint": endpoint, "allowedTools": list(tools)}
             for endpoint, tools in mcp_connections.GOOGLE_WORKSPACE_MCP_SERVERS.items()
             if "sheetsmcp" not in endpoint
-        ],
+        ] + [{
+            "endpoint": "https://sheetsmcp.googleapis.com.evil.test/mcp/v1",
+            "allowedTools": [],
+        }],
     }
     mcp_connections.connection_clients(binding)
     by_host = {
         entry["resource_server"]: entry for entry in captured
     }
-    assert "sheetsmcp.googleapis.com" in by_host
-    assert "docsmcp.googleapis.com" not in by_host
+    assert by_host.get("sheetsmcp.googleapis.com") is not None
+    assert by_host.get("sheetsmcp.googleapis.com.evil.test") is None
+    assert by_host.get("docsmcp.googleapis.com") is None
     assert by_host["sheetsmcp.googleapis.com"]["resource_ids"] == {"spreadsheet123"}
     assert set(by_host["calendarmcp.googleapis.com"]["tool_filters"]["allowed"]) == {
         "get_event", "list_events"

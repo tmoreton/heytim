@@ -549,7 +549,11 @@ def connection_clients(binding: dict) -> list[MCPClient]:
     servers = list(binding["servers"])
     if (
         any(item.startswith("sheet:") for item in binding.get("resourceIds", []))
-        and not any("sheetsmcp.googleapis.com" in server["endpoint"] for server in servers)
+        and not any(
+            urllib.parse.urlsplit(server["endpoint"]).hostname
+            == "sheetsmcp.googleapis.com"
+            for server in servers
+        )
     ):
         endpoint = "https://sheetsmcp.googleapis.com/mcp/v1"
         servers.append({

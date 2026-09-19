@@ -111,7 +111,10 @@ function hardenAgentCoreCrossServiceAccess(stack: Stack): void {
       for (let index = 0; index < (document.Statement?.length ?? 0); index += 1) {
         const service = document.Statement?.[index]?.Principal?.Service;
         const services = Array.isArray(service) ? service : [service];
-        if (!services.includes('bedrock-agentcore.amazonaws.com')) continue;
+        const isAgentCoreRole = services.some(
+          candidate => candidate === 'bedrock-agentcore.amazonaws.com'
+        );
+        if (!isAgentCoreRole) continue;
         construct.addPropertyOverride(`AssumeRolePolicyDocument.Statement.${index}.Condition`, {
           StringEquals: { 'aws:SourceAccount': stack.account },
           ArnLike: { 'aws:SourceArn': sourceArn },

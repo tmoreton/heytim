@@ -11,8 +11,10 @@ the others.
 - [x] GitHub secret scanning and push protection are enabled.
 - [x] Security, support, conduct, issue, and pull-request guidance are published.
 - [x] Dependency updates and CodeQL analysis are automated.
-- [ ] Protect `main` from force pushes and deletion; decide whether every change
-  must use a pull request before enabling that requirement.
+- [x] Protect `main` from force pushes and deletion without disrupting the current
+  direct-push release workflow.
+- [ ] Decide whether every change must use a pull request before enabling that
+  stronger requirement.
 - [ ] Decide whether external implementation pull requests are accepted and, if
   so, publish the contributor agreement and enable safe CI for forks.
 
@@ -52,4 +54,3 @@ language.
   and its privacy/export-compliance answers match deployed behavior.
 - [ ] Invite users gradually and monitor authentication, queue failures, runtime
   errors, email complaints, notification delivery, cost, and account deletion.
-
