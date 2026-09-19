@@ -1,10 +1,11 @@
-import { CfnOutput, Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
+import { CfnOutput, Duration, Fn, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Table } from 'aws-cdk-lib/aws-dynamodb';
 import { PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { Code, Function as LambdaFunction, Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket, BucketEncryption } from 'aws-cdk-lib/aws-s3';
+import { CfnHostedZone, CfnRecordSet } from 'aws-cdk-lib/aws-route53';
 import { CfnEmailIdentity, CfnReceiptRule, CfnReceiptRuleSet } from 'aws-cdk-lib/aws-ses';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 import { LambdaSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
@@ -43,6 +44,14 @@ export function addBotEmailReceiving(
   const identity = new CfnEmailIdentity(stack, 'BotEmailIdentity', {
     emailIdentity: domain,
   });
+  const dnsZone = new CfnHostedZone(stack, 'BotEmailDnsZone', {
+    name: domain,
+  });
+  dnsZone.applyRemovalPolicy(RemovalPolicy.RETAIN);
+  new CfnOutput(stack, 'BotEmailNameServers', {
+    value: Fn.join(',', dnsZone.attrNameServers),
+    description: `Delegate ${domain} to these Route 53 name servers`,
+  });
   new CfnOutput(stack, 'BotEmailMx', {
     value: `10 inbound-smtp.${stack.region}.amazonaws.com`,
     description: `MX record for ${domain}`,
@@ -54,8 +63,25 @@ export function addBotEmailReceiving(
   ] as const) {
     new CfnOutput(stack, `BotEmailDkimName${index}`, { value: name });
     new CfnOutput(stack, `BotEmailDkimValue${index}`, { value });
+    const record = new CfnRecordSet(stack, `BotEmailDkimRecord${index}`, {
+      hostedZoneId: dnsZone.attrId,
+      name,
+      type: 'CNAME',
+      ttl: '300',
+      resourceRecords: [value],
+    });
+    record.applyRemovalPolicy(RemovalPolicy.RETAIN);
   }
   if (stage === 'identity') return undefined;
+
+  const mxRecord = new CfnRecordSet(stack, 'BotEmailMxRecord', {
+    hostedZoneId: dnsZone.attrId,
+    name: domain,
+    type: 'MX',
+    ttl: '300',
+    resourceRecords: [`10 inbound-smtp.${stack.region}.amazonaws.com`],
+  });
+  mxRecord.applyRemovalPolicy(RemovalPolicy.RETAIN);
 
   const bucket = new Bucket(stack, 'IncomingBotMail', {
     blockPublicAccess: BlockPublicAccess.BLOCK_ALL,

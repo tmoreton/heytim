@@ -30,3 +30,13 @@ class BotEmailInfrastructureTests(unittest.TestCase):
         self.assertIn(
             "botEmail?.outboundQueue.grantSendMessages(workerFunction)", self.backend
         )
+
+    def test_bot_subdomain_has_an_isolated_managed_dns_zone(self) -> None:
+        self.assertIn("new CfnHostedZone(stack, 'BotEmailDnsZone'", self.infrastructure)
+        self.assertIn("new CfnRecordSet(stack, 'BotEmailMxRecord'", self.infrastructure)
+        self.assertIn(
+            "resourceRecords: [`10 inbound-smtp.${stack.region}.amazonaws.com`]",
+            self.infrastructure,
+        )
+        self.assertIn("`BotEmailDkimRecord${index}`", self.infrastructure)
+        self.assertIn("value: Fn.join(',', dnsZone.attrNameServers)", self.infrastructure)
