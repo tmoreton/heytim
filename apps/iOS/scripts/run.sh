@@ -3,7 +3,9 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/run.sh [--build-only] <ios|macos>
+Usage: ./scripts/run.sh [--build-only] <ios|macos|all>
+
+The `all` destination is build-only and compiles iOS and macOS in one run.
 
 Environment:
   HEYTIM_DERIVED_DATA  Optional DerivedData directory.
@@ -34,8 +36,7 @@ derived_data="${HEYTIM_DERIVED_DATA:-/tmp/HeyTimAppleDerivedData}"
 
 "$apple_root/scripts/prepare-transcription.sh"
 
-case "$platform" in
-  macos)
+build_macos() {
     xcodebuild build -quiet \
       -project "$project" \
       -scheme HeyTimApple \
@@ -51,8 +52,9 @@ case "$platform" in
     else
       echo "Built $app_path"
     fi
-    ;;
-  ios)
+}
+
+build_ios() {
     simulator_id="${HEYTIM_SIMULATOR_ID:-}"
     if [[ -z "$simulator_id" ]]; then
       simulator_id="$(xcrun simctl list devices available | sed -nE '/iPhone/ s/.*\(([0-9A-F-]{36})\).*/\1/p' | head -1)"
@@ -82,6 +84,23 @@ case "$platform" in
     else
       echo "Built $app_path"
     fi
+}
+
+case "$platform" in
+  macos)
+    build_macos
+    ;;
+  ios)
+    build_ios
+    ;;
+  all)
+    if [[ "$build_only" != true ]]; then
+      echo "The all destination is build-only; run each platform separately to launch it." >&2
+      usage >&2
+      exit 2
+    fi
+    build_ios
+    build_macos
     ;;
   *)
     echo "Unsupported platform: $platform" >&2

@@ -10,7 +10,7 @@ HeyTim Apple app
 
 Usage:
   ./scripts/apple-app.sh open
-  ./scripts/apple-app.sh build <ios|macos>
+  ./scripts/apple-app.sh build
   ./scripts/apple-app.sh run <ios|macos>
   ./scripts/apple-app.sh verify
   APPLE_TEAM_ID=TEAMID ./scripts/apple-app.sh archive [--dry-run] <ios|macos>
@@ -38,7 +38,11 @@ case "$command" in
     open "$apple_root/HeyTimApple.xcodeproj"
     ;;
   build)
-    exec "$apple_root/scripts/run.sh" --build-only "$@"
+    if [[ $# -ne 0 ]]; then
+      usage >&2
+      exit 2
+    fi
+    exec "$apple_root/scripts/run.sh" --build-only all
     ;;
   run)
     exec "$apple_root/scripts/run.sh" "$@"

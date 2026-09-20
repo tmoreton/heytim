@@ -5,6 +5,18 @@ This project contains configuration and infrastructure for an Amazon Bedrock Age
 The `agentcore/` directory is a declarative model of the project. The `agentcore/cdk/` subdirectory uses the
 `@aws/agentcore-cdk` L3 constructs to deploy the configuration to AWS.
 
+## Product Identity and Apple Builds
+
+- The product name is **HeyTim**; **Hey Tim** is also acceptable in display copy. Do not introduce `FrogBot` in new
+  product copy, APIs, catalog metadata, or logical resource names.
+- Existing `FrogBot*` and `frogbot-*` values are legacy physical identifiers for deployed AWS resources, protected
+  GitHub secrets, runner registrations, historical records, and compatibility paths. Preserve them until a separately
+  reviewed migration inventories replacement impact, data movement, signing, rollback, and cleanup. In particular,
+  never rename an AgentCore resource just to update branding because its `name` controls replacement.
+- Any Apple build or final verification must cover both iOS and macOS. Use `./scripts/apple-app.sh build` for a local
+  compile of both destinations and `./scripts/apple-app.sh verify` for the shared test gate. A single-platform launch
+  is acceptable for interactive debugging, but it does not satisfy build verification.
+
 ## Mental Model
 
 The project uses a **flat resource model**. Agents, memories, credentials, gateways, evaluators, and policies are

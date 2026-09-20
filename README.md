@@ -44,6 +44,9 @@ Use Node 22.23.2, Python 3.14, `uv`, and Xcode with the installed iOS simulator.
 ./scripts/apple-app.sh run ios
 ./scripts/apple-app.sh run macos
 
+# Build both Apple destinations without launching
+./scripts/apple-app.sh build
+
 # Public website, with no cloud credentials required
 npm ci --prefix apps/website
 npm run dev --prefix apps/website

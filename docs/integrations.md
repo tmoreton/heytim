@@ -6,6 +6,10 @@ HeyTim has two integration layers:
 - Private account access is optional and user-scoped. The backend stores OAuth refresh grants or a GitHub App
   installation grant in Secrets Manager; clients receive only sanitized connection metadata.
 
+A company-credentialed, login-free social-research layer is under evaluation. It is not part of the active provider
+contract below. The current recommendation, provider comparison, platform-policy constraints, and proof-of-concept
+gate are recorded in [the social research integration assessment](social-research-integration-assessment.md).
+
 Legacy generic MCP bearer/API-key records are intentionally unsupported. They remain in storage until their owner
 deletes the account or removes the record, but they are not listed, selectable, or accepted by runtime resolution.
 Reconnect the one pilot account through the provider-specific flows after deployment.

@@ -15,7 +15,9 @@ From the repository root, use the supported entry point for a repeatable build a
 ./scripts/apple-app.sh run macos
 ```
 
-Use `build` instead of `run` to compile without launching, or `./scripts/apple-app.sh open` to open `HeyTimApple.xcodeproj` in Xcode. Select the `HeyTimApple` scheme and choose either an iPhone simulator or My Mac. The minimum versions are iOS 17 and macOS 14.
+Use `./scripts/apple-app.sh build` to compile both iPhone and Mac without launching, or
+`./scripts/apple-app.sh open` to open `HeyTimApple.xcodeproj` in Xcode. Select the `HeyTimApple` scheme and choose
+either an iPhone simulator or My Mac for interactive debugging. The minimum versions are iOS 17 and macOS 14.
 
 The root build commands prepare the checksum-pinned transcription frameworks and model automatically. To prepare
 them without building:
@@ -76,11 +78,11 @@ APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh testflight all
 The TestFlight entry point requires a clean working tree except for the two generated production output files, checks
 the bundled public backend configuration, and runs the shared iPhone/Mac verification suite before archiving. The
 `all` form verifies once and uploads matching iPhone and Mac builds with the same build number after both platforms
-are enabled in App Store Connect. The production workflow currently uploads iPhone only to the new Hey Tim listing
-after its backend deployment succeeds; its signing material is injected from the protected GitHub production
-environment and removed from the runner afterward. Local runs use the developer account signed into Xcode by default.
-Publishing a stable GitHub Release tagged `vMAJOR.MINOR.PATCH` deploys the backend and runs the iPhone TestFlight path
-automatically. The tag sets `MARKETING_VERSION` and must point to a commit on `main`.
+are enabled in App Store Connect. The production workflow uploads both builds after its backend deployment succeeds;
+its signing material is injected from the protected GitHub production environment and removed from the runner
+afterward. Local runs use the developer account signed into Xcode by default. Publishing a stable GitHub Release tagged
+`vMAJOR.MINOR.PATCH` deploys the backend and runs the dual-platform TestFlight path automatically. The tag sets
+`MARKETING_VERSION` and must point to a commit on `main`.
 For unattended uploads, set `APP_STORE_CONNECT_KEY_PATH`, `APP_STORE_CONNECT_KEY_ID`, and
 `APP_STORE_CONNECT_ISSUER_ID` together; never commit the `.p8` key. Add `--dry-run` before the platform to inspect
 the selected archive path and build number without signing or uploading.

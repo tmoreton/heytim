@@ -3,6 +3,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+async function sourceFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = await Promise.all(entries.map(async (entry) => {
+    const location = path.join(directory, entry.name);
+    return entry.isDirectory() ? sourceFiles(location) : [location];
+  }));
+  return files.flat();
+}
+
 const website = JSON.parse(await readFile(path.join(root, 'apps/website/package.json'), 'utf8'));
 const dependencies = { ...website.dependencies, ...website.devDependencies };
 if (Object.keys(dependencies).some((name) => /expo|react-native|amplify|heytim\/(client|preview)/.test(name))) {
@@ -34,4 +44,18 @@ await Promise.all([
   access(path.join(root, 'catalog/catalog.json')),
 ]);
 
-console.log('Verified Vite public site, SwiftUI releases, API, runtime, and local catalog boundaries.');
+const productSources = [
+  ...(await sourceFiles(path.join(root, 'apps/website/src'))),
+  path.join(root, 'apps/website/index.html'),
+  ...(await sourceFiles(path.join(root, 'apps/iOS/App'))),
+  ...(await sourceFiles(path.join(root, 'apps/iOS/Sources'))),
+  ...(await sourceFiles(path.join(root, 'apps/iOS/Resources'))),
+].filter((file) => /\.(?:css|entitlements|html|js|json|plist|swift|ts|tsx)$/.test(file));
+for (const file of productSources) {
+  const content = await readFile(file, 'utf8');
+  if (/\bfrog[\s_-]*bot\b/i.test(content)) {
+    throw new Error(`Legacy FrogBot product branding found in ${path.relative(root, file)}`);
+  }
+}
+
+console.log('Verified HeyTim branding, Vite public site, SwiftUI releases, API, runtime, and local catalog boundaries.');
