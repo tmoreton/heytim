@@ -154,7 +154,7 @@ public struct AuthView: View {
     .frame(maxWidth: 420, alignment: .leading)
     .background(FrogTheme.surface, in: RoundedRectangle(cornerRadius: 26))
     .overlay(RoundedRectangle(cornerRadius: 26).stroke(FrogTheme.subtleBorder))
-    .shadow(color: Color(hex: "#191812").opacity(0.07), radius: 30, y: 14)
+    .shadow(color: Color.black.opacity(0.08), radius: 30, y: 14)
   }
 
   @ViewBuilder private var field: some View {

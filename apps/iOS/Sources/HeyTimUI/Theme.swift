@@ -193,7 +193,8 @@ private struct FroggyNavigationTitleModifier: ViewModifier {
 public enum FrogTheme {
   // Tim's logo yellow is the single brand accent throughout the app.
   public static let brand = Color(hex: "#FFBC3B")
-  public static let brandInk = Color(hex: "#292510")
+  // Primary controls follow the surrounding appearance: black in light mode and white in dark.
+  public static let brandInk = Color.primary
   public static let mascot = brand
   public static let sky = Color(hex: "#3984F6")
   public static let mint = Color(hex: "#58BEAA")
@@ -231,16 +232,16 @@ public enum FrogTheme {
     #endif
   }
 
-  // The dark palette stays comfortably dim without falling back to near-black system surfaces.
+  // Neutral, Codex-like surfaces keep yellow and bot colors reserved for meaningful accents.
   public static let accent = brand
-  public static let canvas = adaptive(light: RGB(255, 248, 236), dark: RGB(54, 51, 62))
-  public static let appBackground = adaptive(light: RGB(255, 253, 250), dark: RGB(50, 47, 57))
-  public static let pageBackground = adaptive(light: RGB(247, 241, 232), dark: RGB(61, 57, 69))
-  public static let drawer = adaptive(light: RGB(255, 247, 232), dark: RGB(58, 55, 66))
-  public static let surface = adaptive(light: RGB(255, 255, 255), dark: RGB(70, 65, 77))
-  public static let border = adaptive(light: RGB(222, 212, 200), dark: RGB(114, 105, 120))
-  public static let subtleBorder = adaptive(light: RGB(234, 224, 212), dark: RGB(98, 91, 105))
-  public static let assistantBubble = adaptive(light: RGB(244, 240, 234), dark: RGB(73, 69, 80))
+  public static let canvas = adaptive(light: RGB(255, 255, 255), dark: RGB(0, 0, 0))
+  public static let appBackground = adaptive(light: RGB(255, 255, 255), dark: RGB(0, 0, 0))
+  public static let pageBackground = adaptive(light: RGB(247, 247, 248), dark: RGB(0, 0, 0))
+  public static let drawer = adaptive(light: RGB(250, 250, 250), dark: RGB(9, 9, 10))
+  public static let surface = adaptive(light: RGB(255, 255, 255), dark: RGB(22, 22, 24))
+  public static let border = adaptive(light: RGB(215, 215, 218), dark: RGB(58, 58, 62))
+  public static let subtleBorder = adaptive(light: RGB(232, 232, 234), dark: RGB(38, 38, 42))
+  public static let assistantBubble = adaptive(light: RGB(244, 244, 245), dark: RGB(24, 24, 27))
   public static let text = Color.primary
   public static let textSoft = Color.primary
   public static let muted = Color.secondary
@@ -298,8 +299,8 @@ private struct TimMark: View {
       var context = context
       let scale = size / 100
       context.scaleBy(x: scale, y: scale)
-      let ink = Color(hex: "#252829")
-      let white = Color(hex: "#FFFDF8")
+      let ink = Color(hex: "#202123")
+      let white = Color.white
 
       var antenna = Path()
       antenna.move(to: CGPoint(x: 50, y: 21))
@@ -338,9 +339,24 @@ public struct PersonAvatar: View {
   }
 
   private var personColor: Color {
-    let palette = ["#2F6FA3", "#7A52A3", "#B85D3B", "#436F5A", "#9A6A24"]
+    let palette = ["#2F6FA3", "#7A52A3", "#D94F70", "#2D8C7B", "#D9822B"]
     let sum = name.unicodeScalars.reduce(0) { $0 + Int($1.value) }
     return Color(hex: palette[sum % palette.count])
+  }
+}
+
+enum ConversationStyle {
+  static let sharedGroupAccentHex = "#FFBC3B"
+
+  static func accentHex(
+    bot: Bot?, group: BotGroup?, activeGroupBotID: String?
+  ) -> String {
+    if let bot { return bot.color }
+    guard let group, let activeGroupBotID, activeGroupBotID != "all" else {
+      return sharedGroupAccentHex
+    }
+    return group.bots.first(where: { $0.id == activeGroupBotID })?.color
+      ?? sharedGroupAccentHex
   }
 }
 
@@ -442,11 +458,11 @@ extension View {
     }
   }
 
-  @ViewBuilder func froggyComposerSurface() -> some View {
+  @ViewBuilder func froggyComposerSurface(tint: Color? = nil) -> some View {
     background(FrogTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
       .overlay(
         RoundedRectangle(cornerRadius: 22, style: .continuous)
-          .stroke(FrogTheme.border.opacity(0.7), lineWidth: 0.5)
+          .stroke(tint?.opacity(0.55) ?? FrogTheme.border.opacity(0.7), lineWidth: 0.75)
       )
   }
 

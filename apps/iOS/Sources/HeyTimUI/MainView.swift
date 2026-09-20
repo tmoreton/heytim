@@ -416,6 +416,15 @@ enum ConversationTranscriptUpdate: Equatable {
   }
 }
 
+private extension AppModel {
+  var conversationAccentHex: String {
+    ConversationStyle.accentHex(
+      bot: selectedBot, group: selectedGroup, activeGroupBotID: activeGroupReplyBotId)
+  }
+
+  var conversationAccent: Color { Color(hex: conversationAccentHex) }
+}
+
 #if os(macOS)
   /// Covers the detail column without adding a resizable NSSplitView inspector.
   /// An overlay does not participate in the sidebar's width negotiation, and the
@@ -582,7 +591,7 @@ private struct ConversationView: View {
             scheduleScrollToBottom(using: proxy, animated: true)
           }
           .labelStyle(.iconOnly)
-          .froggyGlassButton(tint: FrogTheme.accent)
+          .froggyGlassButton(tint: conversationAccent)
           .buttonBorderShape(.circle)
           .controlSize(.large)
           .accessibilityIdentifier("chat.scroll-to-latest")
@@ -603,6 +612,7 @@ private struct ConversationView: View {
           .accessibilityHidden(!showsChatHeader)
       }
     }
+    .tint(conversationAccent)
     .froggyNavigationTitle(model.title, isPresented: showsChatHeader, horizontalPadding: 8)
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
@@ -686,7 +696,7 @@ private struct ConversationView: View {
     }
     if model.isLoadingMessages && model.messages.isEmpty {
       ProgressView("Loading conversation…")
-        .tint(FrogTheme.accent)
+        .tint(conversationAccent)
         .containerRelativeFrame(.vertical, alignment: .center)
     } else if model.messages.isEmpty {
       emptyConversation
@@ -780,7 +790,7 @@ private struct ConversationView: View {
       }
       VStack(alignment: .leading, spacing: 1) {
         Text(model.title).froggyFont(.headline).lineLimit(1)
-        Text(model.subtitle).froggyFont(.caption).foregroundStyle(FrogTheme.accent).lineLimit(1)
+        Text(model.subtitle).froggyFont(.caption).foregroundStyle(conversationAccent).lineLimit(1)
       }
     }
   }
@@ -808,6 +818,8 @@ private struct ConversationView: View {
       true
     #endif
   }
+
+  private var conversationAccent: Color { model.conversationAccent }
 
   private func confirmClearFromInspector() {
     #if os(iOS)
@@ -1230,6 +1242,7 @@ private struct MessageBubble: View {
   @Bindable var model: AppModel
   let preview: (Attachment) -> Void
   @State private var reviewingApproval = false
+  @Environment(\.colorScheme) private var colorScheme
 
   private var mine: Bool {
     model.selectedGroup == nil ? message.isUser : message.authorType == "user" && message.isMine == true
@@ -1264,7 +1277,7 @@ private struct MessageBubble: View {
   }
   private var plainAssistantMessage: Bool {
     #if os(iOS)
-      botMessage && !mine && !awaitingApproval && message.status != "error"
+      botMessage && !groupMode && !mine && !awaitingApproval && message.status != "error"
         && message.roundRole != "synthesizer"
     #else
       false
@@ -1288,7 +1301,7 @@ private struct MessageBubble: View {
             #endif
             Text(mine ? "You" : authorLabel)
               .froggyFont(.caption, weight: .semibold)
-              .foregroundStyle(mine ? FrogTheme.accent : FrogTheme.statusText)
+              .foregroundStyle(mine || botMessage ? messageAccent : FrogTheme.statusText)
           }
           .padding(.horizontal, plainAssistantMessage ? 0 : 6)
         } else if message.source == "email" {
@@ -1305,7 +1318,8 @@ private struct MessageBubble: View {
           MessageActivityView(
             steps: activity,
             status: message.status,
-            timestamp: isProgressOnly ? timestamp : nil)
+            timestamp: isProgressOnly ? timestamp : nil,
+            tint: messageAccent)
         }
 
         if hasBubbleContent {
@@ -1333,7 +1347,7 @@ private struct MessageBubble: View {
             } else if !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
               MarkdownMessageView(
                 message.text, expandsToFill: !mine,
-                baseColor: mine ? FrogTheme.brandInk : FrogTheme.textSoft)
+                baseColor: FrogTheme.textSoft)
             }
 
             ForEach(message.attachments ?? []) { attachment in
@@ -1341,7 +1355,8 @@ private struct MessageBubble: View {
                 Label(
                   attachment.name, systemImage: attachment.kind == "image" ? "photo" : "doc")
               }
-              .buttonStyle(.plain).froggyFont(.callout, weight: .semibold).foregroundStyle(FrogTheme.accent)
+              .buttonStyle(.plain).froggyFont(.callout, weight: .semibold)
+              .foregroundStyle(messageAccent)
             }
             if message.allowedActions?.contains("saveDecision") == true {
               Button("Save decision", systemImage: "bookmark") {
@@ -1417,7 +1432,7 @@ private struct MessageBubble: View {
   @ViewBuilder private var avatar: some View {
     let name = message.authorName ?? (botMessage ? model.title : "Person")
     if botMessage {
-      BotAvatar(name: name, color: message.authorColor ?? "#FFBC3B", size: 31)
+      BotAvatar(name: name, color: message.authorColor ?? model.conversationAccentHex, size: 31)
     } else {
       PersonAvatar(name: name, size: 31)
     }
@@ -1432,6 +1447,10 @@ private struct MessageBubble: View {
     }
     return role.map { "\(name) · \($0)" } ?? name
   }
+  private var messageAccent: Color {
+    if botMessage, let authorColor = message.authorColor { return Color(hex: authorColor) }
+    return model.conversationAccent
+  }
   private var bubbleShape: UnevenRoundedRectangle {
     UnevenRoundedRectangle(
       topLeadingRadius: mine ? 18 : 6, bottomLeadingRadius: 18,
@@ -1440,12 +1459,21 @@ private struct MessageBubble: View {
   private var bubbleColor: Color {
     if awaitingApproval { return FrogTheme.approval }
     if message.status == "error" { return Color.red.opacity(0.12) }
-    if message.roundRole == "synthesizer" { return FrogTheme.teamBubble }
-    return mine ? FrogTheme.brand : FrogTheme.assistantBubble
+    if message.roundRole == "synthesizer" {
+      return FrogTheme.brand.opacity(colorScheme == .dark ? 0.18 : 0.12)
+    }
+    if mine { return messageAccent.opacity(colorScheme == .dark ? 0.34 : 0.18) }
+    if groupMode && botMessage {
+      return messageAccent.opacity(colorScheme == .dark ? 0.18 : 0.10)
+    }
+    return FrogTheme.assistantBubble
   }
   private var bubbleBorder: Color {
     if awaitingApproval { return FrogTheme.approvalBorder }
-    if message.roundRole == "synthesizer" { return FrogTheme.teamBorder }
+    if message.status == "error" { return Color.red.opacity(0.35) }
+    if message.roundRole == "synthesizer" { return FrogTheme.brand.opacity(0.5) }
+    if mine { return messageAccent.opacity(0.65) }
+    if groupMode && botMessage { return messageAccent.opacity(0.45) }
     return .clear
   }
   private func open(_ attachment: Attachment) {
@@ -1529,12 +1557,14 @@ private struct MessageActivityView: View {
   let steps: [String]
   let status: String
   let timestamp: String?
+  let tint: Color
   @State private var isExpanded: Bool
 
-  init(steps: [String], status: String, timestamp: String? = nil) {
+  init(steps: [String], status: String, timestamp: String? = nil, tint: Color) {
     self.steps = steps
     self.status = status
     self.timestamp = timestamp
+    self.tint = tint
     _isExpanded = State(initialValue: MessageActivityPhase(status: status).isActive)
   }
 
@@ -1572,7 +1602,7 @@ private struct MessageActivityView: View {
         }
       }
     }
-    .tint(FrogTheme.accent)
+    .tint(tint)
     .padding(.horizontal, 12)
     .padding(.vertical, 10)
     .frame(maxWidth: 520, alignment: .leading)
@@ -1598,7 +1628,7 @@ private struct MessageActivityView: View {
   private var activityHeader: some View {
     HStack(spacing: 8) {
       if phase.isIndeterminate {
-        ProgressView().controlSize(.small).tint(FrogTheme.accent)
+        ProgressView().controlSize(.small).tint(tint)
       } else {
         Image(systemName: phase.systemImage)
       }
@@ -1617,12 +1647,12 @@ private struct MessageActivityView: View {
 
   private func stepColor(at index: Int) -> Color {
     phase == .running && index == steps.indices.last
-      ? FrogTheme.accent : FrogTheme.muted.opacity(0.55)
+      ? tint : FrogTheme.muted.opacity(0.55)
   }
 
   private var headerColor: Color {
     switch phase {
-    case .running, .queued: FrogTheme.accent
+    case .running, .queued: tint
     case .failed: FrogTheme.danger
     default: FrogTheme.statusText
     }
@@ -1755,7 +1785,7 @@ private struct Composer: View {
         attachmentMenu
           .menuIndicator(.hidden)
           .buttonStyle(.plain)
-          .foregroundStyle(FrogTheme.accent)
+          .foregroundStyle(conversationAccent)
           .background(.quaternary, in: Circle())
           .overlay(Circle().stroke(FrogTheme.border.opacity(0.7), lineWidth: 0.5))
           .frame(width: 44, height: 44)
@@ -1793,9 +1823,9 @@ private struct Composer: View {
             }
             .accessibilityLabel("Send message")
             .buttonStyle(.plain)
-            .foregroundStyle(canSubmit ? FrogTheme.brandInk : Color.secondary)
+            .foregroundStyle(canSubmit ? Color.white : Color.secondary)
             .background(
-              canSubmit ? FrogTheme.brand : Color.primary.opacity(0.08), in: Circle())
+              canSubmit ? conversationAccent : Color.primary.opacity(0.08), in: Circle())
             .overlay(Circle().stroke(FrogTheme.border.opacity(0.7), lineWidth: 0.5))
             .accessibilityIdentifier("chat.send")
             .disabled(!canSubmit)
@@ -1805,7 +1835,7 @@ private struct Composer: View {
       .padding(6)
       .frame(minHeight: 56)
       .frame(maxWidth: composerMaxWidth)
-      .froggyComposerSurface()
+      .froggyComposerSurface(tint: conversationAccent)
       .animation(.snappy, value: model.canStop)
     }
 
@@ -1819,7 +1849,7 @@ private struct Composer: View {
     private var mobileComposer: some View {
       HStack(alignment: .bottom, spacing: 8) {
         attachmentMenu
-          .froggyGlassButton(tint: FrogTheme.accent)
+          .froggyGlassButton(tint: conversationAccent)
           .buttonBorderShape(.circle)
           .controlSize(.large)
 
@@ -1836,7 +1866,7 @@ private struct Composer: View {
           dictationButton
         }
         .frame(minHeight: 51)
-        .froggyComposerSurface()
+        .froggyComposerSurface(tint: conversationAccent)
         .layoutPriority(1)
 
         if model.canStop {
@@ -1855,7 +1885,8 @@ private struct Composer: View {
           }
           .labelStyle(.iconOnly)
           .froggyFont(size: 17, weight: .bold)
-          .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
+          .froggyGlassButton(prominent: true, tint: conversationAccent)
+          .foregroundStyle(.white)
           .buttonBorderShape(.circle)
           .controlSize(.large)
           .accessibilityIdentifier("chat.send")
@@ -1964,6 +1995,7 @@ private struct Composer: View {
     canSend && !model.isSending && !model.isUploading
       && !dictation.isRecording && !dictation.isStarting
   }
+  private var conversationAccent: Color { model.conversationAccent }
   private var attachmentPicker: some View {
     ScrollView(.horizontal) {
       HStack(spacing: 7) {
@@ -2018,7 +2050,7 @@ private struct Composer: View {
       .pickerStyle(.menu)
       .controlSize(.large)
       .fixedSize(horizontal: true, vertical: false)
-      .tint(FrogTheme.accent)
+      .tint(conversationAccent)
       .accessibilityLabel("Who should reply")
       .accessibilityIdentifier("chat.replyPicker")
     }
@@ -2029,7 +2061,7 @@ private struct Composer: View {
     .background(FrogTheme.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
     .overlay(
       RoundedRectangle(cornerRadius: 15, style: .continuous)
-        .stroke(FrogTheme.border.opacity(0.65), lineWidth: 0.5)
+        .stroke(conversationAccent.opacity(0.5), lineWidth: 0.75)
     )
     .padding(.bottom, 8)
   }

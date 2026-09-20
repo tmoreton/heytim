@@ -108,6 +108,25 @@ import UniformTypeIdentifiers
     XCTAssertEqual(FroggyAppearancePreference.dark.colorScheme, .dark)
   }
 
+  func testConversationStyleUsesBotColorAndAStableSharedGroupAccent() throws {
+    var bot = try XCTUnwrap(DemoData.bootstrap.bots.first)
+    bot.color = "#336699"
+    let group = Self.demoGroup()
+
+    XCTAssertEqual(
+      ConversationStyle.accentHex(bot: bot, group: nil, activeGroupBotID: nil),
+      "#336699")
+    XCTAssertEqual(
+      ConversationStyle.accentHex(bot: nil, group: group, activeGroupBotID: "writer"),
+      "#336699")
+    XCTAssertEqual(
+      ConversationStyle.accentHex(bot: nil, group: group, activeGroupBotID: "all"),
+      ConversationStyle.sharedGroupAccentHex)
+    XCTAssertEqual(
+      ConversationStyle.accentHex(bot: nil, group: group, activeGroupBotID: nil),
+      ConversationStyle.sharedGroupAccentHex)
+  }
+
   func testTextSizePreferencesResolveToIncreasingDynamicTypeSizes() {
     XCTAssertEqual(
       FroggyTextSizePreference.system.resolvedSize(systemSize: .accessibility2),
