@@ -17,14 +17,14 @@
     "sandbox": "ampx sandbox --outputs-out-dir ."
   },
   "devDependencies": {
-    "@aws-amplify/backend": "^1.24.0",
-    "@aws-amplify/backend-cli": "^1.9.0",
+    "@aws-amplify/backend": "^1.25.0",
+    "@aws-amplify/backend-cli": "^1.10.0",
     "@types/aws-lambda": "^8.10.163",
-    "@types/node": "^24.0.0",
-    "aws-cdk-lib": "^2.268.0",
+    "@types/node": "^26.6.1",
+    "aws-cdk-lib": "^2.270.0",
     "constructs": "^10.8.1",
     "esbuild": "^0.28.2",
-    "typescript": "~6.0.3"
+    "typescript": "~7.0.2"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.1126.0",
