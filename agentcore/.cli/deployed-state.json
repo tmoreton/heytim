@@ -106,8 +106,8 @@
           }
         },
         "stackName": "AgentCore-FrogBot-production",
-        "identityKmsKeyArn": "arn:aws:kms:us-east-1:188757775631:key/ae7a744a-add1-4128-9033-0da590a89f19",
-        "deployHash": "f93adb349e97d7bd"
+        "identityKmsKeyArn": "arn:aws:kms:us-east-1:188757775631:key/bd5446e4-6d87-4b60-ba57-4a42e7808983",
+        "deployHash": "de251d46e72d54c7"
       }
     }
   }
