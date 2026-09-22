@@ -203,6 +203,7 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("create-gateway-target", self.gateway_target_deployer)
         self.assertIn("update-gateway-target", self.gateway_target_deployer)
         self.assertIn("HeyTimExternalResearchTargets", self.gateway_target_deployer)
+        self.assertIn("retry_aws", self.gateway_target_deployer)
         self.assertIn("HeyTimXSearch HeyTimYouTube", self.production_verifier)
         for action in (
             "bedrock-agentcore:CreateGatewayTarget",

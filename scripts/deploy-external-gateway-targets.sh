@@ -7,6 +7,21 @@ schema_root="$repository_root/catalog/tools"
 gateway_id="${HEYTIM_AGENT_GATEWAY_ID:-}"
 aws_region="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
 
+retry_aws() {
+  local attempt
+  for attempt in {1..8}; do
+    if "$@"; then
+      return 0
+    fi
+    if (( attempt == 8 )); then
+      echo "AWS operation did not succeed after $attempt attempts." >&2
+      return 1
+    fi
+    echo "AWS permission or resource is not ready; retrying ($attempt/8)." >&2
+    sleep $((attempt * 5))
+  done
+}
+
 if [[ -z "$gateway_id" || -z "$aws_region" ]]; then
   echo 'HEYTIM_AGENT_GATEWAY_ID and AWS_REGION are required.' >&2
   exit 2
@@ -20,7 +35,7 @@ fi
 
 account_id="$(aws sts get-caller-identity --query Account --output text)"
 schema_bucket="${HEYTIM_GATEWAY_SCHEMA_BUCKET:-bedrock-agentcore-gateway-heytim-${account_id}-use1}"
-gateway_json="$(aws bedrock-agentcore-control get-gateway \
+gateway_json="$(retry_aws aws bedrock-agentcore-control get-gateway \
   --gateway-identifier "$gateway_id" \
   --region "$aws_region" \
   --output json)"
@@ -49,13 +64,13 @@ done
 
 x_key="releases/$release/x/openapi.yaml"
 youtube_key="releases/$release/youtube/openapi.yaml"
-aws s3api put-object \
+retry_aws aws s3api put-object \
   --bucket "$schema_bucket" \
   --key "$x_key" \
   --body "$schema_root/x/openapi.yaml" \
   --content-type application/yaml \
   --region "$aws_region" >/dev/null
-aws s3api put-object \
+retry_aws aws s3api put-object \
   --bucket "$schema_bucket" \
   --key "$youtube_key" \
   --body "$schema_root/youtube/openapi.yaml" \
@@ -119,7 +134,7 @@ jq -n \
     ]
   }
 ' > "$role_policy"
-aws iam put-role-policy \
+retry_aws aws iam put-role-policy \
   --role-name "$gateway_role_name" \
   --policy-name HeyTimExternalResearchTargets \
   --policy-document "file://$role_policy"
@@ -134,7 +149,7 @@ deploy_target() {
   local prefix="$7"
   local target_id
 
-  target_id="$(aws bedrock-agentcore-control list-gateway-targets \
+  target_id="$(retry_aws aws bedrock-agentcore-control list-gateway-targets \
     --gateway-identifier "$gateway_id" \
     --region "$aws_region" \
     --output json \
@@ -145,6 +160,7 @@ deploy_target() {
     --arg gateway "$gateway_id" \
     --arg target_id "$target_id" \
     --arg name "$name" \
+    --arg release "$release" \
     --arg description "$description" \
     --arg uri "$schema_uri" \
     --arg account "$account_id" \
@@ -171,17 +187,17 @@ deploy_target() {
         )}
       }]
     }
-    + if $target_id == "" then {} else {targetId: $target_id} end
+    + if $target_id == "" then {clientToken: ("heytim-" + $release + "-" + $name)} else {targetId: $target_id} end
   ' > "$request_file"
 
   if [[ -z "$target_id" ]]; then
-    target_id="$(aws bedrock-agentcore-control create-gateway-target \
+    target_id="$(retry_aws aws bedrock-agentcore-control create-gateway-target \
       --cli-input-json "file://$request_file" \
       --region "$aws_region" \
       --query targetId \
       --output text)"
   else
-    aws bedrock-agentcore-control update-gateway-target \
+    retry_aws aws bedrock-agentcore-control update-gateway-target \
       --cli-input-json "file://$request_file" \
       --region "$aws_region" >/dev/null
   fi
