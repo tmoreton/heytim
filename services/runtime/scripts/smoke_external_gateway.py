@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from typing import Any
 
@@ -10,7 +11,13 @@ from strands.tools.mcp.mcp_client import MCPClient
 
 def _assert_success(result: dict[str, Any], label: str) -> None:
     if result.get("status") != "success" or result.get("isError") is True:
-        raise RuntimeError(f"{label} gateway smoke request failed")
+        detail = str(result.get("content", []))[:800]
+        detail = re.sub(r"(?i)(bearer\s+)[^\s'\"]+", r"\1[redacted]", detail)
+        detail = re.sub(r"(?i)([?&]key=)[^&\s'\"]+", r"\1[redacted]", detail)
+        raise RuntimeError(
+            f"{label} gateway smoke request failed "
+            f"(status={result.get('status')}, detail={detail})"
+        )
 
 
 def main() -> int:
@@ -45,20 +52,31 @@ def main() -> int:
         }
         missing = sorted(suffix for suffix, name in resolved.items() if not name)
         if missing:
-            raise RuntimeError(f"Gateway is missing expected tools: {', '.join(missing)}")
+            raise RuntimeError(
+                f"Gateway is missing expected tools: {', '.join(missing)}"
+            )
 
+        failures: list[str] = []
         x_result = client.call_tool_sync(
             "release-smoke-x",
             resolved["x_search_recent"],
             {"query": "from:XDevelopers -is:retweet", "max_results": 10},
         )
-        _assert_success(x_result, "X")
+        try:
+            _assert_success(x_result, "X")
+        except RuntimeError as error:
+            failures.append(str(error))
         youtube_result = client.call_tool_sync(
             "release-smoke-youtube",
             resolved["youtube_video_details"],
             {"part": "snippet,contentDetails,statistics", "id": "dQw4w9WgXcQ"},
         )
-        _assert_success(youtube_result, "YouTube")
+        try:
+            _assert_success(youtube_result, "YouTube")
+        except RuntimeError as error:
+            failures.append(str(error))
+        if failures:
+            raise RuntimeError("; ".join(failures))
 
     print("X and YouTube gateway smoke requests succeeded.")
     return 0
