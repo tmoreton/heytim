@@ -73,7 +73,8 @@ export function addGithubDeploymentRole({
     resource: productionFilesBucketName,
     arnFormat: ArnFormat.NO_RESOURCE_NAME,
   });
-  const gatewaySchemaBucketName = `bedrock-agentcore-gateway-heytim-${stack.account}-use1`;
+  // This deployed physical bucket predates the HeyTim brand and must remain stable.
+  const gatewaySchemaBucketName = `bedrock-agentcore-gateway-frogbot-${stack.account}-use1`;
   const gatewaySchemaBucketArn = stack.formatArn({
     service: 's3',
     region: '',

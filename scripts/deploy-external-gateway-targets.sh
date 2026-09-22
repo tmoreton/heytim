@@ -34,7 +34,7 @@ if [[ ! "$release" =~ ^skills-v[1-9][0-9]*$ ]]; then
 fi
 
 account_id="$(aws sts get-caller-identity --query Account --output text)"
-schema_bucket="${HEYTIM_GATEWAY_SCHEMA_BUCKET:-bedrock-agentcore-gateway-heytim-${account_id}-use1}"
+schema_bucket="${HEYTIM_GATEWAY_SCHEMA_BUCKET:-bedrock-agentcore-gateway-frogbot-${account_id}-use1}"
 gateway_json="$(retry_aws aws bedrock-agentcore-control get-gateway \
   --gateway-identifier "$gateway_id" \
   --region "$aws_region" \

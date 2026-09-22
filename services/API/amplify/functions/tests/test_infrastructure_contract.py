@@ -204,6 +204,10 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("update-gateway-target", self.gateway_target_deployer)
         self.assertIn("HeyTimExternalResearchTargets", self.gateway_target_deployer)
         self.assertIn("retry_aws", self.gateway_target_deployer)
+        self.assertIn(
+            "bedrock-agentcore-gateway-frogbot-${account_id}-use1",
+            self.gateway_target_deployer,
+        )
         self.assertIn("HeyTimXSearch HeyTimYouTube", self.production_verifier)
         for action in (
             "bedrock-agentcore:CreateGatewayTarget",
@@ -214,6 +218,7 @@ class InfrastructureContractTests(unittest.TestCase):
         ):
             self.assertIn(action, self.deployment_role)
         self.assertIn("/releases/skills-v*/x/openapi.yaml", self.deployment_role)
+        self.assertIn("bedrock-agentcore-gateway-frogbot-", self.deployment_role)
         self.assertIn(
             "/releases/skills-v*/youtube/openapi.yaml", self.deployment_role
         )
