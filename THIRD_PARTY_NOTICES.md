@@ -3,19 +3,16 @@
 HeyTim's PolyForm license applies only to first-party work. Third-party software,
 models, and generated artifacts retain their original licenses.
 
-## Vendored source distributions
+## Vendored source distribution
 
-The repository includes these Python wheels so deployment can reproduce the
+The repository includes this Python wheel so deployment can reproduce the
 reviewed runtime without substituting an unverified package:
 
-- `services/runtime/vendor/strands_agents_stan-0.0.1.dev53+g325058d51-py3-none-any.whl`
-  — Strands Agents Stan, Apache License 2.0. Copyright Amazon.com, Inc. or
-  its affiliates. The wheel contains its complete `LICENSE` and `NOTICE` files.
 - `services/API/amplify/functions/vendor/websocket_client-1.9.0-py3-none-any.whl`
   — websocket-client 1.9.0, Apache License 2.0. The wheel contains its complete
   `LICENSE` file.
 
-The vendored wheels are unmodified package archives. Their SHA-256 checksums are
+The vendored wheel is an unmodified package archive. Its SHA-256 checksum is
 validated by the repository's dependency and packaging checks.
 
 ## Native transcription distribution

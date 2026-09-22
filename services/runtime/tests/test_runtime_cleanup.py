@@ -8,7 +8,33 @@ import main as runtime_main
 import pytest
 
 from heytim_runtime.configuration import BotConfiguration
+from heytim_runtime.memory import BalancedMemoryStore
+from model.load import _load_openrouter_model
 from model.usage import ProviderCallLimitExceeded
+
+
+def test_live_harness_accepts_production_overrides():
+    model = _load_openrouter_model(
+        "test-key-12345678901234567890",
+        model_id="openai/gpt-5.6-sol",
+        reasoning_effort="high",
+        max_tokens=1_000,
+        temperature=0.1,
+    )
+    agent = runtime_main.create_harness(
+        model=model,
+        effort="auto",
+        caching=False,
+        builtin_tools=[],
+        builtin_plugins=[],
+        skills=False,
+        memory={"stores": [BalancedMemoryStore("test", [])]},
+        context_manager="auto",
+        session=False,
+    )
+
+    assert agent.memory_manager is not None
+    assert agent._session_manager is None
 
 
 def test_run_agent_releases_capabilities_when_setup_fails(monkeypatch):
@@ -85,7 +111,7 @@ def test_provider_call_limit_becomes_terminal_result_without_retry(monkeypatch):
     monkeypatch.setattr(runtime_main, "load_model", AsyncMock(return_value=object()))
     agent = SimpleNamespace(messages=[], memory_manager=None)
     harness = MagicMock(return_value=agent)
-    monkeypatch.setattr(runtime_main, "harness_agent", harness)
+    monkeypatch.setattr(runtime_main, "create_harness", harness)
 
     async def over_limit(*_args, **_kwargs):
         if False:
@@ -111,5 +137,9 @@ def test_provider_call_limit_becomes_terminal_result_without_retry(monkeypatch):
     )
     assert terminal["code"] == "PROVIDER_CALL_LIMIT"
     assert "provider-call safety limit" in terminal["message"]
-    assert harness.call_args.kwargs["skills_dir"] is None
+    assert harness.call_args.kwargs["effort"] == "auto"
+    assert harness.call_args.kwargs["skills"] is False
+    assert harness.call_args.kwargs["memory"] is False
+    assert harness.call_args.kwargs["context_manager"] == "auto"
+    assert harness.call_args.kwargs["session"] is False
     capabilities.close.assert_awaited_once()

@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from strands.agent.agent_result import AgentResult
-from strands_stan import harness_agent
+from strands_harness import create_harness
 
 from heytim_runtime.action_approval import approval_configuration, pending_approval
 from heytim_runtime.configuration import bot_configuration
-from heytim_runtime.conversation import conversation_manager
 from heytim_runtime.memory import (
     latest_assistant_text,
     memory_context_from_payload,
@@ -78,9 +77,10 @@ async def run_agent(payload, context):
     approval_request = None
     try:
         model = await load_model(usage)
-        agent = harness_agent(
+        agent = create_harness(
             model=model,
-            web_fetch_model=model,
+            # Reasoning is configured directly on the pre-built OpenRouter model.
+            effort="auto",
             caching=False,
             instructions=config.instructions,
             tools=config.tools,
@@ -88,11 +88,12 @@ async def run_agent(payload, context):
             plugins=config.plugins,
             builtin_plugins=config.builtin_plugins,
             # Skills come only from the validated per-bot plugin, never local files.
-            skills_dir=None,
-            memory=bool(memories),
-            memory_store=memories,
-            context_management="auto",
-            conversation_manager=conversation_manager(),
+            skills=False,
+            memory={"stores": memories} if memories else False,
+            context_manager="auto",
+            # Chat history is owned by the application backend. The approval
+            # snapshot manager below is the only supported session override.
+            session=False,
             **({"hooks": [approval[0]], "session_manager": approval[1],
                 "agent_id": f"turn-{payload['memory']['eventId']}"} if approval else {}),
         )

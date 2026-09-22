@@ -10,7 +10,7 @@
   "runtimes": [
     {
       "name": "FrogBot",
-      "description": "Stan-powered multi-personality chat runtime for the HeyTim app",
+      "description": "Strands harness multi-personality chat runtime for the HeyTim app",
       "build": "CodeZip",
       "entrypoint": "main.py",
       "codeLocation": "services/runtime/runtime/",
@@ -81,10 +81,6 @@
         {
           "name": "HEYTIM_OPENROUTER_MAX_ATTEMPTS",
           "value": "2"
-        },
-        {
-          "name": "HEYTIM_CONTEXT_COMPRESSION_THRESHOLD",
-          "value": "0.20"
         },
         {
           "name": "HEYTIM_AGENT_RUN_TIMEOUT_SECONDS",

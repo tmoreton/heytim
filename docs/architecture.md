@@ -100,7 +100,7 @@ expire after 400 days.
 directory is the CodeZip source boundary: `heytim_runtime/request.py` normalizes untrusted invocation payloads,
 `configuration.py` builds per-bot and per-group instructions, `capability_contract.py` validates the reviewed
 allowlist, and the local, AgentCore, and gateway adapter modules assemble only the tools and skills enabled for that bot.
-Stan and Strands stay behind this boundary so the mobile/API layers do not duplicate agent logic.
+Strands harness and the underlying Strands SDK stay behind this boundary so the mobile/API layers do not duplicate agent logic.
 AgentCore OpenTelemetry remains enabled for errors, timings, token usage, and tool activity, while both the
 AWS model instrumentation and Strands tracer redact prompt, response, tool payload, and attachment content.
 

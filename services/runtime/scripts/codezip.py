@@ -38,7 +38,7 @@ REQUIRED_ARCHIVE_PATHS = {
     "pptx/",
     "reportlab/",
     "strands/",
-    "strands_stan/",
+    "strands_harness/",
 }
 FORBIDDEN_TOP_LEVEL = {
     ".agentcore.json",

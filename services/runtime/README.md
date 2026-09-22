@@ -1,18 +1,18 @@
 # HeyTim AgentCore runtime
 
-The runtime uses Strands through the vendored Stan harness declared in `pyproject.toml`. A caller sends validated
+The runtime uses the public Strands harness Python package declared in `pyproject.toml`. A caller sends validated
 conversation history plus one bot configuration. Each request creates a Strands agent with only that
 bot's selected tools and skills.
 
 Only `runtime/` is copied into the AgentCore CodeZip. Dependency resolution deliberately walks up to the
 parent `pyproject.toml`; the packaged distribution manifest is then checked against `uv.lock`. Tests,
-evaluation outputs, scripts, caches, and the vendored wheel cannot enter the deployment archive.
+evaluation outputs, scripts, and caches cannot enter the deployment archive.
 
 Conversation history is persisted by the application backend in DynamoDB. AgentCore Memory recalls
 private user-scoped preferences and facts plus per-bot summaries in direct chats. Group invocations instead
 receive an isolated group actor and shared group session, so they recall only group preferences, facts, and summaries.
 The worker supplies stable, non-PII identifiers, and completed turns are written with an idempotency token.
-HeyTim passes a balanced, recall-only AgentCore store to Stan. Stan owns the Strands `MemoryManager`, injects
+HeyTim passes a balanced, recall-only AgentCore store to Strands harness. The harness owns the Strands `MemoryManager`, injects
 the store on each model turn, exposes semantic search, and gives delegated agents a read-only view of the same
 scope. Durable writes remain explicit AgentCore events after completed top-level turns.
 
@@ -34,12 +34,12 @@ and code-interpreter sessions use stable conversation names and reconnect after 
 
 Tools:
 
-- `web` - Stan's summarized web fetcher
+- `web` - Strands harness's summarized web fetcher
 - `web_search` - AgentCore Gateway web search
 - `calculator` - restricted arithmetic evaluation
 - `current_time` - IANA timezone lookup
-- `task_list` - Stan todos
-- `delegate` - Stan generalist subagent
+- `task_list` - Strands harness todos
+- `delegate` - Strands harness generalist subagent
 - `code_interpreter` - persistent AgentCore sandbox
 - `browser` - persistent AgentCore browser; the application requires per-turn user approval. With artifact
   storage, it also exposes first-party airline/hotel points-card screenshots for rich newsletter drafts
@@ -55,8 +55,7 @@ does not keep a second hard-coded bot catalog.
 
 Every Strands invocation uses DeepSeek V4.1 Flash on OpenRouter with high reasoning. If DeepSeek fails before returning
 any response, the runtime uses GLM 5.3 on OpenRouter. Both models retry bounded transient, provider, or empty responses
-before failing. Tool-heavy histories
-are summarized once they reach 20% of the model context window. The API key is stored in
+before failing. Tool-heavy histories are managed by Strands harness's automatic context manager. The API key is stored in
 AgentCore Identity as `FrogBot_OpenRouter`; it is never placed in runtime environment variables. Model selection stays
 deploy-time configurable through these non-secret values in `agentcore/agentcore.json`:
 
@@ -70,7 +69,6 @@ deploy-time configurable through these non-secret values in `agentcore/agentcore
 - `HEYTIM_MAX_MODEL_CALLS_PER_RUNTIME_RUN` — hard pre-dispatch model-attempt cap; defaults to `24`
 - `HEYTIM_MAX_PROVIDER_TOOL_CALLS_PER_RUNTIME_RUN` — combined gateway/image dispatch cap; defaults to `24`
 - `HEYTIM_MAX_IMAGE_CALLS_PER_RUNTIME_RUN` — image-generation sub-cap; defaults to `2`
-- `HEYTIM_CONTEXT_COMPRESSION_THRESHOLD` — ratio that triggers tool-pair-safe history summarization
 - `HEYTIM_MEME_TEMPLATE_PREFIX` — private S3 prefix containing `catalog.json` and normalized template PNGs
 - `HEYTIM_IMAGE_MODEL_ID` — OpenRouter image model; defaults to `openai/gpt-image-2.5-sunburst`
 - `HEYTIM_IMAGE_QUALITY` — requested image quality; defaults to `high`
@@ -121,7 +119,7 @@ The production worker sends structured invocation payloads containing `messages`
 direct and group turns, trusted `memory` and `artifacts` envelopes. The runtime validates every field, permits
 model-visible attachments only on the latest user message, exposes at most five recent same-chat images only to
 image tools, binds every file path to that user's identity, and strips any
-trailing tool-use block before invoking Strands. Direct payloads contain at most 100 recent messages. Strands
+trailing tool-use block before invoking Strands. Direct payloads contain at most 100 recent messages. Strands harness
 automatically compacts at 85% of the model context window by summarizing the oldest 30% and preserving at least the
 newest 10 messages. Direct AgentCore scopes retrieve preferences, facts, and per-bot topic summaries. Group scopes
 retrieve group preferences, facts, and group-wide topic summaries without reading any member's private actor namespace. Balanced

@@ -11,7 +11,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from strands import tool
-from strands_stan import harness_agent
+from strands_harness import create_harness
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "runtime"))
 from model.load import _load_openrouter_model
@@ -374,18 +374,20 @@ def run_agent(
         "one. Apply the complete unified diff with apply_repository_patch. Include or update a regression test. "
         "After a successful patch, finish with a concise factual summary."
     )
-    agent = harness_agent(
+    agent = create_harness(
         model=model,
-        web_fetch_model=model,
+        # Reasoning is configured directly on the pre-built OpenRouter model.
+        effort="auto",
         caching=False,
-        thinking="high",
         instructions=instructions,
         tools=_agent_tools(workspace),
         builtin_tools=[],
         builtin_plugins=[],
-        skills_dir=[],
+        background_tasks=False,
+        skills=False,
         memory=False,
-        context_management="auto",
+        context_manager="auto",
+        session=False,
     )
     prompt = (
         "Investigate this production incident. The JSON values are structural telemetry only and contain no "

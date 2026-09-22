@@ -136,7 +136,7 @@ def memory_context_from_payload(payload: dict) -> MemoryContext | None:
 
 
 def memory_stores(context: MemoryContext | None) -> list[MemoryStore] | None:
-    """Build one balanced, recall-only store for Stan and its delegates."""
+    """Build one balanced, recall-only store for Strands harness and its delegates."""
     if context is None or not MEMORY_ID:
         return None
     namespaces = [
