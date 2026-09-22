@@ -50,6 +50,12 @@ import UniformTypeIdentifiers
         "Press the bedroom light switch"))
       XCTAssertTrue(DesktopControlCoordinator.explicitlyTargetsMacUI(
         "Click Next in Calendar on my Mac"))
+      XCTAssertTrue(DesktopControlCoordinator.explicitlyTargetsMacUI(
+        "Add a note to Apple Notes that says hello"))
+      XCTAssertEqual(
+        DesktopControlCoordinator.noteContent(from: "Add a note to Apple Notes that says hello"),
+        "hello")
+      XCTAssertNil(DesktopControlCoordinator.noteContent(from: "Show my Notes app"))
     }
 
     func testLayaShipsInsideMacApp() throws {

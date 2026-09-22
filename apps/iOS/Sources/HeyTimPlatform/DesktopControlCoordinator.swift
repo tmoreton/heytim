@@ -67,6 +67,9 @@
     }
     var snapshot: DesktopSnapshot?
     var proposal: DesktopActionProposal?
+    var pendingNoteText: String?
+    var lastRouteConfidence: Float = 0
+    var lastRouteActionProbability: Float = 0
     var isEnabled = UserDefaults.standard.bool(forKey: "heytim.desktop-control.enabled") {
       didSet {
         UserDefaults.standard.set(isEnabled, forKey: "heytim.desktop-control.enabled")
@@ -77,6 +80,18 @@
           message = "Mac app actions are off."
         }
       }
+    }
+    var enabledBotIDs = Set(UserDefaults.standard.stringArray(forKey: "heytim.desktop-control.bot-ids") ?? []) {
+      didSet {
+        UserDefaults.standard.set(enabledBotIDs.sorted(), forKey: "heytim.desktop-control.bot-ids")
+      }
+    }
+    func isEnabled(for botID: String) -> Bool {
+      isEnabled && enabledBotIDs.contains(botID)
+    }
+    func setEnabled(_ enabled: Bool, for botID: String) {
+      if enabled { enabledBotIDs.insert(botID) }
+      else { enabledBotIDs.remove(botID) }
     }
     var permissionGranted = AXIsProcessTrusted()
     var permissionRequestPending = false
@@ -95,7 +110,48 @@
 
     func prepare(intent: String) {
       self.intent = intent.trimmingCharacters(in: .whitespacesAndNewlines)
+      pendingNoteText = nil
       refreshApplications()
+    }
+
+    var proposedActionDescription: String? {
+      guard let control = proposal?.control,
+        let application = applications.first(where: { $0.id == selectedApplicationID })
+      else { return nil }
+      if let pendingNoteText {
+        return "Create a note in Apple Notes containing: \(pendingNoteText)"
+      }
+      return "Press “\(control.label)” in \(application.name)"
+    }
+
+    func prepareForChat(intent: String) async -> Bool {
+      prepare(intent: intent)
+      guard permissionGranted else { return false }
+      let lower = intent.lowercased()
+      let isNotesRequest = Self.targetsAppleNotes(lower)
+      let application = applications.first(where: {
+        isNotesRequest
+          ? $0.bundleIdentifier == "com.apple.Notes"
+          : lower.contains($0.name.lowercased())
+      })
+      guard let application else { return false }
+      selectedApplicationID = application.id
+      capture()
+      if isNotesRequest {
+        guard let noteText = Self.noteContent(from: intent),
+          let control = snapshot?.controls.first(where: {
+            $0.label.localizedCaseInsensitiveContains("New Note") && !$0.blockedByPolicy
+          })
+        else { return false }
+        pendingNoteText = noteText
+        proposal = .init(
+          control: control, confidence: lastRouteConfidence,
+          actionProbability: lastRouteActionProbability,
+          reason: "Laya routed this request to Mac app actions. Review the exact note before it is created.")
+        return true
+      }
+      await recommend()
+      return proposal?.canExecute == true
     }
 
     func requestAccessibilityPermission() {
@@ -233,7 +289,7 @@
       proposal = nil
       defer { isWorking = false }
       do {
-        let candidates = Array(snapshot.controls.prefix(4))
+        let candidates = snapshot.controls
         guard !candidates.isEmpty else {
           proposal = .init(
             control: nil, confidence: 0, actionProbability: 0,
@@ -288,6 +344,8 @@
     /// only offers the local tool; the user can still send the draft to the bot.
     func shouldOfferDesktopAction(for text: String) async -> Bool {
       guard isEnabled, AXIsProcessTrusted(), let laya else { return false }
+      lastRouteConfidence = 0
+      lastRouteActionProbability = 0
       let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmed.isEmpty else { return false }
       do {
@@ -300,11 +358,13 @@
               .init("bot_reply", description: "Answer in the bot conversation"),
               .init("uncertain", description: "Unclear; let the bot handle it"),
             ]))
+        lastRouteConfidence = answer.confidence
+        lastRouteActionProbability = answer.actionProbability
         return Self.explicitlyTargetsMacUI(trimmed)
           && answer.selectedLabel == "mac_app"
           && !answer.stateWasTruncated
           && answer.actionProbability >= 0.85
-          && answer.confidence >= 0.75
+          && answer.confidence >= 0.70
       } catch {
         return false
       }
@@ -314,11 +374,26 @@
       let value = text.lowercased()
       return [
         "my mac", "this mac", "mac app", "desktop app", "on my screen",
-        "on the screen",
+        "on the screen", "apple notes", "notes app", "in notes", "to notes",
       ].contains(where: value.contains)
     }
 
-    func executeApprovedProposal() {
+    static func targetsAppleNotes(_ text: String) -> Bool {
+      ["apple notes", "notes app", "in notes", "to notes"].contains(where: text.contains)
+    }
+
+    static func noteContent(from text: String) -> String? {
+      for marker in ["that says ", "saying ", "to say ", "with text ", "containing ", "note: "] {
+        guard let range = text.range(of: marker, options: .caseInsensitive) else { continue }
+        let content = text[range.upperBound...]
+          .trimmingCharacters(in: .whitespacesAndNewlines)
+          .trimmingCharacters(in: CharacterSet(charactersIn: "\"“”'"))
+        if !content.isEmpty && content.count <= 1_000 { return content }
+      }
+      return nil
+    }
+
+    func executeApprovedProposal() async -> String {
       guard isEnabled, AXIsProcessTrusted(),
         let control = proposal?.control, !control.blockedByPolicy,
         let element = elements[control.id],
@@ -329,17 +404,68 @@
       else {
         proposal = nil
         message = "The app or control changed. Capture a fresh snapshot before trying again."
-        return
+        return message ?? "Mac app action was not completed."
+      }
+      let root = AXUIElementCreateApplication(application.id)
+      let focusedWindow = elementAttribute(kAXFocusedWindowAttribute, from: root) ?? root
+      let currentWindowTitle = Self.clean(
+        stringAttribute(kAXTitleAttribute, from: focusedWindow) ?? "Untitled window",
+        limit: 100)
+      guard snapshot?.application.id == application.id,
+        snapshot?.windowTitle == currentWindowTitle
+      else {
+        proposal = nil
+        pendingNoteText = nil
+        return "The target window changed. Ask again to review a fresh action."
+      }
+      let noteText = pendingNoteText
+      if noteText != nil && application.bundleIdentifier != "com.apple.Notes" {
+        proposal = nil
+        pendingNoteText = nil
+        return "The target app changed. The note was not created."
       }
       NSRunningApplication(processIdentifier: application.id)?.activate()
       let result = AXUIElementPerformAction(element, kAXPressAction as CFString)
       proposal = nil
-      if result == .success {
-        capture()
-        message = "Approved action completed: \(control.label)."
-      } else {
+      pendingNoteText = nil
+      guard result == .success else {
         message = "macOS could not press that control. Capture a fresh snapshot and try again."
+        return message ?? "Mac app action was not completed."
       }
+      if let noteText {
+        for _ in 0..<5 {
+          try? await Task.sleep(for: .milliseconds(180))
+          let root = AXUIElementCreateApplication(application.id)
+          let window = elementAttribute(kAXFocusedWindowAttribute, from: root) ?? root
+          if let body = findNotesBody(in: window, depth: 0) {
+            var settable = DarwinBoolean(false)
+            if AXUIElementIsAttributeSettable(body, kAXValueAttribute as CFString, &settable) == .success,
+              settable.boolValue,
+              AXUIElementSetAttributeValue(body, kAXValueAttribute as CFString, noteText as CFTypeRef) == .success,
+              stringAttribute(kAXValueAttribute, from: body)?.hasPrefix(noteText) == true
+            {
+              message = "Created the note in Apple Notes."
+              return message ?? "Created the note."
+            }
+          }
+        }
+        message = "Opened a new note, but macOS did not allow Hey Tim to enter its text. Check Apple Notes before retrying."
+        return message ?? "The note text could not be entered."
+      }
+      message = "Approved action completed: \(control.label)."
+      return message ?? "Mac app action completed."
+    }
+
+    private func findNotesBody(in element: AXUIElement, depth: Int) -> AXUIElement? {
+      guard depth < 8 else { return nil }
+      let role = stringAttribute(kAXRoleAttribute, from: element)
+      let label = stringAttribute(kAXDescriptionAttribute, from: element)
+        ?? stringAttribute(kAXTitleAttribute, from: element)
+      if role == (kAXTextAreaRole as String), label == "Note Body Text View" { return element }
+      for child in elementArrayAttribute(kAXChildrenAttribute, from: element) {
+        if let match = findNotesBody(in: child, depth: depth + 1) { return match }
+      }
+      return nil
     }
 
     static func isHighImpact(label: String) -> Bool {

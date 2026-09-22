@@ -35,7 +35,22 @@ for fixture in "${fixtures[@]}"; do
   answer="$("$laya_cli" answer \
     --model-dir "$model_dir" --precision e8 --lengths 128 \
     --state "$state" --type choice --instructions "$instructions" \
-    --options "$options" --json)"
+    --options "$options" --json | awk '
+      BEGIN { started = 0 }
+      !started {
+        opening = index($0, "{")
+        if (opening > 0) {
+          print substr($0, opening)
+          started = 1
+        }
+        next
+      }
+      { print }
+    ')"
+  if [[ -z "$answer" ]]; then
+    echo "Laya returned no JSON for $case_name." >&2
+    exit 1
+  fi
   selected="$(jq -r '.selected' <<< "$answer")"
   confidence="$(jq -r '.confidence' <<< "$answer")"
   action_probability="$(jq -r '.action_probability' <<< "$answer")"

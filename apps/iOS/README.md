@@ -104,14 +104,15 @@ private signing material must never be committed. Laya's pinned 483 MB Core ML
 model is fetched and checksum-verified by the build machine, then included in
 the Mac app bundle. End users never download it separately.
 
-On Mac, enable **Mac App Actions** in Hey Tim Settings and grant Accessibility
-access in macOS System Settings. Return to Hey Tim to refresh the status; if the
+On Mac, enable **Mac App Actions** in Hey Tim Settings, then turn on the Mac app
+actions tool for each bot that should use it. Grant Accessibility access in
+macOS System Settings. Return to Hey Tim to refresh the status; if the
 permission was just requested, the app offers to quit and reopen. If macOS
 shows Hey Tim as enabled but the app still lacks access, Settings can reveal
 the exact app copy to remove and re-add. There is no separate Desktop Control
-window or composer button: an explicit Mac-app request produces an inline
-review card in that conversation, with approval before any button press.
-Text-only Mac sends run an advisory Laya preflight; uncertain or out-of-scope
+window or composer button: an explicit Mac-app request uses the conversation's
+normal approval bubble before acting. Text-only sends from enabled bots run an
+advisory Laya preflight; uncertain or out-of-scope
 requests continue to the bot. This is not yet a general client-side tool broker.
 
 Home Assistant is available as a connectable tool through a public HTTPS

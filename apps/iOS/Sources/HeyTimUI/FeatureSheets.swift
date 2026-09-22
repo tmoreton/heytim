@@ -478,6 +478,9 @@ private struct BotTemplateDetailView: View {
 
 private struct BotEditor: View {
   @Bindable var model: AppModel
+  #if os(macOS)
+    @Environment(DesktopControlCoordinator.self) private var desktopControl
+  #endif
   let id: String?
   var showsDismissButton = true
   @State private var draft = BotDraft()
@@ -528,7 +531,12 @@ private struct BotEditor: View {
     let requiredToolIDs = (model.bootstrap?.skills ?? []).lazy
       .filter { selectedSkillIDs.contains($0.id) }
       .flatMap(\.requiredToolIds)
-    return Set(draft.toolIds).union(requiredToolIDs).count
+    let catalogCount = Set(draft.toolIds).union(requiredToolIDs).count
+    #if os(macOS)
+      return catalogCount + (editingBot.map { desktopControl.enabledBotIDs.contains($0.id) } == true ? 1 : 0)
+    #else
+      return catalogCount
+    #endif
   }
 
   var body: some View {
@@ -595,6 +603,7 @@ private struct BotEditor: View {
         FeatureLink {
           BotToolsAndSkillsEditor(
             model: model, draft: $draft,
+            botID: editingBot?.id,
             skills: model.bootstrap?.skills ?? [],
             tools: model.bootstrap?.tools ?? [],
             providers: model.bootstrap?.connectionProviders ?? [])
@@ -709,9 +718,13 @@ struct BotPromptEditor: View {
 struct BotToolsAndSkillsEditor: View {
   @Bindable var model: AppModel
   @Binding var draft: BotDraft
+  let botID: String?
   let skills: [Skill]
   let tools: [Capability]
   let providers: [ConnectionProvider]
+  #if os(macOS)
+    @Environment(DesktopControlCoordinator.self) private var desktopControl
+  #endif
   @State private var jiraProjectText: [String: String] = [:]
   @State private var teamsChannelText: [String: String] = [:]
   @State private var resourceText: [String: String] = [:]
@@ -765,6 +778,26 @@ struct BotToolsAndSkillsEditor: View {
       }
 
       Section("Tools") {
+        #if os(macOS)
+          Toggle(isOn: Binding(
+            get: { botID.map { desktopControl.enabledBotIDs.contains($0) } ?? false },
+            set: { enabled in
+              guard let botID else { return }
+              desktopControl.setEnabled(enabled, for: botID)
+            })) {
+              VStack(alignment: .leading, spacing: 3) {
+                Text("Mac app actions")
+                Text("Let this bot use Accessibility to act in Mac apps, with approval for each action. Laya checks eligible requests on device first.")
+                  .froggyFont(.caption).foregroundStyle(.secondary)
+              }
+            }
+            .disabled(botID == nil)
+            .accessibilityIdentifier("bot.tool.mac-desktop")
+          if botID == nil {
+            Text("Save this bot first to enable Mac app actions.")
+              .froggyFont(.caption).foregroundStyle(.secondary)
+          }
+        #endif
         ForEach(providerToolGroups.groups) { group in
           ForEach(includedTools(in: group)) { tool in
             toolToggle(tool)
@@ -788,9 +821,11 @@ struct BotToolsAndSkillsEditor: View {
         }) { provider in
           connectionLink(provider)
         }
+        #if os(iOS)
         if tools.isEmpty && providers.isEmpty {
           ContentUnavailableView("No Tools", systemImage: "wrench.and.screwdriver")
         }
+        #endif
       }
 
       if !alwaysAllowedTools.isEmpty {

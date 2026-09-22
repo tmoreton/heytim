@@ -10,9 +10,10 @@ split: a general Mac accessibility controller cannot run inside the App Sandbox,
 while the iPhone app should retain its existing sandbox and store distribution.
 
 The first Mac release uses Laya as a local, advisory decision router in the chat
-send path. Mac app access is enabled in Settings and shown as an inline review
-card only after an explicit Mac-app request, not a separate window or composer
-button. When that route is offered, Laya receives a
+send path for bots with the Mac app actions tool enabled. There is one global
+Settings switch and a per-bot toggle in the existing Tools & Skills list. An
+eligible action appears in the conversation's normal approval bubble, not a
+separate window, card, or composer button. For generic button actions, Laya receives a
 bounded semantic accessibility snapshot and chooses between known visible
 controls or `use_cloud_model`. It does not generate clicks, coordinates, text,
 or permissions. HeyTim remains the policy authority.
@@ -34,8 +35,8 @@ or permissions. HeyTim remains the policy authority.
   control before HeyTim invokes the accessibility action.
 - Low confidence, truncation, model errors, and missing assets all fail closed to
   the larger model.
-- A local preflight may suggest the Mac action in any conversation, but cannot
-  silently suppress a bot turn. A user can always send the draft to the bot.
+- A local preflight runs only for direct chats with a bot whose Mac tool is on.
+  Unclear or unavailable app actions fall through to the ordinary bot turn.
 - The bundled multilingual base checkpoint is not yet validated for general tool
   routing. Its own [model card](https://huggingface.co/convaiinnovations/laya)
   warns of weak zero-shot performance on typed-decision tasks. Calibration and a
@@ -78,14 +79,13 @@ signed older build can discover, verify, install, and relaunch into a newer buil
   risk classifier, preview, and explicit execution control.
 - Keep `use_cloud_model` as an ordinary candidate and the universal fallback.
 
-Acceptance: with Accessibility permission, a user can ask for a Mac app action in
-any conversation, select a running app, inspect the captured
-controls, receive a local recommendation, and approve a safe button press. Risky
-or uncertain actions do not execute. The conversation draft remains available
-for ordinary bot send. Mac text sends run an advisory Laya preflight first; only
-an explicit Mac UI request with a strong model result offers the local action.
-Attachments bypass this text-only preflight. `use_cloud_model` currently means a
-safe handoff indication, not an automatic invocation of the remote agent.
+Acceptance: with Accessibility permission and a bot's tool toggle on, a user
+can ask that bot for an explicit Mac app action and review it in the normal
+chat approval surface. A narrow Apple Notes case can create a note with exact
+user-specified text; other supported actions are visible button presses.
+Risky or uncertain actions do not execute. Mac text sends run an advisory Laya
+preflight only for that bot. Attachments bypass the text-only preflight.
+`use_cloud_model` falls through to the ordinary bot turn.
 
 ### 4. Integration and calibration
 
@@ -104,7 +104,8 @@ and five synthetic requests. On 2026-09-22, the model selected the correct
 turn-on and turn-off actions and correctly sent an out-of-scope weather question
 to the main model. It incorrectly selected `turn_on` for a read-state question,
 but its confidence was 0.415, below the fixture's 0.75 action gate. A bedroom
-status question also fell back to the main model. This is a useful safety test,
+status question also fell back to the main model. The rerun with the bundled
+model selected the same routes and passed all five offline fixtures. This is a useful safety test,
 not evidence of general accuracy.
 
 The ordinary Home Assistant integration is restored separately from that

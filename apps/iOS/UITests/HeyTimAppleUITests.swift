@@ -1031,6 +1031,8 @@ import XCTest
       XCTAssertTrue(app.descendants(matching: .any)["bot.tools-and-skills"].firstMatch.exists)
 
       app.descendants(matching: .any)["bot.tools-and-skills"].firstMatch.click()
+      XCTAssertTrue(app.switches["bot.tool.mac-desktop"].waitForExistence(timeout: 5))
+      XCTAssertFalse(app.switches["bot.tool.mac-desktop"].isEnabled)
       let providerConnections = ["gmail", "youtube", "google_workspace", "x"].map {
         app.descendants(matching: .any)["bot.connection.\($0)"].firstMatch
       }
