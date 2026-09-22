@@ -87,4 +87,5 @@ umask 022
 
 APP_STORE_CONNECT_KEY_PATH="$api_key" \
   HEYTIM_SIGNING_KEYCHAIN="$keychain" \
+  HEYTIM_ALLOW_GENERIC_IOS_BUILD=true \
   "$apple_root/scripts/testflight.sh" all

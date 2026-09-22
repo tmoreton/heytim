@@ -5,6 +5,11 @@ apple_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 project="$apple_root/HeyTimApple.xcodeproj"
 derived_data="$(mktemp -d /tmp/HeyTimAppleVerification.XXXXXX)"
 temporary_simulator=false
+allow_generic_ios_build="${HEYTIM_ALLOW_GENERIC_IOS_BUILD:-false}"
+if [[ "$allow_generic_ios_build" != true && "$allow_generic_ios_build" != false ]]; then
+  echo "HEYTIM_ALLOW_GENERIC_IOS_BUILD must be true or false." >&2
+  exit 2
+fi
 
 run_with_timeout() {
   local seconds="$1"
@@ -71,6 +76,17 @@ if [[ -z "$simulator_id" ]]; then
   runtime_id="$(xcrun simctl list runtimes available | sed -nE '/^iOS / s/.* - (com\.apple\.CoreSimulator\.SimRuntime\.[^ ]+)$/\1/p' | tail -1)"
   device_type="$(xcrun simctl list devicetypes | sed -nE '/^iPhone/ s/.*\((com\.apple\.CoreSimulator\.SimDeviceType\.[^)]+)\)$/\1/p' | head -1)"
   if [[ -z "$runtime_id" || -z "$device_type" ]]; then
+    if [[ "$allow_generic_ios_build" == true ]]; then
+      echo "No iOS simulator runtime is installed; verifying a generic iOS build instead."
+      run_with_timeout 1200 'generic iOS build' xcodebuild build -quiet \
+        -project "$project" \
+        -scheme HeyTimApple \
+        -configuration Debug \
+        -destination 'generic/platform=iOS' \
+        -derivedDataPath "$derived_data" \
+        CODE_SIGNING_ALLOWED=NO
+      exit 0
+    fi
     echo "No available iOS simulator runtime and iPhone device type were found." >&2
     exit 1
   fi
