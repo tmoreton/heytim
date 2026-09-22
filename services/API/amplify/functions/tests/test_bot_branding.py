@@ -242,6 +242,7 @@ class BotBrandingTests(unittest.TestCase):
             [provider["id"] for provider in result["connectionProviders"]],
             [
                 "github",
+                "home_assistant",
                 "gmail",
                 "youtube",
                 "google_workspace",

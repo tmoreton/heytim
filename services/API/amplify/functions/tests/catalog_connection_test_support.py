@@ -4,6 +4,35 @@ from shared.catalog import CatalogError
 
 
 class ConnectionCatalogCases:
+    def test_home_assistant_connection_is_private_and_bounded_to_assist(self) -> None:
+        saved = self.catalog.save_home_assistant_connection(
+            "owner", "https://home.example.com", "a" * 48
+        )
+        self.assertEqual(saved["name"], "Home Assistant")
+        self.assertEqual(saved["risk"], "interactive")
+        self.assertNotIn("a" * 48, repr(saved))
+        runtime = self.catalog.resolve_tools_for_runtime("owner", [saved["id"]])[0]
+        self.assertEqual(runtime["runtime"]["endpoint"], "https://home.example.com/api/mcp/assist")
+        self.assertEqual(runtime["runtime"]["authType"], "home_assistant_token")
+        self.assertIn("secretArn", runtime["runtime"])
+        self.assertIn(saved["id"], self.catalog.approval_tool_ids("owner", [saved["id"]]))
+        padded = self.catalog.save_home_assistant_connection(
+            "owner", "https://home.example.com/api/mcp/assist", "a" * 47 + "="
+        )
+        self.assertEqual(padded["id"], saved["id"])
+        with self.assertRaises(CatalogError):
+            self.catalog.save_home_assistant_connection(
+                "owner", "http://home.example.com", "a" * 48
+            )
+        with self.assertRaises(CatalogError):
+            self.catalog.save_home_assistant_connection(
+                "owner", "https://home.example.com/api/states", "a" * 48
+            )
+        with self.assertRaises(CatalogError):
+            self.catalog.save_home_assistant_connection(
+                "owner", "https://home.example.com", "a" * 47 + "\n"
+            )
+
     def test_managed_connection_reconnect_rotates_its_secret(self) -> None:
         saved = self.catalog.save_gmail_connection(
             "owner",
@@ -137,4 +166,3 @@ class ConnectionCatalogCases:
 
         with self.assertRaisesRegex(CatalogError, "private connections"):
             self.catalog.create_share("owner", skill["id"])
-

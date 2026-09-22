@@ -447,6 +447,33 @@ import XCTest
   }
 
   #if os(macOS)
+    func testMacAppActionsUseSettingsWithoutSeparateWindowOrComposerButton() {
+      let app = XCUIApplication()
+      app.launchArguments = ["--ui-testing"]
+      app.launchForUITesting()
+
+      XCTAssertFalse(app.buttons["chat.desktopAction"].exists)
+      XCTAssertFalse(app.windows["Desktop Control"].exists)
+
+      app.buttons["sidebar.settings"].click()
+      XCTAssertTrue(app.switches["settings.desktop-control.enabled"].waitForExistence(timeout: 5))
+    }
+
+    func testHomeAssistantAppearsInConnectableTools() {
+      let app = XCUIApplication()
+      app.launchArguments = ["--ui-testing"]
+      app.launchForUITesting()
+
+      app.buttons["sidebar.settings"].click()
+      app.buttons["Tools & Skills"].click()
+      let tools = app.radioButtons.matching(
+        NSPredicate(format: "label BEGINSWITH %@", "Tools ")).firstMatch
+      XCTAssertTrue(tools.waitForExistence(timeout: 5))
+      tools.click()
+      XCTAssertTrue(app.descendants(matching: .any)[
+        "tools.connection.home_assistant"].firstMatch.waitForExistence(timeout: 5))
+    }
+
     func testMacTextSizeUpdatesSettingsAndKeepsSidebarUsable() {
       let app = XCUIApplication()
       app.launchArguments = ["--ui-testing"]

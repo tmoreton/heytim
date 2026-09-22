@@ -14,6 +14,46 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from heytim_runtime import github_app, mcp_connections
 
 
+def test_home_assistant_binding_requires_assist_path_and_private_secret(monkeypatch) -> None:
+    monkeypatch.setattr(mcp_connections.socket, "getaddrinfo", _public_address)
+    secret = (
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+        "heytim/connections/abcdef1234567890abcdef12/"
+        "connection_1234567890abcdef1234-abcdef123456-ABC123"
+    )
+    binding = mcp_connections.validated_connection_binding(
+        "connection_test", {
+            "kind": "mcp", "endpoint": "https://home.example.com/api/mcp/assist",
+            "authType": "home_assistant_token", "secretArn": secret,
+        }
+    )
+    assert binding["authType"] == "home_assistant_token"
+    for endpoint in ["https://home.example.com/api/mcp", "https://home.example.com/api/states"]:
+        with pytest.raises(ValueError):
+            mcp_connections.validated_connection_binding(
+                "connection_test", {
+                    "kind": "mcp", "endpoint": endpoint,
+                    "authType": "home_assistant_token", "secretArn": secret,
+                }
+            )
+
+    class FakeSecrets:
+        def get_secret_value(self, *, SecretId: str) -> dict:
+            assert SecretId == secret
+            return {"SecretString": json.dumps({"accessToken": "a" * 48})}
+
+    monkeypatch.setattr(mcp_connections, "_secrets_manager", FakeSecrets())
+    assert mcp_connections._home_assistant_access_token(binding) == "a" * 48
+
+    class FakePaddedSecrets:
+        def get_secret_value(self, *, SecretId: str) -> dict:
+            assert SecretId == secret
+            return {"SecretString": json.dumps({"accessToken": "a" * 47 + "="})}
+
+    monkeypatch.setattr(mcp_connections, "_secrets_manager", FakePaddedSecrets())
+    assert mcp_connections._home_assistant_access_token(binding) == "a" * 47 + "="
+
+
 @lru_cache(maxsize=1)
 def _test_private_key() -> str:
     key = rsa.generate_private_key(public_exponent=65_537, key_size=2_048)

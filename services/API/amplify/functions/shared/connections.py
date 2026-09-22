@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
+import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from typing import Any
@@ -17,6 +19,7 @@ from .account_state import (
 )
 from .catalog_rules import (
     CatalogError,
+    _normalize_home_assistant_endpoint,
     _public_tool,
 )
 from .connection_identity import _connection_id, _matching_connection, _secret_name
@@ -342,6 +345,32 @@ class ConnectionMixin(ConnectionLifecycleMixin):
         except Exception:
             self._revoke_google_token(refresh_token)
             raise
+
+    def save_home_assistant_connection(
+        self, user_id: str, instance_url: str, access_token: str
+    ) -> dict:
+        endpoint = _normalize_home_assistant_endpoint(instance_url)
+        if (
+            not isinstance(access_token, str)
+            or not 20 <= len(access_token) <= 4096
+            or not re.fullmatch(r"[A-Za-z0-9._~=-]+", access_token)
+        ):
+            raise CatalogError("Home Assistant access token is invalid")
+        hostname = urllib.parse.urlsplit(endpoint).hostname or "Home Assistant"
+        account_id = hashlib.sha256(endpoint.encode("utf-8")).hexdigest()
+        return self._save_managed_connection(
+            user_id,
+            "home_assistant",
+            hostname,
+            {"accessToken": access_token},
+            lambda secret_arn: {
+                "kind": "mcp",
+                "endpoint": endpoint,
+                "authType": "home_assistant_token",
+                "secretArn": secret_arn,
+            },
+            provider_account_id=account_id,
+        )
 
     def save_oauth_api_connection(
         self,

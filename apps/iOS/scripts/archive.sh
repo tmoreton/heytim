@@ -7,8 +7,9 @@ Usage: APPLE_TEAM_ID=TEAMID ./scripts/archive.sh [--dry-run] <ios|macos>
 
 Environment:
   APPLE_TEAM_ID             Required Apple Developer team identifier.
-  HEYTIM_BUILD_NUMBER    Optional numeric override. Defaults to a UTC timestamp.
+  HEYTIM_BUILD_NUMBER       Optional numeric override. Defaults to a UTC timestamp.
   HEYTIM_MARKETING_VERSION  Optional MAJOR.MINOR.PATCH app version override.
+  HEYTIM_SPARKLE_PUBLIC_KEY Required for a directly distributed Mac release.
   APP_STORE_CONNECT_KEY_PATH, APP_STORE_CONNECT_KEY_ID, and
   APP_STORE_CONNECT_ISSUER_ID may be supplied together for API-key signing.
 EOF
@@ -114,6 +115,9 @@ archive_args=(
   CURRENT_PROJECT_VERSION="$build_number"
   -allowProvisioningUpdates
 )
+if [[ "$platform" == macos && -n "${HEYTIM_SPARKLE_PUBLIC_KEY:-}" ]]; then
+  archive_args+=(HEYTIM_SPARKLE_PUBLIC_KEY="$HEYTIM_SPARKLE_PUBLIC_KEY")
+fi
 if [[ -n "$marketing_version" ]]; then
   archive_args+=(MARKETING_VERSION="$marketing_version")
 fi
@@ -137,4 +141,8 @@ if [[ -n "$unreadable_file" || -n "$unsearchable_directory" ]]; then
 fi
 
 echo "Archive created at $archive_path"
-echo "This script does not upload it. Review and distribute the archive with Xcode Organizer."
+if [[ "$platform" == macos ]]; then
+  echo "This script does not distribute it. Use distribute-macos.sh to export, notarize, and package it."
+else
+  echo "This script does not upload it. Review and distribute the archive with Xcode Organizer."
+fi

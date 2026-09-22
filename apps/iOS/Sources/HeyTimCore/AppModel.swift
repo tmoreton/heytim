@@ -999,6 +999,13 @@ public enum DemoData {
   ]
   private static let demoConnectionProviders = [
     ConnectionProvider(
+      id: "home_assistant", name: "Home Assistant",
+      description: "Read exposed devices and request home actions through your own Home Assistant instance.",
+      category: "Smart home", iconText: "HA",
+      permissionsSummary: "Only entities exposed to Assist; each action requires review",
+      privacyTitle: "Your home stays under your control",
+      privacyDescription: "Connect your own Home Assistant Assist MCP server."),
+    ConnectionProvider(
       id: "gmail", name: "Gmail",
       description: "Search and summarize email, then create drafts for review.",
       category: "Email", iconText: "G",

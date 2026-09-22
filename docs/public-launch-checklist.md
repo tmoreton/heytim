@@ -36,7 +36,7 @@ language.
 
 - [x] The website explains the product, private-beta state, supported Apple
   platforms, bot library, privacy policy, terms, support, and access-request path.
-- [x] Production and TestFlight releases are reproducible from protected workflows.
+- [x] Production, iPhone TestFlight, and direct Mac releases are reproducible from protected workflows.
 - [ ] Choose private invite review, a waitlist, or a public TestFlight link as the
   initial acquisition model.
 - [ ] Add the chosen access destination to the website and measure request,
@@ -50,7 +50,7 @@ language.
 - [ ] Complete the production smoke workflow, provider checks, recovery drill,
   alert-delivery test, and evidence record described in
   [`production-release.md`](production-release.md).
-- [ ] Confirm the current TestFlight build finishes App Store Connect processing
+- [ ] Confirm the current iPhone TestFlight build finishes App Store Connect processing
   and its privacy/export-compliance answers match deployed behavior.
 - [ ] Invite users gradually and monitor authentication, queue failures, runtime
   errors, email complaints, notification delivery, cost, and account deletion.

@@ -16,7 +16,7 @@ agentcore/            Declarative AgentCore infrastructure
 
 `apps/iOS` is the supported iPhone and Mac application. One multiplatform SwiftUI target shares its
 models, API client, state, screens, and tests, with a small platform adapter for Keychain, APNs, dictation, files,
-windows, and web views. It is the only source for local Apple builds, archives, and TestFlight releases.
+windows, and web views. It is the only source for local Apple builds, iPhone TestFlight releases, and notarized direct Mac releases.
 
 `apps/website` is a simple Vite + React marketing site. Its library is built from
 `catalog/catalog.json`, and its output publishes the same reviewed skill documents

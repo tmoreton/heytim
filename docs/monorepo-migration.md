@@ -4,7 +4,7 @@
 
 | Path | Owns |
 | --- | --- |
-| `apps/iOS` | Shared SwiftUI iPhone and macOS app, Xcode project, signing and TestFlight scripts |
+| `apps/iOS` | Shared SwiftUI iPhone and macOS app, Xcode project, iPhone TestFlight and direct Mac release scripts |
 | `apps/website` | Vite + React marketing site, bot and skills directory, native invite handoff |
 | `services/API` | Amplify application backend, API contract, public client configuration |
 | `services/runtime` | AgentCore Python agent loop, tools, evaluations and packaging |
@@ -38,7 +38,7 @@ the working tree.
 ./scripts/verify.sh application  # Vite site, public catalog and API contract
 ./scripts/verify.sh server       # API, runtime, AgentCore schema and wrapper
 ./scripts/verify.sh apple        # Native speech, macOS unit tests, iPhone UI tests
-APPLE_TEAM_ID=GVXC5FQ2RP ./scripts/apple-app.sh testflight all
+APPLE_TEAM_ID=GVXC5FQ2RP ./scripts/apple-app.sh testflight ios
 ```
 
 `services/API/amplify_outputs.json` is the source for the reduced native client

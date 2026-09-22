@@ -13,6 +13,57 @@ import UniformTypeIdentifiers
     super.tearDown()
   }
 
+  #if os(macOS)
+    func testDesktopUpdateConfigurationRequiresHTTPSAndAResolvedPublicKey() {
+      XCTAssertTrue(
+        DesktopUpdateConfiguration(info: [
+          "SUFeedURL": "https://example.com/appcast.xml",
+          "SUPublicEDKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        ]).isConfigured)
+      XCTAssertFalse(
+        DesktopUpdateConfiguration(info: [
+          "SUFeedURL": "http://example.com/appcast.xml",
+          "SUPublicEDKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        ]).isConfigured)
+      XCTAssertFalse(
+        DesktopUpdateConfiguration(info: [
+          "SUFeedURL": "https://example.com/appcast.xml",
+          "SUPublicEDKey": "$(HEYTIM_SPARKLE_PUBLIC_KEY)",
+        ]).isConfigured)
+    }
+
+    func testDesktopLocalPolicyBlocksHighImpactControls() {
+      for label in ["Send", "Delete message", "Buy now", "Allow", "OK"] {
+        XCTAssertTrue(DesktopControlCoordinator.isHighImpact(label: label), label)
+      }
+      for label in ["Open details", "Next tab", "Show calendar", "Pause"] {
+        XCTAssertFalse(DesktopControlCoordinator.isHighImpact(label: label), label)
+      }
+    }
+
+    func testHomeAssistantRequestsAreNotMistakenForMacUIActions() {
+      XCTAssertFalse(DesktopControlCoordinator.explicitlyTargetsMacUI(
+        "Turn on the living room lights"))
+      XCTAssertFalse(DesktopControlCoordinator.explicitlyTargetsMacUI(
+        "What lights are currently on?"))
+      XCTAssertFalse(DesktopControlCoordinator.explicitlyTargetsMacUI(
+        "Press the bedroom light switch"))
+      XCTAssertTrue(DesktopControlCoordinator.explicitlyTargetsMacUI(
+        "Click Next in Calendar on my Mac"))
+    }
+
+    func testLayaShipsInsideMacApp() throws {
+      let model = try XCTUnwrap(Bundle.main.resourceURL?.appendingPathComponent("laya-coreml"))
+      let weights = model.appendingPathComponent(
+        "laya_multilingual_e8_L128_options32.mlmodelc/weights/weight.bin")
+      let size = try FileManager.default.attributesOfItem(atPath: weights.path)[.size] as? NSNumber
+      XCTAssertEqual(size?.int64Value, 448_093_696)
+      XCTAssertTrue(FileManager.default.fileExists(atPath: model.appendingPathComponent("tokenizer.json").path))
+      XCTAssertTrue(FileManager.default.fileExists(atPath: model.appendingPathComponent("LICENSE").path))
+      XCTAssertTrue(FileManager.default.fileExists(atPath: model.appendingPathComponent("NOTICE.md").path))
+    }
+  #endif
+
   func testGeneratedContractIncludesEveryBackendRoute() throws {
     XCTAssertEqual(Set(GeneratedAPIContract.routes.keys), Set(APIRouteID.allCases))
     XCTAssertEqual(

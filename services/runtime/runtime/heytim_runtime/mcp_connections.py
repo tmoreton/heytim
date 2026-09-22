@@ -284,6 +284,14 @@ def validated_connection_binding(tool_id: str, runtime: dict) -> dict:
             "oauthClientSecretArn": client_secret_arn,
             "allowedTools": allowed_tools,
         }
+    if auth_type == "home_assistant_token":
+        if (
+            urllib.parse.urlsplit(endpoint).path != "/api/mcp/assist"
+            or not isinstance(secret_arn, str)
+            or not SECRET_ARN_PATTERN.fullmatch(secret_arn)
+        ):
+            raise ValueError(f"Home Assistant MCP connection is invalid: {tool_id}")
+        return {**binding, "secretArn": secret_arn}
     app_secret_arn = runtime.get("appSecretArn")
     if (
         auth_type != "github_app"
@@ -467,6 +475,17 @@ def _google_access_token(binding: dict) -> str:
     return access_token
 
 
+def _home_assistant_access_token(binding: dict) -> str:
+    token = _json_secret(binding["secretArn"]).get("accessToken")
+    if (
+        not isinstance(token, str)
+        or not 20 <= len(token) <= 4096
+        or not re.fullmatch(r"[A-Za-z0-9._~=-]+", token)
+    ):
+        raise ValueError("Home Assistant access token is unavailable")
+    return token
+
+
 def github_installation_token(binding: dict) -> str:
     if binding.get("authType") != "github_app":
         raise ValueError("Connection does not use a GitHub App installation")
@@ -524,6 +543,8 @@ def connection_client(binding: dict) -> MCPClient:
         headers = {"Authorization": f"Bearer {_google_access_token(binding)}"}
     elif binding["authType"] == "github_app":
         headers = {"Authorization": f"Bearer {github_installation_token(binding)}"}
+    elif binding["authType"] == "home_assistant_token":
+        headers = {"Authorization": f"Bearer {_home_assistant_access_token(binding)}"}
     options = {
         "connection_id": binding["id"],
         "startup_timeout": 15,

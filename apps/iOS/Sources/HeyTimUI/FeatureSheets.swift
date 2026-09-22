@@ -2469,6 +2469,23 @@ struct SkillsView: View {
             ContentUnavailableView("No Tools", systemImage: "wrench.and.screwdriver")
           }
         }
+        Section("Connectable Tools") {
+          ForEach(model.bootstrap?.connectionProviders ?? []) { provider in
+            FeatureLink {
+              ConnectionsView(model: model, showsDismissButton: false)
+            } label: {
+              Label {
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(provider.name).froggyFont(.headline)
+                  Text(provider.description).foregroundStyle(.secondary)
+                }
+              } icon: {
+                Image(systemName: "link")
+              }
+            }
+            .accessibilityIdentifier("tools.connection.\(provider.id)")
+          }
+        }
       }
     }
     .froggyListSurface()
@@ -2506,7 +2523,9 @@ struct SkillsView: View {
   private func count(for section: CapabilityLibrarySection) -> Int {
     switch section {
     case .skills: model.bootstrap?.skills.count ?? 0
-    case .tools: model.bootstrap?.tools.filter { $0.source != "user" }.count ?? 0
+    case .tools:
+      (model.bootstrap?.tools.filter { $0.source != "user" }.count ?? 0)
+        + (model.bootstrap?.connectionProviders.count ?? 0)
     }
   }
 }

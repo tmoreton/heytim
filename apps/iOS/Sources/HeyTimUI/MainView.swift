@@ -505,6 +505,9 @@ private extension View {
 }
 
 private struct ConversationView: View {
+  #if os(macOS)
+    @Environment(DesktopControlCoordinator.self) private var desktopControl
+  #endif
   @Bindable var model: AppModel
   @Bindable var dictation: DictationModel
   @Binding var showInspector: Bool
@@ -522,6 +525,7 @@ private struct ConversationView: View {
   @State private var bottomIsVisible = true
   @State private var transcriptHeight: CGFloat = 0
   @State private var pendingScroll: Task<Void, Never>?
+  @State private var pendingDesktopAction: String?
   @FocusState private var composerFocused: Bool
 
   private let bottomID = "froggy-conversation-bottom"
@@ -564,6 +568,7 @@ private struct ConversationView: View {
       .onAppear { scheduleScrollToBottom(using: proxy, animated: false) }
       .onChange(of: model.selection) { _, _ in
         cancelPreview()
+        pendingDesktopAction = nil
         showsScrollToLatest = false
         isFollowingLatest = true
         composerFocused = false
@@ -579,6 +584,9 @@ private struct ConversationView: View {
         } else {
           showsScrollToLatest = true
         }
+      }
+      .onChange(of: pendingDesktopAction) { _, action in
+        if action != nil { scheduleScrollToBottom(using: proxy, animated: true) }
       }
       .onChange(of: model.isLoadingMessages) { wasLoading, isLoading in
         if wasLoading && !isLoading && !model.messages.isEmpty && isFollowingLatest {
@@ -606,6 +614,12 @@ private struct ConversationView: View {
           onSubmit: {
             scheduleScrollToBottom(using: proxy, animated: true)
             Task { await model.send() }
+          },
+          onDesktopAction: { intent in
+            #if os(macOS)
+              desktopControl.prepare(intent: intent)
+              pendingDesktopAction = intent
+            #endif
           })
           .opacity(showsChatHeader ? 1 : 0)
           .allowsHitTesting(showsChatHeader)
@@ -706,6 +720,20 @@ private struct ConversationView: View {
       MessageBubble(message: message, model: model, preview: preview)
         .id(message.id)
     }
+    #if os(macOS)
+      if pendingDesktopAction != nil {
+        DesktopActionCard(
+          coordinator: desktopControl,
+          onSendToBot: {
+            pendingDesktopAction = nil
+            Task { await model.send() }
+          },
+          onOpenSettings: { model.sheet = .account },
+          onClose: { pendingDesktopAction = nil })
+          .padding(.top, 12)
+          .accessibilityIdentifier("chat.macActionCard")
+      }
+    #endif
     Color.clear
       .frame(height: 1)
       .id(bottomID)
@@ -1688,11 +1716,17 @@ private struct ImportedPhoto: Transferable, Sendable {
 }
 
 private struct Composer: View {
+  #if os(macOS)
+    @Environment(DesktopControlCoordinator.self) private var desktopControl
+    @State private var isRouting = false
+    @State private var routingTask: Task<Void, Never>?
+  #endif
   @Bindable var model: AppModel
   @Bindable var dictation: DictationModel
   @Binding var importing: Bool
   var composerFocused: FocusState<Bool>.Binding
   let onSubmit: () -> Void
+  let onDesktopAction: (String) -> Void
   @State private var showingPhotoPicker = false
   @State private var showingWorkspacePicker = false
   @State private var selectedPhotos: [PhotosPickerItem] = []
@@ -1776,6 +1810,11 @@ private struct Composer: View {
     .onDisappear {
       photoImportTask?.cancel()
       photoImportTask = nil
+      #if os(macOS)
+        routingTask?.cancel()
+        routingTask = nil
+        isRouting = false
+      #endif
     }
   }
 
@@ -1994,8 +2033,13 @@ private struct Composer: View {
   }
 
   private var canSubmit: Bool {
-    canSend && !model.isSending && !model.isUploading
+    let available = canSend && !model.isSending && !model.isUploading
       && !dictation.isRecording && !dictation.isStarting
+    #if os(macOS)
+      return available && !isRouting
+    #else
+      return available
+    #endif
   }
   private var conversationAccent: Color { model.conversationAccent }
   private var attachmentPicker: some View {
@@ -2128,6 +2172,34 @@ private struct Composer: View {
 
   private func submitMessage() {
     cancelDictation()
+    #if os(macOS)
+      guard !isRouting else { return }
+      let draft = model.composerText
+      let destination = model.selection
+      if desktopControl.isEnabled,
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+        model.pendingAttachments.isEmpty, model.pendingWorkspaceFiles.isEmpty
+      {
+        isRouting = true
+        routingTask = Task { @MainActor in
+          let offer = await desktopControl.shouldOfferDesktopAction(for: draft)
+          isRouting = false
+          routingTask = nil
+          guard !Task.isCancelled,
+            model.composerText == draft,
+            model.selection == destination,
+            model.pendingAttachments.isEmpty,
+            model.pendingWorkspaceFiles.isEmpty
+          else { return }
+          if offer {
+            onDesktopAction(draft)
+          } else {
+            onSubmit()
+          }
+        }
+        return
+      }
+    #endif
     onSubmit()
   }
 

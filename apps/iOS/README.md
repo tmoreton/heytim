@@ -39,15 +39,15 @@ The generator uses the `xcodeproj` Ruby gem bundled with Homebrew CocoaPods. Ord
 
 Run `npm --prefix services/API run outputs:apple` whenever Amplify produces a new
 `services/API/amplify_outputs.json`. The Apple copy contains public client configuration only. Before external
-TestFlight or App Store distribution, confirm that the source file came from the production Amplify deployment and
-run the sync command. The TestFlight script runs `outputs:apple:production:check` automatically and refuses sandbox,
+TestFlight or direct Mac distribution, confirm that the source file came from the production Amplify deployment and
+run the sync command. The release scripts run `outputs:apple:production:check` automatically and refuse sandbox,
 stale, or unknown outputs. Download the production client-configuration artifact from the successful production
 release workflow before creating the archive.
 
 Before installing on physical devices or distributing the app:
 
 1. Select the Apple Developer team for the app target.
-2. Register `ai.heytim.app` with Push Notifications enabled. The new App Store Connect listing initially targets iOS; add macOS before uploading a Mac archive.
+2. Register `ai.heytim.app` with Push Notifications enabled. App Store Connect is used for iPhone distribution and Mac notarization; the Mac app is not submitted to the store.
 3. Use the included development APNs entitlements for Debug and production entitlements for Release.
 4. Configure the matching SNS platform application ARNs in the backend environment.
 5. Capture App Store screenshots before archive submission; the Hey Tim icon is configured for both platforms.
@@ -67,25 +67,59 @@ The script gives each archive a UTC timestamp build number, prepares the transcr
 APPLE_TEAM_ID=YOURTEAMID HEYTIM_BUILD_NUMBER=202609130200 ./scripts/apple-app.sh archive ios
 ```
 
-To archive and upload directly for TestFlight processing:
+To archive and upload the iPhone app for TestFlight processing:
 
 ```bash
 APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh testflight ios
-APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh testflight macos
-APPLE_TEAM_ID=YOURTEAMID ./scripts/apple-app.sh testflight all
 ```
 
-The TestFlight entry point requires a clean working tree except for the two generated production output files, checks
-the bundled public backend configuration, and runs the shared iPhone/Mac verification suite before archiving. The
-`all` form verifies once and uploads matching iPhone and Mac builds with the same build number after both platforms
-are enabled in App Store Connect. The production workflow uploads both builds after its backend deployment succeeds;
+Create a Developer ID signed, notarized drag-to-Applications Mac DMG, an update
+ZIP, and a signed Sparkle feed with:
+
+```bash
+APPLE_TEAM_ID=YOURTEAMID NOTARY_KEYCHAIN_PROFILE=HeyTimNotary \
+  HEYTIM_MARKETING_VERSION=1.0.1 \
+  ./scripts/apple-app.sh distribute-macos
+```
+
+The release entry points require a clean working tree except for the two generated production output files, check
+the bundled public backend configuration, and run the shared iPhone/Mac verification suite before archiving. The
+production workflow uploads iPhone to TestFlight and attaches the notarized Mac DMG, update ZIP, and appcast to the GitHub Release;
 its signing material is injected from the protected GitHub production environment and removed from the runner
 afterward. Local runs use the developer account signed into Xcode by default. Publishing a stable GitHub Release tagged
-`vMAJOR.MINOR.PATCH` deploys the backend and runs the dual-platform TestFlight path automatically. The tag sets
+`vMAJOR.MINOR.PATCH` deploys the backend and runs both Apple distribution paths automatically. The tag sets
 `MARKETING_VERSION` and must point to a commit on `main`.
 For unattended uploads, set `APP_STORE_CONNECT_KEY_PATH`, `APP_STORE_CONNECT_KEY_ID`, and
 `APP_STORE_CONNECT_ISSUER_ID` together; never commit the `.p8` key. Add `--dry-run` before the platform to inspect
-the selected archive path and build number without signing or uploading.
+the selected archive path and build number without signing or uploading. Direct Mac distribution additionally needs
+a Developer ID Application certificate and notarization credentials. Locally,
+save a validated `notarytool` profile with `xcrun notarytool store-credentials
+HeyTimNotary --apple-id YOUR_APPLE_ID --team-id YOURTEAMID`, then set
+`NOTARY_KEYCHAIN_PROFILE=HeyTimNotary`. Alternatively, set `APPLE_ID` and
+`APPLE_APP_SPECIFIC_PASSWORD`. The Sparkle private key is read from the
+`heytim` Keychain account. CI uses the
+protected `SPARKLE_PRIVATE_KEY` secret and App Store Connect API key instead.
+The matching Sparkle public key is checked into the Mac build configuration;
+private signing material must never be committed. Laya's pinned 483 MB Core ML
+model is fetched and checksum-verified by the build machine, then included in
+the Mac app bundle. End users never download it separately.
+
+On Mac, enable **Mac App Actions** in Hey Tim Settings and grant Accessibility
+access in macOS System Settings. Return to Hey Tim to refresh the status; if the
+permission was just requested, the app offers to quit and reopen. If macOS
+shows Hey Tim as enabled but the app still lacks access, Settings can reveal
+the exact app copy to remove and re-add. There is no separate Desktop Control
+window or composer button: an explicit Mac-app request produces an inline
+review card in that conversation, with approval before any button press.
+Text-only Mac sends run an advisory Laya preflight; uncertain or out-of-scope
+requests continue to the bot. This is not yet a general client-side tool broker.
+
+Home Assistant is available as a connectable tool through a public HTTPS
+Home Assistant Assist MCP endpoint and a long-lived access token. The token is
+stored server-side; bots can use only assigned connections, exposed Assist
+entities, and the existing exact-action approval flow. Laya does not yet invoke
+Home Assistant directly. The offline routing fixture in
+`scripts/evaluate-laya-home.sh` cannot touch live devices.
 
 ## Verification
 

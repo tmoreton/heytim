@@ -5,7 +5,11 @@ required_values=(
   APPLE_TEAM_ID APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID
   APP_STORE_CONNECT_PRIVATE_KEY APPLE_DISTRIBUTION_CERTIFICATE_BASE64
   APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD APPLE_DEVELOPMENT_CERTIFICATE_BASE64
-  APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD HEYTIM_BUILD_NUMBER
+  APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD
+  DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64
+  DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD
+  HEYTIM_SPARKLE_PUBLIC_KEY SPARKLE_PRIVATE_KEY
+  HEYTIM_BUILD_NUMBER HEYTIM_MARKETING_VERSION
 )
 missing=()
 for name in "${required_values[@]}"; do
@@ -21,6 +25,7 @@ temporary_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/HeyTimSigning.XXXXXX")"
 keychain="$temporary_root/heytim-signing.keychain-db"
 certificate="$temporary_root/distribution.p12"
 development_certificate="$temporary_root/development.p12"
+developer_id_certificate="$temporary_root/developer-id-application.p12"
 signing_intermediate="$temporary_root/AppleWWDRCAG3.cer"
 api_key="$temporary_root/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
 keychain_password="$(uuidgen | tr -d '-')"
@@ -45,6 +50,7 @@ trap cleanup EXIT
 umask 077
 printf '%s' "$APPLE_DISTRIBUTION_CERTIFICATE_BASE64" | base64 -D > "$certificate"
 printf '%s' "$APPLE_DEVELOPMENT_CERTIFICATE_BASE64" | base64 -D > "$development_certificate"
+printf '%s' "$DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64" | base64 -D > "$developer_id_certificate"
 printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$api_key"
 curl --fail --location --silent --show-error \
   https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer \
@@ -64,6 +70,9 @@ security import "$certificate" -k "$keychain" -P "$APPLE_DISTRIBUTION_CERTIFICAT
 security import "$development_certificate" -k "$keychain" \
   -P "$APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD" \
   -T /usr/bin/codesign -T /usr/bin/security
+security import "$developer_id_certificate" -k "$keychain" \
+  -P "$DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD" \
+  -T /usr/bin/codesign -T /usr/bin/security
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
   -k "$keychain_password" "$keychain" >/dev/null
 security list-keychains -d user -s "$keychain" "${original_keychains[@]}"
@@ -71,8 +80,10 @@ signing_identity="$(security find-identity -v -p codesigning "$keychain" \
   | awk '/"Apple Distribution:/ { print $2; exit }')"
 development_identity="$(security find-identity -v -p codesigning "$keychain" \
   | awk '/"Apple Development:/ { print $2; exit }')"
-if [[ -z "$signing_identity" || -z "$development_identity" ]]; then
-  echo 'The CI development or distribution signing identity is not valid.' >&2
+developer_id_identity="$(security find-identity -v -p codesigning "$keychain" \
+  | awk '/"Developer ID Application:/ { print $2; exit }')"
+if [[ -z "$signing_identity" || -z "$development_identity" || -z "$developer_id_identity" ]]; then
+  echo 'The CI development, distribution, or Developer ID identity is not valid.' >&2
   exit 1
 fi
 cp /usr/bin/true "$temporary_root/signing-probe"
@@ -80,6 +91,8 @@ codesign --force --sign "$development_identity" --keychain "$keychain" \
   "$temporary_root/signing-probe"
 codesign --force --sign "$signing_identity" --keychain "$keychain" \
   "$temporary_root/signing-probe"
+codesign --force --sign "$developer_id_identity" --keychain "$keychain" \
+  --timestamp "$temporary_root/signing-probe"
 
 # Secrets were written under the private umask above. Release artifacts must
 # remain readable by the non-root user who installs and runs the Mac app.
@@ -88,4 +101,9 @@ umask 022
 APP_STORE_CONNECT_KEY_PATH="$api_key" \
   HEYTIM_SIGNING_KEYCHAIN="$keychain" \
   HEYTIM_ALLOW_GENERIC_IOS_BUILD=true \
-  "$apple_root/scripts/testflight.sh" all
+  "$apple_root/scripts/testflight.sh" ios
+
+APP_STORE_CONNECT_KEY_PATH="$api_key" \
+  HEYTIM_SIGNING_KEYCHAIN="$keychain" \
+  HEYTIM_RELEASE_TAG="${HEYTIM_RELEASE_TAG:-v$HEYTIM_MARKETING_VERSION}" \
+  "$apple_root/scripts/distribute-macos.sh"

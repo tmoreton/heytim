@@ -135,6 +135,16 @@ def _validate_mcp_endpoint(value: Any) -> str:
     return urllib.parse.urlunsplit(("https", hostname, parsed.path or "/", "", ""))
 
 
+def _normalize_home_assistant_endpoint(value: Any) -> str:
+    endpoint = _validate_mcp_endpoint(value)
+    parsed = urllib.parse.urlsplit(endpoint)
+    if parsed.path.rstrip("/") not in {"", "/api/mcp", "/api/mcp/assist"}:
+        raise CatalogError("Home Assistant URL must point to the instance or Assist MCP endpoint")
+    return urllib.parse.urlunsplit(
+        ("https", parsed.hostname or "", "/api/mcp/assist", "", "")
+    )
+
+
 def _hostname_resolves_publicly(hostname: str) -> bool:
     try:
         results = socket.getaddrinfo(hostname, 443, type=socket.SOCK_STREAM)
@@ -272,6 +282,17 @@ def _validate_mcp_binding(value: dict) -> dict:
         return _validate_oauth_binding(value, endpoint, secret_arn)
     if auth_type == "github_app":
         return _validate_github_app_binding(value, endpoint, secret_arn)
+    if auth_type == "home_assistant_token":
+        if (
+            endpoint != _normalize_home_assistant_endpoint(endpoint)
+            or not isinstance(secret_arn, str)
+            or not secret_arn.startswith("arn:aws:secretsmanager:")
+        ):
+            raise CatalogError("Home Assistant MCP connection is invalid")
+        return {
+            "kind": "mcp", "endpoint": endpoint,
+            "authType": "home_assistant_token", "secretArn": secret_arn,
+        }
     raise CatalogError("Legacy MCP credentials are no longer supported")
 
 

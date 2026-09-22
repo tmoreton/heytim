@@ -521,6 +521,11 @@ public final class HeyTimAPI: Sendable {
     guard let url = URL(string: value.authorizationUrl) else { throw APIError.invalidResponse }
     return url
   }
+  public func connectHomeAssistant(instanceURL: String, accessToken: String) async throws -> Capability {
+    try await request(
+      .homeAssistantConnect,
+      body: ["instanceUrl": instanceURL, "accessToken": accessToken])
+  }
   public func connections() async throws -> [Capability] {
     let envelope: ArrayEnvelope<Capability> = try await request(.connectionsList)
     return envelope.values

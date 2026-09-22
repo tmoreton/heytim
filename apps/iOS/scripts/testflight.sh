@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: APPLE_TEAM_ID=TEAMID ./scripts/testflight.sh [--dry-run] <ios|macos|all>
+Usage: APPLE_TEAM_ID=TEAMID ./scripts/testflight.sh [--dry-run] ios
 
 This creates a release archive from the SwiftUI project and uploads it to App
 Store Connect for TestFlight processing. Xcode can use the signed-in developer
@@ -31,8 +31,11 @@ fi
 
 case "$platform" in
   ios) platforms=(ios) ;;
-  macos) platforms=(macos) ;;
-  all) platforms=(ios macos) ;;
+  macos|all)
+    echo 'macOS is distributed as a notarized direct download, not through TestFlight.' >&2
+    echo 'Use ./scripts/apple-app.sh distribute-macos instead.' >&2
+    exit 2
+    ;;
   *)
     echo "Unsupported platform: $platform" >&2
     usage >&2
@@ -138,4 +141,4 @@ for release_platform in "${platforms[@]}"; do
 
   echo "$platform_label build $build_number was uploaded to App Store Connect."
 done
-echo "Apple will show the selected build or builds in TestFlight after processing completes."
+echo "Apple will show the iPhone build in TestFlight after processing completes."
