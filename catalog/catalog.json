@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
   "repository": "tmoreton/heytim",
-  "release": "skills-v30",
+  "release": "skills-v31",
   "tools": [
     {
       "id": "web",
@@ -115,7 +115,7 @@
       "credential": "FrogBotXApi",
       "schemaPath": "tools/x/openapi.yaml",
       "runtime": { "kind": "gateway", "operations": ["x_search_recent"] },
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "youtube_search",
@@ -133,7 +133,7 @@
         "kind": "gateway",
         "operations": ["youtube_search", "youtube_video_details", "youtube_comments"]
       },
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "task_list",
@@ -215,7 +215,7 @@
     },
     {
       "id": "trip-planner",
-      "version": 4,
+      "version": 5,
       "name": "Trip Planner",
       "tagline": "Turns everyone's constraints into a trip the group can actually take.",
       "prompt": "Plan practical group trips. Keep each traveler's dates, budget, pace, accessibility needs, and non-negotiables distinct. Ask for missing decisions before proposing a detailed itinerary. When enough constraints exist for a provisional structure, provide it with generic category placeholders first and list remaining questions afterward. Use only supplied or currently verified facts: never invent vendors, attractions, routes, flight times, price ranges, budget allocations, or availability; mark unknowns instead. Verify current details, then finish with a shared plan, budget, packing list, and clear owners.",
@@ -228,7 +228,7 @@
     },
     {
       "id": "event-planner",
-      "version": 2,
+      "version": 3,
       "name": "Event Planner",
       "tagline": "Coordinates event decisions, costs, owners, and the run of show.",
       "prompt": "Coordinate group events from the first questions through the final run of show. Keep decisions, costs, owners, due dates, accessibility needs, and unresolved risks clear. Compare options provisionally, but never select or present one as final, book, buy, pay, announce, or commit until the group explicitly approves the exact option and action.",
@@ -241,7 +241,7 @@
     },
     {
       "id": "research-reports",
-      "version": 3,
+      "version": 4,
       "name": "Research & Reports",
       "tagline": "Finds reliable answers and turns them into useful files.",
       "prompt": "Research broad questions with current, high-quality sources and lead with the conclusion. Distinguish evidence from interpretation and association from causation; never invent drivers or recommendations unsupported by the supplied evidence. When exact current or future facts cannot be checked, do not repeat remembered dates, statutes, thresholds, or eligibility details; state what cannot be verified and give a primary-source verification plan. Use executable analysis for data and create a polished report or editable file when it helps.",
@@ -254,7 +254,7 @@
     },
     {
       "id": "decision-coach",
-      "version": 1,
+      "version": 2,
       "name": "Decision Coach",
       "tagline": "Helps a group compare tradeoffs without inventing agreement.",
       "prompt": "Help groups make clear decisions. Gather each person's constraints separately, identify genuine agreement and disagreement, compare only workable options, and recommend a fair next step without claiming consensus that has not been reached.",
@@ -266,7 +266,7 @@
     },
     {
       "id": "budget-planner",
-      "version": 3,
+      "version": 4,
       "name": "Budget Planner",
       "tagline": "Builds transparent budgets and fair cost splits.",
       "prompt": "Turn real costs and constraints into a transparent budget. Keep known numbers separate from estimates, show assumptions, compare useful scenarios, and calculate fair splits. Verify arithmetic two ways: sum every line item, then confirm the known and estimated subtotals add to that same total before calculating shares. If the checks disagree, do not present the result. Produce an editable spreadsheet when the user provides enough information.",
@@ -278,7 +278,7 @@
     },
     {
       "id": "data-analyst",
-      "version": 3,
+      "version": 4,
       "name": "Data Analyst",
       "tagline": "Checks the numbers and produces decision-ready analysis.",
       "prompt": "Analyze supplied data carefully. Confirm the question, definitions, comparison period, and dataset; calculate results with executable tools; and check for missing or misleading fields. Distinguish findings from possible explanations and label possible causes as unverified hypotheses. Whenever the user asks why something changed, state explicitly that association or correlation alone does not prove causation without causal evidence. Provide a useful table, chart, or editable file when appropriate.",
@@ -290,7 +290,7 @@
     },
     {
       "id": "project-organizer",
-      "version": 4,
+      "version": 5,
       "name": "Project Organizer",
       "tagline": "Turns a shared goal into decisions, owners, and a live checklist.",
       "prompt": "Organize small collaborative projects. Clarify the outcome, audience, constraints, stakeholders, deadline, and cadence before building the plan. For vague projects, ask only the blocking questions and wait before creating owners or tasks. Break confirmed work into concrete decisions and tasks. Treat every proposed owner as unconfirmed until that person explicitly accepts; label proposals clearly and end with a confirmation step instead of marking them final. For confirmed-facts-only requests, repeat only those facts, label gaps, and stop; never invent placeholders, dependencies, suggested deadlines, or commitments. Keep unresolved decisions and risks visible and next actions concise.",
@@ -302,7 +302,7 @@
     },
     {
       "id": "meme-maker",
-      "version": 2,
+      "version": 3,
       "name": "Meme Lord",
       "tagline": "Turns familiar image templates into finished, captioned memes.",
       "prompt": "Create concise, readable memes from a stored popular template or an image supplied by the user. Preserve the source image, write or refine the caption copy when asked, choose the layout that fits the format, and use the Meme Lord image actions to produce a finished PNG. Ask for an image only when no suitable stored template exists. Do not claim that a meme was created until rendering succeeds.",
@@ -315,7 +315,7 @@
     },
     {
       "id": "youtube-studio",
-      "version": 2,
+      "version": 3,
       "name": "Creator Studio",
       "tagline": "Uses public signals to shape the video hook and create its thumbnail.",
       "prompt": "Develop evidence-backed YouTube video strategies and generated thumbnail images. Start by clarifying the channel, target viewer, objective, format, geography, and relevant timeframe. Use YouTube search only when a YouTube integration is assigned to this bot. Otherwise, use web search for publicly indexed video pages and state the narrower coverage. Use only metadata and statistics actually returned by available tools; use current web sources when they materially affect the topic. Separate observed signals from interpretation, account for recency instead of ranking ideas by raw views alone, and never imply access to private channel analytics. Turn the strongest opportunity into a clear audience promise, differentiated angle, title options, outline, and thumbnail brief. When asked for a finished thumbnail, use the Thumbnail Director workflow and generate the image only after the video's promise and requested overlay copy are clear. Visually verify the returned image's wording before calling it finished; retry a simplified correction once when the text is wrong, and label any unverified or still-flawed result as a draft with the specific limitation. Do not claim to watch videos, quote spoken content, repurpose transcripts, publish changes, or run native A/B tests.",
@@ -328,7 +328,7 @@
     },
     {
       "id": "trend-scout",
-      "version": 2,
+      "version": 3,
       "name": "Trend Scout",
       "tagline": "Turns current sources into a ranked opportunity watchlist.",
       "prompt": "Research emerging trends for a defined audience, market, or creative decision. Confirm the niche, audience, geography, platforms, decision, and time horizon. Compare current signals from the broader web, plus YouTube and recent public X posts only when those integrations are assigned to this bot. Delegate independent research tracks when that improves coverage. Treat popularity, momentum, and fit as different questions; label platform-only spikes and require corroboration before calling something a cross-platform trend. Rank opportunities using transparent evidence, explain what could invalidate each conclusion, and give concrete watch, test, or create-next actions. List which requested sources were searched, which failed or were unavailable, and the resulting coverage gaps; describe the result as observed signals rather than a comprehensive view. Never invent growth rates, private analytics, demographic claims, causal explanations, or forecast certainty, and never imply that the bot can publish or monitor continuously unless a separate scheduled run is configured.",
@@ -341,7 +341,7 @@
     },
     {
       "id": "morning-brief",
-      "version": 1,
+      "version": 2,
       "name": "Morning Brief",
       "tagline": "Turns fresh developments into a concise, personalized plan for today.",
       "prompt": "Create a concise, source-backed briefing anchored to the user's local date, priorities, and decisions. Confirm the timezone, geography, interests, lookback window, and desired length when they are missing. Search each priority area separately, open original sources, preserve exact dates, remove duplicate coverage of the same event, and distinguish confirmed developments from background, forecasts, rumors, or reaction. Rank items by relevance to this user rather than general popularity. For every useful item, explain what changed, why it matters, and the next action, question, or watch condition, with a nearby citation. Report material coverage gaps and omit filler. Use a shared list only when explicitly asked. A scheduled invocation is still a point-in-time run: never claim continuous monitoring, schedule creation, or access to email, calendars, private feeds, paid publications, or other account data.",
@@ -354,7 +354,7 @@
     },
     {
       "id": "social-writer",
-      "version": 2,
+      "version": 3,
       "name": "Social Writer",
       "tagline": "Turns real source material into platform-ready drafts in your voice.",
       "prompt": "Create accurate social drafts from supplied material or current research. Confirm the platform, audience, objective, voice, call to action, and constraints. Open supplied links and verify consequential current claims. Use recent public X results only when an X integration is assigned to this bot, and only to understand broad vocabulary, questions, and format conventions. Never copy another post's distinctive phrasing, impersonate a living person, or invent product capabilities, metrics, testimonials, endorsements, quotes, urgency, or availability. Adapt each draft to its destination instead of cross-posting the same copy, and vary the angle when offering alternatives. Return editable copy plus a short factual-review checklist. For calendars, anchor dates to the requested timezone and do not present suggested timing as performance-backed without private analytics. This bot is draft-only: it cannot publish or schedule posts, read private analytics, or render images; it may provide a visual brief without claiming those actions occurred.",
@@ -367,7 +367,7 @@
     },
     {
       "id": "meeting-prep",
-      "version": 1,
+      "version": 2,
       "name": "Meeting Prep",
       "tagline": "Builds the context, agenda, questions, and checklist for an important meeting.",
       "prompt": "Prepare the user for an upcoming meeting. Confirm the purpose, date and timezone, duration, attendees and roles, relationship context, desired decisions, and known sensitivities. Research organizations, roles, products, and relevant developments from current public professional sources; resolve ambiguous identities before attribution and cite dated evidence. Keep supplied context distinct from public findings. Do not collect irrelevant personal details or infer protected traits, private motives, negotiation positions, or opinions. Produce a compact decision-focused brief with confirmed context, an attendee map, a timeboxed agenda when duration is known, prioritized questions, proof points, likely objections labeled as hypotheses, decision targets, risks, fallback positions, and a preparation checklist. Use a shared list only when explicitly asked, and treat proposed owners or commitments as unconfirmed. Never claim calendar, invitation, email, meeting attendance, recording, transcript, or post-meeting access.",
@@ -380,7 +380,7 @@
     },
     {
       "id": "career-coach",
-      "version": 1,
+      "version": 2,
       "name": "Career Coach",
       "tagline": "Tailors truthful applications, interview practice, and career decisions to real roles.",
       "prompt": "Help with a concrete job search, application, interview, offer comparison, or career decision. Establish the target role, career stage, geography, constraints, deadline, and desired outcome, and request the actual resume, work history, job description, or offer terms when needed. Prefer current official job and company sources and identify stale or conflicting information. Use only the experience, credentials, dates, titles, accomplishments, metrics, offers, and relationships the user supplied; never invent or inflate them. Map genuine evidence to role requirements, flag gaps, create editable tailored files when requested, and derive interview preparation from the real role. For compensation, state the source date, geography, assumptions, and uncertainty. Protect personal information and include only what the user wants in an artifact. This bot cannot submit applications, upload files to employers, contact recruiters or references, access private recruiting systems, or guarantee outcomes, and it must not claim those actions occurred.",
@@ -395,7 +395,7 @@
   "skills": [
     {
       "id": "skill-builder",
-      "version": 2,
+      "version": 3,
       "name": "Skill Builder",
       "description": "Create or reuse a private skill for Chief or another bot, including reviewed GitHub imports.",
       "category": "Productivity",
@@ -406,7 +406,7 @@
     },
     {
       "id": "group-intake",
-      "version": 1,
+      "version": 2,
       "name": "Group Intake",
       "description": "Collect each person’s constraints and unanswered questions before a group plans or decides.",
       "category": "Groups",
@@ -418,7 +418,7 @@
     },
     {
       "id": "trip-planner",
-      "version": 2,
+      "version": 3,
       "name": "Group Trip Planner",
       "description": "Turn everyone’s dates, preferences, and budget into a practical shared trip plan.",
       "category": "Groups",
@@ -430,7 +430,7 @@
     },
     {
       "id": "event-planner",
-      "version": 2,
+      "version": 3,
       "name": "Event Planner",
       "description": "Build a shared event plan with decisions, owners, timing, costs, and a live checklist.",
       "category": "Groups",
@@ -442,7 +442,7 @@
     },
     {
       "id": "group-decision",
-      "version": 2,
+      "version": 3,
       "name": "Group Decision Helper",
       "description": "Gather preferences, compare workable options, and help a group reach a clear decision.",
       "category": "Groups",
@@ -454,7 +454,7 @@
     },
     {
       "id": "shared-budget",
-      "version": 2,
+      "version": 3,
       "name": "Shared Budget",
       "description": "Create a transparent group budget, compare scenarios, and split costs fairly.",
       "category": "Groups",
@@ -466,7 +466,7 @@
     },
     {
       "id": "deep-research",
-      "version": 1,
+      "version": 2,
       "name": "Deep Research",
       "description": "Break down broad questions and produce a sourced, decision-ready synthesis.",
       "category": "Research",
@@ -477,7 +477,7 @@
     },
     {
       "id": "data-analyst",
-      "version": 1,
+      "version": 2,
       "name": "Data Workspace",
       "description": "Inspect data, calculate results, verify conclusions, and create useful output files.",
       "category": "Analysis",
@@ -488,7 +488,7 @@
     },
     {
       "id": "meme-maker",
-      "version": 3,
+      "version": 4,
       "name": "Meme Lord",
       "description": "Write punchy meme copy and render it on a stored popular template or an image supplied by the user.",
       "category": "Creative",
@@ -500,7 +500,7 @@
     },
     {
       "id": "youtube-thumbnail-director",
-      "version": 3,
+      "version": 4,
       "name": "YouTube Thumbnail Director",
       "description": "Turn a video's promise into a polished, mobile-readable YouTube thumbnail with deliberate art direction and requested text overlays.",
       "category": "Creative",
@@ -511,29 +511,29 @@
     },
     {
       "id": "youtube-strategy",
-      "version": 2,
+      "version": 3,
       "name": "YouTube Strategy",
       "description": "Use public YouTube evidence to find a differentiated video opportunity and turn it into a title, outline, and thumbnail brief.",
       "category": "Creator",
       "author": "HeyTim",
       "tags": ["youtube", "video", "strategy", "audience", "research"],
       "path": "skills/youtube-strategy/SKILL.md",
-      "requiredToolIds": ["web_search"]
+      "requiredToolIds": ["youtube_search", "web_search"]
     },
     {
       "id": "trend-scout",
-      "version": 2,
+      "version": 3,
       "name": "Trend Scout",
       "description": "Compare fresh signals across YouTube, X, and the web to find relevant trends, weak signals, and testable opportunities.",
       "category": "Research",
       "author": "HeyTim",
       "tags": ["trends", "social", "youtube", "research", "signals"],
       "path": "skills/trend-scout/SKILL.md",
-      "requiredToolIds": ["web_search", "delegate"]
+      "requiredToolIds": ["web_search", "x_search", "delegate"]
     },
     {
       "id": "morning-brief",
-      "version": 1,
+      "version": 2,
       "name": "Morning Brief",
       "description": "Build a concise, dated briefing from current sources and the user's priorities; use for daily, morning, or scheduled digests.",
       "category": "Productivity",
@@ -544,18 +544,18 @@
     },
     {
       "id": "social-writer",
-      "version": 2,
+      "version": 3,
       "name": "Social Writer",
       "description": "Draft platform-specific social posts, threads, and content calendars from supplied material or current research without publishing them.",
       "category": "Creator",
       "author": "HeyTim",
       "tags": ["social", "writing", "content", "copy", "marketing"],
       "path": "skills/social-writer/SKILL.md",
-      "requiredToolIds": ["web", "web_search", "current_time"]
+      "requiredToolIds": ["web", "web_search", "x_search", "current_time"]
     },
     {
       "id": "meeting-prep",
-      "version": 1,
+      "version": 2,
       "name": "Meeting Prep",
       "description": "Research an upcoming meeting and produce a decision-focused brief, agenda, questions, and preparation checklist.",
       "category": "Productivity",
@@ -566,7 +566,7 @@
     },
     {
       "id": "career-coach",
-      "version": 1,
+      "version": 2,
       "name": "Career Coach",
       "description": "Tailor job-search materials and interview preparation to real roles using supplied career facts and current job or company sources.",
       "category": "Career",
