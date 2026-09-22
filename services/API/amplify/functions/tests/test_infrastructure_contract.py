@@ -43,6 +43,11 @@ class InfrastructureContractTests(unittest.TestCase):
         cls.production_verifier = (
             Path(__file__).parents[5] / "scripts" / "verify-production-deployment.sh"
         ).read_text(encoding="utf-8")
+        cls.gateway_target_deployer = (
+            Path(__file__).parents[5]
+            / "scripts"
+            / "deploy-external-gateway-targets.sh"
+        ).read_text(encoding="utf-8")
 
     def test_worker_concurrency_protects_agentcore_and_is_observed(self) -> None:
         self.assertIn("reservedConcurrentExecutions: WORKER_CONCURRENCY", self.backend)
@@ -180,6 +185,37 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("alias/frogbot-production-user-files", self.deployment_role)
         self.assertIn(".templates[].key", self.production_verifier)
         self.assertIn("aws s3api head-object", self.production_verifier)
+
+    def test_production_release_deploys_and_smokes_external_research(self) -> None:
+        self.assertIn(
+            "Deploy external research gateway targets", self.production_workflow
+        )
+        self.assertIn(
+            "scripts/deploy-external-gateway-targets.sh", self.production_workflow
+        )
+        self.assertIn(
+            "scripts/smoke_external_gateway.py", self.production_workflow
+        )
+        self.assertIn("HeyTimXSearch", self.gateway_target_deployer)
+        self.assertIn("HeyTimYouTube", self.gateway_target_deployer)
+        self.assertIn("FrogBotXApi", self.gateway_target_deployer)
+        self.assertIn("FrogBotYouTubeApi", self.gateway_target_deployer)
+        self.assertIn("create-gateway-target", self.gateway_target_deployer)
+        self.assertIn("update-gateway-target", self.gateway_target_deployer)
+        self.assertIn("HeyTimExternalResearchTargets", self.gateway_target_deployer)
+        self.assertIn("HeyTimXSearch HeyTimYouTube", self.production_verifier)
+        for action in (
+            "bedrock-agentcore:CreateGatewayTarget",
+            "bedrock-agentcore:GetGatewayTarget",
+            "bedrock-agentcore:InvokeGateway",
+            "bedrock-agentcore:UpdateGatewayTarget",
+            "iam:PutRolePolicy",
+        ):
+            self.assertIn(action, self.deployment_role)
+        self.assertIn("/releases/skills-v*/x/openapi.yaml", self.deployment_role)
+        self.assertIn(
+            "/releases/skills-v*/youtube/openapi.yaml", self.deployment_role
+        )
 
     def test_production_release_supports_a_local_xcode_upload(self) -> None:
         self.assertIn("release_scope:", self.production_workflow)

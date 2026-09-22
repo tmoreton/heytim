@@ -6,12 +6,13 @@ outputs_file="$repository_root/services/API/amplify_outputs.json"
 target_file="$repository_root/agentcore/aws-targets.json"
 runtime_arn="${HEYTIM_AGENT_RUNTIME_ARN:-}"
 gateway_arn="${HEYTIM_AGENT_GATEWAY_ARN:-}"
+gateway_id="${HEYTIM_AGENT_GATEWAY_ID:-}"
 aws_region="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
 
 "$repository_root/scripts/assert-release-ready.sh" --aws --post-deploy
 
-if [[ -z "$runtime_arn" || -z "$gateway_arn" || -z "$aws_region" ]]; then
-  echo 'Runtime ARN, gateway ARN, and AWS Region are required for production verification.' >&2
+if [[ -z "$runtime_arn" || -z "$gateway_arn" || -z "$gateway_id" || -z "$aws_region" ]]; then
+  echo 'Runtime ARN, gateway ARN, gateway ID, and AWS Region are required for production verification.' >&2
   exit 2
 fi
 
@@ -116,6 +117,18 @@ alarm_count="$(aws cloudwatch describe-alarms \
   --query 'length(MetricAlarms)' \
   --output text)"
 [[ "$alarm_count" == "${#expected_alarms[@]}" ]] || { echo 'One or more AgentCore production alarms are missing.' >&2; exit 1; }
+
+gateway_targets="$(aws bedrock-agentcore-control list-gateway-targets \
+  --gateway-identifier "$gateway_id" \
+  --region "$aws_region" \
+  --output json)"
+for target_name in HeyTimXSearch HeyTimYouTube; do
+  target_status="$(jq -r --arg name "$target_name" '.items[] | select(.name == $name) | .status' <<<"$gateway_targets")"
+  [[ "$target_status" == READY ]] || {
+    echo "Production gateway target $target_name is not ready." >&2
+    exit 1
+  }
+done
 
 for application_arn in "${HEYTIM_APNS_APPLICATION_ARN:-}" "${HEYTIM_APNS_SANDBOX_APPLICATION_ARN:-}"; do
   [[ -n "$application_arn" ]] || continue

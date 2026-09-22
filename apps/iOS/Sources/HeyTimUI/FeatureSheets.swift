@@ -309,6 +309,8 @@ struct BotLibrary: View {
         CloseButton { model.sheet = nil }
       }
     }
+    .task { _ = await model.refreshBootstrap() }
+    .refreshable { _ = await model.refreshBootstrap() }
   }
 
   private func templateLink(_ template: BotTemplate) -> some View {
@@ -2497,6 +2499,8 @@ struct SkillsView: View {
     .navigationDestination(isPresented: $importingFromGitHub) {
       GitHubSkillImportView(model: model)
     }
+    .task { _ = await model.refreshBootstrap() }
+    .refreshable { _ = await model.refreshBootstrap() }
   }
 
   private func count(for section: CapabilityLibrarySection) -> Int {

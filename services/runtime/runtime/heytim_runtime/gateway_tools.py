@@ -2,13 +2,24 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Mapping
 from typing import Any, Protocol
 
 from strands.tools.mcp.mcp_client import MCPClient
 
-GATEWAY_URL = os.environ.get("HEYTIM_GATEWAY_URL") or os.environ.get(
-    "AGENTCORE_GATEWAY_HEYTIMTOOLS_URL", ""
-)
+
+def _gateway_url(environment: Mapping[str, str]) -> str:
+    """Resolve the gateway without renaming the deployed physical resource."""
+
+    return (
+        environment.get("HEYTIM_GATEWAY_URL")
+        or environment.get("AGENTCORE_GATEWAY_FROGBOTTOOLS_URL")
+        or environment.get("AGENTCORE_GATEWAY_HEYTIMTOOLS_URL")
+        or ""
+    )
+
+
+GATEWAY_URL = _gateway_url(os.environ)
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 
@@ -40,9 +51,7 @@ class MeteredMCPClient(MCPClient):
         **kwargs: Any,
     ) -> Any:
         self._observe(name)
-        return super().call_tool_sync(
-            tool_use_id, name, arguments, *args, **kwargs
-        )
+        return super().call_tool_sync(tool_use_id, name, arguments, *args, **kwargs)
 
     async def call_tool_async(
         self,

@@ -250,7 +250,7 @@ private struct ConversationSidebar: View {
         }
       #endif
     }
-    .overlay { if model.isLoading { ProgressView().tint(FrogTheme.accent) } }
+    .overlay { if model.isLoading { ProgressView().tint(FrogTheme.activity) } }
   }
 
   private func sidebarRow(_ item: ConversationListItem) -> some View {
@@ -309,13 +309,13 @@ private struct ConversationSidebar: View {
           Spacer(minLength: 4)
           if processing {
             HStack(spacing: 5) {
-              ProgressView().controlSize(.mini).tint(FrogTheme.accent)
+              ProgressView().controlSize(.mini).tint(FrogTheme.activity)
               Text("Working").froggyFont(.caption2, weight: .semibold)
             }
-            .foregroundStyle(FrogTheme.accent)
+            .foregroundStyle(FrogTheme.activity)
             .padding(.horizontal, 7)
             .padding(.vertical, 4)
-            .background(FrogTheme.accent.opacity(colorScheme == .dark ? 0.18 : 0.11), in: Capsule())
+            .background(FrogTheme.activity.opacity(colorScheme == .dark ? 0.18 : 0.11), in: Capsule())
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(processingName ?? name) is working")
             .accessibilityIdentifier(
@@ -328,7 +328,7 @@ private struct ConversationSidebar: View {
         }
         Text(processing ? "\(processingName ?? name) is working…" : preview)
           .froggyFont(.caption)
-          .foregroundStyle(processing ? FrogTheme.accent : .secondary)
+          .foregroundStyle(processing ? FrogTheme.activity : .secondary)
           .lineLimit(1)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -380,7 +380,7 @@ private struct ConversationSidebar: View {
   }
 
   private var createButtonColor: Color {
-    colorScheme == .dark ? .white : FrogTheme.brand
+    colorScheme == .dark ? .white : FrogTheme.conversationChrome
   }
 }
 
@@ -422,7 +422,7 @@ private extension AppModel {
       bot: selectedBot, group: selectedGroup, activeGroupBotID: activeGroupReplyBotId)
   }
 
-  var conversationAccent: Color { Color(hex: conversationAccentHex) }
+  var conversationAccent: Color { FrogTheme.conversationChrome }
 }
 
 #if os(macOS)
@@ -1448,7 +1448,9 @@ private struct MessageBubble: View {
     return role.map { "\(name) · \($0)" } ?? name
   }
   private var messageAccent: Color {
-    if botMessage, let authorColor = message.authorColor { return Color(hex: authorColor) }
+    if groupMode, botMessage, let authorColor = message.authorColor {
+      return Color(hex: authorColor)
+    }
     return model.conversationAccent
   }
   private var bubbleShape: UnevenRoundedRectangle {

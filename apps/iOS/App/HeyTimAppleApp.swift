@@ -59,6 +59,7 @@ private struct AppRoot: View {
   @AppStorage(FroggyPreferenceKeys.textSize) private var storedTextSize =
     FroggyTextSizePreference.platformDefaultRawValue
   @Environment(\.dynamicTypeSize) private var systemTextSize
+  @Environment(\.scenePhase) private var scenePhase
   @State private var invitation: PendingInvitation?
   @State private var connected = false
   @State private var pendingPushSelection: PushSelection?
@@ -94,6 +95,10 @@ private struct AppRoot: View {
         pendingPushSelection = nil
         model.resetSession()
       }
+    }
+    .onChange(of: scenePhase) { _, phase in
+      guard phase == .active, auth.phase == .signedIn, connected else { return }
+      Task { _ = await model.refreshBootstrap() }
     }
     .onOpenURL { url in
       let billingWebReturn = ["heytim.ai", "www.heytim.ai"].contains(url.host ?? "")

@@ -232,8 +232,13 @@ public enum FrogTheme {
     #endif
   }
 
-  // Neutral, Codex-like surfaces keep yellow and bot colors reserved for meaningful accents.
+  // Neutral, Codex-like surfaces keep yellow and bot colors reserved for identity.
+  // Readable controls and operational state use calmer, contrast-safe semantic colors.
   public static let accent = brand
+  public static let conversationChrome = adaptive(
+    light: RGB(47, 111, 163), dark: RGB(122, 174, 222))
+  public static let activity = adaptive(
+    light: RGB(31, 112, 101), dark: RGB(105, 205, 190))
   public static let canvas = adaptive(light: RGB(255, 255, 255), dark: RGB(0, 0, 0))
   public static let appBackground = adaptive(light: RGB(255, 255, 255), dark: RGB(0, 0, 0))
   public static let pageBackground = adaptive(light: RGB(247, 247, 248), dark: RGB(0, 0, 0))

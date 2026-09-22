@@ -73,6 +73,21 @@ export function addGithubDeploymentRole({
     resource: productionFilesBucketName,
     arnFormat: ArnFormat.NO_RESOURCE_NAME,
   });
+  const gatewaySchemaBucketName = `bedrock-agentcore-gateway-heytim-${stack.account}-use1`;
+  const gatewaySchemaBucketArn = stack.formatArn({
+    service: 's3',
+    region: '',
+    account: '',
+    resource: gatewaySchemaBucketName,
+    arnFormat: ArnFormat.NO_RESOURCE_NAME,
+  });
+  const productionGatewayRoleArn = stack.formatArn({
+    service: 'iam',
+    region: '',
+    resource: 'role',
+    resourceName: 'AgentCore-FrogBot-product-McpGatewayFrogBotToolsRol-*',
+    arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+  });
 
   const role = new Role(stack, 'GitHubProductionDeployRole', {
     description: 'Least-privilege GitHub OIDC entrypoint for reviewed HeyTim production deployments.',
@@ -181,9 +196,28 @@ export function addGithubDeploymentRole({
     resources: [stripeSecretArn],
   }));
   role.addToPolicy(new PolicyStatement({
-    actions: ['bedrock-agentcore:ListGatewayTargets'],
+    actions: [
+      'bedrock-agentcore:CreateGatewayTarget',
+      'bedrock-agentcore:GetGateway',
+      'bedrock-agentcore:GetGatewayTarget',
+      'bedrock-agentcore:InvokeGateway',
+      'bedrock-agentcore:ListGatewayTargets',
+      'bedrock-agentcore:SynchronizeGatewayTargets',
+      'bedrock-agentcore:UpdateGatewayTarget',
+    ],
     resources: [agentCoreArn('gateway', '*')],
     conditions: projectResourceCondition,
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['iam:GetRolePolicy', 'iam:PutRolePolicy'],
+    resources: [productionGatewayRoleArn],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['s3:GetObject', 's3:PutObject'],
+    resources: [
+      `${gatewaySchemaBucketArn}/releases/skills-v*/x/openapi.yaml`,
+      `${gatewaySchemaBucketArn}/releases/skills-v*/youtube/openapi.yaml`,
+    ],
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['bedrock-agentcore:UpdateOnlineEvaluationConfig'],

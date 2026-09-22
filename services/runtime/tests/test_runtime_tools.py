@@ -27,6 +27,31 @@ def _youtube_quota() -> dict:
     return {"day": day, "maxCalls": 3}
 
 
+def test_gateway_url_keeps_the_deployed_legacy_resource_compatible() -> None:
+    assert (
+        gateway_tools._gateway_url(
+            {"AGENTCORE_GATEWAY_FROGBOTTOOLS_URL": "https://gateway.example/mcp"}
+        )
+        == "https://gateway.example/mcp"
+    )
+    assert (
+        gateway_tools._gateway_url(
+            {
+                "HEYTIM_GATEWAY_URL": "https://override.example/mcp",
+                "AGENTCORE_GATEWAY_FROGBOTTOOLS_URL": "https://gateway.example/mcp",
+                "AGENTCORE_GATEWAY_HEYTIMTOOLS_URL": "https://future.example/mcp",
+            }
+        )
+        == "https://override.example/mcp"
+    )
+    assert (
+        gateway_tools._gateway_url(
+            {"AGENTCORE_GATEWAY_HEYTIMTOOLS_URL": "https://future.example/mcp"}
+        )
+        == "https://future.example/mcp"
+    )
+
+
 def test_catalog_bindings_select_stan_features_and_local_tools(monkeypatch) -> None:
     class FakeInterpreter:
         def __init__(self, **_kwargs):

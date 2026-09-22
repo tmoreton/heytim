@@ -304,15 +304,21 @@ jobs:
           runtime_arn="$(jq -r "$target.runtimes.FrogBot.runtimeArn // empty" /tmp/heytim-production-status.json)"
           memory_arn="$(jq -r "$target.memories.FrogBotMemory.memoryArn // empty" /tmp/heytim-production-status.json)"
           gateway_arn="$(jq -r "$target.mcp.gateways.FrogBotTools.gatewayArn // empty" /tmp/heytim-production-status.json)"
+          gateway_id="$(jq -r "$target.mcp.gateways.FrogBotTools.gatewayId // empty" /tmp/heytim-production-status.json)"
+          gateway_url="$(jq -r "$target.mcp.gateways.FrogBotTools.gatewayUrl // empty" /tmp/heytim-production-status.json)"
           if [[ "$runtime_arn" != arn:aws:bedrock-agentcore:* ]] \
             || [[ "$memory_arn" != arn:aws:bedrock-agentcore:* ]] \
-            || [[ "$gateway_arn" != arn:aws:bedrock-agentcore:* ]]; then
+            || [[ "$gateway_arn" != arn:aws:bedrock-agentcore:* ]] \
+            || [[ -z "$gateway_id" ]] \
+            || [[ "$gateway_url" != https://*.gateway.bedrock-agentcore.*.amazonaws.com/mcp ]]; then
             echo 'AgentCore production resources are not ready.' >&2
             exit 1
           fi
           echo "HEYTIM_AGENT_RUNTIME_ARN=$runtime_arn" >> "$GITHUB_ENV"
           echo "HEYTIM_MEMORY_ID=${memory_arn##*/}" >> "$GITHUB_ENV"
           echo "HEYTIM_AGENT_GATEWAY_ARN=$gateway_arn" >> "$GITHUB_ENV"
+          echo "HEYTIM_AGENT_GATEWAY_ID=$gateway_id" >> "$GITHUB_ENV"
+          echo "HEYTIM_AGENT_GATEWAY_URL=$gateway_url" >> "$GITHUB_ENV"
 
       - name: Deploy Amplify production backend
         working-directory: services/API
@@ -373,6 +379,13 @@ jobs:
           done
           echo 'Could not provision the Stripe billing secret after the deployment role update.' >&2
           exit 1
+
+      - name: Deploy external research gateway targets
+        run: ./scripts/deploy-external-gateway-targets.sh
+
+      - name: Smoke test X and YouTube research
+        working-directory: services/runtime
+        run: uv run --frozen python scripts/smoke_external_gateway.py
 
       - name: Generate release client configuration
         working-directory: services/API
