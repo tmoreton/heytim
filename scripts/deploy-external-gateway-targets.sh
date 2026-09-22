@@ -187,7 +187,7 @@ deploy_target() {
         )}
       }]
     }
-    + if $target_id == "" then {clientToken: ("heytim-" + $release + "-" + $name)} else {targetId: $target_id} end
+    + if $target_id == "" then {clientToken: ("heytim-external-research-" + $release + "-" + $name)} else {targetId: $target_id} end
   ' > "$request_file"
 
   if [[ -z "$target_id" ]]; then

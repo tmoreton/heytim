@@ -204,6 +204,7 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("update-gateway-target", self.gateway_target_deployer)
         self.assertIn("HeyTimExternalResearchTargets", self.gateway_target_deployer)
         self.assertIn("retry_aws", self.gateway_target_deployer)
+        self.assertIn("heytim-external-research-", self.gateway_target_deployer)
         self.assertIn(
             "bedrock-agentcore-gateway-frogbot-${account_id}-use1",
             self.gateway_target_deployer,
