@@ -238,14 +238,13 @@ public final class HeyTimAPI: Sendable {
   }
   public func sendMessage(
     bot id: String, text: String, attachments: [String] = [], workspaceFiles: [String] = [],
-    inboxMessageId: String? = nil, homeAssistantHint: HomeAssistantRouteHint? = nil
+    inboxMessageId: String? = nil
   ) async throws {
     let _: EmptyResponse = try await request(
       .botMessageSend, parameters: ["botId": id],
       body: SendMessageBody(
         text: text, attachmentIds: attachments, workspaceFileIds: workspaceFiles,
-        replyBotId: nil, inboxMessageId: inboxMessageId,
-        homeAssistantHint: homeAssistantHint))
+        replyBotId: nil, inboxMessageId: inboxMessageId))
   }
   public func sendMessage(
     group id: String, text: String, replyBotId: String? = nil, attachments: [String] = [],
@@ -255,7 +254,7 @@ public final class HeyTimAPI: Sendable {
       .groupMessageSend, parameters: ["groupId": id],
       body: SendMessageBody(
         text: text, attachmentIds: attachments, workspaceFileIds: workspaceFiles,
-        replyBotId: replyBotId, inboxMessageId: nil, homeAssistantHint: nil))
+        replyBotId: replyBotId, inboxMessageId: nil))
   }
   public func cancel(botId: String, turnId: String) async throws {
     let _: EmptyResponse = try await request(
@@ -524,11 +523,6 @@ public final class HeyTimAPI: Sendable {
     guard let url = URL(string: value.authorizationUrl) else { throw APIError.invalidResponse }
     return url
   }
-  public func connectHomeAssistant(instanceURL: String, accessToken: String) async throws -> Capability {
-    try await request(
-      .homeAssistantConnect,
-      body: ["instanceUrl": instanceURL, "accessToken": accessToken])
-  }
   public func connectMCPServer(name: String, url: String, accessToken: String) async throws -> Capability {
     try await request(
       .mcpServerConnect,
@@ -700,7 +694,6 @@ private struct SendMessageBody: Codable {
   var workspaceFileIds: [String]
   var replyBotId: String?
   var inboxMessageId: String?
-  var homeAssistantHint: HomeAssistantRouteHint?
 }
 private struct BrowserBody: Codable {
   var groupId: String?

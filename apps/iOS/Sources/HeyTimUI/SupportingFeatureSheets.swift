@@ -30,7 +30,7 @@ final class WebAuthenticationController: NSObject,
   var outcome: WebAuthenticationOutcome?
   var isRunning = false
 
-  func start(url: URL) {
+  func start(url: URL, chooseAnotherAccount: Bool = false) {
     outcome = nil
     isRunning = true
     let session = ASWebAuthenticationSession(
@@ -39,7 +39,9 @@ final class WebAuthenticationController: NSObject,
       self?.finish(callbackURL: callbackURL, error: error)
     }
     session.presentationContextProvider = self
-    session.prefersEphemeralWebBrowserSession = false
+    // A fresh browser session avoids silently reconnecting the account that
+    // is already signed in when the user asks to add another account.
+    session.prefersEphemeralWebBrowserSession = chooseAnotherAccount
     self.session = session
     if !session.start() {
       self.session = nil
@@ -287,14 +289,11 @@ struct ConnectionsView: View {
   @State private var connectingProviderID: String?
   @State private var disconnectCandidate: Capability?
   @State private var successMessage: String?
-  @State private var showingHomeAssistantSetup = false
-  @State private var homeAssistantURL = ""
-  @State private var homeAssistantToken = ""
-  @State private var savingHomeAssistant = false
   @State private var showingMCPServerSetup = false
   @State private var mcpServerName = ""
   @State private var mcpServerURL = ""
   @State private var mcpServerToken = ""
+  @State private var updatingMCPServer = false
   @State private var savingMCPServer = false
   @State private var webAuthentication = WebAuthenticationController()
 
@@ -313,13 +312,22 @@ struct ConnectionsView: View {
           }
         }
       } else {
-        Section {
-          ForEach(providers) { provider in
+        Section("Connected accounts") {
+          ForEach(providers.filter { $0.id != "mcp_server" }) { provider in
             providerAccessRow(provider)
           }
-          if providers.isEmpty && !loading {
+          if providers.filter({ $0.id != "mcp_server" }).isEmpty && !loading {
             Text("No account providers are available.").foregroundStyle(.secondary)
           }
+        }
+        Section {
+          ForEach(providers.filter { $0.id == "mcp_server" }) { provider in
+            providerAccessRow(provider)
+          }
+        } header: {
+          Text("MCP servers")
+        } footer: {
+          Text("Add Home Assistant at its /api/mcp/assist URL or any other trusted HTTPS MCP endpoint. Each server and account is enabled separately in a bot’s Tools list.")
         }
       }
     }
@@ -338,36 +346,6 @@ struct ConnectionsView: View {
     .overlay { if loading { ProgressView() } }
     .refreshable { await load() }
     .task { await load() }
-    .sheet(isPresented: $showingHomeAssistantSetup) {
-      NavigationStack {
-        Form {
-          Section {
-            TextField("Home Assistant URL", text: $homeAssistantURL)
-              .autocorrectionDisabled()
-              .accessibilityIdentifier("connection.home-assistant.url")
-            SecureField("Long-lived access token", text: $homeAssistantToken)
-              .accessibilityIdentifier("connection.home-assistant.token")
-          } header: {
-            Text("Connect Home Assistant")
-          } footer: {
-            Text("Use a public HTTPS address, such as Home Assistant Cloud. Enable the Model Context Protocol Server integration and expose only the entities this bot should use in Assist. Your token is stored privately on the server.")
-          }
-        }
-        .formStyle(.grouped)
-        .navigationTitle("Home Assistant")
-        .toolbar {
-          ToolbarItem(placement: .cancellationAction) {
-            Button("Cancel") { closeHomeAssistantSetup() }
-          }
-          ToolbarItem(placement: .confirmationAction) {
-            Button("Connect") { saveHomeAssistant() }
-              .disabled(savingHomeAssistant || homeAssistantURL.isEmpty || homeAssistantToken.isEmpty)
-          }
-        }
-        .overlay { if savingHomeAssistant { ProgressView() } }
-      }
-      .frame(minWidth: 460, minHeight: 300)
-    }
     .sheet(isPresented: $showingMCPServerSetup) {
       mcpServerSetupSheet
     }
@@ -428,12 +406,12 @@ struct ConnectionsView: View {
     }
   }
 
-  private func connect(_ id: String) {
-    if id == "home_assistant" {
-      showingHomeAssistantSetup = true
-      return
-    }
+  private func connect(_ id: String, chooseAnotherAccount: Bool = false) {
     if id == "mcp_server" {
+      updatingMCPServer = false
+      mcpServerName = ""
+      mcpServerURL = ""
+      mcpServerToken = ""
       showingMCPServerSetup = true
       return
     }
@@ -447,7 +425,7 @@ struct ConnectionsView: View {
         guard let returnURL = callback.url else { throw APIError.invalidResponse }
         let url = try await model.requireAPI().beginConnection(
           providerId: id, returnURL: returnURL)
-        webAuthentication.start(url: url)
+        webAuthentication.start(url: url, chooseAnotherAccount: chooseAnotherAccount)
       } catch {
         connectingProviderID = nil
         model.present(error)
@@ -455,12 +433,18 @@ struct ConnectionsView: View {
     }
   }
 
-  private func closeHomeAssistantSetup() {
-    homeAssistantToken = ""
-    showingHomeAssistantSetup = false
+  private func updateMCPServer(_ connection: Capability) {
+    updatingMCPServer = true
+    mcpServerName = connection.name
+    mcpServerURL = connection.endpoint ?? ""
+    mcpServerToken = ""
+    showingMCPServerSetup = true
   }
 
   private func closeMCPServerSetup() {
+    updatingMCPServer = false
+    mcpServerName = ""
+    mcpServerURL = ""
     mcpServerToken = ""
     showingMCPServerSetup = false
   }
@@ -474,12 +458,13 @@ struct ConnectionsView: View {
           TextField("MCP HTTPS URL", text: $mcpServerURL)
             .autocorrectionDisabled()
             .accessibilityIdentifier("connection.mcp.url")
+            .disabled(updatingMCPServer)
           SecureField("Access token", text: $mcpServerToken)
             .accessibilityIdentifier("connection.mcp.token")
         } header: {
-          Text("Add MCP server")
+          Text(updatingMCPServer ? "Update MCP server" : "Add MCP server")
         } footer: {
-          Text("Use a public HTTPS MCP endpoint you trust. HeyTim stores the token privately. Add as many servers as you need, then enable each one for the bots that should use it. The server controls which tools it exposes.")
+          Text("Use a public HTTPS MCP endpoint you trust. For Home Assistant, enter the full /api/mcp/assist URL and a long-lived access token. HeyTim stores tokens privately. Add multiple servers and enable each only for the bots that need it.")
         }
       }
       .formStyle(.grouped)
@@ -489,7 +474,7 @@ struct ConnectionsView: View {
           Button("Cancel") { closeMCPServerSetup() }
         }
         ToolbarItem(placement: .confirmationAction) {
-          Button("Add server") { saveMCPServer() }
+            Button(updatingMCPServer ? "Save server" : "Add server") { saveMCPServer() }
             .disabled(savingMCPServer || mcpServerName.isEmpty || mcpServerURL.isEmpty || mcpServerToken.isEmpty)
         }
       }
@@ -508,27 +493,12 @@ struct ConnectionsView: View {
           name: mcpServerName.trimmingCharacters(in: .whitespacesAndNewlines),
           url: mcpServerURL.trimmingCharacters(in: .whitespacesAndNewlines),
           accessToken: mcpServerToken.trimmingCharacters(in: .whitespacesAndNewlines))
+        let updated = updatingMCPServer
         closeMCPServerSetup()
         await load()
-        successMessage = "MCP server added. Enable it in the Tools list for each bot that needs it."
-      } catch {
-        model.present(error)
-      }
-    }
-  }
-
-  private func saveHomeAssistant() {
-    guard !savingHomeAssistant else { return }
-    savingHomeAssistant = true
-    Task {
-      defer { savingHomeAssistant = false }
-      do {
-        _ = try await model.requireAPI().connectHomeAssistant(
-          instanceURL: homeAssistantURL.trimmingCharacters(in: .whitespacesAndNewlines),
-          accessToken: homeAssistantToken.trimmingCharacters(in: .whitespacesAndNewlines))
-        closeHomeAssistantSetup()
-        await load()
-        successMessage = "Home Assistant is now available in Tools. Enable it for the bots you choose."
+        successMessage = updated
+          ? "MCP server updated. Bots using this connection retain access."
+          : "MCP server added. Enable it in the Tools list for each bot that needs it."
       } catch {
         model.present(error)
       }
@@ -562,14 +532,17 @@ struct ConnectionsView: View {
           FeatureLink {
             ConnectionDetailView(
               connection: connection, provider: provider,
-              reconnect: { connect(provider.id) },
+              reconnect: {
+                if provider.id == "mcp_server" { updateMCPServer(connection) }
+                else { connect(provider.id) }
+              },
               disconnect: { disconnectCandidate = connection })
           } label: {
             connectionRow(connection, provider: provider)
           }
         }
         Button(provider.id == "github" ? "Add another installation" : (provider.id == "mcp_server" ? "Add another server" : "Add another account")) {
-          connect(provider.id)
+          connect(provider.id, chooseAnotherAccount: provider.id != "mcp_server")
         }
         .disabled(connectingProviderID != nil || webAuthentication.isRunning)
         .accessibilityIdentifier("connection.add.\(provider.id)")
@@ -603,8 +576,11 @@ struct ConnectionsView: View {
     HStack(spacing: 12) {
       ProviderLogoView(provider: provider)
       VStack(alignment: .leading, spacing: 3) {
-        Text(provider.name).froggyFont(.headline)
-        Text(connection.connectedAccount ?? connection.description)
+        Text(provider.id == "mcp_server" ? connection.name : provider.name)
+          .froggyFont(.headline)
+        Text(provider.id == "mcp_server"
+             ? (connection.endpoint ?? connection.description)
+             : (connection.connectedAccount ?? connection.description))
           .froggyFont(.caption).foregroundStyle(.secondary).lineLimit(2)
       }
       Spacer()
@@ -625,8 +601,11 @@ private struct ConnectionDetailView: View {
     Form {
       Section {
         LabeledContent("Status", value: statusLabel)
-        if let account = connection.connectedAccount {
+        if let account = connection.connectedAccount, connection.provider != "mcp_server" {
           LabeledContent("Account", value: account)
+        }
+        if let endpoint = connection.endpoint, connection.provider == "mcp_server" {
+          LabeledContent("Server URL", value: endpoint)
         }
         if let updatedAt = connection.updatedAt?.froggyDate {
           LabeledContent("Last updated", value: updatedAt.formatted(date: .abbreviated, time: .shortened))
@@ -1381,7 +1360,7 @@ struct AccountView: View {
         FeatureLink {
           ConnectionsView(model: model, showsDismissButton: false)
         } label: {
-          Label("Connected Accounts", systemImage: "link")
+          Label("Accounts & MCP Servers", systemImage: "link")
         }
       }
 

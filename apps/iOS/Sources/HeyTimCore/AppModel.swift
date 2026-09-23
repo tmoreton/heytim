@@ -428,7 +428,7 @@ public final class AppModel {
     }
   }
 
-  public func send(homeAssistantHint: HomeAssistantRouteHint? = nil) async {
+  public func send() async {
     let requestedSession = sessionGeneration
     let submitted = ComposerDraft(
       text: composerText, attachments: pendingAttachments,
@@ -476,8 +476,7 @@ public final class AppModel {
       if selection.kind == .bot {
         try await api.sendMessage(
           bot: selection.id, text: text, attachments: attachmentIds,
-          workspaceFiles: workspaceFileIds, inboxMessageId: submitted.inboxMessageId,
-          homeAssistantHint: homeAssistantHint)
+          workspaceFiles: workspaceFileIds, inboxMessageId: submitted.inboxMessageId)
       } else {
         try await api.sendMessage(
           group: selection.id, text: text, replyBotId: replyBotId,
@@ -1024,16 +1023,6 @@ public enum DemoData {
       familyIconText: "YT", familyLogoProviderId: "youtube",
       serviceName: "YouTube account"),
     ConnectionProvider(
-      id: "home_assistant", name: "Home Assistant",
-      description: "Read exposed devices and request home actions through your own Home Assistant instance.",
-      category: "Smart home", iconText: "HA",
-      permissionsSummary: "Only entities exposed to Assist; the first action asks for Always Allow",
-      privacyTitle: "Your home stays under your control",
-      privacyDescription: "Connect your own Home Assistant Assist MCP server.",
-      familyId: "mcp", familyName: "MCP servers",
-      familyDescription: "Connect Home Assistant or another MCP server.",
-      familyIconText: "MCP", familyLogoProviderId: "mcp_server"),
-    ConnectionProvider(
       id: "mcp_server", name: "MCP server",
       description: "Connect a remote MCP server by HTTPS URL and access token.",
       category: "Integrations", iconText: "MCP",
@@ -1041,7 +1030,7 @@ public enum DemoData {
       privacyTitle: "Assign each server only to bots that need it",
       privacyDescription: "The access token is stored privately on the server.",
       familyId: "mcp", familyName: "MCP servers",
-      familyDescription: "Connect Home Assistant or another MCP server.",
+      familyDescription: "Add multiple trusted MCP servers and assign each one to specific bots.",
       familyIconText: "MCP", familyLogoProviderId: "mcp_server"),
     ConnectionProvider(
       id: "gmail", name: "Gmail",

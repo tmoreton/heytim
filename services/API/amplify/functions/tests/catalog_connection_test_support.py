@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from shared.catalog import CatalogError
+from shared.connection_providers import connection_specs
 
 
 class ConnectionCatalogCases:
@@ -13,6 +14,7 @@ class ConnectionCatalogCases:
         )
         self.assertNotEqual(first["id"], second["id"])
         self.assertEqual(first["provider"], "mcp_server")
+        self.assertEqual(first["endpoint"], "https://planning.example.com/mcp")
         self.assertNotIn("p" * 48, repr(first))
         self.assertNotIn("r" * 48, repr(second))
         resolved = self.catalog.resolve_tools_for_runtime("owner", [first["id"]])
@@ -41,13 +43,14 @@ class ConnectionCatalogCases:
             "owner", "https://home.example.com", "a" * 48
         )
         self.assertEqual(saved["name"], "Home Assistant")
+        self.assertEqual(saved["endpoint"], "https://home.example.com/api/mcp/assist")
         self.assertEqual(saved["risk"], "interactive")
         self.assertNotIn("a" * 48, repr(saved))
         listed = self.catalog.list_tools("owner")
         self.assertIn(saved["id"], [tool["id"] for tool in listed])
         self.assertEqual(
             next(tool for tool in listed if tool["id"] == saved["id"])["provider"],
-            "home_assistant",
+            "mcp_server",
         )
         runtime = self.catalog.resolve_tools_for_runtime("owner", [saved["id"]])[0]
         self.assertEqual(runtime["runtime"]["endpoint"], "https://home.example.com/api/mcp/assist")
@@ -70,6 +73,17 @@ class ConnectionCatalogCases:
             self.catalog.save_home_assistant_connection(
                 "owner", "https://home.example.com", "a" * 47 + "\n"
             )
+
+        migrated = self.catalog.save_mcp_server_connection(
+            "owner", "Home Assistant", "https://home.example.com/api/mcp/assist", "b" * 48
+        )
+        self.assertEqual(migrated["id"], saved["id"])
+        self.assertEqual(migrated["provider"], "mcp_server")
+        self.assertEqual(
+            self.catalog.resolve_tools_for_runtime("owner", [saved["id"]])[0]["runtime"]["authType"],
+            "bearer_token",
+        )
+        self.assertEqual(len(self.catalog.list_connections("owner")), 1)
 
     def test_managed_connection_reconnect_rotates_its_secret(self) -> None:
         saved = self.catalog.save_gmail_connection(
@@ -132,6 +146,41 @@ class ConnectionCatalogCases:
             self.table.items[("USER#owner", f"CONNECTION#{second['id']}")]["secretArn"],
             second_secret,
         )
+
+    def test_multiple_provider_accounts_are_selected_by_connection_id(self) -> None:
+        client_secret = "arn:aws:secretsmanager:us-east-1:123456789012:secret:heytim/oauth/test"
+        specs = connection_specs()
+        grants = []
+        for provider in ("x", "youtube"):
+            for index in (1, 2):
+                grants.append(self.catalog.save_oauth_api_connection(
+                    "owner", provider, f"{provider}-{index}@example.com",
+                    f"{provider}-account-{index}", f"refresh-{provider}-{index}",
+                    client_secret, specs[provider]["scopes"],
+                ))
+        for index in (1, 2):
+            grants.append(self.catalog.save_external_oauth_connection(
+                "owner", "slack", f"workspace-{index}", f"slack-{index}",
+                {"accessToken": f"access-{index}", "refreshToken": f"refresh-{index}",
+                 "expiresAt": 2_000_000_000}, client_secret, specs["slack"]["scopes"],
+            ))
+            grants.append(self.catalog.save_google_workspace_connection(
+                "owner", f"workspace-{index}@example.com", f"google-{index}",
+                f"refresh-workspace-{index}", client_secret,
+                specs["google_workspace"]["scopes"],
+            ))
+            grants.append(self.catalog.save_github_connection(
+                "owner", f"org-{index}", str(100 + index),
+                [{"id": index, "name": f"org-{index}/repo"}],
+                {"metadata": "read", "contents": "write"}, client_secret,
+            ))
+        ids = [grant["id"] for grant in grants]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(set(ids), {item["id"] for item in self.catalog.list_connections("owner")})
+        selected = ids[::2]
+        self.assertEqual(self.catalog.validate_tools("owner", selected), selected)
+        resolved = self.catalog.resolve_tools_for_runtime("owner", selected)
+        self.assertEqual([tool["id"] for tool in resolved], selected)
 
     def test_github_repository_selection_is_narrowed_per_bot(self) -> None:
         github = self.catalog.save_github_connection(

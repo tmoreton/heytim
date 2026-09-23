@@ -778,6 +778,8 @@ struct BotToolsAndSkillsEditor: View {
       }
 
       Section("Tools") {
+        Text("Enable each connected account, GitHub installation, or MCP server separately for this bot. Connections are never shared with a bot automatically.")
+          .froggyFont(.caption).foregroundStyle(.secondary)
         #if os(macOS)
           Toggle(isOn: Binding(
             get: { botID.map { desktopControl.enabledBotIDs.contains($0) } ?? false },
@@ -891,8 +893,11 @@ struct BotToolsAndSkillsEditor: View {
         HStack(spacing: 10) {
           toolIcon(tool)
           VStack(alignment: .leading, spacing: 3) {
-            Text(tool.connectedAccount.map { "\(name ?? tool.name) · \($0)" } ?? (name ?? tool.name))
-            Text(tool.description).froggyFont(.caption).foregroundStyle(.secondary)
+            Text(tool.provider == "mcp_server" && tool.connectedAccount == tool.name
+                 ? tool.name
+                 : tool.connectedAccount.map { "\(name ?? tool.name) · \($0)" } ?? (name ?? tool.name))
+            Text(tool.provider == "mcp_server" ? (tool.endpoint ?? tool.description) : tool.description)
+              .froggyFont(.caption).foregroundStyle(.secondary)
             if !requiredBy.isEmpty {
               Text("Required by \(requiredBy.joined(separator: ", "))")
                 .froggyFont(.caption2, weight: .semibold)
@@ -1063,7 +1068,7 @@ struct BotToolsAndSkillsEditor: View {
       }
     }
     .accessibilityIdentifier("bot.connection.\(provider.id)")
-    .accessibilityHint("Opens Connected Accounts")
+    .accessibilityHint("Opens Accounts & MCP Servers")
   }
 
   @ViewBuilder private func connectionIcon(_ provider: ConnectionProvider) -> some View {
@@ -2502,22 +2507,21 @@ struct SkillsView: View {
             ContentUnavailableView("No Tools", systemImage: "wrench.and.screwdriver")
           }
         }
-        Section("Connectable Tools") {
-          ForEach(model.bootstrap?.connectionProviders ?? []) { provider in
-            FeatureLink {
-              ConnectionsView(model: model, showsDismissButton: false)
-            } label: {
-              Label {
-                VStack(alignment: .leading, spacing: 3) {
-                  Text(provider.name).froggyFont(.headline)
-                  Text(provider.description).foregroundStyle(.secondary)
-                }
-              } icon: {
-                Image(systemName: "link")
+        Section("Connected Tools") {
+          FeatureLink {
+            ConnectionsView(model: model, showsDismissButton: false)
+          } label: {
+            Label {
+              VStack(alignment: .leading, spacing: 3) {
+                Text("Accounts & MCP Servers").froggyFont(.headline)
+                Text("Connect multiple accounts and servers; choose each one in a bot’s Tools list.")
+                  .foregroundStyle(.secondary)
               }
+            } icon: {
+              Image(systemName: "link")
             }
-            .accessibilityIdentifier("tools.connection.\(provider.id)")
           }
+          .accessibilityIdentifier("tools.connections")
         }
       }
     }

@@ -46,7 +46,7 @@ def _slack_connection(token: dict, runtime: dict) -> tuple[str, str, dict]:
         raise ApiError(400, "Slack read-only access is required")
     return (
         f"{team_id}:{user_id}",
-        team_name[:254],
+        f"{team_name} · {user_id}"[:254],
         {
             "accessToken": access_token,
             "refreshToken": refresh_token,
@@ -269,5 +269,4 @@ def _zoom_connection(token: dict, deadline: float, runtime: dict) -> tuple[str, 
             "expiresAt": int(time.time()) + int(expires_in),
         },
     )
-
 

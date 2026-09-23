@@ -41,21 +41,6 @@ import UniformTypeIdentifiers
       }
     }
 
-    func testDesktopLayaReceivesOnlyBoundedSafeVisibleCandidates() {
-      let controls = [
-        DesktopControlSummary(id: "next", role: "AXButton", label: "Next", blockedByPolicy: false),
-        DesktopControlSummary(id: "previous", role: "AXButton", label: "Previous", blockedByPolicy: false),
-        DesktopControlSummary(id: "save", role: "AXButton", label: "Save next item", blockedByPolicy: true),
-      ]
-      XCTAssertEqual(
-        DesktopControlCoordinator.layaCandidates(for: "next month", from: controls).map(\.id),
-        ["next"])
-      XCTAssertTrue(DesktopControlCoordinator.layaCandidates(
-        for: "save next", from: Array(repeating: controls[2], count: 5)).isEmpty)
-      XCTAssertTrue(DesktopControlCoordinator.layaCandidates(
-        for: "unrelated", from: controls).isEmpty)
-    }
-
     func testDesktopAutomaticActionsRequireAnExactLowRiskMatch() {
       let calendar = DesktopApplication(id: 1, name: "Calendar", bundleIdentifier: "com.apple.iCal")
       let notes = DesktopApplication(id: 2, name: "Notes", bundleIdentifier: "com.apple.Notes")
@@ -115,12 +100,6 @@ import UniformTypeIdentifiers
       XCTAssertNil(DesktopControlCoordinator.noteContent(from: "Show my Notes app"))
     }
 
-    func testPinnedLayaShipsInsideMacApp() throws {
-      let model = try XCTUnwrap(Bundle.main.resourceURL?.appendingPathComponent("laya-coreml"))
-      XCTAssertTrue(FileManager.default.fileExists(atPath: model.appendingPathComponent("tokenizer.json").path))
-      XCTAssertTrue(FileManager.default.fileExists(
-        atPath: model.appendingPathComponent("laya_multilingual_e8_L128_options32.mlmodelc").path))
-    }
   #endif
 
   func testGeneratedContractIncludesEveryBackendRoute() throws {

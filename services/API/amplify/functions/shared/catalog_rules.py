@@ -537,7 +537,16 @@ def _public_tool(item: dict) -> dict:
         "repositories",
         "updatedAt",
     )
-    return {key: item[key] for key in keys if key in item}
+    public = {key: item[key] for key in keys if key in item}
+    # Existing Home Assistant grants retain their connection IDs and credentials,
+    # but are presented as ordinary MCP servers to all current clients.
+    if public.get("provider") == "home_assistant":
+        public["provider"] = "mcp_server"
+    if public.get("provider") == "mcp_server":
+        runtime = item.get("runtime")
+        if isinstance(runtime, dict) and isinstance(runtime.get("endpoint"), str):
+            public["endpoint"] = runtime["endpoint"]
+    return public
 
 
 def _public_bot_template(item: dict) -> dict:

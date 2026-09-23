@@ -1,5 +1,8 @@
 # Laya, Mac Accessibility, and Home Assistant audit
 
+> Historical research note: current builds no longer link or bundle Laya.
+> Home Assistant uses assigned MCP connections.
+
 Date: 2026-09-23
 
 ## What the platform APIs actually provide

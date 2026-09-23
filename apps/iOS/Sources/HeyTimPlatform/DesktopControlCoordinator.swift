@@ -1,7 +1,6 @@
 #if os(macOS)
   import AppKit
   import ApplicationServices
-  import FluidUse
   import Foundation
   import Observation
 
@@ -101,7 +100,6 @@
     var permissionMessage: String?
 
     @ObservationIgnored private var elements: [String: AXUIElement] = [:]
-    @ObservationIgnored private var layaLoading: Task<LayaManager?, Never>?
     init() {
       refreshApplications()
     }
@@ -172,11 +170,6 @@
         {
           return .automaticAction
         }
-      } else if matches.isEmpty, let captured = snapshot,
-        let control = await layaCandidate(for: request.control, in: captured),
-        isEnabled, permissionGranted, snapshot == captured
-      {
-        proposal = .init(control: control, reason: "Laya matched this visible control. Review the exact action before it is pressed.")
       } else {
         return .clarification("I couldn’t find one matching, safe control in that app’s focused window. Bring the window forward and try again.")
       }
@@ -364,8 +357,7 @@
       return nil
     }
 
-    /// A model score never authorizes an action. Automatic execution requires
-    /// an exact, unique UI match for a narrow low-impact request instead.
+    /// Automatic execution requires an exact, unique UI match for a narrow low-impact request.
     static func canAutoExecute(
       intent: String, control: DesktopControlSummary,
       application: DesktopApplication, noteText: String?
@@ -386,91 +378,6 @@
       let label = control.label.lowercased()
       return ["next", "previous", "back", "forward", "expand", "collapse"].contains(label)
         || ["show ", "view ", "expand ", "collapse "].contains { label.hasPrefix($0) }
-    }
-
-    private func localModel() async -> LayaManager? {
-      if let layaLoading { return await layaLoading.value }
-      let task = Task<LayaManager?, Never> {
-        guard let directory = Bundle.main.resourceURL?.appendingPathComponent(
-          "laya-coreml", isDirectory: true),
-          FileManager.default.fileExists(
-            atPath: directory.appendingPathComponent("tokenizer.json").path)
-        else { return nil }
-        return try? await LayaManager.load(
-          from: directory, configuration: .init(lengths: [128], precision: "e8"))
-      }
-      layaLoading = task
-      return await task.value
-    }
-
-    func homeAssistantHint(for request: String) async -> HomeAssistantRouteHint? {
-      let text = request.trimmingCharacters(in: .whitespacesAndNewlines)
-      let lower = text.lowercased()
-      guard text.count <= 180, !text.contains("\n"),
-        lower.hasPrefix("turn ") || lower.hasPrefix("please turn ") || lower.hasPrefix("is "),
-        let model = await localModel()
-      else { return nil }
-      let options = [
-        LayaQuestion.Choice("turn_on", description: "Turn on one named home device"),
-        LayaQuestion.Choice("turn_off", description: "Turn off one named home device"),
-        LayaQuestion.Choice("read_state", description: "Check whether one named home device is on"),
-        LayaQuestion.Choice("main_model", description: "Anything else or uncertain")
-      ]
-      let question = LayaQuestion.choice(
-        "Which Home Assistant action does this request ask for? Choose main_model if unclear.",
-        options: options)
-      guard let answer = try? await model.answer(state: "request: \(text)", question: question),
-        answer.selectedLabel != "main_model", answer.tokenCount < answer.bucketLength,
-        !answer.stateWasTruncated,
-        answer.confidence >= (answer.selectedLabel == "read_state" ? 0.20 : 0.85),
-        answer.actionProbability >= 0.95
-      else { return nil }
-      return HomeAssistantRouteHint(
-        selectedLabel: answer.selectedLabel,
-        confidence: Double(answer.confidence),
-        actionProbability: Double(answer.actionProbability), truncated: false)
-    }
-
-    private func layaCandidate(
-      for requestedControl: String, in captured: DesktopSnapshot
-    ) async -> DesktopControlSummary? {
-      let candidates = Self.layaCandidates(
-        for: requestedControl, from: captured.controls)
-      guard !candidates.isEmpty, let model = await localModel() else { return nil }
-      let options = candidates.map {
-        LayaQuestion.Choice($0.id, description: Self.clean($0.label, limit: 36))
-      } + [LayaQuestion.Choice("main_model", description: "No clear safe match")]
-      let question = LayaQuestion.choice(
-        "Which visible control matches the requested click? Choose main_model if unclear.",
-        options: options)
-      guard let answer = try? await model.answer(
-        state: "request: \(Self.clean(requestedControl, limit: 72))",
-        question: question),
-        !answer.stateWasTruncated,
-        answer.actionProbability >= 0.85,
-        answer.confidence >= 0.80,
-        answer.tokenCount < answer.bucketLength
-      else { return nil }
-      return candidates.first { $0.id == answer.selectedLabel }
-    }
-
-    static func layaCandidates(
-      for requestedControl: String, from controls: [DesktopControlSummary]
-    ) -> [DesktopControlSummary] {
-      let requestedWords = Set(requestedControl.lowercased().split(whereSeparator: {
-        !$0.isLetter && !$0.isNumber
-      }).map(String.init).filter { $0.count >= 3 })
-      guard !requestedWords.isEmpty else { return [] }
-      let candidates = controls.filter { control in
-        guard !control.blockedByPolicy else { return false }
-        let labelWords = Set(control.label.lowercased().split(whereSeparator: {
-          !$0.isLetter && !$0.isNumber
-        }).map(String.init))
-        return !requestedWords.isDisjoint(with: labelWords)
-      }
-      // A short, complete candidate list avoids silently truncating the model's
-      // 128-token input or hiding another matching control from the user.
-      return (1...4).contains(candidates.count) ? candidates : []
     }
 
     func executePreparedAction() async -> String {

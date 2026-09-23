@@ -248,7 +248,6 @@ class BotBrandingTests(unittest.TestCase):
                 "github",
                 "gmail",
                 "google_workspace",
-                "home_assistant",
                 "hubspot",
                 "jira",
                 "mcp_server",
