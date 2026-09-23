@@ -66,6 +66,10 @@ def single_entity_request(request: str, entity_alias: str) -> str | None:
         ("turn_on", rf"{prefix}turn\s+on\s+(?:the\s+)?{alias}[.!]?"),
         ("turn_off", rf"{prefix}turn\s+off\s+(?:the\s+)?{alias}[.!]?"),
         ("read_state", rf"is\s+(?:the\s+)?{alias}\s+on\?"),
+        (
+            "read_state",
+            rf"what(?:'s|\s+is)\s+(?:the\s+)?(?:current\s+)?state\s+of\s+(?:the\s+)?{alias}\?",
+        ),
     ):
         if re.fullmatch(pattern, request.strip(), flags=re.IGNORECASE):
             return label
