@@ -189,9 +189,7 @@ def _library_route(
             ),
         )
     if method == "DELETE" and path.startswith("/connections/"):
-        return _response(
-            200, _delete_connection(user_id, params.get("connectionId", ""))
-        )
+        return _response(200, _delete_connection(user_id, params.get("connectionId", "")))
     if method == "GET" and path == "/memory":
         return _response(200, _list_user_memories(user_id))
     if method == "POST" and path == "/memory":
@@ -206,10 +204,7 @@ def _library_route(
             ),
         )
     if method == "DELETE" and path.startswith("/memory/"):
-        return _response(
-            200,
-            _delete_user_memory_record(user_id, params.get("memoryRecordId", "")),
-        )
+        return _response(200, _delete_user_memory_record(user_id, params.get("memoryRecordId", "")))
     return None
 
 

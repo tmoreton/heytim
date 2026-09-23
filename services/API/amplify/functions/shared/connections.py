@@ -20,7 +20,6 @@ from .account_state import (
 from .catalog_rules import (
     CatalogError,
     _normalize_home_assistant_endpoint,
-    _validate_mcp_endpoint,
     _public_tool,
 )
 from .connection_identity import _connection_id, _matching_connection, _secret_name
@@ -34,6 +33,7 @@ from .connection_providers import (
 )
 from .connection_revocation import revoke_google_token
 from .github_app import GITHUB_MCP_ENDPOINT, narrowed_permissions
+from .mcp_servers import MCPServerConnectionMixin
 from .time import utc_now_iso as _now
 
 MAX_CONNECTIONS = 50
@@ -54,7 +54,7 @@ def _valid_secret_arn(value: Any) -> bool:
     return isinstance(value, str) and value.startswith("arn:aws:secretsmanager:")
 
 
-class ConnectionMixin(ConnectionLifecycleMixin):
+class ConnectionMixin(MCPServerConnectionMixin, ConnectionLifecycleMixin):
     table: Any
     secrets_manager: Any
 
@@ -363,33 +363,6 @@ class ConnectionMixin(ConnectionLifecycleMixin):
                 "kind": "mcp",
                 "endpoint": endpoint,
                 "authType": "home_assistant_token",
-                "secretArn": secret_arn,
-            },
-            provider_account_id=account_id,
-        )
-
-    def save_mcp_server_connection(
-        self, user_id: str, name: str, endpoint_url: str, access_token: str
-    ) -> dict:
-        endpoint = _validate_mcp_endpoint(endpoint_url)
-        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
-            raise CatalogError("MCP server name is required (80 characters maximum)")
-        if (
-            not isinstance(access_token, str)
-            or not 20 <= len(access_token) <= 4096
-            or not re.fullmatch(r"[A-Za-z0-9._~+/-]+={0,3}", access_token)
-        ):
-            raise CatalogError("MCP access token is invalid")
-        account_id = hashlib.sha256(endpoint.encode("utf-8")).hexdigest()
-        return self._save_managed_connection(
-            user_id,
-            "mcp_server",
-            name.strip(),
-            {"accessToken": access_token},
-            lambda secret_arn: {
-                "kind": "mcp",
-                "endpoint": endpoint,
-                "authType": "bearer_token",
                 "secretArn": secret_arn,
             },
             provider_account_id=account_id,

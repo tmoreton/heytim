@@ -513,7 +513,7 @@
     },
     {
       "id": "youtube-strategy",
-      "version": 3,
+      "version": 4,
       "name": "YouTube Strategy",
       "description": "Use public YouTube evidence to find a differentiated video opportunity and turn it into a title, outline, and thumbnail brief.",
       "category": "Creator",
@@ -524,7 +524,7 @@
     },
     {
       "id": "trend-scout",
-      "version": 3,
+      "version": 4,
       "name": "Trend Scout",
       "description": "Compare fresh signals across YouTube, X, and the web to find relevant trends, weak signals, and testable opportunities.",
       "category": "Research",
@@ -546,7 +546,7 @@
     },
     {
       "id": "social-writer",
-      "version": 3,
+      "version": 4,
       "name": "Social Writer",
       "description": "Draft platform-specific social posts, threads, and content calendars from supplied material or current research without publishing them.",
       "category": "Creator",

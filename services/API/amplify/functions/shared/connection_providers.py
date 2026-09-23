@@ -73,10 +73,7 @@ OPTIONAL_PUBLIC_PROVIDER_FIELDS = (
 GOOGLE_FAMILY = {
     "familyId": "google",
     "familyName": "Google",
-    "familyDescription": (
-        "Connect the Google accounts each bot needs. YouTube search is available "
-        "through a connected YouTube account."
-    ),
+    "familyDescription": "Connect the Google accounts each bot needs for Gmail and Workspace.",
     "familyIconText": "G",
     "familyLogoProviderId": "google_workspace",
 }
@@ -111,7 +108,7 @@ CONNECTION_PROVIDER_SPECS = (
         "description": "Read exposed devices and request home actions through your own Home Assistant instance.",
         "category": "Smart home",
         "iconText": "HA",
-        "permissionsSummary": "Only entities exposed to Assist; device changes require review",
+        "permissionsSummary": "Only entities exposed to Assist; the first action asks for Always Allow",
         "privacyTitle": "Your home stays under your control",
         "privacyDescription": (
             "HeyTim stores your token privately on the server and uses only the "

@@ -81,19 +81,34 @@ import XCTest
 
     let firstGmail = app.switches["bot.tool.connection_gmail_alpha"]
     let secondGmail = app.switches["bot.tool.connection_gmail_beta"]
+    func expectValue(_ value: String, for toggle: XCUIElement) {
+      let predicate = NSPredicate(format: "value == %@", value)
+      let expectation = XCTNSPredicateExpectation(predicate: predicate, object: toggle)
+      XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 3), .completed)
+    }
+    func isFullyVisible(_ toggle: XCUIElement) -> Bool {
+      toggle.exists && toggle.frame.minY > 100
+        && toggle.frame.maxY < app.windows.firstMatch.frame.maxY - 50
+    }
     XCTAssertTrue(firstGmail.waitForExistence(timeout: 5))
-    XCTAssertTrue(secondGmail.exists)
+    for _ in 0..<8 where !isFullyVisible(firstGmail) { app.swipeUp() }
+    XCTAssertTrue(isFullyVisible(firstGmail))
     XCTAssertTrue(firstGmail.label.contains("alpha@example.com"))
-    XCTAssertTrue(secondGmail.label.contains("beta@example.com"))
 
     firstGmail.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).tap()
-    XCTAssertEqual(firstGmail.value as? String, "1")
-    XCTAssertEqual(secondGmail.value as? String, "0")
+    expectValue("1", for: firstGmail)
+    for _ in 0..<8 where !isFullyVisible(secondGmail) { app.swipeUp() }
+    XCTAssertTrue(isFullyVisible(secondGmail))
+    XCTAssertTrue(secondGmail.label.contains("beta@example.com"))
+    expectValue("0", for: secondGmail)
     secondGmail.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).tap()
-    XCTAssertEqual(secondGmail.value as? String, "1")
+    expectValue("1", for: secondGmail)
+    for _ in 0..<8 where !isFullyVisible(firstGmail) { app.swipeDown() }
+    XCTAssertTrue(isFullyVisible(firstGmail))
     firstGmail.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).tap()
-    XCTAssertEqual(firstGmail.value as? String, "0")
-    XCTAssertEqual(secondGmail.value as? String, "1")
+    expectValue("0", for: firstGmail)
+    for _ in 0..<8 where !isFullyVisible(secondGmail) { app.swipeUp() }
+    expectValue("1", for: secondGmail)
   }
   #endif
 

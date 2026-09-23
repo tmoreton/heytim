@@ -1027,7 +1027,7 @@ public enum DemoData {
       id: "home_assistant", name: "Home Assistant",
       description: "Read exposed devices and request home actions through your own Home Assistant instance.",
       category: "Smart home", iconText: "HA",
-      permissionsSummary: "Only entities exposed to Assist; each action requires review",
+      permissionsSummary: "Only entities exposed to Assist; the first action asks for Always Allow",
       privacyTitle: "Your home stays under your control",
       privacyDescription: "Connect your own Home Assistant Assist MCP server.",
       familyId: "mcp", familyName: "MCP servers",

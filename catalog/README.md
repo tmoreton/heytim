@@ -95,6 +95,7 @@ The deployment script still maintains the historical targets for compatibility, 
 requires them. Before launch, verify that the production Google Cloud project's YouTube Data API
 **Search Queries** daily quota can cover connected-account searches; the current `search.list` limit is
 documented on the [official method reference](https://developers.google.com/youtube/v3/docs/search/list).
+Raise that quota or delay publication if connected-account searches would exceed it.
 
 ## Publishing model
 
