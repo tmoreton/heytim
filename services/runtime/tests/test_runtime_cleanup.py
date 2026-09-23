@@ -78,85 +78,7 @@ def test_run_agent_releases_capabilities_when_setup_fails(monkeypatch):
     capabilities.close.assert_awaited_once()
 
 
-def test_home_assistant_quick_route_skips_large_model(monkeypatch):
-    monkeypatch.setattr(
-        runtime_main, "memory_context_from_payload", lambda _payload: None
-    )
-    monkeypatch.setattr(
-        runtime_main,
-        "messages_from_payload",
-        lambda _payload, _actor_id: [
-            {"role": "user", "content": [{"text": "Turn on the bedroom light"}]}
-        ],
-    )
-    route = AsyncMock(return_value={"pendingApproval": {"id": "review-1"}})
-    model = AsyncMock()
-    monkeypatch.setattr(runtime_main, "maybe_route_home_assistant", route)
-    monkeypatch.setattr(runtime_main, "load_model", model)
-
-    async def collect(payload):
-        return [
-            event
-            async for event in runtime_main.run_agent(
-                payload, SimpleNamespace(session_id="session-1")
-            )
-        ]
-
-    payload = {"homeAssistantHint": {"selectedLabel": "turn_on"}}
-    assert asyncio.run(collect(payload)) == [
-        {"heytimControl": {"pendingApproval": {"id": "review-1"}}}
-    ]
-    model.assert_not_awaited()
-    route.assert_awaited_once_with(payload, "Turn on the bedroom light")
-
-    route.reset_mock()
-    route.return_value = None
-    resumed = payload | {
-        "actionApproval": {
-            "id": "review-1",
-            "digest": "old",
-            "toolUseId": "ha-fast-call-1",
-        }
-    }
-    result = asyncio.run(collect(resumed))
-    assert (
-        result[0]["heytimControl"]["terminalError"]["code"] == "HA_APPROVAL_UNAVAILABLE"
-    )
-    model.assert_not_awaited()
-
-
-def test_read_only_home_assistant_route_without_model_hint(monkeypatch):
-    monkeypatch.setattr(runtime_main, "memory_context_from_payload", lambda _payload: None)
-    monkeypatch.setattr(
-        runtime_main,
-        "messages_from_payload",
-        lambda _payload, _actor_id: [
-            {"role": "user", "content": [{"text": "What is the current state of Bedroom Light?"}]}
-        ],
-    )
-    route = AsyncMock(return_value={"text": "Home Assistant shows Bedroom Light is on."})
-    model = AsyncMock()
-    monkeypatch.setattr(runtime_main, "maybe_route_home_assistant", route)
-    monkeypatch.setattr(runtime_main, "load_model", model)
-
-    async def collect():
-        return [
-            event
-            async for event in runtime_main.run_agent(
-                {}, SimpleNamespace(session_id="session-1")
-            )
-        ]
-
-    assert asyncio.run(collect())[:3] == [
-        {"event": {"messageStart": {"role": "assistant"}}},
-        {"event": {"contentBlockDelta": {"delta": {"text": "Home Assistant shows Bedroom Light is on."}}}},
-        {"event": {"messageStop": {"stopReason": "end_turn"}}},
-    ]
-    route.assert_awaited_once_with({}, "What is the current state of Bedroom Light?")
-    model.assert_not_awaited()
-
-
-def test_normal_approval_with_home_hint_resumes_normal_agent(monkeypatch):
+def test_home_assistant_request_uses_normal_agent(monkeypatch):
     capabilities = SimpleNamespace(close=AsyncMock())
     config = BotConfiguration(
         instructions="",
@@ -179,16 +101,13 @@ def test_normal_approval_with_home_hint_resumes_normal_agent(monkeypatch):
     )
     monkeypatch.setattr(runtime_main, "memory_stores", lambda _context: [])
     monkeypatch.setattr(runtime_main, "bot_configuration", lambda *_args: config)
-    route = AsyncMock()
     model = AsyncMock(side_effect=RuntimeError("normal model resumed"))
-    monkeypatch.setattr(runtime_main, "maybe_route_home_assistant", route)
     monkeypatch.setattr(runtime_main, "load_model", model)
 
     async def invoke_once():
         stream = runtime_main.run_agent(
             {
                 "homeAssistantHint": {"selectedLabel": "turn_on"},
-                "actionApproval": {"toolUseId": "normal-tool-call"},
             },
             SimpleNamespace(session_id="session-1"),
         )
@@ -196,7 +115,6 @@ def test_normal_approval_with_home_hint_resumes_normal_agent(monkeypatch):
 
     with pytest.raises(RuntimeError, match="normal model resumed"):
         asyncio.run(invoke_once())
-    route.assert_not_awaited()
     model.assert_awaited_once()
 
 

@@ -100,8 +100,8 @@ HeyTimNotary --apple-id YOUR_APPLE_ID --team-id YOURTEAMID`, then set
 `heytim` Keychain account. CI uses the
 protected `SPARKLE_PRIVATE_KEY` secret and App Store Connect API key instead.
 The matching Sparkle public key is checked into the Mac build configuration;
-private signing material must never be committed. Laya is retained only as an
-offline evaluation model; it is not linked into or downloaded by the shipping app.
+private signing material must never be committed. The Mac app does not link or
+bundle Laya; requests use the bot's configured tools and the main agent.
 
 On Mac, enable **Mac App Actions** in Hey Tim Settings, then turn on the Mac app
 actions tool for each bot that should use it. Grant Accessibility access in
@@ -114,12 +114,11 @@ normal approval bubble before acting. Text-only sends from enabled bots use
 bounded local routing for note creation or an exact visible control. Other
 requests continue to the bot. This is not yet a general client-side tool broker.
 
-Home Assistant is available as a connectable tool through a public HTTPS
-Home Assistant Assist MCP endpoint and a long-lived access token. The token is
-stored server-side; bots can use only assigned connections, exposed Assist
-entities, and the existing exact-action approval flow. Laya does not yet invoke
-Home Assistant directly. The offline routing fixture in
-`scripts/evaluate-laya-home.sh` cannot touch live devices.
+Add Home Assistant as an MCP server using its public HTTPS
+`/api/mcp/assist` endpoint and a long-lived access token. Add other trusted
+MCP servers the same way. Tokens are stored server-side; each account or server
+is selected separately in a bot's Tools list. Existing Home Assistant grants
+remain available as MCP servers with their original connection IDs.
 
 ## Verification
 

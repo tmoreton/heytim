@@ -43,7 +43,7 @@ The fixed, user-facing tools are Web Search, Shared Lists, Files & Data, Interac
 | --- | --- | --- |
 | Fixed web, browser, files, image and list tools | Toggle on each bot; fixed catalog entries | No private social account implied |
 | X and YouTube | Connect the platform account, then toggle that specific account on a bot | Read/search through the user's OAuth grant; no posting or uploads |
-| Home Assistant Assist | Connect its public HTTPS Assist MCP endpoint, then toggle the connection on a bot | Only entities exposed to Assist; the dedicated fast route remains HA-specific |
+| Home Assistant Assist | Add its public HTTPS Assist endpoint as an MCP server, then toggle that server on a bot | Only entities exposed to Assist; existing grants keep their connection IDs |
 | Custom MCP server | Add a name, public HTTPS URL, and bearer token; repeat for multiple servers; toggle each connection on selected bots | The server's advertised tools are discoverable only after assignment; treat the server as trusted code/data |
 | Other private providers | OAuth or GitHub App connection, then per-bot toggle | Provider-specific permissions, resource filters, and rate limits |
 

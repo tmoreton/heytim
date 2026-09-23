@@ -20,17 +20,19 @@ def _connection_id(provider: str, user_id: str, account_id: str) -> str:
 def _matching_connection(
     connections: list[dict], provider: str, account_id: str, account: str
 ) -> dict | None:
-    for item in connections:
-        if item.get("provider") != provider:
-            continue
-        stored_id = item.get("providerAccountId")
-        if isinstance(stored_id, str):
-            if stored_id.casefold() == account_id.casefold():
+    # Prefer a current connection. A legacy Home Assistant grant at the same
+    # endpoint is the fallback so updating it as MCP preserves existing bot IDs.
+    candidates = (provider, "home_assistant") if provider == "mcp_server" else (provider,)
+    for candidate_provider in candidates:
+        for item in connections:
+            if item.get("provider") != candidate_provider:
+                continue
+            stored_id = item.get("providerAccountId")
+            if isinstance(stored_id, str):
+                if stored_id.casefold() == account_id.casefold():
+                    return item
+            elif str(item.get("connectedAccount", "")).casefold() == account.casefold():
+                # Connections saved before account-specific IDs existed retain
+                # their IDs so bots already using them keep the same grant.
                 return item
-        elif str(item.get("connectedAccount", "")).casefold() == account.casefold():
-            # Connections saved before account-specific IDs existed retain their
-            # IDs so bots already using them keep the same grant.
-            return item
     return None
-
-

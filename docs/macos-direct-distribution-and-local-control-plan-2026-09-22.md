@@ -1,5 +1,9 @@
 # macOS direct distribution and local control plan
 
+> Historical design note: the Laya model, its Home Assistant fast path, and
+> the evaluation scripts mentioned below have since been removed. Current
+> Home Assistant Assist access uses an assigned MCP connection.
+
 Date: 2026-09-22
 
 ## Decision

@@ -31,19 +31,8 @@ generated application resources.
 
 ## Package-manager dependencies
 
-The directly distributed Mac app additionally links:
-
-- Sparkle 2.10.0 under its BSD-style license, for signed application updates;
-- FluidUse at commit `e9e95935075b626a203bb20c0645975be23f15b1` under Apache
-  License 2.0, for the native Laya runtime; and
-- FluidAudio 0.16.1 under Apache License 2.0, as a FluidUse dependency.
-
-The Mac app bundles the local decision model from `FluidInference/laya-coreml` at immutable revision
-`7b8d7a2b7e28e746c6ecaad44bbcd5cf251a4fcc`. The converted model and its Laya
-source checkpoint are distributed under Apache License 2.0. The build verifies the
-size and SHA-256 digest of every model file before bundling it; the app does not
-download model assets on first use. The model's LICENSE and NOTICE.md are included
-beside its weights in the Mac app.
+The directly distributed Mac app additionally links Sparkle 2.10.0 under its
+BSD-style license for signed application updates.
 
 JavaScript and Python dependencies are identified in their lockfiles and are not
 relicensed by HeyTim. A distributed binary or hosted build must continue to

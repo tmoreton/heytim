@@ -1,5 +1,9 @@
 # Laya and Home Assistant: bounded action experiment
 
+> Historical research note: Laya, its evaluation scripts, and the Home
+> Assistant fast path have been removed. Home Assistant now uses an assigned
+> MCP connection like other servers.
+
 Laya is **not** trusted as a Home Assistant executor. The Mac app bundles the
 pinned multilingual Core ML 128-token checkpoint and loads it lazily to classify
 simple Home Assistant requests for bots with that connection enabled. It also

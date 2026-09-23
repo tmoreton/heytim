@@ -514,7 +514,6 @@ private struct ConversationView: View {
   @State private var inspectorSelection: ConversationSelection?
   var isCoveredByFeature = false
   @State private var importing = false
-  @State private var classifyingHomeRequest = false
   @State private var showDelete = false
   @State private var showClear = false
   @State private var previewURL: URL?
@@ -625,33 +624,7 @@ private struct ConversationView: View {
           composerFocused: $composerFocused,
           onSubmit: {
             scheduleScrollToBottom(using: proxy, animated: true)
-            #if os(macOS)
-              guard !classifyingHomeRequest else { return }
-              let draft = model.composerText.trimmingCharacters(in: .whitespacesAndNewlines)
-              let destination = model.selection
-              let homeToolEnabled = model.selectedBot.map { bot in
-                model.bootstrap?.tools.contains {
-                  $0.provider == "home_assistant" && bot.toolIds.contains($0.id)
-                } == true
-              } == true
-              if homeToolEnabled, !draft.isEmpty,
-                model.pendingAttachments.isEmpty, model.pendingWorkspaceFiles.isEmpty
-              {
-                classifyingHomeRequest = true
-                Task {
-                  let hint = await desktopControl.homeAssistantHint(for: draft)
-                  defer { classifyingHomeRequest = false }
-                  guard model.selection == destination,
-                    model.composerText.trimmingCharacters(in: .whitespacesAndNewlines) == draft
-                  else { return }
-                  await model.send(homeAssistantHint: hint)
-                }
-              } else {
-                Task { await model.send() }
-              }
-            #else
-              Task { await model.send() }
-            #endif
+            Task { await model.send() }
           },
           onDesktopAction: { intent in
             #if os(macOS)

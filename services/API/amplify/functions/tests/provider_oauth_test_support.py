@@ -320,7 +320,7 @@ class ExternalProviderOAuthCases:
         save.assert_called_once_with(
             "user-1",
             "slack",
-            "Froggy Workspace",
+            "Froggy Workspace · U123",
             "T123:U123",
             {
                 "accessToken": "access-token",

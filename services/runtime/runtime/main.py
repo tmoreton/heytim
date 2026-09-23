@@ -6,10 +6,6 @@ from strands_harness import create_harness
 
 from heytim_runtime.action_approval import approval_configuration, pending_approval
 from heytim_runtime.configuration import bot_configuration
-from heytim_runtime.home_assistant_fast_path import (
-    maybe_route_home_assistant,
-    read_state_candidate,
-)
 from heytim_runtime.memory import (
     latest_assistant_text,
     memory_context_from_payload,
@@ -59,55 +55,6 @@ async def run_agent(payload, context):
     memory_context = memory_context_from_payload(payload)
     actor_id = memory_context.actor_id if memory_context else None
     messages = messages_from_payload(payload, actor_id)
-    resume = payload.get("actionApproval")
-    fast_resume = (
-        isinstance(resume, dict)
-        and isinstance(resume.get("toolUseId"), str)
-        and resume["toolUseId"].startswith("ha-fast-")
-    )
-    if fast_resume and payload.get("homeAssistantHint") is None:
-        yield {
-            "heytimControl": {
-                "terminalError": {
-                    "code": "HA_APPROVAL_UNAVAILABLE",
-                    "message": "The approved Home Assistant route is missing. No command was sent.",
-                }
-            }
-        }
-        return
-    request = message_text(messages[-1], "user")
-    if (
-        payload.get("homeAssistantHint") is not None
-        or read_state_candidate(request)
-    ) and (resume is None or fast_resume):
-        fast_result = None
-        if request and len(messages[-1]["content"]) == 1:
-            try:
-                fast_result = await maybe_route_home_assistant(payload, request)
-            except Exception:
-                log.exception("Home Assistant quick route unavailable")
-        if fast_result is None and fast_resume:
-            fast_result = {
-                "terminalError": {
-                    "code": "HA_APPROVAL_UNAVAILABLE",
-                    "message": (
-                        "The approved Home Assistant action could not be verified. "
-                        "Check the device before trying again; its outcome may be uncertain."
-                    ),
-                }
-            }
-        if fast_result is not None:
-            if text := fast_result.get("text"):
-                yield {"event": {"messageStart": {"role": "assistant"}}}
-                yield {"event": {"contentBlockDelta": {"delta": {"text": text}}}}
-                yield {"event": {"messageStop": {"stopReason": "end_turn"}}}
-                try:
-                    await record_completed_turn(memory_context, request, text)
-                except Exception:
-                    log.exception("Could not persist quick Home Assistant turn")
-            else:
-                yield {"heytimControl": fast_result}
-            return
     memories = memory_stores(memory_context)
     session_id = getattr(context, "session_id", "unknown")
     provider_quota = payload.get("providerQuota")

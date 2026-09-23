@@ -146,7 +146,7 @@ CONNECTION_PROVIDER_SPECS = (
         "actions": ["Discover server tools", "Call assigned server tools"],
         "familyId": "mcp",
         "familyName": "MCP servers",
-        "familyDescription": "Connect Home Assistant Assist or another remote MCP server, then assign each server to bots.",
+        "familyDescription": "Add trusted HTTPS MCP servers and assign each one to specific bots.",
         "familyIconText": "MCP",
         "familyLogoProviderId": "mcp_server",
     },
@@ -453,7 +453,7 @@ def connection_providers() -> list[dict]:
     providers = [
         _public_provider(spec)
         for spec in CONNECTION_PROVIDER_SPECS
-        if spec["id"] not in disabled
+        if spec["id"] not in disabled and spec["id"] != "home_assistant"
     ]
     social_order = {"x": 0, "youtube": 1, "slack": 2, "microsoft_teams": 3}
     return sorted(

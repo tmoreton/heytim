@@ -419,7 +419,7 @@ import XCTest
     settings.tap()
 
     XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 5))
-    for title in ["Memory", "Add a Bot", "Tools & Skills", "Connected Accounts"] {
+    for title in ["Memory", "Add a Bot", "Tools & Skills", "Accounts & MCP Servers"] {
       XCTAssertTrue(app.descendants(matching: .any)[title].firstMatch.exists)
     }
     XCTAssertTrue(app.descendants(matching: .any)["settings.appearance"].exists)
@@ -474,7 +474,7 @@ import XCTest
       XCTAssertTrue(app.switches["settings.desktop-control.enabled"].waitForExistence(timeout: 5))
     }
 
-    func testHomeAssistantAppearsInConnectableTools() {
+    func testMCPServersAppearInConnectedTools() {
       let app = XCUIApplication()
       app.launchArguments = ["--ui-testing"]
       app.launchForUITesting()
@@ -486,7 +486,7 @@ import XCTest
       XCTAssertTrue(tools.waitForExistence(timeout: 5))
       tools.click()
       XCTAssertTrue(app.descendants(matching: .any)[
-        "tools.connection.home_assistant"].firstMatch.waitForExistence(timeout: 5))
+        "tools.connections"].firstMatch.waitForExistence(timeout: 5))
     }
 
     func testMacTextSizeUpdatesSettingsAndKeepsSidebarUsable() {
@@ -541,17 +541,17 @@ import XCTest
       XCTAssertTrue(settings.waitForExistence(timeout: 10))
       settings.tap()
 
-      let connectedAccounts = app.staticTexts["Connected Accounts"]
+      let connectedAccounts = app.staticTexts["Accounts & MCP Servers"]
       XCTAssertTrue(connectedAccounts.waitForExistence(timeout: 5))
       connectedAccounts.tap()
 
-      let accountsLoaded = app.staticTexts["Accounts"].waitForExistence(timeout: 5)
+      let accountsLoaded = app.staticTexts["Connected accounts"].waitForExistence(timeout: 5)
       let accountsUnavailable =
         app.staticTexts["Couldn’t Load Accounts"].waitForExistence(timeout: accountsLoaded ? 0 : 5)
       XCTAssertTrue(accountsLoaded || accountsUnavailable)
       XCTAssertTrue(app.navigationBars.buttons["Settings"].exists)
       XCTAssertFalse(app.buttons["Close"].exists)
-      XCTAssertFalse(app.staticTexts["Connected Accounts"].exists)
+      XCTAssertFalse(app.staticTexts["Accounts & MCP Servers"].exists)
     }
   #endif
 

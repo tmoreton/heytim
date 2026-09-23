@@ -303,7 +303,6 @@ def _invoke(
     allow_bot_management: bool = False,
     workspace_files: list[dict] | None = None,
     action_approval: dict | None = None,
-    home_assistant_hint: dict | None = None,
 ) -> AgentInvocationResult:
     if runtime_result is not None:
         error = runtime_result.get("terminalError", {}).get("message")
@@ -452,12 +451,6 @@ def _invoke(
         payload["continuation"] = normalized_continuation
     if action_approval is not None:
         payload["actionApproval"] = action_approval
-    if home_assistant_hint is not None and group_context is None and event_id:
-        payload["homeAssistantHint"] = {
-            **home_assistant_hint,
-            "confidence": float(home_assistant_hint["confidence"]),
-            "actionProbability": float(home_assistant_hint["actionProbability"]),
-        }
     if work_key is not None and lease_owner and resume_request is not None:
         work = runtime_work(payload, normalized_continuation)
         if uses_youtube_search:
