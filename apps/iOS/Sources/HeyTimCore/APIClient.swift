@@ -238,13 +238,14 @@ public final class HeyTimAPI: Sendable {
   }
   public func sendMessage(
     bot id: String, text: String, attachments: [String] = [], workspaceFiles: [String] = [],
-    inboxMessageId: String? = nil
+    inboxMessageId: String? = nil, homeAssistantHint: HomeAssistantRouteHint? = nil
   ) async throws {
     let _: EmptyResponse = try await request(
       .botMessageSend, parameters: ["botId": id],
       body: SendMessageBody(
         text: text, attachmentIds: attachments, workspaceFileIds: workspaceFiles,
-        replyBotId: nil, inboxMessageId: inboxMessageId))
+        replyBotId: nil, inboxMessageId: inboxMessageId,
+        homeAssistantHint: homeAssistantHint))
   }
   public func sendMessage(
     group id: String, text: String, replyBotId: String? = nil, attachments: [String] = [],
@@ -254,7 +255,7 @@ public final class HeyTimAPI: Sendable {
       .groupMessageSend, parameters: ["groupId": id],
       body: SendMessageBody(
         text: text, attachmentIds: attachments, workspaceFileIds: workspaceFiles,
-        replyBotId: replyBotId, inboxMessageId: nil))
+        replyBotId: replyBotId, inboxMessageId: nil, homeAssistantHint: nil))
   }
   public func cancel(botId: String, turnId: String) async throws {
     let _: EmptyResponse = try await request(
@@ -692,6 +693,7 @@ private struct SendMessageBody: Codable {
   var workspaceFileIds: [String]
   var replyBotId: String?
   var inboxMessageId: String?
+  var homeAssistantHint: HomeAssistantRouteHint?
 }
 private struct BrowserBody: Codable {
   var groupId: String?

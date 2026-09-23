@@ -428,7 +428,7 @@ public final class AppModel {
     }
   }
 
-  public func send() async {
+  public func send(homeAssistantHint: HomeAssistantRouteHint? = nil) async {
     let requestedSession = sessionGeneration
     let submitted = ComposerDraft(
       text: composerText, attachments: pendingAttachments,
@@ -476,7 +476,8 @@ public final class AppModel {
       if selection.kind == .bot {
         try await api.sendMessage(
           bot: selection.id, text: text, attachments: attachmentIds,
-          workspaceFiles: workspaceFileIds, inboxMessageId: submitted.inboxMessageId)
+          workspaceFiles: workspaceFileIds, inboxMessageId: submitted.inboxMessageId,
+          homeAssistantHint: homeAssistantHint)
       } else {
         try await api.sendMessage(
           group: selection.id, text: text, replyBotId: replyBotId,

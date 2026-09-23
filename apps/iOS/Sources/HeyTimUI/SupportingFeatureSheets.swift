@@ -411,6 +411,7 @@ struct ConnectionsView: View {
   private func load() async {
     loading = true
     defer { loading = false }
+    _ = await model.refreshBootstrap()
     do {
       connections = try await model.requireAPI().connections()
       loadError = nil
@@ -457,7 +458,6 @@ struct ConnectionsView: View {
           instanceURL: homeAssistantURL.trimmingCharacters(in: .whitespacesAndNewlines),
           accessToken: homeAssistantToken.trimmingCharacters(in: .whitespacesAndNewlines))
         closeHomeAssistantSetup()
-        await model.refreshBootstrap()
         await load()
         successMessage = "Home Assistant is now available in Tools. Enable it for the bots you choose."
       } catch {
@@ -471,7 +471,6 @@ struct ConnectionsView: View {
     Task {
       do {
         try await model.requireAPI().deleteConnection(connection.id)
-        await model.refreshBootstrap()
         await load()
       } catch { model.present(error) }
     }
