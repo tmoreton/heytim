@@ -168,12 +168,7 @@ def _group_run_route(
 
 
 def _library_route(
-    user_id: str,
-    _display_name: str,
-    method: str,
-    path: str,
-    params: dict,
-    event: dict,
+    user_id: str, _display_name: str, method: str, path: str, params: dict, event: dict
 ) -> dict | None:
     if method == "GET" and path == "/connections":
         return _response(200, _connections(user_id))

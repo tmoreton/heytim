@@ -31,13 +31,8 @@ from .connection_providers import (
     SUPPORTED_CONNECTION_PROVIDER_IDS,
     connection_specs,
 )
-from .connection_revocation import (
-    revoke_google_token,
-)
-from .github_app import (
-    GITHUB_MCP_ENDPOINT,
-    narrowed_permissions,
-)
+from .connection_revocation import revoke_google_token
+from .github_app import GITHUB_MCP_ENDPOINT, narrowed_permissions
 from .time import utc_now_iso as _now
 
 MAX_CONNECTIONS = 50
