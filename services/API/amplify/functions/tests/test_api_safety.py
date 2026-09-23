@@ -346,16 +346,18 @@ class ApiSafetyTests(ApiTestCase):
         self.assertEqual(turn["homeAssistantHint"]["actionProbability"], Decimal("0.98"))
 
     def test_invalid_home_assistant_hint_is_rejected_before_queueing(self) -> None:
-        with patch.object(self.direct_chat, "_get_bot", return_value={"id": "bot-1"}):
-            with self.assertRaises(self.support.ApiError) as error:
-                self.direct_chat._send_message(
-                    "user-1", "bot-1",
-                    {"text": "Turn on the bedroom light", "homeAssistantHint": {
-                        "selectedLabel": "turn_on", "confidence": 1.0,
-                        "actionProbability": 1.0, "truncated": False,
-                        "toolArguments": {"name": "all lights"},
-                    }},
-                )
+        with (
+            patch.object(self.direct_chat, "_get_bot", return_value={"id": "bot-1"}),
+            self.assertRaises(self.support.ApiError) as error,
+        ):
+            self.direct_chat._send_message(
+                "user-1", "bot-1",
+                {"text": "Turn on the bedroom light", "homeAssistantHint": {
+                    "selectedLabel": "turn_on", "confidence": 1.0,
+                    "actionProbability": 1.0, "truncated": False,
+                    "toolArguments": {"name": "all lights"},
+                }},
+            )
         self.assertEqual(error.exception.status_code, 400)
         self.sqs.send_message.assert_not_called()
 

@@ -4,7 +4,6 @@ from heytim_runtime.home_assistant_decisions import (
     single_entity_request,
 )
 
-
 TOOLS = [
     {"name": name, "inputSchema": {"type": "object", "properties": {}}}
     for name in ("HassTurnOn", "HassTurnOff", "GetLiveContext")

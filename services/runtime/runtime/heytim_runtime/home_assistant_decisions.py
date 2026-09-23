@@ -11,7 +11,6 @@ import re
 from collections.abc import Iterable
 from typing import Any
 
-
 _ACTION_TOOL_NAMES = {
     "turn_on": ("HassTurnOn",),
     "turn_off": ("HassTurnOff",),

@@ -15,8 +15,8 @@ import httpx
 from mcp import ClientSession
 from mcp.shared.exceptions import McpError
 
-from heytim_runtime.mcp_connections import _secure_streamable_http, _validated_endpoint
 from heytim_runtime.home_assistant_decisions import assist_action_catalog
+from heytim_runtime.mcp_connections import _secure_streamable_http, _validated_endpoint
 
 
 def assist_capabilities(names: set[str]) -> dict[str, bool]:
