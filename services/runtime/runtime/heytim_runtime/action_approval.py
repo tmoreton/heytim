@@ -13,6 +13,7 @@ from strands.session import SnapshotSessionManager
 from strands.storage import S3Storage
 
 from .artifacts import artifact_prefix_from_payload
+from .mcp_tool_names import _bounded_tool_name
 from .memory import memory_context_from_payload
 
 MAX_APPROVAL_INPUT_BYTES = 8_000
@@ -38,14 +39,26 @@ def _proposal(tool_use: dict) -> dict:
 
 
 class ActionApproval(HookProvider):
-    def __init__(self, resume: dict | None = None):
+    def __init__(
+        self, resume: dict | None = None,
+        read_only_home_tools: set[str] | None = None,
+    ):
         self.resume = resume
         self.proposal: dict | None = None
+        self.read_only_home_tools = frozenset(read_only_home_tools or ())
 
     def register_hooks(self, registry: HookRegistry, **kwargs: Any) -> None:
         registry.add_callback(BeforeToolCallEvent, self.before_tool)
 
     def before_tool(self, event: BeforeToolCallEvent) -> None:
+        # A connection's interactive risk applies to device changes, not a
+        # zero-argument Assist context read. Match the exact alias derived from
+        # this bot's validated Home Assistant grant; never trust a suffix alone.
+        if (
+            event.tool_use.get("name") in self.read_only_home_tools
+            and event.tool_use.get("input") in ({}, None)
+        ):
+            return
         proposal = _proposal(event.tool_use)
         decision = event.interrupt("heytim_exact_action", reason=proposal)
         if (
@@ -90,7 +103,17 @@ def approval_configuration(payload: dict, actor_id: str | None) -> tuple[ActionA
     if not bucket:
         raise ValueError("Approval storage is unavailable")
     storage = S3Storage(bucket, prefix=f"{prefix.replace('/artifacts/', '/approval-state/')}")
-    return ActionApproval(resume), SnapshotSessionManager(
+    read_only_home_tools = {
+        _bounded_tool_name(item["id"], "homeassistant__GetLiveContext")
+        for item in selected
+        if isinstance(item, dict)
+        and isinstance(item.get("id"), str)
+        and item.get("risk") == "interactive"
+        and isinstance(item.get("runtime"), dict)
+        and item["runtime"].get("kind") == "mcp"
+        and item["runtime"].get("authType") == "home_assistant_token"
+    }
+    return ActionApproval(resume, read_only_home_tools), SnapshotSessionManager(
         event_id, storage=storage, save_latest_on="trigger"
     )
 
