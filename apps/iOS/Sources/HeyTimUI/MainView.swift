@@ -758,27 +758,35 @@ private struct ConversationView: View {
   #if os(macOS)
     private func prepareDesktopAction(_ intent: String) async {
       let selection = model.selection
+      guard model.composerText == intent else { return }
+      guard let botID = selection?.id, desktopControl.isEnabled(for: botID) else {
+        appendLocalDesktopResponse(
+          intent: intent,
+          response: "Mac app actions are off for this bot. Turn them on in Settings and in this bot’s Tools list.",
+          status: "error")
+        return
+      }
       if !desktopControl.permissionGranted {
         guard model.selection == selection, model.composerText == intent else { return }
-        let now = ISO8601DateFormatter().string(from: Date())
-        localDesktopMessages.append(
-          ChatMessage(
-            id: UUID().uuidString, role: "user", text: intent,
-            createdAt: now, status: "complete"))
-        localDesktopMessages.append(
-          ChatMessage(
-            id: UUID().uuidString, role: "assistant",
-            text: "Mac app actions need Accessibility access. Enable Hey Tim in Mac Settings, then reopen the app and try again.",
-            createdAt: now, status: "error"))
-        model.composerText = ""
+        appendLocalDesktopResponse(
+          intent: intent,
+          response: "Mac app actions need Accessibility access. Enable Hey Tim in Mac Settings, then reopen the app and try again.",
+          status: "error")
         return
       }
-      let ready = await desktopControl.prepareForChat(intent: intent)
+      let preparation = await desktopControl.prepareForChat(intent: intent)
       guard model.selection == selection, model.composerText == intent else { return }
-      guard ready, let description = desktopControl.proposedActionDescription else {
+      switch preparation {
+      case .clarification(let question):
+        appendLocalDesktopResponse(intent: intent, response: question, status: "complete")
+        return
+      case .unavailable:
         await model.send()
         return
+      case .proposal:
+        break
       }
+      guard let description = desktopControl.proposedActionDescription else { return }
       let now = ISO8601DateFormatter().string(from: Date())
       localDesktopMessages.append(
         ChatMessage(
@@ -793,10 +801,30 @@ private struct ConversationView: View {
       model.composerText = ""
     }
 
+    private func appendLocalDesktopResponse(intent: String, response: String, status: String) {
+      guard model.composerText == intent else { return }
+      let now = ISO8601DateFormatter().string(from: Date())
+      localDesktopMessages.append(
+        ChatMessage(
+          id: UUID().uuidString, role: "user", text: intent,
+          createdAt: now, status: "complete"))
+      localDesktopMessages.append(
+        ChatMessage(
+          id: UUID().uuidString, role: "assistant", text: response,
+          createdAt: now, status: status))
+      model.composerText = ""
+    }
+
     private func approveDesktopAction(_ id: String) async {
       guard let index = localDesktopMessages.firstIndex(where: {
         $0.id == id && $0.status == "awaiting_approval"
       }) else { return }
+      guard let botID = model.selection?.id, desktopControl.isEnabled(for: botID) else {
+        finishDesktopAction(
+          id, result: "Mac app actions are no longer enabled for this bot.",
+          succeeded: false)
+        return
+      }
       let approval = localDesktopMessages[index]
       guard approval.approvalInput == desktopControl.proposedActionDescription else {
         finishDesktopAction(
@@ -1812,8 +1840,6 @@ private struct ImportedPhoto: Transferable, Sendable {
 private struct Composer: View {
   #if os(macOS)
     @Environment(DesktopControlCoordinator.self) private var desktopControl
-    @State private var isRouting = false
-    @State private var routingTask: Task<Void, Never>?
   #endif
   @Bindable var model: AppModel
   @Bindable var dictation: DictationModel
@@ -1904,11 +1930,6 @@ private struct Composer: View {
     .onDisappear {
       photoImportTask?.cancel()
       photoImportTask = nil
-      #if os(macOS)
-        routingTask?.cancel()
-        routingTask = nil
-        isRouting = false
-      #endif
     }
   }
 
@@ -2129,11 +2150,7 @@ private struct Composer: View {
   private var canSubmit: Bool {
     let available = canSend && !model.isSending && !model.isUploading
       && !dictation.isRecording && !dictation.isStarting
-    #if os(macOS)
-      return available && !isRouting
-    #else
-      return available
-    #endif
+    return available
   }
   private var conversationAccent: Color { model.conversationAccent }
   private var attachmentPicker: some View {
@@ -2267,40 +2284,31 @@ private struct Composer: View {
   private func submitMessage() {
     cancelDictation()
     #if os(macOS)
-      guard !isRouting else { return }
       let draft = model.composerText
       let destination = model.selection
+      let explicitNotesAction = DesktopControlCoordinator.noteCreationCandidate(draft)
+        && DesktopControlCoordinator.targetsAppleNotes(draft.lowercased())
+      if destination?.kind == .bot,
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+        model.pendingAttachments.isEmpty, model.pendingWorkspaceFiles.isEmpty,
+        explicitNotesAction,
+        let botID = destination?.id,
+        !desktopControl.isEnabled(for: botID)
+      {
+        onDesktopAction(draft)
+        return
+      }
       if destination?.kind == .bot,
         let botID = destination?.id,
         desktopControl.isEnabled(for: botID),
         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
         model.pendingAttachments.isEmpty, model.pendingWorkspaceFiles.isEmpty
       {
-        desktopControl.refreshApplications()
-        if !desktopControl.permissionGranted,
-          DesktopControlCoordinator.explicitlyTargetsMacUI(draft)
-        {
+        if DesktopControlCoordinator.shouldOfferDesktopAction(for: draft) {
+          desktopControl.refreshApplications()
           onDesktopAction(draft)
           return
         }
-        isRouting = true
-        routingTask = Task { @MainActor in
-          let offer = await desktopControl.shouldOfferDesktopAction(for: draft)
-          isRouting = false
-          routingTask = nil
-          guard !Task.isCancelled,
-            model.composerText == draft,
-            model.selection == destination,
-            model.pendingAttachments.isEmpty,
-            model.pendingWorkspaceFiles.isEmpty
-          else { return }
-          if offer {
-            onDesktopAction(draft)
-          } else {
-            onSubmit()
-          }
-        }
-        return
       }
     #endif
     onSubmit()

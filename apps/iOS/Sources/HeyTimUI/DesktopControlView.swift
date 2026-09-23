@@ -29,14 +29,13 @@
             .foregroundStyle(.secondary)
           Button("Show This App in Finder") { coordinator.revealCurrentApplication() }
         }
-        LabeledContent("Local model", value: coordinator.modelState.title)
         if let message = coordinator.permissionMessage {
           Text(message).foregroundStyle(.secondary)
         }
       } header: {
         Text("Mac App Actions")
       } footer: {
-        Text("Turn this on, then enable Mac app actions for individual bots in their Tools list. Laya checks those bots’ eligible Mac requests on device; each action still needs your approval.")
+        Text("Turn this on, then enable Mac app actions for individual bots in their Tools list. Supported actions use Accessibility and require your approval before changing another app.")
       }
       .alert("Reopen Hey Tim?", isPresented: $coordinator.restartPrompt) {
         Button("Quit and Reopen") { coordinator.restartForAccessibility() }

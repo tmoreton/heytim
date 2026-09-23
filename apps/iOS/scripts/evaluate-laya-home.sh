@@ -2,8 +2,10 @@
 set -euo pipefail
 
 # Offline routing fixture only. This never connects to Home Assistant or runs a tool.
+# Its action names are abstract; a live implementation must discover and validate
+# the actual tools and schemas from the user's Assist MCP server.
 derived_data="${HEYTIM_DERIVED_DATA:-/tmp/HeyTimAppleDerivedData}"
-model_dir="${LAYA_MODEL_DIR:-$derived_data/Build/Products/Debug/HeyTim.app/Contents/Resources/laya-coreml}"
+model_dir="${LAYA_MODEL_DIR:-$(dirname "$0")/../Generated/Laya/laya-coreml}"
 laya_cli="${LAYA_CLI:-$derived_data/SourcePackages/checkouts/FluidUse/.build/out/Products/Release/FluidUseLaya}"
 
 if [[ ! -x "$laya_cli" ]]; then
@@ -11,7 +13,7 @@ if [[ ! -x "$laya_cli" ]]; then
   exit 2
 fi
 if [[ ! -f "$model_dir/tokenizer.json" ]]; then
-  echo "Bundled Laya model not found: $model_dir" >&2
+  echo "Offline Laya model not found: $model_dir" >&2
   exit 2
 fi
 if ! command -v jq >/dev/null; then
@@ -19,14 +21,18 @@ if ! command -v jq >/dev/null; then
   exit 2
 fi
 
-options='turn_on=Turn on a known device|turn_off=Turn off a known device|read_state=Read device state|main_model=Unclear or needs reasoning'
-instructions='Choose the safe Home Assistant tool for this request, or ask the main model when unclear.'
+options='turn_on=Turn on light.bedroom|turn_off=Turn off light.bedroom|read_state=Read light.bedroom state|main_model=No action or unclear request'
+instructions='Choose a present action for light.bedroom. Negated, hypothetical, quoted, or ambiguous requests must use main_model.'
 fixtures=(
-  'turn-on|User: Turn on the living room lights. Known entity: light.living_room.|turn_on'
-  'turn-off|User: Turn off the bedroom lights. Known entity: light.bedroom.|turn_off'
-  'read-state|User: What lights are currently on? Known entity: light.living_room.|main_model'
-  'bedroom-read|User: What is the bedroom light status? Known entity: light.bedroom.|main_model'
-  'out-of-scope|User: What is the weather today?|main_model'
+  'turn-on|Turn on the bedroom light. Target: light.bedroom.|turn_on'
+  'turn-off|Turn off the bedroom light. Target: light.bedroom.|turn_off'
+  'read-state|Is the bedroom light on? Target: light.bedroom.|read_state'
+  'negated-off|Do not turn off the bedroom light. Target: light.bedroom.|main_model'
+  'negated-on|Do not turn on the bedroom light. Target: light.bedroom.|main_model'
+  'hypothetical|What if I turn off the bedroom light? Target: light.bedroom.|main_model'
+  'quoted-command|My note says "turn off the bedroom light". Target: light.bedroom.|main_model'
+  'different-room|Turn off the kitchen light. Target: light.bedroom.|main_model'
+  'out-of-scope|What is the weather today? Target: light.bedroom.|main_model'
 )
 
 mismatches=0
@@ -57,7 +63,7 @@ for fixture in "${fixtures[@]}"; do
   latency="$(jq -r '.median_ms' <<< "$answer")"
   route="$selected"
   if [[ "$selected" != main_model ]] && ! jq -e \
-    '.confidence >= 0.75 and .action_probability >= 0.85 and .tokens < .bucket' \
+    '.tokens < .bucket and .action_probability >= 0.85' \
     <<< "$answer" >/dev/null; then
     route=main_model
   fi

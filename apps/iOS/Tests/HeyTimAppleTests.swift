@@ -42,31 +42,44 @@ import UniformTypeIdentifiers
     }
 
     func testHomeAssistantRequestsAreNotMistakenForMacUIActions() {
-      XCTAssertFalse(DesktopControlCoordinator.explicitlyTargetsMacUI(
+      XCTAssertFalse(DesktopControlCoordinator.shouldOfferDesktopAction(for:
         "Turn on the living room lights"))
-      XCTAssertFalse(DesktopControlCoordinator.explicitlyTargetsMacUI(
+      XCTAssertFalse(DesktopControlCoordinator.shouldOfferDesktopAction(for:
         "What lights are currently on?"))
-      XCTAssertFalse(DesktopControlCoordinator.explicitlyTargetsMacUI(
+      XCTAssertFalse(DesktopControlCoordinator.shouldOfferDesktopAction(for:
         "Press the bedroom light switch"))
-      XCTAssertTrue(DesktopControlCoordinator.explicitlyTargetsMacUI(
+      XCTAssertFalse(DesktopControlCoordinator.shouldOfferDesktopAction(for:
+        "What if I press Next in Calendar?"))
+      XCTAssertFalse(DesktopControlCoordinator.shouldOfferDesktopAction(for:
+        "Do not add a note saying Hello World"))
+      XCTAssertTrue(DesktopControlCoordinator.shouldOfferDesktopAction(for:
         "Click Next in Calendar on my Mac"))
-      XCTAssertTrue(DesktopControlCoordinator.explicitlyTargetsMacUI(
+      XCTAssertTrue(DesktopControlCoordinator.shouldOfferDesktopAction(for:
         "Add a note to Apple Notes that says hello"))
+      XCTAssertTrue(DesktopControlCoordinator.shouldOfferDesktopAction(for:
+        "Add a note saying Hello World"))
+      XCTAssertEqual(
+        DesktopControlCoordinator.visibleControlRequest("Click Next in Calendar on my Mac")?.app,
+        "Calendar")
       XCTAssertEqual(
         DesktopControlCoordinator.noteContent(from: "Add a note to Apple Notes that says hello"),
         "hello")
+      XCTAssertTrue(DesktopControlCoordinator.noteCreationCandidate(
+        "Add a note saying Hello World"))
+      XCTAssertTrue(DesktopControlCoordinator.noteCreationCandidate(
+        "Add to Apple Notes"))
+      XCTAssertFalse(DesktopControlCoordinator.noteCreationCandidate(
+        "Tell me about Apple Notes"))
+      XCTAssertFalse(DesktopControlCoordinator.noteCreationCandidate(
+        "Turn off the bedroom light"))
+      XCTAssertEqual(DesktopControlCoordinator.noteContent(from: "Add a note saying Hello World"), "Hello World")
+      XCTAssertNil(DesktopControlCoordinator.noteContent(from: "Add to Apple Notes"))
       XCTAssertNil(DesktopControlCoordinator.noteContent(from: "Show my Notes app"))
     }
 
-    func testLayaShipsInsideMacApp() throws {
+    func testLayaDoesNotShipInsideMacApp() throws {
       let model = try XCTUnwrap(Bundle.main.resourceURL?.appendingPathComponent("laya-coreml"))
-      let weights = model.appendingPathComponent(
-        "laya_multilingual_e8_L128_options32.mlmodelc/weights/weight.bin")
-      let size = try FileManager.default.attributesOfItem(atPath: weights.path)[.size] as? NSNumber
-      XCTAssertEqual(size?.int64Value, 448_093_696)
-      XCTAssertTrue(FileManager.default.fileExists(atPath: model.appendingPathComponent("tokenizer.json").path))
-      XCTAssertTrue(FileManager.default.fileExists(atPath: model.appendingPathComponent("LICENSE").path))
-      XCTAssertTrue(FileManager.default.fileExists(atPath: model.appendingPathComponent("NOTICE.md").path))
+      XCTAssertFalse(FileManager.default.fileExists(atPath: model.path))
     }
   #endif
 

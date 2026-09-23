@@ -130,9 +130,8 @@ if [[ "${HEYTIM_REUSE_ARCHIVE:-false}" == true ]]; then
   read_info() { /usr/libexec/PlistBuddy -c "Print :$1" "$archive_info"; }
   if [[ "$(read_info CFBundleShortVersionString)" != "$HEYTIM_MARKETING_VERSION" \
     || "$(read_info CFBundleVersion)" != "$build_number" \
-    || "$(read_info SUPublicEDKey)" != "$sparkle_public_key" \
-    || ! -f "$archive_app/Contents/Resources/laya-coreml/tokenizer.json" ]]; then
-    echo 'Existing archive does not match the requested version, Sparkle key, or bundled model.' >&2
+    || "$(read_info SUPublicEDKey)" != "$sparkle_public_key" ]]; then
+    echo 'Existing archive does not match the requested version or Sparkle key.' >&2
     exit 1
   fi
 else
@@ -170,9 +169,8 @@ export_info="$app_path/Contents/Info.plist"
 read_export_info() { /usr/libexec/PlistBuddy -c "Print :$1" "$export_info"; }
 if [[ "$(read_export_info CFBundleShortVersionString)" != "$HEYTIM_MARKETING_VERSION" \
   || "$(read_export_info CFBundleVersion)" != "$build_number" \
-  || "$(read_export_info SUPublicEDKey)" != "$sparkle_public_key" \
-  || ! -f "$app_path/Contents/Resources/laya-coreml/tokenizer.json" ]]; then
-  echo 'Export does not match the requested version, Sparkle key, or bundled model.' >&2
+  || "$(read_export_info SUPublicEDKey)" != "$sparkle_public_key" ]]; then
+  echo 'Export does not match the requested version or Sparkle key.' >&2
   exit 1
 fi
 codesign --verify --deep --strict --verbose=2 "$app_path"

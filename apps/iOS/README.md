@@ -100,9 +100,8 @@ HeyTimNotary --apple-id YOUR_APPLE_ID --team-id YOURTEAMID`, then set
 `heytim` Keychain account. CI uses the
 protected `SPARKLE_PRIVATE_KEY` secret and App Store Connect API key instead.
 The matching Sparkle public key is checked into the Mac build configuration;
-private signing material must never be committed. Laya's pinned 483 MB Core ML
-model is fetched and checksum-verified by the build machine, then included in
-the Mac app bundle. End users never download it separately.
+private signing material must never be committed. Laya is retained only as an
+offline evaluation model; it is not linked into or downloaded by the shipping app.
 
 On Mac, enable **Mac App Actions** in Hey Tim Settings, then turn on the Mac app
 actions tool for each bot that should use it. Grant Accessibility access in
@@ -111,8 +110,8 @@ permission was just requested, the app offers to quit and reopen. If macOS
 shows Hey Tim as enabled but the app still lacks access, Settings can reveal
 the exact app copy to remove and re-add. There is no separate Desktop Control
 window or composer button: an explicit Mac-app request uses the conversation's
-normal approval bubble before acting. Text-only sends from enabled bots run an
-advisory Laya preflight; uncertain or out-of-scope
+normal approval bubble before acting. Text-only sends from enabled bots use
+bounded local routing for note creation or an exact visible control. Other
 requests continue to the bot. This is not yet a general client-side tool broker.
 
 Home Assistant is available as a connectable tool through a public HTTPS

@@ -1,7 +1,6 @@
 #if os(macOS)
   import AppKit
   import ApplicationServices
-  import FluidUse
   import Foundation
   import Observation
 
@@ -27,8 +26,6 @@
 
   struct DesktopActionProposal: Equatable, Sendable {
     let control: DesktopControlSummary?
-    let confidence: Float
-    let actionProbability: Float
     let reason: String
 
     var canExecute: Bool { control != nil }
@@ -36,18 +33,10 @@
 
   @MainActor @Observable
   final class DesktopControlCoordinator {
-    enum ModelState: Equatable {
-      case loading
-      case ready
-      case failed(String)
-
-      var title: String {
-        switch self {
-        case .loading: "Loading on device…"
-        case .ready: "Ready"
-        case .failed(let message): message
-        }
-      }
+    enum ChatPreparation {
+      case proposal
+      case clarification(String)
+      case unavailable
     }
 
     var applications: [DesktopApplication] = []
@@ -60,16 +49,9 @@
         }
       }
     }
-    var intent = "" {
-      didSet {
-        if intent != oldValue { proposal = nil }
-      }
-    }
     var snapshot: DesktopSnapshot?
     var proposal: DesktopActionProposal?
     var pendingNoteText: String?
-    var lastRouteConfidence: Float = 0
-    var lastRouteActionProbability: Float = 0
     var isEnabled = UserDefaults.standard.bool(forKey: "heytim.desktop-control.enabled") {
       didSet {
         UserDefaults.standard.set(isEnabled, forKey: "heytim.desktop-control.enabled")
@@ -96,20 +78,16 @@
     var permissionGranted = AXIsProcessTrusted()
     var permissionRequestPending = false
     var restartPrompt = false
-    var modelState: ModelState = .loading
-    var isWorking = false
     var message: String?
     var permissionMessage: String?
 
     @ObservationIgnored private var elements: [String: AXUIElement] = [:]
-    @ObservationIgnored private var laya: LayaManager?
     init() {
       refreshApplications()
-      Task { await loadBundledModel() }
     }
 
     func prepare(intent: String) {
-      self.intent = intent.trimmingCharacters(in: .whitespacesAndNewlines)
+      proposal = nil
       pendingNoteText = nil
       refreshApplications()
     }
@@ -124,34 +102,78 @@
       return "Press “\(control.label)” in \(application.name)"
     }
 
-    func prepareForChat(intent: String) async -> Bool {
+    func prepareForChat(intent: String) async -> ChatPreparation {
+      let isNotesRequest = Self.noteCreationCandidate(intent)
       prepare(intent: intent)
-      guard permissionGranted else { return false }
-      let lower = intent.lowercased()
-      let isNotesRequest = Self.targetsAppleNotes(lower)
-      let application = applications.first(where: {
-        isNotesRequest
-          ? $0.bundleIdentifier == "com.apple.Notes"
-          : lower.contains($0.name.lowercased())
-      })
-      guard let application else { return false }
-      selectedApplicationID = application.id
-      capture()
-      if isNotesRequest {
-        guard let noteText = Self.noteContent(from: intent),
-          let control = snapshot?.controls.first(where: {
-            $0.label.localizedCaseInsensitiveContains("New Note") && !$0.blockedByPolicy
-          })
-        else { return false }
-        pendingNoteText = noteText
-        proposal = .init(
-          control: control, confidence: lastRouteConfidence,
-          actionProbability: lastRouteActionProbability,
-          reason: "Laya routed this request to Mac app actions. Review the exact note before it is created.")
-        return true
+      guard permissionGranted else { return .unavailable }
+      let noteText = isNotesRequest ? Self.noteContent(from: intent) : nil
+      if isNotesRequest && noteText == nil {
+        return .clarification("What should the note say? Try “Add a note saying Hello World.”")
       }
-      await recommend()
-      return proposal?.canExecute == true
+      let application: DesktopApplication?
+      if isNotesRequest {
+        application = await appleNotesApplication()
+      } else {
+        application = Self.visibleControlRequest(intent).flatMap { request in
+          applications.first { $0.name.localizedCaseInsensitiveCompare(request.app) == .orderedSame }
+        }
+      }
+      guard let application else {
+        return isNotesRequest
+          ? .clarification("I couldn’t open Apple Notes. Open it and try again.")
+          : .clarification("I couldn’t find that running Mac app. Open it and try again.")
+      }
+      selectedApplicationID = application.id
+      if isNotesRequest {
+        capture()
+        let matchingControls = snapshot?.controls.filter {
+            $0.label.localizedCaseInsensitiveContains("New Note") && !$0.blockedByPolicy
+          } ?? []
+        guard matchingControls.count == 1, let control = matchingControls.first
+        else {
+          return .clarification("I couldn’t find a New Note control in Apple Notes. Bring its window forward and try again.")
+        }
+        pendingNoteText = noteText
+        proposal = .init(control: control, reason: "Review the exact note before it is created.")
+        return .proposal
+      }
+      capture()
+      guard let request = Self.visibleControlRequest(intent) else { return .unavailable }
+      let matches = snapshot?.controls.filter {
+        $0.label.localizedCaseInsensitiveCompare(request.control) == .orderedSame
+          && !$0.blockedByPolicy
+      } ?? []
+      if matches.count == 1, let control = matches.first {
+        proposal = .init(control: control, reason: "Review this exact visible control before it is pressed.")
+      } else {
+        return .clarification("I couldn’t find one matching, safe control in that app’s focused window. Bring the window forward and try again.")
+      }
+      return proposal?.canExecute == true ? .proposal : .unavailable
+    }
+
+    private func appleNotesApplication() async -> DesktopApplication? {
+      if let running = applications.first(where: { $0.bundleIdentifier == "com.apple.Notes" }) {
+        return running
+      }
+      guard let url = NSWorkspace.shared.urlForApplication(
+        withBundleIdentifier: "com.apple.Notes")
+      else { return nil }
+      let launched = await withCheckedContinuation { continuation in
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { application, error in
+          continuation.resume(returning: application != nil && error == nil)
+        }
+      }
+      guard launched else { return nil }
+      for _ in 0..<5 {
+        refreshApplications()
+        if let running = applications.first(where: { $0.bundleIdentifier == "com.apple.Notes" }) {
+          return running
+        }
+        try? await Task.sleep(for: .milliseconds(200))
+      }
+      return nil
     }
 
     func requestAccessibilityPermission() {
@@ -261,125 +283,42 @@
         application: application,
         windowTitle: Self.clean(windowTitle, limit: 100),
         summary: lines.prefix(80).joined(separator: "\n"),
-        controls: Array(controls.prefix(12)))
+        controls: Array(controls.prefix(60)))
       if controls.isEmpty {
         message = "No pressable controls were found in the focused window."
       }
     }
 
-    func recommend() async {
-      guard isEnabled else {
-        message = "Enable Mac app actions in Settings before requesting a recommendation."
-        return
-      }
-      if snapshot == nil { capture() }
-      guard let snapshot else { return }
-      guard !intent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-        message = "Describe what you want to do first."
-        return
-      }
-      guard let laya else {
-        proposal = .init(
-          control: nil, confidence: 0, actionProbability: 0,
-          reason: "The local model is unavailable, so this request needs the larger model.")
-        return
-      }
-
-      isWorking = true
-      proposal = nil
-      defer { isWorking = false }
-      do {
-        let candidates = snapshot.controls
-        guard !candidates.isEmpty else {
-          proposal = .init(
-            control: nil, confidence: 0, actionProbability: 0,
-            reason: "No pressable controls were visible, so this request needs the larger model.")
-          return
-        }
-        let options = candidates.map {
-          LayaQuestion.Choice($0.id, description: "Press \(Self.clean($0.label, limit: 48))")
-        } + [LayaQuestion.Choice("use_cloud_model", description: "No safe visible control is a clear match")]
-        let state = [
-          "intent: \(Self.clean(intent, limit: 160))",
-          "app: \(Self.clean(snapshot.application.name, limit: 48))",
-          "window: \(Self.clean(snapshot.windowTitle, limit: 64))",
-        ].joined(separator: "\n")
-        let answer = try await laya.answer(
-          state: state,
-          question: .choice(
-            "Choose the safe visible control that best completes the intent. Use cloud when unsure.",
-            options: options))
-        guard isEnabled, self.snapshot == snapshot else { return }
-        let selected = candidates.first(where: { $0.id == answer.selectedLabel })
-        let locallyEligible = selected != nil
-          && selected?.blockedByPolicy == false
-          && !answer.stateWasTruncated
-          && answer.actionProbability >= 0.70
-          && answer.confidence >= 0.20
-        let reason: String
-        if answer.selectedLabel == "use_cloud_model" {
-          reason = "Laya chose the larger model because no safe visible control was a clear match."
-        } else if selected?.blockedByPolicy == true {
-          reason = "This control can have an external or destructive effect, so local execution is blocked."
-        } else if answer.stateWasTruncated {
-          reason = "The decision input did not fit the local model, so it was rejected."
-        } else if !locallyEligible {
-          reason = "The local confidence gate was not met, so this request needs the larger model."
-        } else {
-          reason = "Laya selected this visible control. Review the exact action before approving it."
-        }
-        proposal = .init(
-          control: locallyEligible ? selected : nil,
-          confidence: answer.confidence,
-          actionProbability: answer.actionProbability,
-          reason: reason)
-      } catch {
-        proposal = .init(
-          control: nil, confidence: 0, actionProbability: 0,
-          reason: "The local decision failed safely: \(error.localizedDescription)")
-      }
+    /// Only well-scoped imperative requests can take the local approval path.
+    /// Questions, negation, and ambiguous requests stay in the ordinary bot flow.
+    static func shouldOfferDesktopAction(for text: String) -> Bool {
+      noteCreationCandidate(text) || visibleControlRequest(text) != nil
     }
 
-    /// A non-authoritative first pass for every Mac text send. A positive result
-    /// only offers the local tool; the user can still send the draft to the bot.
-    func shouldOfferDesktopAction(for text: String) async -> Bool {
-      guard isEnabled, AXIsProcessTrusted(), let laya else { return false }
-      lastRouteConfidence = 0
-      lastRouteActionProbability = 0
-      let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !trimmed.isEmpty else { return false }
-      do {
-        let answer = try await laya.answer(
-          state: "user request: \(Self.clean(trimmed, limit: 180))",
-          question: .choice(
-            "Does this request ask to operate an app on this Mac, or should a bot answer it?",
-            options: [
-              .init("mac_app", description: "Operate a visible Mac application"),
-              .init("bot_reply", description: "Answer in the bot conversation"),
-              .init("uncertain", description: "Unclear; let the bot handle it"),
-            ]))
-        lastRouteConfidence = answer.confidence
-        lastRouteActionProbability = answer.actionProbability
-        return Self.explicitlyTargetsMacUI(trimmed)
-          && answer.selectedLabel == "mac_app"
-          && !answer.stateWasTruncated
-          && answer.actionProbability >= 0.85
-          && answer.confidence >= 0.70
-      } catch {
-        return false
+    static func visibleControlRequest(_ text: String) -> (control: String, app: String)? {
+      let pattern = #"^\s*(?:(?:please|can you|could you)\s+)?(?:click|press)\s+(?:the\s+)?(.{1,80}?)\s+in\s+([\p{L}\p{N} .-]{1,60}?)(?:\s+on\s+(?:my|this)\s+Mac)?\s*[.!]?\s*$"#
+      guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
+        return nil
       }
-    }
-
-    static func explicitlyTargetsMacUI(_ text: String) -> Bool {
-      let value = text.lowercased()
-      return [
-        "my mac", "this mac", "mac app", "desktop app", "on my screen",
-        "on the screen", "apple notes", "notes app", "in notes", "to notes",
-      ].contains(where: value.contains)
+      let range = NSRange(text.startIndex..<text.endIndex, in: text)
+      guard let match = regex.firstMatch(in: text, range: range),
+        let controlRange = Range(match.range(at: 1), in: text),
+        let appRange = Range(match.range(at: 2), in: text)
+      else { return nil }
+      let control = text[controlRange].trimmingCharacters(in: .whitespacesAndNewlines)
+      let app = text[appRange].trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !control.isEmpty, !app.isEmpty else { return nil }
+      return (control, app)
     }
 
     static func targetsAppleNotes(_ text: String) -> Bool {
       ["apple notes", "notes app", "in notes", "to notes"].contains(where: text.contains)
+    }
+
+    static func noteCreationCandidate(_ text: String) -> Bool {
+      text.range(
+        of: #"^\s*(?:(?:please|can you|could you)\s+)?(?:add|create|make|write|put|start)\b[^\n.!?]{0,80}\bnotes?\b"#,
+        options: [.regularExpression, .caseInsensitive]) != nil
     }
 
     static func noteContent(from text: String) -> String? {
@@ -478,25 +417,6 @@
       return blocked.contains { normalized == $0 || normalized.contains("\($0) ") || normalized.contains(" \($0)") }
     }
 
-    private func loadBundledModel() async {
-      do {
-        guard let directory = Bundle.main.resourceURL?.appendingPathComponent(
-          "laya-coreml", isDirectory: true),
-          FileManager.default.fileExists(
-            atPath: directory.appendingPathComponent("tokenizer.json").path)
-        else {
-          modelState = .failed("Bundled model is missing. Reinstall Hey Tim.")
-          return
-        }
-        laya = try await LayaManager.load(
-          from: directory,
-          configuration: .init(lengths: [128], precision: "e8"))
-        modelState = .ready
-      } catch {
-        modelState = .failed(error.localizedDescription)
-      }
-    }
-
     private func walk(
       _ element: AXUIElement,
       depth: Int,
@@ -505,7 +425,7 @@
       controls: inout [DesktopControlSummary],
       resolved: inout [String: AXUIElement]
     ) {
-      guard depth <= 7, visited < 180, controls.count < 12 else { return }
+      guard depth <= 7, visited < 180, controls.count < 60 else { return }
       visited += 1
       let role = stringAttribute(kAXRoleAttribute, from: element) ?? "element"
       let label = stringAttribute(kAXTitleAttribute, from: element)

@@ -23,7 +23,6 @@
 		77CB660C6DD550BC0F60DB41 /* amplify_outputs.json in Resources */ = {isa = PBXBuildFile; fileRef = CD20C2D8D87C2620C17CB2FC /* amplify_outputs.json */; };
 		7E2E9B80F93BC2F922864BE8 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9562FE861331E8EDF3905B /* Theme.swift */; };
 		853E67CB6D03337CA85720E9 /* HeyTimAppleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98BE11C6F980CA726F8CD3C1 /* HeyTimAppleTests.swift */; };
-		8763A9B01682E1637BCA4F5D /* FluidUse in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = B118C84D3D2FED0E7BE23CD5 /* FluidUse */; };
 		9F478AE780823B1CD9BD1FF1 /* BotInboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4201ACBA97465745970F39B9 /* BotInboxView.swift */; };
 		A3726C0CFE3B60786BB21735 /* SupportingFeatureSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0472CF0D571EDAA62AAB8EF7 /* SupportingFeatureSheets.swift */; };
 		A66A705978C0BC97166945EC /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E21E3F573F09F295F5008B66 /* Foundation.framework */; };
@@ -122,7 +121,6 @@
 				00743F38F4FDC2125B07C1B7 /* Foundation.framework in Frameworks */,
 				DC6EF7E671F746BA67EC742C /* HeyTimNemotron in Frameworks */,
 				B8DC1FDBFBA096D553344CE0 /* Sparkle in Frameworks */,
-				8763A9B01682E1637BCA4F5D /* FluidUse in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -225,7 +223,7 @@
 				8B9EE876DBA56CA710F5A30D /* Frameworks */,
 				0B7F06A7249EA41F67794EB9 /* Resources */,
 				2CF6D852C775F4834E229694 /* Remove unused static speech framework wrappers */,
-				17A8E6F18D2D7A4C90E219B8 /* Bundle Laya for Mac */,
+				A0C9943342204800950BB3D1 /* Remove retired Laya resources */,
 			);
 			buildRules = (
 			);
@@ -235,7 +233,6 @@
 			packageProductDependencies = (
 				902EAFC6D5AFF50429697AF8 /* HeyTimNemotron */,
 				2D60B4DBEE697BDB2608D380 /* Sparkle */,
-				B118C84D3D2FED0E7BE23CD5 /* FluidUse */,
 			);
 			productName = HeyTimApple;
 			productReference = C6CD7E3D2740DF9D9727B8B9 /* HeyTim.app */;
@@ -281,7 +278,6 @@
 			packageReferences = (
 				A77EEA702B690A40D4B8D07B /* XCLocalSwiftPackageReference "heytim-transcription" */,
 				95F2CD3ADC7E47E9F990A0D5 /* XCRemoteSwiftPackageReference "Sparkle" */,
-				161DBFDD930EDC4B53DC5C74 /* XCRemoteSwiftPackageReference "FluidUse" */,
 			);
 			preferredProjectObjectVersion = 100;
 			productRefGroup = DE25D664829B43D761F60586 /* Products */;
@@ -323,7 +319,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		17A8E6F18D2D7A4C90E219B8 /* Bundle Laya for Mac */ = {
+		A0C9943342204800950BB3D1 /* Remove retired Laya resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -333,14 +329,14 @@
 			);
 			inputPaths = (
 			);
-			name = "Bundle Laya for Mac";
+			name = "Remove retired Laya resources";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ \"$PLATFORM_NAME\" = macosx ]; then\n  \"$SRCROOT/scripts/prepare-laya.sh\"\n  /usr/bin/ditto \"$SRCROOT/Generated/Laya/laya-coreml\" \\\n    \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/laya-coreml\"\nfi\n";
+			shellScript = "if [ \"$PLATFORM_NAME\" = macosx ]; then\n  model_path=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/laya-coreml\"\n  if [ -d \"$model_path\" ]; then\n    /usr/bin/find \"$model_path\" -depth -delete\n  fi\nfi\n";
 		};
 		2CF6D852C775F4834E229694 /* Remove unused static speech framework wrappers */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -749,14 +745,6 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		161DBFDD930EDC4B53DC5C74 /* XCRemoteSwiftPackageReference "FluidUse" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/FluidInference/FluidUse.git";
-			requirement = {
-				kind = revision;
-				revision = e9e95935075b626a203bb20c0645975be23f15b1;
-			};
-		};
 		95F2CD3ADC7E47E9F990A0D5 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle.git";
@@ -777,11 +765,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A77EEA702B690A40D4B8D07B /* XCLocalSwiftPackageReference "heytim-transcription" */;
 			productName = HeyTimNemotron;
-		};
-		B118C84D3D2FED0E7BE23CD5 /* FluidUse */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 161DBFDD930EDC4B53DC5C74 /* XCRemoteSwiftPackageReference "FluidUse" */;
-			productName = FluidUse;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

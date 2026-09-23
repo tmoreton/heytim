@@ -787,7 +787,7 @@ struct BotToolsAndSkillsEditor: View {
             })) {
               VStack(alignment: .leading, spacing: 3) {
                 Text("Mac app actions")
-                Text("Let this bot use Accessibility to act in Mac apps, with approval for each action. Laya checks eligible requests on device first.")
+                Text("Let this bot create Apple Notes or press an exact visible control in a Mac app. Every action requires your approval.")
                   .froggyFont(.caption).foregroundStyle(.secondary)
               }
             }
@@ -795,6 +795,9 @@ struct BotToolsAndSkillsEditor: View {
             .accessibilityIdentifier("bot.tool.mac-desktop")
           if botID == nil {
             Text("Save this bot first to enable Mac app actions.")
+              .froggyFont(.caption).foregroundStyle(.secondary)
+          } else if !desktopControl.isEnabled {
+            Text("Mac app actions are also off in Settings. Turn them on there before this bot can use the tool.")
               .froggyFont(.caption).foregroundStyle(.secondary)
           }
         #endif

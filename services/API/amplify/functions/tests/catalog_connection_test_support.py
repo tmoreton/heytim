@@ -11,6 +11,12 @@ class ConnectionCatalogCases:
         self.assertEqual(saved["name"], "Home Assistant")
         self.assertEqual(saved["risk"], "interactive")
         self.assertNotIn("a" * 48, repr(saved))
+        listed = self.catalog.list_tools("owner")
+        self.assertIn(saved["id"], [tool["id"] for tool in listed])
+        self.assertEqual(
+            next(tool for tool in listed if tool["id"] == saved["id"])["provider"],
+            "home_assistant",
+        )
         runtime = self.catalog.resolve_tools_for_runtime("owner", [saved["id"]])[0]
         self.assertEqual(runtime["runtime"]["endpoint"], "https://home.example.com/api/mcp/assist")
         self.assertEqual(runtime["runtime"]["authType"], "home_assistant_token")
