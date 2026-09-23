@@ -268,7 +268,7 @@
       }
 
       let root = AXUIElementCreateApplication(application.id)
-      let window = elementAttribute(kAXFocusedWindowAttribute, from: root) ?? root
+      let window = activeWindow(in: root)
       let windowTitle = stringAttribute(kAXTitleAttribute, from: window) ?? "Untitled window"
       var lines: [String] = []
       var controls: [DesktopControlSummary] = []
@@ -346,7 +346,7 @@
         return message ?? "Mac app action was not completed."
       }
       let root = AXUIElementCreateApplication(application.id)
-      let focusedWindow = elementAttribute(kAXFocusedWindowAttribute, from: root) ?? root
+      let focusedWindow = activeWindow(in: root)
       let currentWindowTitle = Self.clean(
         stringAttribute(kAXTitleAttribute, from: focusedWindow) ?? "Untitled window",
         limit: 100)
@@ -375,7 +375,7 @@
         for _ in 0..<5 {
           try? await Task.sleep(for: .milliseconds(180))
           let root = AXUIElementCreateApplication(application.id)
-          let window = elementAttribute(kAXFocusedWindowAttribute, from: root) ?? root
+          let window = activeWindow(in: root)
           if let body = findNotesBody(in: window, depth: 0) {
             var settable = DarwinBoolean(false)
             if AXUIElementIsAttributeSettable(body, kAXValueAttribute as CFString, &settable) == .success,
@@ -448,11 +448,22 @@
         resolved[id] = element
       }
 
-      for child in elementArrayAttribute(kAXChildrenAttribute, from: element) {
+      let children = elementArrayAttribute(kAXChildrenAttribute, from: element)
+      // Large document/list subtrees can exhaust the bounded walk before a
+      // window's toolbar. Give visible toolbar actions first consideration.
+      let ordered = children.filter { stringAttribute(kAXRoleAttribute, from: $0) == "AXToolbar" }
+        + children.filter { stringAttribute(kAXRoleAttribute, from: $0) != "AXToolbar" }
+      for child in ordered {
         walk(
           child, depth: depth + 1, visited: &visited, lines: &lines,
           controls: &controls, resolved: &resolved)
       }
+    }
+
+    private func activeWindow(in application: AXUIElement) -> AXUIElement {
+      elementAttribute(kAXFocusedWindowAttribute, from: application)
+        ?? elementArrayAttribute(kAXWindowsAttribute, from: application).first
+        ?? application
     }
 
     private func stringAttribute(_ name: String, from element: AXUIElement) -> String? {
