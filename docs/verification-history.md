@@ -6,6 +6,14 @@ was recorded, including legacy repository, cloud-resource, secret, and bundle ID
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-09-23 — Home Assistant backend-only rollout
+
+- Merged [PR #58](https://github.com/tmoreton/heytim/pull/58) as commit `b029fd796c87cb1871c4b5643dd5d3d51be4038c`. The required application, runtime, AgentCore, Apple, dependency, and security checks passed.
+- [Production run `35865295766`](https://github.com/tmoreton/heytim/actions/runs/35865295766) completed successfully from `main` with `release_scope=backend-only`. It updated the AgentCore runtime and Amplify backend and passed the protected production resource checks. This scope did not upload TestFlight builds or produce a new Mac DMG.
+- Home Bot's Home Assistant connection is connected and its per-bot tool switch is on. The separate Mac app actions switch is also on, with Accessibility granted and the bundled local model reporting ready in the installed 1.0.3 app.
+- Before this rollout, a direct Assist MCP test of the exact Bedroom Light succeeded: its initial `off` state was read, `HassTurnOn` returned success and state `on`, then `HassTurnOff` returned success and state `off`. The test restored the initial state. This proves the connection and exposed Assist actions, not the bot/Laya path.
+- A read-only Home Bot request immediately after the rollout was rejected before agent invocation because the owner account had used all 30 of 30 free work credits; the app says the allowance resets September 30, 2026. Thus the deployed bot path, Laya route, and live on/off through HeyTim remain **unverified**. Do not treat the direct MCP check or the green deployment as evidence that those paths work end to end.
+
 ## 2026-09-18 — workflow, routine, workspace, and approval release
 
 - Released commit `2bc8fed` as [`v6.2.5`](https://github.com/tmoreton/frogbot/releases/tag/v6.2.5).

@@ -125,6 +125,37 @@ def test_home_assistant_quick_route_skips_large_model(monkeypatch):
     model.assert_not_awaited()
 
 
+def test_read_only_home_assistant_route_without_model_hint(monkeypatch):
+    monkeypatch.setattr(runtime_main, "memory_context_from_payload", lambda _payload: None)
+    monkeypatch.setattr(
+        runtime_main,
+        "messages_from_payload",
+        lambda _payload, _actor_id: [
+            {"role": "user", "content": [{"text": "What is the current state of Bedroom Light?"}]}
+        ],
+    )
+    route = AsyncMock(return_value={"text": "Home Assistant shows Bedroom Light is on."})
+    model = AsyncMock()
+    monkeypatch.setattr(runtime_main, "maybe_route_home_assistant", route)
+    monkeypatch.setattr(runtime_main, "load_model", model)
+
+    async def collect():
+        return [
+            event
+            async for event in runtime_main.run_agent(
+                {}, SimpleNamespace(session_id="session-1")
+            )
+        ]
+
+    assert asyncio.run(collect())[:3] == [
+        {"event": {"messageStart": {"role": "assistant"}}},
+        {"event": {"contentBlockDelta": {"delta": {"text": "Home Assistant shows Bedroom Light is on."}}}},
+        {"event": {"messageStop": {"stopReason": "end_turn"}}},
+    ]
+    route.assert_awaited_once_with({}, "What is the current state of Bedroom Light?")
+    model.assert_not_awaited()
+
+
 def test_normal_approval_with_home_hint_resumes_normal_agent(monkeypatch):
     capabilities = SimpleNamespace(close=AsyncMock())
     config = BotConfiguration(

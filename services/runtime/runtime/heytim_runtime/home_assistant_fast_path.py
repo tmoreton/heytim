@@ -29,6 +29,21 @@ _FIELD = re.compile(r"^  (domain|state): (.+)$")
 _SAFE_NAME = re.compile(r"[\w][\w .'-]{0,79}\Z", re.UNICODE)
 _SAFE_STATE = {"on", "off"}
 _ROUTE_LABELS = {"turn_on", "turn_off", "read_state"}
+_READ_STATE_PREFIX = re.compile(
+    r"(?:is\s|what(?:'s|\s+is)\s+(?:the\s+)?(?:current\s+)?state\s+of\s)",
+    re.IGNORECASE,
+)
+
+
+def read_state_candidate(request: str) -> bool:
+    """Avoid opening an MCP session for unrelated no-hint bot messages."""
+    return (
+        isinstance(request, str)
+        and len(request) <= 180
+        and "\n" not in request
+        and request.rstrip().endswith("?")
+        and _READ_STATE_PREFIX.match(request.strip()) is not None
+    )
 
 
 def _hint_label(hint: Any) -> str | None:
@@ -150,7 +165,22 @@ def _tool_result(result: Any) -> dict | None:
         body = json.loads(raw)
     except json.JSONDecodeError:
         return None
-    return body if isinstance(body, dict) and body.get("success") is True else None
+    if not isinstance(body, dict):
+        return None
+    if body.get("success") is True:
+        return body
+    # Home Assistant Assist returns its native intent result for action tools,
+    # rather than the success/result envelope used by some MCP tools.
+    data = body.get("data")
+    if (
+        body.get("response_type") == "action_done"
+        and isinstance(data, dict)
+        and isinstance(data.get("success"), list)
+        and bool(data["success"])
+        and data.get("failed") == []
+    ):
+        return body
+    return None
 
 
 async def _snapshot(session: ClientSession, tools: list[Any]) -> str | None:
@@ -180,6 +210,10 @@ async def maybe_route_home_assistant(payload: dict, request: str) -> dict | None
     """Return a final text/approval control or None to use the normal bot."""
     hint = payload.get("homeAssistantHint")
     label = _hint_label(hint)
+    # An exact read-only question can be grounded in Assist without a Laya hint.
+    # State-changing requests still require the model's high-confidence hint.
+    if label is None and hint is None and read_state_candidate(request):
+        label = "read_state"
     if label is None or payload.get("group") is not None or payload.get("continuation"):
         return None
     bot = payload.get("bot")
