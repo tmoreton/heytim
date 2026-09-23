@@ -70,7 +70,7 @@ struct BotInboxView: View {
         } header: {
           Text("Email behavior")
         } footer: {
-          Text("Automatic messages run only when they come from your verified sign-in email and pass email authentication. Approvals still require the app.")
+          Text("Automatic messages run only when they come from your verified sign-in email and pass email authentication. Enable tools and grant Always Allow in the app before relying on automatic actions.")
         }
       }
 

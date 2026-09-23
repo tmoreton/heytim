@@ -5,7 +5,12 @@ from unittest.mock import Mock
 
 import pytest
 
-from heytim_runtime.action_approval import ActionApproval, _proposal, pending_approval
+from heytim_runtime.action_approval import (
+    ActionApproval,
+    _proposal,
+    approval_configuration,
+    pending_approval,
+)
 from heytim_runtime.mcp_tool_names import _bounded_tool_name
 from heytim_runtime.runtime_jobs import RunState
 
@@ -76,3 +81,46 @@ def test_home_assistant_context_read_skips_approval_but_actions_do_not() -> None
     )
     approval.before_tool(action_event)
     action_event.interrupt.assert_called_once()
+
+
+def test_only_interactive_tool_calls_prompt_before_the_persistent_grant() -> None:
+    approval = ActionApproval(interactive_names={"browser"})
+    read_event = SimpleNamespace(
+        tool_use={"toolUseId": "read-1", "name": "calculator", "input": {}},
+        interrupt=Mock(),
+    )
+    approval.before_tool(read_event)
+    read_event.interrupt.assert_not_called()
+    action_event = SimpleNamespace(
+        tool_use={"toolUseId": "action-1", "name": "browser", "input": {}},
+        interrupt=Mock(return_value=None), cancel_tool=None,
+    )
+    approval.before_tool(action_event)
+    action_event.interrupt.assert_called_once()
+
+
+def test_resumed_one_time_grant_allows_subsequent_actions() -> None:
+    first = {"toolUseId": "action-1", "name": "browser", "input": {"url": "https://example.com"}}
+    proposal = _proposal(first)
+    approval = ActionApproval(
+        resume={"digest": proposal["digest"], "toolUseId": proposal["toolUseId"]},
+        allow_after_resume=True, interactive_names={"browser"},
+    )
+    resumed = SimpleNamespace(tool_use=first, interrupt=Mock(return_value={
+        "digest": proposal["digest"], "toolUseId": proposal["toolUseId"]
+    }), cancel_tool=None)
+    approval.before_tool(resumed)
+    assert resumed.cancel_tool is None
+    next_action = SimpleNamespace(tool_use={**first, "toolUseId": "action-2"}, interrupt=Mock())
+    approval.before_tool(next_action)
+    next_action.interrupt.assert_not_called()
+
+
+def test_previously_granted_bot_skips_runtime_approval_setup() -> None:
+    payload = {"bot": {
+        "tools": [{"id": "browser", "risk": "interactive", "runtime": {
+            "kind": "agentcore", "name": "browser"
+        }}],
+        "alwaysAllowedToolIds": ["browser"],
+    }}
+    assert approval_configuration(payload, None) is None

@@ -117,7 +117,7 @@ class ApiSafetyTests(ApiTestCase):
         self.assertEqual(running[1]["allowedActions"], ["cancel"])
         self.assertEqual(
             approval[1]["allowedActions"],
-            ["reject", "approveOnce"],
+            ["reject", "approveOnce", "approveAlways"],
         )
 
     def test_clearing_chat_revokes_only_conversation_shares(self) -> None:
@@ -440,6 +440,38 @@ class ApiSafetyTests(ApiTestCase):
         self.assertEqual(len(values[":decision"]["executionKey"]), 36)
         self.assertIn("approvalRequest = :proposal", self.data_table.updated[-1]["ConditionExpression"])
 
+    def test_always_allow_grants_all_enabled_interactive_tools(self) -> None:
+        from datetime import UTC, datetime, timedelta
+        proposal = {
+            "id": "interrupt-1", "digest": "a" * 64, "toolUseId": "tool-1",
+            "toolName": "browser", "input": {"url": "https://example.com"},
+            "expiresAt": (datetime.now(UTC) + timedelta(minutes=10)).isoformat(),
+        }
+        turn = {
+            "pk": "CHAT#user-1#bot-1", "sk": "TURN#now#turn-1",
+            "id": "turn-1", "userId": "user-1", "botId": "bot-1",
+            "status": "AWAITING_APPROVAL",
+            "approvalRequest": proposal, "approvalGrantDigest": "grant-1",
+        }
+        bot = {
+            "pk": "USER#user-1", "sk": "BOT#bot-1", "id": "bot-1",
+            "toolIds": ["home", "browser"], "alwaysAllowedToolIds": ["browser"],
+            "updatedAt": "2026-09-23T12:00:00Z",
+        }
+        with (
+            patch.object(self.direct_chat, "_get_bot", return_value=bot),
+            patch.object(self.direct_chat, "_get_turn", return_value=turn),
+            patch.object(self.direct_chat, "approval_grant_digest", return_value="grant-1"),
+            patch.object(self.direct_chat.catalog, "approval_tool_names", return_value=["Home Assistant", "Browser"]),
+            patch.object(self.direct_chat.catalog, "approval_tool_ids", return_value=["home", "browser"]),
+        ):
+            result = self.direct_chat._approve_bot_turn("user-1", "bot-1", "turn-1", always=True)
+        self.assertTrue(result["alwaysAllowed"])
+        grant_update, turn_update = self.data_table.updated[-2:]
+        self.assertEqual(grant_update["Key"], {"pk": bot["pk"], "sk": bot["sk"]})
+        self.assertEqual(grant_update["ExpressionAttributeValues"][":allowed"], ["home", "browser"])
+        self.assertEqual(turn_update["ExpressionAttributeValues"][":proposal"], proposal)
+
     def test_imported_bot_never_inherits_always_allowed_tools(self) -> None:
         self.data_table.put_item(
             Item={
@@ -504,13 +536,15 @@ class ApiSafetyTests(ApiTestCase):
         )
         self.assertNotIn("alwaysAllowedToolIds", share["snapshot"]["bot"])
 
-    def test_schedules_allow_bots_that_pause_for_interactive_approval(self) -> None:
+    def test_schedules_allow_bots_after_one_time_tool_grant(self) -> None:
         with (
             patch.object(
                 self.schedules,
                 "_get_bot",
-                return_value={"id": "bot-1", "toolIds": ["browser"]},
+                return_value={"id": "bot-1", "toolIds": ["browser"],
+                              "alwaysAllowedToolIds": ["browser"]},
             ),
+            patch.object(self.schedules.catalog, "unapproved_tools", return_value=[]),
             patch.object(self.schedules, "_schedule_items", return_value=[]),
             patch.object(self.schedules, "_create_remote_schedule"),
         ):
@@ -528,6 +562,22 @@ class ApiSafetyTests(ApiTestCase):
             )
 
         self.assertEqual(saved["name"], "Browser check")
+
+    def test_active_schedule_requires_one_time_tool_grant(self) -> None:
+        with (
+            patch.object(self.schedules, "_get_bot", return_value={
+                "id": "bot-1", "toolIds": ["browser"], "alwaysAllowedToolIds": []
+            }),
+            patch.object(self.schedules.catalog, "unapproved_tools", return_value=[
+                {"id": "browser", "name": "Interactive browser"}
+            ]),
+            self.assertRaises(self.support.ApiError) as error,
+        ):
+            self.schedules._create_schedule("user-1", "bot-1", {
+                "name": "Browser check", "prompt": "Check the dashboard.",
+                "frequency": "daily", "time": "09:00", "timezone": "UTC", "enabled": True,
+            })
+        self.assertEqual(error.exception.status_code, 409)
 
     def test_existing_schedule_does_not_block_enabling_interactive_tool(self) -> None:
         previous = {

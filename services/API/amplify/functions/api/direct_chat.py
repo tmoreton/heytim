@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from boto3.dynamodb.conditions import Attr
-from shared.action_grants import approval_grant_digest
+from shared.action_grants import approval_grant_digest, grant_enabled_interactive_tools
 from shared.approval_storage import approval_snapshot_key
 from shared.client_contract import MESSAGE_MAX_LENGTH
 from shared.memory_identity import direct_session_id
@@ -420,8 +420,6 @@ def _approve_bot_turn(
 ) -> dict:
     bot = _get_bot(user_id, bot_id)
     turn = _get_turn(user_id, bot_id, turn_id)
-    if always:
-        raise ApiError(400, "Only this exact action can be approved")
     approved_at = _now()
     proposal = turn.get("approvalRequest")
     if isinstance(proposal, dict):
@@ -440,7 +438,14 @@ def _approve_bot_turn(
     else:
         # Legacy approval requests created before exact-action interception can
         # be restarted safely. They never grant a tool call.
+        if always:
+            raise ApiError(400, "Only a proposed tool call can be allowed permanently")
         decision = None
+    if always:
+        try:
+            grant_enabled_interactive_tools(table, catalog, user_id, bot)
+        except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
+            raise ApiError(409, "The bot changed before the tool grant could be saved") from exc
     try:
         table.update_item(
             Key={"pk": turn["pk"], "sk": turn["sk"]},
@@ -470,7 +475,7 @@ def _approve_bot_turn(
     return {
         "turnId": turn["id"],
         "status": "pending",
-        "alwaysAllowed": False,
+        "alwaysAllowed": always,
     }
 
 

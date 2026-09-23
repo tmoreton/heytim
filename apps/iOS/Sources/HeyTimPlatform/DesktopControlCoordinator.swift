@@ -70,12 +70,29 @@
         UserDefaults.standard.set(enabledBotIDs.sorted(), forKey: "heytim.desktop-control.bot-ids")
       }
     }
+    var alwaysAllowedBotIDs = Set(UserDefaults.standard.stringArray(
+      forKey: "heytim.desktop-control.always-allowed-bot-ids") ?? []) {
+      didSet {
+        UserDefaults.standard.set(
+          alwaysAllowedBotIDs.sorted(), forKey: "heytim.desktop-control.always-allowed-bot-ids")
+      }
+    }
     func isEnabled(for botID: String) -> Bool {
       isEnabled && enabledBotIDs.contains(botID)
     }
+    func isAlwaysAllowed(for botID: String) -> Bool {
+      isEnabled(for: botID) && alwaysAllowedBotIDs.contains(botID)
+    }
+    func allowAlways(for botID: String) {
+      guard isEnabled(for: botID) else { return }
+      alwaysAllowedBotIDs.insert(botID)
+    }
     func setEnabled(_ enabled: Bool, for botID: String) {
       if enabled { enabledBotIDs.insert(botID) }
-      else { enabledBotIDs.remove(botID) }
+      else {
+        enabledBotIDs.remove(botID)
+        alwaysAllowedBotIDs.remove(botID)
+      }
     }
     var permissionGranted = AXIsProcessTrusted()
     var permissionRequestPending = false

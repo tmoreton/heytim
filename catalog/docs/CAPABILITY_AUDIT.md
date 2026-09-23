@@ -51,7 +51,7 @@ Connected providers are presented with X, YouTube, Slack, and Teams first, follo
 
 ## Creator expansion
 
-Creator Studio and Trend Scout are the first creator bots. Creator Studio deliberately installs both YouTube Strategy and YouTube Thumbnail Director so public research and image creation work together. Because Image Generator requires interactive approval, Creator Studio cannot participate in group replies or group schedules. Direct turns preflight the bot's full tool set, so even research-only requests require approval unless Image Generator was persistently allowed; the same persistent approval is required for a direct bot schedule. Trend Scout is safe for point-in-time group or scheduled research, but it must not claim continuous monitoring unless the user configures a schedule.
+Creator Studio and Trend Scout are the first creator bots. Creator Studio deliberately installs both YouTube Strategy and YouTube Thumbnail Director so public research and image creation work together. Image Generator asks for a one-time Always Allow grant on first use; after the bot owner grants it, the bot can use the tool without per-action prompts, including in eligible schedules and owner-controlled group replies. Trend Scout is safe for point-in-time group or scheduled research, but it must not claim continuous monitoring unless the user configures a schedule.
 
 The research and sequencing evidence is recorded in [BOT_CATALOG_RESEARCH.md](BOT_CATALOG_RESEARCH.md).
 

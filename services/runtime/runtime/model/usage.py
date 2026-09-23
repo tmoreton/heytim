@@ -81,7 +81,7 @@ def _nonnegative_int(value: Any) -> int:
 def _nonnegative_decimal(value: Any) -> Decimal | None:
     try:
         amount = Decimal(str(value))
-    except InvalidOperation, TypeError, ValueError:
+    except (InvalidOperation, TypeError, ValueError):
         return None
     if not amount.is_finite() or amount < 0:
         return None

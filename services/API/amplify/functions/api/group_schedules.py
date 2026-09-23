@@ -57,9 +57,15 @@ def _group_schedule_team(user_id: str, group_id: str, *, allow_approval: bool = 
         raise ApiError(409, "Add bots before scheduling this group")
     for member in team:
         bot = _get_bot(member["botOwnerId"], member["botId"])
-        if (catalog.approval_tool_names(member["botOwnerId"], bot.get("toolIds", []))
-                and (not allow_approval or member["botOwnerId"] != user_id)):
-            raise ApiError(409, "Automatic actions require the room owner's own bot and approval")
+        interactive = catalog.approval_tool_names(
+            member["botOwnerId"], bot.get("toolIds", []))
+        unapproved = catalog.unapproved_tools(
+            member["botOwnerId"], bot.get("toolIds", []),
+            bot.get("alwaysAllowedToolIds", []))
+        if (interactive and member["botOwnerId"] != user_id) or (
+            unapproved and not allow_approval
+        ):
+            raise ApiError(409, "Allow this bot's tools in a direct chat before scheduling it")
     return team
 
 

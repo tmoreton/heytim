@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime
 
 from boto3.dynamodb.conditions import Attr
-from shared.action_grants import approval_grant_digest
+from shared.action_grants import approval_grant_digest, grant_enabled_interactive_tools
 from shared.approval_storage import approval_snapshot_key
 from shared.workflows import run_key
 
@@ -27,7 +27,9 @@ from .support import (
 
 
 def _decide_group_action(user_id: str, group_id: str, run_id: str,
-                         task_id: str, approved: bool) -> dict:
+                         task_id: str, approved: bool, always: bool = False) -> dict:
+    if always and not approved:
+        raise ApiError(400, "A denied action cannot grant future tool access")
     _require_group_member(user_id, group_id)
     run_id = _validate_string(run_id, "runId", 64)
     task_id = _validate_string(task_id, "taskId", 64)
@@ -87,6 +89,11 @@ def _decide_group_action(user_id: str, group_id: str, run_id: str,
         decision = None
         expression = ("SET #status = :error, #text = :denied, completedAt = :now "
                       "REMOVE approvalRequest, approvalDecision, approvalConsumedAt")
+    if always:
+        try:
+            grant_enabled_interactive_tools(table, catalog, user_id, bot)
+        except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
+            raise ApiError(409, "The bot changed before the tool grant could be saved") from exc
     try:
         table.update_item(
             Key=key, UpdateExpression=expression,

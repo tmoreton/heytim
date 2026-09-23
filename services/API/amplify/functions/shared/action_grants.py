@@ -32,3 +32,35 @@ def approval_grant_digest(catalog, owner_id: str, bot: dict) -> str:
         "connections": connections,
     }
     return hashlib.sha256(json.dumps(scope, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def grant_enabled_interactive_tools(table, catalog, owner_id: str, bot: dict) -> list[str]:
+    """Persist one owner decision for the bot's currently enabled interactive tools.
+
+    Keep updatedAt unchanged so an already validated exact-action proposal can
+    resume against the same grant digest. A later bot edit still invalidates it.
+    """
+    tool_ids = bot.get("toolIds", [])
+    interactive = set(catalog.approval_tool_ids(owner_id, tool_ids))
+    if not interactive:
+        raise ValueError("The bot has no interactive tools to allow")
+    previous = bot.get("alwaysAllowedToolIds", [])
+    if not isinstance(previous, list) or any(not isinstance(item, str) for item in previous):
+        raise ValueError("The bot's allowed tools are invalid")
+    allowed = [item for item in tool_ids if item in interactive]
+    if allowed == previous:
+        return allowed
+    condition = "updatedAt = :updated AND " + (
+        "alwaysAllowedToolIds = :previous"
+        if "alwaysAllowedToolIds" in bot else "attribute_not_exists(alwaysAllowedToolIds)"
+    )
+    table.update_item(
+        Key={"pk": bot["pk"], "sk": bot["sk"]},
+        UpdateExpression="SET alwaysAllowedToolIds = :allowed",
+        ConditionExpression=condition,
+        ExpressionAttributeValues={
+            ":updated": bot["updatedAt"], ":allowed": allowed,
+            **({":previous": previous} if "alwaysAllowedToolIds" in bot else {}),
+        },
+    )
+    return allowed

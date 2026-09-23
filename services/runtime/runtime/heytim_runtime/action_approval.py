@@ -42,15 +42,31 @@ class ActionApproval(HookProvider):
     def __init__(
         self, resume: dict | None = None,
         read_only_home_tools: set[str] | None = None,
+        allow_after_resume: bool = False,
+        interactive_names: set[str] | None = None,
+        interactive_prefixes: set[str] | None = None,
     ):
         self.resume = resume
         self.proposal: dict | None = None
         self.read_only_home_tools = frozenset(read_only_home_tools or ())
+        self.allow_after_resume = allow_after_resume
+        self.interactive_names = frozenset(interactive_names or ())
+        self.interactive_prefixes = frozenset(interactive_prefixes or ())
 
     def register_hooks(self, registry: HookRegistry, **kwargs: Any) -> None:
         registry.add_callback(BeforeToolCallEvent, self.before_tool)
 
     def before_tool(self, event: BeforeToolCallEvent) -> None:
+        if self.allow_after_resume and self.resume is None:
+            return
+        name = event.tool_use.get("name")
+        if self.resume is None and (
+            self.interactive_names or self.interactive_prefixes
+        ) and name not in self.interactive_names and not any(
+            isinstance(name, str) and name.startswith(prefix)
+            for prefix in self.interactive_prefixes
+        ):
+            return
         # A connection's interactive risk applies to device changes, not a
         # zero-argument Assist context read. Match the exact alias derived from
         # this bot's validated Home Assistant grant; never trust a suffix alone.
@@ -76,11 +92,24 @@ class ActionApproval(HookProvider):
 
 def approval_configuration(payload: dict, actor_id: str | None) -> tuple[ActionApproval, SnapshotSessionManager] | None:
     selected = payload.get("bot", {}).get("tools", [])
-    if not any(isinstance(item, dict) and item.get("risk") == "interactive" for item in selected):
+    interactive_ids = {
+        item["id"] for item in selected
+        if isinstance(item, dict) and item.get("risk") == "interactive"
+        and isinstance(item.get("id"), str)
+    }
+    if not interactive_ids:
         return None
     if any(isinstance(item, dict) and item.get("runtime", {}).get("kind") == "stan_subagent"
            for item in selected):
         raise ValueError("Interactive tools cannot be delegated to a subagent")
+    allowed = payload.get("bot", {}).get("alwaysAllowedToolIds", [])
+    allowed_ids = set(allowed) if isinstance(allowed, list) and all(
+        isinstance(item, str) for item in allowed
+    ) else set()
+    unapproved_ids = interactive_ids - allowed_ids
+    resume = payload.get("actionApproval")
+    if not unapproved_ids and resume is None:
+        return None
     memory = memory_context_from_payload(payload)
     prefix = artifact_prefix_from_payload(payload, actor_id)
     if not memory or not prefix or not (
@@ -92,7 +121,6 @@ def approval_configuration(payload: dict, actor_id: str | None) -> tuple[ActionA
     event_id = memory.event_id
     if not isinstance(event_id, str) or not _ID.fullmatch(event_id):
         raise ValueError("Approval turn identity is invalid")
-    resume = payload.get("actionApproval")
     if resume is not None and (
         not isinstance(resume, dict)
         or set(resume) != {"id", "digest", "toolUseId"}
@@ -113,7 +141,32 @@ def approval_configuration(payload: dict, actor_id: str | None) -> tuple[ActionA
         and item["runtime"].get("kind") == "mcp"
         and item["runtime"].get("authType") == "home_assistant_token"
     }
-    return ActionApproval(resume, read_only_home_tools), SnapshotSessionManager(
+    interactive_names: set[str] = set()
+    interactive_prefixes: set[str] = set()
+    for item in selected:
+        if not isinstance(item, dict) or item.get("id") not in unapproved_ids:
+            continue
+        runtime = item.get("runtime", {})
+        kind = runtime.get("kind") if isinstance(runtime, dict) else None
+        if kind in {"mcp", "mcp_bundle", "provider_api"}:
+            interactive_prefixes.add(
+                f"c{hashlib.sha256(item['id'].encode()).hexdigest()[:10]}_"
+            )
+        elif kind == "agentcore" and runtime.get("name") == "browser":
+            interactive_names.update({"browser", "capture_points_screenshot"})
+        elif kind == "local" and runtime.get("name") == "image_generator":
+            interactive_names.update({"generate_image", "create_youtube_thumbnail"})
+        else:
+            # Unknown interactive bindings keep the conservative original hook.
+            interactive_names.clear()
+            interactive_prefixes.clear()
+            break
+    return ActionApproval(
+        resume, read_only_home_tools,
+        allow_after_resume=not unapproved_ids,
+        interactive_names=interactive_names,
+        interactive_prefixes=interactive_prefixes,
+    ), SnapshotSessionManager(
         event_id, storage=storage, save_latest_on="trigger"
     )
 

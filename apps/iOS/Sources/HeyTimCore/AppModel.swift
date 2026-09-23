@@ -525,11 +525,13 @@ public final class AppModel {
     guard let api, !demoMode else { return }
     do {
       if let group = selectedGroup, let runId = message.runId, let taskId = message.taskId {
-        try await api.decideGroupAction(groupId: group.id, runId: runId, taskId: taskId, approved: true)
+        try await api.decideGroupAction(
+          groupId: group.id, runId: runId, taskId: taskId, approved: true, always: always)
       } else if let bot = selectedBot {
-        try await api.approve(botId: bot.id, turnId: Self.directTurnID(message.id), always: false)
+        try await api.approve(botId: bot.id, turnId: Self.directTurnID(message.id), always: always)
       } else { return }
       try await loadMessages()
+      if always { _ = await refreshBootstrap() }
     } catch { present(error) }
   }
 

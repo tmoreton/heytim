@@ -324,11 +324,13 @@ public final class HeyTimAPI: Sendable {
     let _: EmptyResponse = try await request(
       .botMessageApprove, parameters: ["botId": botId, "turnId": turnId], body: ["always": always])
   }
-  public func decideGroupAction(groupId: String, runId: String, taskId: String, approved: Bool) async throws {
+  public func decideGroupAction(
+    groupId: String, runId: String, taskId: String, approved: Bool, always: Bool = false
+  ) async throws {
     let _: EmptyResponse = try await request(
       .groupTaskApproval,
       parameters: ["groupId": groupId, "runId": runId, "taskId": taskId],
-      body: ["approved": approved])
+      body: ["approved": approved, "always": always])
   }
 
   public func saveGroup(_ draft: GroupDraft, id: String? = nil) async throws -> BotGroup {

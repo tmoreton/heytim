@@ -318,6 +318,7 @@ def _process_group_agent_reply(
                 Key=reply_key,
                 UpdateExpression=(
                     "SET #status = :awaiting, approvalRequest = :proposal, approvalGrantDigest = :grant, "
+                    "approvalTools = :tools, "
                     "resumeRequest = :request, activity = :activity, activityUpdatedAt = :now "
                     "REMOVE leaseOwner, leaseExpiresAt, approvalDecision, approvalConsumedAt, runtimeResult"
                 ),
@@ -327,6 +328,7 @@ def _process_group_agent_reply(
                     ":awaiting": "AWAITING_APPROVAL", ":running": "RUNNING",
                     ":owner": lease_owner, ":proposal": proposal,
                     ":grant": approval_grant_digest(catalog, bot_owner_id, bot),
+                    ":tools": catalog.approval_tool_names(bot_owner_id, bot.get("toolIds", [])),
                     ":request": request, ":activity": ["Approval needed for " + proposal["toolName"]],
                     ":now": utc_now_iso(),
                 },

@@ -980,7 +980,7 @@ private struct GroupRoutineEditor: View {
               .textSelection(.enabled)
           }
         }
-        Text("Event routines can use read-only room tools. An external write will need a separate, exact-action approval before it is enabled.")
+        Text("Event routines can use this bot’s enabled tools after you grant Always Allow on its first interactive action.")
           .froggyFont(.footnote)
           .foregroundStyle(.secondary)
       }

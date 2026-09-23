@@ -35,7 +35,7 @@
       } header: {
         Text("Mac App Actions")
       } footer: {
-        Text("Turn this on, then enable Mac app actions for individual bots in their Tools list. Exact low-risk actions can run immediately; uncertain actions require approval. Consequential controls stay blocked.")
+        Text("Turn this on, then enable Mac app actions for individual bots in their Tools list. The first action asks for Always Allow. Consequential controls stay blocked.")
       }
       .alert("Reopen Hey Tim?", isPresented: $coordinator.restartPrompt) {
         Button("Quit and Reopen") { coordinator.restartForAccessibility() }

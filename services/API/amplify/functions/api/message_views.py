@@ -50,7 +50,7 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
                     "startedAt": turn.get("startedAt", turn["createdAt"]),
                     "status": status,
                     "allowedActions": (
-                        ["reject", "approveOnce"]
+                        ["reject", "approveOnce", "approveAlways"]
                         if status == "awaiting_approval"
                         else ["cancel"]
                         if status in {"pending", "running"}
@@ -100,7 +100,7 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
                     "startedAt": turn.get("startedAt", turn["createdAt"]),
                     "status": str(turn.get("status", "PENDING")).lower(),
                     "allowedActions": (
-                        ["reject", "approveOnce"]
+                        ["reject", "approveOnce", "approveAlways"]
                         if turn.get("status") == "AWAITING_APPROVAL"
                         else ["cancel"]
                         if turn.get("status") in {"PENDING", "RUNNING"}

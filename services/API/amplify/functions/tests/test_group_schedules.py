@@ -73,6 +73,7 @@ class ScheduledGroupWorkerTests(WorkerTestCase):
         patch.object(self.module, "table", self.table).start()
         patch.object(self.module, "_account_is_active", return_value=True).start()
         patch.object(self.module.catalog, "approval_tool_names", return_value=[]).start()
+        patch.object(self.module.catalog, "unapproved_tools", return_value=[]).start()
         self.process = patch.object(self.module, "_process_group_agent_round").start()
         for item in [
             {"pk": "GROUP#work", "sk": "META", "ownerId": "owner"},
@@ -127,7 +128,7 @@ class ScheduledGroupWorkerTests(WorkerTestCase):
         self.process.assert_not_called()
 
     def test_tool_policy_is_rechecked_at_execution(self):
-        self.module.catalog.approval_tool_names.return_value = ["GitHub write"]
+        self.module.catalog.unapproved_tools.return_value = [{"id": "github", "name": "GitHub write"}]
         with self.assertRaises(ValueError):
             self.module._process_scheduled_group_round({}, self.request)
         self.process.assert_not_called()

@@ -158,12 +158,16 @@ def _group_run_route(
             user_id, params.get("groupId", ""), params.get("runId", "")
         ))
     if method == "POST" and path.endswith("/approval"):
-        decision = _body(event).get("approved")
+        body = _body(event)
+        decision = body.get("approved")
         if not isinstance(decision, bool):
             raise ApiError(400, "approved must be true or false")
+        always = body.get("always", False)
+        if not isinstance(always, bool):
+            raise ApiError(400, "always must be true or false")
         return _response(202, _decide_group_action(
             user_id, params.get("groupId", ""), params.get("runId", ""),
-            params.get("taskId", ""), decision,
+            params.get("taskId", ""), decision, always,
         ))
     return None
 

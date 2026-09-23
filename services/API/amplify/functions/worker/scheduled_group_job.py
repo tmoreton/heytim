@@ -60,8 +60,12 @@ def _process_scheduled_group_round(record: dict, request: dict) -> None:
         for member in team:
             owner = member["botOwnerId"]
             bot = table.get_item(Key=_bot_key(owner, member["botId"]), ConsistentRead=True).get("Item")
-            if not bot or not _account_is_active(owner) or catalog.approval_tool_names(owner, bot.get("toolIds", [])):
-                raise ValueError("Scheduled group bot is unavailable or requires interactive approval")
+            if not bot or not _account_is_active(owner):
+                raise ValueError("Scheduled group bot is unavailable")
+            if (owner != user_id and catalog.approval_tool_names(owner, bot.get("toolIds", []))) or catalog.unapproved_tools(
+                owner, bot.get("toolIds", []), bot.get("alwaysAllowedToolIds", [])
+            ):
+                raise ValueError("Scheduled group bot lacks a one-time tool grant")
         message = _put_once({
             **message_key, "entity": "GROUP_MESSAGE", "id": message_id,
             "authorType": "user", "authorId": user_id, "authorName": membership.get("name", "Group owner"),
