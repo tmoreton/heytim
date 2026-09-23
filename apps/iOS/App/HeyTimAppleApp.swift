@@ -11,6 +11,10 @@ struct HeyTimAppleApp: App {
   private let configuration: AppConfiguration
   @State private var auth: AuthSession
   @State private var model: AppModel
+  #if os(macOS)
+    @State private var desktopControl = DesktopControlCoordinator()
+    private let updateController = DesktopUpdateController()
+  #endif
 
   init() {
     let value = try! AppConfiguration.load()
@@ -25,11 +29,16 @@ struct HeyTimAppleApp: App {
       WindowGroup {
         AppRoot(configuration: configuration, auth: auth, model: model)
           .frame(minWidth: auth.phase == .signedIn ? 1_160 : 900, minHeight: 620)
+          .environment(desktopControl)
       }
       .defaultSize(width: 1200, height: 760)
       .windowStyle(.hiddenTitleBar)
       .windowResizability(.contentMinSize)
       .commands {
+        CommandGroup(after: .appInfo) {
+          Button("Check for Updates…") { updateController.checkForUpdates() }
+            .disabled(!updateController.isConfigured)
+        }
         CommandGroup(replacing: .appSettings) {
           Button("Settings…") { model.sheet = .account }
             .keyboardShortcut(",", modifiers: .command)

@@ -106,6 +106,25 @@ CONNECTION_PROVIDER_SPECS = (
         "actions": ["Read repositories", "Create branches", "Open pull requests"],
     },
     {
+        "id": "home_assistant",
+        "name": "Home Assistant",
+        "description": "Read exposed devices and request home actions through your own Home Assistant instance.",
+        "category": "Smart home",
+        "iconText": "HA",
+        "permissionsSummary": "Only entities exposed to Assist; each action requires review",
+        "privacyTitle": "Your home stays under your control",
+        "privacyDescription": (
+            "HeyTim stores your token privately on the server and uses only the "
+            "Home Assistant Assist MCP endpoint. You choose which entities Assist exposes."
+        ),
+        "connectLabel": "Connect home",
+        "reconnectLabel": "Update connection",
+        "authType": "home_assistant_token",
+        "risk": "interactive",
+        "tags": ["private", "home", "devices", "mcp"],
+        "actions": ["Read exposed device state", "Request device actions"],
+    },
+    {
         "id": "gmail",
         "name": "Gmail",
         "description": "Search and summarize email, then create drafts for review.",

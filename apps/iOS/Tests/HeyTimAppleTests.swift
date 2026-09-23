@@ -13,6 +13,76 @@ import UniformTypeIdentifiers
     super.tearDown()
   }
 
+  #if os(macOS)
+    func testDesktopUpdateConfigurationRequiresHTTPSAndAResolvedPublicKey() {
+      XCTAssertTrue(
+        DesktopUpdateConfiguration(info: [
+          "SUFeedURL": "https://example.com/appcast.xml",
+          "SUPublicEDKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        ]).isConfigured)
+      XCTAssertFalse(
+        DesktopUpdateConfiguration(info: [
+          "SUFeedURL": "http://example.com/appcast.xml",
+          "SUPublicEDKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        ]).isConfigured)
+      XCTAssertFalse(
+        DesktopUpdateConfiguration(info: [
+          "SUFeedURL": "https://example.com/appcast.xml",
+          "SUPublicEDKey": "$(HEYTIM_SPARKLE_PUBLIC_KEY)",
+        ]).isConfigured)
+    }
+
+    func testDesktopLocalPolicyBlocksHighImpactControls() {
+      for label in ["Send", "Delete message", "Buy now", "Allow", "OK"] {
+        XCTAssertTrue(DesktopControlCoordinator.isHighImpact(label: label), label)
+      }
+      for label in ["Open details", "Next tab", "Show calendar", "Pause"] {
+        XCTAssertFalse(DesktopControlCoordinator.isHighImpact(label: label), label)
+      }
+    }
+
+    func testHomeAssistantRequestsAreNotMistakenForMacUIActions() {
+      XCTAssertFalse(DesktopControlCoordinator.shouldOfferDesktopAction(for:
+        "Turn on the living room lights"))
+      XCTAssertFalse(DesktopControlCoordinator.shouldOfferDesktopAction(for:
+        "What lights are currently on?"))
+      XCTAssertFalse(DesktopControlCoordinator.shouldOfferDesktopAction(for:
+        "Press the bedroom light switch"))
+      XCTAssertFalse(DesktopControlCoordinator.shouldOfferDesktopAction(for:
+        "What if I press Next in Calendar?"))
+      XCTAssertFalse(DesktopControlCoordinator.shouldOfferDesktopAction(for:
+        "Do not add a note saying Hello World"))
+      XCTAssertTrue(DesktopControlCoordinator.shouldOfferDesktopAction(for:
+        "Click Next in Calendar on my Mac"))
+      XCTAssertTrue(DesktopControlCoordinator.shouldOfferDesktopAction(for:
+        "Add a note to Apple Notes that says hello"))
+      XCTAssertTrue(DesktopControlCoordinator.shouldOfferDesktopAction(for:
+        "Add a note saying Hello World"))
+      XCTAssertEqual(
+        DesktopControlCoordinator.visibleControlRequest("Click Next in Calendar on my Mac")?.app,
+        "Calendar")
+      XCTAssertEqual(
+        DesktopControlCoordinator.noteContent(from: "Add a note to Apple Notes that says hello"),
+        "hello")
+      XCTAssertTrue(DesktopControlCoordinator.noteCreationCandidate(
+        "Add a note saying Hello World"))
+      XCTAssertTrue(DesktopControlCoordinator.noteCreationCandidate(
+        "Add to Apple Notes"))
+      XCTAssertFalse(DesktopControlCoordinator.noteCreationCandidate(
+        "Tell me about Apple Notes"))
+      XCTAssertFalse(DesktopControlCoordinator.noteCreationCandidate(
+        "Turn off the bedroom light"))
+      XCTAssertEqual(DesktopControlCoordinator.noteContent(from: "Add a note saying Hello World"), "Hello World")
+      XCTAssertNil(DesktopControlCoordinator.noteContent(from: "Add to Apple Notes"))
+      XCTAssertNil(DesktopControlCoordinator.noteContent(from: "Show my Notes app"))
+    }
+
+    func testLayaDoesNotShipInsideMacApp() throws {
+      let model = try XCTUnwrap(Bundle.main.resourceURL?.appendingPathComponent("laya-coreml"))
+      XCTAssertFalse(FileManager.default.fileExists(atPath: model.path))
+    }
+  #endif
+
   func testGeneratedContractIncludesEveryBackendRoute() throws {
     XCTAssertEqual(Set(GeneratedAPIContract.routes.keys), Set(APIRouteID.allCases))
     XCTAssertEqual(

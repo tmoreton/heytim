@@ -23,7 +23,7 @@ the runtime independent of any particular screen.
 
 ## 2. Run the Apple app locally
 
-The supported local entry point builds the same shared SwiftUI target used for TestFlight:
+The supported local entry point builds the same shared SwiftUI target used for iPhone TestFlight and direct Mac releases:
 
 ```bash
 ./scripts/apple-app.sh run ios
@@ -132,7 +132,7 @@ connections.py         OAuth and GitHub App connection metadata and encrypted gr
 `apps/website` builds the public directory and publishes the catalog's existing
 URLs. The backend keeps the last successfully reviewed release if refresh fails;
 it does not carry a second bundled catalog. Public pages point visitors to the
-Apple app; there is no browser chat. Website publishing is independent of TestFlight.
+Apple app; there is no browser chat. Website publishing is independent of both Apple distribution paths.
 
 The signed-in bootstrap returns the same sanitized official tools together with that user's private connections. The
 client separates them by provenance: official entries populate Skills & tools, while managed account entries populate

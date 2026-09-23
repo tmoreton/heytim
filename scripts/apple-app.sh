@@ -14,11 +14,12 @@ Usage:
   ./scripts/apple-app.sh run <ios|macos>
   ./scripts/apple-app.sh verify
   APPLE_TEAM_ID=TEAMID ./scripts/apple-app.sh archive [--dry-run] <ios|macos>
-  APPLE_TEAM_ID=TEAMID ./scripts/apple-app.sh testflight [--dry-run] <ios|macos|all>
+  APPLE_TEAM_ID=TEAMID ./scripts/apple-app.sh testflight [--dry-run] ios
+  APPLE_TEAM_ID=TEAMID ./scripts/apple-app.sh distribute-macos [--dry-run]
 
-The SwiftUI project is the only supported local or TestFlight build source for
-iPhone and Mac. apps/website is the public Vite marketing site, not a chat or
-native release target. The Expo source is archived outside this repository.
+The SwiftUI project is the only supported local Apple build source. iPhone ships
+through TestFlight; Mac ships as a notarized direct download with Sparkle updates.
+apps/website is the public Vite marketing site, not a native release target.
 EOF
 }
 
@@ -59,6 +60,9 @@ case "$command" in
     ;;
   testflight)
     exec "$apple_root/scripts/testflight.sh" "$@"
+    ;;
+  distribute-macos)
+    exec "$apple_root/scripts/distribute-macos.sh" "$@"
     ;;
   help|-h|--help)
     usage

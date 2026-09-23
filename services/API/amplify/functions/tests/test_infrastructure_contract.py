@@ -240,10 +240,15 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn('git merge-base --is-ancestor "$GITHUB_SHA" origin/main', self.production_workflow)
         self.assertIn("release_version: ${{ steps.release.outputs.version }}", self.production_workflow)
         self.assertIn(
-            "HEYTIM_MARKETING_VERSION: ${{ needs.deploy.outputs.release_version }}",
+            "RELEASE_VERSION: ${{ needs.deploy.outputs.release_version }}",
+            self.production_workflow,
+        )
+        self.assertIn(
+            "HEYTIM_MARKETING_VERSION: ${{ steps.apple-build.outputs.version }}",
             self.production_workflow,
         )
         self.assertIn("run: ./apps/iOS/scripts/testflight-ci.sh", self.production_workflow)
+        self.assertIn('"$output/HeyTim-$HEYTIM_MARKETING_VERSION-macOS.dmg"', self.production_workflow)
 
     def test_production_release_uses_locked_agentcore_cdk_dependencies(self) -> None:
         self.assertIn(

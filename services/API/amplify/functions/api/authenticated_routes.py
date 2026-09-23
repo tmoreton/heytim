@@ -33,6 +33,7 @@ from .bots import (
 from .browser_sessions import browser_session_route
 from .connections import (
     _begin_connection_authorization,
+    _connect_home_assistant,
     _connections,
     _delete_connection,
 )
@@ -167,15 +168,12 @@ def _group_run_route(
 
 
 def _library_route(
-    user_id: str,
-    _display_name: str,
-    method: str,
-    path: str,
-    params: dict,
-    event: dict,
+    user_id: str, _display_name: str, method: str, path: str, params: dict, event: dict
 ) -> dict | None:
     if method == "GET" and path == "/connections":
         return _response(200, _connections(user_id))
+    if method == "POST" and path == "/connections/home-assistant":
+        return _response(201, _connect_home_assistant(user_id, _body(event)))
     if method == "POST" and path.endswith("/authorization"):
         return _response(
             200,

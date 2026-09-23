@@ -89,6 +89,21 @@ class ApiRoutingTests(unittest.TestCase):
             "user-1", "gmail", {"returnUrl": "heytim://app"}
         )
 
+    def test_home_assistant_connect_uses_authenticated_connection_route(self) -> None:
+        connected = {"id": "connection_home", "name": "Home Assistant"}
+        payload = {"instanceUrl": "https://home.example.com", "accessToken": "a" * 48}
+        with patch.object(
+            self.routes, "_connect_home_assistant", return_value=connected
+        ) as connect:
+            response = self.routes.route_authenticated(
+                "user-1", "Tim", "POST", "/connections/home-assistant", {},
+                {"body": json.dumps(payload)},
+                route_key="POST /connections/home-assistant",
+            )
+        self.assertEqual(response["statusCode"], 201)
+        self.assertEqual(json.loads(response["body"]), connected)
+        connect.assert_called_once_with("user-1", payload)
+
     def test_api_errors_expose_stable_codes(self) -> None:
         self.assertEqual(self.support.ApiError(409, "Changed").code, "conflict")
         custom = self.support.ApiError(

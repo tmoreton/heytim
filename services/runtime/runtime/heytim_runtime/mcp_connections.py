@@ -28,6 +28,13 @@ from .github_app import (
     github_app_jwt,
     validate_installation_grant,
 )
+from .mcp_tool_catalog import (
+    GMAIL_MCP_ENDPOINT,
+    GMAIL_MCP_TOOLS,
+    GOOGLE_WORKSPACE_MCP_SERVERS,
+    GOOGLE_WORKSPACE_SCOPES,
+    SCOPED_GOOGLE_TOOLS,
+)
 from .mcp_tool_names import _bounded_tool_name
 
 SECRET_ARN_PATTERN = re.compile(
@@ -43,64 +50,8 @@ GITHUB_APP_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
     r"secret:heytim/oauth/github-[A-Za-z0-9-]+$"
 )
-GMAIL_MCP_ENDPOINT = "https://gmailmcp.googleapis.com/mcp/v1"
-GMAIL_MCP_TOOLS = {
-    "create_draft",
-    "list_drafts",
-    "get_draft",
-    "get_thread",
-    "get_message",
-    "search_threads",
-    "list_labels",
-}
-GOOGLE_WORKSPACE_MCP_SERVERS = {
-    "https://drivemcp.googleapis.com/mcp/v1": {
-        "download_file_content",
-        "get_file_metadata",
-        "get_file_permissions",
-        "list_recent_files",
-        "read_file_content",
-        "search_files",
-    },
-    "https://docsmcp.googleapis.com/mcp/v1": {"read_doc"},
-    "https://sheetsmcp.googleapis.com/mcp/v1": {
-        "get_spreadsheet",
-        "get_values",
-    },
-    "https://calendarmcp.googleapis.com/mcp/v1": {
-        "get_event",
-        "list_calendars",
-        "list_events",
-        "search_events",
-        "suggest_time",
-    },
-}
-GOOGLE_WORKSPACE_SCOPES = {
-    "https://www.googleapis.com/auth/drive.readonly",
-    "https://www.googleapis.com/auth/documents.readonly",
-    "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
-    "https://www.googleapis.com/auth/calendar.events.freebusy",
-    "https://www.googleapis.com/auth/calendar.events.readonly",
-}
 GOOGLE_OAUTH_ENDPOINT = "https://oauth2.googleapis.com/token"
 _secrets_manager = None
-SCOPED_GOOGLE_TOOLS = {
-    "drivemcp.googleapis.com": {
-        "get_file_metadata": "fileId",
-        "get_file_permissions": "fileId",
-        "read_file_content": "fileId",
-        "download_file_content": "fileId",
-    },
-    "docsmcp.googleapis.com": {"read_doc": "documentId"},
-    "sheetsmcp.googleapis.com": {
-        "get_spreadsheet": "spreadsheetId",
-        "get_values": "spreadsheetId",
-    },
-    "calendarmcp.googleapis.com": {
-        "get_event": "calendarId",
-        "list_events": "calendarId",
-    },
-}
 
 
 class LabeledMCPAgentTool(MCPAgentTool):
@@ -284,6 +235,14 @@ def validated_connection_binding(tool_id: str, runtime: dict) -> dict:
             "oauthClientSecretArn": client_secret_arn,
             "allowedTools": allowed_tools,
         }
+    if auth_type == "home_assistant_token":
+        if (
+            urllib.parse.urlsplit(endpoint).path != "/api/mcp/assist"
+            or not isinstance(secret_arn, str)
+            or not SECRET_ARN_PATTERN.fullmatch(secret_arn)
+        ):
+            raise ValueError(f"Home Assistant MCP connection is invalid: {tool_id}")
+        return {**binding, "secretArn": secret_arn}
     app_secret_arn = runtime.get("appSecretArn")
     if (
         auth_type != "github_app"
@@ -467,6 +426,17 @@ def _google_access_token(binding: dict) -> str:
     return access_token
 
 
+def _home_assistant_access_token(binding: dict) -> str:
+    token = _json_secret(binding["secretArn"]).get("accessToken")
+    if (
+        not isinstance(token, str)
+        or not 20 <= len(token) <= 4096
+        or not re.fullmatch(r"[A-Za-z0-9._~=-]+", token)
+    ):
+        raise ValueError("Home Assistant access token is unavailable")
+    return token
+
+
 def github_installation_token(binding: dict) -> str:
     if binding.get("authType") != "github_app":
         raise ValueError("Connection does not use a GitHub App installation")
@@ -524,6 +494,8 @@ def connection_client(binding: dict) -> MCPClient:
         headers = {"Authorization": f"Bearer {_google_access_token(binding)}"}
     elif binding["authType"] == "github_app":
         headers = {"Authorization": f"Bearer {github_installation_token(binding)}"}
+    elif binding["authType"] == "home_assistant_token":
+        headers = {"Authorization": f"Bearer {_home_assistant_access_token(binding)}"}
     options = {
         "connection_id": binding["id"],
         "startup_timeout": 15,

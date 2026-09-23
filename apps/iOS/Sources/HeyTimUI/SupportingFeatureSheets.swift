@@ -287,6 +287,10 @@ struct ConnectionsView: View {
   @State private var connectingProviderID: String?
   @State private var disconnectCandidate: Capability?
   @State private var successMessage: String?
+  @State private var showingHomeAssistantSetup = false
+  @State private var homeAssistantURL = ""
+  @State private var homeAssistantToken = ""
+  @State private var savingHomeAssistant = false
   @State private var webAuthentication = WebAuthenticationController()
 
   private var providers: [ConnectionProvider] { model.bootstrap?.connectionProviders ?? [] }
@@ -329,6 +333,36 @@ struct ConnectionsView: View {
     .overlay { if loading { ProgressView() } }
     .refreshable { await load() }
     .task { await load() }
+    .sheet(isPresented: $showingHomeAssistantSetup) {
+      NavigationStack {
+        Form {
+          Section {
+            TextField("Home Assistant URL", text: $homeAssistantURL)
+              .autocorrectionDisabled()
+              .accessibilityIdentifier("connection.home-assistant.url")
+            SecureField("Long-lived access token", text: $homeAssistantToken)
+              .accessibilityIdentifier("connection.home-assistant.token")
+          } header: {
+            Text("Connect Home Assistant")
+          } footer: {
+            Text("Use a public HTTPS address, such as Home Assistant Cloud. Enable the Model Context Protocol Server integration and expose only the entities this bot should use in Assist. Your token is stored privately on the server.")
+          }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Home Assistant")
+        .toolbar {
+          ToolbarItem(placement: .cancellationAction) {
+            Button("Cancel") { closeHomeAssistantSetup() }
+          }
+          ToolbarItem(placement: .confirmationAction) {
+            Button("Connect") { saveHomeAssistant() }
+              .disabled(savingHomeAssistant || homeAssistantURL.isEmpty || homeAssistantToken.isEmpty)
+          }
+        }
+        .overlay { if savingHomeAssistant { ProgressView() } }
+      }
+      .frame(minWidth: 460, minHeight: 300)
+    }
     .onChange(of: webAuthentication.outcome) { _, outcome in
       guard let outcome else { return }
       switch outcome {
@@ -386,6 +420,10 @@ struct ConnectionsView: View {
   }
 
   private func connect(_ id: String) {
+    if id == "home_assistant" {
+      showingHomeAssistantSetup = true
+      return
+    }
     connectingProviderID = id
     Task {
       do {
@@ -399,6 +437,30 @@ struct ConnectionsView: View {
         webAuthentication.start(url: url)
       } catch {
         connectingProviderID = nil
+        model.present(error)
+      }
+    }
+  }
+
+  private func closeHomeAssistantSetup() {
+    homeAssistantToken = ""
+    showingHomeAssistantSetup = false
+  }
+
+  private func saveHomeAssistant() {
+    guard !savingHomeAssistant else { return }
+    savingHomeAssistant = true
+    Task {
+      defer { savingHomeAssistant = false }
+      do {
+        _ = try await model.requireAPI().connectHomeAssistant(
+          instanceURL: homeAssistantURL.trimmingCharacters(in: .whitespacesAndNewlines),
+          accessToken: homeAssistantToken.trimmingCharacters(in: .whitespacesAndNewlines))
+        closeHomeAssistantSetup()
+        await model.refreshBootstrap()
+        await load()
+        successMessage = "Home Assistant is now available in Tools. Enable it for the bots you choose."
+      } catch {
         model.present(error)
       }
     }
@@ -1201,6 +1263,9 @@ struct AccountView: View {
   @Bindable var model: AppModel
   let auth: AuthSession
   var showsDismissButton = true
+  #if os(macOS)
+    @Environment(DesktopControlCoordinator.self) private var desktopControl
+  #endif
   @AppStorage(FroggyPreferenceKeys.appearance) private var appearance =
     FroggyAppearancePreference.system.rawValue
   @AppStorage(FroggyPreferenceKeys.textSize) private var textSize =
@@ -1273,6 +1338,10 @@ struct AccountView: View {
       } footer: {
         Text("Changes apply immediately and stay on this device.")
       }
+
+      #if os(macOS)
+        DesktopControlSettingsSection(coordinator: desktopControl)
+      #endif
 
       Section {
         LabeledContent {

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_scope:
-        description: Upload TestFlight builds in CI or deploy the backend for a signed local upload
+        description: Release both Apple apps in CI or deploy the backend for signed local releases
         required: true
         default: full
         type: choice
@@ -100,6 +100,10 @@ jobs:
           APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
           APPLE_DEVELOPMENT_CERTIFICATE_BASE64: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_BASE64 }}
           APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD }}
+          DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64: ${{ secrets.HEYTIM_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
+          DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD: ${{ secrets.HEYTIM_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
+          HEYTIM_SPARKLE_PUBLIC_KEY: ${{ vars.HEYTIM_SPARKLE_PUBLIC_KEY }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.HEYTIM_SPARKLE_PRIVATE_KEY }}
           RELEASE_SCOPE: ${{ github.event_name == 'release' && 'full' || inputs.release_scope }}
         run: |
           if [[ "$RELEASE_SCOPE" != full && "$RELEASE_SCOPE" != backend-only ]]; then
@@ -121,6 +125,9 @@ jobs:
               APP_STORE_CONNECT_PRIVATE_KEY APPLE_DISTRIBUTION_CERTIFICATE_BASE64
               APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD
               APPLE_DEVELOPMENT_CERTIFICATE_BASE64 APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD
+              DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64
+              DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD
+              HEYTIM_SPARKLE_PUBLIC_KEY SPARKLE_PRIVATE_KEY
             )
           fi
           missing=()
@@ -130,6 +137,14 @@ jobs:
           if (( ${#missing[@]} > 0 )); then
             printf 'Missing production configuration: %s\n' "${missing[*]}" >&2
             exit 1
+          fi
+          if [[ "$RELEASE_SCOPE" == full ]]; then
+            if ! sparkle_public_key_size="$(printf '%s' "$HEYTIM_SPARKLE_PUBLIC_KEY" \
+              | base64 --decode 2>/dev/null | wc -c | tr -d ' ')" \
+              || [[ "$sparkle_public_key_size" != 32 ]]; then
+              echo 'HEYTIM_SPARKLE_PUBLIC_KEY must be a base64-encoded 32-byte Ed25519 public key.' >&2
+              exit 1
+            fi
           fi
           stripe_values=(STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PLUS_PRICE_ID)
           stripe_value_count=0
@@ -459,7 +474,7 @@ jobs:
           path: ${{ runner.temp }}/heytim-production-client-configuration
 
   apple:
-    name: Release SwiftUI apps to TestFlight
+    name: Release iPhone to TestFlight and Mac directly
     needs: deploy
     if: ${{ github.event_name == 'release' || inputs.release_scope == 'full' }}
     runs-on: [self-hosted, macOS, ARM64, heytim-apple]
@@ -467,7 +482,7 @@ jobs:
     environment: production
     permissions:
       actions: read
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v7
 
@@ -488,9 +503,22 @@ jobs:
 
       - name: Select Apple build number
         id: apple-build
-        run: echo "number=$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
+        env:
+          RELEASE_VERSION: ${{ needs.deploy.outputs.release_version }}
+        run: |
+          version="$RELEASE_VERSION"
+          if [[ -z "$version" ]]; then
+            version="$(sed -nE "s/.*'MARKETING_VERSION' => '([^']+)'.*/\1/p" \
+              apps/iOS/scripts/generate-project.rb | head -1)"
+          fi
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'Could not resolve an Apple marketing version.' >&2
+            exit 1
+          fi
+          echo "number=$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Verify, sign, and upload iPhone and Mac builds
+      - name: Verify and release iPhone and Mac builds
         env:
           APPLE_TEAM_ID: ${{ vars.HEYTIM_APPLE_TEAM_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_KEY_ID }}
@@ -500,6 +528,37 @@ jobs:
           APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
           APPLE_DEVELOPMENT_CERTIFICATE_BASE64: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_BASE64 }}
           APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD }}
+          DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64: ${{ secrets.HEYTIM_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
+          DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD: ${{ secrets.HEYTIM_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
+          HEYTIM_SPARKLE_PUBLIC_KEY: ${{ vars.HEYTIM_SPARKLE_PUBLIC_KEY }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.HEYTIM_SPARKLE_PRIVATE_KEY }}
           HEYTIM_BUILD_NUMBER: ${{ steps.apple-build.outputs.number }}
-          HEYTIM_MARKETING_VERSION: ${{ needs.deploy.outputs.release_version }}
+          HEYTIM_MARKETING_VERSION: ${{ steps.apple-build.outputs.version }}
+          HEYTIM_RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: ./apps/iOS/scripts/testflight-ci.sh
+
+      - name: Attach Mac download and Sparkle feed to the GitHub Release
+        if: ${{ github.event_name == 'release' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          HEYTIM_BUILD_NUMBER: ${{ steps.apple-build.outputs.number }}
+          HEYTIM_MARKETING_VERSION: ${{ steps.apple-build.outputs.version }}
+        run: |
+          output="apps/iOS/Archives/Direct-macOS-$HEYTIM_BUILD_NUMBER"
+          gh release upload "$RELEASE_TAG" \
+            "$output/HeyTim-$HEYTIM_MARKETING_VERSION-macOS.dmg" \
+            "$output/HeyTim-$HEYTIM_MARKETING_VERSION-macOS.zip" \
+            "$output/appcast.xml" \
+            --clobber
+
+      - name: Preserve direct Mac release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: heytim-macos-${{ steps.apple-build.outputs.number }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            apps/iOS/Archives/Direct-macOS-${{ steps.apple-build.outputs.number }}/HeyTim-*-macOS.zip
+            apps/iOS/Archives/Direct-macOS-${{ steps.apple-build.outputs.number }}/HeyTim-*-macOS.dmg
+            apps/iOS/Archives/Direct-macOS-${{ steps.apple-build.outputs.number }}/appcast.xml

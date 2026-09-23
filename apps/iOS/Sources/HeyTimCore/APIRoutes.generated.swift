@@ -119,6 +119,7 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case skillShare
     case skillShareImport
     case connectionsList
+    case homeAssistantConnect
     case connectionAuthorize
     case connectionDelete
     case accountDelete
@@ -792,6 +793,12 @@ public enum GeneratedAPIContract {
             id: .connectionsList,
             method: .get,
             pathTemplate: "/connections",
+            access: .authenticated
+        ),
+        .homeAssistantConnect: APIContractRoute(
+            id: .homeAssistantConnect,
+            method: .post,
+            pathTemplate: "/connections/home-assistant",
             access: .authenticated
         ),
         .connectionAuthorize: APIContractRoute(

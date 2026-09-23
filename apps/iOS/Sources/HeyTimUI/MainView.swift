@@ -505,6 +505,9 @@ private extension View {
 }
 
 private struct ConversationView: View {
+  #if os(macOS)
+    @Environment(DesktopControlCoordinator.self) private var desktopControl
+  #endif
   @Bindable var model: AppModel
   @Bindable var dictation: DictationModel
   @Binding var showInspector: Bool
@@ -522,6 +525,7 @@ private struct ConversationView: View {
   @State private var bottomIsVisible = true
   @State private var transcriptHeight: CGFloat = 0
   @State private var pendingScroll: Task<Void, Never>?
+  @State private var localDesktopMessages: [ChatMessage] = []
   @FocusState private var composerFocused: Bool
 
   private let bottomID = "froggy-conversation-bottom"
@@ -532,7 +536,21 @@ private struct ConversationView: View {
   }
 
   private var messageRevisions: [ConversationMessageRevision] {
-    model.messages.map(ConversationMessageRevision.init)
+    transcriptMessages.map(ConversationMessageRevision.init)
+  }
+
+  private var transcriptMessages: [ChatMessage] {
+    #if os(macOS)
+      return (model.messages + localDesktopMessages).enumerated()
+        .sorted { left, right in
+          left.element.createdAt == right.element.createdAt
+            ? left.offset < right.offset
+            : left.element.createdAt < right.element.createdAt
+        }
+        .map(\.element)
+    #else
+      return model.messages
+    #endif
   }
 
   var body: some View {
@@ -540,8 +558,8 @@ private struct ConversationView: View {
       ScrollView {
         transcriptStack
           .padding(.horizontal, 14)
-          .padding(.top, model.messages.isEmpty ? 0 : 24)
-          .padding(.bottom, model.messages.isEmpty ? 0 : 16)
+          .padding(.top, transcriptMessages.isEmpty ? 0 : 24)
+          .padding(.bottom, transcriptMessages.isEmpty ? 0 : 16)
           #if os(macOS)
             .frame(maxWidth: 780)
           #endif
@@ -564,6 +582,7 @@ private struct ConversationView: View {
       .onAppear { scheduleScrollToBottom(using: proxy, animated: false) }
       .onChange(of: model.selection) { _, _ in
         cancelPreview()
+        localDesktopMessages = []
         showsScrollToLatest = false
         isFollowingLatest = true
         composerFocused = false
@@ -572,7 +591,7 @@ private struct ConversationView: View {
       .onChange(of: messageRevisions) { previous, current in
         let update = ConversationTranscriptUpdate.classify(previous: previous, current: current)
         guard update != .none else { return }
-        let userSentMessage = update == .newLatest && model.messages.last?.isUser == true
+        let userSentMessage = update == .newLatest && transcriptMessages.last?.isUser == true
         if isFollowingLatest || update == .initial || userSentMessage {
           isFollowingLatest = true
           scheduleScrollToBottom(using: proxy, animated: update == .newLatest)
@@ -606,6 +625,11 @@ private struct ConversationView: View {
           onSubmit: {
             scheduleScrollToBottom(using: proxy, animated: true)
             Task { await model.send() }
+          },
+          onDesktopAction: { intent in
+            #if os(macOS)
+              Task { await prepareDesktopAction(intent) }
+            #endif
           })
           .opacity(showsChatHeader ? 1 : 0)
           .allowsHitTesting(showsChatHeader)
@@ -694,17 +718,30 @@ private struct ConversationView: View {
       .frame(minHeight: 44)
       .padding(.bottom, 8)
     }
-    if model.isLoadingMessages && model.messages.isEmpty {
+    if model.isLoadingMessages && transcriptMessages.isEmpty {
       ProgressView("Loading conversation…")
         .tint(conversationAccent)
         .containerRelativeFrame(.vertical, alignment: .center)
-    } else if model.messages.isEmpty {
+    } else if transcriptMessages.isEmpty {
       emptyConversation
         .containerRelativeFrame(.vertical, alignment: .center)
     }
-    ForEach(model.messages) { message in
-      MessageBubble(message: message, model: model, preview: preview)
-        .id(message.id)
+    ForEach(transcriptMessages) { message in
+      #if os(macOS)
+      if localDesktopMessages.contains(where: { $0.id == message.id }) {
+        MessageBubble(
+          message: message, model: model, preview: preview,
+          onLocalApprove: { Task { await approveDesktopAction(message.id) } },
+          onLocalReject: { rejectDesktopAction(message.id) })
+          .id(message.id)
+      } else {
+        MessageBubble(message: message, model: model, preview: preview)
+          .id(message.id)
+      }
+      #else
+        MessageBubble(message: message, model: model, preview: preview)
+          .id(message.id)
+      #endif
     }
     Color.clear
       .frame(height: 1)
@@ -717,6 +754,110 @@ private struct ConversationView: View {
         updateBottomVisibility(bottomY >= 0 && bottomY <= transcriptHeight + 80)
       }
   }
+
+  #if os(macOS)
+    private func prepareDesktopAction(_ intent: String) async {
+      let selection = model.selection
+      guard model.composerText == intent else { return }
+      guard let botID = selection?.id, desktopControl.isEnabled(for: botID) else {
+        appendLocalDesktopResponse(
+          intent: intent,
+          response: "Mac app actions are off for this bot. Turn them on in Settings and in this bot’s Tools list.",
+          status: "error")
+        return
+      }
+      if !desktopControl.permissionGranted {
+        guard model.selection == selection, model.composerText == intent else { return }
+        appendLocalDesktopResponse(
+          intent: intent,
+          response: "Mac app actions need Accessibility access. Enable Hey Tim in Mac Settings, then reopen the app and try again.",
+          status: "error")
+        return
+      }
+      let preparation = await desktopControl.prepareForChat(intent: intent)
+      guard model.selection == selection, model.composerText == intent else { return }
+      switch preparation {
+      case .clarification(let question):
+        appendLocalDesktopResponse(intent: intent, response: question, status: "complete")
+        return
+      case .unavailable:
+        await model.send()
+        return
+      case .proposal:
+        break
+      }
+      guard let description = desktopControl.proposedActionDescription else { return }
+      let now = ISO8601DateFormatter().string(from: Date())
+      localDesktopMessages.append(
+        ChatMessage(
+          id: UUID().uuidString, role: "user", text: intent,
+          createdAt: now, status: "complete"))
+      localDesktopMessages.append(
+        ChatMessage(
+          id: UUID().uuidString, role: "assistant", text: "",
+          approvalTools: ["Mac app actions"], approvalInput: description,
+          createdAt: now, status: "awaiting_approval",
+          allowedActions: ["approveOnce", "reject"]))
+      model.composerText = ""
+    }
+
+    private func appendLocalDesktopResponse(intent: String, response: String, status: String) {
+      guard model.composerText == intent else { return }
+      let now = ISO8601DateFormatter().string(from: Date())
+      localDesktopMessages.append(
+        ChatMessage(
+          id: UUID().uuidString, role: "user", text: intent,
+          createdAt: now, status: "complete"))
+      localDesktopMessages.append(
+        ChatMessage(
+          id: UUID().uuidString, role: "assistant", text: response,
+          createdAt: now, status: status))
+      model.composerText = ""
+    }
+
+    private func approveDesktopAction(_ id: String) async {
+      guard let index = localDesktopMessages.firstIndex(where: {
+        $0.id == id && $0.status == "awaiting_approval"
+      }) else { return }
+      guard let botID = model.selection?.id, desktopControl.isEnabled(for: botID) else {
+        finishDesktopAction(
+          id, result: "Mac app actions are no longer enabled for this bot.",
+          succeeded: false)
+        return
+      }
+      let approval = localDesktopMessages[index]
+      guard approval.approvalInput == desktopControl.proposedActionDescription else {
+        finishDesktopAction(
+          id, result: "The proposed Mac action changed. Ask again to review a fresh action.",
+          succeeded: false)
+        return
+      }
+      localDesktopMessages[index].status = "running"
+      localDesktopMessages[index].allowedActions = nil
+      let result = await desktopControl.executeApprovedProposal()
+      finishDesktopAction(
+        id, result: result,
+        succeeded: result.hasPrefix("Created the note")
+          || result.hasPrefix("Approved action completed"))
+    }
+
+    private func finishDesktopAction(_ id: String, result: String, succeeded: Bool) {
+      guard let index = localDesktopMessages.firstIndex(where: { $0.id == id }) else { return }
+      localDesktopMessages[index].text = result
+      localDesktopMessages[index].approvalInput = nil
+      localDesktopMessages[index].allowedActions = nil
+      localDesktopMessages[index].status = succeeded ? "complete" : "error"
+    }
+
+    private func rejectDesktopAction(_ id: String) {
+      guard localDesktopMessages.contains(where: {
+        $0.id == id && $0.status == "awaiting_approval"
+      }) else { return }
+      desktopControl.proposal = nil
+      desktopControl.pendingNoteText = nil
+      finishDesktopAction(id, result: "Mac app action canceled.", succeeded: true)
+    }
+  #endif
 
   private func scheduleScrollToBottom(
     using proxy: ScrollViewProxy, animated: Bool, settleAfterLoad: Bool = false
@@ -737,7 +878,7 @@ private struct ConversationView: View {
         #if os(iOS)
           proxy.scrollTo(bottomID, anchor: .bottom)
         #else
-        if let latestMessageID = model.messages.last?.id {
+        if let latestMessageID = transcriptMessages.last?.id {
           proxy.scrollTo(latestMessageID, anchor: .bottom)
         } else {
           proxy.scrollTo(bottomID, anchor: .bottom)
@@ -1123,6 +1264,7 @@ private struct ConversationInspector: View {
         FeatureLink {
           BotToolsAndSkillsEditor(
             model: model, draft: $botDraft,
+            botID: bot.id,
             skills: model.bootstrap?.skills ?? [],
             tools: model.bootstrap?.tools ?? [],
             providers: model.bootstrap?.connectionProviders ?? [])
@@ -1241,6 +1383,8 @@ private struct MessageBubble: View {
   let message: ChatMessage
   @Bindable var model: AppModel
   let preview: (Attachment) -> Void
+  var onLocalApprove: (() -> Void)? = nil
+  var onLocalReject: (() -> Void)? = nil
   @State private var reviewingApproval = false
   @Environment(\.colorScheme) private var colorScheme
 
@@ -1418,10 +1562,16 @@ private struct MessageBubble: View {
       "Allow this action?", isPresented: $reviewingApproval, titleVisibility: .visible
     ) {
       if message.allowedActions?.contains("approveOnce") == true {
-        Button("Allow Once") { Task { await model.approve(message, always: false) } }
+        Button("Allow Once") {
+          if let onLocalApprove { onLocalApprove() }
+          else { Task { await model.approve(message, always: false) } }
+        }
       }
       if message.allowedActions?.contains("reject") == true {
-        Button("Don’t Allow", role: .destructive) { Task { await model.reject(message) } }
+        Button("Don’t Allow", role: .destructive) {
+          if let onLocalReject { onLocalReject() }
+          else { Task { await model.reject(message) } }
+        }
       }
       Button("Cancel", role: .cancel) {}
     } message: {
@@ -1688,11 +1838,15 @@ private struct ImportedPhoto: Transferable, Sendable {
 }
 
 private struct Composer: View {
+  #if os(macOS)
+    @Environment(DesktopControlCoordinator.self) private var desktopControl
+  #endif
   @Bindable var model: AppModel
   @Bindable var dictation: DictationModel
   @Binding var importing: Bool
   var composerFocused: FocusState<Bool>.Binding
   let onSubmit: () -> Void
+  let onDesktopAction: (String) -> Void
   @State private var showingPhotoPicker = false
   @State private var showingWorkspacePicker = false
   @State private var selectedPhotos: [PhotosPickerItem] = []
@@ -1994,8 +2148,9 @@ private struct Composer: View {
   }
 
   private var canSubmit: Bool {
-    canSend && !model.isSending && !model.isUploading
+    let available = canSend && !model.isSending && !model.isUploading
       && !dictation.isRecording && !dictation.isStarting
+    return available
   }
   private var conversationAccent: Color { model.conversationAccent }
   private var attachmentPicker: some View {
@@ -2128,6 +2283,34 @@ private struct Composer: View {
 
   private func submitMessage() {
     cancelDictation()
+    #if os(macOS)
+      let draft = model.composerText
+      let destination = model.selection
+      let explicitNotesAction = DesktopControlCoordinator.noteCreationCandidate(draft)
+        && DesktopControlCoordinator.targetsAppleNotes(draft.lowercased())
+      if destination?.kind == .bot,
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+        model.pendingAttachments.isEmpty, model.pendingWorkspaceFiles.isEmpty,
+        explicitNotesAction,
+        let botID = destination?.id,
+        !desktopControl.isEnabled(for: botID)
+      {
+        onDesktopAction(draft)
+        return
+      }
+      if destination?.kind == .bot,
+        let botID = destination?.id,
+        desktopControl.isEnabled(for: botID),
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+        model.pendingAttachments.isEmpty, model.pendingWorkspaceFiles.isEmpty
+      {
+        if DesktopControlCoordinator.shouldOfferDesktopAction(for: draft) {
+          desktopControl.refreshApplications()
+          onDesktopAction(draft)
+          return
+        }
+      }
+    #endif
     onSubmit()
   }
 

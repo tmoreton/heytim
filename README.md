@@ -83,11 +83,16 @@ are not changed by this migration.
 - Apple-only releases can be built and uploaded locally, without GitHub Actions:
 
   ```sh
-  APPLE_TEAM_ID=GVXC5FQ2RP ./scripts/apple-app.sh testflight all
+  APPLE_TEAM_ID=GVXC5FQ2RP ./scripts/apple-app.sh testflight ios
+  APPLE_TEAM_ID=GVXC5FQ2RP NOTARY_KEYCHAIN_PROFILE=HeyTimNotary \
+    HEYTIM_MARKETING_VERSION=1.0.1 ./scripts/apple-app.sh distribute-macos
   ```
 
-  Configure the three `APP_STORE_CONNECT_*` variables documented by the script.
-  Signing keys remain outside Git. Preflight checks require committed source and
+  iPhone remains on TestFlight. Mac releases use a Developer ID signed,
+  notarized drag-to-Applications DMG, with a ZIP for Sparkle updates. Both are
+  attached to GitHub Releases alongside the signed feed. Configure
+  the signing variables documented by each script. Signing keys remain outside Git.
+  Preflight checks require committed source and
   production client configuration; the script runs native tests before upload.
 - The [Pages workflow](.github/workflows/pages.yml) publishes `heytim.ai`
   directly from this repository. The website's [publish script](scripts/deploy-website.sh)
