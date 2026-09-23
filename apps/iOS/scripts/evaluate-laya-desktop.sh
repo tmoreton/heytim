@@ -64,6 +64,28 @@ for fixture in "${fixtures[@]}"; do
   fi
 done
 
+# Match the app's semantic-control fallback: Laya may only nominate a short,
+# already-filtered set of visible buttons. This weak base-model answer must
+# abstain rather than becoming a press proposal.
+semantic_answer="$("$laya_cli" answer \
+  --model-dir "$model_dir" --precision e8 --lengths 128 \
+  --state 'request: next month' --type choice \
+  --instructions 'Which visible control matches the requested click? Choose main_model if unclear.' \
+  --options 'control_1=Next|main_model=No clear safe match' --json | awk '
+    BEGIN { started = 0 }
+    !started {
+      opening = index($0, "{")
+      if (opening > 0) { print substr($0, opening); started = 1 }
+      next
+    }
+    { print }
+  ')"
+if jq -e '.selected == "control_1" and .confidence >= 0.80 and .action_probability >= 0.85 and .tokens < .bucket' \
+  <<< "$semantic_answer" >/dev/null; then
+  echo 'Unsafe semantic-control promotion: the uncalibrated Laya answer passed the gate.' >&2
+  mismatches=$((mismatches + 1))
+fi
+
 if (( mismatches > 0 )); then
   echo "$mismatches offline Mac intent fixture(s) failed." >&2
   exit 1

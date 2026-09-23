@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from decimal import Decimal
 from unittest.mock import patch
 
 from api_test_case import ApiTestCase
@@ -324,6 +325,41 @@ class ApiSafetyTests(ApiTestCase):
 
         self.assertEqual(result["status"], "pending")
         self.sqs.send_message.assert_called_once()
+
+    def test_home_assistant_hint_is_saved_only_as_turn_advice(self) -> None:
+        hint = {
+            "selectedLabel": "turn_on", "confidence": 0.96,
+            "actionProbability": 0.98, "truncated": False,
+        }
+        with (
+            patch.object(self.direct_chat, "_get_bot", return_value={"id": "bot-1"}),
+            patch.object(self.direct_chat, "_partition_items", return_value=[]),
+        ):
+            result = self.direct_chat._send_message(
+                "user-1", "bot-1",
+                {"text": "Turn on the bedroom light", "homeAssistantHint": hint},
+            )
+        self.assertEqual(result["status"], "pending")
+        turn = next(item for item in self.data_table.put if item.get("entity") == "TURN")
+        self.assertEqual(turn["homeAssistantHint"]["selectedLabel"], "turn_on")
+        self.assertEqual(turn["homeAssistantHint"]["confidence"], Decimal("0.96"))
+        self.assertEqual(turn["homeAssistantHint"]["actionProbability"], Decimal("0.98"))
+
+    def test_invalid_home_assistant_hint_is_rejected_before_queueing(self) -> None:
+        with (
+            patch.object(self.direct_chat, "_get_bot", return_value={"id": "bot-1"}),
+            self.assertRaises(self.support.ApiError) as error,
+        ):
+            self.direct_chat._send_message(
+                "user-1", "bot-1",
+                {"text": "Turn on the bedroom light", "homeAssistantHint": {
+                    "selectedLabel": "turn_on", "confidence": 1.0,
+                    "actionProbability": 1.0, "truncated": False,
+                    "toolArguments": {"name": "all lights"},
+                }},
+            )
+        self.assertEqual(error.exception.status_code, 400)
+        self.sqs.send_message.assert_not_called()
 
     def test_approving_an_interactive_message_queues_exactly_that_turn(self) -> None:
         turn = {

@@ -514,6 +514,7 @@ private struct ConversationView: View {
   @State private var inspectorSelection: ConversationSelection?
   var isCoveredByFeature = false
   @State private var importing = false
+  @State private var classifyingHomeRequest = false
   @State private var showDelete = false
   @State private var showClear = false
   @State private var previewURL: URL?
@@ -624,7 +625,33 @@ private struct ConversationView: View {
           composerFocused: $composerFocused,
           onSubmit: {
             scheduleScrollToBottom(using: proxy, animated: true)
-            Task { await model.send() }
+            #if os(macOS)
+              guard !classifyingHomeRequest else { return }
+              let draft = model.composerText.trimmingCharacters(in: .whitespacesAndNewlines)
+              let destination = model.selection
+              let homeToolEnabled = model.selectedBot.map { bot in
+                model.bootstrap?.tools.contains {
+                  $0.provider == "home_assistant" && bot.toolIds.contains($0.id)
+                } == true
+              } == true
+              if homeToolEnabled, !draft.isEmpty,
+                model.pendingAttachments.isEmpty, model.pendingWorkspaceFiles.isEmpty
+              {
+                classifyingHomeRequest = true
+                Task {
+                  let hint = await desktopControl.homeAssistantHint(for: draft)
+                  defer { classifyingHomeRequest = false }
+                  guard model.selection == destination,
+                    model.composerText.trimmingCharacters(in: .whitespacesAndNewlines) == draft
+                  else { return }
+                  await model.send(homeAssistantHint: hint)
+                }
+              } else {
+                Task { await model.send() }
+              }
+            #else
+              Task { await model.send() }
+            #endif
           },
           onDesktopAction: { intent in
             #if os(macOS)
@@ -783,6 +810,31 @@ private struct ConversationView: View {
       case .unavailable:
         await model.send()
         return
+      case .automaticAction:
+        guard let botID = selection?.id, desktopControl.isEnabled(for: botID) else {
+          appendLocalDesktopResponse(
+            intent: intent,
+            response: "Mac app actions are no longer enabled for this bot.",
+            status: "error")
+          return
+        }
+        let now = ISO8601DateFormatter().string(from: Date())
+        let resultID = UUID().uuidString
+        localDesktopMessages.append(
+          ChatMessage(
+            id: UUID().uuidString, role: "user", text: intent,
+            createdAt: now, status: "complete"))
+        localDesktopMessages.append(
+          ChatMessage(
+            id: resultID, role: "assistant", text: "Running Mac app action…",
+            createdAt: now, status: "running"))
+        model.composerText = ""
+        let result = await desktopControl.executePreparedAction()
+        finishDesktopAction(
+          resultID, result: result,
+          succeeded: result.hasPrefix("Created the note")
+            || result.hasPrefix("Mac app action completed"))
+        return
       case .proposal:
         break
       }
@@ -834,11 +886,11 @@ private struct ConversationView: View {
       }
       localDesktopMessages[index].status = "running"
       localDesktopMessages[index].allowedActions = nil
-      let result = await desktopControl.executeApprovedProposal()
+      let result = await desktopControl.executePreparedAction()
       finishDesktopAction(
         id, result: result,
         succeeded: result.hasPrefix("Created the note")
-          || result.hasPrefix("Approved action completed"))
+          || result.hasPrefix("Mac app action completed"))
     }
 
     private func finishDesktopAction(_ id: String, result: String, succeeded: Bool) {

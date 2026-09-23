@@ -78,6 +78,97 @@ def test_run_agent_releases_capabilities_when_setup_fails(monkeypatch):
     capabilities.close.assert_awaited_once()
 
 
+def test_home_assistant_quick_route_skips_large_model(monkeypatch):
+    monkeypatch.setattr(
+        runtime_main, "memory_context_from_payload", lambda _payload: None
+    )
+    monkeypatch.setattr(
+        runtime_main,
+        "messages_from_payload",
+        lambda _payload, _actor_id: [
+            {"role": "user", "content": [{"text": "Turn on the bedroom light"}]}
+        ],
+    )
+    route = AsyncMock(return_value={"pendingApproval": {"id": "review-1"}})
+    model = AsyncMock()
+    monkeypatch.setattr(runtime_main, "maybe_route_home_assistant", route)
+    monkeypatch.setattr(runtime_main, "load_model", model)
+
+    async def collect(payload):
+        return [
+            event
+            async for event in runtime_main.run_agent(
+                payload, SimpleNamespace(session_id="session-1")
+            )
+        ]
+
+    payload = {"homeAssistantHint": {"selectedLabel": "turn_on"}}
+    assert asyncio.run(collect(payload)) == [
+        {"heytimControl": {"pendingApproval": {"id": "review-1"}}}
+    ]
+    model.assert_not_awaited()
+    route.assert_awaited_once_with(payload, "Turn on the bedroom light")
+
+    route.reset_mock()
+    route.return_value = None
+    resumed = payload | {
+        "actionApproval": {
+            "id": "review-1",
+            "digest": "old",
+            "toolUseId": "ha-fast-call-1",
+        }
+    }
+    result = asyncio.run(collect(resumed))
+    assert (
+        result[0]["heytimControl"]["terminalError"]["code"] == "HA_APPROVAL_UNAVAILABLE"
+    )
+    model.assert_not_awaited()
+
+
+def test_normal_approval_with_home_hint_resumes_normal_agent(monkeypatch):
+    capabilities = SimpleNamespace(close=AsyncMock())
+    config = BotConfiguration(
+        instructions="",
+        tools=[],
+        builtin_tools=[],
+        plugins=[],
+        builtin_plugins=[],
+        background_work=SimpleNamespace(pending=[]),
+        capability_configuration=capabilities,
+    )
+    monkeypatch.setattr(
+        runtime_main, "memory_context_from_payload", lambda _payload: None
+    )
+    monkeypatch.setattr(
+        runtime_main,
+        "messages_from_payload",
+        lambda _payload, _actor_id: [
+            {"role": "user", "content": [{"text": "Turn on the bedroom light"}]}
+        ],
+    )
+    monkeypatch.setattr(runtime_main, "memory_stores", lambda _context: [])
+    monkeypatch.setattr(runtime_main, "bot_configuration", lambda *_args: config)
+    route = AsyncMock()
+    model = AsyncMock(side_effect=RuntimeError("normal model resumed"))
+    monkeypatch.setattr(runtime_main, "maybe_route_home_assistant", route)
+    monkeypatch.setattr(runtime_main, "load_model", model)
+
+    async def invoke_once():
+        stream = runtime_main.run_agent(
+            {
+                "homeAssistantHint": {"selectedLabel": "turn_on"},
+                "actionApproval": {"toolUseId": "normal-tool-call"},
+            },
+            SimpleNamespace(session_id="session-1"),
+        )
+        await stream.__anext__()
+
+    with pytest.raises(RuntimeError, match="normal model resumed"):
+        asyncio.run(invoke_once())
+    route.assert_not_awaited()
+    model.assert_awaited_once()
+
+
 def test_provider_call_limit_becomes_terminal_result_without_retry(monkeypatch):
     capabilities = SimpleNamespace(
         close=AsyncMock(),
@@ -98,9 +189,7 @@ def test_provider_call_limit_becomes_terminal_result_without_retry(monkeypatch):
     monkeypatch.setattr(
         runtime_main,
         "messages_from_payload",
-        lambda _payload, _actor_id: [
-            {"role": "user", "content": [{"text": "hello"}]}
-        ],
+        lambda _payload, _actor_id: [{"role": "user", "content": [{"text": "hello"}]}],
     )
     monkeypatch.setattr(runtime_main, "memory_stores", lambda _context: [])
     monkeypatch.setattr(

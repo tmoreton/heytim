@@ -33,12 +33,50 @@ import UniformTypeIdentifiers
     }
 
     func testDesktopLocalPolicyBlocksHighImpactControls() {
-      for label in ["Send", "Delete message", "Buy now", "Allow", "OK"] {
+      for label in ["Send", "Delete message", "Delete…", "Buy now", "Allow", "OK", "Save"] {
         XCTAssertTrue(DesktopControlCoordinator.isHighImpact(label: label), label)
       }
       for label in ["Open details", "Next tab", "Show calendar", "Pause"] {
         XCTAssertFalse(DesktopControlCoordinator.isHighImpact(label: label), label)
       }
+    }
+
+    func testDesktopLayaReceivesOnlyBoundedSafeVisibleCandidates() {
+      let controls = [
+        DesktopControlSummary(id: "next", role: "AXButton", label: "Next", blockedByPolicy: false),
+        DesktopControlSummary(id: "previous", role: "AXButton", label: "Previous", blockedByPolicy: false),
+        DesktopControlSummary(id: "save", role: "AXButton", label: "Save next item", blockedByPolicy: true),
+      ]
+      XCTAssertEqual(
+        DesktopControlCoordinator.layaCandidates(for: "next month", from: controls).map(\.id),
+        ["next"])
+      XCTAssertTrue(DesktopControlCoordinator.layaCandidates(
+        for: "save next", from: Array(repeating: controls[2], count: 5)).isEmpty)
+      XCTAssertTrue(DesktopControlCoordinator.layaCandidates(
+        for: "unrelated", from: controls).isEmpty)
+    }
+
+    func testDesktopAutomaticActionsRequireAnExactLowRiskMatch() {
+      let calendar = DesktopApplication(id: 1, name: "Calendar", bundleIdentifier: "com.apple.iCal")
+      let notes = DesktopApplication(id: 2, name: "Notes", bundleIdentifier: "com.apple.Notes")
+      let next = DesktopControlSummary(id: "next", role: "AXButton", label: "Next", blockedByPolicy: false)
+      let save = DesktopControlSummary(id: "save", role: "AXButton", label: "Save", blockedByPolicy: true)
+      let newNote = DesktopControlSummary(id: "note", role: "AXButton", label: "New Note", blockedByPolicy: false)
+
+      XCTAssertTrue(DesktopControlCoordinator.canAutoExecute(
+        intent: "Click Next in Calendar", control: next, application: calendar, noteText: nil))
+      XCTAssertFalse(DesktopControlCoordinator.canAutoExecute(
+        intent: "Click next month in Calendar", control: next, application: calendar, noteText: nil))
+      XCTAssertFalse(DesktopControlCoordinator.canAutoExecute(
+        intent: "Click Next in Notes", control: next, application: calendar, noteText: nil))
+      XCTAssertFalse(DesktopControlCoordinator.canAutoExecute(
+        intent: "Click Save in Calendar", control: save, application: calendar, noteText: nil))
+      XCTAssertTrue(DesktopControlCoordinator.canAutoExecute(
+        intent: "Add a note saying Hello World", control: newNote,
+        application: notes, noteText: "Hello World"))
+      XCTAssertFalse(DesktopControlCoordinator.canAutoExecute(
+        intent: "Add a note saying Hello World", control: newNote,
+        application: notes, noteText: "Different text"))
     }
 
     func testHomeAssistantRequestsAreNotMistakenForMacUIActions() {
@@ -77,9 +115,11 @@ import UniformTypeIdentifiers
       XCTAssertNil(DesktopControlCoordinator.noteContent(from: "Show my Notes app"))
     }
 
-    func testLayaDoesNotShipInsideMacApp() throws {
+    func testPinnedLayaShipsInsideMacApp() throws {
       let model = try XCTUnwrap(Bundle.main.resourceURL?.appendingPathComponent("laya-coreml"))
-      XCTAssertFalse(FileManager.default.fileExists(atPath: model.path))
+      XCTAssertTrue(FileManager.default.fileExists(atPath: model.appendingPathComponent("tokenizer.json").path))
+      XCTAssertTrue(FileManager.default.fileExists(
+        atPath: model.appendingPathComponent("laya_multilingual_e8_L128_options32.mlmodelc").path))
     }
   #endif
 
