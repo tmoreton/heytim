@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "27F4F841218FB224E460B379"
+               BlueprintIdentifier = "C72595966C5D049FD97BB18B"
                BuildableName = "HeyTim.app"
                BlueprintName = "HeyTimApple"
                ReferencedContainer = "container:HeyTimApple.xcodeproj">
@@ -28,7 +28,7 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "931644698A2E79664E51BED5"
+               BlueprintIdentifier = "AD044AD5CCD90FDA8BDB9292"
                BuildableName = "HeyTimAppleTests.xctest"
                BlueprintName = "HeyTimAppleTests"
                ReferencedContainer = "container:HeyTimApple.xcodeproj">
@@ -44,7 +44,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "27F4F841218FB224E460B379"
+            BlueprintIdentifier = "C72595966C5D049FD97BB18B"
             BuildableName = "HeyTim.app"
             BlueprintName = "HeyTimApple"
             ReferencedContainer = "container:HeyTimApple.xcodeproj">
@@ -55,7 +55,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "931644698A2E79664E51BED5"
+               BlueprintIdentifier = "AD044AD5CCD90FDA8BDB9292"
                BuildableName = "HeyTimAppleTests.xctest"
                BlueprintName = "HeyTimAppleTests"
                ReferencedContainer = "container:HeyTimApple.xcodeproj">
@@ -77,7 +77,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "27F4F841218FB224E460B379"
+            BlueprintIdentifier = "C72595966C5D049FD97BB18B"
             BuildableName = "HeyTim.app"
             BlueprintName = "HeyTimApple"
             ReferencedContainer = "container:HeyTimApple.xcodeproj">
@@ -94,7 +94,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "27F4F841218FB224E460B379"
+            BlueprintIdentifier = "C72595966C5D049FD97BB18B"
             BuildableName = "HeyTim.app"
             BlueprintName = "HeyTimApple"
             ReferencedContainer = "container:HeyTimApple.xcodeproj">

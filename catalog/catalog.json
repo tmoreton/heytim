@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
   "repository": "tmoreton/heytim",
-  "release": "skills-v31",
+  "release": "skills-v32",
   "tools": [
     {
       "id": "web",
@@ -563,6 +563,17 @@
       "tags": ["meetings", "research", "agenda", "questions", "preparation"],
       "path": "skills/meeting-prep/SKILL.md",
       "requiredToolIds": ["web", "web_search", "current_time", "task_list"]
+    },
+    {
+      "id": "meeting-notes",
+      "version": 1,
+      "name": "Meeting Notes",
+      "description": "Turn a live or supplied meeting transcript into reliable notes, summaries, outlines, follow-ups, and user-approved bot memory.",
+      "category": "Productivity",
+      "author": "HeyTim",
+      "tags": ["meetings", "transcription", "notes", "summaries", "memory"],
+      "path": "skills/meeting-notes/SKILL.md",
+      "requiredToolIds": []
     },
     {
       "id": "career-coach",

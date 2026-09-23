@@ -1,5 +1,5 @@
 import AVFoundation
-import HeyTimNemotron
+import HeyTimParakeet
 import Observation
 
 @MainActor @Observable
@@ -9,7 +9,7 @@ public final class DictationModel {
   public private(set) var audioLevels: [Float] = []
   public var transcript = ""
   public var errorMessage: String?
-  @ObservationIgnored private var transcriber: NemotronTranscriber?
+  @ObservationIgnored private var transcriber: ParakeetTranscriber?
   @ObservationIgnored private var sessionID: UUID?
 
   public init() {}
@@ -37,7 +37,7 @@ public final class DictationModel {
           self.errorMessage = "Microphone access is required for on-device dictation."
           return
         }
-        let transcriber = NemotronTranscriber { [weak self] event in
+        let transcriber = ParakeetTranscriber { [weak self] event in
           Task { @MainActor in self?.receive(event, sessionID: requestedSessionID) }
         }
         self.transcriber = transcriber
@@ -63,7 +63,7 @@ public final class DictationModel {
 
   public func shutDown() { cancel() }
 
-  private func receive(_ event: NemotronTranscriptionEvent, sessionID: UUID) {
+  private func receive(_ event: ParakeetTranscriptionEvent, sessionID: UUID) {
     guard self.sessionID == sessionID else { return }
     switch event {
     case .started:

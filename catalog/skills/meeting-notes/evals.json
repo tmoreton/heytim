@@ -1,0 +1,21 @@
+{
+  "shouldTrigger": [
+    "I have an hour-long planning meeting. Help me transcribe it, take notes, and remember the final decisions.",
+    "Turn this attached meeting transcript into a summary, outline, and action items with owners.",
+    "Summarize yesterday's project call, flag uncertain wording, and ask what should go into my bot context.",
+    "I am about to start a client meeting in the app and want reliable notes when it ends."
+  ],
+  "shouldNotTrigger": [
+    "Prepare an agenda and research the attendees for a meeting that has not happened yet.",
+    "Transcribe this short voice message into the composer without creating meeting notes.",
+    "Summarize this article and remember my reading preference.",
+    "Join my video call and secretly record the other participants."
+  ],
+  "expectations": [
+    "Live-capture guidance requires recording or transcription permission and accurately explains that the user controls the on-device microphone.",
+    "The output distinguishes confirmed decisions from proposals, assigns owners and dates only when supported, and flags uncertain transcription instead of inventing details.",
+    "The notes include a concise summary, useful outline, decisions, action items, risks or open questions, and any requested follow-up draft.",
+    "Speaker attribution is used only when the transcript or user identifies the speaker.",
+    "Raw transcripts are not stored as memory; only user-confirmed compact takeaways may be saved from a direct bot chat."
+  ]
+}

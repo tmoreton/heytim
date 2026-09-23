@@ -1,5 +1,5 @@
 import XCTest
-@testable import HeyTimNemotron
+@testable import HeyTimParakeet
 
 final class ContinuousTranscriptAccumulatorTests: XCTestCase {
     func testKeepsCommittedSpeechAcrossNaturalPauses() {

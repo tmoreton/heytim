@@ -9,13 +9,16 @@ Developer ID signed, Apple-notarized direct download. This is a deliberate platf
 split: a general Mac accessibility controller cannot run inside the App Sandbox,
 while the iPhone app should retain its existing sandbox and store distribution.
 
-The first Mac release uses Laya as a local, advisory decision router in the chat
-send path for bots with the Mac app actions tool enabled. There is one global
+The current Mac implementation uses Laya only as a local, advisory matcher when
+an explicit click/press request names an app but no visible control has an exact
+label match. It is not a general message router. There is one global
 Settings switch and a per-bot toggle in the existing Tools & Skills list. An
-eligible action appears in the conversation's normal approval bubble, not a
-separate window, card, or composer button. For generic button actions, Laya receives a
-bounded semantic accessibility snapshot and chooses between known visible
-controls or `use_cloud_model`. It does not generate clicks, coordinates, text,
+eligible action stays in the conversation, not a separate window, card, or
+composer button. An exact low-risk navigation match or explicit note with known
+text can execute immediately; other proposals use the normal approval bubble.
+For eligible button actions, Laya
+receives only the request and at most four filtered button labels, and chooses
+between those known controls or `main_model`. It does not generate clicks, coordinates, text,
 or permissions. HeyTim remains the policy authority.
 
 ## Safety invariants
@@ -31,11 +34,13 @@ or permissions. HeyTim remains the policy authority.
   snapshot; the model cannot invent an element or application identifier.
 - Send, submit, purchase, delete, publish, share, install, permission, and similar
   high-impact controls always escalate and cannot be pressed by the local route.
-- A safe Laya result is still a preview. A person must approve the exact app and
-  control before HeyTim invokes the accessibility action.
+- A Laya-only result is still a preview requiring approval. Model confidence
+  alone never authorizes execution. Only exact, unique, low-risk matches may
+  execute immediately, after rechecking the live accessibility element.
 - Low confidence, truncation, model errors, and missing assets all fail closed to
   the larger model.
-- A local preflight runs only for direct chats with a bot whose Mac tool is on.
+- A local preflight runs only for explicit click/press messages to a direct bot
+  with its Mac tool on, and only after an exact-match lookup fails.
   Unclear or unavailable app actions fall through to the ordinary bot turn.
 - The bundled multilingual base checkpoint is not yet validated for general tool
   routing. Its own [model card](https://huggingface.co/convaiinnovations/laya)
@@ -80,12 +85,13 @@ signed older build can discover, verify, install, and relaunch into a newer buil
 - Keep `use_cloud_model` as an ordinary candidate and the universal fallback.
 
 Acceptance: with Accessibility permission and a bot's tool toggle on, a user
-can ask that bot for an explicit Mac app action and review it in the normal
-chat approval surface. A narrow Apple Notes case can create a note with exact
+can ask that bot for an explicit Mac app action. Exact low-risk actions run in
+the normal chat flow without another click; uncertain actions use the existing
+approval surface. A narrow Apple Notes case can create a note with exact
 user-specified text; other supported actions are visible button presses.
-Risky or uncertain actions do not execute. Mac text sends run an advisory Laya
-preflight only for that bot. Attachments bypass the text-only preflight.
-`use_cloud_model` falls through to the ordinary bot turn.
+Risky or uncertain actions do not execute. Exact Apple Notes requests do not
+need a model. Attachments bypass the text-only preflight. `main_model` means no
+local action is proposed; it does not bypass the bot's normal tool grants.
 
 ### 4. Integration and calibration
 

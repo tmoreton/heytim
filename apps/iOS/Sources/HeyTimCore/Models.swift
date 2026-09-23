@@ -14,6 +14,25 @@ public struct ConversationSelection: Hashable, Codable, Identifiable, Sendable {
   }
 }
 
+/// Advisory Mac-local classification. The server never treats this as authority
+/// to select a device or call a tool.
+public struct HomeAssistantRouteHint: Codable, Sendable {
+  public let selectedLabel: String
+  public let confidence: Double
+  public let actionProbability: Double
+  public let truncated: Bool
+
+  public init(
+    selectedLabel: String, confidence: Double,
+    actionProbability: Double, truncated: Bool
+  ) {
+    self.selectedLabel = selectedLabel
+    self.confidence = confidence
+    self.actionProbability = actionProbability
+    self.truncated = truncated
+  }
+}
+
 public struct Bot: Codable, Identifiable, Hashable, Sendable {
   public var id: String
   public var name: String

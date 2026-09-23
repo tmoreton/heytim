@@ -107,12 +107,12 @@ end
 local_package = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
 local_package.relative_path = '../../packages/heytim-transcription'
 project.root_object.package_references << local_package
-nemotron = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
-nemotron.package = local_package
-nemotron.product_name = 'HeyTimNemotron'
-app.package_product_dependencies << nemotron
+parakeet = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+parakeet.package = local_package
+parakeet.product_name = 'HeyTimParakeet'
+app.package_product_dependencies << parakeet
 build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
-build_file.product_ref = nemotron
+build_file.product_ref = parakeet
 app.frameworks_build_phase.files << build_file
 
 def add_remote_product(project, target, url:, requirement:, product:, platforms: [])
@@ -140,6 +140,14 @@ add_remote_product(
   product: 'Sparkle',
   platforms: ['macos']
 )
+add_remote_product(
+  project,
+  app,
+  url: 'https://github.com/FluidInference/FluidUse.git',
+  requirement: { 'kind' => 'revision', 'revision' => 'e9e95935075b626a203bb20c0645975be23f15b1' },
+  product: 'FluidUse',
+  platforms: ['macos']
+)
 
 # SwiftPM links these XCFramework slices statically into the app, but Xcode also
 # copies framework-shaped wrappers into iOS device and macOS products. They are
@@ -162,19 +170,17 @@ strip_static_speech.shell_script = <<~'SCRIPT'
 SCRIPT
 strip_static_speech.always_out_of_date = '1'
 
-# An incremental Mac build can retain resources copied by an older project
-# configuration. Keep retired model weights out of the product even when the
-# developer reuses DerivedData.
-remove_legacy_laya = app.new_shell_script_build_phase('Remove retired Laya resources')
-remove_legacy_laya.shell_script = <<~'SCRIPT'
+# Bundle the pinned Core ML checkpoint with the Mac app. The preparation script
+# verifies every asset; the installed app never downloads weights on demand.
+bundle_laya = app.new_shell_script_build_phase('Bundle Laya for Mac')
+bundle_laya.shell_script = <<~'SCRIPT'
   if [ "$PLATFORM_NAME" = macosx ]; then
-    model_path="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/laya-coreml"
-    if [ -d "$model_path" ]; then
-      /usr/bin/find "$model_path" -depth -delete
-    fi
+    "$SRCROOT/scripts/prepare-laya.sh"
+    /usr/bin/ditto "$SRCROOT/Generated/Laya/laya-coreml" \
+      "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/laya-coreml"
   fi
 SCRIPT
-remove_legacy_laya.always_out_of_date = '1'
+bundle_laya.always_out_of_date = '1'
 
 project.save
 scheme = Xcodeproj::XCScheme.new

@@ -7,223 +7,243 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		00743F38F4FDC2125B07C1B7 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E21E3F573F09F295F5008B66 /* Foundation.framework */; };
-		05E5C3B2AEB915DAD5BBBCFD /* FeatureSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = F22583EA89717E469111FBBD /* FeatureSheets.swift */; };
-		09FE1F0C1813DF2A331F27E6 /* DictationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956B7EBE158C62A4345AF3A8 /* DictationModel.swift */; };
-		0C16509DD0EFE0D9942AD6A7 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5238D5D276EF21168E935A0 /* Models.swift */; };
-		1885AFB90CC112B801FD9038 /* HeyTimAppleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56CF8B96B62963AABC377F0D /* HeyTimAppleApp.swift */; };
-		1E6491C0353E978F4B2ED653 /* HeyTimAppleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5DDD2984E29C49D188FA491 /* HeyTimAppleUITests.swift */; };
-		242175D4F5457FD5B070D9AF /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DBC7A414D183CBD11E463E1A /* PrivacyInfo.xcprivacy */; };
-		264F9775315C334C630E6996 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D004909D9558F79AC8EA961B /* AppModel.swift */; };
-		2D10621454C8A39A346BB5C6 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE4177758609F62D27D553B0 /* AuthView.swift */; };
-		439160A53B5C6F2ED25C91EB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7648F4D6B649ED7E776D6C31 /* Assets.xcassets */; };
-		51A9D901BCA4385C1C6C9081 /* MarkdownMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA0818149F497C2893C93C8 /* MarkdownMessageView.swift */; };
-		59890A9A25714F2763B2B79D /* DesktopUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F66434C81AB1D6501EDCDE34 /* DesktopUpdateController.swift */; };
-		5C768E8371497146285F8B39 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0F7872F406EB67B990A /* MainView.swift */; };
-		77CB660C6DD550BC0F60DB41 /* amplify_outputs.json in Resources */ = {isa = PBXBuildFile; fileRef = CD20C2D8D87C2620C17CB2FC /* amplify_outputs.json */; };
-		7E2E9B80F93BC2F922864BE8 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9562FE861331E8EDF3905B /* Theme.swift */; };
-		853E67CB6D03337CA85720E9 /* HeyTimAppleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98BE11C6F980CA726F8CD3C1 /* HeyTimAppleTests.swift */; };
-		9F478AE780823B1CD9BD1FF1 /* BotInboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4201ACBA97465745970F39B9 /* BotInboxView.swift */; };
-		A3726C0CFE3B60786BB21735 /* SupportingFeatureSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0472CF0D571EDAA62AAB8EF7 /* SupportingFeatureSheets.swift */; };
-		A66A705978C0BC97166945EC /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E21E3F573F09F295F5008B66 /* Foundation.framework */; };
-		A87777CC7064A01E37CD74A5 /* BrowserHandoffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0640CAD6553A11AA79E3A41A /* BrowserHandoffView.swift */; };
-		B8DC1FDBFBA096D553344CE0 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = 2D60B4DBEE697BDB2608D380 /* Sparkle */; };
-		C906B0ABF680757AF7C37594 /* ProviderLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96ADB34D12E0D80190D3B31C /* ProviderLogoView.swift */; };
-		CF2FF1CF47068E816F86C210 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB2C5AD35B19E876D54388B /* APIClient.swift */; };
-		D30DEFEC61B40C210C5FB98A /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E21E3F573F09F295F5008B66 /* Foundation.framework */; };
-		D95B6A2FBE8A89D669937A77 /* APIRoutes.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 940A97042B4A4656E6B03CA9 /* APIRoutes.generated.swift */; };
-		DC6EF7E671F746BA67EC742C /* HeyTimNemotron in Frameworks */ = {isa = PBXBuildFile; productRef = 902EAFC6D5AFF50429697AF8 /* HeyTimNemotron */; };
-		EB8C1B0319C44C0F0B303B24 /* DesktopControlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48457617F1E5006256110070 /* DesktopControlView.swift */; };
-		F20CA08B4C702043D8AE47A1 /* NativeNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2399003B54529562EBB3B82 /* NativeNotifications.swift */; };
-		F5FDF339377A6CC172CA52D5 /* AuthSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9E625F474F832B8DD51EB11 /* AuthSession.swift */; };
-		F98DF8AF01A3516D1AB9AFC2 /* DesktopControlCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9852B73062775A37419BD70 /* DesktopControlCoordinator.swift */; };
-		FE09D8F2E8483F4C77E79036 /* GitHubSkillImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF23FE29F268587A4A098DAF /* GitHubSkillImportView.swift */; };
+		0D34C2CE00195CF44ECD6E52 /* DesktopControlCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D82483F3FA32C8EF7D7A02D /* DesktopControlCoordinator.swift */; };
+		1E58028538AE2CCAA150FAF1 /* amplify_outputs.json in Resources */ = {isa = PBXBuildFile; fileRef = 477E7E4839A03F465918F980 /* amplify_outputs.json */; };
+		2A0715943F47233423B84E82 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66EEE70C2D2491667433E5F3 /* MainView.swift */; };
+		2BB0140FC2D47C127AD6C6DC /* BrowserHandoffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E76FD720ACF652B88C4D37 /* BrowserHandoffView.swift */; };
+		3430D3D8CD64D1FC34C7DA78 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FBEFE88E0D5387C7FF57C91 /* Theme.swift */; };
+		39A5D5F63341480341795487 /* MarkdownMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71C0234A558A508E79B01182 /* MarkdownMessageView.swift */; };
+		421FC1CB43175A6541B120CE /* HeyTimAppleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98C7BA15FA4B097179AEFEDF /* HeyTimAppleTests.swift */; };
+		4C5024858FD5564A8EB7D672 /* ProviderLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAA5539F74AA6014F4F83B53 /* ProviderLogoView.swift */; };
+		4D3D3973449EE1DC83A836D4 /* FeatureSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198CD56CBB9EEBCA180C14B0 /* FeatureSheets.swift */; };
+		5C7503D461C7A9A7DEDC7A79 /* HeyTimParakeet in Frameworks */ = {isa = PBXBuildFile; productRef = 87F4F457F076502B20D9316C /* HeyTimParakeet */; };
+		5F089C561D07918117A5D2F9 /* HeyTimAppleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B059E0F65C62A545E51EA33E /* HeyTimAppleUITests.swift */; };
+		5F72718B6D558B4BE8071B51 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B525A557FA65C0B3EB9BCA /* AuthView.swift */; };
+		6485D0417EDA53BCC9A3E795 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 902EDA960B06856A702A5C95 /* Assets.xcassets */; };
+		671EAFB4B9B443B3A3F7A77F /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDE64353FC8C932EF57C5907 /* APIClient.swift */; };
+		68FF3EDCD21D80E8850273D0 /* AuthSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = E97453AC22B0890BE7A03D9A /* AuthSession.swift */; };
+		721E2E98C6B2306F51342D32 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F71DFD9E07364DDA50CE668F /* Foundation.framework */; };
+		776041F987007CAA676E7EDB /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F71DFD9E07364DDA50CE668F /* Foundation.framework */; };
+		88D91F3D2250CD421B0BA3CE /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6FDAEF4DFA398A9960519CA /* Models.swift */; };
+		985BBDD42F5BCE1384B5B38F /* DesktopUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7162A91976A0209F214B3A56 /* DesktopUpdateController.swift */; };
+		9A4EC93D8E4DBCF10DB1AC29 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F71DFD9E07364DDA50CE668F /* Foundation.framework */; };
+		9E63FEA963C32E69E1167E83 /* DesktopControlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498F811C75C33B3D4BA9517A /* DesktopControlView.swift */; };
+		A6454D8888AAB0BD1389800F /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B883A79EECFBC29E51CFB84 /* AppModel.swift */; };
+		A913AC9A743AF7197E334B60 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A8925081667DECDF23443606 /* PrivacyInfo.xcprivacy */; };
+		B5B98E57C089A44F0A18F017 /* BotInboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABDA60BAE044AB94BC36C7D0 /* BotInboxView.swift */; };
+		CFA74119F79A8D0B8BF98F42 /* FluidUse in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = B9F7592084C72D04440D45B8 /* FluidUse */; };
+		D3A81AFA3EBB80AF49497629 /* SupportingFeatureSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93A0082A0E998D4FFA472A6D /* SupportingFeatureSheets.swift */; };
+		D5E5D1DEAB0522DAE233600E /* APIRoutes.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB96C416027686783B67744E /* APIRoutes.generated.swift */; };
+		E0B2CF797F40525AC267C801 /* NativeNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 117D30EC40F42EAFEADC0FEE /* NativeNotifications.swift */; };
+		F0BBF33A11CBB59BD7A4F9A7 /* GitHubSkillImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC58DF52EA0D5CDD328B77E /* GitHubSkillImportView.swift */; };
+		FAAA5D4163DB26ADFD3B5AD0 /* HeyTimAppleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD3DC6D2445345CF64226D05 /* HeyTimAppleApp.swift */; };
+		FCF91B73E55FC45AF12396F8 /* DictationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A4ECF64AA7BDC13EEE5EC29 /* DictationModel.swift */; };
+		FD560A46830A08776D55414B /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = F53CF83224FFE196C54C91FA /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		70DE62CE9157FC66FE1205AE /* PBXContainerItemProxy */ = {
+		35415F2EF6A6BC1CF1FDE1C3 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = E236E9154443C9481F08C7BB /* Project object */;
+			containerPortal = 85392F6805591090FA045380 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 27F4F841218FB224E460B379;
+			remoteGlobalIDString = C72595966C5D049FD97BB18B;
 			remoteInfo = HeyTimApple;
 		};
-		DF6B2171942001CFBAB88F8E /* PBXContainerItemProxy */ = {
+		8204029A4074D8EA91199526 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = E236E9154443C9481F08C7BB /* Project object */;
+			containerPortal = 85392F6805591090FA045380 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 27F4F841218FB224E460B379;
+			remoteGlobalIDString = C72595966C5D049FD97BB18B;
 			remoteInfo = HeyTimApple;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		046AAE884645302E91ED2A96 /* HeyTimAppleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HeyTimAppleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		0472CF0D571EDAA62AAB8EF7 /* SupportingFeatureSheets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SupportingFeatureSheets.swift; path = Sources/HeyTimUI/SupportingFeatureSheets.swift; sourceTree = "<group>"; };
-		0640CAD6553A11AA79E3A41A /* BrowserHandoffView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BrowserHandoffView.swift; path = Sources/HeyTimUI/BrowserHandoffView.swift; sourceTree = "<group>"; };
-		0D9E78057B524D78021ABAD2 /* HeyTim-iOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "HeyTim-iOS.entitlements"; path = "Resources/HeyTim-iOS.entitlements"; sourceTree = "<group>"; };
-		1DA0818149F497C2893C93C8 /* MarkdownMessageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarkdownMessageView.swift; path = Sources/HeyTimUI/MarkdownMessageView.swift; sourceTree = "<group>"; };
-		2A850E9BD01DC4EF1EF48914 /* HeyTim-macOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "HeyTim-macOS.entitlements"; path = "Resources/HeyTim-macOS.entitlements"; sourceTree = "<group>"; };
-		3542B8C8508C536ED769A1C9 /* HeyTim-iOS-Release.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "HeyTim-iOS-Release.entitlements"; path = "Resources/HeyTim-iOS-Release.entitlements"; sourceTree = "<group>"; };
-		3B9562FE861331E8EDF3905B /* Theme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Theme.swift; path = Sources/HeyTimUI/Theme.swift; sourceTree = "<group>"; };
-		4201ACBA97465745970F39B9 /* BotInboxView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BotInboxView.swift; path = Sources/HeyTimUI/BotInboxView.swift; sourceTree = "<group>"; };
-		48457617F1E5006256110070 /* DesktopControlView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesktopControlView.swift; path = Sources/HeyTimUI/DesktopControlView.swift; sourceTree = "<group>"; };
-		56CF8B96B62963AABC377F0D /* HeyTimAppleApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HeyTimAppleApp.swift; path = App/HeyTimAppleApp.swift; sourceTree = "<group>"; };
-		7648F4D6B649ED7E776D6C31 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
-		7BB5E0F7872F406EB67B990A /* MainView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MainView.swift; path = Sources/HeyTimUI/MainView.swift; sourceTree = "<group>"; };
-		8E0A511AE7A6FCC96E42D005 /* DeveloperIDExportOptions.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = DeveloperIDExportOptions.plist; path = Resources/DeveloperIDExportOptions.plist; sourceTree = "<group>"; };
-		940A97042B4A4656E6B03CA9 /* APIRoutes.generated.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = APIRoutes.generated.swift; path = Sources/HeyTimCore/APIRoutes.generated.swift; sourceTree = "<group>"; };
-		956B7EBE158C62A4345AF3A8 /* DictationModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DictationModel.swift; path = Sources/HeyTimPlatform/DictationModel.swift; sourceTree = "<group>"; };
-		96ADB34D12E0D80190D3B31C /* ProviderLogoView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProviderLogoView.swift; path = Sources/HeyTimUI/ProviderLogoView.swift; sourceTree = "<group>"; };
-		98BE11C6F980CA726F8CD3C1 /* HeyTimAppleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HeyTimAppleTests.swift; path = Tests/HeyTimAppleTests.swift; sourceTree = "<group>"; };
-		B2399003B54529562EBB3B82 /* NativeNotifications.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeNotifications.swift; path = Sources/HeyTimPlatform/NativeNotifications.swift; sourceTree = "<group>"; };
-		BB38BF7324E78976B63D1FA7 /* HeyTim-macOS-Release.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "HeyTim-macOS-Release.entitlements"; path = "Resources/HeyTim-macOS-Release.entitlements"; sourceTree = "<group>"; };
-		BCCE15B52602F5F7EEFA7ED8 /* HeyTimAppleUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HeyTimAppleUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		C6CD7E3D2740DF9D9727B8B9 /* HeyTim.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = HeyTim.app; path = HeyTim.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		C9852B73062775A37419BD70 /* DesktopControlCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesktopControlCoordinator.swift; path = Sources/HeyTimPlatform/DesktopControlCoordinator.swift; sourceTree = "<group>"; };
-		CD20C2D8D87C2620C17CB2FC /* amplify_outputs.json */ = {isa = PBXFileReference; includeInIndex = 1; name = amplify_outputs.json; path = Resources/amplify_outputs.json; sourceTree = "<group>"; };
-		D004909D9558F79AC8EA961B /* AppModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppModel.swift; path = Sources/HeyTimCore/AppModel.swift; sourceTree = "<group>"; };
-		D5238D5D276EF21168E935A0 /* Models.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Models.swift; path = Sources/HeyTimCore/Models.swift; sourceTree = "<group>"; };
-		DBC7A414D183CBD11E463E1A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Resources/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		DF7B009A5C20E8A38EC74543 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = Resources/Info.plist; sourceTree = "<group>"; };
-		E21E3F573F09F295F5008B66 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
-		E9E625F474F832B8DD51EB11 /* AuthSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthSession.swift; path = Sources/HeyTimPlatform/AuthSession.swift; sourceTree = "<group>"; };
-		EE4177758609F62D27D553B0 /* AuthView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthView.swift; path = Sources/HeyTimUI/AuthView.swift; sourceTree = "<group>"; };
-		F1E2478BD74C84419E0EE758 /* Info-macOS.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "Info-macOS.plist"; path = "Resources/Info-macOS.plist"; sourceTree = "<group>"; };
-		F22583EA89717E469111FBBD /* FeatureSheets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FeatureSheets.swift; path = Sources/HeyTimUI/FeatureSheets.swift; sourceTree = "<group>"; };
-		F5DDD2984E29C49D188FA491 /* HeyTimAppleUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HeyTimAppleUITests.swift; path = UITests/HeyTimAppleUITests.swift; sourceTree = "<group>"; };
-		F66434C81AB1D6501EDCDE34 /* DesktopUpdateController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesktopUpdateController.swift; path = Sources/HeyTimPlatform/DesktopUpdateController.swift; sourceTree = "<group>"; };
-		FDB2C5AD35B19E876D54388B /* APIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = APIClient.swift; path = Sources/HeyTimCore/APIClient.swift; sourceTree = "<group>"; };
-		FF23FE29F268587A4A098DAF /* GitHubSkillImportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GitHubSkillImportView.swift; path = Sources/HeyTimUI/GitHubSkillImportView.swift; sourceTree = "<group>"; };
+		0D82483F3FA32C8EF7D7A02D /* DesktopControlCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesktopControlCoordinator.swift; path = Sources/HeyTimPlatform/DesktopControlCoordinator.swift; sourceTree = "<group>"; };
+		117D30EC40F42EAFEADC0FEE /* NativeNotifications.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeNotifications.swift; path = Sources/HeyTimPlatform/NativeNotifications.swift; sourceTree = "<group>"; };
+		198CD56CBB9EEBCA180C14B0 /* FeatureSheets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FeatureSheets.swift; path = Sources/HeyTimUI/FeatureSheets.swift; sourceTree = "<group>"; };
+		1BCAE1F5D1A471E74BF6C2D4 /* Info-macOS.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "Info-macOS.plist"; path = "Resources/Info-macOS.plist"; sourceTree = "<group>"; };
+		2A4ECF64AA7BDC13EEE5EC29 /* DictationModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DictationModel.swift; path = Sources/HeyTimPlatform/DictationModel.swift; sourceTree = "<group>"; };
+		2CC58DF52EA0D5CDD328B77E /* GitHubSkillImportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GitHubSkillImportView.swift; path = Sources/HeyTimUI/GitHubSkillImportView.swift; sourceTree = "<group>"; };
+		30B525A557FA65C0B3EB9BCA /* AuthView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthView.swift; path = Sources/HeyTimUI/AuthView.swift; sourceTree = "<group>"; };
+		43E76FD720ACF652B88C4D37 /* BrowserHandoffView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BrowserHandoffView.swift; path = Sources/HeyTimUI/BrowserHandoffView.swift; sourceTree = "<group>"; };
+		477E7E4839A03F465918F980 /* amplify_outputs.json */ = {isa = PBXFileReference; includeInIndex = 1; name = amplify_outputs.json; path = Resources/amplify_outputs.json; sourceTree = "<group>"; };
+		495670D9894EA85E61D1F3AD /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = Resources/Info.plist; sourceTree = "<group>"; };
+		498F811C75C33B3D4BA9517A /* DesktopControlView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesktopControlView.swift; path = Sources/HeyTimUI/DesktopControlView.swift; sourceTree = "<group>"; };
+		66EEE70C2D2491667433E5F3 /* MainView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MainView.swift; path = Sources/HeyTimUI/MainView.swift; sourceTree = "<group>"; };
+		7162A91976A0209F214B3A56 /* DesktopUpdateController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesktopUpdateController.swift; path = Sources/HeyTimPlatform/DesktopUpdateController.swift; sourceTree = "<group>"; };
+		71C0234A558A508E79B01182 /* MarkdownMessageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarkdownMessageView.swift; path = Sources/HeyTimUI/MarkdownMessageView.swift; sourceTree = "<group>"; };
+		76FDEE3FB12177CB4BCFBACA /* HeyTim-iOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "HeyTim-iOS.entitlements"; path = "Resources/HeyTim-iOS.entitlements"; sourceTree = "<group>"; };
+		791DF3177CE4A3ED24439900 /* DeveloperIDExportOptions.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = DeveloperIDExportOptions.plist; path = Resources/DeveloperIDExportOptions.plist; sourceTree = "<group>"; };
+		7F86D41A27A366083F384AA8 /* HeyTim-macOS-Release.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "HeyTim-macOS-Release.entitlements"; path = "Resources/HeyTim-macOS-Release.entitlements"; sourceTree = "<group>"; };
+		7FBEFE88E0D5387C7FF57C91 /* Theme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Theme.swift; path = Sources/HeyTimUI/Theme.swift; sourceTree = "<group>"; };
+		865F62D0B2ECD903D8C3C2FE /* HeyTim-macOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "HeyTim-macOS.entitlements"; path = "Resources/HeyTim-macOS.entitlements"; sourceTree = "<group>"; };
+		8B883A79EECFBC29E51CFB84 /* AppModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppModel.swift; path = Sources/HeyTimCore/AppModel.swift; sourceTree = "<group>"; };
+		902EDA960B06856A702A5C95 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
+		9390E195B8B46891105E31EB /* HeyTim.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = HeyTim.app; path = HeyTim.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		93A0082A0E998D4FFA472A6D /* SupportingFeatureSheets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SupportingFeatureSheets.swift; path = Sources/HeyTimUI/SupportingFeatureSheets.swift; sourceTree = "<group>"; };
+		98C7BA15FA4B097179AEFEDF /* HeyTimAppleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HeyTimAppleTests.swift; path = Tests/HeyTimAppleTests.swift; sourceTree = "<group>"; };
+		9EBF5B71A5DB5F22AE6EA2F5 /* HeyTimAppleUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HeyTimAppleUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A8925081667DECDF23443606 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Resources/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		ABDA60BAE044AB94BC36C7D0 /* BotInboxView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BotInboxView.swift; path = Sources/HeyTimUI/BotInboxView.swift; sourceTree = "<group>"; };
+		AD3DC6D2445345CF64226D05 /* HeyTimAppleApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HeyTimAppleApp.swift; path = App/HeyTimAppleApp.swift; sourceTree = "<group>"; };
+		ADB67ADD23635362313A0D0E /* HeyTimAppleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HeyTimAppleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B059E0F65C62A545E51EA33E /* HeyTimAppleUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HeyTimAppleUITests.swift; path = UITests/HeyTimAppleUITests.swift; sourceTree = "<group>"; };
+		CAA5539F74AA6014F4F83B53 /* ProviderLogoView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProviderLogoView.swift; path = Sources/HeyTimUI/ProviderLogoView.swift; sourceTree = "<group>"; };
+		E61D59B76C010E3F3E2170DB /* HeyTim-iOS-Release.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "HeyTim-iOS-Release.entitlements"; path = "Resources/HeyTim-iOS-Release.entitlements"; sourceTree = "<group>"; };
+		E6FDAEF4DFA398A9960519CA /* Models.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Models.swift; path = Sources/HeyTimCore/Models.swift; sourceTree = "<group>"; };
+		E97453AC22B0890BE7A03D9A /* AuthSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthSession.swift; path = Sources/HeyTimPlatform/AuthSession.swift; sourceTree = "<group>"; };
+		EB96C416027686783B67744E /* APIRoutes.generated.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = APIRoutes.generated.swift; path = Sources/HeyTimCore/APIRoutes.generated.swift; sourceTree = "<group>"; };
+		EDE64353FC8C932EF57C5907 /* APIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = APIClient.swift; path = Sources/HeyTimCore/APIClient.swift; sourceTree = "<group>"; };
+		F71DFD9E07364DDA50CE668F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		5A3900A2C70E0456FB60260F /* Frameworks */ = {
+		560918D62A3C5876FCC82208 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D30DEFEC61B40C210C5FB98A /* Foundation.framework in Frameworks */,
+				721E2E98C6B2306F51342D32 /* Foundation.framework in Frameworks */,
+				5C7503D461C7A9A7DEDC7A79 /* HeyTimParakeet in Frameworks */,
+				FD560A46830A08776D55414B /* Sparkle in Frameworks */,
+				CFA74119F79A8D0B8BF98F42 /* FluidUse in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		7010B0EC53918BCA63573B1D /* Frameworks */ = {
+		61F3B26E99A49BB9C7D65173 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A66A705978C0BC97166945EC /* Foundation.framework in Frameworks */,
+				9A4EC93D8E4DBCF10DB1AC29 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		8B9EE876DBA56CA710F5A30D /* Frameworks */ = {
+		8AC38D2C08EE0295B64A14BF /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				00743F38F4FDC2125B07C1B7 /* Foundation.framework in Frameworks */,
-				DC6EF7E671F746BA67EC742C /* HeyTimNemotron in Frameworks */,
-				B8DC1FDBFBA096D553344CE0 /* Sparkle in Frameworks */,
+				776041F987007CAA676E7EDB /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		160835B53AC6C2441897F111 /* iOS */ = {
+		09D50471EF823223A76D38C4 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				E21E3F573F09F295F5008B66 /* Foundation.framework */,
+				9390E195B8B46891105E31EB /* HeyTim.app */,
+				ADB67ADD23635362313A0D0E /* HeyTimAppleTests.xctest */,
+				9EBF5B71A5DB5F22AE6EA2F5 /* HeyTimAppleUITests.xctest */,
 			);
-			name = iOS;
+			name = Products;
 			sourceTree = "<group>";
 		};
-		A4CC35E337CA388870ECE309 = {
+		0E2451E77B17286B62335BBF = {
 			isa = PBXGroup;
 			children = (
-				DE25D664829B43D761F60586 /* Products */,
-				BCCF8282A78A17D2B2141F32 /* Frameworks */,
-				56CF8B96B62963AABC377F0D /* HeyTimAppleApp.swift */,
-				FDB2C5AD35B19E876D54388B /* APIClient.swift */,
-				940A97042B4A4656E6B03CA9 /* APIRoutes.generated.swift */,
-				D004909D9558F79AC8EA961B /* AppModel.swift */,
-				D5238D5D276EF21168E935A0 /* Models.swift */,
-				E9E625F474F832B8DD51EB11 /* AuthSession.swift */,
-				C9852B73062775A37419BD70 /* DesktopControlCoordinator.swift */,
-				F66434C81AB1D6501EDCDE34 /* DesktopUpdateController.swift */,
-				956B7EBE158C62A4345AF3A8 /* DictationModel.swift */,
-				B2399003B54529562EBB3B82 /* NativeNotifications.swift */,
-				EE4177758609F62D27D553B0 /* AuthView.swift */,
-				4201ACBA97465745970F39B9 /* BotInboxView.swift */,
-				0640CAD6553A11AA79E3A41A /* BrowserHandoffView.swift */,
-				48457617F1E5006256110070 /* DesktopControlView.swift */,
-				F22583EA89717E469111FBBD /* FeatureSheets.swift */,
-				FF23FE29F268587A4A098DAF /* GitHubSkillImportView.swift */,
-				7BB5E0F7872F406EB67B990A /* MainView.swift */,
-				1DA0818149F497C2893C93C8 /* MarkdownMessageView.swift */,
-				96ADB34D12E0D80190D3B31C /* ProviderLogoView.swift */,
-				0472CF0D571EDAA62AAB8EF7 /* SupportingFeatureSheets.swift */,
-				3B9562FE861331E8EDF3905B /* Theme.swift */,
-				CD20C2D8D87C2620C17CB2FC /* amplify_outputs.json */,
-				DBC7A414D183CBD11E463E1A /* PrivacyInfo.xcprivacy */,
-				7648F4D6B649ED7E776D6C31 /* Assets.xcassets */,
-				DF7B009A5C20E8A38EC74543 /* Info.plist */,
-				F1E2478BD74C84419E0EE758 /* Info-macOS.plist */,
-				8E0A511AE7A6FCC96E42D005 /* DeveloperIDExportOptions.plist */,
-				0D9E78057B524D78021ABAD2 /* HeyTim-iOS.entitlements */,
-				3542B8C8508C536ED769A1C9 /* HeyTim-iOS-Release.entitlements */,
-				2A850E9BD01DC4EF1EF48914 /* HeyTim-macOS.entitlements */,
-				BB38BF7324E78976B63D1FA7 /* HeyTim-macOS-Release.entitlements */,
-				98BE11C6F980CA726F8CD3C1 /* HeyTimAppleTests.swift */,
-				F5DDD2984E29C49D188FA491 /* HeyTimAppleUITests.swift */,
+				09D50471EF823223A76D38C4 /* Products */,
+				237A18802F2FAF2F1B25174F /* Frameworks */,
+				AD3DC6D2445345CF64226D05 /* HeyTimAppleApp.swift */,
+				EDE64353FC8C932EF57C5907 /* APIClient.swift */,
+				EB96C416027686783B67744E /* APIRoutes.generated.swift */,
+				8B883A79EECFBC29E51CFB84 /* AppModel.swift */,
+				E6FDAEF4DFA398A9960519CA /* Models.swift */,
+				E97453AC22B0890BE7A03D9A /* AuthSession.swift */,
+				0D82483F3FA32C8EF7D7A02D /* DesktopControlCoordinator.swift */,
+				7162A91976A0209F214B3A56 /* DesktopUpdateController.swift */,
+				2A4ECF64AA7BDC13EEE5EC29 /* DictationModel.swift */,
+				117D30EC40F42EAFEADC0FEE /* NativeNotifications.swift */,
+				30B525A557FA65C0B3EB9BCA /* AuthView.swift */,
+				ABDA60BAE044AB94BC36C7D0 /* BotInboxView.swift */,
+				43E76FD720ACF652B88C4D37 /* BrowserHandoffView.swift */,
+				498F811C75C33B3D4BA9517A /* DesktopControlView.swift */,
+				198CD56CBB9EEBCA180C14B0 /* FeatureSheets.swift */,
+				2CC58DF52EA0D5CDD328B77E /* GitHubSkillImportView.swift */,
+				66EEE70C2D2491667433E5F3 /* MainView.swift */,
+				71C0234A558A508E79B01182 /* MarkdownMessageView.swift */,
+				CAA5539F74AA6014F4F83B53 /* ProviderLogoView.swift */,
+				93A0082A0E998D4FFA472A6D /* SupportingFeatureSheets.swift */,
+				7FBEFE88E0D5387C7FF57C91 /* Theme.swift */,
+				477E7E4839A03F465918F980 /* amplify_outputs.json */,
+				A8925081667DECDF23443606 /* PrivacyInfo.xcprivacy */,
+				902EDA960B06856A702A5C95 /* Assets.xcassets */,
+				495670D9894EA85E61D1F3AD /* Info.plist */,
+				1BCAE1F5D1A471E74BF6C2D4 /* Info-macOS.plist */,
+				791DF3177CE4A3ED24439900 /* DeveloperIDExportOptions.plist */,
+				76FDEE3FB12177CB4BCFBACA /* HeyTim-iOS.entitlements */,
+				E61D59B76C010E3F3E2170DB /* HeyTim-iOS-Release.entitlements */,
+				865F62D0B2ECD903D8C3C2FE /* HeyTim-macOS.entitlements */,
+				7F86D41A27A366083F384AA8 /* HeyTim-macOS-Release.entitlements */,
+				98C7BA15FA4B097179AEFEDF /* HeyTimAppleTests.swift */,
+				B059E0F65C62A545E51EA33E /* HeyTimAppleUITests.swift */,
 			);
 			sourceTree = "<group>";
 		};
-		BCCF8282A78A17D2B2141F32 /* Frameworks */ = {
+		237A18802F2FAF2F1B25174F /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				160835B53AC6C2441897F111 /* iOS */,
+				493F9048C5B512A02AC47CFE /* iOS */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		DE25D664829B43D761F60586 /* Products */ = {
+		493F9048C5B512A02AC47CFE /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				C6CD7E3D2740DF9D9727B8B9 /* HeyTim.app */,
-				046AAE884645302E91ED2A96 /* HeyTimAppleTests.xctest */,
-				BCCE15B52602F5F7EEFA7ED8 /* HeyTimAppleUITests.xctest */,
+				F71DFD9E07364DDA50CE668F /* Foundation.framework */,
 			);
-			name = Products;
+			name = iOS;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		259CB067D45BE20F066DA602 /* HeyTimAppleUITests */ = {
+		5C49DBE463899C25BD7EA2AA /* HeyTimAppleUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 05DFF2629A4F38DFBD8A55D5 /* Build configuration list for PBXNativeTarget "HeyTimAppleUITests" */;
+			buildConfigurationList = AADB807FF9C0FD4623BA2FF7 /* Build configuration list for PBXNativeTarget "HeyTimAppleUITests" */;
 			buildPhases = (
-				69AAD8ACA99BFB2398A9DFB4 /* Sources */,
-				5A3900A2C70E0456FB60260F /* Frameworks */,
-				5291708E91508139A5B1FE24 /* Resources */,
+				E830B783FCC7F5096B4E7E6A /* Sources */,
+				8AC38D2C08EE0295B64A14BF /* Frameworks */,
+				3C004E18DED50A1695786B52 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				FB378230E6577D6354E0BC27 /* PBXTargetDependency */,
+				9F8A0BB0247A4570C83A2D9B /* PBXTargetDependency */,
 			);
 			name = HeyTimAppleUITests;
 			productName = HeyTimAppleUITests;
-			productReference = BCCE15B52602F5F7EEFA7ED8 /* HeyTimAppleUITests.xctest */;
+			productReference = 9EBF5B71A5DB5F22AE6EA2F5 /* HeyTimAppleUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		27F4F841218FB224E460B379 /* HeyTimApple */ = {
+		AD044AD5CCD90FDA8BDB9292 /* HeyTimAppleTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 24E99DDCC44FF0DA757478E7 /* Build configuration list for PBXNativeTarget "HeyTimApple" */;
+			buildConfigurationList = 60E98988A7E5EBB7CA532B57 /* Build configuration list for PBXNativeTarget "HeyTimAppleTests" */;
 			buildPhases = (
-				7EAA2BC8AC76660CA8190B89 /* Sources */,
-				8B9EE876DBA56CA710F5A30D /* Frameworks */,
-				0B7F06A7249EA41F67794EB9 /* Resources */,
-				2CF6D852C775F4834E229694 /* Remove unused static speech framework wrappers */,
-				A0C9943342204800950BB3D1 /* Remove retired Laya resources */,
+				C518B0FBB78064A69BB9A354 /* Sources */,
+				61F3B26E99A49BB9C7D65173 /* Frameworks */,
+				38359E42F2CC8A42B3A8F826 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				68745DCF71DE070C9B8DA7A8 /* PBXTargetDependency */,
+			);
+			name = HeyTimAppleTests;
+			productName = HeyTimAppleTests;
+			productReference = ADB67ADD23635362313A0D0E /* HeyTimAppleTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		C72595966C5D049FD97BB18B /* HeyTimApple */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 70B6C4D6D2C5A78D210543C8 /* Build configuration list for PBXNativeTarget "HeyTimApple" */;
+			buildPhases = (
+				B3F4420DB28549D029603040 /* Sources */,
+				560918D62A3C5876FCC82208 /* Frameworks */,
+				61FC61BCF5FF3A0D5821F87C /* Resources */,
+				F6C6D5DF03294E5C54517CE0 /* Remove unused static speech framework wrappers */,
+				AA69DFF9B3D987F3C2C8B7C5 /* Bundle Laya for Mac */,
 			);
 			buildRules = (
 			);
@@ -231,41 +251,24 @@
 			);
 			name = HeyTimApple;
 			packageProductDependencies = (
-				902EAFC6D5AFF50429697AF8 /* HeyTimNemotron */,
-				2D60B4DBEE697BDB2608D380 /* Sparkle */,
+				87F4F457F076502B20D9316C /* HeyTimParakeet */,
+				F53CF83224FFE196C54C91FA /* Sparkle */,
+				B9F7592084C72D04440D45B8 /* FluidUse */,
 			);
 			productName = HeyTimApple;
-			productReference = C6CD7E3D2740DF9D9727B8B9 /* HeyTim.app */;
+			productReference = 9390E195B8B46891105E31EB /* HeyTim.app */;
 			productType = "com.apple.product-type.application";
-		};
-		931644698A2E79664E51BED5 /* HeyTimAppleTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = BE29B3A05261E24E7D4B919D /* Build configuration list for PBXNativeTarget "HeyTimAppleTests" */;
-			buildPhases = (
-				B7A9224E5AA2A8E096773AEE /* Sources */,
-				7010B0EC53918BCA63573B1D /* Frameworks */,
-				C0EA5B2525D65A3D4287FC80 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				C84698604EF0C73778C687A5 /* PBXTargetDependency */,
-			);
-			name = HeyTimAppleTests;
-			productName = HeyTimAppleTests;
-			productReference = 046AAE884645302E91ED2A96 /* HeyTimAppleTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		E236E9154443C9481F08C7BB /* Project object */ = {
+		85392F6805591090FA045380 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 2660;
 			};
-			buildConfigurationList = 814C1C3CF6A0DE2DEF414F97 /* Build configuration list for PBXProject "HeyTimApple" */;
+			buildConfigurationList = 11EB2EEDDB30BDA954645C4C /* Build configuration list for PBXProject "HeyTimApple" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -273,53 +276,54 @@
 				en,
 				Base,
 			);
-			mainGroup = A4CC35E337CA388870ECE309;
+			mainGroup = 0E2451E77B17286B62335BBF;
 			minimizedProjectReferenceProxies = 0;
 			packageReferences = (
-				A77EEA702B690A40D4B8D07B /* XCLocalSwiftPackageReference "heytim-transcription" */,
-				95F2CD3ADC7E47E9F990A0D5 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				2D3495C130BE216A1E190A04 /* XCLocalSwiftPackageReference "heytim-transcription" */,
+				E26D9574137A9DF1DAD453F1 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				306F318A6EF48CF3A3F6067E /* XCRemoteSwiftPackageReference "FluidUse" */,
 			);
-			preferredProjectObjectVersion = 100;
-			productRefGroup = DE25D664829B43D761F60586 /* Products */;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 09D50471EF823223A76D38C4 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				27F4F841218FB224E460B379 /* HeyTimApple */,
-				931644698A2E79664E51BED5 /* HeyTimAppleTests */,
-				259CB067D45BE20F066DA602 /* HeyTimAppleUITests */,
+				C72595966C5D049FD97BB18B /* HeyTimApple */,
+				AD044AD5CCD90FDA8BDB9292 /* HeyTimAppleTests */,
+				5C49DBE463899C25BD7EA2AA /* HeyTimAppleUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		0B7F06A7249EA41F67794EB9 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				77CB660C6DD550BC0F60DB41 /* amplify_outputs.json in Resources */,
-				242175D4F5457FD5B070D9AF /* PrivacyInfo.xcprivacy in Resources */,
-				439160A53B5C6F2ED25C91EB /* Assets.xcassets in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		5291708E91508139A5B1FE24 /* Resources */ = {
+		38359E42F2CC8A42B3A8F826 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		C0EA5B2525D65A3D4287FC80 /* Resources */ = {
+		3C004E18DED50A1695786B52 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		61FC61BCF5FF3A0D5821F87C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1E58028538AE2CCAA150FAF1 /* amplify_outputs.json in Resources */,
+				A913AC9A743AF7197E334B60 /* PrivacyInfo.xcprivacy in Resources */,
+				6485D0417EDA53BCC9A3E795 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		A0C9943342204800950BB3D1 /* Remove retired Laya resources */ = {
+		AA69DFF9B3D987F3C2C8B7C5 /* Bundle Laya for Mac */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -329,16 +333,16 @@
 			);
 			inputPaths = (
 			);
-			name = "Remove retired Laya resources";
+			name = "Bundle Laya for Mac";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ \"$PLATFORM_NAME\" = macosx ]; then\n  model_path=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/laya-coreml\"\n  if [ -d \"$model_path\" ]; then\n    /usr/bin/find \"$model_path\" -depth -delete\n  fi\nfi\n";
+			shellScript = "if [ \"$PLATFORM_NAME\" = macosx ]; then\n  \"$SRCROOT/scripts/prepare-laya.sh\"\n  /usr/bin/ditto \"$SRCROOT/Generated/Laya/laya-coreml\" \\\n    \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/laya-coreml\"\nfi\n";
 		};
-		2CF6D852C775F4834E229694 /* Remove unused static speech framework wrappers */ = {
+		F6C6D5DF03294E5C54517CE0 /* Remove unused static speech framework wrappers */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -360,181 +364,69 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		69AAD8ACA99BFB2398A9DFB4 /* Sources */ = {
+		B3F4420DB28549D029603040 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1E6491C0353E978F4B2ED653 /* HeyTimAppleUITests.swift in Sources */,
+				FAAA5D4163DB26ADFD3B5AD0 /* HeyTimAppleApp.swift in Sources */,
+				671EAFB4B9B443B3A3F7A77F /* APIClient.swift in Sources */,
+				D5E5D1DEAB0522DAE233600E /* APIRoutes.generated.swift in Sources */,
+				A6454D8888AAB0BD1389800F /* AppModel.swift in Sources */,
+				88D91F3D2250CD421B0BA3CE /* Models.swift in Sources */,
+				68FF3EDCD21D80E8850273D0 /* AuthSession.swift in Sources */,
+				0D34C2CE00195CF44ECD6E52 /* DesktopControlCoordinator.swift in Sources */,
+				985BBDD42F5BCE1384B5B38F /* DesktopUpdateController.swift in Sources */,
+				FCF91B73E55FC45AF12396F8 /* DictationModel.swift in Sources */,
+				E0B2CF797F40525AC267C801 /* NativeNotifications.swift in Sources */,
+				5F72718B6D558B4BE8071B51 /* AuthView.swift in Sources */,
+				B5B98E57C089A44F0A18F017 /* BotInboxView.swift in Sources */,
+				2BB0140FC2D47C127AD6C6DC /* BrowserHandoffView.swift in Sources */,
+				9E63FEA963C32E69E1167E83 /* DesktopControlView.swift in Sources */,
+				4D3D3973449EE1DC83A836D4 /* FeatureSheets.swift in Sources */,
+				F0BBF33A11CBB59BD7A4F9A7 /* GitHubSkillImportView.swift in Sources */,
+				2A0715943F47233423B84E82 /* MainView.swift in Sources */,
+				39A5D5F63341480341795487 /* MarkdownMessageView.swift in Sources */,
+				4C5024858FD5564A8EB7D672 /* ProviderLogoView.swift in Sources */,
+				D3A81AFA3EBB80AF49497629 /* SupportingFeatureSheets.swift in Sources */,
+				3430D3D8CD64D1FC34C7DA78 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		7EAA2BC8AC76660CA8190B89 /* Sources */ = {
+		C518B0FBB78064A69BB9A354 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1885AFB90CC112B801FD9038 /* HeyTimAppleApp.swift in Sources */,
-				CF2FF1CF47068E816F86C210 /* APIClient.swift in Sources */,
-				D95B6A2FBE8A89D669937A77 /* APIRoutes.generated.swift in Sources */,
-				264F9775315C334C630E6996 /* AppModel.swift in Sources */,
-				0C16509DD0EFE0D9942AD6A7 /* Models.swift in Sources */,
-				F5FDF339377A6CC172CA52D5 /* AuthSession.swift in Sources */,
-				F98DF8AF01A3516D1AB9AFC2 /* DesktopControlCoordinator.swift in Sources */,
-				59890A9A25714F2763B2B79D /* DesktopUpdateController.swift in Sources */,
-				09FE1F0C1813DF2A331F27E6 /* DictationModel.swift in Sources */,
-				F20CA08B4C702043D8AE47A1 /* NativeNotifications.swift in Sources */,
-				2D10621454C8A39A346BB5C6 /* AuthView.swift in Sources */,
-				9F478AE780823B1CD9BD1FF1 /* BotInboxView.swift in Sources */,
-				A87777CC7064A01E37CD74A5 /* BrowserHandoffView.swift in Sources */,
-				EB8C1B0319C44C0F0B303B24 /* DesktopControlView.swift in Sources */,
-				05E5C3B2AEB915DAD5BBBCFD /* FeatureSheets.swift in Sources */,
-				FE09D8F2E8483F4C77E79036 /* GitHubSkillImportView.swift in Sources */,
-				5C768E8371497146285F8B39 /* MainView.swift in Sources */,
-				51A9D901BCA4385C1C6C9081 /* MarkdownMessageView.swift in Sources */,
-				C906B0ABF680757AF7C37594 /* ProviderLogoView.swift in Sources */,
-				A3726C0CFE3B60786BB21735 /* SupportingFeatureSheets.swift in Sources */,
-				7E2E9B80F93BC2F922864BE8 /* Theme.swift in Sources */,
+				421FC1CB43175A6541B120CE /* HeyTimAppleTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		B7A9224E5AA2A8E096773AEE /* Sources */ = {
+		E830B783FCC7F5096B4E7E6A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				853E67CB6D03337CA85720E9 /* HeyTimAppleTests.swift in Sources */,
+				5F089C561D07918117A5D2F9 /* HeyTimAppleUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		C84698604EF0C73778C687A5 /* PBXTargetDependency */ = {
+		68745DCF71DE070C9B8DA7A8 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = HeyTimApple;
-			target = 27F4F841218FB224E460B379 /* HeyTimApple */;
-			targetProxy = 70DE62CE9157FC66FE1205AE /* PBXContainerItemProxy */;
+			target = C72595966C5D049FD97BB18B /* HeyTimApple */;
+			targetProxy = 8204029A4074D8EA91199526 /* PBXContainerItemProxy */;
 		};
-		FB378230E6577D6354E0BC27 /* PBXTargetDependency */ = {
+		9F8A0BB0247A4570C83A2D9B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = HeyTimApple;
-			target = 27F4F841218FB224E460B379 /* HeyTimApple */;
-			targetProxy = DF6B2171942001CFBAB88F8E /* PBXContainerItemProxy */;
+			target = C72595966C5D049FD97BB18B /* HeyTimApple */;
+			targetProxy = 35415F2EF6A6BC1CF1FDE1C3 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		00EAE2C4B184EF79E3C0375A /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
-				CLANG_CXX_LIBRARY = "libc++";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu11;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				MTL_FAST_MATH = YES;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
-		032D129A5730F0BC1692E987 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ai.heytim.app.uitests;
-				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = 1;
-				TEST_TARGET_NAME = HeyTimApple;
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		27057735A9FAB3DFD12452B0 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "Resources/HeyTim-iOS-Release.entitlements";
-				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "Resources/HeyTim-iOS.entitlements";
-				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "Resources/HeyTim-macOS-Release.entitlements";
-				CURRENT_PROJECT_VERSION = 202609130148;
-				"ENABLE_APP_SANDBOX[sdk=macosx*]" = NO;
-				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				"ENABLE_USER_SCRIPT_SANDBOXING[sdk=iphoneos*]" = NO;
-				"ENABLE_USER_SCRIPT_SANDBOXING[sdk=macosx*]" = NO;
-				"HEYTIM_SPARKLE_FEED_URL[sdk=macosx*]" = "https://github.com/tmoreton/heytim/releases/latest/download/appcast.xml";
-				"HEYTIM_SPARKLE_PUBLIC_KEY[sdk=macosx*]" = "bh9EUBu0gc+V/RonsZAGbcF+/uwvBCP19T3agE7T83A=";
-				INFOPLIST_FILE = Resources/Info.plist;
-				"INFOPLIST_FILE[sdk=macosx*]" = "Resources/Info-macOS.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "$(inherited) @executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = ai.heytim.app;
-				PRODUCT_MODULE_NAME = HeyTimApple;
-				PRODUCT_NAME = HeyTim;
-				REGISTER_APP_GROUPS = NO;
-				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = 1;
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		4DBE6BEEE82E9214C6BDA97B /* Debug */ = {
+		3ED55BF8784B239478A9EA04 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -571,30 +463,7 @@
 			};
 			name = Debug;
 		};
-		900C172AADE5F6724A800C1B /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ai.heytim.app.tests;
-				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = 1;
-				"TEST_HOST[sdk=iphoneos*]" = "$(BUILT_PRODUCTS_DIR)/HeyTim.app/HeyTim";
-				"TEST_HOST[sdk=iphonesimulator*]" = "$(BUILT_PRODUCTS_DIR)/HeyTim.app/HeyTim";
-				"TEST_HOST[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/HeyTim.app/Contents/MacOS/HeyTim";
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		909EDE05161D1D6710101297 /* Debug */ = {
+		4DFFBA609917D13D73C83ADB /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
@@ -610,10 +479,11 @@
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
 				TEST_TARGET_NAME = HeyTimApple;
+				VALIDATE_PRODUCT = YES;
 			};
-			name = Debug;
+			name = Release;
 		};
-		9F4D9241EE89DD73BC684834 /* Debug */ = {
+		621D2B1DD71CE3FC7C1E6EB4 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -674,7 +544,141 @@
 			};
 			name = Debug;
 		};
-		BCF784A963A1895382A8EBA7 /* Debug */ = {
+		A60926AAB51B3E0505102812 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "Resources/HeyTim-iOS-Release.entitlements";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "Resources/HeyTim-iOS.entitlements";
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "Resources/HeyTim-macOS-Release.entitlements";
+				CURRENT_PROJECT_VERSION = 202609130148;
+				"ENABLE_APP_SANDBOX[sdk=macosx*]" = NO;
+				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				"ENABLE_USER_SCRIPT_SANDBOXING[sdk=iphoneos*]" = NO;
+				"ENABLE_USER_SCRIPT_SANDBOXING[sdk=macosx*]" = NO;
+				"HEYTIM_SPARKLE_FEED_URL[sdk=macosx*]" = "https://github.com/tmoreton/heytim/releases/latest/download/appcast.xml";
+				"HEYTIM_SPARKLE_PUBLIC_KEY[sdk=macosx*]" = "bh9EUBu0gc+V/RonsZAGbcF+/uwvBCP19T3agE7T83A=";
+				INFOPLIST_FILE = Resources/Info.plist;
+				"INFOPLIST_FILE[sdk=macosx*]" = "Resources/Info-macOS.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.heytim.app;
+				PRODUCT_MODULE_NAME = HeyTimApple;
+				PRODUCT_NAME = HeyTim;
+				REGISTER_APP_GROUPS = NO;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		C7286E8F7D99926E51FDA57D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.heytim.app.uitests;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = HeyTimApple;
+			};
+			name = Debug;
+		};
+		C9EC6F5FB0DE82E64432FEDC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		EE9E396C346D22446FA1D52C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.heytim.app.tests;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				"TEST_HOST[sdk=iphoneos*]" = "$(BUILT_PRODUCTS_DIR)/HeyTim.app/HeyTim";
+				"TEST_HOST[sdk=iphonesimulator*]" = "$(BUILT_PRODUCTS_DIR)/HeyTim.app/HeyTim";
+				"TEST_HOST[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/HeyTim.app/Contents/MacOS/HeyTim";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		FA3C840ED9C3B0042457B7A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -699,38 +703,38 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		05DFF2629A4F38DFBD8A55D5 /* Build configuration list for PBXNativeTarget "HeyTimAppleUITests" */ = {
+		11EB2EEDDB30BDA954645C4C /* Build configuration list for PBXProject "HeyTimApple" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				032D129A5730F0BC1692E987 /* Release */,
-				909EDE05161D1D6710101297 /* Debug */,
+				621D2B1DD71CE3FC7C1E6EB4 /* Debug */,
+				C9EC6F5FB0DE82E64432FEDC /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		24E99DDCC44FF0DA757478E7 /* Build configuration list for PBXNativeTarget "HeyTimApple" */ = {
+		60E98988A7E5EBB7CA532B57 /* Build configuration list for PBXNativeTarget "HeyTimAppleTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				27057735A9FAB3DFD12452B0 /* Release */,
-				4DBE6BEEE82E9214C6BDA97B /* Debug */,
+				EE9E396C346D22446FA1D52C /* Release */,
+				FA3C840ED9C3B0042457B7A1 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		814C1C3CF6A0DE2DEF414F97 /* Build configuration list for PBXProject "HeyTimApple" */ = {
+		70B6C4D6D2C5A78D210543C8 /* Build configuration list for PBXNativeTarget "HeyTimApple" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				9F4D9241EE89DD73BC684834 /* Debug */,
-				00EAE2C4B184EF79E3C0375A /* Release */,
+				A60926AAB51B3E0505102812 /* Release */,
+				3ED55BF8784B239478A9EA04 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		BE29B3A05261E24E7D4B919D /* Build configuration list for PBXNativeTarget "HeyTimAppleTests" */ = {
+		AADB807FF9C0FD4623BA2FF7 /* Build configuration list for PBXNativeTarget "HeyTimAppleUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				900C172AADE5F6724A800C1B /* Release */,
-				BCF784A963A1895382A8EBA7 /* Debug */,
+				4DFFBA609917D13D73C83ADB /* Release */,
+				C7286E8F7D99926E51FDA57D /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -738,14 +742,22 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		A77EEA702B690A40D4B8D07B /* XCLocalSwiftPackageReference "heytim-transcription" */ = {
+		2D3495C130BE216A1E190A04 /* XCLocalSwiftPackageReference "heytim-transcription" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "../../packages/heytim-transcription";
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		95F2CD3ADC7E47E9F990A0D5 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+		306F318A6EF48CF3A3F6067E /* XCRemoteSwiftPackageReference "FluidUse" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/FluidInference/FluidUse.git";
+			requirement = {
+				kind = revision;
+				revision = e9e95935075b626a203bb20c0645975be23f15b1;
+			};
+		};
+		E26D9574137A9DF1DAD453F1 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle.git";
 			requirement = {
@@ -756,17 +768,22 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		2D60B4DBEE697BDB2608D380 /* Sparkle */ = {
+		87F4F457F076502B20D9316C /* HeyTimParakeet */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 95F2CD3ADC7E47E9F990A0D5 /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
+			package = 2D3495C130BE216A1E190A04 /* XCLocalSwiftPackageReference "heytim-transcription" */;
+			productName = HeyTimParakeet;
 		};
-		902EAFC6D5AFF50429697AF8 /* HeyTimNemotron */ = {
+		B9F7592084C72D04440D45B8 /* FluidUse */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A77EEA702B690A40D4B8D07B /* XCLocalSwiftPackageReference "heytim-transcription" */;
-			productName = HeyTimNemotron;
+			package = 306F318A6EF48CF3A3F6067E /* XCRemoteSwiftPackageReference "FluidUse" */;
+			productName = FluidUse;
+		};
+		F53CF83224FFE196C54C91FA /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E26D9574137A9DF1DAD453F1 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = E236E9154443C9481F08C7BB /* Project object */;
+	rootObject = 85392F6805591090FA045380 /* Project object */;
 }

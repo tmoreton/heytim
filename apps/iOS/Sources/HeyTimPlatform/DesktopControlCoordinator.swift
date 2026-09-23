@@ -1,6 +1,7 @@
 #if os(macOS)
   import AppKit
   import ApplicationServices
+  import FluidUse
   import Foundation
   import Observation
 
@@ -20,7 +21,7 @@
   struct DesktopSnapshot: Equatable, Sendable {
     let application: DesktopApplication
     let windowTitle: String
-    let summary: String
+    let capturedAt: Date
     let controls: [DesktopControlSummary]
   }
 
@@ -34,6 +35,7 @@
   @MainActor @Observable
   final class DesktopControlCoordinator {
     enum ChatPreparation {
+      case automaticAction
       case proposal
       case clarification(String)
       case unavailable
@@ -82,6 +84,7 @@
     var permissionMessage: String?
 
     @ObservationIgnored private var elements: [String: AXUIElement] = [:]
+    @ObservationIgnored private var layaLoading: Task<LayaManager?, Never>?
     init() {
       refreshApplications()
     }
@@ -135,7 +138,9 @@
         }
         pendingNoteText = noteText
         proposal = .init(control: control, reason: "Review the exact note before it is created.")
-        return .proposal
+        return Self.canAutoExecute(
+          intent: intent, control: control, application: application, noteText: noteText)
+          ? .automaticAction : .proposal
       }
       capture()
       guard let request = Self.visibleControlRequest(intent) else { return .unavailable }
@@ -145,6 +150,16 @@
       } ?? []
       if matches.count == 1, let control = matches.first {
         proposal = .init(control: control, reason: "Review this exact visible control before it is pressed.")
+        if Self.canAutoExecute(
+          intent: intent, control: control, application: application, noteText: nil)
+        {
+          return .automaticAction
+        }
+      } else if matches.isEmpty, let captured = snapshot,
+        let control = await layaCandidate(for: request.control, in: captured),
+        isEnabled, permissionGranted, snapshot == captured
+      {
+        proposal = .init(control: control, reason: "Laya matched this visible control. Review the exact action before it is pressed.")
       } else {
         return .clarification("I couldn’t find one matching, safe control in that app’s focused window. Bring the window forward and try again.")
       }
@@ -268,28 +283,28 @@
       }
 
       let root = AXUIElementCreateApplication(application.id)
+      AXUIElementSetMessagingTimeout(root, 1.0)
       let window = activeWindow(in: root)
       let windowTitle = stringAttribute(kAXTitleAttribute, from: window) ?? "Untitled window"
-      var lines: [String] = []
       var controls: [DesktopControlSummary] = []
       var resolved: [String: AXUIElement] = [:]
       var visited = 0
       walk(
-        window, depth: 0, visited: &visited, lines: &lines,
+        window, depth: 0, visited: &visited,
         controls: &controls, resolved: &resolved)
 
       elements = resolved
       snapshot = DesktopSnapshot(
         application: application,
         windowTitle: Self.clean(windowTitle, limit: 100),
-        summary: lines.prefix(80).joined(separator: "\n"),
+        capturedAt: Date(),
         controls: Array(controls.prefix(60)))
       if controls.isEmpty {
         message = "No pressable controls were found in the focused window."
       }
     }
 
-    /// Only well-scoped imperative requests can take the local approval path.
+    /// Only well-scoped imperative requests can take the local action path.
     /// Questions, negation, and ambiguous requests stay in the ordinary bot flow.
     static func shouldOfferDesktopAction(for text: String) -> Bool {
       noteCreationCandidate(text) || visibleControlRequest(text) != nil
@@ -332,7 +347,116 @@
       return nil
     }
 
-    func executeApprovedProposal() async -> String {
+    /// A model score never authorizes an action. Automatic execution requires
+    /// an exact, unique UI match for a narrow low-impact request instead.
+    static func canAutoExecute(
+      intent: String, control: DesktopControlSummary,
+      application: DesktopApplication, noteText: String?
+    ) -> Bool {
+      guard control.role == (kAXButtonRole as String),
+        !control.blockedByPolicy, !isHighImpact(label: control.label)
+      else { return false }
+      if let noteText {
+        return application.bundleIdentifier == "com.apple.Notes"
+          && control.label.localizedCaseInsensitiveCompare("New Note") == .orderedSame
+          && noteCreationCandidate(intent)
+          && noteContent(from: intent) == noteText
+      }
+      guard let request = visibleControlRequest(intent),
+        request.app.localizedCaseInsensitiveCompare(application.name) == .orderedSame,
+        request.control.localizedCaseInsensitiveCompare(control.label) == .orderedSame
+      else { return false }
+      let label = control.label.lowercased()
+      return ["next", "previous", "back", "forward", "expand", "collapse"].contains(label)
+        || ["show ", "view ", "expand ", "collapse "].contains { label.hasPrefix($0) }
+    }
+
+    private func localModel() async -> LayaManager? {
+      if let layaLoading { return await layaLoading.value }
+      let task = Task<LayaManager?, Never> {
+        guard let directory = Bundle.main.resourceURL?.appendingPathComponent(
+          "laya-coreml", isDirectory: true),
+          FileManager.default.fileExists(
+            atPath: directory.appendingPathComponent("tokenizer.json").path)
+        else { return nil }
+        return try? await LayaManager.load(
+          from: directory, configuration: .init(lengths: [128], precision: "e8"))
+      }
+      layaLoading = task
+      return await task.value
+    }
+
+    func homeAssistantHint(for request: String) async -> HomeAssistantRouteHint? {
+      let text = request.trimmingCharacters(in: .whitespacesAndNewlines)
+      let lower = text.lowercased()
+      guard text.count <= 180, !text.contains("\n"),
+        lower.hasPrefix("turn ") || lower.hasPrefix("please turn ") || lower.hasPrefix("is "),
+        let model = await localModel()
+      else { return nil }
+      let options = [
+        LayaQuestion.Choice("turn_on", description: "Turn on one named home device"),
+        LayaQuestion.Choice("turn_off", description: "Turn off one named home device"),
+        LayaQuestion.Choice("read_state", description: "Check whether one named home device is on"),
+        LayaQuestion.Choice("main_model", description: "Anything else or uncertain")
+      ]
+      let question = LayaQuestion.choice(
+        "Which Home Assistant action does this request ask for? Choose main_model if unclear.",
+        options: options)
+      guard let answer = try? await model.answer(state: "request: \(text)", question: question),
+        answer.selectedLabel != "main_model", answer.tokenCount < answer.bucketLength,
+        !answer.stateWasTruncated,
+        answer.confidence >= (answer.selectedLabel == "read_state" ? 0.20 : 0.85),
+        answer.actionProbability >= 0.95
+      else { return nil }
+      return HomeAssistantRouteHint(
+        selectedLabel: answer.selectedLabel,
+        confidence: Double(answer.confidence),
+        actionProbability: Double(answer.actionProbability), truncated: false)
+    }
+
+    private func layaCandidate(
+      for requestedControl: String, in captured: DesktopSnapshot
+    ) async -> DesktopControlSummary? {
+      let candidates = Self.layaCandidates(
+        for: requestedControl, from: captured.controls)
+      guard !candidates.isEmpty, let model = await localModel() else { return nil }
+      let options = candidates.map {
+        LayaQuestion.Choice($0.id, description: Self.clean($0.label, limit: 36))
+      } + [LayaQuestion.Choice("main_model", description: "No clear safe match")]
+      let question = LayaQuestion.choice(
+        "Which visible control matches the requested click? Choose main_model if unclear.",
+        options: options)
+      guard let answer = try? await model.answer(
+        state: "request: \(Self.clean(requestedControl, limit: 72))",
+        question: question),
+        !answer.stateWasTruncated,
+        answer.actionProbability >= 0.85,
+        answer.confidence >= 0.80,
+        answer.tokenCount < answer.bucketLength
+      else { return nil }
+      return candidates.first { $0.id == answer.selectedLabel }
+    }
+
+    static func layaCandidates(
+      for requestedControl: String, from controls: [DesktopControlSummary]
+    ) -> [DesktopControlSummary] {
+      let requestedWords = Set(requestedControl.lowercased().split(whereSeparator: {
+        !$0.isLetter && !$0.isNumber
+      }).map(String.init).filter { $0.count >= 3 })
+      guard !requestedWords.isEmpty else { return [] }
+      let candidates = controls.filter { control in
+        guard !control.blockedByPolicy else { return false }
+        let labelWords = Set(control.label.lowercased().split(whereSeparator: {
+          !$0.isLetter && !$0.isNumber
+        }).map(String.init))
+        return !requestedWords.isDisjoint(with: labelWords)
+      }
+      // A short, complete candidate list avoids silently truncating the model's
+      // 128-token input or hiding another matching control from the user.
+      return (1...4).contains(candidates.count) ? candidates : []
+    }
+
+    func executePreparedAction() async -> String {
       guard isEnabled, AXIsProcessTrusted(),
         let control = proposal?.control, !control.blockedByPolicy,
         let element = elements[control.id],
@@ -344,6 +468,19 @@
         proposal = nil
         message = "The app or control changed. Capture a fresh snapshot before trying again."
         return message ?? "Mac app action was not completed."
+      }
+      var elementPID: pid_t = 0
+      guard let captured = snapshot,
+        Date().timeIntervalSince(captured.capturedAt) < 60,
+        AXUIElementGetPid(element, &elementPID) == .success,
+        elementPID == application.id,
+        boolAttribute(kAXEnabledAttribute, from: element) != false,
+        actionNames(element).contains(kAXPressAction as String),
+        !Self.isHighImpact(label: control.label)
+      else {
+        proposal = nil
+        pendingNoteText = nil
+        return "The control changed or the review expired. Ask again for a fresh action."
       }
       let root = AXUIElementCreateApplication(application.id)
       let focusedWindow = activeWindow(in: root)
@@ -391,7 +528,7 @@
         message = "Opened a new note, but macOS did not allow Hey Tim to enter its text. Check Apple Notes before retrying."
         return message ?? "The note text could not be entered."
       }
-      message = "Approved action completed: \(control.label)."
+      message = "Mac app action completed: \(control.label)."
       return message ?? "Mac app action completed."
     }
 
@@ -408,32 +545,34 @@
     }
 
     static func isHighImpact(label: String) -> Bool {
-      let normalized = label.lowercased()
-      let blocked = [
+      let words = Set(label.lowercased().components(
+        separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty })
+      let blocked: Set<String> = [
         "allow", "approve", "buy", "checkout", "confirm", "delete", "erase",
         "grant", "install", "ok", "pay", "post", "publish", "purchase",
-        "remove", "send", "share", "submit", "transfer", "yes",
+        "remove", "reply", "reset", "save", "send", "share", "submit",
+        "transfer", "yes",
       ]
-      return blocked.contains { normalized == $0 || normalized.contains("\($0) ") || normalized.contains(" \($0)") }
+      return !words.isDisjoint(with: blocked)
     }
 
     private func walk(
       _ element: AXUIElement,
       depth: Int,
       visited: inout Int,
-      lines: inout [String],
       controls: inout [DesktopControlSummary],
       resolved: inout [String: AXUIElement]
     ) {
       guard depth <= 7, visited < 180, controls.count < 60 else { return }
       visited += 1
       let role = stringAttribute(kAXRoleAttribute, from: element) ?? "element"
+      // Secure fields are never included in the model's candidate tree.
+      guard role != "AXSecureTextField", boolAttribute("AXVisible", from: element) != false else {
+        return
+      }
       let label = stringAttribute(kAXTitleAttribute, from: element)
         ?? stringAttribute(kAXDescriptionAttribute, from: element)
         ?? stringAttribute(kAXHelpAttribute, from: element)
-      if let label, !label.isEmpty {
-        lines.append("\(role): \(Self.clean(label, limit: 100))")
-      }
 
       if role == (kAXButtonRole as String),
         boolAttribute(kAXEnabledAttribute, from: element) != false,
@@ -455,7 +594,7 @@
         + children.filter { stringAttribute(kAXRoleAttribute, from: $0) != "AXToolbar" }
       for child in ordered {
         walk(
-          child, depth: depth + 1, visited: &visited, lines: &lines,
+          child, depth: depth + 1, visited: &visited,
           controls: &controls, resolved: &resolved)
       }
     }

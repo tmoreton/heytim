@@ -787,7 +787,7 @@ struct BotToolsAndSkillsEditor: View {
             })) {
               VStack(alignment: .leading, spacing: 3) {
                 Text("Mac app actions")
-                Text("Let this bot create Apple Notes or press an exact visible control in a Mac app. Every action requires your approval.")
+                Text("Let this bot create Apple Notes or press a visible control in a Mac app. Exact low-risk actions run immediately; uncertain actions ask for approval.")
                   .froggyFont(.caption).foregroundStyle(.secondary)
               }
             }
@@ -856,6 +856,7 @@ struct BotToolsAndSkillsEditor: View {
       teamsChannelText = draft.teamsChannelAccess.mapValues { $0.joined(separator: ", ") }
       resourceText = draft.resourceAccess.mapValues { $0.joined(separator: ", ") }
     }
+    .task { _ = await model.refreshBootstrap() }
   }
 
   @ViewBuilder private func capabilityToggle(

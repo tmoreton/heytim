@@ -514,6 +514,7 @@ private struct ConversationView: View {
   @State private var inspectorSelection: ConversationSelection?
   var isCoveredByFeature = false
   @State private var importing = false
+  @State private var classifyingHomeRequest = false
   @State private var showDelete = false
   @State private var showClear = false
   @State private var previewURL: URL?
@@ -624,7 +625,33 @@ private struct ConversationView: View {
           composerFocused: $composerFocused,
           onSubmit: {
             scheduleScrollToBottom(using: proxy, animated: true)
-            Task { await model.send() }
+            #if os(macOS)
+              guard !classifyingHomeRequest else { return }
+              let draft = model.composerText.trimmingCharacters(in: .whitespacesAndNewlines)
+              let destination = model.selection
+              let homeToolEnabled = model.selectedBot.map { bot in
+                model.bootstrap?.tools.contains {
+                  $0.provider == "home_assistant" && bot.toolIds.contains($0.id)
+                } == true
+              } == true
+              if homeToolEnabled, !draft.isEmpty,
+                model.pendingAttachments.isEmpty, model.pendingWorkspaceFiles.isEmpty
+              {
+                classifyingHomeRequest = true
+                Task {
+                  let hint = await desktopControl.homeAssistantHint(for: draft)
+                  defer { classifyingHomeRequest = false }
+                  guard model.selection == destination,
+                    model.composerText.trimmingCharacters(in: .whitespacesAndNewlines) == draft
+                  else { return }
+                  await model.send(homeAssistantHint: hint)
+                }
+              } else {
+                Task { await model.send() }
+              }
+            #else
+              Task { await model.send() }
+            #endif
           },
           onDesktopAction: { intent in
             #if os(macOS)
@@ -783,6 +810,31 @@ private struct ConversationView: View {
       case .unavailable:
         await model.send()
         return
+      case .automaticAction:
+        guard let botID = selection?.id, desktopControl.isEnabled(for: botID) else {
+          appendLocalDesktopResponse(
+            intent: intent,
+            response: "Mac app actions are no longer enabled for this bot.",
+            status: "error")
+          return
+        }
+        let now = ISO8601DateFormatter().string(from: Date())
+        let resultID = UUID().uuidString
+        localDesktopMessages.append(
+          ChatMessage(
+            id: UUID().uuidString, role: "user", text: intent,
+            createdAt: now, status: "complete"))
+        localDesktopMessages.append(
+          ChatMessage(
+            id: resultID, role: "assistant", text: "Running Mac app action…",
+            createdAt: now, status: "running"))
+        model.composerText = ""
+        let result = await desktopControl.executePreparedAction()
+        finishDesktopAction(
+          resultID, result: result,
+          succeeded: result.hasPrefix("Created the note")
+            || result.hasPrefix("Mac app action completed"))
+        return
       case .proposal:
         break
       }
@@ -834,11 +886,11 @@ private struct ConversationView: View {
       }
       localDesktopMessages[index].status = "running"
       localDesktopMessages[index].allowedActions = nil
-      let result = await desktopControl.executeApprovedProposal()
+      let result = await desktopControl.executePreparedAction()
       finishDesktopAction(
         id, result: result,
         succeeded: result.hasPrefix("Created the note")
-          || result.hasPrefix("Approved action completed"))
+          || result.hasPrefix("Mac app action completed"))
     }
 
     private func finishDesktopAction(_ id: String, result: String, succeeded: Bool) {
@@ -1911,8 +1963,16 @@ private struct Composer: View {
     .onChange(of: dictation.isRecording) { wasRecording, isRecording in
       guard wasRecording && !isRecording else { return }
       let transcript = dictation.consumeTranscript()
-      if !transcript.isEmpty, dictationSelection == model.selection, !model.isSending {
-        model.composerText = dictationPrefix + transcript
+      if !transcript.isEmpty, let target = dictationSelection,
+        target == model.selection, !model.isSending
+      {
+        let inlineLimit = max(
+          0, model.constraints.messageMaxLength - dictationPrefix.count)
+        if transcript.count <= inlineLimit {
+          model.composerText = dictationPrefix + transcript
+        } else {
+          attachLongMeetingTranscript(transcript, to: target)
+        }
       }
       dictationSelection = nil
       dictationPrefix = model.composerText
@@ -2318,6 +2378,40 @@ private struct Composer: View {
     dictationSelection = nil
     dictation.cancel()
     dictationPrefix = ""
+  }
+
+  private func attachLongMeetingTranscript(
+    _ transcript: String, to target: ConversationSelection
+  ) {
+    let request = dictationPrefix.trimmingCharacters(in: .whitespacesAndNewlines)
+    model.composerText = request.isEmpty
+      ? "Turn the attached meeting transcript into concise notes, a summary outline, decisions, action items with stated owners and dates, and open questions. Separate confirmed facts from uncertain transcription. Then ask which durable takeaways I want saved to bot context."
+      : request
+
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("HeyTim-Meeting-\(UUID().uuidString)", isDirectory: true)
+    let file = directory.appendingPathComponent("Meeting Transcript.txt")
+    let header = """
+      HeyTim on-device meeting transcript
+      Recorded: \(Date().formatted(.iso8601))
+      Model: NVIDIA Parakeet TDT 0.6B v3
+
+      """
+    do {
+      try FileManager.default.createDirectory(
+        at: directory, withIntermediateDirectories: true)
+      try (header + transcript).write(to: file, atomically: true, encoding: .utf8)
+    } catch {
+      model.composerText = dictationPrefix + transcript
+      dictation.errorMessage =
+        "The long transcript could not be attached. It remains in the message field so you can copy it."
+      return
+    }
+
+    Task { @MainActor in
+      defer { try? FileManager.default.removeItem(at: directory) }
+      await model.upload(urls: [file], for: target)
+    }
   }
 
   @MainActor private func importPhotos(
