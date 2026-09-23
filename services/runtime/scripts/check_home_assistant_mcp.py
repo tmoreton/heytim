@@ -16,6 +16,21 @@ from mcp import ClientSession
 from mcp.shared.exceptions import McpError
 
 from heytim_runtime.mcp_connections import _secure_streamable_http, _validated_endpoint
+from heytim_runtime.home_assistant_decisions import assist_action_catalog
+
+
+def assist_capabilities(names: set[str]) -> dict[str, bool]:
+    """Report only known Assist capabilities; never infer a callable tool name."""
+    def has_tool(expected: str) -> bool:
+        return expected in names or any(
+            name.endswith(f"__{expected}") for name in names
+        )
+
+    return {
+        "read current state": has_tool("GetLiveContext") or has_tool("HassGetState"),
+        "turn on": has_tool("HassTurnOn"),
+        "turn off": has_tool("HassTurnOff"),
+    }
 
 
 def assist_endpoint(instance_url: str) -> str:
@@ -34,23 +49,22 @@ async def check(endpoint: str, token: str) -> None:
     ) as streams, ClientSession(streams[0], streams[1]) as session:
         await session.initialize()
         names: set[str] = set()
+        tools = []
         cursor: str | None = None
         for _ in range(10):
             page = await session.list_tools(cursor=cursor)
             names.update(tool.name for tool in page.tools)
+            tools.extend(page.tools)
             cursor = page.nextCursor
             if not cursor:
                 break
         else:
             raise ValueError("Assist MCP tool listing exceeded ten pages")
         print(f"Assist MCP handshake succeeded; {len(names)} tools listed.")
-        for action, suffix in (
-            ("turn on", "HassTurnOn"),
-            ("turn off", "HassTurnOff"),
-            ("read live context", "GetLiveContext"),
-        ):
-            available = any(name.endswith(suffix) for name in names)
+        for action, available in assist_capabilities(names).items():
             print(f"{action}: {'available' if available else 'not exposed'}")
+        catalog = assist_action_catalog(tools)
+        print(f"Schema-bearing action candidates: {', '.join(sorted(catalog)) or 'none'}")
         try:
             resources = await session.list_resources()
         except McpError:

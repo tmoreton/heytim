@@ -155,6 +155,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
                 {key: decision[key] for key in ("id", "digest", "toolUseId")}
                 if decision and not turn.get("runtimeResult") else None
             ),
+            home_assistant_hint=turn.get("homeAssistantHint"),
         )
         record_invocation_usage(
             user_id,

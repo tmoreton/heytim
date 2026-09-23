@@ -23,6 +23,16 @@ def test_assist_endpoint_accepts_only_instance_or_assist_path(monkeypatch) -> No
         health.assist_endpoint("https://home.example.com?token=secret")
 
 
+def test_assist_capabilities_require_exact_discovered_tool_names() -> None:
+    assert health.assist_capabilities({
+        "assist__HassGetState", "HassTurnOn", "NotHassTurnOff",
+    }) == {
+        "read current state": True,
+        "turn on": True,
+        "turn off": False,
+    }
+
+
 def test_health_check_discovers_tools_without_calling_any(
     monkeypatch, capsys
 ) -> None:
@@ -52,7 +62,10 @@ def test_health_check_discovers_tools_without_calling_any(
             assert cursor is None
             calls.append("list_tools")
             return SimpleNamespace(
-                tools=[SimpleNamespace(name="assist__HassTurnOff")], nextCursor=None
+                tools=[SimpleNamespace(
+                    name="assist__HassTurnOff",
+                    inputSchema={"type": "object", "properties": {}},
+                )], nextCursor=None
             )
 
         async def list_resources(self):
@@ -70,5 +83,7 @@ def test_health_check_discovers_tools_without_calling_any(
     output = capsys.readouterr().out
     assert "handshake succeeded" in output
     assert "turn off: available" in output
+    assert "read current state: not exposed" in output
+    assert "Schema-bearing action candidates: turn_off" in output
     assert "Context snapshot: available" in output
     assert "private-token" not in output

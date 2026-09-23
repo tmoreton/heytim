@@ -5,6 +5,7 @@ import logging
 import time
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from boto3.dynamodb.conditions import Attr
 from shared.action_grants import approval_grant_digest
@@ -135,6 +136,7 @@ def _start_bot_turn(
     schedule_item: dict | None = None,
     attachments: list[dict] | None = None,
     email_context: dict | None = None,
+    home_assistant_hint: dict | None = None,
 ) -> dict:
     turn_id = str(uuid.uuid4())
     current = _now()
@@ -151,6 +153,8 @@ def _start_bot_turn(
     }
     if attachments:
         item["attachments"] = attachments
+    if home_assistant_hint:
+        item["homeAssistantHint"] = home_assistant_hint
     if email_context:
         item.update(
             {
@@ -335,6 +339,18 @@ def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
     if attachments and isinstance(raw_text, str) and not raw_text.strip():
         raw_text = "Please review the attached files."
     text = _validate_string(raw_text, "text", MESSAGE_MAX_LENGTH)
+    hint = value.get("homeAssistantHint")
+    if hint is not None and (
+        not isinstance(hint, dict)
+        or set(hint) != {"selectedLabel", "confidence", "actionProbability", "truncated"}
+        or hint.get("selectedLabel") not in {"turn_on", "turn_off", "read_state"}
+        or type(hint.get("confidence")) not in (int, float)
+        or type(hint.get("actionProbability")) not in (int, float)
+        or not 0 <= hint["confidence"] <= 1
+        or not 0 <= hint["actionProbability"] <= 1
+        or type(hint.get("truncated")) is not bool
+    ):
+        raise ApiError(400, "Home Assistant route hint is invalid")
     lease_owner = _claim_send_lease(user_id, bot_id)
     try:
         from shared.browser_session_store import BrowserSessionError
@@ -353,6 +369,14 @@ def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
             text,
             attachments=attachments or None,
             email_context=email_context,
+            home_assistant_hint=(
+                {
+                    **hint,
+                    "confidence": Decimal(str(hint["confidence"])),
+                    "actionProbability": Decimal(str(hint["actionProbability"])),
+                }
+                if hint is not None and not attachments else None
+            ),
         )
         if email_context:
             try:
