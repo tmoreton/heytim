@@ -527,6 +527,11 @@ public final class HeyTimAPI: Sendable {
       .homeAssistantConnect,
       body: ["instanceUrl": instanceURL, "accessToken": accessToken])
   }
+  public func connectMCPServer(name: String, url: String, accessToken: String) async throws -> Capability {
+    try await request(
+      .mcpServerConnect,
+      body: ["name": name, "url": url, "accessToken": accessToken])
+  }
   public func connections() async throws -> [Capability] {
     let envelope: ArrayEnvelope<Capability> = try await request(.connectionsList)
     return envelope.values

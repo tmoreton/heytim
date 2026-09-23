@@ -291,6 +291,11 @@ struct ConnectionsView: View {
   @State private var homeAssistantURL = ""
   @State private var homeAssistantToken = ""
   @State private var savingHomeAssistant = false
+  @State private var showingMCPServerSetup = false
+  @State private var mcpServerName = ""
+  @State private var mcpServerURL = ""
+  @State private var mcpServerToken = ""
+  @State private var savingMCPServer = false
   @State private var webAuthentication = WebAuthenticationController()
 
   private var providers: [ConnectionProvider] { model.bootstrap?.connectionProviders ?? [] }
@@ -320,7 +325,7 @@ struct ConnectionsView: View {
     }
     .froggyListSurface()
     #if os(macOS)
-      .froggyNavigationTitle("Connected Accounts")
+      .froggyNavigationTitle("Connections")
     #else
       .navigationTitle("")
     #endif
@@ -362,6 +367,9 @@ struct ConnectionsView: View {
         .overlay { if savingHomeAssistant { ProgressView() } }
       }
       .frame(minWidth: 460, minHeight: 300)
+    }
+    .sheet(isPresented: $showingMCPServerSetup) {
+      mcpServerSetupSheet
     }
     .onChange(of: webAuthentication.outcome) { _, outcome in
       guard let outcome else { return }
@@ -425,6 +433,10 @@ struct ConnectionsView: View {
       showingHomeAssistantSetup = true
       return
     }
+    if id == "mcp_server" {
+      showingMCPServerSetup = true
+      return
+    }
     connectingProviderID = id
     Task {
       do {
@@ -446,6 +458,63 @@ struct ConnectionsView: View {
   private func closeHomeAssistantSetup() {
     homeAssistantToken = ""
     showingHomeAssistantSetup = false
+  }
+
+  private func closeMCPServerSetup() {
+    mcpServerToken = ""
+    showingMCPServerSetup = false
+  }
+
+  private var mcpServerSetupSheet: some View {
+    NavigationStack {
+      Form {
+        Section {
+          TextField("Server name", text: $mcpServerName)
+            .accessibilityIdentifier("connection.mcp.name")
+          TextField("MCP HTTPS URL", text: $mcpServerURL)
+            .autocorrectionDisabled()
+            .accessibilityIdentifier("connection.mcp.url")
+          SecureField("Access token", text: $mcpServerToken)
+            .accessibilityIdentifier("connection.mcp.token")
+        } header: {
+          Text("Add MCP server")
+        } footer: {
+          Text("Use a public HTTPS MCP endpoint you trust. HeyTim stores the token privately. Add as many servers as you need, then enable each one for the bots that should use it. The server controls which tools it exposes.")
+        }
+      }
+      .formStyle(.grouped)
+      .navigationTitle("MCP server")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { closeMCPServerSetup() }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Add server") { saveMCPServer() }
+            .disabled(savingMCPServer || mcpServerName.isEmpty || mcpServerURL.isEmpty || mcpServerToken.isEmpty)
+        }
+      }
+      .overlay { if savingMCPServer { ProgressView() } }
+    }
+    .frame(minWidth: 460, minHeight: 340)
+  }
+
+  private func saveMCPServer() {
+    guard !savingMCPServer else { return }
+    savingMCPServer = true
+    Task {
+      defer { savingMCPServer = false }
+      do {
+        _ = try await model.requireAPI().connectMCPServer(
+          name: mcpServerName.trimmingCharacters(in: .whitespacesAndNewlines),
+          url: mcpServerURL.trimmingCharacters(in: .whitespacesAndNewlines),
+          accessToken: mcpServerToken.trimmingCharacters(in: .whitespacesAndNewlines))
+        closeMCPServerSetup()
+        await load()
+        successMessage = "MCP server added. Enable it in the Tools list for each bot that needs it."
+      } catch {
+        model.present(error)
+      }
+    }
   }
 
   private func saveHomeAssistant() {
@@ -499,7 +568,7 @@ struct ConnectionsView: View {
             connectionRow(connection, provider: provider)
           }
         }
-        Button(provider.id == "github" ? "Add another installation" : "Add another account") {
+        Button(provider.id == "github" ? "Add another installation" : (provider.id == "mcp_server" ? "Add another server" : "Add another account")) {
           connect(provider.id)
         }
         .disabled(connectingProviderID != nil || webAuthentication.isRunning)

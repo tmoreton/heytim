@@ -34,6 +34,7 @@ from .browser_sessions import browser_session_route
 from .connections import (
     _begin_connection_authorization,
     _connect_home_assistant,
+    _connect_mcp_server,
     _connections,
     _delete_connection,
 )
@@ -174,6 +175,8 @@ def _library_route(
         return _response(200, _connections(user_id))
     if method == "POST" and path == "/connections/home-assistant":
         return _response(201, _connect_home_assistant(user_id, _body(event)))
+    if method == "POST" and path == "/connections/mcp-servers":
+        return _response(201, _connect_mcp_server(user_id, _body(event)))
     if method == "POST" and path.endswith("/authorization"):
         return _response(
             200,

@@ -110,12 +110,16 @@ def _validate_mcp_endpoint(value: Any) -> str:
         raise CatalogError("MCP server URL is required")
     clean = value.strip()
     parsed = urllib.parse.urlsplit(clean)
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise CatalogError("MCP server URL has an invalid port") from exc
     if (
         parsed.scheme != "https"
         or not parsed.hostname
         or parsed.username is not None
         or parsed.password is not None
-        or parsed.port not in {None, 443}
+        or port not in {None, 443}
         or parsed.query
         or parsed.fragment
     ):
@@ -293,6 +297,13 @@ def _validate_mcp_binding(value: dict) -> dict:
             "kind": "mcp", "endpoint": endpoint,
             "authType": "home_assistant_token", "secretArn": secret_arn,
         }
+    if auth_type == "bearer_token":
+        if not isinstance(secret_arn, str) or not secret_arn.startswith("arn:aws:secretsmanager:"):
+            raise CatalogError("MCP server credential is invalid")
+        return {
+            "kind": "mcp", "endpoint": endpoint,
+            "authType": "bearer_token", "secretArn": secret_arn,
+        }
     raise CatalogError("Legacy MCP credentials are no longer supported")
 
 
@@ -384,7 +395,10 @@ def _validate_provider_api_binding(value: dict) -> dict:
         or not isinstance(client_secret_arn, str)
         or not client_secret_arn.startswith("arn:aws:secretsmanager:")
         or not isinstance(scopes, list)
-        or set(scopes) != expected
+        or (set(scopes) != expected and not (
+            provider == "youtube"
+            and set(scopes) == {"https://www.googleapis.com/auth/youtube.readonly"}
+        ))
         or len(scopes) != len(set(scopes))
     ):
         raise CatalogError("OAuth provider connection is invalid")

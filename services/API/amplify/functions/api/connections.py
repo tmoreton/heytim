@@ -41,7 +41,7 @@ _AUTHORIZATION_HANDLERS: dict[str, AuthorizationHandler] = {
     "zoom": _begin_zoom_authorization,
     "x": _begin_x_authorization,
 }
-if frozenset(_AUTHORIZATION_HANDLERS) | {"home_assistant"} != SUPPORTED_CONNECTION_PROVIDER_IDS:
+if frozenset(_AUTHORIZATION_HANDLERS) | {"home_assistant", "mcp_server"} != SUPPORTED_CONNECTION_PROVIDER_IDS:
     raise RuntimeError("Every visible connection provider must have an authorization adapter")
 
 
@@ -53,6 +53,15 @@ def _connect_home_assistant(user_id: str, value: dict) -> dict:
     try:
         return catalog.save_home_assistant_connection(
             user_id, value.get("instanceUrl"), value.get("accessToken")
+        )
+    except CatalogError as exc:
+        raise ApiError(400, str(exc)) from exc
+
+
+def _connect_mcp_server(user_id: str, value: dict) -> dict:
+    try:
+        return catalog.save_mcp_server_connection(
+            user_id, value.get("name"), value.get("url"), value.get("accessToken")
         )
     except CatalogError as exc:
         raise ApiError(400, str(exc)) from exc

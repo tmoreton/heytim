@@ -25,8 +25,9 @@ GMAIL_SCOPES = (
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.compose",
 )
-YOUTUBE_SCOPES = ("https://www.googleapis.com/auth/youtube.readonly",)
+YOUTUBE_SCOPES = ("openid", "email", "https://www.googleapis.com/auth/youtube.readonly")
 YOUTUBE_CHANNELS_URL = "https://www.googleapis.com/youtube/v3/channels"
+GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 GOOGLE_WORKSPACE_SCOPES = (
     "https://www.googleapis.com/auth/drive.readonly",
     "https://www.googleapis.com/auth/documents.readonly",
@@ -252,7 +253,7 @@ def _gmail_profile(access_token: str, deadline: float) -> str:
     return email
 
 
-def _youtube_channel(access_token: str, deadline: float) -> tuple[str, str]:
+def _youtube_channel(access_token: str, deadline: float) -> tuple[str, str] | None:
     query = urllib.parse.urlencode(
         {"part": "id,snippet", "mine": "true", "maxResults": "1"}
     )
@@ -272,6 +273,8 @@ def _youtube_channel(access_token: str, deadline: float) -> tuple[str, str]:
     snippet = channel.get("snippet") if isinstance(channel, dict) else None
     channel_id = channel.get("id") if isinstance(channel, dict) else None
     title = snippet.get("title") if isinstance(snippet, dict) else None
+    if not items:
+        return None
     if (
         not isinstance(channel_id, str)
         or not channel_id
@@ -280,6 +283,25 @@ def _youtube_channel(access_token: str, deadline: float) -> tuple[str, str]:
     ):
         raise ApiError(400, "The Google account does not have a YouTube channel")
     return channel_id, title.strip()[:100]
+
+
+def _google_userinfo(access_token: str, deadline: float) -> tuple[str, str]:
+    request = urllib.request.Request(
+        GOOGLE_USERINFO_URL,
+        headers={"authorization": f"Bearer {access_token}"},
+    )
+    try:
+        with urllib.request.urlopen(  # nosec B310 - fixed Google OIDC endpoint.
+            request, timeout=_remaining_timeout(deadline)
+        ) as response:
+            value = json.loads(response.read(100_001).decode("utf-8"))
+    except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        raise ApiError(400, "Google could not verify the YouTube account") from exc
+    subject = value.get("sub") if isinstance(value, dict) else None
+    email = value.get("email") if isinstance(value, dict) else None
+    if not isinstance(subject, str) or not subject or not isinstance(email, str) or "@" not in email:
+        raise ApiError(400, "Google could not verify the YouTube account")
+    return subject, email[:100]
 
 
 def _google_workspace_account(access_token: str, deadline: float) -> tuple[str, str]:
@@ -355,6 +377,8 @@ def _google_callback(query: dict) -> dict:
         refresh_token = token.get("refresh_token")
         granted = set(str(token.get("scope", "")).split())
         required_scopes = set(GOOGLE_PROVIDER_SCOPES[provider])
+        if provider == "youtube" and "https://www.googleapis.com/auth/userinfo.email" in granted:
+            granted = (granted - {"https://www.googleapis.com/auth/userinfo.email"}) | {"email"}
         if granted != required_scopes:
             raise ApiError(400, f"{provider.title()} requested access is required")
         if not isinstance(access_token, str) or not isinstance(refresh_token, str):
@@ -370,7 +394,8 @@ def _google_callback(query: dict) -> dict:
                 client_secret_arn,
             )
         elif provider == "youtube":
-            channel_id, account = _youtube_channel(access_token, deadline)
+            channel = _youtube_channel(access_token, deadline)
+            channel_id, account = channel if channel else _google_userinfo(access_token, deadline)
             persistence_attempted = True
             catalog.save_oauth_api_connection(
                 state["userId"],

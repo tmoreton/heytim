@@ -819,11 +819,6 @@ struct BotToolsAndSkillsEditor: View {
         ForEach(providerToolGroups.ungrouped) { tool in
           toolToggle(tool)
         }
-        ForEach(providers.filter { provider in
-          provider.familyId == nil && !tools.contains { $0.provider == provider.id }
-        }) { provider in
-          connectionLink(provider)
-        }
         #if os(iOS)
         if tools.isEmpty && providers.isEmpty {
           ContentUnavailableView("No Tools", systemImage: "wrench.and.screwdriver")

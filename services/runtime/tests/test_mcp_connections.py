@@ -54,6 +54,39 @@ def test_home_assistant_binding_requires_assist_path_and_private_secret(monkeypa
     assert mcp_connections._home_assistant_access_token(binding) == "a" * 47 + "="
 
 
+def test_generic_mcp_server_uses_its_own_private_bearer_token(monkeypatch) -> None:
+    monkeypatch.setattr(mcp_connections.socket, "getaddrinfo", _public_address)
+    secret = (
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+        "heytim/connections/abcdef1234567890abcdef12/"
+        "connection_1234567890abcdef1234-abcdef123456-ABC123"
+    )
+    binding = mcp_connections.validated_connection_binding(
+        "connection_1234567890abcdef1234",
+        {"endpoint": "https://planning.example.com/mcp", "authType": "bearer_token", "secretArn": secret},
+    )
+
+    class FakeSecrets:
+        def get_secret_value(self, *, SecretId: str) -> dict:
+            assert SecretId == secret
+            return {"SecretString": json.dumps({"accessToken": "p" * 48})}
+
+    monkeypatch.setattr(mcp_connections, "_secrets_manager", FakeSecrets())
+    assert mcp_connections._mcp_access_token(binding) == "p" * 48
+    captured = {}
+
+    def fake_client(transport, **options):
+        captured["transport"] = transport
+        captured["options"] = options
+        return object()
+
+    monkeypatch.setattr(mcp_connections, "BoundedMCPClient", fake_client)
+    mcp_connections.connection_client(binding)
+    assert captured["transport"].args == (
+        "https://planning.example.com/mcp", {"Authorization": "Bearer " + "p" * 48}
+    )
+
+
 @lru_cache(maxsize=1)
 def _test_private_key() -> str:
     key = rsa.generate_private_key(public_exponent=65_537, key_size=2_048)

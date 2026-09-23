@@ -27,7 +27,10 @@ def validated_provider_binding(tool_id: str, runtime: dict) -> dict:
         or not expected_client_pattern.fullmatch(client_secret_arn)
         or not isinstance(scopes, list)
         or len(scopes) != len(set(scopes))
-        or set(scopes) != expected_scopes
+        or (set(scopes) != expected_scopes and not (
+            provider == "youtube"
+            and set(scopes) == {"https://www.googleapis.com/auth/youtube.readonly"}
+        ))
     ):
         raise ValueError(f"OAuth provider connection is invalid: {tool_id}")
     site_id = runtime.get("siteId")
@@ -108,5 +111,4 @@ def validated_provider_binding(tool_id: str, runtime: dict) -> dict:
         ),
         **({"resourceIds": resource_ids} if resource_ids is not None else {}),
     }
-
 

@@ -118,6 +118,7 @@
 
     { "id": "connectionsList", "method": "GET", "path": "/connections", "access": "authenticated", "handler": "library" },
     { "id": "homeAssistantConnect", "method": "POST", "path": "/connections/home-assistant", "access": "authenticated", "handler": "library" },
+    { "id": "mcpServerConnect", "method": "POST", "path": "/connections/mcp-servers", "access": "authenticated", "handler": "library" },
     { "id": "connectionAuthorize", "method": "POST", "path": "/connections/{providerId}/authorization", "access": "authenticated", "handler": "library" },
     { "id": "connectionDelete", "method": "DELETE", "path": "/connections/{connectionId}", "access": "authenticated", "handler": "library" },
 

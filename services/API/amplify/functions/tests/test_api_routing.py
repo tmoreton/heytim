@@ -104,6 +104,21 @@ class ApiRoutingTests(unittest.TestCase):
         self.assertEqual(json.loads(response["body"]), connected)
         connect.assert_called_once_with("user-1", payload)
 
+    def test_mcp_server_connect_uses_authenticated_connection_route(self) -> None:
+        connected = {"id": "connection_mcp", "name": "MCP server"}
+        payload = {"name": "Planning", "url": "https://planning.example.com/mcp", "accessToken": "p" * 48}
+        with patch.object(
+            self.routes, "_connect_mcp_server", return_value=connected
+        ) as connect:
+            response = self.routes.route_authenticated(
+                "user-1", "Tim", "POST", "/connections/mcp-servers", {},
+                {"body": json.dumps(payload)},
+                route_key="POST /connections/mcp-servers",
+            )
+        self.assertEqual(response["statusCode"], 201)
+        self.assertEqual(json.loads(response["body"]), connected)
+        connect.assert_called_once_with("user-1", payload)
+
     def test_api_errors_expose_stable_codes(self) -> None:
         self.assertEqual(self.support.ApiError(409, "Changed").code, "conflict")
         custom = self.support.ApiError(

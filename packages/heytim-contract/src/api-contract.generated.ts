@@ -105,6 +105,7 @@ export const apiContractPaths = {
   "skillShareImport": "/skill-shares/{token}/import",
   "connectionsList": "/connections",
   "homeAssistantConnect": "/connections/home-assistant",
+  "mcpServerConnect": "/connections/mcp-servers",
   "connectionAuthorize": "/connections/{providerId}/authorization",
   "connectionDelete": "/connections/{connectionId}",
   "accountDelete": "/account",

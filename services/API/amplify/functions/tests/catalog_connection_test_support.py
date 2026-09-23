@@ -4,6 +4,38 @@ from shared.catalog import CatalogError
 
 
 class ConnectionCatalogCases:
+    def test_multiple_mcp_servers_are_private_and_independently_assignable(self) -> None:
+        first = self.catalog.save_mcp_server_connection(
+            "owner", "Planning", "https://planning.example.com/mcp", "p" * 48
+        )
+        second = self.catalog.save_mcp_server_connection(
+            "owner", "Research", "https://research.example.com/mcp", "r" * 48
+        )
+        self.assertNotEqual(first["id"], second["id"])
+        self.assertEqual(first["provider"], "mcp_server")
+        self.assertNotIn("p" * 48, repr(first))
+        self.assertNotIn("r" * 48, repr(second))
+        resolved = self.catalog.resolve_tools_for_runtime("owner", [first["id"]])
+        self.assertEqual([tool["id"] for tool in resolved], [first["id"]])
+        self.assertEqual(resolved[0]["runtime"]["authType"], "bearer_token")
+        self.assertEqual(resolved[0]["runtime"]["endpoint"], "https://planning.example.com/mcp")
+        replaced = self.catalog.save_mcp_server_connection(
+            "owner", "Planning updated", "https://planning.example.com/mcp", "n" * 48
+        )
+        self.assertEqual(replaced["id"], first["id"])
+        with self.assertRaises(CatalogError):
+            self.catalog.save_mcp_server_connection(
+                "owner", "Private", "https://127.0.0.1/mcp", "p" * 48
+            )
+        with self.assertRaises(CatalogError):
+            self.catalog.save_mcp_server_connection(
+                "owner", "Malformed", "https://planning.example.com/mcp", "p" * 47 + "\n"
+            )
+        with self.assertRaises(CatalogError):
+            self.catalog.save_mcp_server_connection(
+                "owner", "Malformed", "https://planning.example.com:invalid/mcp", "p" * 48
+            )
+
     def test_home_assistant_connection_is_private_and_bounded_to_assist(self) -> None:
         saved = self.catalog.save_home_assistant_connection(
             "owner", "https://home.example.com", "a" * 48
