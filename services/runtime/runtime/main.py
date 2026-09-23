@@ -6,7 +6,10 @@ from strands_harness import create_harness
 
 from heytim_runtime.action_approval import approval_configuration, pending_approval
 from heytim_runtime.configuration import bot_configuration
-from heytim_runtime.home_assistant_fast_path import maybe_route_home_assistant
+from heytim_runtime.home_assistant_fast_path import (
+    maybe_route_home_assistant,
+    read_state_candidate,
+)
 from heytim_runtime.memory import (
     latest_assistant_text,
     memory_context_from_payload,
@@ -72,8 +75,11 @@ async def run_agent(payload, context):
             }
         }
         return
-    if payload.get("homeAssistantHint") is not None and (resume is None or fast_resume):
-        request = message_text(messages[-1], "user")
+    request = message_text(messages[-1], "user")
+    if (
+        payload.get("homeAssistantHint") is not None
+        or read_state_candidate(request)
+    ) and (resume is None or fast_resume):
         fast_result = None
         if request and len(messages[-1]["content"]) == 1:
             try:

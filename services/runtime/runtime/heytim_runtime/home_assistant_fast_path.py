@@ -29,6 +29,21 @@ _FIELD = re.compile(r"^  (domain|state): (.+)$")
 _SAFE_NAME = re.compile(r"[\w][\w .'-]{0,79}\Z", re.UNICODE)
 _SAFE_STATE = {"on", "off"}
 _ROUTE_LABELS = {"turn_on", "turn_off", "read_state"}
+_READ_STATE_PREFIX = re.compile(
+    r"(?:is\s|what(?:'s|\s+is)\s+(?:the\s+)?(?:current\s+)?state\s+of\s)",
+    re.IGNORECASE,
+)
+
+
+def read_state_candidate(request: str) -> bool:
+    """Avoid opening an MCP session for unrelated no-hint bot messages."""
+    return (
+        isinstance(request, str)
+        and len(request) <= 180
+        and "\n" not in request
+        and request.rstrip().endswith("?")
+        and _READ_STATE_PREFIX.match(request.strip()) is not None
+    )
 
 
 def _hint_label(hint: Any) -> str | None:
@@ -197,7 +212,7 @@ async def maybe_route_home_assistant(payload: dict, request: str) -> dict | None
     label = _hint_label(hint)
     # An exact read-only question can be grounded in Assist without a Laya hint.
     # State-changing requests still require the model's high-confidence hint.
-    if label is None and hint is None:
+    if label is None and hint is None and read_state_candidate(request):
         label = "read_state"
     if label is None or payload.get("group") is not None or payload.get("continuation"):
         return None
