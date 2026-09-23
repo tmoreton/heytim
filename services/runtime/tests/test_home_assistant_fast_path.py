@@ -113,7 +113,10 @@ class FakeSession:
         self.snapshot = self.snapshot.replace("  state: off", "  state: on", 1)
         return SimpleNamespace(
             isError=False,
-            content=[SimpleNamespace(text='{"success":true,"result":"Done"}')],
+            content=[SimpleNamespace(text=(
+                '{"response_type":"action_done","data":'
+                '{"success":[{"name":"Bedroom light"}],"failed":[]},"speech":{}}'
+            ))],
         )
 
 
@@ -213,3 +216,34 @@ async def _status_question_uses_snapshot_without_action_call(
     )
     assert result == {"text": "Home Assistant shows Bedroom light is off."}
     assert session.calls == []
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["Is the bedroom light on?", "What is the current state of Bedroom light?"],
+)
+def test_exact_read_only_question_does_not_need_model_hint(
+    monkeypatch: pytest.MonkeyPatch, question: str,
+) -> None:
+    async def run() -> None:
+        session = FakeSession()
+        _install_fake_connection(monkeypatch, session)
+        assert await fast.maybe_route_home_assistant(
+            PAYLOAD | {"homeAssistantHint": None}, question
+        ) == {"text": "Home Assistant shows Bedroom light is off."}
+        assert session.calls == []
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        '{"response_type":"action_done","data":{"success":[],"failed":[]}}',
+        '{"response_type":"action_done","data":{"success":[{}],"failed":[{}]}}',
+        '{"response_type":"error","data":{"success":[{}],"failed":[]}}',
+    ],
+)
+def test_action_result_rejects_unconfirmed_native_responses(body: str) -> None:
+    result = SimpleNamespace(isError=False, content=[SimpleNamespace(text=body)])
+    assert fast._tool_result(result) is None
