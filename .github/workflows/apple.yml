@@ -44,4 +44,8 @@ jobs:
           path: packages/heytim-transcription/ios/Generated
           key: heytim-nemotron-apple-v3
       - name: Verify iPhone and Mac app
+        env:
+          # This self-hosted runner has Xcode but no iOS simulator runtime.
+          # verify.sh still runs Mac tests and compiles the iOS app in that case.
+          HEYTIM_ALLOW_GENERIC_IOS_BUILD: 'true'
         run: ./scripts/verify.sh apple
