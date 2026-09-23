@@ -33,6 +33,7 @@ from .connection_providers import (
 )
 from .connection_revocation import revoke_google_token
 from .github_app import GITHUB_MCP_ENDPOINT, narrowed_permissions
+from .mcp_servers import MCPServerConnectionMixin
 from .time import utc_now_iso as _now
 
 MAX_CONNECTIONS = 50
@@ -53,7 +54,7 @@ def _valid_secret_arn(value: Any) -> bool:
     return isinstance(value, str) and value.startswith("arn:aws:secretsmanager:")
 
 
-class ConnectionMixin(ConnectionLifecycleMixin):
+class ConnectionMixin(MCPServerConnectionMixin, ConnectionLifecycleMixin):
     table: Any
     secrets_manager: Any
 

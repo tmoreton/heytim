@@ -41,7 +41,8 @@ Tools:
 - `task_list` - Strands harness todos
 - `delegate` - Strands harness generalist subagent
 - `code_interpreter` - persistent AgentCore sandbox
-- `browser` - persistent AgentCore browser; the application requires per-turn user approval. With artifact
+- `browser` - persistent AgentCore browser; the first interactive use asks the bot owner for an
+  Always Allow grant covering its currently enabled tools. With artifact
   storage, it also exposes first-party airline/hotel points-card screenshots for rich newsletter drafts
 - `meme_lord` - private stored-template search and deterministic local caption rendering
 - `image_generator` - OpenRouter image generation plus reference-aware exact 1280x720 thumbnails from recent user images

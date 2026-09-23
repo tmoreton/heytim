@@ -1,8 +1,8 @@
 """Opt-in Laya-assisted Home Assistant route for one grounded Assist entity.
 
 The Mac's model output is untrusted advisory data. This module independently
-checks the bot grant, live Assist context, discovered tool schema, and exact
-approval before it sends a state-changing MCP call.
+checks the bot grant, live Assist context, and discovered tool schema. A first
+state-changing call needs the bot owner's one-time Always Allow decision.
 """
 
 from __future__ import annotations
@@ -265,19 +265,24 @@ async def maybe_route_home_assistant(payload: dict, request: str) -> dict | None
         tool_name = _action_tool(tools, label)
         if not tool_name:
             return None
-        proposal = _proposal_for(event_id, tool_name, {"name": entity["name"]})
+        allowed = bot.get("alwaysAllowedToolIds", [])
+        always_allowed = (
+            isinstance(allowed, list) and binding["id"] in allowed
+        )
         decision = payload.get("actionApproval")
-        if decision is None:
-            return {"pendingApproval": proposal}
-        if not isinstance(decision, dict) or any(
-            decision.get(key) != proposal[key] for key in ("id", "digest", "toolUseId")
-        ):
-            return {
-                "terminalError": {
-                    "code": "HA_APPROVAL_CHANGED",
-                    "message": "The Home Assistant action changed after approval. No command was sent.",
+        if not always_allowed or decision is not None:
+            proposal = _proposal_for(event_id, tool_name, {"name": entity["name"]})
+            if decision is None:
+                return {"pendingApproval": proposal}
+            if not isinstance(decision, dict) or any(
+                decision.get(key) != proposal[key] for key in ("id", "digest", "toolUseId")
+            ):
+                return {
+                    "terminalError": {
+                        "code": "HA_APPROVAL_CHANGED",
+                        "message": "The Home Assistant action changed after approval. No command was sent.",
+                    }
                 }
-            }
         result = _tool_result(
             await session.call_tool(tool_name, {"name": entity["name"]})
         )

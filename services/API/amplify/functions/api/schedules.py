@@ -33,6 +33,7 @@ from .support import (
     _schedule_key,
     _user_pk,
     _validate_string,
+    catalog,
     scheduler,
     table,
 )
@@ -213,7 +214,12 @@ def _list_schedule_runs(user_id: str, bot_id: str) -> list[dict]:
 
 
 def _create_schedule(user_id: str, bot_id: str, value: dict) -> dict:
-    _get_bot(user_id, bot_id)
+    bot = _get_bot(user_id, bot_id)
+    schedule_values = _schedule_values(value)
+    if schedule_values["enabled"] and catalog.unapproved_tools(
+        user_id, bot.get("toolIds", []), bot.get("alwaysAllowedToolIds", [])
+    ):
+        raise ApiError(409, "Allow this bot's tools in a direct chat before scheduling it")
     if len(_schedule_items(user_id)) >= SCHEDULE_LIMIT:
         raise ApiError(400, f"You can create up to {SCHEDULE_LIMIT} scheduled tasks")
     schedule_id = str(uuid.uuid4())
@@ -227,7 +233,7 @@ def _create_schedule(user_id: str, bot_id: str, value: dict) -> dict:
         "schedulerName": scheduler_name(user_id, schedule_id),
         "createdAt": current,
         "updatedAt": current,
-        **_schedule_values(value),
+        **schedule_values,
     }
     table.put_item(Item=item, ConditionExpression=Attr("pk").not_exists())
     try:
@@ -239,11 +245,16 @@ def _create_schedule(user_id: str, bot_id: str, value: dict) -> dict:
 
 
 def _update_schedule(user_id: str, bot_id: str, schedule_id: str, value: dict) -> dict:
-    _get_bot(user_id, bot_id)
+    bot = _get_bot(user_id, bot_id)
     previous = _get_schedule(user_id, bot_id, schedule_id)
+    schedule_values = _schedule_values(value, previous)
+    if schedule_values["enabled"] and catalog.unapproved_tools(
+        user_id, bot.get("toolIds", []), bot.get("alwaysAllowedToolIds", [])
+    ):
+        raise ApiError(409, "Allow this bot's tools in a direct chat before scheduling it")
     item = {
         **previous,
-        **_schedule_values(value, previous),
+        **schedule_values,
         "updatedAt": _now(),
     }
     if item["frequency"] != "weekly":

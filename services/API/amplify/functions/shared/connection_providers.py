@@ -73,10 +73,7 @@ OPTIONAL_PUBLIC_PROVIDER_FIELDS = (
 GOOGLE_FAMILY = {
     "familyId": "google",
     "familyName": "Google",
-    "familyDescription": (
-        "Connect the Google accounts each bot needs. YouTube search is available "
-        "through a connected YouTube account."
-    ),
+    "familyDescription": "Connect the Google accounts each bot needs for Gmail and Workspace.",
     "familyIconText": "G",
     "familyLogoProviderId": "google_workspace",
 }
@@ -111,7 +108,7 @@ CONNECTION_PROVIDER_SPECS = (
         "description": "Read exposed devices and request home actions through your own Home Assistant instance.",
         "category": "Smart home",
         "iconText": "HA",
-        "permissionsSummary": "Only entities exposed to Assist; device changes require review",
+        "permissionsSummary": "Only entities exposed to Assist; the first action asks for Always Allow",
         "privacyTitle": "Your home stays under your control",
         "privacyDescription": (
             "HeyTim stores your token privately on the server and uses only the "
@@ -123,6 +120,35 @@ CONNECTION_PROVIDER_SPECS = (
         "risk": "interactive",
         "tags": ["private", "home", "devices", "mcp"],
         "actions": ["Read exposed device state", "Request device actions"],
+        "familyId": "mcp",
+        "familyName": "MCP servers",
+        "familyDescription": "Connect Home Assistant Assist or another remote MCP server, then assign each server to bots.",
+        "familyIconText": "MCP",
+        "familyLogoProviderId": "mcp_server",
+    },
+    {
+        "id": "mcp_server",
+        "name": "MCP server",
+        "description": "Connect a remote MCP server by HTTPS URL and access token.",
+        "category": "Integrations",
+        "iconText": "MCP",
+        "permissionsSummary": "The selected bot can use tools exposed by this server",
+        "privacyTitle": "Assign each server only to bots that need it",
+        "privacyDescription": (
+            "HeyTim stores the access token privately on the server. Only bots "
+            "you select can discover and call that server's tools."
+        ),
+        "connectLabel": "Add server",
+        "reconnectLabel": "Update server",
+        "authType": "bearer_token",
+        "risk": "interactive",
+        "tags": ["private", "mcp", "tools"],
+        "actions": ["Discover server tools", "Call assigned server tools"],
+        "familyId": "mcp",
+        "familyName": "MCP servers",
+        "familyDescription": "Connect Home Assistant Assist or another remote MCP server, then assign each server to bots.",
+        "familyIconText": "MCP",
+        "familyLogoProviderId": "mcp_server",
     },
     {
         "id": "gmail",
@@ -148,9 +174,9 @@ CONNECTION_PROVIDER_SPECS = (
     },
     {
         "id": "youtube",
-        "name": "YouTube Studio",
-        "description": "Read your own channel, uploads, and private channel data.",
-        "category": "Video",
+        "name": "YouTube",
+        "description": "Search public videos with your connected YouTube account; channel tools are optional.",
+        "category": "Social",
         "iconText": "YT",
         "permissionsSummary": "Read-only channel access; shared project quota still applies",
         "privacyTitle": "Your channel connection is optional",
@@ -164,9 +190,13 @@ CONNECTION_PROVIDER_SPECS = (
         "risk": "read",
         "tags": ["private", "youtube", "oauth"],
         "actions": ["Search videos", "Read channel details", "List uploaded videos"],
-        "scopes": ["https://www.googleapis.com/auth/youtube.readonly"],
-        **GOOGLE_FAMILY,
-        "serviceName": "YouTube Studio",
+        "scopes": ["openid", "email", "https://www.googleapis.com/auth/youtube.readonly"],
+        "familyId": "youtube",
+        "familyName": "YouTube",
+        "familyDescription": "Connect your YouTube account to search videos and optionally read your channel.",
+        "familyIconText": "YT",
+        "familyLogoProviderId": "youtube",
+        "serviceName": "YouTube account",
     },
     {
         "id": "google_workspace",
@@ -420,11 +450,19 @@ def _disabled_provider_ids() -> frozenset[str]:
 
 def connection_providers() -> list[dict]:
     disabled = _disabled_provider_ids()
-    return [
+    providers = [
         _public_provider(spec)
         for spec in CONNECTION_PROVIDER_SPECS
         if spec["id"] not in disabled
     ]
+    social_order = {"x": 0, "youtube": 1, "slack": 2, "microsoft_teams": 3}
+    return sorted(
+        providers,
+        key=lambda provider: (
+            social_order.get(provider["id"], 10),
+            provider["name"].casefold(),
+        ),
+    )
 
 
 def connection_provider(provider_id: str) -> dict | None:

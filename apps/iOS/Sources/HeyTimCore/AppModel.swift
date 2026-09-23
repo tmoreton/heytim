@@ -525,11 +525,13 @@ public final class AppModel {
     guard let api, !demoMode else { return }
     do {
       if let group = selectedGroup, let runId = message.runId, let taskId = message.taskId {
-        try await api.decideGroupAction(groupId: group.id, runId: runId, taskId: taskId, approved: true)
+        try await api.decideGroupAction(
+          groupId: group.id, runId: runId, taskId: taskId, approved: true, always: always)
       } else if let bot = selectedBot {
-        try await api.approve(botId: bot.id, turnId: Self.directTurnID(message.id), always: false)
+        try await api.approve(botId: bot.id, turnId: Self.directTurnID(message.id), always: always)
       } else { return }
       try await loadMessages()
+      if always { _ = await refreshBootstrap() }
     } catch { present(error) }
   }
 
@@ -1000,12 +1002,47 @@ public enum DemoData {
   ]
   private static let demoConnectionProviders = [
     ConnectionProvider(
+      id: "x", name: "X",
+      description: "Search posts and read your profile with a connected X account.",
+      category: "Social", iconText: "X",
+      permissionsSummary: "Read-only account access",
+      privacyTitle: "Your X account stays private",
+      privacyDescription: "Connect an account before a bot can search X.",
+      familyId: "x", familyName: "X",
+      familyDescription: "Connect an X account for search and profile access.",
+      familyIconText: "X", familyLogoProviderId: "x",
+      serviceName: "Account access"),
+    ConnectionProvider(
+      id: "youtube", name: "YouTube",
+      description: "Search public videos with your connected YouTube account; channel tools are optional.",
+      category: "Social", iconText: "YT",
+      permissionsSummary: "Read-only YouTube account access",
+      privacyTitle: "Your YouTube connection is optional",
+      privacyDescription: "Connect an account before a bot can search YouTube.",
+      familyId: "youtube", familyName: "YouTube",
+      familyDescription: "Connect an account for YouTube search.",
+      familyIconText: "YT", familyLogoProviderId: "youtube",
+      serviceName: "YouTube account"),
+    ConnectionProvider(
       id: "home_assistant", name: "Home Assistant",
       description: "Read exposed devices and request home actions through your own Home Assistant instance.",
       category: "Smart home", iconText: "HA",
-      permissionsSummary: "Only entities exposed to Assist; each action requires review",
+      permissionsSummary: "Only entities exposed to Assist; the first action asks for Always Allow",
       privacyTitle: "Your home stays under your control",
-      privacyDescription: "Connect your own Home Assistant Assist MCP server."),
+      privacyDescription: "Connect your own Home Assistant Assist MCP server.",
+      familyId: "mcp", familyName: "MCP servers",
+      familyDescription: "Connect Home Assistant or another MCP server.",
+      familyIconText: "MCP", familyLogoProviderId: "mcp_server"),
+    ConnectionProvider(
+      id: "mcp_server", name: "MCP server",
+      description: "Connect a remote MCP server by HTTPS URL and access token.",
+      category: "Integrations", iconText: "MCP",
+      permissionsSummary: "The selected bot can use tools exposed by this server",
+      privacyTitle: "Assign each server only to bots that need it",
+      privacyDescription: "The access token is stored privately on the server.",
+      familyId: "mcp", familyName: "MCP servers",
+      familyDescription: "Connect Home Assistant or another MCP server.",
+      familyIconText: "MCP", familyLogoProviderId: "mcp_server"),
     ConnectionProvider(
       id: "gmail", name: "Gmail",
       description: "Search and summarize email, then create drafts for review.",
@@ -1018,17 +1055,6 @@ public enum DemoData {
       familyIconText: "G", familyLogoProviderId: "google_workspace",
       serviceName: "Gmail"),
     ConnectionProvider(
-      id: "youtube", name: "YouTube Studio",
-      description: "Read your own channel, uploads, and private channel data.",
-      category: "Video", iconText: "YT",
-      permissionsSummary: "Read-only channel access",
-      privacyTitle: "Your channel connection is optional",
-      privacyDescription: "Connect an account before a bot can search YouTube.",
-      familyId: "google", familyName: "Google",
-      familyDescription: "Connect the Google accounts each bot needs.",
-      familyIconText: "G", familyLogoProviderId: "google_workspace",
-      serviceName: "YouTube Studio"),
-    ConnectionProvider(
       id: "google_workspace", name: "Google Workspace",
       description: "Search and read Drive files, Docs, and Calendar events.",
       category: "Productivity", iconText: "GW",
@@ -1039,17 +1065,6 @@ public enum DemoData {
       familyDescription: "Connect the Google accounts each bot needs.",
       familyIconText: "G", familyLogoProviderId: "google_workspace",
       serviceName: "Workspace"),
-    ConnectionProvider(
-      id: "x", name: "X",
-      description: "Access your profile, posts, and mentions when a bot needs them.",
-      category: "Social", iconText: "X",
-      permissionsSummary: "Read-only account access",
-      privacyTitle: "Your X account stays private",
-      privacyDescription: "Connect an account before a bot can search X.",
-      familyId: "x", familyName: "X",
-      familyDescription: "Connect an X account for search and profile access.",
-      familyIconText: "X", familyLogoProviderId: "x",
-      serviceName: "Account access"),
   ]
   public static let skills = [
     Skill(

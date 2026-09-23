@@ -260,7 +260,7 @@ def _decode_data(value: Any) -> str:
     padded = value + "=" * (-len(value) % 4)
     try:
         return base64.urlsafe_b64decode(padded).decode("utf-8", errors="replace")
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         return ""
 
 

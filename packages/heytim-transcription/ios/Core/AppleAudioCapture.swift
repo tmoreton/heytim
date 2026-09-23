@@ -53,7 +53,7 @@ final class AppleAudioCapture: @unchecked Sendable {
             let input = engine.inputNode
             let format = input.inputFormat(forBus: 0)
             guard Self.isUsable(format) else {
-                throw NemotronTranscriptionError.microphoneUnavailable
+                throw ParakeetTranscriptionError.microphoneUnavailable
             }
 
             callbackCondition.lock()

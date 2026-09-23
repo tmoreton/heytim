@@ -182,6 +182,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
                 Key=turn_key,
                 UpdateExpression=(
                     "SET #status = :awaiting, approvalRequest = :proposal, approvalGrantDigest = :grant, "
+                    "approvalTools = :tools, "
                     "activity = :activity, activityUpdatedAt = :now "
                     "REMOVE leaseOwner, leaseExpiresAt, approvalDecision, approvalConsumedAt, runtimeResult"
                 ),
@@ -191,6 +192,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
                     ":awaiting": "AWAITING_APPROVAL", ":running": "RUNNING",
                     ":owner": lease_owner, ":proposal": proposal,
                     ":grant": approval_grant_digest(catalog, user_id, bot),
+                    ":tools": catalog.approval_tool_names(user_id, bot.get("toolIds", [])),
                     ":activity": ["Approval needed for " + proposal["toolName"]],
                     ":now": utc_now_iso(),
                 },

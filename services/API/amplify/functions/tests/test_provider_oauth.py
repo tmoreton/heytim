@@ -324,7 +324,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
                 return_value={
                     "access_token": "access-token",
                     "refresh_token": "refresh-token",
-                    "scope": self.google.YOUTUBE_SCOPES[0],
+                    "scope": " ".join(self.google.YOUTUBE_SCOPES),
                 },
             ),
             patch.object(
@@ -348,6 +348,36 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             "refresh-token",
             client_secret_arn,
             list(self.google.YOUTUBE_SCOPES),
+        )
+
+    def test_youtube_oauth_accepts_an_account_without_a_channel(self) -> None:
+        state = "youtube-account-state-with-enough-entropy"
+        client_secret_arn = (
+            "arn:aws:secretsmanager:us-east-1:123:secret:heytim/oauth/google-ABC123"
+        )
+        self.data_table.put_item(Item={
+            **self.google._state_key(state),
+            "userId": "user-1", "provider": "youtube", "verifier": "verifier",
+            "returnUrl": "heytim://app?connection=youtube",
+            "clientSecretArn": client_secret_arn, "expiresAt": 2_000,
+        })
+        with (
+            patch.object(self.google.time, "time", return_value=1_000),
+            patch.object(self.google, "_exchange_code", return_value={
+                "access_token": "access-token", "refresh_token": "refresh-token",
+                "scope": " ".join(self.google.YOUTUBE_SCOPES),
+            }),
+            patch.object(self.google, "_youtube_channel", return_value=None),
+            patch.object(self.google, "_google_userinfo", return_value=("google-sub-1", "viewer@example.com")),
+            patch.object(self.catalog, "save_oauth_api_connection") as save,
+        ):
+            response = self.google._google_callback(
+                {"state": state, "code": "authorization-code"}
+            )
+        self.assertIn("status=connected", response["headers"]["location"])
+        save.assert_called_once_with(
+            "user-1", "youtube", "viewer@example.com", "google-sub-1",
+            "refresh-token", client_secret_arn, list(self.google.YOUTUBE_SCOPES),
         )
 
     def test_google_workspace_oauth_saves_one_read_only_mcp_bundle(self) -> None:

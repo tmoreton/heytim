@@ -241,27 +241,28 @@ class BotBrandingTests(unittest.TestCase):
         self.assertEqual(
             [provider["id"] for provider in result["connectionProviders"]],
             [
-                "github",
-                "home_assistant",
-                "gmail",
+                "x",
                 "youtube",
-                "google_workspace",
                 "slack",
-                "microsoft",
                 "microsoft_teams",
-                "notion",
+                "github",
+                "gmail",
+                "google_workspace",
+                "home_assistant",
                 "hubspot",
                 "jira",
+                "mcp_server",
+                "microsoft",
+                "notion",
                 "zoom",
-                "x",
             ],
         )
         provider = result["connectionProviders"][0]
         self.assertNotIn("clientSecret", provider)
         self.assertNotIn("authType", provider)
         self.assertNotIn("uiKind", provider)
-        self.assertEqual(provider["connectLabel"], "Install app")
-        self.assertEqual(provider["reconnectLabel"], "Update installation")
+        self.assertEqual(provider["connectLabel"], "Connect account")
+        self.assertEqual(provider["reconnectLabel"], "Reconnect account")
         google = [
             provider
             for provider in result["connectionProviders"]
@@ -269,7 +270,7 @@ class BotBrandingTests(unittest.TestCase):
         ]
         self.assertEqual(
             [provider["serviceName"] for provider in google],
-            ["Gmail", "YouTube Studio", "Workspace"],
+            ["Gmail", "Workspace"],
         )
         self.assertTrue(
             all(provider["familyName"] == "Google" for provider in google)

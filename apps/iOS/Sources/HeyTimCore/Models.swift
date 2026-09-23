@@ -695,7 +695,6 @@ func connectionProviderToolGroups(
   var groupedToolIDs = Set<String>()
   let groups: [ConnectionProviderToolGroup] = connectionProviderFamilies(providers).compactMap {
     family -> ConnectionProviderToolGroup? in
-    guard family.grouped else { return nil }
     let providerIDs = Set(family.providers.map(\.id))
     let includedToolIDs = Set(family.includedToolIDs)
     let familyTools = tools.filter { tool in

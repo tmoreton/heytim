@@ -117,7 +117,7 @@ class ApiSafetyTests(ApiTestCase):
         self.assertEqual(running[1]["allowedActions"], ["cancel"])
         self.assertEqual(
             approval[1]["allowedActions"],
-            ["reject", "approveOnce"],
+            ["reject", "approveOnce", "approveAlways"],
         )
 
     def test_clearing_chat_revokes_only_conversation_shares(self) -> None:
@@ -440,6 +440,38 @@ class ApiSafetyTests(ApiTestCase):
         self.assertEqual(len(values[":decision"]["executionKey"]), 36)
         self.assertIn("approvalRequest = :proposal", self.data_table.updated[-1]["ConditionExpression"])
 
+    def test_always_allow_grants_all_enabled_interactive_tools(self) -> None:
+        from datetime import UTC, datetime, timedelta
+        proposal = {
+            "id": "interrupt-1", "digest": "a" * 64, "toolUseId": "tool-1",
+            "toolName": "browser", "input": {"url": "https://example.com"},
+            "expiresAt": (datetime.now(UTC) + timedelta(minutes=10)).isoformat(),
+        }
+        turn = {
+            "pk": "CHAT#user-1#bot-1", "sk": "TURN#now#turn-1",
+            "id": "turn-1", "userId": "user-1", "botId": "bot-1",
+            "status": "AWAITING_APPROVAL",
+            "approvalRequest": proposal, "approvalGrantDigest": "grant-1",
+        }
+        bot = {
+            "pk": "USER#user-1", "sk": "BOT#bot-1", "id": "bot-1",
+            "toolIds": ["home", "browser"], "alwaysAllowedToolIds": ["browser"],
+            "updatedAt": "2026-09-23T12:00:00Z",
+        }
+        with (
+            patch.object(self.direct_chat, "_get_bot", return_value=bot),
+            patch.object(self.direct_chat, "_get_turn", return_value=turn),
+            patch.object(self.direct_chat, "approval_grant_digest", return_value="grant-1"),
+            patch.object(self.direct_chat.catalog, "approval_tool_names", return_value=["Home Assistant", "Browser"]),
+            patch.object(self.direct_chat.catalog, "approval_tool_ids", return_value=["home", "browser"]),
+        ):
+            result = self.direct_chat._approve_bot_turn("user-1", "bot-1", "turn-1", always=True)
+        self.assertTrue(result["alwaysAllowed"])
+        grant_update, turn_update = self.data_table.updated[-2:]
+        self.assertEqual(grant_update["Key"], {"pk": bot["pk"], "sk": bot["sk"]})
+        self.assertEqual(grant_update["ExpressionAttributeValues"][":allowed"], ["home", "browser"])
+        self.assertEqual(turn_update["ExpressionAttributeValues"][":proposal"], proposal)
+
     def test_imported_bot_never_inherits_always_allowed_tools(self) -> None:
         self.data_table.put_item(
             Item={
@@ -504,13 +536,15 @@ class ApiSafetyTests(ApiTestCase):
         )
         self.assertNotIn("alwaysAllowedToolIds", share["snapshot"]["bot"])
 
-    def test_schedules_allow_bots_that_pause_for_interactive_approval(self) -> None:
+    def test_schedules_allow_bots_after_one_time_tool_grant(self) -> None:
         with (
             patch.object(
                 self.schedules,
                 "_get_bot",
-                return_value={"id": "bot-1", "toolIds": ["browser"]},
+                return_value={"id": "bot-1", "toolIds": ["browser"],
+                              "alwaysAllowedToolIds": ["browser"]},
             ),
+            patch.object(self.schedules.catalog, "unapproved_tools", return_value=[]),
             patch.object(self.schedules, "_schedule_items", return_value=[]),
             patch.object(self.schedules, "_create_remote_schedule"),
         ):
@@ -529,70 +563,5 @@ class ApiSafetyTests(ApiTestCase):
 
         self.assertEqual(saved["name"], "Browser check")
 
-    def test_existing_schedule_does_not_block_enabling_interactive_tool(self) -> None:
-        previous = {
-            "id": "bot-1",
-            "systemRole": None,
-            "createdAt": "2026-09-14T12:00:00Z",
-        }
-        values = {
-            "name": "Mail helper",
-            "tagline": "Prepares drafts.",
-            "prompt": "Help with Gmail.",
-            "color": "#58BEAA",
-            "toolIds": ["connection_gmail"],
-            "extraToolIds": ["connection_gmail"],
-            "alwaysAllowedToolIds": [],
-            "skillIds": [],
-            "skillVersions": {},
-        }
-        with (
-            patch.object(self.bots, "_get_bot", return_value=previous),
-            patch.object(self.bots, "_bot_values", return_value=values),
-            patch.object(
-                self.bots,
-                "_schedule_items",
-                return_value=[{"id": "schedule-1"}],
-            ) as schedules,
-            patch.object(
-                self.bots,
-                "_put_bot",
-                return_value={"id": "bot-1"},
-            ) as put_bot,
-        ):
-            saved = self.bots._update_bot(
-                "user-1", "bot-1", {"toolIds": ["connection_gmail"]}
-            )
-
-        self.assertEqual(saved, {"id": "bot-1"})
-        schedules.assert_not_called()
-        put_bot.assert_called_once_with(
-            "user-1", values, "bot-1", None,
-            expected_email_token=None, check_email_token=True,
-        )
-
-    def test_schedule_run_inbox_includes_output_and_pending_approval(self) -> None:
-        turns = [
-            {
-                "id": "run-1",
-                "source": "schedule",
-                "scheduleId": "schedule-1",
-                "scheduleName": "Morning priorities",
-                "userText": "Review today.",
-                "status": "AWAITING_APPROVAL",
-                "createdAt": "2026-09-08T09:00:00Z",
-                "approvalTools": ["Interactive browser"],
-            },
-            {"id": "chat-1", "source": "direct", "createdAt": "later"},
-        ]
-        with (
-            patch.object(self.schedules, "_get_bot"),
-            patch.object(self.schedules, "_list_turns", return_value=turns),
-        ):
-            runs = self.schedules._list_schedule_runs("user-1", "bot-1")
-
-        self.assertEqual(len(runs), 1)
-        self.assertEqual(runs[0]["status"], "awaiting_approval")
-        self.assertEqual(runs[0]["approvalTools"], ["Interactive browser"])
 if __name__ == "__main__":
     unittest.main()

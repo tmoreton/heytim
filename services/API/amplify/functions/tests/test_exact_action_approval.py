@@ -28,11 +28,12 @@ class GroupActionApprovalTests(ApiTestCase):
         for item in (self.run, self.task, {"pk": "USER#owner", "sk": "BOT#bot", "toolIds": ["github"]}):
             self.data_table.put_item(Item=item)
 
-    def _decide(self, owner: str = "owner", approved: bool = True):
+    def _decide(self, owner: str = "owner", approved: bool = True, always: bool = False):
         with (patch.object(self.group_runs, "_require_group_member", return_value=({}, [])),
               patch.object(self.group_runs.catalog, "approval_tool_names", return_value=["GitHub"]),
+              patch.object(self.group_runs.catalog, "approval_tool_ids", return_value=["github"]),
               patch.object(self.group_runs, "approval_grant_digest", return_value="grant-1")):
-            return self.group_runs._decide_group_action(owner, "room", "run", "task", approved)
+            return self.group_runs._decide_group_action(owner, "room", "run", "task", approved, always)
 
     def test_owner_approves_only_saved_proposal_with_one_execution_key(self) -> None:
         result = self._decide()
@@ -43,6 +44,15 @@ class GroupActionApprovalTests(ApiTestCase):
         self.assertEqual(len(update["ExpressionAttributeValues"][":decision"]["executionKey"]), 36)
         self.assertEqual(len(self.sqs.send_message.call_args_list), 2)
         self.assertEqual(json.loads(self.sqs.send_message.call_args.kwargs["MessageBody"]), self.request)
+
+    def test_owner_can_grant_all_enabled_tools_once_for_group_bot(self) -> None:
+        self.data_table.items[("USER#owner", "BOT#bot")]["updatedAt"] = "2026-09-23T12:00:00Z"
+        result = self._decide(always=True)
+        self.assertEqual(result["status"], "pending")
+        grant_update, task_update = self.data_table.updated[-2:]
+        self.assertEqual(grant_update["Key"], {"pk": "USER#owner", "sk": "BOT#bot"})
+        self.assertEqual(grant_update["ExpressionAttributeValues"][":allowed"], ["github"])
+        self.assertEqual(task_update["ExpressionAttributeValues"][":proposal"], self.proposal)
 
     def test_other_room_member_cannot_approve_owner_action(self) -> None:
         with self.assertRaises(self.support.ApiError) as error:

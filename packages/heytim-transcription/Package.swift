@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "HeyTimNemotron",
+    name: "HeyTimParakeet",
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: [
-        .library(name: "HeyTimNemotron", targets: ["HeyTimNemotron"]),
-        .executable(name: "heytim-nemotron-smoke", targets: ["HeyTimNemotronSmoke"]),
+        .library(name: "HeyTimParakeet", targets: ["HeyTimParakeet"]),
+        .executable(name: "heytim-parakeet-smoke", targets: ["HeyTimParakeetSmoke"]),
     ],
     targets: [
         .binaryTarget(
@@ -26,7 +26,7 @@ let package = Package(
             path: "ios/Generated/Frameworks/iOS/onnxruntime.xcframework"
         ),
         .target(
-            name: "HeyTimNemotron",
+            name: "HeyTimParakeet",
             dependencies: [
                 .target(name: "SherpaOnnxMacOS", condition: .when(platforms: [.macOS])),
                 .target(name: "OnnxRuntimeMacOS", condition: .when(platforms: [.macOS])),
@@ -37,10 +37,9 @@ let package = Package(
             exclude: [
                 "Generated/Frameworks",
                 "Generated/Notices",
-                "Notices",
             ],
             sources: ["Core"],
-            resources: [.copy("Generated/Models")],
+            resources: [.copy("Generated/Models"), .copy("Notices")],
             linkerSettings: [
                 .linkedFramework("AVFoundation"),
                 .linkedFramework("Accelerate"),
@@ -50,14 +49,14 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "HeyTimNemotronSmoke",
-            dependencies: ["HeyTimNemotron"],
+            name: "HeyTimParakeetSmoke",
+            dependencies: ["HeyTimParakeet"],
             path: "macos-smoke"
         ),
         .testTarget(
-            name: "HeyTimNemotronTests",
-            dependencies: ["HeyTimNemotron"],
-            path: "Tests/HeyTimNemotronTests"
+            name: "HeyTimParakeetTests",
+            dependencies: ["HeyTimParakeet"],
+            path: "Tests/HeyTimParakeetTests"
         ),
     ]
 )

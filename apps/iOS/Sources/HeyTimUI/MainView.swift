@@ -810,7 +810,7 @@ private struct ConversationView: View {
       case .unavailable:
         await model.send()
         return
-      case .automaticAction:
+      case .automaticAction, .proposal:
         guard let botID = selection?.id, desktopControl.isEnabled(for: botID) else {
           appendLocalDesktopResponse(
             intent: intent,
@@ -824,33 +824,28 @@ private struct ConversationView: View {
           ChatMessage(
             id: UUID().uuidString, role: "user", text: intent,
             createdAt: now, status: "complete"))
-        localDesktopMessages.append(
-          ChatMessage(
-            id: resultID, role: "assistant", text: "Running Mac app action…",
-            createdAt: now, status: "running"))
         model.composerText = ""
-        let result = await desktopControl.executePreparedAction()
-        finishDesktopAction(
-          resultID, result: result,
-          succeeded: result.hasPrefix("Created the note")
-            || result.hasPrefix("Mac app action completed"))
+        if desktopControl.isAlwaysAllowed(for: botID) {
+          localDesktopMessages.append(
+            ChatMessage(
+              id: resultID, role: "assistant", text: "Running Mac app action…",
+              createdAt: now, status: "running"))
+          let result = await desktopControl.executePreparedAction()
+          finishDesktopAction(
+            resultID, result: result,
+            succeeded: result.hasPrefix("Created the note")
+              || result.hasPrefix("Mac app action completed"))
+        } else {
+          localDesktopMessages.append(
+            ChatMessage(
+              id: resultID, role: "assistant", text: "",
+              approvalTools: ["Mac app actions"],
+              approvalInput: desktopControl.proposedActionDescription,
+              createdAt: now, status: "awaiting_approval",
+              allowedActions: ["approveAlways", "reject"]))
+        }
         return
-      case .proposal:
-        break
       }
-      guard let description = desktopControl.proposedActionDescription else { return }
-      let now = ISO8601DateFormatter().string(from: Date())
-      localDesktopMessages.append(
-        ChatMessage(
-          id: UUID().uuidString, role: "user", text: intent,
-          createdAt: now, status: "complete"))
-      localDesktopMessages.append(
-        ChatMessage(
-          id: UUID().uuidString, role: "assistant", text: "",
-          approvalTools: ["Mac app actions"], approvalInput: description,
-          createdAt: now, status: "awaiting_approval",
-          allowedActions: ["approveOnce", "reject"]))
-      model.composerText = ""
     }
 
     private func appendLocalDesktopResponse(intent: String, response: String, status: String) {
@@ -884,6 +879,7 @@ private struct ConversationView: View {
           succeeded: false)
         return
       }
+      desktopControl.allowAlways(for: botID)
       localDesktopMessages[index].status = "running"
       localDesktopMessages[index].allowedActions = nil
       let result = await desktopControl.executePreparedAction()
@@ -1448,7 +1444,7 @@ private struct MessageBubble: View {
   private var awaitingApproval: Bool {
     message.status == "awaiting_approval"
       || message.allowedActions?.contains(where: {
-        ["reject", "approveOnce"].contains($0)
+        ["reject", "approveOnce", "approveAlways"].contains($0)
       }) == true
   }
   private var activity: [String] {
@@ -1521,10 +1517,10 @@ private struct MessageBubble: View {
         if hasBubbleContent {
           VStack(alignment: .leading, spacing: 8) {
             if awaitingApproval {
-              Label("Approval Needed", systemImage: "checkmark.shield")
+              Label("Allow This Bot’s Tools", systemImage: "checkmark.shield")
                 .froggyFont(.headline)
               Text(
-                "Review the exact \(message.approvalTools?.joined(separator: ", ") ?? "tool") call below."
+                "Always Allow will cover: \(message.approvalTools?.joined(separator: ", ") ?? "this tool"). The action below will run now; later actions won’t ask again."
               )
               .froggyFont(.callout).foregroundStyle(.secondary)
               if let input = message.approvalInput {
@@ -1536,7 +1532,7 @@ private struct MessageBubble: View {
                 .frame(maxHeight: 180)
                 .accessibilityLabel("Proposed tool arguments")
               }
-              Button("Review Action", systemImage: "checkmark.shield") {
+              Button("Review Tool Access", systemImage: "checkmark.shield") {
                 reviewingApproval = true
               }
               .buttonStyle(.borderedProminent)
@@ -1611,9 +1607,14 @@ private struct MessageBubble: View {
       }
     }
     .confirmationDialog(
-      "Allow this action?", isPresented: $reviewingApproval, titleVisibility: .visible
+      "Always allow these tools?", isPresented: $reviewingApproval, titleVisibility: .visible
     ) {
-      if message.allowedActions?.contains("approveOnce") == true {
+      if message.allowedActions?.contains("approveAlways") == true {
+        Button("Always Allow") {
+          if let onLocalApprove { onLocalApprove() }
+          else { Task { await model.approve(message, always: true) } }
+        }
+      } else if message.allowedActions?.contains("approveOnce") == true {
         Button("Allow Once") {
           if let onLocalApprove { onLocalApprove() }
           else { Task { await model.approve(message, always: false) } }
@@ -1627,7 +1628,7 @@ private struct MessageBubble: View {
       }
       Button("Cancel", role: .cancel) {}
     } message: {
-      Text("Allow Once executes only the displayed tool call. Further actions need separate approval.")
+      Text("Always Allow covers all currently enabled tools on this bot that require consent. You can revoke the grant in Tools settings. Newly enabled tools ask again.")
     }
   }
 
@@ -1963,8 +1964,16 @@ private struct Composer: View {
     .onChange(of: dictation.isRecording) { wasRecording, isRecording in
       guard wasRecording && !isRecording else { return }
       let transcript = dictation.consumeTranscript()
-      if !transcript.isEmpty, dictationSelection == model.selection, !model.isSending {
-        model.composerText = dictationPrefix + transcript
+      if !transcript.isEmpty, let target = dictationSelection,
+        target == model.selection, !model.isSending
+      {
+        let inlineLimit = max(
+          0, model.constraints.messageMaxLength - dictationPrefix.count)
+        if transcript.count <= inlineLimit {
+          model.composerText = dictationPrefix + transcript
+        } else {
+          attachLongMeetingTranscript(transcript, to: target)
+        }
       }
       dictationSelection = nil
       dictationPrefix = model.composerText
@@ -2370,6 +2379,40 @@ private struct Composer: View {
     dictationSelection = nil
     dictation.cancel()
     dictationPrefix = ""
+  }
+
+  private func attachLongMeetingTranscript(
+    _ transcript: String, to target: ConversationSelection
+  ) {
+    let request = dictationPrefix.trimmingCharacters(in: .whitespacesAndNewlines)
+    model.composerText = request.isEmpty
+      ? "Turn the attached meeting transcript into concise notes, a summary outline, decisions, action items with stated owners and dates, and open questions. Separate confirmed facts from uncertain transcription. Then ask which durable takeaways I want saved to bot context."
+      : request
+
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("HeyTim-Meeting-\(UUID().uuidString)", isDirectory: true)
+    let file = directory.appendingPathComponent("Meeting Transcript.txt")
+    let header = """
+      HeyTim on-device meeting transcript
+      Recorded: \(Date().formatted(.iso8601))
+      Model: NVIDIA Parakeet TDT 0.6B v3
+
+      """
+    do {
+      try FileManager.default.createDirectory(
+        at: directory, withIntermediateDirectories: true)
+      try (header + transcript).write(to: file, atomically: true, encoding: .utf8)
+    } catch {
+      model.composerText = dictationPrefix + transcript
+      dictation.errorMessage =
+        "The long transcript could not be attached. It remains in the message field so you can copy it."
+      return
+    }
+
+    Task { @MainActor in
+      defer { try? FileManager.default.removeItem(at: directory) }
+      await model.upload(urls: [file], for: target)
+    }
   }
 
   @MainActor private func importPhotos(

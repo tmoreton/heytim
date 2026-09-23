@@ -787,7 +787,7 @@ struct BotToolsAndSkillsEditor: View {
             })) {
               VStack(alignment: .leading, spacing: 3) {
                 Text("Mac app actions")
-                Text("Let this bot create Apple Notes or press a visible control in a Mac app. Exact low-risk actions run immediately; uncertain actions ask for approval.")
+                Text("Let this bot create Apple Notes or press a visible control in a Mac app. The first action asks for Always Allow; later actions run without another prompt. Turn this off to revoke the grant.")
                   .froggyFont(.caption).foregroundStyle(.secondary)
               }
             }
@@ -819,11 +819,6 @@ struct BotToolsAndSkillsEditor: View {
         ForEach(providerToolGroups.ungrouped) { tool in
           toolToggle(tool)
         }
-        ForEach(providers.filter { provider in
-          provider.familyId == nil && !tools.contains { $0.provider == provider.id }
-        }) { provider in
-          connectionLink(provider)
-        }
         #if os(iOS)
         if tools.isEmpty && providers.isEmpty {
           ContentUnavailableView("No Tools", systemImage: "wrench.and.screwdriver")
@@ -834,16 +829,15 @@ struct BotToolsAndSkillsEditor: View {
       if !alwaysAllowedTools.isEmpty {
         Section {
           ForEach(alwaysAllowedTools) { tool in
-            capabilityToggle(
-              id: tool.id,
-              name: tool.name,
-              description: tool.description,
-              values: $draft.alwaysAllowedToolIds)
+            Label(tool.name, systemImage: "checkmark.shield")
+          }
+          Button("Revoke Always Allow", role: .destructive) {
+            draft.alwaysAllowedToolIds = []
           }
         } header: {
-          Text("Always allowed in direct chats")
+          Text("Always allowed")
         } footer: {
-          Text("Turn one off to require approval again. Groups and schedules still require supervision.")
+          Text("Revoking makes the bot ask once on its next interactive action. Newly enabled tools also require a new grant.")
         }
       }
     }

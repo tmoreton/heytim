@@ -1,6 +1,6 @@
 # Capability audit
 
-Updated September 17, 2026.
+Updated September 23, 2026.
 
 ## Product lens
 
@@ -37,11 +37,21 @@ No other skill is universal. Deep Research, Data Workspace, creator skills, and 
 
 ## Tool presentation
 
-User-facing tools are Web Search, Shared Lists, Files & Data, Interactive Browser, Image Generator, YouTube, and X. Web Reader, Calculator, World Clock, Focused Delegate, and Meme Lord's compositor remain enabled as internal dependencies but are not shown as choices. X is read-only and limited to recent public-post research.
+The fixed, user-facing tools are Web Search, Shared Lists, Files & Data, Interactive Browser, and Image Generator. Web Reader, Calculator, World Clock, Focused Delegate, Bot Manager, and Meme Lord's compositor remain internal dependencies. The legacy shared-credential X and YouTube Gateway tools are disabled and retired: they must not be offered as bot toggles or used as skill prerequisites. X search and YouTube search are functions of the user's connected account, assigned to a specific bot. This is a product access rule, not an API requirement for searching public content. The YouTube API also supports app-key searches, but HeyTim intentionally requires a user connection for the bot tool. See [YouTube search.list](https://developers.google.com/youtube/v3/docs/search/list) and [Google OIDC user identity](https://developers.google.com/identity/openid-connect/reference).
+
+| Tool source | User-visible assignment | Scope |
+| --- | --- | --- |
+| Fixed web, browser, files, image and list tools | Toggle on each bot; fixed catalog entries | No private social account implied |
+| X and YouTube | Connect the platform account, then toggle that specific account on a bot | Read/search through the user's OAuth grant; no posting or uploads |
+| Home Assistant Assist | Connect its public HTTPS Assist MCP endpoint, then toggle the connection on a bot | Only entities exposed to Assist; the dedicated fast route remains HA-specific |
+| Custom MCP server | Add a name, public HTTPS URL, and bearer token; repeat for multiple servers; toggle each connection on selected bots | The server's advertised tools are discoverable only after assignment; treat the server as trusted code/data |
+| Other private providers | OAuth or GitHub App connection, then per-bot toggle | Provider-specific permissions, resource filters, and rate limits |
+
+Connected providers are presented with X, YouTube, Slack, and Teams first, followed by the other integrations. The bot editor uses the same provider groups for connected and unconnected states, so a disconnected platform offers a Connect link rather than a nonfunctional tool toggle. The three creator skills that previously required retired global X/YouTube tools now require only their general research tools; their instructions use X or YouTube only if those specific account connections are assigned.
 
 ## Creator expansion
 
-Creator Studio and Trend Scout are the first creator bots. Creator Studio deliberately installs both YouTube Strategy and YouTube Thumbnail Director so public research and image creation work together. Because Image Generator requires interactive approval, Creator Studio cannot participate in group replies or group schedules. Direct turns preflight the bot's full tool set, so even research-only requests require approval unless Image Generator was persistently allowed; the same persistent approval is required for a direct bot schedule. Trend Scout is safe for point-in-time group or scheduled research, but it must not claim continuous monitoring unless the user configures a schedule.
+Creator Studio and Trend Scout are the first creator bots. Creator Studio deliberately installs both YouTube Strategy and YouTube Thumbnail Director so public research and image creation work together. Image Generator asks for a one-time Always Allow grant on first use; after the bot owner grants it, the bot can use the tool without per-action prompts, including in eligible schedules and owner-controlled group replies. Trend Scout is safe for point-in-time group or scheduled research, but it must not claim continuous monitoring unless the user configures a schedule.
 
 The research and sequencing evidence is recorded in [BOT_CATALOG_RESEARCH.md](BOT_CATALOG_RESEARCH.md).
 
@@ -59,7 +69,7 @@ HeyTim supports three capability sources:
 2. Community skills and connector definitions merged into this public repository.
 3. Private instruction-only skills created directly in the app, plus reviewed provider account connections.
 
-HeyTim-owned keys for shared services stay server-side and are never entered by users. Private account access uses provider-specific OAuth; its per-user credentials are encrypted, retrieved only by the runtime, and excluded from prompts, skill documents, bot shares, and skill shares. Existing custom MCP connections remain viewable and removable as legacy records, but users cannot add or edit developer-key connections.
+HeyTim-owned keys for shared services stay server-side and are never entered by users. Private account access uses provider-specific OAuth; its per-user credentials are encrypted, retrieved only by the runtime, and excluded from prompts, skill documents, bot shares, and skill shares. Custom MCP servers can be added from the existing Connections screen with a URL and bearer token. Each endpoint has a separate server-side Secrets Manager secret and per-bot connection ID. A repeated URL replaces only that endpoint's credential; a different URL creates another server connection. The runtime rejects non-HTTPS, localhost, private-address, userinfo, query-string, fragment, and non-443 endpoints; it disables HTTP redirects and rechecks DNS before outbound requests. These checks narrow, but do not eliminate, DNS-rebinding and malicious-server risk. A production egress firewall or pinned-resolution transport remains a worthwhile hardening step before recommending arbitrary third-party MCP servers at scale. Server-provided tool descriptions are untrusted input, and a user should connect only servers they trust.
 
 ## Next integrations
 

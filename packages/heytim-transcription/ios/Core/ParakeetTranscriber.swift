@@ -1,7 +1,7 @@
 @preconcurrency import AVFoundation
 import Foundation
 
-public enum NemotronTranscriptionEvent: Sendable {
+public enum ParakeetTranscriptionEvent: Sendable {
     case started
     case audioLevel(Float)
     case result(transcript: String, isFinal: Bool)
@@ -9,9 +9,9 @@ public enum NemotronTranscriptionEvent: Sendable {
     case ended
 }
 
-/// Reusable Apple microphone-to-Nemotron pipeline for iOS and macOS clients.
-public final class NemotronTranscriber: @unchecked Sendable {
-    public typealias EventHandler = @Sendable (NemotronTranscriptionEvent) -> Void
+/// Reusable Apple microphone-to-Parakeet pipeline for iOS and macOS clients.
+public final class ParakeetTranscriber: @unchecked Sendable {
+    public typealias EventHandler = @Sendable (ParakeetTranscriptionEvent) -> Void
 
     private enum Phase: Equatable {
         case idle
@@ -22,7 +22,7 @@ public final class NemotronTranscriber: @unchecked Sendable {
 
     private let eventHandler: EventHandler
     private let processingQueue = DispatchQueue(
-        label: "com.heytim.nemotron.processing",
+        label: "com.heytim.parakeet.processing",
         qos: .userInitiated
     )
     private let stateLock = NSLock()
@@ -32,7 +32,7 @@ public final class NemotronTranscriber: @unchecked Sendable {
     private var nextGeneration: UInt = 0
     private var queuedBufferCount = 0
     private var reportedOverflow = false
-    private var recognizer: NemotronStreamingRecognizer?
+    private var recognizer: ParakeetChunkingRecognizer?
     private var modelUnloadWorkItem: DispatchWorkItem?
     private let converter = StreamingAudioConverter()
     private var transcriptAccumulator = ContinuousTranscriptAccumulator()
@@ -122,8 +122,8 @@ public final class NemotronTranscriber: @unchecked Sendable {
             modelUnloadWorkItem?.cancel()
             modelUnloadWorkItem = nil
             if recognizer == nil {
-                let modelDirectory = try NemotronModelResources.bundledModelDirectory()
-                recognizer = try NemotronStreamingRecognizer(modelDirectory: modelDirectory)
+                let modelDirectory = try ParakeetModelResources.bundledModelDirectory()
+                recognizer = try ParakeetChunkingRecognizer(modelDirectory: modelDirectory)
             }
             guard isStarting(generation), let recognizer else { return }
             converter.reset()
@@ -157,21 +157,13 @@ public final class NemotronTranscriber: @unchecked Sendable {
             let samples = try converter.convert(buffer)
             guard !samples.isEmpty else { return }
             emitAudioLevelIfDue(samples)
-            let update = recognizer.accept(samples)
-            let transcript = transcriptAccumulator.rendering(update.transcript)
-            if transcript != previousTranscript {
-                previousTranscript = transcript
-                emit(.result(transcript: transcript, isFinal: false))
-            }
+            let update = try recognizer.accept(samples)
             if update.reachedEndpoint {
                 let finalizedTranscript = transcriptAccumulator.commit(update.transcript)
-                if !finalizedTranscript.isEmpty {
+                if !update.transcript.isEmpty, finalizedTranscript != previousTranscript {
                     previousTranscript = finalizedTranscript
                     emit(.result(transcript: finalizedTranscript, isFinal: true))
                 }
-                // Endpointing separates phrases; only an explicit Stop ends
-                // microphone capture and the overall dictation session.
-                recognizer.begin()
             }
         } catch {
             failActiveSession(generation: generation, error: error)
@@ -235,19 +227,24 @@ public final class NemotronTranscriber: @unchecked Sendable {
 
     private func finishOnProcessingQueue(generation: UInt) {
         guard isStopping(generation), let recognizer else { return }
-        let transcript = transcriptAccumulator.commit(recognizer.finish())
-        if !transcript.isEmpty {
-            emit(.result(transcript: transcript, isFinal: true))
+        do {
+            let finalSegment = try recognizer.finish()
+            let transcript = transcriptAccumulator.commit(finalSegment)
+            if !finalSegment.isEmpty, transcript != previousTranscript {
+                emit(.result(transcript: transcript, isFinal: true))
+            }
+            transcriptAccumulator.reset()
+            previousTranscript = ""
+            stateLock.lock()
+            if phase == .stopping(generation) {
+                phase = .idle
+            }
+            stateLock.unlock()
+            emit(.ended)
+            scheduleModelUnload()
+        } catch {
+            failActiveSession(generation: generation, error: error)
         }
-        transcriptAccumulator.reset()
-        previousTranscript = ""
-        stateLock.lock()
-        if phase == .stopping(generation) {
-            phase = .idle
-        }
-        stateLock.unlock()
-        emit(.ended)
-        scheduleModelUnload()
     }
 
     private func abort(emitAbortError: Bool) {
@@ -306,11 +303,11 @@ public final class NemotronTranscriber: @unchecked Sendable {
     private func emitFailure(_ error: Error) {
         let code: String
         switch error {
-        case NemotronTranscriptionError.modelFileMissing,
-             NemotronTranscriptionError.modelLoadFailed,
-             NemotronTranscriptionError.modelResourcesMissing:
+        case ParakeetTranscriptionError.modelFileMissing,
+             ParakeetTranscriptionError.modelLoadFailed,
+             ParakeetTranscriptionError.modelResourcesMissing:
             code = "model-unavailable"
-        case NemotronTranscriptionError.microphoneUnavailable:
+        case ParakeetTranscriptionError.microphoneUnavailable:
             code = "audio-capture"
         default:
             code = "processing"
@@ -403,7 +400,7 @@ public final class NemotronTranscriber: @unchecked Sendable {
         return phase == .stopping(generation)
     }
 
-    private func emit(_ event: NemotronTranscriptionEvent) {
+    private func emit(_ event: ParakeetTranscriptionEvent) {
         DispatchQueue.main.async { [eventHandler] in eventHandler(event) }
     }
 }

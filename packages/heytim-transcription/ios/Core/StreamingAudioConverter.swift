@@ -1,7 +1,7 @@
 import AVFoundation
 import Foundation
 
-/// Converts microphone buffers to the 16 kHz mono float samples Nemotron expects.
+/// Converts microphone buffers to the 16 kHz mono float samples Parakeet expects.
 final class StreamingAudioConverter {
     private struct FormatKey: Equatable {
         let sampleRate: Double
@@ -49,10 +49,10 @@ final class StreamingAudioConverter {
     init() {
         guard let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
-            sampleRate: Double(NemotronStreamingRecognizer.sampleRate),
+            sampleRate: Double(ParakeetChunkingRecognizer.sampleRate),
             channels: 1,
             interleaved: false
-        ) else { preconditionFailure("Unable to create the Nemotron audio format") }
+        ) else { preconditionFailure("Unable to create the Parakeet audio format") }
         targetFormat = format
     }
 
@@ -69,7 +69,7 @@ final class StreamingAudioConverter {
         let key = FormatKey(buffer.format)
         if converter == nil || sourceKey != key {
             guard let replacement = AVAudioConverter(from: buffer.format, to: targetFormat) else {
-                throw NemotronTranscriptionError.audioFormatUnavailable
+                throw ParakeetTranscriptionError.audioFormatUnavailable
             }
             replacement.sampleRateConverterAlgorithm = AVSampleRateConverterAlgorithm_MinimumPhase
             replacement.sampleRateConverterQuality = AVAudioQuality.max.rawValue
@@ -77,13 +77,13 @@ final class StreamingAudioConverter {
             sourceKey = key
         }
         guard let converter else {
-            throw NemotronTranscriptionError.audioFormatUnavailable
+            throw ParakeetTranscriptionError.audioFormatUnavailable
         }
 
         let ratio = targetFormat.sampleRate / buffer.format.sampleRate
         let capacity = AVAudioFrameCount(max(1, ceil(Double(buffer.frameLength) * ratio) + 256))
         guard let output = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else {
-            throw NemotronTranscriptionError.audioFormatUnavailable
+            throw ParakeetTranscriptionError.audioFormatUnavailable
         }
         let feeder = InputFeeder(buffer: buffer)
         var error: NSError?
@@ -91,7 +91,7 @@ final class StreamingAudioConverter {
             feeder.next(status: inputStatus)
         }
         if status == .error {
-            throw NemotronTranscriptionError.audioConversionFailed(error)
+            throw ParakeetTranscriptionError.audioConversionFailed(error)
         }
         return samples(from: output)
     }

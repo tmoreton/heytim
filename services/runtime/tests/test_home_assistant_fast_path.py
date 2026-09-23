@@ -152,6 +152,12 @@ async def _change_requires_exact_approval_and_then_confirms(
     first = await fast.maybe_route_home_assistant(PAYLOAD, request)
     assert first is not None and "pendingApproval" in first
     assert session.calls == []
+    no_grant = PAYLOAD | {"bot": {"tools": [{"id": "ha_1", "risk": "read"}]}}
+    assert (
+        await fast.maybe_route_home_assistant(no_grant, "Turn on the bedroom light")
+        is None
+    )
+    assert session.calls == []
     proposal = first["pendingApproval"]
     assert proposal["toolName"] == "assist__homeassistant__HassTurnOn"
     assert proposal["input"] == {"name": "Bedroom light"}
@@ -191,12 +197,22 @@ async def _wrong_model_action_falls_back_without_call(
         is None
     )
     assert session.calls == []
-    no_grant = PAYLOAD | {"bot": {"tools": [{"id": "ha_1", "risk": "read"}]}}
-    assert (
-        await fast.maybe_route_home_assistant(no_grant, "Turn on the bedroom light")
-        is None
-    )
-    assert session.calls == []
+
+
+def test_granted_home_assistant_action_executes_without_another_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    asyncio.run(_granted_home_assistant_action(monkeypatch))
+
+
+async def _granted_home_assistant_action(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = FakeSession()
+    _install_fake_connection(monkeypatch, session)
+    granted = PAYLOAD | {"bot": PAYLOAD["bot"] | {"alwaysAllowedToolIds": ["ha_1"]}}
+    assert await fast.maybe_route_home_assistant(granted, "Turn on the bedroom light") == {
+        "text": "Bedroom light is on, confirmed by Home Assistant."
+    }
+    assert session.calls == [("assist__homeassistant__HassTurnOn", {"name": "Bedroom light"})]
 
 
 def test_status_question_uses_snapshot_without_action_call(

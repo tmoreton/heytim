@@ -107,12 +107,12 @@ end
 local_package = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
 local_package.relative_path = '../../packages/heytim-transcription'
 project.root_object.package_references << local_package
-nemotron = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
-nemotron.package = local_package
-nemotron.product_name = 'HeyTimNemotron'
-app.package_product_dependencies << nemotron
+parakeet = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+parakeet.package = local_package
+parakeet.product_name = 'HeyTimParakeet'
+app.package_product_dependencies << parakeet
 build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
-build_file.product_ref = nemotron
+build_file.product_ref = parakeet
 app.frameworks_build_phase.files << build_file
 
 def add_remote_product(project, target, url:, requirement:, product:, platforms: [])

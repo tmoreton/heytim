@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prepares pinned, generated Apple ASR frameworks and Nemotron model resources.
+# Prepares pinned, generated Apple ASR frameworks and Parakeet model resources.
 
 set -euo pipefail
 
@@ -15,15 +15,12 @@ onnxruntime_version="1.28.2"
 onnxruntime_ios_sha="2c2299acbb461d26d4bac4bc85985d40e7c7177ed6072703ae0846d88b0b4599"
 onnxruntime_macos_sha="cb0b0bec912c77229517c463e28a3fac9674c521f9599919efff1ef2b42f3da0"
 
-model_archive="sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-1120ms-int8-2026-06-11.tar.bz2"
+model_archive="sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2"
 model_url="https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/$model_archive"
-model_archive_sha="adbdd5e9fef87300c37cebfcfc4f1ebe56845c860c8a760af0a1dd65ce9beed3"
-model_name="nemotron-3.5-asr-streaming-0.6b-1120ms"
+model_archive_sha="5793d0fd397c5778d2cf2126994d58e9d56b1be7c04d13c7a15bb1b4eafb16bf"
+model_name="parakeet-tdt-0.6b-v3"
 upstream_model_name="${model_archive%.tar.bz2}"
 model_destination="$generated_root/Models/$model_name"
-
-openmdw_url="https://raw.githubusercontent.com/OpenMDW/OpenMDW/b26b32b34ad2edcc29a7707abb68dcfb25a538c1/1.1/LICENSE.OpenMDW-1.1"
-openmdw_sha="2ab44b68365473c112f5092211a38f231cb23e50de68b75a13369adbd76a74df"
 
 fail() {
   echo "error: $*" >&2
@@ -47,10 +44,10 @@ verify_model() {
   [[ -f "$directory/encoder.int8.onnx" ]] || return 1
   [[ -f "$directory/joiner.int8.onnx" ]] || return 1
   [[ -f "$directory/tokens.txt" ]] || return 1
-  [[ "$(hash_file "$directory/decoder.int8.onnx")" == "19f9c98fc6d0a2c33a65a43b36fdb2e914c26c0aa9764be3aebc502a1e982fb0" ]] || return 1
-  [[ "$(hash_file "$directory/encoder.int8.onnx")" == "2fff2166acaa535bd969fb223c1f0783d71029f143cb298bc54c2afe85abf772" ]] || return 1
-  [[ "$(hash_file "$directory/joiner.int8.onnx")" == "4101c7c679a0bc30483794b27a059e34e79232aa2068d78d51231a22c8b0d7ce" ]] || return 1
-  [[ "$(hash_file "$directory/tokens.txt")" == "729cc103155bafa785f9cd45746cd41cabe97eab7182fc04d594129587958f8a" ]] || return 1
+  [[ "$(hash_file "$directory/decoder.int8.onnx")" == "179e50c43d1a9de79c8a24149a2f9bac6eb5981823f2a2ed88d655b24248db4e" ]] || return 1
+  [[ "$(hash_file "$directory/encoder.int8.onnx")" == "acfc2b4456377e15d04f0243af540b7fe7c992f8d898d751cf134c3a55fd2247" ]] || return 1
+  [[ "$(hash_file "$directory/joiner.int8.onnx")" == "3164c13fc2821009440d20fcb5fdc78bff28b4db2f8d0f0b329101719c0948b3" ]] || return 1
+  [[ "$(hash_file "$directory/tokens.txt")" == "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d" ]] || return 1
 }
 
 find_yaprflow_checkout() {
@@ -62,28 +59,28 @@ find_yaprflow_checkout() {
 
 prepare_model() {
   if verify_model "$model_destination"; then
-    echo "==> Verified Nemotron model is already prepared"
+    echo "==> Verified Parakeet model is already prepared"
     return
   fi
   [[ ! -e "$model_destination" ]] || fail "incomplete generated model exists at $model_destination"
 
   local yaprflow_root
   if yaprflow_root="$(find_yaprflow_checkout)" && verify_model "$yaprflow_root/Models/$model_name"; then
-    echo "==> Reusing the revision-pinned Yaprflow Nemotron model"
+    echo "==> Reusing the revision-pinned Yaprflow Parakeet model"
     mkdir -p "$(dirname "$model_destination")"
     ditto "$yaprflow_root/Models/$model_name" "$model_destination"
-    verify_model "$model_destination" || fail "copied Nemotron model failed verification"
+    verify_model "$model_destination" || fail "copied Parakeet model failed verification"
     return
   fi
 
   local work_root archive_path extracted_root model_file member
-  work_root="$(mktemp -d -t heytim-nemotron-model.XXXXXX)"
+  work_root="$(mktemp -d -t heytim-parakeet-model.XXXXXX)"
   archive_path="$work_root/$model_archive"
   extracted_root="$work_root/extracted"
-  echo "==> Downloading the pinned Nemotron model (about 475 MB)"
+  echo "==> Downloading the pinned Parakeet model (about 487 MB)"
   curl -fL --retry 3 -o "$archive_path" "$model_url"
   [[ "$(hash_file "$archive_path")" == "$model_archive_sha" ]] \
-    || fail "Nemotron model archive checksum did not match"
+    || fail "Parakeet model archive checksum did not match"
   while IFS= read -r member; do
     [[ "$member" != /* && "/$member/" != *"/../"* ]] \
       || fail "unsafe model archive member: $member"
@@ -93,7 +90,7 @@ prepare_model() {
   for model_file in decoder.int8.onnx encoder.int8.onnx joiner.int8.onnx tokens.txt; do
     mv "$extracted_root/$upstream_model_name/$model_file" "$model_destination/$model_file"
   done
-  verify_model "$model_destination" || fail "downloaded Nemotron model failed verification"
+  verify_model "$model_destination" || fail "downloaded Parakeet model failed verification"
   find "$work_root" -depth -delete
 }
 
@@ -288,16 +285,6 @@ prepare_frameworks() {
   framework_ready "$platform" || fail "$platform native framework preparation failed"
 }
 
-prepare_notices() {
-  local notice_root="$generated_root/Notices"
-  mkdir -p "$notice_root"
-  if [[ ! -f "$notice_root/OpenMDW-1.1.txt" ]]; then
-    curl -fsSL --retry 3 -o "$notice_root/OpenMDW-1.1.txt" "$openmdw_url"
-  fi
-  [[ "$(hash_file "$notice_root/OpenMDW-1.1.txt")" == "$openmdw_sha" ]] \
-    || fail "OpenMDW-1.1 license checksum did not match"
-}
-
 case "$requested_platform" in
   ios) platforms=("iOS") ;;
   macos) platforms=("macOS") ;;
@@ -307,10 +294,9 @@ esac
 
 require_tools
 prepare_model
-prepare_notices
 for platform_name in "${platforms[@]}"; do
   prepare_frameworks "$platform_name"
 done
 
-echo "==> HeyTim Nemotron resources are ready for $requested_platform"
+echo "==> HeyTim Parakeet resources are ready for $requested_platform"
 du -sh "$generated_root/Models" "$generated_root/Frameworks" 2>/dev/null || true

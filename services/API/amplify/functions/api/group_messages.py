@@ -88,12 +88,13 @@ def _list_group_message_page(
                     "completedAt": item.get("completedAt"),
                     "activityUpdatedAt": item.get("activityUpdatedAt"),
                     "status": str(item.get("status", "COMPLETE")).lower(),
-                    "allowedActions": (["approveOnce", "reject"]
+                    "allowedActions": (["approveOnce", "approveAlways", "reject"]
                                        if item.get("status") == "AWAITING_APPROVAL"
                                        and item.get("billingUserId") == user_id
                                        and item.get("botOwnerId") == user_id
                                        else ["saveDecision"] if can_save_decision else []),
-                    "approvalTools": ([item["approvalRequest"].get("toolName")]
+                    "approvalTools": (item.get("approvalTools") if isinstance(item.get("approvalTools"), list)
+                                      else [item["approvalRequest"].get("toolName")]
                                       if isinstance(item.get("approvalRequest"), dict) else None),
                     "approvalInput": (json.dumps(item["approvalRequest"].get("input"),
                                                  sort_keys=True, ensure_ascii=False, indent=2)

@@ -1,7 +1,7 @@
 """Direct-chat browser handoff with private profiles and fail-closed transitions.
 
 Runtime consumers must pass their existing table/client. No clients are created
-at import time. Login is not approval to submit forms or perform external writes.
+at import time. Login is not a substitute for the user's requested task scope.
 """
 from __future__ import annotations
 
@@ -39,9 +39,10 @@ RESUME_PROMPT = (
     "page and report that there is no unfinished work; do not revive older tasks. "
     "Use this bot's managed browser session. Verify the current page and login "
     "state, and verify completed external actions before repeating anything. "
-    "Browser authentication is not new authorization to submit forms, post, merge, "
-    "purchase, or perform other external actions. Keep existing tool-approval "
-    "requirements and ask for any missing authorization."
+    "Browser authentication is not new authorization, and an existing Always "
+    "Allow tool grant does not widen the user's request. Submit, post, merge, purchase, or take another external "
+    "action only when the current request authorizes it; ask if the requested "
+    "action or target remains unclear."
 )
 
 

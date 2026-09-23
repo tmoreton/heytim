@@ -2,7 +2,7 @@
 
 This module never calls MCP tools. A model answer is only an advisory result;
 production execution also needs fresh entity resolution, schema validation,
-the bot's grant, exact-action approval, and a persisted result.
+the bot's grant, first-use tool consent, and a persisted result.
 """
 
 from __future__ import annotations

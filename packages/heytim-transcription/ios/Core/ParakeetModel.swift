@@ -1,6 +1,6 @@
 import Foundation
 
-public enum NemotronTranscriptionError: LocalizedError {
+public enum ParakeetTranscriptionError: LocalizedError {
     case audioConversionFailed(Error?)
     case audioFormatUnavailable
     case microphoneUnavailable
@@ -17,16 +17,16 @@ public enum NemotronTranscriptionError: LocalizedError {
         case .microphoneUnavailable:
             return "No usable microphone input is available."
         case .modelFileMissing(let name):
-            return "The bundled Nemotron model is missing \(name)."
+            return "The bundled Parakeet model is missing \(name)."
         case .modelLoadFailed:
-            return "The bundled Nemotron model could not be loaded."
+            return "The bundled Parakeet model could not be loaded."
         case .modelResourcesMissing:
-            return "The bundled Nemotron model resources could not be found."
+            return "The bundled Parakeet model resources could not be found."
         }
     }
 }
 
-struct NemotronModelFiles {
+struct ParakeetModelFiles {
     let directory: URL
 
     var encoder: URL { directory.appendingPathComponent("encoder.int8.onnx") }
@@ -36,13 +36,13 @@ struct NemotronModelFiles {
 
     func validate() throws {
         for file in [encoder, decoder, joiner, tokens] where !FileManager.default.fileExists(atPath: file.path) {
-            throw NemotronTranscriptionError.modelFileMissing(file.lastPathComponent)
+            throw ParakeetTranscriptionError.modelFileMissing(file.lastPathComponent)
         }
     }
 }
 
-public enum NemotronModelResources {
-    public static let modelName = "nemotron-3.5-asr-streaming-0.6b-1120ms"
+public enum ParakeetModelResources {
+    public static let modelName = "parakeet-tdt-0.6b-v3"
 
     public static func bundledModelDirectory() throws -> URL {
         #if SWIFT_PACKAGE
@@ -51,7 +51,7 @@ public enum NemotronModelResources {
         let hosts = [Bundle.main, Bundle(for: ResourceMarker.self)]
         for host in hosts {
             if let resourceBundleURL = host.url(
-                forResource: "HeyTimNemotronResources",
+                forResource: "HeyTimParakeetResources",
                 withExtension: "bundle"
             ), let resourceBundle = Bundle(url: resourceBundleURL),
                let directory = try? locate(in: resourceBundle) {
@@ -61,7 +61,7 @@ public enum NemotronModelResources {
                 return directory
             }
         }
-        throw NemotronTranscriptionError.modelResourcesMissing
+        throw ParakeetTranscriptionError.modelResourcesMissing
         #endif
     }
 
@@ -76,14 +76,14 @@ public enum NemotronModelResources {
                 includingPropertiesForKeys: [.isRegularFileKey],
                 options: [.skipsHiddenFiles]
               )
-        else { throw NemotronTranscriptionError.modelResourcesMissing }
+        else { throw ParakeetTranscriptionError.modelResourcesMissing }
 
         for case let file as URL in enumerator where file.lastPathComponent == "encoder.int8.onnx" {
             let directory = file.deletingLastPathComponent()
-            try NemotronModelFiles(directory: directory).validate()
+            try ParakeetModelFiles(directory: directory).validate()
             return directory
         }
-        throw NemotronTranscriptionError.modelResourcesMissing
+        throw ParakeetTranscriptionError.modelResourcesMissing
     }
 }
 

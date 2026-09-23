@@ -272,7 +272,7 @@ class PersistentAgentCoreBrowser(AgentCoreBrowser):
         try:
             self._executor.submit(self._dispose)
             self._executor.shutdown(wait=False)
-        except AttributeError, RuntimeError:
+        except (AttributeError, RuntimeError):
             pass  # Partial construction or interpreter shutdown.
 
     def _ready_sessions(self, client: BrowserClient) -> list[dict]:

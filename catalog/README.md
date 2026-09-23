@@ -75,15 +75,15 @@ A remote integration stays hosted by its provider or contributor. Shared public 
 This directory owns capability definitions: names, descriptions, skill instructions, tool actions, runtime bindings, and external OpenAPI schemas. The monorepo's services keep the machinery needed to use them safely:
 
 - catalog signature, validation, caching, and version pinning;
-- user-created private skills, OAuth account connections, legacy private-connection records, and sharing records;
+- user-created private skills, OAuth account connections, user-added remote MCP servers, legacy private-connection records, and sharing records;
 - per-user OAuth credentials encrypted in AWS Secrets Manager and resolved only at invocation time;
 - reviewed runtime implementations such as the calculator and browser session manager;
 - the allowlist that prevents public catalog entries from activating arbitrary bundled code; and
 - AWS credentials, permissions, and deployed gateway resources.
 
-Those pieces cannot be downloaded as community content because they execute with trusted server permissions. The app contains no fallback copy of this public catalog. Existing legacy private connections remain viewable, removable, and usable by their current bots, but the app no longer accepts new or edited developer-key connections. Write-capable connections require approval for each direct-chat turn and cannot run in schedules or group rounds.
+Those pieces cannot be downloaded as community content because they execute with trusted server permissions. The app contains no fallback copy of this public catalog. Existing legacy private connections remain viewable, removable, and usable by their current bots. Users can add multiple HTTPS MCP servers with bearer tokens from Connections and assign each server to selected bots; credentials stay in Secrets Manager. The bot sees only tools from its assigned connections. Interactive tools ask once on first use for an Always Allow grant covering the bot's currently enabled tools. The bot owner can revoke that grant in Tools settings; scheduled runs require it in advance.
 
-The X and YouTube targets are the one deployment exception to the main AgentCore project file. AgentCore project schema v1 cannot express an API key's header/query location or prefix, so `infrastructure/gateway-targets.yaml` owns those two targets declaratively next to their canonical schemas. Remove that template when the project schema supports these fields; do not copy the schemas back into the app repository.
+The shared-credential X and YouTube Gateway targets are legacy infrastructure. Their fixed catalog tools are disabled; current X and YouTube search comes only from a per-user OAuth connection assigned to the bot. `infrastructure/gateway-targets.yaml` still preserves the historical target identities until a separate teardown reviews dependencies and rollback.
 
 Before deploying that template, retrieve each provider's managed secret ARN with
 `aws bedrock-agentcore-control get-api-key-credential-provider --name <provider-name> --query 'apiKeySecretArn.secretArn' --output text`
@@ -91,16 +91,11 @@ and pass the exact values as `XCredentialSecretArn` and `YouTubeCredentialSecret
 those two provider and secret ARNs plus the deployed `HeyTim-FrogBotTools` workload identity; do not replace them with
 account-wide wildcards.
 
-Release these targets before publishing bots that depend on them: tag the reviewed catalog commit with its
-immutable `skills-vN` release, upload only the X and YouTube schemas from that tag to the matching private S3
-release paths, deploy the template with the existing gateway ID and role plus the two exact managed-secret
-ARNs, and wait until both gateway targets report `READY`. Before launch, verify that the production Google Cloud
-project's current YouTube Data API **Search Queries** daily quota can cover the expected traffic from workflows
-that intentionally make several searches; the current `search.list` limit is documented on the
-[official method reference](https://developers.google.com/youtube/v3/docs/search/list). Raise that quota or delay
-publication if it cannot support the launch. Smoke-test the targets' read-only search operations, then
-merge the catalog change that enables the dependent bots. Publishing the catalog first creates a visible bot
-whose required tools cannot run.
+The deployment script still maintains the historical targets for compatibility, but no current bot or skill
+requires them. Before launch, verify that the production Google Cloud project's YouTube Data API
+**Search Queries** daily quota can cover connected-account searches; the current `search.list` limit is
+documented on the [official method reference](https://developers.google.com/youtube/v3/docs/search/list).
+Raise that quota or delay publication if connected-account searches would exceed it.
 
 ## Publishing model
 

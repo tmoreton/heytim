@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "CE8547ECAE7476577B1D7275"
+               BlueprintIdentifier = "F74A6AF880ED7E6BCAEAC049"
                BuildableName = "HeyTim.app"
                BlueprintName = "HeyTimApple"
                ReferencedContainer = "container:HeyTimApple.xcodeproj">
@@ -28,7 +28,7 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "C08C17CF97D9548B9E9C79CA"
+               BlueprintIdentifier = "DF40D1761721AD770B2EA18A"
                BuildableName = "HeyTimAppleTests.xctest"
                BlueprintName = "HeyTimAppleTests"
                ReferencedContainer = "container:HeyTimApple.xcodeproj">
@@ -42,7 +42,7 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "2A48D2BF306D55673FF2F935"
+               BlueprintIdentifier = "3DF71FF89EAC84CF7F4BA085"
                BuildableName = "HeyTimAppleUITests.xctest"
                BlueprintName = "HeyTimAppleUITests"
                ReferencedContainer = "container:HeyTimApple.xcodeproj">
@@ -58,7 +58,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "CE8547ECAE7476577B1D7275"
+            BlueprintIdentifier = "F74A6AF880ED7E6BCAEAC049"
             BuildableName = "HeyTim.app"
             BlueprintName = "HeyTimApple"
             ReferencedContainer = "container:HeyTimApple.xcodeproj">
@@ -69,7 +69,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "C08C17CF97D9548B9E9C79CA"
+               BlueprintIdentifier = "DF40D1761721AD770B2EA18A"
                BuildableName = "HeyTimAppleTests.xctest"
                BlueprintName = "HeyTimAppleTests"
                ReferencedContainer = "container:HeyTimApple.xcodeproj">
@@ -79,7 +79,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "2A48D2BF306D55673FF2F935"
+               BlueprintIdentifier = "3DF71FF89EAC84CF7F4BA085"
                BuildableName = "HeyTimAppleUITests.xctest"
                BlueprintName = "HeyTimAppleUITests"
                ReferencedContainer = "container:HeyTimApple.xcodeproj">
@@ -101,7 +101,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "CE8547ECAE7476577B1D7275"
+            BlueprintIdentifier = "F74A6AF880ED7E6BCAEAC049"
             BuildableName = "HeyTim.app"
             BlueprintName = "HeyTimApple"
             ReferencedContainer = "container:HeyTimApple.xcodeproj">
@@ -118,7 +118,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "CE8547ECAE7476577B1D7275"
+            BlueprintIdentifier = "F74A6AF880ED7E6BCAEAC049"
             BuildableName = "HeyTim.app"
             BlueprintName = "HeyTimApple"
             ReferencedContainer = "container:HeyTimApple.xcodeproj">

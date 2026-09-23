@@ -394,6 +394,7 @@ def _invoke(
             ),
             "toolIds": tool_ids,
             "tools": resolved_tools,
+            "alwaysAllowedToolIds": bot.get("alwaysAllowedToolIds", []),
             "skillIds": bot.get("skillIds", []),
             "skills": resolved_skills,
         },

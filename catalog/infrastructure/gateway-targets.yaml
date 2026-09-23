@@ -19,7 +19,7 @@ Parameters:
     Description: Private bucket containing immutable schema release objects.
   Release:
     Type: String
-    Default: skills-v31
+    Default: skills-v33
     AllowedPattern: 'skills-v[1-9][0-9]*'
     Description: HeyTim Skills release containing the deployed schemas.
   XCredentialProviderName:

@@ -34,6 +34,7 @@ from .browser_sessions import browser_session_route
 from .connections import (
     _begin_connection_authorization,
     _connect_home_assistant,
+    _connect_mcp_server,
     _connections,
     _delete_connection,
 )
@@ -157,12 +158,16 @@ def _group_run_route(
             user_id, params.get("groupId", ""), params.get("runId", "")
         ))
     if method == "POST" and path.endswith("/approval"):
-        decision = _body(event).get("approved")
+        body = _body(event)
+        decision = body.get("approved")
         if not isinstance(decision, bool):
             raise ApiError(400, "approved must be true or false")
+        always = body.get("always", False)
+        if not isinstance(always, bool):
+            raise ApiError(400, "always must be true or false")
         return _response(202, _decide_group_action(
             user_id, params.get("groupId", ""), params.get("runId", ""),
-            params.get("taskId", ""), decision,
+            params.get("taskId", ""), decision, always,
         ))
     return None
 
@@ -174,6 +179,8 @@ def _library_route(
         return _response(200, _connections(user_id))
     if method == "POST" and path == "/connections/home-assistant":
         return _response(201, _connect_home_assistant(user_id, _body(event)))
+    if method == "POST" and path == "/connections/mcp-servers":
+        return _response(201, _connect_mcp_server(user_id, _body(event)))
     if method == "POST" and path.endswith("/authorization"):
         return _response(
             200,
@@ -182,9 +189,7 @@ def _library_route(
             ),
         )
     if method == "DELETE" and path.startswith("/connections/"):
-        return _response(
-            200, _delete_connection(user_id, params.get("connectionId", ""))
-        )
+        return _response(200, _delete_connection(user_id, params.get("connectionId", "")))
     if method == "GET" and path == "/memory":
         return _response(200, _list_user_memories(user_id))
     if method == "POST" and path == "/memory":
@@ -199,10 +204,7 @@ def _library_route(
             ),
         )
     if method == "DELETE" and path.startswith("/memory/"):
-        return _response(
-            200,
-            _delete_user_memory_record(user_id, params.get("memoryRecordId", "")),
-        )
+        return _response(200, _delete_user_memory_record(user_id, params.get("memoryRecordId", "")))
     return None
 
 

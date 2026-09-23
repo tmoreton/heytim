@@ -97,7 +97,7 @@ JIRA_TOKEN_URL = "https://auth.atlassian.com/oauth/token"
 ZOOM_TOKEN_URL = "https://zoom.us/oauth/token"
 ZOOM_API_URL = "https://api.zoom.us/v2"
 PROVIDER_SCOPES = {
-    "youtube": {"https://www.googleapis.com/auth/youtube.readonly"},
+    "youtube": {"openid", "email", "https://www.googleapis.com/auth/youtube.readonly"},
     "x": {"tweet.read", "users.read", "offline.access"},
     "slack": {
         "search:read.public",
