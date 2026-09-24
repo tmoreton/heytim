@@ -36,6 +36,10 @@ class ClientError(Exception):
     pass
 
 
+class ParamValidationError(Exception):
+    pass
+
+
 class FakeTypeSerializer:
     def serialize(self, value):
         return value
@@ -231,6 +235,7 @@ class ApiTestCase(unittest.TestCase):
         botocore_config.Config = FakeConfig
         botocore_exceptions.BotoCoreError = BotoCoreError
         botocore_exceptions.ClientError = ClientError
+        botocore_exceptions.ParamValidationError = ParamValidationError
 
         sys.modules.pop("api.handler", None)
         with (

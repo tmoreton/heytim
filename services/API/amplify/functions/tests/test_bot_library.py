@@ -138,7 +138,8 @@ class BotInstallTests(test_api_safety.ApiTestCase):
             ["youtube_search", "web_search", "image_generator"],
         )
         self.assertEqual(installed["extraToolIds"], [])
-        self.assertEqual(installed["alwaysAllowedToolIds"], [])
+        self.assertEqual(installed["actionApprovalMode"], "automatic")
+        self.assertEqual(installed["alwaysAllowedToolIds"], ["image_generator"])
         self.assertEqual(
             installed["skillVersions"],
             {"youtube-strategy": 2, "youtube-thumbnail-director": 3},

@@ -56,6 +56,8 @@ def _process_scheduled_agent_reply(record: dict, request: dict) -> None:
         "source": "schedule",
         "scheduleId": schedule_id,
         "scheduleName": schedule_item["name"],
+        "scheduleDeliveryMode": schedule_item.get("deliveryMode", "app"),
+        "scheduleTimezone": schedule_item.get("timezone", "UTC"),
         "schedulerExecutionId": execution_id,
     }
     created = False

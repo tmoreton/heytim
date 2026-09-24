@@ -98,6 +98,7 @@ def _put_bot(
         "jiraProjectAccess": values.get("jiraProjectAccess", {}),
         "teamsChannelAccess": values.get("teamsChannelAccess", {}),
         "resourceAccess": values.get("resourceAccess", {}),
+        "actionApprovalMode": values.get("actionApprovalMode", "automatic"),
         **{
             key: values[key]
             for key in (

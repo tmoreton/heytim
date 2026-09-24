@@ -45,6 +45,100 @@ class ScheduleTests(unittest.TestCase):
 
 
 class ScheduleDeletionTests(ApiTestCase):
+    @staticmethod
+    def schedule_value(**overrides) -> dict:
+        return {
+            "name": "Daily brief",
+            "prompt": "Summarize the most important updates.",
+            "frequency": "daily",
+            "time": "08:00",
+            "timezone": "America/New_York",
+            "enabled": True,
+            **overrides,
+        }
+
+    def test_schedule_delivery_defaults_to_app_and_validates_email(self) -> None:
+        values = self.schedules._schedule_values(self.schedule_value())
+        self.assertEqual(values["deliveryMode"], "app")
+
+        values = self.schedules._schedule_values(
+            self.schedule_value(deliveryMode="email")
+        )
+        self.assertEqual(values["deliveryMode"], "email")
+
+        with self.assertRaises(self.support.ApiError) as raised:
+            self.schedules._schedule_values(
+                self.schedule_value(deliveryMode="somebody@example.com")
+            )
+        self.assertEqual(raised.exception.status_code, 400)
+
+    def test_email_delivery_requires_the_bots_verified_owner_address(self) -> None:
+        with (
+            patch.object(
+                self.schedules,
+                "_get_bot",
+                return_value={"id": "brief", "toolIds": []},
+            ),
+            self.assertRaises(self.support.ApiError) as raised,
+        ):
+            self.schedules._create_schedule(
+                "owner",
+                "brief",
+                self.schedule_value(deliveryMode="email"),
+            )
+        self.assertEqual(raised.exception.status_code, 409)
+
+    def test_email_delivery_is_saved_for_an_email_enabled_bot(self) -> None:
+        with (
+            patch.object(
+                self.schedules,
+                "_get_bot",
+                return_value={
+                    "id": "brief",
+                    "toolIds": [],
+                    "emailToken": "abcdefghijklmnop",
+                    "emailOwnerAddress": "owner@example.com",
+                },
+            ),
+            patch.object(self.schedules, "_schedule_items", return_value=[]),
+            patch.object(self.schedules.catalog, "unapproved_tools", return_value=[]),
+            patch.object(self.schedules, "_create_remote_schedule") as create_remote,
+        ):
+            result = self.schedules._create_schedule(
+                "owner",
+                "brief",
+                self.schedule_value(deliveryMode="email"),
+            )
+
+        self.assertEqual(result["deliveryMode"], "email")
+        create_remote.assert_called_once()
+
+    def test_run_history_reports_schedule_email_delivery(self) -> None:
+        with (
+            patch.object(self.schedules, "_get_bot", return_value={"id": "brief"}),
+            patch.object(
+                self.schedules,
+                "_list_turns",
+                return_value=[
+                    {
+                        "id": "turn-1",
+                        "source": "schedule",
+                        "scheduleId": "daily",
+                        "scheduleName": "Daily brief",
+                        "scheduleDeliveryMode": "email",
+                        "emailDeliveryStatus": "sent",
+                        "userText": "Summarize updates.",
+                        "status": "COMPLETE",
+                        "createdAt": "2026-09-24T12:00:00+00:00",
+                    }
+                ],
+            ),
+        ):
+            runs = self.schedules._list_schedule_runs("owner", "brief")
+
+        self.assertEqual(runs[0]["deliveryMode"], "email")
+        self.assertEqual(runs[0]["emailStatus"], "sent")
+
     def test_deleting_a_task_removes_its_remote_and_saved_schedule(self) -> None:
         item = {
             **self.schedules._schedule_key("owner", "daily"),

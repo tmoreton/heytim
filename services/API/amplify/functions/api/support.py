@@ -447,6 +447,9 @@ def _public_bot(item: dict) -> dict:
         }
     }
     bot["emailEnabled"] = bool(item.get("emailToken"))
+    bot["actionApprovalMode"] = (
+        "ask" if item.get("actionApprovalMode") == "ask" else "automatic"
+    )
     bot["color"] = _bot_color(item)
     bot["allowedActions"] = [
         "edit",
@@ -461,7 +464,7 @@ def _public_bot(item: dict) -> dict:
 
 
 def _public_schedule(item: dict) -> dict:
-    return {
+    schedule = {
         key: item[key]
         for key in (
             "id",
@@ -482,6 +485,8 @@ def _public_schedule(item: dict) -> dict:
         )
         if key in item
     }
+    schedule["deliveryMode"] = item.get("deliveryMode", "app")
+    return schedule
 
 
 def _validate_string(

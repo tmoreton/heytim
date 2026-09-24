@@ -525,10 +525,19 @@ def _queue_email_delivery(
     event: str,
 ) -> None:
     mode = bot.get("emailDeliveryMode", "appOnly")
+    schedule_email = (
+        turn.get("source") == "schedule"
+        and turn.get("scheduleDeliveryMode") == "email"
+    )
     if (
         not EMAIL_QUEUE_URL
-        or mode == "appOnly"
-        or (mode == "emailReplies" and turn.get("source") != "email")
+        or (
+            not schedule_email
+            and (
+                mode == "appOnly"
+                or (mode == "emailReplies" and turn.get("source") != "email")
+            )
+        )
         or not isinstance(bot.get("emailToken"), str)
         or not isinstance(bot.get("emailOwnerAddress"), str)
     ):

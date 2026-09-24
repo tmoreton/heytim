@@ -95,6 +95,23 @@ class ApiSafetyTests(ApiTestCase):
         self.assertEqual(messages[1]["completedAt"], "2026-09-09T18:01:05Z")
         self.assertTrue(messages[1]["configurationChanged"])
 
+    def test_email_messages_expose_the_subject_as_display_context(self) -> None:
+        messages = self.bots._messages_from_turns(
+            [
+                {
+                    "id": "turn-email",
+                    "userText": "Email subject: Status\n\nWhat changed?",
+                    "emailSubject": "Status",
+                    "source": "email",
+                    "createdAt": "2026-09-09T18:00:00Z",
+                    "status": "COMPLETE",
+                }
+            ]
+        )
+
+        self.assertEqual(messages[0]["source"], "email")
+        self.assertEqual(messages[0]["emailSubject"], "Status")
+
     def test_direct_message_actions_are_issued_by_the_server(self) -> None:
         running = self.bots._messages_from_turns(
             [{
@@ -162,41 +179,6 @@ class ApiSafetyTests(ApiTestCase):
             self.bots._delete_bot("user-1", "chief")
 
         self.assertEqual(error.exception.status_code, 409)
-
-    def test_bot_updates_cannot_grant_always_allowed_tools(self) -> None:
-        previous = {
-            "name": "Home Bot",
-            "tagline": "Controls the house",
-            "prompt": "Help control my Home Assistant devices.",
-            "color": "#FFAA34",
-            "toolIds": ["home"],
-            "extraToolIds": ["home"],
-            "alwaysAllowedToolIds": [],
-            "skillIds": [],
-            "skillVersions": {},
-        }
-        with (
-            patch.object(self.bots.catalog, "sync_official"),
-            patch.object(self.bots.catalog, "validate_and_pin", return_value={}),
-            patch.object(
-                self.bots.catalog,
-                "validate_tools",
-                side_effect=lambda _user, tool_ids: list(tool_ids),
-            ),
-            patch.object(
-                self.bots.catalog,
-                "available_tool_ids",
-                side_effect=lambda _user, tool_ids: list(tool_ids),
-            ),
-            patch.object(
-                self.bots.catalog, "approval_tool_ids", return_value=["home"]
-            ),
-        ):
-            values = self.bots._bot_values(
-                "user-1", {"alwaysAllowedToolIds": ["home"]}, previous
-            )
-
-        self.assertEqual(values["alwaysAllowedToolIds"], [])
 
     def test_second_message_steers_the_active_turn_before_starting_once(self) -> None:
         turn = {

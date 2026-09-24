@@ -22,6 +22,7 @@ public struct Bot: Codable, Identifiable, Hashable, Sendable {
   public var prompt: String
   public var toolIds: [String]
   public var extraToolIds: [String]?
+  public var actionApprovalMode: String?
   public var alwaysAllowedToolIds: [String]?
   public var githubRepositoryAccess: [String: [Int]]?
   public var jiraProjectAccess: [String: [String]]?
@@ -69,6 +70,7 @@ public struct BotInboxMessage: Codable, Identifiable, Hashable, Sendable {
   public var attachmentNames: [String]
   public var authentication: String
   public var disposition: String?
+  public var reviewReason: String?
   public var linkedTurnId: String?
 
   public var draftText: String {
@@ -96,6 +98,7 @@ public struct BotDraft: Codable, Equatable, Sendable {
   public var prompt = ""
   public var toolIds: [String] = []
   public var skillIds: [String] = []
+  public var actionApprovalMode = "automatic"
   public var alwaysAllowedToolIds: [String] = []
   // An absent installation uses all repositories granted to that connection.
   public var githubRepositoryAccess: [String: [Int]] = [:]
@@ -111,6 +114,7 @@ public struct BotDraft: Codable, Equatable, Sendable {
     prompt = bot.prompt
     toolIds = bot.toolIds
     skillIds = bot.skillIds
+    actionApprovalMode = bot.actionApprovalMode == "ask" ? "ask" : "automatic"
     alwaysAllowedToolIds = bot.alwaysAllowedToolIds ?? []
     githubRepositoryAccess = bot.githubRepositoryAccess ?? [:]
     jiraProjectAccess = bot.jiraProjectAccess ?? [:]
@@ -267,6 +271,7 @@ public struct ChatMessage: Codable, Identifiable, Hashable, Sendable {
   public var authorColor: String?
   public var isMine: Bool?
   public var source: String?
+  public var emailSubject: String?
   public var scheduleName: String?
   public var text: String
   public var activity: [String]?
@@ -426,6 +431,7 @@ public struct ScheduledTask: Codable, Identifiable, Hashable, Sendable {
   public var dayOfMonth: Int?
   public var time: String
   public var timezone: String
+  public var deliveryMode: String?
   public var enabled: Bool
   public var createdAt: String
   public var updatedAt: String
@@ -441,6 +447,7 @@ public struct ScheduledTaskDraft: Codable, Equatable, Sendable {
   public var dayOfMonth: Int?
   public var time = "09:00"
   public var timezone = TimeZone.current.identifier
+  public var deliveryMode = "app"
   public var enabled = true
   public init() {}
   public init(task: ScheduledTask) {
@@ -451,6 +458,7 @@ public struct ScheduledTaskDraft: Codable, Equatable, Sendable {
     dayOfMonth = task.dayOfMonth
     time = task.time
     timezone = task.timezone
+    deliveryMode = task.deliveryMode == "email" ? "email" : "app"
     enabled = task.enabled
   }
 }
@@ -466,6 +474,8 @@ public struct ScheduleRun: Codable, Identifiable, Hashable, Sendable {
   public var createdAt: String
   public var completedAt: String?
   public var output: String?
+  public var deliveryMode: String?
+  public var emailStatus: String?
   public var activity: [String]?
   public var approvalTools: [String]?
   public var attachments: [Attachment]?

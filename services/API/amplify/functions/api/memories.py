@@ -5,6 +5,7 @@ import re
 import uuid
 from datetime import UTC, datetime
 
+from botocore.exceptions import ParamValidationError
 from shared.client_contract import MEMORY_MAX_LENGTH
 from shared.memory_cleanup import delete_user_memory
 from shared.memory_identity import (
@@ -46,6 +47,26 @@ def _memory_pages(operation: str, result_key: str, **request) -> list[dict]:
         if not isinstance(next_token, str) or not next_token:
             return items
         request["nextToken"] = next_token
+
+
+def _batch_create_memory_records(records: list[dict]) -> dict:
+    try:
+        return agentcore.batch_create_memory_records(
+            memoryId=HEYTIM_MEMORY_ID,
+            records=records,
+        )
+    except ParamValidationError as error:
+        message = str(error)
+        if 'Unknown parameter in records[' not in message or '"metadata"' not in message:
+            raise
+        # Some managed runtimes validate against a service model from before metadata.
+        compatible_records = [
+            {key: value for key, value in item.items() if key != "metadata"}
+            for item in records]
+        return agentcore.batch_create_memory_records(
+            memoryId=HEYTIM_MEMORY_ID,
+            records=compatible_records,
+        )
 
 
 def _delete_user_memory(user_id: str) -> dict[str, int]:
@@ -164,9 +185,8 @@ def _create_bot_memory(user_id: str, bot_id: str, body: dict) -> dict:
     if len(content) > MAX_MEMORY_CHARS:
         raise ApiError(400, f"Memory must be {MAX_MEMORY_CHARS:,} characters or fewer")
     created_at = datetime.now(UTC)
-    response = agentcore.batch_create_memory_records(
-        memoryId=HEYTIM_MEMORY_ID,
-        records=[
+    response = _batch_create_memory_records(
+        [
             {
                 "requestIdentifier": str(uuid.uuid4()),
                 "namespaces": [_bot_memory_namespace(user_id, bot_id)],
@@ -177,7 +197,7 @@ def _create_bot_memory(user_id: str, bot_id: str, body: dict) -> dict:
                     "heytimSource": {"stringValue": "manual"},
                 },
             }
-        ],
+        ]
     )
     successes = response.get("successfulRecords", [])
     if response.get("failedRecords") or not successes:
@@ -267,9 +287,8 @@ def _create_user_memory(
     if len(content) > MAX_MEMORY_CHARS:
         raise ApiError(400, f"Memory must be {MAX_MEMORY_CHARS:,} characters or fewer")
     created_at = datetime.now(UTC)
-    response = agentcore.batch_create_memory_records(
-        memoryId=HEYTIM_MEMORY_ID,
-        records=[
+    response = _batch_create_memory_records(
+        [
             {
                 "requestIdentifier": request_identifier or str(uuid.uuid4()),
                 "namespaces": [f"/{plural}/{memory_actor_id(user_id)}/"],
@@ -280,7 +299,7 @@ def _create_user_memory(
                     "heytimSource": {"stringValue": "manual"},
                 },
             }
-        ],
+        ]
     )
     successes = response.get("successfulRecords", [])
     if response.get("failedRecords") or not successes:
@@ -351,9 +370,8 @@ def _create_group_memory(user_id: str, group_id: str, body: dict) -> dict:
     if len(content) > MAX_MEMORY_CHARS:
         raise ApiError(400, f"Memory must be {MAX_MEMORY_CHARS:,} characters or fewer")
     created_at = datetime.now(UTC)
-    response = agentcore.batch_create_memory_records(
-        memoryId=HEYTIM_MEMORY_ID,
-        records=[
+    response = _batch_create_memory_records(
+        [
             {
                 "requestIdentifier": str(uuid.uuid4()),
                 "namespaces": [f"/facts/{group_memory_actor_id(group_id)}/"],
@@ -364,7 +382,7 @@ def _create_group_memory(user_id: str, group_id: str, body: dict) -> dict:
                     "heytimSource": {"stringValue": "manual"},
                 },
             }
-        ],
+        ]
     )
     successes = response.get("successfulRecords", [])
     if response.get("failedRecords") or not successes:

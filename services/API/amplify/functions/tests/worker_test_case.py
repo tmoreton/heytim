@@ -27,6 +27,10 @@ class ClientError(Exception):
     pass
 
 
+class ParamValidationError(Exception):
+    pass
+
+
 class FakeTypeSerializer:
     def serialize(self, value):
         return value
@@ -251,6 +255,7 @@ class WorkerTestCase(unittest.TestCase):
         botocore_config.Config = FakeConfig
         botocore_exceptions.BotoCoreError = BotoCoreError
         botocore_exceptions.ClientError = ClientError
+        botocore_exceptions.ParamValidationError = ParamValidationError
 
         sys.modules.pop("worker.handler", None)
         with (
@@ -282,6 +287,7 @@ class WorkerTestCase(unittest.TestCase):
             cls.account_cleanup = importlib.import_module("shared.account_cleanup")
             cls.notifications = importlib.import_module("worker.notifications")
             cls.email_inbound = importlib.import_module("worker.email_inbound_job")
+            cls.scheduled_job = importlib.import_module("worker.scheduled_job")
             cls.scheduled_group_job = importlib.import_module("worker.scheduled_group_job")
             cls.event_routine_job = importlib.import_module("worker.event_routine_job")
 

@@ -5,6 +5,7 @@ import uuid
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from boto3.dynamodb.conditions import Attr
+from shared.action_grants import effective_allowed_interactive_tool_ids
 from shared.client_contract import (
     SCHEDULE_DAY_OF_MONTH_MAX,
     SCHEDULE_DAY_OF_MONTH_MIN,
@@ -61,6 +62,10 @@ def _schedule_values(value: dict, previous: dict | None = None) -> dict:
     if frequency not in {"hourly", "daily", "weekdays", "weekly", "monthly"}:
         raise ApiError(400, "Choose a supported schedule frequency")
 
+    delivery_mode = value.get("deliveryMode", prior.get("deliveryMode", "app"))
+    if delivery_mode not in {"app", "email"}:
+        raise ApiError(400, "Choose a supported delivery method")
+
     time_value = _validate_string(
         value.get("time", prior.get("time", "09:00")), "time", 5
     )
@@ -95,6 +100,7 @@ def _schedule_values(value: dict, previous: dict | None = None) -> dict:
         "frequency": frequency,
         "time": f"{hour:02d}:{minute:02d}",
         "timezone": timezone,
+        "deliveryMode": delivery_mode,
         "enabled": enabled,
     }
     if frequency == "weekly":
@@ -199,6 +205,13 @@ def _list_schedule_runs(user_id: str, bot_id: str) -> list[dict]:
                     "createdAt": turn.get("createdAt"),
                     "completedAt": turn.get("completedAt"),
                     "output": turn.get("assistantText"),
+                    "deliveryMode": (
+                        "email"
+                        if turn.get("scheduleDeliveryMode") == "email"
+                        or isinstance(turn.get("emailDeliveryStatus"), str)
+                        else "app"
+                    ),
+                    "emailStatus": turn.get("emailDeliveryStatus"),
                     "activity": turn.get("activity", []),
                     "approvalTools": turn.get("approvalTools"),
                     "attachments": [
@@ -216,8 +229,15 @@ def _list_schedule_runs(user_id: str, bot_id: str) -> list[dict]:
 def _create_schedule(user_id: str, bot_id: str, value: dict) -> dict:
     bot = _get_bot(user_id, bot_id)
     schedule_values = _schedule_values(value)
+    if schedule_values["deliveryMode"] == "email" and not _bot_email_ready(bot):
+        raise ApiError(
+            409,
+            "Turn on this bot's inbox before emailing scheduled results",
+        )
     if schedule_values["enabled"] and catalog.unapproved_tools(
-        user_id, bot.get("toolIds", []), bot.get("alwaysAllowedToolIds", [])
+        user_id,
+        bot.get("toolIds", []),
+        effective_allowed_interactive_tool_ids(bot),
     ):
         raise ApiError(409, "Allow this bot's tools in a direct chat before scheduling it")
     if len(_schedule_items(user_id)) >= SCHEDULE_LIMIT:
@@ -248,8 +268,15 @@ def _update_schedule(user_id: str, bot_id: str, schedule_id: str, value: dict) -
     bot = _get_bot(user_id, bot_id)
     previous = _get_schedule(user_id, bot_id, schedule_id)
     schedule_values = _schedule_values(value, previous)
+    if schedule_values["deliveryMode"] == "email" and not _bot_email_ready(bot):
+        raise ApiError(
+            409,
+            "Turn on this bot's inbox before emailing scheduled results",
+        )
     if schedule_values["enabled"] and catalog.unapproved_tools(
-        user_id, bot.get("toolIds", []), bot.get("alwaysAllowedToolIds", [])
+        user_id,
+        bot.get("toolIds", []),
+        effective_allowed_interactive_tool_ids(bot),
     ):
         raise ApiError(409, "Allow this bot's tools in a direct chat before scheduling it")
     item = {
@@ -268,6 +295,17 @@ def _update_schedule(user_id: str, bot_id: str, schedule_id: str, value: dict) -
         table.put_item(Item=previous)
         raise
     return _public_schedule(item)
+
+
+def _bot_email_ready(bot: dict) -> bool:
+    token = bot.get("emailToken")
+    owner = bot.get("emailOwnerAddress")
+    return (
+        isinstance(token, str)
+        and bool(token)
+        and isinstance(owner, str)
+        and owner.count("@") == 1
+    )
 
 
 def _delete_schedule(user_id: str, bot_id: str, schedule_id: str) -> dict:

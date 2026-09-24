@@ -38,6 +38,9 @@ dependencies = [
     # AgentCore CodeZip installs from pyproject, not uv.lock. Keep fresh package
     # resolution on the tested version; 6.8.0 otherwise drifts from the lock.
     "multidict==6.8.0",
+    # AgentCore CodeZip resolves instrumentation transitives afresh. Keep the
+    # packaged GenAI helpers identical to the version verified in uv.lock.
+    "opentelemetry-util-genai == 1.1b0",
     "openpyxl >= 3.1.5, < 4.0.0",
     "pillow == 12.3.0",
     # CodeZip resolves this browser dependency afresh instead of using uv.lock.

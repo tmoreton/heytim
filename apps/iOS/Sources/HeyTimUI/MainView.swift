@@ -798,7 +798,9 @@ private struct ConversationView: View {
             id: "\(resultID)-user", role: "user", text: intent,
             createdAt: now, status: "complete"))
         model.composerText = ""
-        if desktopControl.isAlwaysAllowed(for: botID) {
+        if model.selectedBot?.actionApprovalMode != "ask"
+          || desktopControl.isAlwaysAllowed(for: botID)
+        {
           localDesktopMessages.append(
             ChatMessage(
               id: resultID, role: "assistant", text: "Running Mac app action…",
@@ -1498,9 +1500,12 @@ private struct MessageBubble: View {
           }
           .padding(.horizontal, plainAssistantMessage ? 0 : 6)
         } else if message.source == "email" {
-          Text("Email")
+          Text(
+            message.emailSubject.map { "Email · \($0)" } ?? "Email"
+          )
             .froggyFont(.caption)
             .foregroundStyle(.secondary)
+            .lineLimit(1)
         } else if message.source == "schedule" {
           Text("Scheduled · \(message.scheduleName ?? "Recurring task")")
             .froggyFont(.caption, weight: .bold).foregroundStyle(FrogTheme.statusText)
@@ -1524,7 +1529,7 @@ private struct MessageBubble: View {
               Label("Allow This Bot’s Tools", systemImage: "checkmark.shield")
                 .froggyFont(.headline)
               Text(
-                "Always Allow will cover: \(message.approvalTools?.joined(separator: ", ") ?? "this tool"). The action below will run now; later actions won’t ask again."
+                "This bot is set to Ask before acting. Always Allow will cover: \(message.approvalTools?.joined(separator: ", ") ?? "this tool"). The action below will run now; later actions won’t ask again."
               )
               .froggyFont(.callout).foregroundStyle(.secondary)
               if let input = message.approvalInput {
@@ -1632,7 +1637,7 @@ private struct MessageBubble: View {
       }
       Button("Cancel", role: .cancel) {}
     } message: {
-      Text("Always Allow covers all currently enabled tools on this bot that require consent. You can revoke the grant in Tools settings. Newly enabled tools ask again.")
+      Text("Always Allow covers the bot’s currently enabled interactive tools. You can make it ask again under Tools & Skills. Newly enabled tools still ask first while the stricter setting is active.")
     }
   }
 

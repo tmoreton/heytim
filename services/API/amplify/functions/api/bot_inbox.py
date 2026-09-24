@@ -19,6 +19,7 @@ from .support import (
 INBOX_AVAILABLE = os.environ.get("BOT_EMAIL_AVAILABLE") == "true"
 INCOMING_MODES = {"review", "automatic"}
 RESPONSE_MODES = {"appOnly", "emailReplies", "allResponses"}
+PUBLIC_REVIEW_REASONS = {"settings_changed", "bot_busy", "browser_active"}
 
 
 def _inbox_prefix(bot_id: str) -> str:
@@ -63,6 +64,11 @@ def list_bot_inbox(user_id: str, bot_id: str, cursor: object = None) -> dict:
             "attachmentNames": item.get("attachmentNames", []),
             "authentication": item.get("authentication", "unknown"),
             "disposition": item.get("disposition", "review"),
+            **(
+                {"reviewReason": item["reviewReason"]}
+                if item.get("reviewReason") in PUBLIC_REVIEW_REASONS
+                else {}
+            ),
             **(
                 {"linkedTurnId": item["linkedTurnId"]}
                 if isinstance(item.get("linkedTurnId"), str)

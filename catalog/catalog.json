@@ -182,7 +182,7 @@
     {
       "id": "browser",
       "name": "Interactive browser",
-      "description": "Navigate websites and interact with page controls after a one-time Always Allow grant.",
+      "description": "Navigate websites and interact with page controls using the bot's action approval setting.",
       "provider": "agentcore",
       "risk": "interactive",
       "category": "Web",

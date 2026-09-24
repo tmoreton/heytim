@@ -10,6 +10,7 @@ import unicodedata
 from datetime import UTC, datetime
 from email.headerregistry import Address
 from email.message import EmailMessage
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import boto3
 from boto3.dynamodb.conditions import Attr
@@ -99,7 +100,10 @@ def _finish_delivery(key: dict, status: str, **values: str) -> None:
 
 def _eligible(bot: dict, turn: dict) -> bool:
     mode = bot.get("emailDeliveryMode", "appOnly")
-    return mode == "allResponses" or (
+    return (
+        turn.get("source") == "schedule"
+        and turn.get("scheduleDeliveryMode") == "email"
+    ) or mode == "allResponses" or (
         mode == "emailReplies" and turn.get("source") == "email"
     )
 
@@ -120,6 +124,86 @@ def _sender_address(bot_name: str) -> str:
     return f"{local_part}@{MAIL_DOMAIN}"
 
 
+INLINE_MARKUP = re.compile(
+    r"\[([^\]\n]{1,240})\]\((https?://[^\s<>\)]+)\)"
+    r"|(https?://[^\s<>]+)"
+    r"|\*\*([^*\n]+)\*\*"
+)
+
+
+def _inline_html(value: str) -> str:
+    parts: list[str] = []
+    cursor = 0
+    for match in INLINE_MARKUP.finditer(value):
+        parts.append(html.escape(value[cursor : match.start()]))
+        label, markdown_url, bare_url, bold = match.groups()
+        if markdown_url:
+            parts.append(
+                f'<a style="color:#376b4b" href="{html.escape(markdown_url, quote=True)}">'
+                f"{html.escape(label)}</a>"
+            )
+        elif bare_url:
+            trailing = bare_url[-1] if bare_url[-1] in ".,;:" else ""
+            clean_url = bare_url[:-1] if trailing else bare_url
+            parts.append(
+                f'<a style="color:#376b4b" href="{html.escape(clean_url, quote=True)}">'
+                f"{html.escape(clean_url)}</a>{html.escape(trailing)}"
+            )
+        else:
+            parts.append(f"<strong>{html.escape(bold)}</strong>")
+        cursor = match.end()
+    parts.append(html.escape(value[cursor:]))
+    return "".join(parts)
+
+
+def _answer_html(answer: str) -> str:
+    blocks: list[str] = []
+    list_kind: str | None = None
+
+    def close_list() -> None:
+        nonlocal list_kind
+        if list_kind:
+            blocks.append(f"</{list_kind}>")
+            list_kind = None
+
+    for raw_line in answer.splitlines():
+        line = raw_line.strip()
+        if not line:
+            close_list()
+            continue
+        numbered = re.match(r"^\d+[.)]\s+(.+)$", line)
+        bulleted = re.match(r"^[-*]\s+(.+)$", line)
+        if numbered or bulleted:
+            desired = "ol" if numbered else "ul"
+            if list_kind != desired:
+                close_list()
+                list_kind = desired
+                blocks.append(f'<{desired} style="padding-left:24px">')
+            blocks.append(f'<li style="margin:0 0 14px">{_inline_html((numbered or bulleted).group(1))}</li>')
+            continue
+        close_list()
+        heading = re.match(r"^#{1,3}\s+(.+)$", line)
+        content = (heading.group(1) if heading else line)
+        style = "font-weight:700;font-size:18px" if heading else "margin:0 0 14px"
+        blocks.append(f'<p style="{style}">{_inline_html(content)}</p>')
+    close_list()
+    return "".join(blocks)
+
+
+def _schedule_subject(turn: dict) -> str:
+    name = _clean_header(turn.get("scheduleName"), 120) or "Scheduled update"
+    created_at = turn.get("createdAt")
+    timezone = turn.get("scheduleTimezone", "UTC")
+    try:
+        occurred = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+        zone = ZoneInfo(timezone) if isinstance(timezone, str) else ZoneInfo("UTC")
+        local = occurred.astimezone(zone)
+    except (TypeError, ValueError, ZoneInfoNotFoundError):
+        local = datetime.now(UTC)
+    date = local.strftime("%a, %b %d").replace(" 0", " ")
+    return f"{name} — {date}"
+
+
 def _message(bot: dict, turn: dict, route: str, event: str) -> EmailMessage:
     bot_name = _clean_header(bot.get("name"), 80) or "Your bot"
     original_subject = _clean_header(turn.get("emailSubject"), 180)
@@ -133,7 +217,9 @@ def _message(bot: dict, turn: dict, route: str, event: str) -> EmailMessage:
         )
     else:
         is_email_reply = turn.get("source") == "email" or in_reply_to is not None
-        if original_subject and is_email_reply:
+        if turn.get("source") == "schedule":
+            subject = original_subject or _schedule_subject(turn)
+        elif original_subject and is_email_reply:
             subject = (
                 original_subject
                 if original_subject.lower().startswith("re:")
@@ -146,6 +232,9 @@ def _message(bot: dict, turn: dict, route: str, event: str) -> EmailMessage:
     if event == "approval":
         footer = f"Email notifications are enabled for {bot_name} in Hey Tim."
         link_label = "Open Hey Tim to review this action and manage email preferences"
+    elif turn.get("source") == "schedule":
+        footer = f"This scheduled email was generated by {bot_name} in Hey Tim. Reply to continue the conversation."
+        link_label = "Open Hey Tim to review this run or change its schedule"
     else:
         footer = (
             f"Email responses are enabled for {bot_name} in Hey Tim. "
@@ -176,7 +265,7 @@ def _message(bot: dict, turn: dict, route: str, event: str) -> EmailMessage:
             f'<p style="font-size:14px;font-weight:600;color:#376b4b;margin:0 0 20px">'
             f'{html.escape(bot_name)} <span style="font-weight:400;color:#77736b">'
             'via Hey Tim</span></p>'
-            f'<div style="white-space:pre-wrap">{html.escape(answer)}</div>'
+            f'<div>{_answer_html(answer)}</div>'
             '<hr style="border:0;border-top:1px solid #e7e3da;margin:24px 0">'
             f'<p style="color:#77736b;font-size:13px">{html.escape(footer)} '
             f'<a style="color:#376b4b" href="{html.escape(PUBLIC_WEB_BASE_URL, quote=True)}">'

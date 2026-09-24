@@ -121,13 +121,14 @@ def _process_email_inbound(record: dict, request: dict) -> None:
         current_address = mail_address(user_id, bot_id, token)
     except (TypeError, ValueError):
         current_address = ""
+    thread_reply = inbox.get("threadReply") is True
     if not (
         inbox.get("entity") == "BOT_EMAIL"
         and inbox.get("botId") == bot_id
         and inbox.get("disposition") == "automatic"
         and inbox.get("linkedTurnId") == turn_id
         and inbox.get("authentication") == "verified"
-        and bot.get("emailInboundMode") == "automatic"
+        and (bot.get("emailInboundMode") == "automatic" or thread_reply)
         and isinstance(sender, str)
         and isinstance(owner, str)
         and sender.strip().lower() == owner.strip().lower()
@@ -183,6 +184,14 @@ def _process_email_inbound(record: dict, request: dict) -> None:
             "emailReferences": inbox.get("references", ""),
         }
         try:
+            bot_guard = "emailToken = :expectedEmailToken AND emailOwnerAddress = :owner"
+            bot_guard_values = {
+                ":expectedEmailToken": token,
+                ":owner": owner,
+            }
+            if not thread_reply:
+                bot_guard += " AND emailInboundMode = :automatic"
+                bot_guard_values[":automatic"] = "automatic"
             put_user_item_while_account_active(
                 table,
                 user_id,
@@ -190,16 +199,8 @@ def _process_email_inbound(record: dict, request: dict) -> None:
                 require_absent=True,
                 required_item_condition={
                     "Key": _bot_key(user_id, bot_id),
-                    "ConditionExpression": (
-                        "emailToken = :expectedEmailToken AND "
-                        "emailInboundMode = :automatic AND "
-                        "emailOwnerAddress = :owner"
-                    ),
-                    "ExpressionAttributeValues": {
-                        ":expectedEmailToken": token,
-                        ":automatic": "automatic",
-                        ":owner": owner,
-                    },
+                    "ConditionExpression": bot_guard,
+                    "ExpressionAttributeValues": bot_guard_values,
                 },
             )
         except UserItemConflictError:

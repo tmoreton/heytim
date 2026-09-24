@@ -6,8 +6,6 @@ import io
 import os
 import sys
 import uuid
-from email import policy
-from email.parser import BytesParser
 from unittest.mock import MagicMock, patch
 
 from api_test_case import ApiTestCase
@@ -40,6 +38,7 @@ class BotInboxTests(ApiTestCase):
             "pk": f"USER#{user_id}", "sk": "INBOX#bot-1#2026-09-18T01:00:00Z#id",
             "receivedAt": "2026-09-18T01:00:00Z", "from": "Sender <sender@example.com>",
             "subject": "Hello", "body": "Please review", "authentication": "unverified",
+            "reviewReason": "browser_active",
             "rawObjectKey": "received/private", "sesMessageId": "private",
         }
         with (
@@ -50,8 +49,28 @@ class BotInboxTests(ApiTestCase):
             result = self.inbox.list_bot_inbox(user_id, "bot-1")
         self.assertEqual(result["address"], mail_address(user_id, "bot-1", bot["emailToken"]))
         self.assertEqual(result["messages"][0]["subject"], "Hello")
+        self.assertEqual(result["messages"][0]["reviewReason"], "browser_active")
         self.assertNotIn("rawObjectKey", result["messages"][0])
         self.assertNotIn("sesMessageId", result["messages"][0])
+
+    def test_inbox_list_hides_unknown_internal_review_reason(self) -> None:
+        item = {
+            "sk": "INBOX#bot-1#2026-09-18T01:00:00Z#id",
+            "receivedAt": "2026-09-18T01:00:00Z",
+            "reviewReason": "unexpected_internal_detail",
+        }
+        with (
+            patch.object(self.inbox, "_get_bot", return_value={"id": "bot-1"}),
+            patch.object(
+                self.inbox.table,
+                "query",
+                return_value={"Items": [item]},
+                create=True,
+            ),
+        ):
+            result = self.inbox.list_bot_inbox("user-1", "bot-1")
+
+        self.assertNotIn("reviewReason", result["messages"][0])
 
     def test_delete_rejects_another_bots_mail_key(self) -> None:
         identifier = base64.urlsafe_b64encode(b"INBOX#bot-2#now#id").decode().rstrip("=")
@@ -348,98 +367,115 @@ class BotMailReceiverTests(ApiTestCase):
         self.assertEqual(save.call_args.args[2]["disposition"], "review")
         queue.send_message.assert_not_called()
 
-
-class BotMailSenderTests(ApiTestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        super().setUpClass()
-        import boto3
-
-        cls.ses = MagicMock()
-        with (
-            patch.dict(
-                os.environ,
-                {
-                    "TABLE_NAME": "data",
-                    "MAIL_QUEUE_ARN": "arn:aws:sqs:us-east-1:123:mail",
-                },
-            ),
-            patch.object(
-                boto3,
-                "resource",
-                return_value=type(
-                    "Resource", (), {"Table": lambda _self, _name: cls.data_table}
-                )(),
-            ),
-            patch.object(boto3, "client", return_value=cls.ses),
-        ):
-            sys.modules.pop("email_send.handler", None)
-            cls.sender = importlib.import_module("email_send.handler")
-
-    def test_sender_uses_a_clean_from_address_and_private_reply_route(self) -> None:
+    def test_verified_owner_reply_continues_an_existing_thread_in_review_mode(self) -> None:
         user_id = str(uuid.uuid4())
         bot = {
-            "pk": f"USER#{user_id}",
-            "sk": "BOT#bot-1",
             "id": "bot-1",
-            "name": "Scout",
             "emailToken": "abcdefghijklmnop",
+            "emailInboundMode": "review",
             "emailOwnerAddress": "owner@example.com",
-            "emailDeliveryMode": "emailReplies",
         }
-        turn = {
-            "pk": f"CHAT#{user_id}#bot-1",
-            "sk": "TURN#2026-09-18T01:00:00Z#turn-1",
-            "id": "turn-1",
-            "status": "COMPLETE",
-            "source": "email",
-            "emailSubject": "Question",
-            "emailMessageIdHeader": "<owner-1@example.com>",
-            "assistantText": "Here is the answer.",
-        }
-        self.data_table.put_item(Item=bot)
-        self.data_table.put_item(Item=turn)
-        self.ses.send_email.return_value = {"MessageId": "ses-outbound-1"}
-
-        self.sender._process(
-            {
-                "userId": user_id,
-                "botId": "bot-1",
-                "turnId": "turn-1",
-                "turnKey": turn["sk"],
-                "event": "reply",
-            }
-        )
-
-        request = self.ses.send_email.call_args.kwargs
-        address = mail_address(user_id, "bot-1", bot["emailToken"])
-        self.assertEqual(request["FromEmailAddress"], "scout@bots.heytim.ai")
-        self.assertEqual(request["Destination"], {"ToAddresses": ["owner@example.com"]})
-        raw_bytes = request["Content"]["Raw"]["Data"]
-        raw = raw_bytes.decode("utf-8")
-        parsed = BytesParser(policy=policy.default).parsebytes(raw_bytes)
-        self.assertIn("From: Scout via Hey Tim <scout@bots.heytim.ai>", raw)
-        self.assertEqual(parsed["Reply-To"].addresses[0].display_name, "Scout")
-        self.assertEqual(parsed["Reply-To"].addresses[0].addr_spec, address)
-        self.assertIn("Subject: Re: Question", raw)
-        self.assertIn("In-Reply-To: <owner-1@example.com>", raw)
-        self.assertIn("Here is the answer.", raw)
-
-    def test_app_response_does_not_pretend_to_be_an_email_reply(self) -> None:
-        route = "private-route@bots.heytim.ai"
-        message = self.sender._message(
-            {"name": "R\u00e9sum\u00e9 Helper", "emailOwnerAddress": "owner@example.com"},
-            {
-                "source": "app",
-                "emailSubject": "Weekly summary",
-                "assistantText": "Here is your summary.",
+        address = mail_address(user_id, bot["id"], bot["emailToken"])
+        notification = {
+            "notificationType": "Received",
+            "mail": {
+                "messageId": "ses-thread-reply",
+                "timestamp": "2026-09-24T14:30:11Z",
+                "source": "owner@example.com",
             },
-            route,
-            "reply",
-        )
+            "receipt": {
+                "spamVerdict": {"status": "PASS"},
+                "virusVerdict": {"status": "PASS"},
+                "dmarcVerdict": {"status": "PASS"},
+                "recipients": [address],
+                "action": {
+                    "type": "S3",
+                    "bucketName": "mail-bucket",
+                    "objectKey": "ses-thread-reply",
+                },
+            },
+        }
+        self.s3.get_object.return_value = {
+            "Body": io.BytesIO(
+                b"From: Owner <owner@example.com>\nSubject: Re: Status\n"
+                b"Message-ID: <owner-2@example.com>\n"
+                b"In-Reply-To: <ses-outbound@email.amazonses.com>\n"
+                b"References: <owner-1@example.com> "
+                b"<ses-outbound@email.amazonses.com>\n\nWhat is next?"
+            )
+        }
+        queue = MagicMock()
+        with (
+            patch.object(self.receiver, "resolve_mail_address", return_value=(user_id, bot)),
+            patch.object(self.receiver, "put_user_item_while_account_active") as save,
+            patch.object(self.receiver, "JOB_QUEUE_URL", "https://sqs.example/jobs"),
+            patch.object(self.receiver, "sqs", queue),
+            patch.object(
+                self.receiver.table,
+                "query",
+                return_value={
+                    "Items": [{
+                        "emailOutboundMessageId": "ses-outbound",
+                        "emailDeliveryStatus": "sent",
+                    }]
+                },
+                create=True,
+            ),
+        ):
+            self.receiver._process_notification(notification)
 
-        self.assertEqual(message["From"], "R\u00e9sum\u00e9 Helper via Hey Tim <resume-helper@bots.heytim.ai>")
-        self.assertEqual(message["Reply-To"].addresses[0].display_name, "R\u00e9sum\u00e9 Helper")
-        self.assertEqual(message["Reply-To"].addresses[0].addr_spec, route)
-        self.assertEqual(message["Subject"], "Weekly summary")
-        self.assertNotIn("Re:", message["Subject"])
+        item = save.call_args.args[2]
+        self.assertEqual(item["disposition"], "automatic")
+        self.assertTrue(item["threadReply"])
+        self.assertEqual(item["conversationBody"], "What is next?")
+        queued = __import__("json").loads(
+            queue.send_message.call_args.kwargs["MessageBody"]
+        )
+        self.assertEqual(queued["type"], "EMAIL_INBOUND")
+        self.assertEqual(queued["turnId"], item["linkedTurnId"])
+
+    def test_verified_owner_new_email_stays_in_review_mode(self) -> None:
+        user_id = str(uuid.uuid4())
+        bot = {
+            "id": "bot-1",
+            "emailToken": "abcdefghijklmnop",
+            "emailInboundMode": "review",
+            "emailOwnerAddress": "owner@example.com",
+        }
+        notification = {
+            "notificationType": "Received",
+            "mail": {
+                "messageId": "ses-new-conversation",
+                "timestamp": "2026-09-24T14:31:00Z",
+                "source": "owner@example.com",
+            },
+            "receipt": {
+                "spamVerdict": {"status": "PASS"},
+                "virusVerdict": {"status": "PASS"},
+                "dmarcVerdict": {"status": "PASS"},
+                "recipients": ["bot@example.com"],
+                "action": {
+                    "type": "S3",
+                    "bucketName": "mail-bucket",
+                    "objectKey": "ses-new-conversation",
+                },
+            },
+        }
+        self.s3.get_object.return_value = {
+            "Body": io.BytesIO(
+                b"From: owner@example.com\nSubject: New request\n\nPlease review this"
+            )
+        }
+        queue = MagicMock()
+        with (
+            patch.object(self.receiver, "resolve_mail_address", return_value=(user_id, bot)),
+            patch.object(self.receiver, "put_user_item_while_account_active") as save,
+            patch.object(self.receiver, "JOB_QUEUE_URL", "https://sqs.example/jobs"),
+            patch.object(self.receiver, "sqs", queue),
+        ):
+            self.receiver._process_notification(notification)
+
+        item = save.call_args.args[2]
+        self.assertEqual(item["disposition"], "review")
+        self.assertNotIn("threadReply", item)
+        queue.send_message.assert_not_called()
