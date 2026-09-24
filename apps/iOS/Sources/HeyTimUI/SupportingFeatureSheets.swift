@@ -294,6 +294,7 @@ struct ConnectionsView: View {
   @State private var mcpServerURL = ""
   @State private var mcpServerToken = ""
   @State private var updatingMCPServer = false
+  @State private var editingMCPServerID: String?
   @State private var savingMCPServer = false
   @State private var webAuthentication = WebAuthenticationController()
 
@@ -357,7 +358,7 @@ struct ConnectionsView: View {
           if let callback = await model.handleConnectionCallback(url),
             callback.status == .connected
           {
-            successMessage = "\(providerName(callback.providerID)) is now connected."
+            successMessage = "\(providerName(callback.providerID)) sign-in completed. Check the account name below before assigning it to a bot."
             await load()
           }
           connectingProviderID = nil
@@ -435,6 +436,7 @@ struct ConnectionsView: View {
 
   private func updateMCPServer(_ connection: Capability) {
     updatingMCPServer = true
+    editingMCPServerID = connection.id
     mcpServerName = connection.name
     mcpServerURL = connection.endpoint ?? ""
     mcpServerToken = ""
@@ -443,6 +445,7 @@ struct ConnectionsView: View {
 
   private func closeMCPServerSetup() {
     updatingMCPServer = false
+    editingMCPServerID = nil
     mcpServerName = ""
     mcpServerURL = ""
     mcpServerToken = ""
@@ -464,7 +467,9 @@ struct ConnectionsView: View {
         } header: {
           Text(updatingMCPServer ? "Update MCP server" : "Add MCP server")
         } footer: {
-          Text("Use a public HTTPS MCP endpoint you trust. For Home Assistant, enter the full /api/mcp/assist URL and a long-lived access token. HeyTim stores tokens privately. Add multiple servers and enable each only for the bots that need it.")
+          Text(updatingMCPServer
+               ? "Leave the token blank to rename this server without changing its credential. Enter a new token to rotate it. To change the URL, add a new server and reassign bots."
+               : "Use a public HTTPS MCP endpoint you trust. For Home Assistant, enter the full /api/mcp/assist URL and a long-lived access token. HeyTim stores tokens privately. Add multiple servers and enable each only for the bots that need it.")
         }
       }
       .formStyle(.grouped)
@@ -475,7 +480,7 @@ struct ConnectionsView: View {
         }
         ToolbarItem(placement: .confirmationAction) {
             Button(updatingMCPServer ? "Save server" : "Add server") { saveMCPServer() }
-            .disabled(savingMCPServer || mcpServerName.isEmpty || mcpServerURL.isEmpty || mcpServerToken.isEmpty)
+            .disabled(savingMCPServer || mcpServerName.isEmpty || mcpServerURL.isEmpty || (!updatingMCPServer && mcpServerToken.isEmpty))
         }
       }
       .overlay { if savingMCPServer { ProgressView() } }
@@ -489,16 +494,21 @@ struct ConnectionsView: View {
     Task {
       defer { savingMCPServer = false }
       do {
-        _ = try await model.requireAPI().connectMCPServer(
-          name: mcpServerName.trimmingCharacters(in: .whitespacesAndNewlines),
-          url: mcpServerURL.trimmingCharacters(in: .whitespacesAndNewlines),
-          accessToken: mcpServerToken.trimmingCharacters(in: .whitespacesAndNewlines))
+        let name = mcpServerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let editingMCPServerID, mcpServerToken.isEmpty {
+          _ = try await model.requireAPI().renameMCPServer(id: editingMCPServerID, name: name)
+        } else {
+          _ = try await model.requireAPI().connectMCPServer(
+            name: name,
+            url: mcpServerURL.trimmingCharacters(in: .whitespacesAndNewlines),
+            accessToken: mcpServerToken.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
         let updated = updatingMCPServer
         closeMCPServerSetup()
         await load()
         successMessage = updated
-          ? "MCP server updated. Bots using this connection retain access."
-          : "MCP server added. Enable it in the Tools list for each bot that needs it."
+          ? "MCP server saved. Its connection has not been tested."
+          : "MCP server saved, but not tested. Enable it in a bot’s Tools list to use it."
       } catch {
         model.present(error)
       }
@@ -534,7 +544,7 @@ struct ConnectionsView: View {
               connection: connection, provider: provider,
               reconnect: {
                 if provider.id == "mcp_server" { updateMCPServer(connection) }
-                else { connect(provider.id) }
+                else { connect(provider.id, chooseAnotherAccount: true) }
               },
               disconnect: { disconnectCandidate = connection })
           } label: {
@@ -584,10 +594,15 @@ struct ConnectionsView: View {
           .froggyFont(.caption).foregroundStyle(.secondary).lineLimit(2)
       }
       Spacer()
-      Text(connection.connectionStatus == "connected" ? "Connected" : "Needs Attention")
+      Text(connectionStatusLabel(connection))
         .froggyFont(.caption)
-        .foregroundStyle(connection.connectionStatus == "connected" ? FrogTheme.accent : .orange)
+        .foregroundStyle(connection.connectionStatus == "connected" ? FrogTheme.accent : .secondary)
     }
+  }
+
+  private func connectionStatusLabel(_ connection: Capability) -> String {
+    if connection.provider == "mcp_server" { return "Saved · Not tested" }
+    return connection.connectionStatus == "connected" ? "Connected" : "Needs attention"
   }
 }
 
@@ -634,8 +649,12 @@ private struct ConnectionDetailView: View {
       Section {
         if let reconnect {
           Button(
-            provider?.reconnectLabel ?? "Reconnect Account",
+            connection.provider == "mcp_server" ? "Update Server" : "Sign in again…",
             systemImage: "arrow.clockwise", action: reconnect)
+          if connection.provider != "mcp_server" {
+            Text("Choose the account shown above. Signing in with another account adds a separate connection instead of replacing this one.")
+              .froggyFont(.caption).foregroundStyle(.secondary)
+          }
         }
         Button("Disconnect", systemImage: "link.badge.minus", role: .destructive, action: disconnect)
       }
@@ -647,7 +666,9 @@ private struct ConnectionDetailView: View {
   }
 
   private var statusLabel: String {
-    connection.connectionStatus == "connected" ? "Connected" : "Needs attention"
+    connection.provider == "mcp_server"
+      ? "Saved, not tested"
+      : connection.connectionStatus == "connected" ? "Connected" : "Needs attention"
   }
 }
 
@@ -1355,12 +1376,12 @@ struct AccountView: View {
         FeatureLink {
           SkillsView(model: model, showsDismissButton: false)
         } label: {
-          Label("Tools & Skills", systemImage: "wrench.and.screwdriver")
+          Label("Browse Tools & Skills", systemImage: "wrench.and.screwdriver")
         }
         FeatureLink {
           ConnectionsView(model: model, showsDismissButton: false)
         } label: {
-          Label("Accounts & MCP Servers", systemImage: "link")
+          Label("Connect Accounts & MCP Servers", systemImage: "link")
         }
       }
 
@@ -1498,6 +1519,13 @@ struct AccountView: View {
         LabeledContent("Platforms", value: "iPhone + Mac")
         LabeledContent("Version", value: versionLabel)
           .accessibilityIdentifier("settings.version")
+        #if os(macOS)
+          Button("Check for Updates…", systemImage: "arrow.triangle.2.circlepath") {
+            DesktopUpdateController.shared.checkForUpdates()
+          }
+          .disabled(!DesktopUpdateController.shared.isConfigured)
+          .accessibilityIdentifier("settings.check-for-updates")
+        #endif
         Link("Support", destination: URL(string: "mailto:support@heytim.ai?subject=Hey%20Tim%20Support")!)
       }
     }

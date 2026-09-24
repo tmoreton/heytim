@@ -795,7 +795,7 @@ private struct ConversationView: View {
         let resultID = UUID().uuidString
         localDesktopMessages.append(
           ChatMessage(
-            id: UUID().uuidString, role: "user", text: intent,
+            id: "\(resultID)-user", role: "user", text: intent,
             createdAt: now, status: "complete"))
         model.composerText = ""
         if desktopControl.isAlwaysAllowed(for: botID) {
@@ -824,15 +824,17 @@ private struct ConversationView: View {
     private func appendLocalDesktopResponse(intent: String, response: String, status: String) {
       guard model.composerText == intent else { return }
       let now = ISO8601DateFormatter().string(from: Date())
+      let resultID = UUID().uuidString
       localDesktopMessages.append(
         ChatMessage(
-          id: UUID().uuidString, role: "user", text: intent,
+          id: "\(resultID)-user", role: "user", text: intent,
           createdAt: now, status: "complete"))
       localDesktopMessages.append(
         ChatMessage(
-          id: UUID().uuidString, role: "assistant", text: response,
+          id: resultID, role: "assistant", text: response,
           createdAt: now, status: status))
       model.composerText = ""
+      persistDesktopAction(resultID, result: response, outcome: status)
     }
 
     private func approveDesktopAction(_ id: String) async {
@@ -862,12 +864,15 @@ private struct ConversationView: View {
           || result.hasPrefix("Mac app action completed"))
     }
 
-    private func finishDesktopAction(_ id: String, result: String, succeeded: Bool) {
+    private func finishDesktopAction(
+      _ id: String, result: String, succeeded: Bool, outcome: String? = nil
+    ) {
       guard let index = localDesktopMessages.firstIndex(where: { $0.id == id }) else { return }
       localDesktopMessages[index].text = result
       localDesktopMessages[index].approvalInput = nil
       localDesktopMessages[index].allowedActions = nil
       localDesktopMessages[index].status = succeeded ? "complete" : "error"
+      persistDesktopAction(id, result: result, outcome: outcome ?? (succeeded ? "complete" : "error"))
     }
 
     private func rejectDesktopAction(_ id: String) {
@@ -876,7 +881,26 @@ private struct ConversationView: View {
       }) else { return }
       desktopControl.proposal = nil
       desktopControl.pendingNoteText = nil
-      finishDesktopAction(id, result: "Mac app action canceled.", succeeded: true)
+      finishDesktopAction(id, result: "Mac app action canceled.", succeeded: true, outcome: "cancelled")
+    }
+
+    private func persistDesktopAction(_ id: String, result: String, outcome: String) {
+      guard let selection = model.selection, selection.kind == .bot,
+        let user = localDesktopMessages.first(where: { $0.id == "\(id)-user" })
+      else { return }
+      Task {
+        do {
+          try await model.requireAPI().recordDesktopAction(
+            bot: selection.id, actionID: id, intent: user.text, result: result,
+            occurredAt: user.createdAt, outcome: outcome)
+          guard model.selection == selection else { return }
+          try await model.loadMessages()
+          localDesktopMessages.removeAll { $0.id == id || $0.id == "\(id)-user" }
+        } catch {
+          // Keep the local result visible; never claim it reached conversation history.
+          if model.selection == selection { model.present(error) }
+        }
+      }
     }
   #endif
 
@@ -1218,6 +1242,20 @@ private struct ConversationInspector: View {
           || botDraft.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
           ? Color.secondary : Color.red)
     }
+
+    Section("Capabilities") {
+      FeatureLink {
+        BotToolsAndSkillsEditor(
+          model: model, draft: $botDraft,
+          botID: editingBot?.id,
+          skills: model.bootstrap?.skills ?? [],
+          tools: model.bootstrap?.tools ?? [],
+          providers: model.bootstrap?.connectionProviders ?? [])
+      } label: {
+        Label("Assign Tools & Skills", systemImage: "wrench.and.screwdriver")
+      }
+      .accessibilityIdentifier("bot.tools-and-skills")
+    }
   }
 
   @ViewBuilder private var conversationActions: some View {
@@ -1281,19 +1319,6 @@ private struct ConversationInspector: View {
         Label("Memory", systemImage: "brain.head.profile")
       }
       .accessibilityIdentifier("conversation.memory")
-      if actions.contains("edit") {
-        FeatureLink {
-          BotToolsAndSkillsEditor(
-            model: model, draft: $botDraft,
-            botID: bot.id,
-            skills: model.bootstrap?.skills ?? [],
-            tools: model.bootstrap?.tools ?? [],
-            providers: model.bootstrap?.connectionProviders ?? [])
-        } label: {
-          Label("Tools & Skills", systemImage: "wrench.and.screwdriver")
-        }
-        .accessibilityIdentifier("bot.tools-and-skills")
-      }
     } else if let group = selectedGroup {
       FeatureLink {
         GroupRoutinesView(model: model, groupId: group.id)
@@ -1371,7 +1396,10 @@ private struct ConversationInspector: View {
   }
 
   private var canSaveBot: Bool {
-    identityIssue == nil && instructionsIssue == nil && !savingBot
+    identityIssue == nil && instructionsIssue == nil
+      && effectiveCatalogToolIDs(draft: botDraft, skills: model.bootstrap?.skills ?? []).count
+        <= (model.constraints.maxToolsPerBot ?? 12)
+      && !savingBot
   }
 
   private func loadBotDraftIfNeeded(force: Bool = false) {
@@ -1477,6 +1505,9 @@ private struct MessageBubble: View {
           Text("Scheduled · \(message.scheduleName ?? "Recurring task")")
             .froggyFont(.caption, weight: .bold).foregroundStyle(FrogTheme.statusText)
             .padding(.horizontal, 6)
+        } else if message.source == "desktop_action" && !mine {
+          Text("Mac app action")
+            .froggyFont(.caption, weight: .semibold).foregroundStyle(.secondary)
         }
 
         if showsActivity {

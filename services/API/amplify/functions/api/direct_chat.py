@@ -376,6 +376,48 @@ def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
         _release_send_lease(user_id, bot_id, lease_owner)
 
 
+def _record_desktop_action(user_id: str, bot_id: str, value: dict) -> dict:
+    """Keep a Mac-local outcome in normal history without invoking the agent."""
+    _get_bot(user_id, bot_id)
+    action_id = _validate_string(value.get("actionId"), "actionId", 36)
+    try:
+        uuid.UUID(action_id)
+    except ValueError as exc:
+        raise ApiError(400, "Action id is invalid") from exc
+    intent = _validate_string(value.get("intent"), "intent", MESSAGE_MAX_LENGTH)
+    result = _validate_string(value.get("result"), "result", MESSAGE_MAX_LENGTH)
+    outcome = value.get("outcome")
+    if outcome not in {"complete", "error", "cancelled"}:
+        raise ApiError(400, "Action outcome is invalid")
+    occurred_at = _validate_string(value.get("occurredAt"), "occurredAt", 40)
+    try:
+        action_time = datetime.fromisoformat(occurred_at.replace("Z", "+00:00"))
+        if action_time.tzinfo is None or abs((datetime.now(UTC) - action_time).total_seconds()) > 86_400:
+            raise ValueError("outside accepted window")
+    except ValueError as exc:
+        raise ApiError(400, "Action time is invalid") from exc
+    key = {"pk": _turn_pk(user_id, bot_id), "sk": f"TURN#{occurred_at}#{action_id}"}
+    item = {
+        **key, "entity": "TURN", "id": action_id,
+        "botId": bot_id, "userId": user_id,
+        "userText": intent, "assistantText": result,
+        "source": "desktop_action", "actionOutcome": outcome,
+        "createdAt": occurred_at, "completedAt": _now(),
+        "status": "ERROR" if outcome == "error" else "COMPLETE",
+    }
+    try:
+        table.put_item(Item=item, ConditionExpression="attribute_not_exists(pk)")
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        existing = table.get_item(Key=key, ConsistentRead=True).get("Item")
+        if (
+            not existing or existing.get("userText") != intent
+            or existing.get("assistantText") != result
+            or existing.get("actionOutcome") != outcome
+        ):
+            raise ApiError(409, "This Mac action changed after it was saved") from None
+    return {"recorded": True, "actionId": action_id}
+
+
 def _get_turn(user_id: str, bot_id: str, turn_id: str) -> dict:
     turn_id = _validate_string(turn_id, "turnId", 64)
     turn = next(

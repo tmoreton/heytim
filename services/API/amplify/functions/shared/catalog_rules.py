@@ -6,7 +6,11 @@ import socket
 import urllib.parse
 from typing import Any
 
-from shared.client_contract import BOT_PROMPT_MAX_LENGTH, SKILL_INSTRUCTIONS_MAX_LENGTH
+from shared.client_contract import (
+    BOT_PROMPT_MAX_LENGTH,
+    MAX_TOOLS_PER_BOT,
+    SKILL_INSTRUCTIONS_MAX_LENGTH,
+)
 from shared.connection_providers import (
     GMAIL_MCP_ENDPOINT,
     GMAIL_MCP_TOOLS,
@@ -16,7 +20,6 @@ from shared.connection_providers import (
 from shared.github_app import GITHUB_MCP_ENDPOINT
 
 MAX_SKILLS_PER_BOT = 12
-MAX_TOOLS_PER_BOT = 12
 MAX_SKILL_INSTRUCTIONS = SKILL_INSTRUCTIONS_MAX_LENGTH
 RETIRED_TOOL_IDS = frozenset({"meme_composer", "x_search", "youtube_search"})
 MAX_CATALOG_TAGS = 6
@@ -543,6 +546,15 @@ def _public_tool(item: dict) -> dict:
     if public.get("provider") == "home_assistant":
         public["provider"] = "mcp_server"
     if public.get("provider") == "mcp_server":
+        # Saving a URL and token is not an MCP handshake. Existing grants are
+        # presented honestly as unverified until a connection test exists.
+        public["connectionStatus"] = "saved"
+        display_name = (
+            item.get("connectedAccount") if item.get("provider") == "mcp_server"
+            else item.get("displayName")
+        )
+        if isinstance(display_name, str) and display_name:
+            public["name"] = display_name
         runtime = item.get("runtime")
         if isinstance(runtime, dict) and isinstance(runtime.get("endpoint"), str):
             public["endpoint"] = runtime["endpoint"]

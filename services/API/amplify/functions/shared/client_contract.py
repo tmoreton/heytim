@@ -13,6 +13,7 @@ SKILL_DESCRIPTION_MAX_LENGTH = 240
 SKILL_INSTRUCTIONS_MAX_LENGTH = 20_000
 MEMORY_MAX_LENGTH = 16_000
 MAX_ATTACHMENTS_PER_MESSAGE = 5
+MAX_TOOLS_PER_BOT = 12
 IMAGE_MAX_BYTES = 3_750_000
 DOCUMENT_MAX_BYTES = 4_500_000
 MAX_PHOTO_DIMENSION = 1_920
@@ -37,6 +38,7 @@ def client_constraints() -> dict:
         "skillInstructionsMaxLength": SKILL_INSTRUCTIONS_MAX_LENGTH,
         "memoryMaxLength": MEMORY_MAX_LENGTH,
         "maxAttachmentsPerMessage": MAX_ATTACHMENTS_PER_MESSAGE,
+        "maxToolsPerBot": MAX_TOOLS_PER_BOT,
         "imageMaxBytes": IMAGE_MAX_BYTES,
         "documentMaxBytes": DOCUMENT_MAX_BYTES,
         "maxPhotoDimension": MAX_PHOTO_DIMENSION,

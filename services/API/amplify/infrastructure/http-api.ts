@@ -45,6 +45,7 @@ export function addHttpApi({
         CorsHttpMethod.GET,
         CorsHttpMethod.POST,
         CorsHttpMethod.PUT,
+        CorsHttpMethod.PATCH,
         CorsHttpMethod.DELETE,
         CorsHttpMethod.OPTIONS,
       ],

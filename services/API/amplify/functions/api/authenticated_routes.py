@@ -37,10 +37,12 @@ from .connections import (
     _connect_mcp_server,
     _connections,
     _delete_connection,
+    _rename_mcp_server,
 )
 from .direct_chat import (
     _approve_bot_turn,
     _cancel_bot_turn,
+    _record_desktop_action,
     _run_schedule_now,
     _send_message,
 )
@@ -181,6 +183,10 @@ def _library_route(
         return _response(201, _connect_home_assistant(user_id, _body(event)))
     if method == "POST" and path == "/connections/mcp-servers":
         return _response(201, _connect_mcp_server(user_id, _body(event)))
+    if method == "PATCH" and path.startswith("/connections/"):
+        return _response(200, _rename_mcp_server(
+            user_id, params.get("connectionId", ""), _body(event)
+        ))
     if method == "POST" and path.endswith("/authorization"):
         return _response(
             200,
@@ -461,6 +467,8 @@ def _direct_chat_route(
         )
     if method == "POST" and path.startswith("/bots/") and path.endswith("/messages"):
         return _response(202, _send_message(user_id, bot_id, _body(event)))
+    if method == "POST" and path.startswith("/bots/") and path.endswith("/desktop-actions"):
+        return _response(201, _record_desktop_action(user_id, bot_id, _body(event)))
     if method == "POST" and path.startswith("/bots/") and path.endswith("/approve"):
         return _response(
             202,

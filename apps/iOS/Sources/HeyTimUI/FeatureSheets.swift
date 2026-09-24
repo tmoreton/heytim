@@ -522,16 +522,18 @@ private struct BotEditor: View {
     return nil
   }
 
-  private var canSave: Bool { identityIssue == nil && instructionsIssue == nil && !saving }
+  private var canSave: Bool {
+    identityIssue == nil && instructionsIssue == nil
+      && effectiveCatalogToolIDs(draft: draft, skills: model.bootstrap?.skills ?? []).count
+        <= (model.constraints.maxToolsPerBot ?? 12)
+      && !saving
+  }
 
   private var selectedSkillCount: Int { draft.skillIds.count }
 
   private var effectiveToolCount: Int {
-    let selectedSkillIDs = Set(draft.skillIds)
-    let requiredToolIDs = (model.bootstrap?.skills ?? []).lazy
-      .filter { selectedSkillIDs.contains($0.id) }
-      .flatMap(\.requiredToolIds)
-    let catalogCount = Set(draft.toolIds).union(requiredToolIDs).count
+    let catalogCount = effectiveCatalogToolIDs(
+      draft: draft, skills: model.bootstrap?.skills ?? []).count
     #if os(macOS)
       return catalogCount + (editingBot.map { desktopControl.enabledBotIDs.contains($0.id) } == true ? 1 : 0)
     #else
@@ -610,7 +612,7 @@ private struct BotEditor: View {
         } label: {
           Label {
             VStack(alignment: .leading, spacing: 3) {
-              Text("Tools & Skills")
+              Text("Assign Tools & Skills")
               Text(
                 "\(selectedSkillCount) \(selectedSkillCount == 1 ? "skill" : "skills") · \(effectiveToolCount) \(effectiveToolCount == 1 ? "tool" : "tools")"
               )
@@ -623,7 +625,11 @@ private struct BotEditor: View {
         }
         .accessibilityIdentifier("bot.tools-and-skills")
       } footer: {
-        Text("Choose optional playbooks and the actions this bot can use.")
+        Text(
+          effectiveCatalogToolIDs(draft: draft, skills: model.bootstrap?.skills ?? []).count
+            > (model.constraints.maxToolsPerBot ?? 12)
+            ? "Choose at most \(model.constraints.maxToolsPerBot ?? 12) tools, including those required by skills."
+            : "Choose optional playbooks and the actions this bot can use.")
       }
       if let bot = editingBot {
         Section("Email") {
@@ -715,6 +721,14 @@ struct BotPromptEditor: View {
   }
 }
 
+func effectiveCatalogToolIDs(draft: BotDraft, skills: [Skill]) -> Set<String> {
+  let selectedSkills = Set(draft.skillIds)
+  let requiredTools = skills.lazy
+    .filter { selectedSkills.contains($0.id) }
+    .flatMap(\.requiredToolIds)
+  return Set(draft.toolIds).union(requiredTools)
+}
+
 struct BotToolsAndSkillsEditor: View {
   @Bindable var model: AppModel
   @Binding var draft: BotDraft
@@ -724,10 +738,43 @@ struct BotToolsAndSkillsEditor: View {
   let providers: [ConnectionProvider]
   #if os(macOS)
     @Environment(DesktopControlCoordinator.self) private var desktopControl
+    @Environment(\.scenePhase) private var scenePhase
   #endif
   @State private var jiraProjectText: [String: String] = [:]
   @State private var teamsChannelText: [String: String] = [:]
   @State private var resourceText: [String: String] = [:]
+  @State private var searchText = ""
+  @State private var selectedSection = CapabilitySection.tools
+
+  private enum CapabilitySection: String, CaseIterable, Identifiable {
+    case tools = "Tools"
+    case skills = "Skills"
+    var id: Self { self }
+  }
+
+  private var maxTools: Int { model.constraints.maxToolsPerBot ?? 12 }
+  private var selectedToolCount: Int {
+    effectiveCatalogToolIDs(draft: draft, skills: skills).count
+  }
+  private var filteredSkills: [Skill] {
+    skills.filter {
+      searchText.isEmpty || $0.name.localizedCaseInsensitiveContains(searchText)
+        || $0.description.localizedCaseInsensitiveContains(searchText)
+    }
+    .sorted {
+      if draft.skillIds.contains($0.id) != draft.skillIds.contains($1.id) {
+        return draft.skillIds.contains($0.id)
+      }
+      return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+    }
+  }
+  private var filteredTools: [Capability] {
+    tools.filter {
+      searchText.isEmpty || $0.name.localizedCaseInsensitiveContains(searchText)
+        || $0.description.localizedCaseInsensitiveContains(searchText)
+        || ($0.connectedAccount?.localizedCaseInsensitiveContains(searchText) == true)
+    }
+  }
 
   private var requiredByTool: [String: [String]] {
     var result: [String: [String]] = [:]
@@ -746,26 +793,33 @@ struct BotToolsAndSkillsEditor: View {
   private var providerToolGroups: (
     groups: [ConnectionProviderToolGroup], ungrouped: [Capability]
   ) {
-    connectionProviderToolGroups(tools: tools, providers: providers)
+    let visibleProviders = providers.filter { provider in
+      searchText.isEmpty || provider.name.localizedCaseInsensitiveContains(searchText)
+        || provider.description.localizedCaseInsensitiveContains(searchText)
+        || filteredTools.contains(where: { $0.provider == provider.id })
+    }
+    return connectionProviderToolGroups(tools: filteredTools, providers: visibleProviders)
   }
 
   var body: some View {
     Form {
       Section {
-        Text(
-          "Skills are playbooks the bot can activate when a request matches. Tools are actions it can call when needed."
-        )
-        .froggyFont(.callout)
-        .foregroundStyle(.secondary)
+        Picker("Capabilities", selection: $selectedSection) {
+          ForEach(CapabilitySection.allCases) { section in
+            Text(section.rawValue).tag(section)
+          }
+        }
+        .pickerStyle(.segmented)
       }
 
+      if selectedSection == .skills {
       Section("Skills") {
         FeatureLink {
           SkillsView(model: model, showsDismissButton: false)
         } label: {
           Label("Browse, Create, or Import Skills", systemImage: "square.grid.2x2")
         }
-        ForEach(skills) { skill in
+        ForEach(filteredSkills) { skill in
           capabilityToggle(
             id: skill.id,
             name: skill.name,
@@ -776,8 +830,16 @@ struct BotToolsAndSkillsEditor: View {
           ContentUnavailableView("No Skills", systemImage: "sparkles")
         }
       }
-
+      } else {
       Section("Tools") {
+        FeatureLink {
+          ConnectionsView(model: model, showsDismissButton: false)
+        } label: {
+          Label("Connect an account or MCP server", systemImage: "link.badge.plus")
+        }
+        Text("\(selectedToolCount) of \(maxTools) tools enabled, including tools required by skills.")
+          .froggyFont(.caption)
+          .foregroundStyle(selectedToolCount > maxTools ? Color.red : Color.secondary)
         Text("Enable each connected account, GitHub installation, or MCP server separately for this bot. Connections are never shared with a bot automatically.")
           .froggyFont(.caption).foregroundStyle(.secondary)
         #if os(macOS)
@@ -799,7 +861,15 @@ struct BotToolsAndSkillsEditor: View {
             Text("Save this bot first to enable Mac app actions.")
               .froggyFont(.caption).foregroundStyle(.secondary)
           } else if !desktopControl.isEnabled {
-            Text("Mac app actions are also off in Settings. Turn them on there before this bot can use the tool.")
+            Button("Enable Mac app actions in Settings") { desktopControl.isEnabled = true }
+          } else if !desktopControl.permissionGranted {
+            Label("Accessibility access is required", systemImage: "hand.raised")
+              .foregroundStyle(.secondary)
+            Button("Request Accessibility Access") {
+              desktopControl.requestAccessibilityPermission()
+            }
+            Button("Open macOS Settings") { desktopControl.openAccessibilitySettings() }
+            Text("After enabling this app in macOS Settings, quit and reopen Hey Tim.")
               .froggyFont(.caption).foregroundStyle(.secondary)
           }
         #endif
@@ -827,6 +897,7 @@ struct BotToolsAndSkillsEditor: View {
         }
         #endif
       }
+      }
 
       if !alwaysAllowedTools.isEmpty {
         Section {
@@ -846,6 +917,7 @@ struct BotToolsAndSkillsEditor: View {
     .formStyle(.grouped)
     .froggyListSurface()
     .froggyNavigationTitle("Tools & Skills")
+    .searchable(text: $searchText, prompt: "Find a tool or skill")
     .toolbarTitleDisplayMode(.inline)
     .onAppear {
       jiraProjectText = draft.jiraProjectAccess.mapValues { $0.joined(separator: ", ") }
@@ -853,31 +925,66 @@ struct BotToolsAndSkillsEditor: View {
       resourceText = draft.resourceAccess.mapValues { $0.joined(separator: ", ") }
     }
     .task { _ = await model.refreshBootstrap() }
+    #if os(macOS)
+      .alert("Reopen Hey Tim?", isPresented: Binding(
+        get: { desktopControl.restartPrompt },
+        set: { desktopControl.restartPrompt = $0 })) {
+        Button("Quit and Reopen") { desktopControl.restartForAccessibility() }
+        Button("Later", role: .cancel) {}
+      } message: {
+        Text("Accessibility changes take effect after Hey Tim reopens.")
+      }
+      .onChange(of: scenePhase) { _, phase in
+        if phase == .active { desktopControl.refreshPermissionAfterSettings() }
+      }
+    #endif
   }
 
   @ViewBuilder private func capabilityToggle(
     id: String, name: String, description: String, values: Binding<[String]>
   ) -> some View {
+    let selected = values.wrappedValue.contains(id)
+    let requiredIfEnabled = skills.first(where: { $0.id == id })?.requiredToolIds ?? []
+    let exceedsLimit = !selected
+      && Set(effectiveCatalogToolIDs(draft: draft, skills: skills))
+        .union(requiredIfEnabled).count > maxTools
     Toggle(
       isOn: Binding(
         get: { values.wrappedValue.contains(id) },
-        set: { enabled in set(enabled, id: id, in: &values.wrappedValue) })
+        set: { enabled in
+          if enabled {
+            var candidate = draft
+            candidate.skillIds.append(id)
+            guard effectiveCatalogToolIDs(draft: candidate, skills: skills).count <= maxTools else { return }
+          }
+          set(enabled, id: id, in: &values.wrappedValue)
+        })
     ) {
       VStack(alignment: .leading, spacing: 3) {
         Text(name)
         Text(description).froggyFont(.caption).foregroundStyle(.secondary)
       }
     }
+    .accessibilityLabel(name)
+    .accessibilityValue(values.wrappedValue.contains(id) ? "On" : "Off")
+    .disabled(exceedsLimit)
+    if exceedsLimit {
+      Text("Disable another tool before enabling this skill.")
+        .froggyFont(.caption).foregroundStyle(.secondary)
+    }
   }
 
   @ViewBuilder private func toolToggle(_ tool: Capability, name: String? = nil) -> some View {
     let requiredBy = requiredByTool[tool.id] ?? []
+    let atLimit = !draft.toolIds.contains(tool.id) && requiredBy.isEmpty
+      && selectedToolCount >= maxTools
     VStack(alignment: .leading, spacing: 8) {
       Toggle(
         isOn: Binding(
           get: { requiredBy.isEmpty ? draft.toolIds.contains(tool.id) : true },
           set: { enabled in
             guard requiredBy.isEmpty else { return }
+            if enabled && !draft.toolIds.contains(tool.id) && selectedToolCount >= maxTools { return }
             set(enabled, id: tool.id, in: &draft.toolIds)
             if !enabled {
               draft.githubRepositoryAccess.removeValue(forKey: tool.id)
@@ -907,7 +1014,13 @@ struct BotToolsAndSkillsEditor: View {
         }
       }
       .accessibilityIdentifier("bot.tool.\(tool.id)")
-      .disabled(!requiredBy.isEmpty)
+      .accessibilityLabel(tool.connectedAccount.map { "\(name ?? tool.name), \($0)" } ?? (name ?? tool.name))
+      .accessibilityValue(draft.toolIds.contains(tool.id) || !requiredBy.isEmpty ? "On" : "Off")
+      .disabled(!requiredBy.isEmpty || atLimit)
+      if atLimit {
+        Text("Disable another tool to make room.")
+          .froggyFont(.caption).foregroundStyle(.secondary)
+      }
       if tool.provider == "github" && draft.toolIds.contains(tool.id) {
         githubRepositoryPicker(tool).padding(.leading, 40)
       }
@@ -2444,6 +2557,20 @@ struct SkillsView: View {
   @State private var selection = CapabilityLibrarySection.skills
   @State private var editor: SkillEditorDestination?
   @State private var importingFromGitHub = false
+  @State private var searchText = ""
+
+  private var visibleSkills: [Skill] {
+    (model.bootstrap?.skills ?? []).filter {
+      searchText.isEmpty || $0.name.localizedCaseInsensitiveContains(searchText)
+        || $0.description.localizedCaseInsensitiveContains(searchText)
+    }
+    .sorted {
+      if ($0.source == "official") != ($1.source == "official") {
+        return $0.source == "official"
+      }
+      return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+    }
+  }
 
   private enum CapabilityLibrarySection: String, CaseIterable, Identifiable {
     case skills = "Skills"
@@ -2466,7 +2593,7 @@ struct SkillsView: View {
       switch selection {
       case .skills:
         Section("Skills") {
-          ForEach(model.bootstrap?.skills ?? []) { skill in
+          ForEach(visibleSkills) { skill in
             FeatureLink {
               SkillDetailView(
                 model: model, id: skill.id,
@@ -2483,8 +2610,10 @@ struct SkillsView: View {
               }
             }
           }
-          if model.bootstrap?.skills.isEmpty != false {
-            ContentUnavailableView("No Skills", systemImage: "sparkles")
+          if visibleSkills.isEmpty {
+            ContentUnavailableView(
+              searchText.isEmpty ? "No Skills" : "No Matching Skills",
+              systemImage: "sparkles")
           }
         }
       case .tools:
@@ -2527,6 +2656,7 @@ struct SkillsView: View {
     }
     .froggyListSurface()
     .froggyNavigationTitle("Tools & Skills")
+    .searchable(text: $searchText, prompt: "Find a skill")
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       if showsDismissButton {

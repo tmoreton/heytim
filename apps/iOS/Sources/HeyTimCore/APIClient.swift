@@ -246,6 +246,17 @@ public final class HeyTimAPI: Sendable {
         text: text, attachmentIds: attachments, workspaceFileIds: workspaceFiles,
         replyBotId: nil, inboxMessageId: inboxMessageId))
   }
+  public func recordDesktopAction(
+    bot id: String, actionID: String, intent: String, result: String,
+    occurredAt: String, outcome: String
+  ) async throws {
+    let _: EmptyResponse = try await request(
+      .botDesktopActionRecord, parameters: ["botId": id],
+      body: [
+        "actionId": actionID, "intent": intent, "result": result,
+        "occurredAt": occurredAt, "outcome": outcome,
+      ])
+  }
   public func sendMessage(
     group id: String, text: String, replyBotId: String? = nil, attachments: [String] = [],
     workspaceFiles: [String] = []
@@ -527,6 +538,9 @@ public final class HeyTimAPI: Sendable {
     try await request(
       .mcpServerConnect,
       body: ["name": name, "url": url, "accessToken": accessToken])
+  }
+  public func renameMCPServer(id: String, name: String) async throws -> Capability {
+    try await request(.mcpServerRename, parameters: ["connectionId": id], body: ["name": name])
   }
   public func connections() async throws -> [Capability] {
     let envelope: ArrayEnvelope<Capability> = try await request(.connectionsList)

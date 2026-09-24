@@ -404,6 +404,18 @@ import UniformTypeIdentifiers
       ["browser"])
   }
 
+  func testBotToolCountIncludesSkillRequirementsWithoutDoubleCounting() throws {
+    let skill = try JSONDecoder().decode(
+      Skill.self,
+      from: Data(#"{"id":"research","name":"Research","description":"Find things","version":1,"requiredToolIds":["web","browser"],"source":"official","visibility":"public","editable":false}"#.utf8))
+    var draft = BotDraft()
+    draft.toolIds = ["web", "calendar"]
+    draft.skillIds = ["research"]
+    XCTAssertEqual(
+      effectiveCatalogToolIDs(draft: draft, skills: [skill]),
+      Set(["web", "browser", "calendar"]))
+  }
+
   func testMemoryUsageMakesActiveScopeAndCleanupExplicit() {
     let fact = MemoryRecord(
       id: "fact", kind: "fact", content: "Prefers tea", createdAt: "2026-09-13T12:00:00Z",

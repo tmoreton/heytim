@@ -824,6 +824,7 @@ public struct AppConstraints: Codable, Equatable, Sendable {
   public var skillInstructionsMaxLength: Int
   public var memoryMaxLength: Int
   public var maxAttachmentsPerMessage: Int
+  public var maxToolsPerBot: Int?
   public var imageMaxBytes: Int
   public var documentMaxBytes: Int
   public var maxPhotoDimension: Int
@@ -845,6 +846,7 @@ public struct AppConstraints: Codable, Equatable, Sendable {
     skillInstructionsMaxLength: 20_000,
     memoryMaxLength: 16_000,
     maxAttachmentsPerMessage: 5,
+    maxToolsPerBot: 12,
     imageMaxBytes: 3_750_000,
     documentMaxBytes: 4_500_000,
     maxPhotoDimension: 1_920)

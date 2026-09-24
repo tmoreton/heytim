@@ -141,7 +141,12 @@ def _get_history(
             if turn.get("id") == current_event_id:
                 content.extend(_attachment_blocks(turn, user_id, bot_id))
             messages.append({"role": "user", "content": content})
-        if turn.get("assistantText") and turn.get("status") == "COMPLETE":
+        if turn.get("source") == "desktop_action" and turn.get("assistantText"):
+            messages.append({"role": "assistant", "content": [{"text": (
+                "The user's Mac reported this local action outcome; the server did not "
+                "independently verify the Mac app state: " + turn["assistantText"][:MAX_HISTORY_BLOCK_CHARS]
+            )}]})
+        elif turn.get("assistantText") and turn.get("status") == "COMPLETE":
             messages.append(
                 {"role": "assistant", "content": [
                     {"text": turn["assistantText"][index:index + MAX_HISTORY_BLOCK_CHARS]}

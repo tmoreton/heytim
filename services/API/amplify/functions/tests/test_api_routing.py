@@ -104,6 +104,32 @@ class ApiRoutingTests(unittest.TestCase):
         self.assertEqual(json.loads(response["body"]), connected)
         connect.assert_called_once_with("user-1", payload)
 
+    def test_mcp_server_rename_uses_authenticated_connection_route(self) -> None:
+        renamed = {"id": "connection_" + "a" * 20, "name": "Office"}
+        with patch.object(self.routes, "_rename_mcp_server", return_value=renamed) as rename:
+            response = self.routes.route_authenticated(
+                "user-1", "Tim", "PATCH", "/connections/" + renamed["id"],
+                {"connectionId": renamed["id"]}, {"body": '{"name":"Office"}'},
+                route_key="PATCH /connections/{connectionId}",
+            )
+        self.assertEqual(response["statusCode"], 200)
+        rename.assert_called_once_with("user-1", renamed["id"], {"name": "Office"})
+
+    def test_desktop_action_record_does_not_dispatch_normal_bot_send(self) -> None:
+        recorded = {"recorded": True}
+        with (
+            patch.object(self.routes, "_record_desktop_action", return_value=recorded) as record,
+            patch.object(self.routes, "_send_message") as send,
+        ):
+            response = self.routes.route_authenticated(
+                "user-1", "Tim", "POST", "/bots/bot-1/desktop-actions",
+                {"botId": "bot-1"}, {"body": '{"actionId":"one"}'},
+                route_key="POST /bots/{botId}/desktop-actions",
+            )
+        self.assertEqual(response["statusCode"], 201)
+        record.assert_called_once_with("user-1", "bot-1", {"actionId": "one"})
+        send.assert_not_called()
+
     def test_mcp_server_connect_uses_authenticated_connection_route(self) -> None:
         connected = {"id": "connection_mcp", "name": "MCP server"}
         payload = {"name": "Planning", "url": "https://planning.example.com/mcp", "accessToken": "p" * 48}

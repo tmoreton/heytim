@@ -8,18 +8,26 @@ struct HeyTimAppleApp: App {
     @NSApplicationDelegateAdaptor(FroggyAppDelegate.self) private var appDelegate
   #endif
 
-  private let configuration: AppConfiguration
-  @State private var auth: AuthSession
+  private let configuration: AppConfiguration?
+  private let configurationError: String?
+  @State private var auth: AuthSession?
   @State private var model: AppModel
   #if os(macOS)
     @State private var desktopControl = DesktopControlCoordinator()
-    private let updateController = DesktopUpdateController()
+    private let updateController = DesktopUpdateController.shared
   #endif
 
   init() {
-    let value = try! AppConfiguration.load()
-    configuration = value
-    _auth = State(initialValue: AuthSession(configuration: value))
+    do {
+      let value = try AppConfiguration.load()
+      configuration = value
+      configurationError = nil
+      _auth = State(initialValue: AuthSession(configuration: value))
+    } catch {
+      configuration = nil
+      configurationError = error.localizedDescription
+      _auth = State(initialValue: nil)
+    }
     _model = State(
       initialValue: AppModel(demoMode: ProcessInfo.processInfo.arguments.contains("--ui-testing")))
   }
@@ -27,9 +35,15 @@ struct HeyTimAppleApp: App {
   var body: some Scene {
     #if os(macOS)
       WindowGroup {
-        AppRoot(configuration: configuration, auth: auth, model: model)
-          .frame(minWidth: auth.phase == .signedIn ? 1_160 : 900, minHeight: 620)
-          .environment(desktopControl)
+        Group {
+          if let configuration, let auth {
+            AppRoot(configuration: configuration, auth: auth, model: model)
+              .frame(minWidth: auth.phase == .signedIn ? 1_160 : 900, minHeight: 620)
+          } else {
+            configurationFailure
+          }
+        }
+        .environment(desktopControl)
       }
       .defaultSize(width: 1200, height: 760)
       .windowStyle(.hiddenTitleBar)
@@ -42,7 +56,7 @@ struct HeyTimAppleApp: App {
         CommandGroup(replacing: .appSettings) {
           Button("Settings…") { model.sheet = .account }
             .keyboardShortcut(",", modifiers: .command)
-            .disabled(auth.phase != .signedIn)
+            .disabled(auth?.phase != .signedIn)
         }
         CommandGroup(after: .newItem) {
           Button("New Bot") { model.sheet = .botEditor(nil) }.keyboardShortcut(
@@ -52,10 +66,25 @@ struct HeyTimAppleApp: App {
       }
     #else
       WindowGroup {
-        AppRoot(configuration: configuration, auth: auth, model: model)
-          .frame(minWidth: 360, minHeight: 520)
+        Group {
+          if let configuration, let auth {
+            AppRoot(configuration: configuration, auth: auth, model: model)
+          } else {
+            configurationFailure
+          }
+        }
+        .frame(minWidth: 360, minHeight: 520)
       }
     #endif
+  }
+
+  private var configurationFailure: some View {
+    ContentUnavailableView {
+      Label("Hey Tim couldn’t start", systemImage: "exclamationmark.triangle")
+    } description: {
+      Text(configurationError ?? "The app configuration is unavailable.")
+    }
+    .accessibilityIdentifier("app.configuration-error")
   }
 }
 

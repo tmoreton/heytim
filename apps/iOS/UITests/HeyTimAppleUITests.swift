@@ -96,19 +96,19 @@ import XCTest
     XCTAssertTrue(firstGmail.label.contains("alpha@example.com"))
 
     firstGmail.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).tap()
-    expectValue("1", for: firstGmail)
+    expectValue("On", for: firstGmail)
     for _ in 0..<8 where !isFullyVisible(secondGmail) { app.swipeUp() }
     XCTAssertTrue(isFullyVisible(secondGmail))
     XCTAssertTrue(secondGmail.label.contains("beta@example.com"))
-    expectValue("0", for: secondGmail)
+    expectValue("Off", for: secondGmail)
     secondGmail.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).tap()
-    expectValue("1", for: secondGmail)
+    expectValue("On", for: secondGmail)
     for _ in 0..<8 where !isFullyVisible(firstGmail) { app.swipeDown() }
     XCTAssertTrue(isFullyVisible(firstGmail))
     firstGmail.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).tap()
-    expectValue("0", for: firstGmail)
+    expectValue("Off", for: firstGmail)
     for _ in 0..<8 where !isFullyVisible(secondGmail) { app.swipeUp() }
-    expectValue("1", for: secondGmail)
+    expectValue("On", for: secondGmail)
   }
   #endif
 
@@ -419,7 +419,7 @@ import XCTest
     settings.tap()
 
     XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 5))
-    for title in ["Memory", "Add a Bot", "Tools & Skills", "Accounts & MCP Servers"] {
+    for title in ["Memory", "Add a Bot", "Browse Tools & Skills", "Connect Accounts & MCP Servers"] {
       XCTAssertTrue(app.descendants(matching: .any)[title].firstMatch.exists)
     }
     XCTAssertTrue(app.descendants(matching: .any)["settings.appearance"].exists)
@@ -480,7 +480,7 @@ import XCTest
       app.launchForUITesting()
 
       app.buttons["sidebar.settings"].click()
-      app.buttons["Tools & Skills"].click()
+      app.buttons["Browse Tools & Skills"].click()
       let tools = app.radioButtons.matching(
         NSPredicate(format: "label BEGINSWITH %@", "Tools ")).firstMatch
       XCTAssertTrue(tools.waitForExistence(timeout: 5))
@@ -541,7 +541,7 @@ import XCTest
       XCTAssertTrue(settings.waitForExistence(timeout: 10))
       settings.tap()
 
-      let connectedAccounts = app.staticTexts["Accounts & MCP Servers"]
+      let connectedAccounts = app.staticTexts["Connect Accounts & MCP Servers"]
       XCTAssertTrue(connectedAccounts.waitForExistence(timeout: 5))
       connectedAccounts.tap()
 
@@ -626,7 +626,7 @@ import XCTest
     #endif
     XCTAssertTrue(app.buttons["sidebar.settings"].waitForExistence(timeout: 10))
     app.buttons["sidebar.settings"].tap()
-    let toolsAndSkills = app.descendants(matching: .any)["Tools & Skills"].firstMatch
+    let toolsAndSkills = app.descendants(matching: .any)["Browse Tools & Skills"].firstMatch
     XCTAssertTrue(toolsAndSkills.waitForExistence(timeout: 5))
     toolsAndSkills.tap()
 
@@ -663,7 +663,7 @@ import XCTest
     let settings = app.buttons["sidebar.settings"]
     XCTAssertTrue(settings.waitForExistence(timeout: 10))
     settings.tap()
-    let toolsAndSkills = app.descendants(matching: .any)["Tools & Skills"].firstMatch
+    let toolsAndSkills = app.descendants(matching: .any)["Browse Tools & Skills"].firstMatch
     XCTAssertTrue(toolsAndSkills.waitForExistence(timeout: 5))
     toolsAndSkills.tap()
 
@@ -927,7 +927,7 @@ import XCTest
       XCTAssertEqual(composer.value as? String, "Keep this draft behind Settings")
 
       app.buttons["sidebar.settings"].click()
-      app.buttons["Tools & Skills"].click()
+      app.buttons["Browse Tools & Skills"].click()
       XCTAssertTrue(app.staticTexts["Tools & Skills"].waitForExistence(timeout: 5))
       let toolsScreenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
       toolsScreenshot.name = "Tools and Skills shares the navigation header"

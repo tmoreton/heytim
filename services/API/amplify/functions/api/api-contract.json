@@ -37,6 +37,7 @@
     { "id": "botDocuments", "method": "GET", "path": "/bots/{botId}/documents", "access": "authenticated", "handler": "directChat" },
     { "id": "botMessagesList", "method": "GET", "path": "/bots/{botId}/messages", "access": "authenticated", "handler": "directChat" },
     { "id": "botMessageSend", "method": "POST", "path": "/bots/{botId}/messages", "access": "authenticated", "handler": "directChat" },
+    { "id": "botDesktopActionRecord", "method": "POST", "path": "/bots/{botId}/desktop-actions", "access": "authenticated", "handler": "directChat" },
     { "id": "botMessagesClear", "method": "DELETE", "path": "/bots/{botId}/messages", "access": "authenticated", "handler": "directChat" },
     { "id": "botMessageApprove", "method": "POST", "path": "/bots/{botId}/messages/{turnId}/approve", "access": "authenticated", "handler": "directChat" },
     { "id": "botMessageCancel", "method": "POST", "path": "/bots/{botId}/messages/{turnId}/cancel", "access": "authenticated", "handler": "directChat" },
@@ -119,6 +120,7 @@
     { "id": "connectionsList", "method": "GET", "path": "/connections", "access": "authenticated", "handler": "library" },
     { "id": "homeAssistantConnect", "method": "POST", "path": "/connections/home-assistant", "access": "authenticated", "handler": "library" },
     { "id": "mcpServerConnect", "method": "POST", "path": "/connections/mcp-servers", "access": "authenticated", "handler": "library" },
+    { "id": "mcpServerRename", "method": "PATCH", "path": "/connections/{connectionId}", "access": "authenticated", "handler": "library" },
     { "id": "connectionAuthorize", "method": "POST", "path": "/connections/{providerId}/authorization", "access": "authenticated", "handler": "library" },
     { "id": "connectionDelete", "method": "DELETE", "path": "/connections/{connectionId}", "access": "authenticated", "handler": "library" },
 

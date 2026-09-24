@@ -49,6 +49,7 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case botDocuments
     case botMessagesList
     case botMessageSend
+    case botDesktopActionRecord
     case botMessagesClear
     case botMessageApprove
     case botMessageCancel
@@ -121,6 +122,7 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case connectionsList
     case homeAssistantConnect
     case mcpServerConnect
+    case mcpServerRename
     case connectionAuthorize
     case connectionDelete
     case accountDelete
@@ -374,6 +376,12 @@ public enum GeneratedAPIContract {
             id: .botMessageSend,
             method: .post,
             pathTemplate: "/bots/{botId}/messages",
+            access: .authenticated
+        ),
+        .botDesktopActionRecord: APIContractRoute(
+            id: .botDesktopActionRecord,
+            method: .post,
+            pathTemplate: "/bots/{botId}/desktop-actions",
             access: .authenticated
         ),
         .botMessagesClear: APIContractRoute(
@@ -806,6 +814,12 @@ public enum GeneratedAPIContract {
             id: .mcpServerConnect,
             method: .post,
             pathTemplate: "/connections/mcp-servers",
+            access: .authenticated
+        ),
+        .mcpServerRename: APIContractRoute(
+            id: .mcpServerRename,
+            method: .patch,
+            pathTemplate: "/connections/{connectionId}",
             access: .authenticated
         ),
         .connectionAuthorize: APIContractRoute(

@@ -21,6 +21,7 @@
   }
 
   @MainActor final class DesktopUpdateController {
+    static let shared = DesktopUpdateController()
     let isConfigured: Bool
     private let controller: SPUStandardUpdaterController?
 

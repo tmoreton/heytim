@@ -14,6 +14,8 @@ class ConnectionCatalogCases:
         )
         self.assertNotEqual(first["id"], second["id"])
         self.assertEqual(first["provider"], "mcp_server")
+        self.assertEqual(first["name"], "Planning")
+        self.assertEqual(first["connectionStatus"], "saved")
         self.assertEqual(first["endpoint"], "https://planning.example.com/mcp")
         self.assertNotIn("p" * 48, repr(first))
         self.assertNotIn("r" * 48, repr(second))
@@ -25,6 +27,18 @@ class ConnectionCatalogCases:
             "owner", "Planning updated", "https://planning.example.com/mcp", "n" * 48
         )
         self.assertEqual(replaced["id"], first["id"])
+        secret_before_rename = self.catalog.resolve_tools_for_runtime(
+            "owner", [first["id"]]
+        )[0]["runtime"]["secretArn"]
+        renamed = self.catalog.rename_mcp_server_connection("owner", first["id"], "Planning renamed")
+        self.assertEqual(renamed["name"], "Planning renamed")
+        self.assertEqual(renamed["id"], first["id"])
+        self.assertEqual(
+            self.catalog.resolve_tools_for_runtime("owner", [first["id"]])[0]["runtime"]["secretArn"],
+            secret_before_rename,
+        )
+        with self.assertRaisesRegex(CatalogError, "not found"):
+            self.catalog.rename_mcp_server_connection("owner", "connection_" + "f" * 20, "Wrong")
         with self.assertRaises(CatalogError):
             self.catalog.save_mcp_server_connection(
                 "owner", "Private", "https://127.0.0.1/mcp", "p" * 48

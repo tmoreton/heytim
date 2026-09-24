@@ -22,8 +22,8 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
                         "scheduleName": turn.get("scheduleName", "Scheduled task"),
                     }
                     if turn.get("source") == "schedule"
-                    else {"source": "email"}
-                    if turn.get("source") == "email"
+                    else {"source": turn["source"]}
+                    if turn.get("source") in {"email", "desktop_action"}
                     else {}
                 ),
                 **(
@@ -49,6 +49,7 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
                     "createdAt": turn.get("completedAt", turn["createdAt"]),
                     "startedAt": turn.get("startedAt", turn["createdAt"]),
                     "status": status,
+                    **({"source": "desktop_action"} if turn.get("source") == "desktop_action" else {}),
                     "allowedActions": (
                         ["reject", "approveOnce", "approveAlways"]
                         if status == "awaiting_approval"
