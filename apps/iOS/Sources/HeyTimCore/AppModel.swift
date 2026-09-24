@@ -687,12 +687,16 @@ public final class AppModel {
     }
   }
 
-  public func saveBot(_ draft: BotDraft, id: String?) async -> Bool {
+  public func saveBot(
+    _ draft: BotDraft, id: String?, selectAfterSaving: Bool = true
+  ) async -> Bool {
     guard let api, !demoMode else { return true }
     do {
       let bot = try await api.saveBot(draft, id: id)
       await refreshBootstrap()
-      select(.init(kind: .bot, id: bot.id))
+      if selectAfterSaving {
+        select(.init(kind: .bot, id: bot.id))
+      }
       return true
     } catch {
       present(error)

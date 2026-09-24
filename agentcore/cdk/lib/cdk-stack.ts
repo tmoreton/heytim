@@ -111,9 +111,7 @@ function hardenAgentCoreCrossServiceAccess(stack: Stack): void {
       for (let index = 0; index < (document.Statement?.length ?? 0); index += 1) {
         const service = document.Statement?.[index]?.Principal?.Service;
         const services = Array.isArray(service) ? service : [service];
-        const isAgentCoreRole = services.some(
-          candidate => candidate === 'bedrock-agentcore.amazonaws.com'
-        );
+        const isAgentCoreRole = services.some(candidate => candidate === 'bedrock-agentcore.amazonaws.com');
         if (!isAgentCoreRole) continue;
         construct.addPropertyOverride(`AssumeRolePolicyDocument.Statement.${index}.Condition`, {
           StringEquals: { 'aws:SourceAccount': stack.account },
@@ -206,13 +204,15 @@ export class AgentCoreStack extends Stack {
         resourceName: 'frogbot/connections/*',
         arnFormat: ArnFormat.COLON_RESOURCE_NAME,
       });
-      const providerConfigurationArns = ['google', 'github', 'x', 'slack', 'microsoft', 'notion'].map(provider =>
-        this.formatArn({
-          service: 'secretsmanager',
-          resource: 'secret',
-          resourceName: `heytim/oauth/${provider}-*`,
-          arnFormat: ArnFormat.COLON_RESOURCE_NAME,
-        })
+      const providerConfigurationArns = ['heytim', 'frogbot'].flatMap(namespace =>
+        ['google', 'github', 'x', 'slack', 'microsoft', 'notion', 'hubspot', 'jira', 'zoom'].map(provider =>
+          this.formatArn({
+            service: 'secretsmanager',
+            resource: 'secret',
+            resourceName: `${namespace}/oauth/${provider}-*`,
+            arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+          })
+        )
       );
       for (const environment of this.application.environments.values()) {
         environment.runtime.role.addToPrincipalPolicy(

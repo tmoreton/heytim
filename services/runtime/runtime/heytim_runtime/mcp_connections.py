@@ -44,11 +44,11 @@ SECRET_ARN_PATTERN = re.compile(
 )
 OAUTH_CLIENT_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/google-[A-Za-z0-9-]+$"
+    r"secret:(?:heytim|frogbot)/oauth/google-[A-Za-z0-9-]+$"
 )
 GITHUB_APP_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/github-[A-Za-z0-9-]+$"
+    r"secret:(?:heytim|frogbot)/oauth/github-[A-Za-z0-9-]+$"
 )
 GOOGLE_OAUTH_ENDPOINT = "https://oauth2.googleapis.com/token"
 _secrets_manager = None

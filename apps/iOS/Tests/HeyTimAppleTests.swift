@@ -416,6 +416,33 @@ import UniformTypeIdentifiers
       Set(["web", "browser", "calendar"]))
   }
 
+  func testBotDraftAutosaveCoalescesRapidChangesAndCanSaveAgain() async {
+    let queue = BotDraftAutosaveQueue()
+    var savedNames: [String] = []
+
+    for name in ["One", "Two", "Three"] {
+      var draft = BotDraft()
+      draft.name = name
+      queue.submit(draft, botID: "bot-1") { savedDraft, _ in
+        savedNames.append(savedDraft.name)
+        return true
+      }
+    }
+    await queue.waitForIdle()
+
+    var finalDraft = BotDraft()
+    finalDraft.name = "Four"
+    queue.submit(finalDraft, botID: "bot-1") { savedDraft, _ in
+      savedNames.append(savedDraft.name)
+      return true
+    }
+    await queue.waitForIdle()
+
+    XCTAssertEqual(savedNames, ["Three", "Four"])
+    XCTAssertFalse(queue.isSaving)
+    XCTAssertEqual(queue.lastSaveSucceeded, true)
+  }
+
   func testMemoryUsageMakesActiveScopeAndCleanupExplicit() {
     let fact = MemoryRecord(
       id: "fact", kind: "fact", content: "Prefers tea", createdAt: "2026-09-13T12:00:00Z",
