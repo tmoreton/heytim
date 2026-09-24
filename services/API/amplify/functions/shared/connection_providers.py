@@ -108,7 +108,7 @@ CONNECTION_PROVIDER_SPECS = (
         "description": "Read exposed devices and request home actions through your own Home Assistant instance.",
         "category": "Smart home",
         "iconText": "HA",
-        "permissionsSummary": "Only entities exposed to Assist; the first action asks for Always Allow",
+        "permissionsSummary": "Only entities exposed to Assist; actions follow each bot's approval setting",
         "privacyTitle": "Your home stays under your control",
         "privacyDescription": (
             "HeyTim stores your token privately on the server and uses only the "

@@ -170,6 +170,8 @@ def _start_bot_turn(
                 "source": "schedule",
                 "scheduleId": schedule_item["id"],
                 "scheduleName": schedule_item["name"],
+                "scheduleDeliveryMode": schedule_item.get("deliveryMode", "app"),
+                "scheduleTimezone": schedule_item.get("timezone", "UTC"),
             }
         )
     table.put_item(Item=item)

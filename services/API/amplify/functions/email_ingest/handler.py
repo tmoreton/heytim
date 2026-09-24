@@ -35,6 +35,7 @@ MAIL_TOPIC_ARN = os.environ["MAIL_TOPIC_ARN"]
 JOB_QUEUE_URL = os.environ.get("JOB_QUEUE_URL", "")
 MAX_PREVIEW_BYTES = 10 * 1024 * 1024
 MAX_BODY_CHARS = 7_000
+MAX_THREAD_LOOKUP_TURNS = 500
 
 
 class _TextFromHtml(HTMLParser):
@@ -148,21 +149,83 @@ def _reply_body(value: str) -> str:
     return _clean_text("\n".join(kept), MAX_BODY_CHARS) or value
 
 
-def _automatic_delivery(bot: dict, preview: dict, mail: dict, authentication: str) -> bool:
+def _verified_owner_mail(
+    bot: dict, preview: dict, mail: dict, authentication: str
+) -> bool:
     owner = bot.get("emailOwnerAddress")
     header_sender = preview.get("from")
     envelope_sender = mail.get("source")
     auto_submitted = str(preview.get("autoSubmitted", "")).strip().lower()
     return bool(
-        JOB_QUEUE_URL
-        and bot.get("emailInboundMode") == "automatic"
-        and authentication == "verified"
+        authentication == "verified"
         and isinstance(owner, str)
         and isinstance(header_sender, str)
         and isinstance(envelope_sender, str)
         and hmac.compare_digest(header_sender.strip().lower(), owner.strip().lower())
         and hmac.compare_digest(envelope_sender.strip().lower(), owner.strip().lower())
         and auto_submitted in {"", "no"}
+    )
+
+
+def _message_id_tokens(*values: object) -> set[str]:
+    tokens: set[str] = set()
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        for candidate in re.findall(r"<([^<>\s]+)>", value):
+            candidate = candidate.strip().lower()
+            if not candidate:
+                continue
+            tokens.add(candidate)
+            if "@" in candidate:
+                tokens.add(candidate.split("@", 1)[0])
+    return tokens
+
+
+def _existing_email_thread(user_id: str, bot_id: str, preview: dict) -> bool:
+    reply_tokens = _message_id_tokens(
+        preview.get("inReplyTo"), preview.get("references")
+    )
+    if not reply_tokens:
+        return False
+    request = {
+        "KeyConditionExpression": "pk = :pk AND begins_with(sk, :prefix)",
+        "ExpressionAttributeValues": {
+            ":pk": f"CHAT#{user_id}#{bot_id}",
+            ":prefix": "TURN#",
+        },
+        "ProjectionExpression": "emailOutboundMessageId,emailDeliveryStatus",
+        "ScanIndexForward": False,
+        "Limit": 100,
+    }
+    checked = 0
+    while checked < MAX_THREAD_LOOKUP_TURNS:
+        response = table.query(**request)
+        items = response.get("Items", [])
+        checked += len(items)
+        for item in items:
+            if item.get("emailDeliveryStatus") != "sent":
+                continue
+            outbound = item.get("emailOutboundMessageId")
+            if not isinstance(outbound, str):
+                continue
+            candidate = outbound.strip().strip("<>").lower()
+            if candidate in reply_tokens or (
+                "@" in candidate and candidate.split("@", 1)[0] in reply_tokens
+            ):
+                return True
+        cursor = response.get("LastEvaluatedKey")
+        if not cursor or not items:
+            return False
+        request["ExclusiveStartKey"] = cursor
+    return False
+
+
+def _automatic_delivery(bot: dict, *, trusted_owner: bool, thread_reply: bool) -> bool:
+    return bool(
+        JOB_QUEUE_URL
+        and trusted_owner
+        and (bot.get("emailInboundMode") == "automatic" or thread_reply)
     )
 
 
@@ -236,7 +299,15 @@ def _process_notification(notification: dict) -> None:
     )
     for address, user_id, bot in candidates:
         digest = hashlib.sha256(f"{message_id}\0{address}".encode()).hexdigest()[:24]
-        automatic = _automatic_delivery(bot, preview, mail, authentication)
+        trusted_owner = _verified_owner_mail(bot, preview, mail, authentication)
+        thread_reply = bool(
+            trusted_owner
+            and bot.get("emailInboundMode") != "automatic"
+            and _existing_email_thread(user_id, bot["id"], preview)
+        )
+        automatic = _automatic_delivery(
+            bot, trusted_owner=trusted_owner, thread_reply=thread_reply
+        )
         linked_turn_id = (
             str(uuid.uuid5(uuid.NAMESPACE_URL, f"heytim-email:{message_id}:{address}"))
             if automatic
@@ -254,6 +325,7 @@ def _process_notification(notification: dict) -> None:
             "authentication": authentication,
             "disposition": "automatic" if automatic else "review",
             **({"linkedTurnId": linked_turn_id} if linked_turn_id else {}),
+            **({"threadReply": True} if thread_reply else {}),
             **(
                 {"conversationBody": _reply_body(preview["body"])}
                 if automatic

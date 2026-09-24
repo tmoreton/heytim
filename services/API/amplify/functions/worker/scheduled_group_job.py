@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from boto3.dynamodb.conditions import Attr, Key
+from shared.action_grants import effective_allowed_interactive_tool_ids
 from shared.group_chat import group_bots, plan_group_reply_round
 from shared.keys import group_message_sk
 from shared.schedules import occurrence_time, scheduled_turn_id
@@ -63,7 +64,9 @@ def _process_scheduled_group_round(record: dict, request: dict) -> None:
             if not bot or not _account_is_active(owner):
                 raise ValueError("Scheduled group bot is unavailable")
             if (owner != user_id and catalog.approval_tool_names(owner, bot.get("toolIds", []))) or catalog.unapproved_tools(
-                owner, bot.get("toolIds", []), bot.get("alwaysAllowedToolIds", [])
+                owner,
+                bot.get("toolIds", []),
+                effective_allowed_interactive_tool_ids(bot),
             ):
                 raise ValueError("Scheduled group bot lacks a one-time tool grant")
         message = _put_once({

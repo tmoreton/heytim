@@ -851,7 +851,7 @@ struct BotToolsAndSkillsEditor: View {
             })) {
               VStack(alignment: .leading, spacing: 3) {
                 Text("Mac app actions")
-                Text("Let this bot create Apple Notes or press a visible control in a Mac app. The first action asks for Always Allow; later actions run without another prompt. Turn this off to revoke the grant.")
+                Text("Let this bot create Apple Notes or press a visible control in a Mac app. The action approval setting below controls whether it asks first. Turn this off to remove access.")
                   .froggyFont(.caption).foregroundStyle(.secondary)
               }
             }
@@ -899,18 +899,37 @@ struct BotToolsAndSkillsEditor: View {
       }
       }
 
-      if !alwaysAllowedTools.isEmpty {
+      Section {
+        Picker("Tool actions", selection: $draft.actionApprovalMode) {
+          Text("Run automatically").tag("automatic")
+          Text("Ask before acting").tag("ask")
+        }
+        .onChange(of: draft.actionApprovalMode) { _, mode in
+          if mode == "ask" {
+            draft.alwaysAllowedToolIds = []
+            #if os(macOS)
+              if let botID { desktopControl.revokeAlways(for: botID) }
+            #endif
+          }
+        }
+      } header: {
+        Text("Action approvals")
+      } footer: {
+        Text("Bots run enabled tools automatically by default. Choose Ask before acting to pause before interactive actions. Connected-account scopes and device permissions still apply.")
+      }
+
+      if draft.actionApprovalMode == "ask" && !alwaysAllowedTools.isEmpty {
         Section {
           ForEach(alwaysAllowedTools) { tool in
             Label(tool.name, systemImage: "checkmark.shield")
           }
-          Button("Revoke Always Allow", role: .destructive) {
+          Button("Ask before these actions again", role: .destructive) {
             draft.alwaysAllowedToolIds = []
           }
         } header: {
-          Text("Always allowed")
+          Text("Approved exceptions")
         } footer: {
-          Text("Revoking makes the bot ask once on its next interactive action. Newly enabled tools also require a new grant.")
+          Text("These tools were approved from chat after the stricter setting was enabled.")
         }
       }
     }
@@ -1470,7 +1489,10 @@ struct SchedulesView: View {
               Image(systemName: item.enabled ? "clock.badge.checkmark" : "clock")
               VStack(alignment: .leading) {
                 Text(item.name)
-                Text("\(item.frequency.capitalized) · \(item.time) · \(item.timezone)")
+                Text(
+                  "\(item.frequency.capitalized) · \(item.time) · \(item.timezone)"
+                    + (item.deliveryMode == "email" ? " · Email" : "")
+                )
                   .froggyFont(.caption)
                   .foregroundStyle(.secondary)
               }
@@ -1734,6 +1756,18 @@ private struct ScheduleEditor: View {
         Text("Turn this off to pause future runs without deleting the task.")
       }
 
+      if selection.kind == .bot {
+        Section {
+          Toggle("Email result", isOn: emailDelivery)
+        } header: {
+          Text("Delivery")
+        } footer: {
+          Text(
+            "The result always appears in chat and run history. Email goes to your verified sign-in address. If needed, Hey Tim creates a private bot inbox so you can reply."
+          )
+        }
+      }
+
       if existing != nil {
         Section {
           Button("Delete Task", systemImage: "trash", role: .destructive) {
@@ -1783,6 +1817,12 @@ private struct ScheduleEditor: View {
         return value
       },
       set: { draft.dayOfWeek = $0 })
+  }
+
+  private var emailDelivery: Binding<Bool> {
+    Binding(
+      get: { draft.deliveryMode == "email" },
+      set: { draft.deliveryMode = $0 ? "email" : "app" })
   }
 
   private var taskTime: Binding<Date> {
@@ -1845,11 +1885,18 @@ private struct ScheduleEditor: View {
   }
 
   private func save() {
+    guard let api = model.api else { return }
     saving = true
     Task {
       defer { saving = false }
       do {
-        _ = try await model.api?.saveSchedule(draft, selection: selection, id: existing?.id)
+        if selection.kind == .bot, draft.deliveryMode == "email" {
+          _ = try await api.enableBotInbox(selection.id)
+        }
+        _ = try await api.saveSchedule(draft, selection: selection, id: existing?.id)
+        if selection.kind == .bot, draft.deliveryMode == "email" {
+          await model.refreshBootstrap()
+        }
         await completed()
         dismiss()
       } catch { model.present(error) }
@@ -1890,6 +1937,14 @@ struct ScheduleRunsView: View {
           Text(run.prompt).lineLimit(2)
           if let output = run.output {
             Text(output).froggyFont(.callout).foregroundStyle(.secondary).lineLimit(5)
+          }
+          if run.deliveryMode == "email" {
+            Label(
+              run.emailStatus == "sent" ? "Sent by email" : "Email requested",
+              systemImage: run.emailStatus == "sent" ? "envelope.badge.fill" : "envelope"
+            )
+            .froggyFont(.caption)
+            .foregroundStyle(.secondary)
           }
         }
       }

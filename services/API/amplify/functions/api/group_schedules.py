@@ -4,6 +4,7 @@ import json
 import uuid
 
 from boto3.dynamodb.conditions import Attr
+from shared.action_grants import effective_allowed_interactive_tool_ids
 from shared.group_chat import group_bots, plan_group_reply_round
 from shared.schedules import scheduler_name
 
@@ -61,7 +62,7 @@ def _group_schedule_team(user_id: str, group_id: str, *, allow_approval: bool = 
             member["botOwnerId"], bot.get("toolIds", []))
         unapproved = catalog.unapproved_tools(
             member["botOwnerId"], bot.get("toolIds", []),
-            bot.get("alwaysAllowedToolIds", []))
+            effective_allowed_interactive_tool_ids(bot))
         if (interactive and member["botOwnerId"] != user_id) or (
             unapproved and not allow_approval
         ):
@@ -89,13 +90,16 @@ def _save_group_schedule(user_id: str, group_id: str, value: dict, schedule_id: 
         raise ApiError(400, f"You can create up to {SCHEDULE_LIMIT} scheduled tasks")
     schedule_id = schedule_id or str(uuid.uuid4())
     current = _now()
+    schedule_values = _schedule_values(value, previous)
+    if schedule_values["deliveryMode"] != "app":
+        raise ApiError(400, "Email delivery is available for bot schedules")
     item = {
         **(previous or {}), **_schedule_key(user_id, schedule_id),
         "entity": "SCHEDULE", "id": schedule_id, "userId": user_id,
         "groupId": group_id, "botId": team[0]["botId"],
         "schedulerName": scheduler_name(user_id, schedule_id),
         "createdAt": previous["createdAt"] if previous else current,
-        "updatedAt": current, **_schedule_values(value, previous),
+        "updatedAt": current, **schedule_values,
     }
     if item["frequency"] != "weekly":
         item.pop("dayOfWeek", None)

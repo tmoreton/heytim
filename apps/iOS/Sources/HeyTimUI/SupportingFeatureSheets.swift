@@ -980,7 +980,7 @@ private struct GroupRoutineEditor: View {
               .textSelection(.enabled)
           }
         }
-        Text("Event routines can use this bot’s enabled tools after you grant Always Allow on its first interactive action.")
+        Text("Event routines can use this bot’s enabled tools. If Ask before acting is enabled, interactive actions may pause for approval.")
           .froggyFont(.footnote)
           .foregroundStyle(.secondary)
       }

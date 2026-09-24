@@ -5,6 +5,37 @@ import hashlib
 import json
 import re
 
+AUTOMATIC_APPROVAL_MODE = "automatic"
+ASK_APPROVAL_MODE = "ask"
+
+
+def action_approval_mode(bot: dict) -> str:
+    """Return the stored policy, treating legacy bots as automatic."""
+    return (
+        ASK_APPROVAL_MODE
+        if bot.get("actionApprovalMode") == ASK_APPROVAL_MODE
+        else AUTOMATIC_APPROVAL_MODE
+    )
+
+
+def effective_allowed_interactive_tool_ids(bot: dict) -> list[str]:
+    """Resolve the tool grants sent to runtimes and unattended jobs."""
+    tool_ids = bot.get("toolIds", [])
+    if action_approval_mode(bot) == AUTOMATIC_APPROVAL_MODE:
+        return (
+            tool_ids
+            if isinstance(tool_ids, list)
+            and all(isinstance(tool_id, str) for tool_id in tool_ids)
+            else []
+        )
+    allowed = bot.get("alwaysAllowedToolIds", [])
+    return (
+        allowed
+        if isinstance(allowed, list)
+        and all(isinstance(tool_id, str) for tool_id in allowed)
+        else []
+    )
+
 
 def approval_grant_digest(catalog, owner_id: str, bot: dict) -> str:
     tool_ids = bot.get("toolIds", [])
@@ -24,6 +55,7 @@ def approval_grant_digest(catalog, owner_id: str, bot: dict) -> str:
             })
     scope = {
         "toolIds": tool_ids,
+        "actionApprovalMode": action_approval_mode(bot),
         "updatedAt": bot.get("updatedAt"),
         "githubRepositoryAccess": bot.get("githubRepositoryAccess"),
         "jiraProjectAccess": bot.get("jiraProjectAccess"),

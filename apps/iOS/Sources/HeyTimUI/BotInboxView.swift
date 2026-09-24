@@ -18,7 +18,10 @@ struct BotInboxView: View {
   @State private var showsDisableConfirmation = false
   @State private var showsRotateConfirmation = false
   @State private var showsDraftConfirmation = false
+  @State private var showsDeleteConfirmation = false
+  @State private var showsProcessedEmail = false
   @State private var pendingDiscussion: BotInboxMessage?
+  @State private var pendingDeletion: BotInboxMessage?
   @State private var incomingMode = "review"
   @State private var responseMode = "appOnly"
 
@@ -51,7 +54,7 @@ struct BotInboxView: View {
 
       if page?.enabled == true {
         Section {
-          Picker("Incoming messages", selection: $incomingMode) {
+          Picker("New email conversations", selection: $incomingMode) {
             Text("Review before using").tag("review")
             Text("Send to bot automatically").tag("automatic")
           }
@@ -70,63 +73,56 @@ struct BotInboxView: View {
         } header: {
           Text("Email behavior")
         } footer: {
-          Text("Automatic messages run only when they come from your verified sign-in email and pass email authentication. Enable tools and grant Always Allow in the app before relying on automatic actions.")
+          Text("Replies to an existing bot email continue automatically when they come from your verified sign-in email and pass email authentication. This setting controls new email conversations. Enabled tools follow the bot’s Action approvals setting.")
         }
       }
 
-      Section("Received email") {
-        if let messages = page?.messages, !messages.isEmpty {
-          ForEach(messages) { message in
-            DisclosureGroup {
-              VStack(alignment: .leading, spacing: 12) {
-                Text("From: \(message.from)").froggyFont(.subheadline)
-                if message.authentication != "verified" {
-                  Label("Sender identity could not be verified", systemImage: "exclamationmark.shield")
-                    .froggyFont(.caption).foregroundStyle(.secondary)
-                }
-                Text(message.body).textSelection(.enabled).froggyFont(.body)
-                if !message.attachmentNames.isEmpty {
-                  Text("Attachments: \(message.attachmentNames.joined(separator: ", "))")
-                    .froggyFont(.caption).foregroundStyle(.secondary)
-                  Text("Attachments are listed but cannot be opened here yet.")
-                    .froggyFont(.caption).foregroundStyle(.secondary)
-                }
-                if message.linkedTurnId != nil {
-                  Label(
-                    message.disposition == "automatic"
-                      ? "Sent to bot automatically" : "Added to bot conversation",
-                    systemImage: message.disposition == "automatic" ? "bolt.fill" : "checkmark.circle.fill"
-                  )
-                    .froggyFont(.caption).foregroundStyle(.secondary)
-                } else {
-                  Button("Discuss with bot", systemImage: "bubble.left") {
-                    discuss(message)
-                  }
-                }
-                Button("Delete email", systemImage: "trash", role: .destructive) {
-                  Task { await delete(message) }
-                }
-                .disabled(working)
-              }
-              .padding(.vertical, 8)
-            } label: {
-              VStack(alignment: .leading, spacing: 3) {
-                Text(message.subject).froggyFont(.headline)
-                Text(message.from).froggyFont(.subheadline).foregroundStyle(.secondary)
-                Text(Self.displayDate(message.receivedAt))
-                  .froggyFont(.caption).foregroundStyle(.secondary)
-              }
-              .padding(.vertical, 3)
+      if page != nil {
+        Section {
+          if pendingMessages.isEmpty {
+            ContentUnavailableView(
+              "All Caught Up", systemImage: "checkmark.circle",
+              description: Text("No email needs review. Processed conversations appear in chat history."))
+          } else {
+            ForEach(pendingMessages) { message in
+              inboxMessageRow(message)
             }
           }
-          if page?.nextToken != nil {
+        } header: {
+          Text("Needs review")
+        } footer: {
+          if !pendingMessages.isEmpty {
+            Text("Open an email in chat to create a draft you can review before sending to the bot.")
+          }
+        }
+
+        if !processedMessages.isEmpty {
+          Section {
+            DisclosureGroup(isExpanded: $showsProcessedEmail) {
+              ForEach(processedMessages) { message in
+                inboxMessageRow(message)
+              }
+            } label: {
+              Label(
+                "Processed email (\(processedMessages.count))",
+                systemImage: "checkmark.circle.fill")
+            }
+          } footer: {
+            Text("These messages are already part of chat history. This collapsed list is an inbox audit copy.")
+          }
+        }
+
+        if page?.nextToken != nil {
+          Section {
             Button("Load earlier email") { Task { await load(earlier: true) } }
               .disabled(loading)
           }
-        } else if page != nil {
+        }
+      } else if !loading {
+        Section("Needs review") {
           ContentUnavailableView(
-            "No Email Yet", systemImage: "tray",
-            description: Text("Messages sent to this bot’s address will appear here."))
+            "Inbox Unavailable", systemImage: "tray",
+            description: Text("Refresh to load this bot’s email inbox."))
         }
       }
     }
@@ -173,6 +169,22 @@ struct BotInboxView: View {
     } message: {
       Text("Your current draft will be replaced with the email text.")
     }
+    .confirmationDialog("Delete this inbox copy?", isPresented: $showsDeleteConfirmation) {
+      Button("Delete inbox copy", role: .destructive) {
+        if let pendingDeletion {
+          Task {
+            await delete(pendingDeletion)
+            self.pendingDeletion = nil
+          }
+        }
+      }
+      Button("Cancel", role: .cancel) { pendingDeletion = nil }
+    } message: {
+      Text(
+        pendingDeletion?.linkedTurnId == nil
+          ? "This email has not been added to chat."
+          : "The related bot conversation will stay in chat history.")
+    }
     .refreshable { await load() }
     .task { await load() }
   }
@@ -187,6 +199,80 @@ struct BotInboxView: View {
   private var preferencesChanged: Bool {
     incomingMode != (page?.incomingMode ?? "review")
       || responseMode != (page?.responseMode ?? "appOnly")
+  }
+
+  private var pendingMessages: [BotInboxMessage] {
+    page?.messages.filter { $0.linkedTurnId == nil } ?? []
+  }
+
+  private var processedMessages: [BotInboxMessage] {
+    page?.messages.filter { $0.linkedTurnId != nil } ?? []
+  }
+
+  private func inboxMessageRow(_ message: BotInboxMessage) -> some View {
+    DisclosureGroup {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("From: \(message.from)").froggyFont(.subheadline)
+        if message.linkedTurnId == nil {
+          Label(reviewExplanation(for: message), systemImage: "exclamationmark.shield")
+            .froggyFont(.caption).foregroundStyle(.secondary)
+        }
+        Text(message.body).textSelection(.enabled).froggyFont(.body)
+        if !message.attachmentNames.isEmpty {
+          Text("Attachments: \(message.attachmentNames.joined(separator: ", "))")
+            .froggyFont(.caption).foregroundStyle(.secondary)
+          Text("Attachments are listed but cannot be opened here yet.")
+            .froggyFont(.caption).foregroundStyle(.secondary)
+        }
+        if message.linkedTurnId != nil {
+          Label(
+            message.disposition == "automatic"
+              ? "Sent to bot automatically" : "Added to bot conversation",
+            systemImage: message.disposition == "automatic" ? "bolt.fill" : "checkmark.circle.fill"
+          )
+          .froggyFont(.caption).foregroundStyle(.secondary)
+          Button("View in chat", systemImage: "bubble.left.and.bubble.right") {
+            openChat()
+          }
+        } else {
+          Button("Open in chat", systemImage: "bubble.left") {
+            discuss(message)
+          }
+          Text("Creates a draft for you to review before sending.")
+            .froggyFont(.caption).foregroundStyle(.secondary)
+        }
+        Button("Delete inbox copy", systemImage: "trash", role: .destructive) {
+          pendingDeletion = message
+          showsDeleteConfirmation = true
+        }
+        .disabled(working)
+      }
+      .padding(.vertical, 8)
+    } label: {
+      VStack(alignment: .leading, spacing: 3) {
+        Text(message.subject).froggyFont(.headline)
+        Text(message.from).froggyFont(.subheadline).foregroundStyle(.secondary)
+        Text(Self.displayDate(message.receivedAt))
+          .froggyFont(.caption).foregroundStyle(.secondary)
+      }
+      .padding(.vertical, 3)
+    }
+  }
+
+  private func reviewExplanation(for message: BotInboxMessage) -> String {
+    if message.authentication != "verified" {
+      return "Sender identity could not be verified"
+    }
+    switch message.reviewReason {
+    case "browser_active":
+      return "Waiting because this bot was active in the browser"
+    case "bot_busy":
+      return "Waiting because the bot stayed busy"
+    case "settings_changed":
+      return "Waiting because email settings changed"
+    default:
+      return "Waiting for your review"
+    }
   }
 
   private func copy(_ address: String) {
@@ -206,6 +292,11 @@ struct BotInboxView: View {
     } else {
       useInChat(message)
     }
+  }
+
+  private func openChat() {
+    model.select(.init(kind: .bot, id: botId))
+    model.sheet = nil
   }
 
   private func useInChat(_ message: BotInboxMessage) {

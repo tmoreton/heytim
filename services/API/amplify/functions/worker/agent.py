@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass, field
 from decimal import Decimal
 
+from shared.action_grants import effective_allowed_interactive_tool_ids
 from shared.agent_stream import AgentTerminalError, ProgressCallback, read_agent_stream
 from shared.catalog import CatalogError
 from shared.group_chat import (
@@ -398,7 +399,7 @@ def _invoke(
             ),
             "toolIds": tool_ids,
             "tools": resolved_tools,
-            "alwaysAllowedToolIds": bot.get("alwaysAllowedToolIds", []),
+            "alwaysAllowedToolIds": effective_allowed_interactive_tool_ids(bot),
             "skillIds": bot.get("skillIds", []),
             "skills": resolved_skills,
         },

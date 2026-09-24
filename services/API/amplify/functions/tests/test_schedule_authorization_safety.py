@@ -9,7 +9,8 @@ class ScheduleAuthorizationSafetyTests(ApiTestCase):
     def test_active_schedule_requires_one_time_tool_grant(self) -> None:
         with (
             patch.object(self.schedules, "_get_bot", return_value={
-                "id": "bot-1", "toolIds": ["browser"], "alwaysAllowedToolIds": []
+                "id": "bot-1", "toolIds": ["browser"],
+                "actionApprovalMode": "ask", "alwaysAllowedToolIds": []
             }),
             patch.object(self.schedules.catalog, "unapproved_tools", return_value=[
                 {"id": "browser", "name": "Interactive browser"}

@@ -11,6 +11,8 @@ from shared.client_contract import (
 from .bot_roles import ALLOWED_COLORS, CHIEF_COLOR, CHIEF_SYSTEM_ROLE, DEFAULT_BOT_COLOR
 from .support import ApiError, _validate_string, catalog
 
+ACTION_APPROVAL_MODES = {"automatic", "ask"}
+
 
 def _bot_values(
     user_id: str,
@@ -115,6 +117,11 @@ def _bot_values(
         resource_access = catalog.validate_resource_access(
             user_id, tool_ids, raw_resource_access
         )
+        action_approval_mode = value.get(
+            "actionApprovalMode", previous.get("actionApprovalMode", "automatic")
+        )
+        if action_approval_mode not in ACTION_APPROVAL_MODES:
+            raise ApiError(400, "actionApprovalMode must be automatic or ask")
         raw_always_allowed = value.get(
             "alwaysAllowedToolIds", previous.get("alwaysAllowedToolIds", [])
         )
@@ -130,12 +137,23 @@ def _bot_values(
             and all(isinstance(tool_id, str) for tool_id in raw_previously_allowed)
             else set()
         )
-        requested_always_allowed = set(raw_always_allowed) & previously_allowed
-        always_allowed_tool_ids = [
-            tool_id
-            for tool_id in tool_ids
-            if tool_id in requested_always_allowed and tool_id in interactive_tool_ids
-        ]
+        if action_approval_mode == "automatic":
+            always_allowed_tool_ids = [
+                tool_id for tool_id in tool_ids if tool_id in interactive_tool_ids
+            ]
+        else:
+            previous_mode = previous.get("actionApprovalMode", "automatic")
+            requested_always_allowed = (
+                set(raw_always_allowed) & previously_allowed
+                if previous_mode == "ask"
+                else set()
+            )
+            always_allowed_tool_ids = [
+                tool_id
+                for tool_id in tool_ids
+                if tool_id in requested_always_allowed
+                and tool_id in interactive_tool_ids
+            ]
     except CatalogError as exc:
         raise ApiError(400, str(exc)) from exc
     return {
@@ -154,6 +172,7 @@ def _bot_values(
         "color": color,
         "toolIds": tool_ids,
         "extraToolIds": extra_tool_ids,
+        "actionApprovalMode": action_approval_mode,
         "alwaysAllowedToolIds": always_allowed_tool_ids,
         "githubRepositoryAccess": github_repository_access,
         "jiraProjectAccess": jira_project_access,

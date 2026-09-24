@@ -86,6 +86,9 @@
       guard isEnabled(for: botID) else { return }
       alwaysAllowedBotIDs.insert(botID)
     }
+    func revokeAlways(for botID: String) {
+      alwaysAllowedBotIDs.remove(botID)
+    }
     func setEnabled(_ enabled: Bool, for botID: String) {
       if enabled { enabledBotIDs.insert(botID) }
       else {

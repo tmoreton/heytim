@@ -212,6 +212,36 @@ class MemoryTests(unittest.TestCase):
         self.assertEqual(record["metadata"]["heytimSource"]["stringValue"], "manual")
         self.assertEqual(result["scope"], "personal")
 
+    def test_manual_memory_retries_without_metadata_for_an_older_sdk_model(self) -> None:
+        self.agentcore.batch_create_memory_records.side_effect = [
+            self.memories.ParamValidationError(
+                'Unknown parameter in records[0]: "metadata"'
+            ),
+            {
+                "successfulRecords": [{"memoryRecordId": "mem-created"}],
+                "failedRecords": [],
+            },
+        ]
+        with (
+            patch.object(self.memories, "HEYTIM_MEMORY_ID", "memory-1"),
+            patch.object(self.memories, "memory_actor_id", return_value="actor"),
+        ):
+            result = self.memories._create_user_memory(
+                "user-1",
+                {"kind": "fact", "content": "Remember cobalt heron."},
+                request_identifier="12345678-1234-1234-1234-123456789012",
+            )
+
+        calls = self.agentcore.batch_create_memory_records.call_args_list
+        self.assertEqual(len(calls), 2)
+        self.assertIn("metadata", calls[0].kwargs["records"][0])
+        self.assertNotIn("metadata", calls[1].kwargs["records"][0])
+        self.assertEqual(
+            calls[1].kwargs["records"][0]["requestIdentifier"],
+            "12345678-1234-1234-1234-123456789012",
+        )
+        self.assertEqual(result["id"], "mem-created")
+
     def test_group_memory_requires_owner_and_uses_group_namespace(self) -> None:
         self.agentcore.batch_create_memory_records.return_value = {
             "successfulRecords": [{"memoryRecordId": "mem-group"}],
