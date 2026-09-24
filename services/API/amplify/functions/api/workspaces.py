@@ -14,9 +14,11 @@ from .groups import _require_group_member
 from .support import (
     FILES_BUCKET_NAME,
     ApiError,
+    _body,
     _group_pk,
     _now,
     _partition_items,
+    _response,
     _user_pk,
     _validate_string,
     s3,
@@ -247,3 +249,22 @@ def _resolve_workspace_files(user_id: str, kind: str, scope_id: str, raw: Any) -
             for file_id in file_ids
         )
     ]
+
+
+def _workspace_route(
+    user_id: str, _display_name: str, method: str, path: str, params: dict, event: dict
+) -> dict | None:
+    kind = "bot" if path.startswith("/bots/") else "group"
+    scope_id = params.get("botId", "") if kind == "bot" else params.get("groupId", "")
+    file_id = params.get("workspaceFileId", "")
+    if method == "GET" and path.endswith("/export"):
+        return _response(200, _export_workspace_files(user_id, kind, scope_id))
+    if method == "GET" and path.endswith("/download"):
+        return _response(200, _download_workspace_file(user_id, kind, scope_id, file_id))
+    if method == "DELETE":
+        return _response(200, _delete_workspace_file(user_id, kind, scope_id, file_id))
+    if method == "GET":
+        return _response(200, _list_workspace_files(user_id, kind, scope_id))
+    if method == "POST":
+        return _response(201, _add_workspace_file(user_id, kind, scope_id, _body(event)))
+    return None

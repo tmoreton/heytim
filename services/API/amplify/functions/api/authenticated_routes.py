@@ -102,34 +102,9 @@ from .sharing import (
     _unregister_push_token,
 )
 from .support import ApiError, _body, _response, _verified_email
-from .workspaces import (
-    _add_workspace_file,
-    _delete_workspace_file,
-    _download_workspace_file,
-    _export_workspace_files,
-    _list_workspace_files,
-)
+from .workspaces import _workspace_route
 
 Route = Callable[[str, str, str, str, dict, dict], dict | None]
-
-
-def _workspace_route(
-    user_id: str, _display_name: str, method: str, path: str, params: dict, event: dict
-) -> dict | None:
-    kind = "bot" if path.startswith("/bots/") else "group"
-    scope_id = params.get("botId", "") if kind == "bot" else params.get("groupId", "")
-    file_id = params.get("workspaceFileId", "")
-    if method == "GET" and path.endswith("/export"):
-        return _response(200, _export_workspace_files(user_id, kind, scope_id))
-    if method == "GET" and path.endswith("/download"):
-        return _response(200, _download_workspace_file(user_id, kind, scope_id, file_id))
-    if method == "DELETE":
-        return _response(200, _delete_workspace_file(user_id, kind, scope_id, file_id))
-    if method == "GET":
-        return _response(200, _list_workspace_files(user_id, kind, scope_id))
-    if method == "POST":
-        return _response(201, _add_workspace_file(user_id, kind, scope_id, _body(event)))
-    return None
 
 
 def _group_routine_route(
