@@ -88,6 +88,38 @@ def _provider_binding(provider: str, secret_arn: str) -> dict:
     )
 
 
+@pytest.mark.parametrize(
+    ("provider", "secret_arn"),
+    [
+        ("youtube", GOOGLE_SECRET),
+        ("x", X_SECRET),
+        ("slack", SLACK_SECRET),
+        ("microsoft", MICROSOFT_SECRET),
+        ("microsoft_teams", MICROSOFT_SECRET),
+        ("notion", NOTION_SECRET),
+        ("hubspot", HUBSPOT_SECRET),
+        ("jira", JIRA_SECRET),
+        ("zoom", ZOOM_SECRET),
+    ],
+)
+@pytest.mark.parametrize("secret_namespace", ["heytim", "frogbot"])
+def test_provider_connections_accept_current_and_legacy_oauth_secret_namespaces(
+    provider: str, secret_arn: str, secret_namespace: str
+) -> None:
+    namespaced_secret = secret_arn.replace(
+        "secret:heytim/", f"secret:{secret_namespace}/"
+    )
+    if provider == "youtube":
+        binding = _youtube_binding()
+        binding = provider_connections.validated_provider_binding(
+            binding["id"], {**binding, "oauthClientSecretArn": namespaced_secret}
+        )
+    else:
+        binding = _provider_binding(provider, namespaced_secret)
+
+    assert binding["oauthClientSecretArn"] == namespaced_secret
+
+
 def test_youtube_connection_exposes_search_and_own_channel_read_tools(monkeypatch) -> None:
     usage = Usage()
     monkeypatch.setattr(

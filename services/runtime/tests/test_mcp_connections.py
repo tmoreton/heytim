@@ -99,8 +99,9 @@ def test_github_app_jwt_is_a_verifiable_short_lived_rs256_token() -> None:
     ("selected_repositories", "expected_repositories"),
     [(None, [101, 202]), ([101], [101])],
 )
+@pytest.mark.parametrize("secret_namespace", ["heytim", "frogbot"])
 def test_github_app_connection_mints_installation_token_server_side(
-    monkeypatch, selected_repositories, expected_repositories
+    monkeypatch, selected_repositories, expected_repositories, secret_namespace
 ) -> None:
     user_secret = (
         "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
@@ -109,7 +110,7 @@ def test_github_app_connection_mints_installation_token_server_side(
     )
     app_secret = (
         "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-        "heytim/oauth/github-production-ABC123"
+        f"{secret_namespace}/oauth/github-production-ABC123"
     )
 
     class FakeSecrets:
@@ -256,7 +257,10 @@ def test_http_transport_does_not_follow_redirects() -> None:
         asyncio.run(client.aclose())
 
 
-def test_google_oauth_connection_refreshes_token_and_filters_tools(monkeypatch) -> None:
+@pytest.mark.parametrize("secret_namespace", ["heytim", "frogbot"])
+def test_google_oauth_connection_refreshes_token_and_filters_tools(
+    monkeypatch, secret_namespace
+) -> None:
     user_secret = (
         "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
         "heytim/connections/abcdef1234567890abcdef12/"
@@ -264,7 +268,7 @@ def test_google_oauth_connection_refreshes_token_and_filters_tools(monkeypatch) 
     )
     client_secret = (
         "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
-        "heytim/oauth/google-production-ABC123"
+        f"{secret_namespace}/oauth/google-production-ABC123"
     )
 
     class FakeSecrets:

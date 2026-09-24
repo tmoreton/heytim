@@ -47,35 +47,35 @@ CONNECTION_SECRET_ARN_PATTERN = re.compile(
 )
 GOOGLE_CLIENT_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/google-[A-Za-z0-9-]+$"
+    r"secret:(?:heytim|frogbot)/oauth/google-[A-Za-z0-9-]+$"
 )
 X_CLIENT_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/x-[A-Za-z0-9-]+$"
+    r"secret:(?:heytim|frogbot)/oauth/x-[A-Za-z0-9-]+$"
 )
 SLACK_CLIENT_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/slack-[A-Za-z0-9-]+$"
+    r"secret:(?:heytim|frogbot)/oauth/slack-[A-Za-z0-9-]+$"
 )
 MICROSOFT_CLIENT_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/microsoft-[A-Za-z0-9-]+$"
+    r"secret:(?:heytim|frogbot)/oauth/microsoft-[A-Za-z0-9-]+$"
 )
 NOTION_CLIENT_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/notion-[A-Za-z0-9-]+$"
+    r"secret:(?:heytim|frogbot)/oauth/notion-[A-Za-z0-9-]+$"
 )
 HUBSPOT_CLIENT_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/hubspot-[A-Za-z0-9-]+$"
+    r"secret:(?:heytim|frogbot)/oauth/hubspot-[A-Za-z0-9-]+$"
 )
 JIRA_CLIENT_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/jira-[A-Za-z0-9-]+$"
+    r"secret:(?:heytim|frogbot)/oauth/jira-[A-Za-z0-9-]+$"
 )
 ZOOM_CLIENT_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/zoom-[A-Za-z0-9-]+$"
+    r"secret:(?:heytim|frogbot)/oauth/zoom-[A-Za-z0-9-]+$"
 )
 JIRA_SITE_ID_PATTERN = re.compile(
     r"^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$"

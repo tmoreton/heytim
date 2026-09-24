@@ -1,3 +1,4 @@
+import Observation
 import SwiftUI
 
 private enum ResourceLinkInput {
@@ -729,6 +730,42 @@ func effectiveCatalogToolIDs(draft: BotDraft, skills: [Skill]) -> Set<String> {
   return Set(draft.toolIds).union(requiredTools)
 }
 
+@MainActor @Observable
+final class BotDraftAutosaveQueue {
+  typealias SaveAction = @MainActor (BotDraft, String) async -> Bool
+
+  private struct PendingSave {
+    let draft: BotDraft
+    let botID: String
+    let action: SaveAction
+  }
+
+  @ObservationIgnored private var pending: PendingSave?
+  @ObservationIgnored private var task: Task<Void, Never>?
+  private(set) var isSaving = false
+  private(set) var lastSaveSucceeded: Bool?
+
+  func submit(_ draft: BotDraft, botID: String, action: @escaping SaveAction) {
+    pending = PendingSave(draft: draft, botID: botID, action: action)
+    guard task == nil else { return }
+    task = Task { await drain() }
+  }
+
+  func waitForIdle() async {
+    await task?.value
+  }
+
+  private func drain() async {
+    while let next = pending {
+      pending = nil
+      isSaving = true
+      lastSaveSucceeded = await next.action(next.draft, next.botID)
+    }
+    isSaving = false
+    task = nil
+  }
+}
+
 struct BotToolsAndSkillsEditor: View {
   @Bindable var model: AppModel
   @Binding var draft: BotDraft
@@ -745,6 +782,7 @@ struct BotToolsAndSkillsEditor: View {
   @State private var resourceText: [String: String] = [:]
   @State private var searchText = ""
   @State private var selectedSection = CapabilitySection.tools
+  @State private var autosave = BotDraftAutosaveQueue()
 
   private enum CapabilitySection: String, CaseIterable, Identifiable {
     case tools = "Tools"
@@ -810,6 +848,7 @@ struct BotToolsAndSkillsEditor: View {
           }
         }
         .pickerStyle(.segmented)
+        autosaveStatus
       }
 
       if selectedSection == .skills {
@@ -943,6 +982,12 @@ struct BotToolsAndSkillsEditor: View {
       teamsChannelText = draft.teamsChannelAccess.mapValues { $0.joined(separator: ", ") }
       resourceText = draft.resourceAccess.mapValues { $0.joined(separator: ", ") }
     }
+    .onChange(of: draft) { _, updatedDraft in
+      guard let botID else { return }
+      autosave.submit(updatedDraft, botID: botID) { draft, id in
+        await model.saveBot(draft, id: id, selectAfterSaving: false)
+      }
+    }
     .task { _ = await model.refreshBootstrap() }
     #if os(macOS)
       .alert("Reopen Hey Tim?", isPresented: Binding(
@@ -957,6 +1002,22 @@ struct BotToolsAndSkillsEditor: View {
         if phase == .active { desktopControl.refreshPermissionAfterSettings() }
       }
     #endif
+  }
+
+  @ViewBuilder private var autosaveStatus: some View {
+    if botID == nil {
+      Label("Save this bot first to enable automatic saving.", systemImage: "info.circle")
+        .foregroundStyle(.secondary)
+    } else if autosave.isSaving {
+      Label("Saving changes…", systemImage: "arrow.triangle.2.circlepath")
+        .foregroundStyle(.secondary)
+    } else if autosave.lastSaveSucceeded == false {
+      Label("Changes couldn’t be saved. Try the change again.", systemImage: "exclamationmark.triangle")
+        .foregroundStyle(.red)
+    } else {
+      Label("Changes save automatically.", systemImage: "checkmark.circle")
+        .foregroundStyle(.secondary)
+    }
   }
 
   @ViewBuilder private func capabilityToggle(

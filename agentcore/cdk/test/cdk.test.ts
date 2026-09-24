@@ -87,6 +87,12 @@ test('runtime roles can use the configured memory encryption key', async () => {
       Resource: memoryKeyArn,
     })
   );
+  const serializedStatements = JSON.stringify(statements);
+  for (const namespace of ['heytim', 'frogbot']) {
+    for (const provider of ['google', 'github', 'x', 'slack', 'microsoft', 'notion', 'hubspot', 'jira', 'zoom']) {
+      expect(serializedStatements).toContain(`secret:${namespace}/oauth/${provider}-*`);
+    }
+  }
 });
 
 test('target bindings isolate production storage and memory encryption', () => {

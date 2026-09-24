@@ -168,14 +168,25 @@ def test_runtime_can_read_provider_configuration_but_rotate_only_user_grants() -
 
     readable = set(statements["ReadHeyTimConnectionCredentials"]["Resource"])
     assert any("secret:heytim/connections/*" in arn for arn in readable)
+    assert any("secret:frogbot/connections/*" in arn for arn in readable)
     assert any("secret:heytim/oauth/google-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/google-*" in arn for arn in readable)
     assert any("secret:heytim/oauth/github-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/github-*" in arn for arn in readable)
     assert any("secret:heytim/oauth/x-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/x-*" in arn for arn in readable)
     assert any("secret:heytim/oauth/slack-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/slack-*" in arn for arn in readable)
     assert any("secret:heytim/oauth/microsoft-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/microsoft-*" in arn for arn in readable)
     assert any("secret:heytim/oauth/notion-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/notion-*" in arn for arn in readable)
     assert any("secret:heytim/oauth/hubspot-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/hubspot-*" in arn for arn in readable)
     assert any("secret:heytim/oauth/jira-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/jira-*" in arn for arn in readable)
+    assert any("secret:heytim/oauth/zoom-*" in arn for arn in readable)
+    assert any("secret:frogbot/oauth/zoom-*" in arn for arn in readable)
 
     rotatable = statements["RotateHeyTimUserOAuthTokens"]["Resource"]
     if isinstance(rotatable, str):
