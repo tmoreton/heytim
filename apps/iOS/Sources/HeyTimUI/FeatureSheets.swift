@@ -477,7 +477,7 @@ private struct BotTemplateDetailView: View {
   }
 }
 
-private struct BotEditor: View {
+struct BotEditor: View {
   @Bindable var model: AppModel
   #if os(macOS)
     @Environment(DesktopControlCoordinator.self) private var desktopControl
@@ -1584,19 +1584,28 @@ struct GroupEditor: View {
                   draft.botIds.removeAll { $0 == bot.id }
                 }
               })
-          ) { Label(bot.name, systemImage: "bubble.left") }
+          ) {
+            BotIdentityLabel(
+              name: bot.name, color: bot.color, detail: bot.tagline, avatarSize: 30)
+          }
+          .accessibilityIdentifier("group.editor.bot.\(bot.id)")
         }
       } header: {
         Text("Bots")
       } footer: {
-        Text(draft.botIds.isEmpty ? "Choose at least one bot to continue." : "You can change the bot team later.")
+        Text(
+          draft.botIds.isEmpty
+            ? "Choose at least one bot to continue."
+            : "\(draft.botIds.count) selected. You can change the bot team later."
+        )
           .foregroundStyle(.secondary)
       }
       .disabled(!editable)
       if let group {
         Section("Members") {
           ForEach(group.members) { member in
-            HStack {
+            HStack(spacing: 10) {
+              PersonAvatar(name: member.name, size: 28)
               Text(member.name)
               Spacer()
               Text(member.role.capitalized).foregroundStyle(.secondary)
@@ -1612,7 +1621,7 @@ struct GroupEditor: View {
             }
           }
         }
-        Section("Saved decisions") {
+        Section("Saved Decisions") {
           ForEach(group.decisions) { decision in
             VStack(alignment: .leading) {
               Text(decision.text)

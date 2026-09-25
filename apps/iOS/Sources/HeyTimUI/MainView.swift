@@ -1090,9 +1090,6 @@ private struct ConversationInspector: View {
   let clear: () -> Void
   let delete: () -> Void
   @Environment(\.colorScheme) private var colorScheme
-  @State private var botDraft = BotDraft()
-  @State private var loadedBotID: String?
-  @State private var savingBot = false
 
   var body: some View {
     FeatureNavigation {
@@ -1111,19 +1108,61 @@ private struct ConversationInspector: View {
           }
         }
 
-        if editingBot != nil, actions.contains("edit") {
-          botEditorSections
+        if let bot = selectedBot, actions.contains("edit") {
+          Section("Bot") {
+            FeatureLink {
+              BotEditor(model: model, id: bot.id, showsDismissButton: false)
+            } label: {
+              Label {
+                VStack(alignment: .leading, spacing: 3) {
+                  Text("Edit Bot")
+                  Text("Name, prompt, tools, and skills")
+                    .froggyFont(.caption)
+                    .foregroundStyle(.secondary)
+                }
+              } icon: {
+                Image(systemName: "pencil")
+              }
+            }
+            .accessibilityIdentifier("conversation.edit-bot")
+          }
         }
 
         if let group = selectedGroup {
+          if actions.contains("edit") {
+            Section("Group") {
+              FeatureLink {
+                GroupEditor(model: model, id: group.id, showsDismissButton: false)
+              } label: {
+                Label {
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text("Edit Group")
+                    Text("Name, shared context, bots, and members")
+                      .froggyFont(.caption)
+                      .foregroundStyle(.secondary)
+                  }
+                } icon: {
+                  Image(systemName: "pencil")
+                }
+              }
+              .accessibilityIdentifier("conversation.edit-group")
+            }
+          }
           Section("People") {
             ForEach(group.members) { member in
-              LabeledContent(member.name, value: member.role.capitalized)
+              HStack(spacing: 10) {
+                PersonAvatar(name: member.name, size: 28)
+                Text(member.name)
+                Spacer()
+                Text(member.role.capitalized).foregroundStyle(.secondary)
+              }
             }
           }
           Section("Bots") {
             ForEach(group.bots) { bot in
-              Label(bot.name, systemImage: "bubble.left.and.sparkles")
+              BotIdentityLabel(
+                name: bot.name, color: bot.color, detail: bot.tagline, avatarSize: 30)
+                .accessibilityIdentifier("group.detail.bot.\(bot.id)")
             }
           }
         }
@@ -1159,16 +1198,7 @@ private struct ConversationInspector: View {
         #else
           ToolbarItem(placement: .cancellationAction) { detailsBackButton }
         #endif
-        if let bot = editingBot, actions.contains("edit") {
-          #if os(macOS)
-            ToolbarItem(placement: .primaryAction) { detailsSaveButton(for: bot) }
-          #else
-            ToolbarItem(placement: .confirmationAction) { detailsSaveButton(for: bot) }
-          #endif
-        }
       }
-      .onAppear { loadBotDraftIfNeeded() }
-      .onChange(of: selectedBot?.id) { _, _ in loadBotDraftIfNeeded(force: true) }
     }
   }
 
@@ -1181,96 +1211,8 @@ private struct ConversationInspector: View {
       .help("Back to chat")
   }
 
-  private func detailsSaveButton(for bot: Bot) -> some View {
-    Button("Save") { save(bot) }
-      #if os(iOS)
-        .foregroundStyle(inspectorToolbarButtonColor)
-        .tint(inspectorToolbarButtonColor)
-      #endif
-      #if os(macOS)
-        .froggyGlassButton(tint: FrogTheme.accent)
-      #endif
-      .disabled(!canSaveBot)
-      .accessibilityIdentifier("inspector.save")
-  }
-
   private var inspectorToolbarButtonColor: Color {
     colorScheme == .dark ? .white : FrogTheme.conversationChrome
-  }
-
-  @ViewBuilder private var botEditorSections: some View {
-    Section {
-      TextField("Name", text: $botDraft.name)
-        .accessibilityLabel("Name")
-      TextField("Description", text: $botDraft.tagline)
-        .accessibilityLabel("What this bot does")
-      VStack(alignment: .leading, spacing: 4) {
-        Text("Color").froggyFont(.subheadline)
-        BotColorPicker(selection: $botDraft.color, options: colorOptions)
-      }
-    } header: {
-      Text("Identity")
-    } footer: {
-      Text(
-        identityIssue ?? "Use a short name and a one-line description people can scan quickly."
-      )
-      .foregroundStyle(
-        identityIssue == nil
-          || botDraft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-          ? Color.secondary : Color.red)
-    }
-
-    Section {
-      FeatureLink {
-        BotPromptEditor(
-          prompt: $botDraft.prompt,
-          maximumLength: model.constraints.botPromptMaxLength)
-      } label: {
-        VStack(alignment: .leading, spacing: 6) {
-          Label("Edit Prompt", systemImage: "text.alignleft")
-            .froggyFont(.headline)
-          Text(
-            botDraft.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-              ? "Add the bot’s role, tone, boundaries, and definition of success."
-              : botDraft.prompt
-          )
-          .froggyFont(.callout)
-          .foregroundStyle(.secondary)
-          .lineLimit(4)
-        }
-        .padding(.vertical, 4)
-      }
-      .accessibilityIdentifier("bot.prompt.editor")
-    } header: {
-      Text("Prompt")
-    } footer: {
-      HStack(alignment: .firstTextBaseline) {
-        Text(instructionsIssue ?? "Open the full prompt editor to make changes.")
-        Spacer(minLength: 12)
-        Text(
-          "\(botDraft.prompt.count.formatted()) / \(model.constraints.botPromptMaxLength.formatted())"
-        )
-        .monospacedDigit()
-      }
-      .foregroundStyle(
-        instructionsIssue == nil
-          || botDraft.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-          ? Color.secondary : Color.red)
-    }
-
-    Section("Capabilities") {
-      FeatureLink {
-        BotToolsAndSkillsEditor(
-          model: model, draft: $botDraft,
-          botID: editingBot?.id,
-          skills: model.bootstrap?.skills ?? [],
-          tools: model.bootstrap?.tools ?? [],
-          providers: model.bootstrap?.connectionProviders ?? [])
-      } label: {
-        Label("Assign Tools & Skills", systemImage: "wrench.and.screwdriver")
-      }
-      .accessibilityIdentifier("bot.tools-and-skills")
-    }
   }
 
   @ViewBuilder private var conversationActions: some View {
@@ -1349,14 +1291,6 @@ private struct ConversationInspector: View {
         }
         .accessibilityIdentifier("conversation.group-memory")
       }
-      if actions.contains("edit") {
-        FeatureLink {
-          GroupEditor(model: model, id: group.id, showsDismissButton: false)
-        } label: {
-          Label("Edit Group", systemImage: "pencil")
-        }
-        .accessibilityIdentifier("conversation.edit-group")
-      }
     }
   }
 
@@ -1380,70 +1314,6 @@ private struct ConversationInspector: View {
   private var canClear: Bool { actions.contains("clear") }
   private var canDelete: Bool { actions.contains("delete") }
 
-  private var editingBot: Bot? { selectedBot }
-
-  private var colorOptions: [BotColorOption] {
-    editingBot?.systemRole == "chief"
-      ? [BotColorOption(value: "#FFBC3B", name: "Tim yellow")]
-      : customBotColors
-  }
-
-  private var identityIssue: String? {
-    let name = botDraft.name.trimmingCharacters(in: .whitespacesAndNewlines)
-    if name.isEmpty { return "Enter a bot name." }
-    if botDraft.name.count > model.constraints.botNameMaxLength {
-      return "Keep the name under \(model.constraints.botNameMaxLength) characters."
-    }
-    if botDraft.tagline.count > model.constraints.botTaglineMaxLength {
-      return "Keep the description under \(model.constraints.botTaglineMaxLength) characters."
-    }
-    return nil
-  }
-
-  private var instructionsIssue: String? {
-    if botDraft.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      return "Add instructions so the bot knows how to help."
-    }
-    if botDraft.prompt.count > model.constraints.botPromptMaxLength {
-      return "Instructions are longer than the supported limit."
-    }
-    return nil
-  }
-
-  private var canSaveBot: Bool {
-    identityIssue == nil && instructionsIssue == nil
-      && effectiveCatalogToolIDs(draft: botDraft, skills: model.bootstrap?.skills ?? []).count
-        <= (model.constraints.maxToolsPerBot ?? 12)
-      && !savingBot
-  }
-
-  private func loadBotDraftIfNeeded(force: Bool = false) {
-    guard let bot = editingBot, force || loadedBotID != bot.id else { return }
-    var draft = BotDraft(bot: bot)
-    let availableToolIDs = Set((model.bootstrap?.tools ?? []).map(\.id))
-    draft.toolIds.removeAll { !availableToolIDs.contains($0) }
-    draft.alwaysAllowedToolIds.removeAll { !availableToolIDs.contains($0) }
-    draft.githubRepositoryAccess = draft.githubRepositoryAccess.filter {
-      availableToolIDs.contains($0.key)
-    }
-    draft.resourceAccess = draft.resourceAccess.filter {
-      availableToolIDs.contains($0.key)
-    }
-    botDraft = draft
-    loadedBotID = bot.id
-  }
-
-  private func save(_ bot: Bot) {
-    savingBot = true
-    Task {
-      let saved = await model.saveBot(botDraft, id: bot.id)
-      if saved, let refreshed = model.bootstrap?.bots.first(where: { $0.id == bot.id }) {
-        botDraft = BotDraft(bot: refreshed)
-        loadedBotID = refreshed.id
-      }
-      savingBot = false
-    }
-  }
 }
 
 private struct MessageBubble: View {

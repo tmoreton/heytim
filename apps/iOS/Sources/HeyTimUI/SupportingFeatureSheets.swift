@@ -1342,6 +1342,26 @@ private struct MemoryExportDocument: FileDocument {
   }
 }
 
+private struct SettingsNavigationLabel: View {
+  let title: String
+  let detail: String
+  let systemImage: String
+
+  var body: some View {
+    Label {
+      VStack(alignment: .leading, spacing: 3) {
+        Text(title)
+        Text(detail)
+          .froggyFont(.caption)
+          .foregroundStyle(.secondary)
+      }
+      .padding(.vertical, 2)
+    } icon: {
+      Image(systemName: systemImage)
+    }
+  }
+}
+
 struct AccountView: View {
   @Bindable var model: AppModel
   let auth: AuthSession
@@ -1374,29 +1394,41 @@ struct AccountView: View {
 
   var body: some View {
     Form {
-      Section("Build Your Team") {
+      Section("Your Team") {
         FeatureLink {
           BotLibrary(model: model, showsDismissButton: false)
         } label: {
-          Label("Add a Bot", systemImage: "plus.circle.fill")
+          SettingsNavigationLabel(
+            title: "Add a Bot",
+            detail: "Choose a template or create a custom teammate.",
+            systemImage: "plus.circle.fill")
         }
       }
 
-      Section("Manage") {
+      Section("Workspace") {
         FeatureLink {
           MemoriesView(model: model, groupId: nil, showsDismissButton: false)
         } label: {
-          Label("Memory", systemImage: "brain.head.profile")
+          SettingsNavigationLabel(
+            title: "Memory",
+            detail: "Review facts and preferences shared across your bots.",
+            systemImage: "brain.head.profile")
         }
         FeatureLink {
           SkillsView(model: model, showsDismissButton: false)
         } label: {
-          Label("Browse Tools & Skills", systemImage: "wrench.and.screwdriver")
+          SettingsNavigationLabel(
+            title: "Tools & Skills",
+            detail: "Browse playbooks and available capabilities.",
+            systemImage: "wrench.and.screwdriver")
         }
         FeatureLink {
           ConnectionsView(model: model, showsDismissButton: false)
         } label: {
-          Label("Connect Accounts & MCP Servers", systemImage: "link")
+          SettingsNavigationLabel(
+            title: "Accounts & MCP Servers",
+            detail: "Connect, reconnect, or remove external services.",
+            systemImage: "link")
         }
       }
 
@@ -1506,32 +1538,9 @@ struct AccountView: View {
         Link("Terms of Use", destination: URL(string: "https://heytim.ai/terms")!)
       }
 
-      Section {
-        Button { signOut() } label: {
-          Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
-        }
-        .disabled(deletingAccount)
-        .foregroundStyle(.primary)
-      }
-
-      Section {
-        Button(role: .destructive) { confirmDelete = true } label: {
-          if deletingAccount {
-            Label { Text("Deleting Account…") } icon: { ProgressView() }
-          } else {
-            Label("Delete Account", systemImage: "trash")
-          }
-        }
-        .disabled(deletingAccount)
-        .tint(FrogTheme.danger)
-        .foregroundStyle(FrogTheme.danger)
-      } footer: {
-        Text("Permanently deletes your bots, chats, memory, files, connected accounts, owned groups, schedules, skills, invitations, and shared links.")
-      }
+      accountSection
 
       Section("About") {
-        LabeledContent("App", value: "Hey Tim for Apple")
-        LabeledContent("Platforms", value: "iPhone + Mac")
         LabeledContent("Version", value: versionLabel)
           .accessibilityIdentifier("settings.version")
         #if os(macOS)
@@ -1624,6 +1633,33 @@ struct AccountView: View {
     #endif
     @unknown default:
       EmptyView()
+    }
+  }
+
+  private var accountSection: some View {
+    Section {
+      Button { signOut() } label: {
+        Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
+      }
+      .disabled(deletingAccount)
+      .foregroundStyle(.primary)
+
+      Button(role: .destructive) { confirmDelete = true } label: {
+        if deletingAccount {
+          Label { Text("Deleting Account…") } icon: { ProgressView() }
+        } else {
+          Label("Delete Account", systemImage: "trash")
+        }
+      }
+      .disabled(deletingAccount)
+      .tint(FrogTheme.danger)
+      .foregroundStyle(FrogTheme.danger)
+    } header: {
+      Text("Account")
+    } footer: {
+      Text(
+        "Permanently deletes your bots, chats, memory, files, connected accounts, owned groups, schedules, skills, invitations, and shared links."
+      )
     }
   }
 

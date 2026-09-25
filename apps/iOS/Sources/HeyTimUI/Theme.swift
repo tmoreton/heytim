@@ -295,6 +295,39 @@ public struct BotAvatar: View {
   }
 }
 
+public struct BotIdentityLabel: View {
+  let name: String
+  let color: String
+  let detail: String?
+  var avatarSize: CGFloat
+
+  public init(
+    name: String, color: String, detail: String? = nil, avatarSize: CGFloat = 30
+  ) {
+    self.name = name
+    self.color = color
+    self.detail = detail
+    self.avatarSize = avatarSize
+  }
+
+  public var body: some View {
+    HStack(spacing: 10) {
+      BotAvatar(name: name, color: color, size: avatarSize)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(name)
+        if let detail, !detail.isEmpty {
+          Text(detail)
+            .froggyFont(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+        }
+      }
+    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(detail.map { "\(name), \($0)" } ?? name)
+  }
+}
+
 private struct TimMark: View {
   let color: Color
   let size: CGFloat

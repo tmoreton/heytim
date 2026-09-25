@@ -295,6 +295,16 @@ import XCTest
       XCTAssertTrue(replyPicker.waitForExistence(timeout: 5))
       XCTAssertTrue(replyPicker.isHittable)
     #endif
+
+    let details = app.buttons["chat.details"]
+    XCTAssertTrue(details.waitForExistence(timeout: 5))
+    details.tap()
+    for botID in ["researcher", "chief", "reviewer"] {
+      let bot = app.descendants(matching: .any)["group.detail.bot.\(botID)"].firstMatch
+      for _ in 0..<3 where !bot.exists { app.swipeUp() }
+      XCTAssertTrue(
+        bot.waitForExistence(timeout: 5))
+    }
   }
 
   func testMessageMarkdownUsesNativeBlockFormatting() {
@@ -372,20 +382,16 @@ import XCTest
     app.buttons["chat.details"].tap()
     XCTAssertTrue(app.buttons["inspector.back"].waitForExistence(timeout: 5))
 
-    XCTAssertTrue(app.textFields["Name"].exists)
-    let promptEditor = app.buttons["bot.prompt.editor"]
-    for _ in 0..<2 where !promptEditor.exists { app.swipeUp() }
-    XCTAssertTrue(promptEditor.exists)
-    XCTAssertTrue(app.buttons["inspector.save"].exists)
-    XCTAssertFalse(app.buttons["Edit Bot"].exists)
-    let toolsAndSkills = app.buttons["bot.tools-and-skills"]
+    XCTAssertFalse(app.textFields["Name"].exists)
+    XCTAssertFalse(app.buttons["inspector.save"].exists)
+    let editBot = app.buttons["conversation.edit-bot"]
+    XCTAssertTrue(editBot.exists)
     let conversationLinks = [
       "conversation.schedules", "conversation.runs", "conversation.share",
       "conversation.documents", "conversation.browser", "conversation.memory",
     ].map { app.buttons[$0] }
     let memory = app.buttons["conversation.memory"]
-    for _ in 0..<4 where !toolsAndSkills.exists || !memory.exists { app.swipeUp() }
-    XCTAssertTrue(toolsAndSkills.exists)
+    for _ in 0..<4 where !memory.exists { app.swipeUp() }
     for link in conversationLinks {
       XCTAssertTrue(link.exists)
     }
@@ -421,11 +427,13 @@ import XCTest
     settings.tap()
 
     XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 5))
-    for title in ["Memory", "Add a Bot", "Browse Tools & Skills", "Connect Accounts & MCP Servers"] {
+    for title in ["Memory", "Add a Bot", "Tools & Skills", "Accounts & MCP Servers"] {
       XCTAssertTrue(app.descendants(matching: .any)[title].firstMatch.exists)
     }
     XCTAssertTrue(app.descendants(matching: .any)["settings.appearance"].exists)
-    XCTAssertTrue(app.descendants(matching: .any)["settings.text-size"].exists)
+    let textSize = app.descendants(matching: .any)["settings.text-size"].firstMatch
+    for _ in 0..<2 where !textSize.exists { app.swipeUp() }
+    XCTAssertTrue(textSize.waitForExistence(timeout: 5))
     #if os(iOS)
       XCTAssertTrue(app.buttons["Close"].exists)
       XCTAssertFalse(app.buttons["Done"].exists)
@@ -446,18 +454,6 @@ import XCTest
     for _ in 0..<4 where !exportMemory.exists { app.swipeUp() }
     XCTAssertTrue(exportMemory.waitForExistence(timeout: 5))
 
-    #if os(macOS)
-      let aboutValue = app.staticTexts["Hey Tim for Apple"]
-    #else
-      let aboutValue = app.staticTexts["App, Hey Tim for Apple"]
-    #endif
-    for _ in 0..<4 where !aboutValue.exists { app.swipeUp() }
-    XCTAssertTrue(aboutValue.waitForExistence(timeout: 5))
-    #if os(macOS)
-      XCTAssertTrue(app.staticTexts["iPhone + Mac"].exists)
-    #else
-      XCTAssertTrue(app.staticTexts["Platforms, iPhone + Mac"].exists)
-    #endif
     let version = app.descendants(matching: .any)["settings.version"]
     for _ in 0..<4 where !version.exists { app.swipeUp() }
     XCTAssertTrue(version.waitForExistence(timeout: 5))
@@ -482,7 +478,7 @@ import XCTest
       app.launchForUITesting()
 
       app.buttons["sidebar.settings"].click()
-      app.buttons["Browse Tools & Skills"].click()
+      app.buttons["Tools & Skills"].click()
       let tools = app.radioButtons.matching(
         NSPredicate(format: "label BEGINSWITH %@", "Tools ")).firstMatch
       XCTAssertTrue(tools.waitForExistence(timeout: 5))
@@ -543,7 +539,7 @@ import XCTest
       XCTAssertTrue(settings.waitForExistence(timeout: 10))
       settings.tap()
 
-      let connectedAccounts = app.staticTexts["Connect Accounts & MCP Servers"]
+      let connectedAccounts = app.staticTexts["Accounts & MCP Servers"]
       XCTAssertTrue(connectedAccounts.waitForExistence(timeout: 5))
       connectedAccounts.tap()
 
@@ -628,7 +624,7 @@ import XCTest
     #endif
     XCTAssertTrue(app.buttons["sidebar.settings"].waitForExistence(timeout: 10))
     app.buttons["sidebar.settings"].tap()
-    let toolsAndSkills = app.descendants(matching: .any)["Browse Tools & Skills"].firstMatch
+    let toolsAndSkills = app.descendants(matching: .any)["Tools & Skills"].firstMatch
     XCTAssertTrue(toolsAndSkills.waitForExistence(timeout: 5))
     toolsAndSkills.tap()
 
@@ -665,7 +661,7 @@ import XCTest
     let settings = app.buttons["sidebar.settings"]
     XCTAssertTrue(settings.waitForExistence(timeout: 10))
     settings.tap()
-    let toolsAndSkills = app.descendants(matching: .any)["Browse Tools & Skills"].firstMatch
+    let toolsAndSkills = app.descendants(matching: .any)["Tools & Skills"].firstMatch
     XCTAssertTrue(toolsAndSkills.waitForExistence(timeout: 5))
     toolsAndSkills.tap()
 
@@ -811,7 +807,7 @@ import XCTest
 
       details.click()
       XCTAssertTrue(back.waitForExistence(timeout: 5))
-      XCTAssertEqual(app.textFields["Name"].value as? String, "Research Bot")
+      XCTAssertTrue(app.buttons["conversation.edit-bot"].exists)
       let schedules = app.buttons["conversation.schedules"]
       XCTAssertTrue(schedules.waitForExistence(timeout: 5))
       schedules.click()
@@ -822,6 +818,8 @@ import XCTest
       XCTAssertEqual(app.splitters.count, 1)
 
       details.click()
+      app.buttons["conversation.edit-bot"].click()
+      XCTAssertEqual(app.textFields["Name"].value as? String, "Chief")
       let toolsAndSkills = app.buttons["bot.tools-and-skills"]
       XCTAssertTrue(toolsAndSkills.waitForExistence(timeout: 5))
       toolsAndSkills.click()
@@ -831,6 +829,7 @@ import XCTest
       XCTAssertFalse(app.toolbars.staticTexts["Tools & Skills"].exists)
 
       details.click()
+      app.buttons["conversation.edit-bot"].click()
       app.buttons["bot.prompt.editor"].click()
       XCTAssertTrue(app.toolbars.staticTexts["Bot Prompt"].waitForExistence(timeout: 5))
       chief.click()
@@ -929,7 +928,7 @@ import XCTest
       XCTAssertEqual(composer.value as? String, "Keep this draft behind Settings")
 
       app.buttons["sidebar.settings"].click()
-      app.buttons["Browse Tools & Skills"].click()
+      app.buttons["Tools & Skills"].click()
       XCTAssertTrue(app.staticTexts["Tools & Skills"].waitForExistence(timeout: 5))
       let toolsScreenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
       toolsScreenshot.name = "Tools and Skills shares the navigation header"
