@@ -343,6 +343,23 @@ struct ConnectionsView: View {
       if showsDismissButton {
         CloseButton { model.sheet = nil }
       }
+      ToolbarItem(placement: .primaryAction) {
+        Menu {
+          ForEach(providers) { provider in
+            Button(provider.name) {
+              connect(
+                provider.id,
+                chooseAnotherAccount: provider.id != "mcp_server"
+                  && !connections(for: provider.id).isEmpty)
+            }
+            .accessibilityIdentifier("connection.add.\(provider.id)")
+          }
+        } label: {
+          Label("Add account or server", systemImage: "plus")
+        }
+        .disabled(connectingProviderID != nil || webAuthentication.isRunning)
+        .accessibilityIdentifier("connections.add")
+      }
     }
     .overlay { if loading { ProgressView() } }
     .refreshable { await load() }
@@ -551,11 +568,6 @@ struct ConnectionsView: View {
             connectionRow(connection, provider: provider)
           }
         }
-        Button(provider.id == "github" ? "Add another installation" : (provider.id == "mcp_server" ? "Add another server" : "Add another account")) {
-          connect(provider.id, chooseAnotherAccount: provider.id != "mcp_server")
-        }
-        .disabled(connectingProviderID != nil || webAuthentication.isRunning)
-        .accessibilityIdentifier("connection.add.\(provider.id)")
       }
     } else {
       HStack(spacing: 12) {

@@ -79,6 +79,8 @@ import XCTest
     XCTAssertTrue(toolsLink.waitForExistence(timeout: 10))
     toolsLink.tap()
 
+    XCTAssertFalse(app.staticTexts["Connect an account or MCP server"].exists)
+
     let firstGmail = app.switches["bot.tool.connection_gmail_alpha"]
     let secondGmail = app.switches["bot.tool.connection_gmail_beta"]
     func expectValue(_ value: String, for toggle: XCUIElement) {
@@ -1048,6 +1050,7 @@ import XCTest
       app.descendants(matching: .any)["bot.tools-and-skills"].firstMatch.click()
       XCTAssertTrue(app.switches["bot.tool.mac-desktop"].waitForExistence(timeout: 5))
       XCTAssertFalse(app.switches["bot.tool.mac-desktop"].isEnabled)
+      XCTAssertFalse(app.staticTexts["Connect an account or MCP server"].exists)
       let providerConnections = ["gmail", "youtube", "google_workspace", "x"].map {
         app.descendants(matching: .any)["bot.connection.\($0)"].firstMatch
       }

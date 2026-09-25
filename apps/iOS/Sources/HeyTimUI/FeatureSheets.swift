@@ -783,6 +783,13 @@ struct BotToolsAndSkillsEditor: View {
   @State private var searchText = ""
   @State private var selectedSection = CapabilitySection.tools
   @State private var autosave = BotDraftAutosaveQueue()
+  @State private var connectingProviderID: String?
+  @State private var showingMCPServerSetup = false
+  @State private var mcpServerName = ""
+  @State private var mcpServerURL = ""
+  @State private var mcpServerToken = ""
+  @State private var savingMCPServer = false
+  @State private var connectionAuthentication = WebAuthenticationController()
 
   private enum CapabilitySection: String, CaseIterable, Identifiable {
     case tools = "Tools"
@@ -852,123 +859,129 @@ struct BotToolsAndSkillsEditor: View {
       }
 
       if selectedSection == .skills {
-      Section("Skills") {
-        FeatureLink {
-          SkillsView(model: model, showsDismissButton: false)
-        } label: {
-          Label("Browse, Create, or Import Skills", systemImage: "square.grid.2x2")
+        Section("Skills") {
+          FeatureLink {
+            SkillsView(model: model, showsDismissButton: false)
+          } label: {
+            Label("Browse, Create, or Import Skills", systemImage: "square.grid.2x2")
+          }
+          ForEach(filteredSkills) { skill in
+            capabilityToggle(
+              id: skill.id,
+              name: skill.name,
+              description: skill.description,
+              values: $draft.skillIds)
+          }
+          if skills.isEmpty {
+            ContentUnavailableView("No Skills", systemImage: "sparkles")
+          }
         }
-        ForEach(filteredSkills) { skill in
-          capabilityToggle(
-            id: skill.id,
-            name: skill.name,
-            description: skill.description,
-            values: $draft.skillIds)
-        }
-        if skills.isEmpty {
-          ContentUnavailableView("No Skills", systemImage: "sparkles")
-        }
-      }
       } else {
-      Section("Tools") {
-        FeatureLink {
-          ConnectionsView(model: model, showsDismissButton: false)
-        } label: {
-          Label("Connect an account or MCP server", systemImage: "link.badge.plus")
-        }
-        Text("\(selectedToolCount) of \(maxTools) tools enabled, including tools required by skills.")
-          .froggyFont(.caption)
-          .foregroundStyle(selectedToolCount > maxTools ? Color.red : Color.secondary)
-        Text("Enable each connected account, GitHub installation, or MCP server separately for this bot. Connections are never shared with a bot automatically.")
-          .froggyFont(.caption).foregroundStyle(.secondary)
-        #if os(macOS)
-          Toggle(isOn: Binding(
-            get: { botID.map { desktopControl.enabledBotIDs.contains($0) } ?? false },
-            set: { enabled in
-              guard let botID else { return }
-              desktopControl.setEnabled(enabled, for: botID)
-            })) {
-              VStack(alignment: .leading, spacing: 3) {
-                Text("Mac app actions")
-                Text("Let this bot create Apple Notes or press a visible control in a Mac app. The action approval setting below controls whether it asks first. Turn this off to remove access.")
-                  .froggyFont(.caption).foregroundStyle(.secondary)
+        Section {
+          ForEach(providerToolGroups.groups) { group in
+            ForEach(includedTools(in: group)) { tool in
+              toolToggle(tool)
+            }
+            ForEach(group.family.providers) { provider in
+              let providerTools = connectedTools(for: provider, in: group)
+              if providerTools.isEmpty {
+                connectionLink(provider)
+              } else {
+                ForEach(providerTools) { tool in
+                  toolToggle(tool)
+                }
               }
             }
-            .disabled(botID == nil)
-            .accessibilityIdentifier("bot.tool.mac-desktop")
-          if botID == nil {
-            Text("Save this bot first to enable Mac app actions.")
-              .froggyFont(.caption).foregroundStyle(.secondary)
-          } else if !desktopControl.isEnabled {
-            Button("Enable Mac app actions in Settings") { desktopControl.isEnabled = true }
-          } else if !desktopControl.permissionGranted {
-            Label("Accessibility access is required", systemImage: "hand.raised")
-              .foregroundStyle(.secondary)
-            Button("Request Accessibility Access") {
-              desktopControl.requestAccessibilityPermission()
-            }
-            Button("Open macOS Settings") { desktopControl.openAccessibilitySettings() }
-            Text("After enabling this app in macOS Settings, quit and reopen Hey Tim.")
-              .froggyFont(.caption).foregroundStyle(.secondary)
           }
-        #endif
-        ForEach(providerToolGroups.groups) { group in
-          ForEach(includedTools(in: group)) { tool in
+          ForEach(providerToolGroups.ungrouped) { tool in
             toolToggle(tool)
           }
-          ForEach(group.family.providers) { provider in
-            let providerTools = connectedTools(for: provider, in: group)
-            if providerTools.isEmpty {
-              connectionLink(provider)
-            } else {
-              ForEach(providerTools) { tool in
-                toolToggle(tool)
+          #if os(iOS)
+            if tools.isEmpty && providers.isEmpty {
+              ContentUnavailableView("No Tools", systemImage: "wrench.and.screwdriver")
+            }
+          #endif
+        } header: {
+          HStack {
+            Text("Tools")
+            Spacer()
+            Text("\(selectedToolCount) of \(maxTools) enabled")
+              .foregroundStyle(selectedToolCount > maxTools ? Color.red : Color.secondary)
+          }
+        } footer: {
+          Text("Each account, installation, and server stays private until you enable it for this bot. Tools required by selected skills count toward the limit.")
+        }
+
+        #if os(macOS)
+          Section {
+            Toggle(isOn: Binding(
+              get: { botID.map { desktopControl.enabledBotIDs.contains($0) } ?? false },
+              set: { enabled in
+                guard let botID else { return }
+                desktopControl.setEnabled(enabled, for: botID)
+              })) {
+                VStack(alignment: .leading, spacing: 3) {
+                  Text("Mac app actions")
+                  Text("Create Apple Notes or press a visible control in another Mac app.")
+                    .froggyFont(.caption).foregroundStyle(.secondary)
+                }
               }
+              .disabled(botID == nil)
+              .accessibilityIdentifier("bot.tool.mac-desktop")
+            if botID == nil {
+              Text("Save this bot first to enable Mac app actions.")
+                .froggyFont(.caption).foregroundStyle(.secondary)
+            } else if !desktopControl.isEnabled {
+              Button("Enable Mac app actions") { desktopControl.isEnabled = true }
+            } else if !desktopControl.permissionGranted {
+              Label("Accessibility access is required", systemImage: "hand.raised")
+                .foregroundStyle(.secondary)
+              Button("Request Accessibility Access") {
+                desktopControl.requestAccessibilityPermission()
+              }
+              Button("Open macOS Settings") { desktopControl.openAccessibilitySettings() }
+              Text("After enabling Hey Tim in macOS Settings, quit and reopen the app.")
+                .froggyFont(.caption).foregroundStyle(.secondary)
+            }
+          } header: {
+            Text("On this Mac")
+          } footer: {
+            Text("Action approvals below control whether the bot asks first. Turn this off to remove access.")
+          }
+        #endif
+
+        Section {
+          Picker("Tool actions", selection: $draft.actionApprovalMode) {
+            Text("Run automatically").tag("automatic")
+            Text("Ask before acting").tag("ask")
+          }
+          .onChange(of: draft.actionApprovalMode) { _, mode in
+            if mode == "ask" {
+              draft.alwaysAllowedToolIds = []
+              #if os(macOS)
+                if let botID { desktopControl.revokeAlways(for: botID) }
+              #endif
             }
           }
-        }
-        ForEach(providerToolGroups.ungrouped) { tool in
-          toolToggle(tool)
-        }
-        #if os(iOS)
-        if tools.isEmpty && providers.isEmpty {
-          ContentUnavailableView("No Tools", systemImage: "wrench.and.screwdriver")
-        }
-        #endif
-      }
-      }
-
-      Section {
-        Picker("Tool actions", selection: $draft.actionApprovalMode) {
-          Text("Run automatically").tag("automatic")
-          Text("Ask before acting").tag("ask")
-        }
-        .onChange(of: draft.actionApprovalMode) { _, mode in
-          if mode == "ask" {
-            draft.alwaysAllowedToolIds = []
-            #if os(macOS)
-              if let botID { desktopControl.revokeAlways(for: botID) }
-            #endif
-          }
-        }
-      } header: {
-        Text("Action approvals")
-      } footer: {
-        Text("Bots run enabled tools automatically by default. Choose Ask before acting to pause before interactive actions. Connected-account scopes and device permissions still apply.")
-      }
-
-      if draft.actionApprovalMode == "ask" && !alwaysAllowedTools.isEmpty {
-        Section {
-          ForEach(alwaysAllowedTools) { tool in
-            Label(tool.name, systemImage: "checkmark.shield")
-          }
-          Button("Ask before these actions again", role: .destructive) {
-            draft.alwaysAllowedToolIds = []
-          }
         } header: {
-          Text("Approved exceptions")
+          Text("Action approvals")
         } footer: {
-          Text("These tools were approved from chat after the stricter setting was enabled.")
+          Text("Run enabled tools automatically, or pause before interactive actions. Account scopes and device permissions still apply.")
+        }
+
+        if draft.actionApprovalMode == "ask" && !alwaysAllowedTools.isEmpty {
+          Section {
+            ForEach(alwaysAllowedTools) { tool in
+              Label(tool.name, systemImage: "checkmark.shield")
+            }
+            Button("Ask before these actions again", role: .destructive) {
+              draft.alwaysAllowedToolIds = []
+            }
+          } header: {
+            Text("Approved exceptions")
+          } footer: {
+            Text("These tools were approved from chat after the stricter setting was enabled.")
+          }
         }
       }
     }
@@ -989,6 +1002,12 @@ struct BotToolsAndSkillsEditor: View {
       }
     }
     .task { _ = await model.refreshBootstrap() }
+    .sheet(isPresented: $showingMCPServerSetup) {
+      mcpServerSetupSheet
+    }
+    .onChange(of: connectionAuthentication.outcome) { _, outcome in
+      handleConnectionOutcome(outcome)
+    }
     #if os(macOS)
       .alert("Reopen Hey Tim?", isPresented: Binding(
         get: { desktopControl.restartPrompt },
@@ -1290,8 +1309,8 @@ struct BotToolsAndSkillsEditor: View {
   }
 
   private func connectionLink(_ provider: ConnectionProvider) -> some View {
-    FeatureLink {
-      ConnectionsView(model: model, showsDismissButton: false)
+    Button {
+      connect(provider)
     } label: {
       HStack(spacing: 10) {
         connectionIcon(provider)
@@ -1302,30 +1321,34 @@ struct BotToolsAndSkillsEditor: View {
             .foregroundStyle(.secondary)
         }
         Spacer(minLength: 8)
-        Text("Connect")
-          .froggyFont(.caption, weight: .semibold)
-          .foregroundStyle(FrogTheme.accent)
+        if connectingProviderID == provider.id {
+          ProgressView()
+            .controlSize(.small)
+            .accessibilityLabel("Connecting \(provider.name)")
+        } else {
+          Text("Connect")
+            .froggyFont(.caption, weight: .semibold)
+            .foregroundStyle(FrogTheme.accent)
+        }
       }
+      .contentShape(Rectangle())
     }
+    .buttonStyle(.plain)
+    .disabled(connectingProviderID != nil || connectionAuthentication.isRunning)
     .accessibilityIdentifier("bot.connection.\(provider.id)")
-    .accessibilityHint("Opens Accounts & MCP Servers")
+    .accessibilityHint("Starts a new \(provider.name) connection")
   }
 
   @ViewBuilder private func connectionIcon(_ provider: ConnectionProvider) -> some View {
-    if let family = providerFamily(for: provider) {
-      ProviderLogoView(
-        providerID: family.logoProviderId, iconText: family.iconText, size: 30)
-    } else {
-      ProviderLogoView(provider: provider, size: 30)
-    }
+    ProviderLogoView(provider: provider, size: 30)
   }
 
   @ViewBuilder private func toolIcon(_ tool: Capability) -> some View {
-    if let family = providerFamily(for: tool) {
+    if let provider = providers.first(where: { $0.id == tool.provider }) {
+      ProviderLogoView(provider: provider, size: 30)
+    } else if let family = providerFamily(for: tool) {
       ProviderLogoView(
         providerID: family.logoProviderId, iconText: family.iconText, size: 30)
-    } else if let provider = providers.first(where: { $0.id == tool.provider }) {
-      ProviderLogoView(provider: provider, size: 30)
     } else {
       Image(systemName: toolSymbol(tool))
         .froggyFont(.body, weight: .semibold)
@@ -1345,11 +1368,6 @@ struct BotToolsAndSkillsEditor: View {
     }
   }
 
-  private func providerFamily(for provider: ConnectionProvider) -> ConnectionProviderFamily? {
-    guard let familyID = provider.familyId else { return nil }
-    return connectionProviderFamilies(providers).first { $0.id == familyID }
-  }
-
   private func toolSymbol(_ tool: Capability) -> String {
     let identity = "\(tool.id) \(tool.name)".lowercased()
     if identity.contains("image") || identity.contains("thumbnail") { return "photo" }
@@ -1365,6 +1383,111 @@ struct BotToolsAndSkillsEditor: View {
     if identity.contains("calculator") { return "function" }
     if identity.contains("memory") { return "brain.head.profile" }
     return "wrench.and.screwdriver"
+  }
+
+  private func connect(_ provider: ConnectionProvider) {
+    if provider.id == "mcp_server" {
+      mcpServerName = ""
+      mcpServerURL = ""
+      mcpServerToken = ""
+      showingMCPServerSetup = true
+      return
+    }
+    connectingProviderID = provider.id
+    Task {
+      do {
+        var callback = URLComponents()
+        callback.scheme = "heytim"
+        callback.host = "app"
+        callback.queryItems = [URLQueryItem(name: "connection", value: provider.id)]
+        guard let returnURL = callback.url else { throw APIError.invalidResponse }
+        let url = try await model.requireAPI().beginConnection(
+          providerId: provider.id, returnURL: returnURL)
+        let alreadyConnected = tools.contains { $0.provider == provider.id }
+        connectionAuthentication.start(
+          url: url, chooseAnotherAccount: alreadyConnected)
+      } catch {
+        connectingProviderID = nil
+        model.present(error)
+      }
+    }
+  }
+
+  private func handleConnectionOutcome(_ outcome: WebAuthenticationOutcome?) {
+    guard let outcome else { return }
+    switch outcome {
+    case .callback(let url):
+      Task {
+        _ = await model.handleConnectionCallback(url)
+        connectingProviderID = nil
+      }
+    case .cancelled:
+      connectingProviderID = nil
+    case .failed(let message):
+      connectingProviderID = nil
+      model.present(APIError.configuration(message))
+    }
+    connectionAuthentication.outcome = nil
+  }
+
+  private var mcpServerSetupSheet: some View {
+    NavigationStack {
+      Form {
+        Section {
+          TextField("Server name", text: $mcpServerName)
+            .accessibilityIdentifier("connection.mcp.name")
+          TextField("MCP HTTPS URL", text: $mcpServerURL)
+            .autocorrectionDisabled()
+            .accessibilityIdentifier("connection.mcp.url")
+          SecureField("Access token", text: $mcpServerToken)
+            .accessibilityIdentifier("connection.mcp.token")
+        } header: {
+          Text("Add MCP server")
+        } footer: {
+          Text("Use a trusted public HTTPS endpoint. HeyTim stores its access token privately, and this bot stays disabled until you turn the server on in the Tools list.")
+        }
+      }
+      .formStyle(.grouped)
+      .navigationTitle("MCP server")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { closeMCPServerSetup() }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Add server") { saveMCPServer() }
+            .disabled(
+              savingMCPServer || mcpServerName.isEmpty || mcpServerURL.isEmpty
+                || mcpServerToken.isEmpty)
+        }
+      }
+      .overlay { if savingMCPServer { ProgressView() } }
+    }
+    .frame(minWidth: 460, minHeight: 340)
+  }
+
+  private func closeMCPServerSetup() {
+    mcpServerName = ""
+    mcpServerURL = ""
+    mcpServerToken = ""
+    showingMCPServerSetup = false
+  }
+
+  private func saveMCPServer() {
+    guard !savingMCPServer else { return }
+    savingMCPServer = true
+    Task {
+      defer { savingMCPServer = false }
+      do {
+        _ = try await model.requireAPI().connectMCPServer(
+          name: mcpServerName.trimmingCharacters(in: .whitespacesAndNewlines),
+          url: mcpServerURL.trimmingCharacters(in: .whitespacesAndNewlines),
+          accessToken: mcpServerToken.trimmingCharacters(in: .whitespacesAndNewlines))
+        closeMCPServerSetup()
+        _ = await model.refreshBootstrap()
+      } catch {
+        model.present(error)
+      }
+    }
   }
 
   private func set(_ enabled: Bool, id: String, in values: inout [String]) {
