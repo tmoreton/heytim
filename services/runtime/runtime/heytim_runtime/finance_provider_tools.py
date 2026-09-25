@@ -280,14 +280,47 @@ def _plaid_json(binding: dict, path: str, payload: dict) -> dict:
     return value
 
 
+def _plaid_account_ids(binding: dict) -> list[str] | None:
+    account_ids = binding.get("accountIds")
+    return account_ids if isinstance(account_ids, list) else None
+
+
+def _plaid_account_options(binding: dict) -> dict:
+    account_ids = _plaid_account_ids(binding)
+    return {"options": {"account_ids": account_ids}} if account_ids else {}
+
+
+def _filter_plaid_records(values: Any, account_ids: list[str] | None) -> Any:
+    if account_ids is None or not isinstance(values, list):
+        return values
+    allowed = set(account_ids)
+    return [
+        value for value in values
+        if isinstance(value, dict) and value.get("account_id") in allowed
+    ]
+
+
+def _filter_plaid_liabilities(value: Any, account_ids: list[str] | None) -> Any:
+    if account_ids is None or not isinstance(value, dict):
+        return value
+    return {
+        kind: _filter_plaid_records(records, account_ids)
+        for kind, records in value.items()
+    }
+
+
 def plaid_tools(binding: dict, usage: Any) -> list[Any]:
     @tool
     def plaid_accounts() -> str:
         """Read account names, types, masks, and cached balances from Plaid."""
         _runtime()._record(usage, "plaid", "plaid_accounts")
-        value = _plaid_json(binding, "/accounts/get", {})
+        account_ids = _plaid_account_ids(binding)
+        value = _plaid_json(binding, "/accounts/get", _plaid_account_options(binding))
         return json.dumps(
-            {"accounts": value.get("accounts", []), "item": value.get("item", {})},
+            {
+                "accounts": _filter_plaid_records(value.get("accounts", []), account_ids),
+                "item": value.get("item", {}),
+            },
             separators=(",", ":"),
         )
 
@@ -306,10 +339,15 @@ def plaid_tools(binding: dict, usage: Any) -> list[Any]:
             "offset": 0,
             "personal_finance_category_version": "v2",
         }
+        allowed_account_ids = _plaid_account_ids(binding)
         if account_id:
             if not re.fullmatch(r"[A-Za-z0-9_-]{8,200}", account_id):
                 raise ValueError("account_id is invalid")
+            if allowed_account_ids is not None and account_id not in allowed_account_ids:
+                raise ValueError("account_id is not assigned to this bot")
             options["account_ids"] = [account_id]
+        elif allowed_account_ids is not None:
+            options["account_ids"] = allowed_account_ids
         _runtime()._record(usage, "plaid", "plaid_transactions")
         value = _plaid_json(
             binding,
@@ -318,8 +356,12 @@ def plaid_tools(binding: dict, usage: Any) -> list[Any]:
         )
         return json.dumps(
             {
-                "accounts": value.get("accounts", []),
-                "transactions": value.get("transactions", []),
+                "accounts": _filter_plaid_records(
+                    value.get("accounts", []), allowed_account_ids
+                ),
+                "transactions": _filter_plaid_records(
+                    value.get("transactions", []), allowed_account_ids
+                ),
                 "totalTransactions": value.get("total_transactions", 0),
             },
             separators=(",", ":"),
@@ -329,11 +371,16 @@ def plaid_tools(binding: dict, usage: Any) -> list[Any]:
     def plaid_liabilities() -> str:
         """Read supported credit-card and loan liabilities from Plaid."""
         _runtime()._record(usage, "plaid", "plaid_liabilities")
-        value = _plaid_json(binding, "/liabilities/get", {})
+        account_ids = _plaid_account_ids(binding)
+        value = _plaid_json(
+            binding, "/liabilities/get", _plaid_account_options(binding)
+        )
         return json.dumps(
             {
-                "accounts": value.get("accounts", []),
-                "liabilities": value.get("liabilities", {}),
+                "accounts": _filter_plaid_records(value.get("accounts", []), account_ids),
+                "liabilities": _filter_plaid_liabilities(
+                    value.get("liabilities", {}), account_ids
+                ),
             },
             separators=(",", ":"),
         )

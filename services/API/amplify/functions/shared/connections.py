@@ -340,6 +340,7 @@ class ConnectionMixin(MCPServerConnectionMixin, FinanceConnectionMixin, Connecti
         provider_account_id: str | None = None,
         repository_count: int | None = None,
         repositories: list[dict] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> dict:
         spec = CONNECTION_SPECS.get(provider)
         if not spec:
@@ -415,10 +416,9 @@ class ConnectionMixin(MCPServerConnectionMixin, FinanceConnectionMixin, Connecti
                     "hasCredential": True,
                     "secretArn": secret_arn,
                     "runtime": runtime_factory(secret_arn),
-                    "createdAt": (
-                        existing.get("createdAt", current) if existing else current
-                    ),
+                    "createdAt": existing.get("createdAt", current) if existing else current,
                     "updatedAt": current,
+                    **(metadata or {}),
                 }
                 if provider in GOOGLE_CONNECTION_PROVIDER_IDS:
                     item["credentialCheckedAt"] = int(time.time())

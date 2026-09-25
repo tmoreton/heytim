@@ -438,7 +438,8 @@ CONNECTION_PROVIDER_SPECS = (
         "privacyTitle": "Bank credentials stay with Plaid",
         "privacyDescription": (
             "HeyTim never receives bank usernames or passwords. It stores a scoped "
-            "Plaid access token and exposes only reviewed, read-only finance tools."
+            "Plaid access token and exposes only reviewed, read-only finance tools. "
+            "Each bot can be limited to specific connected cards or accounts."
         ),
         "connectLabel": "Connect institution",
         "reconnectLabel": "Reconnect institution",

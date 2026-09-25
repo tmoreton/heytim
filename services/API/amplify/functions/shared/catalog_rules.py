@@ -556,8 +556,7 @@ def _public_tool(item: dict) -> dict:
         "relationship",
         "connectionStatus",
         "connectedAccount",
-        "repositoryCount",
-        "repositories",
+        "repositoryCount", "repositories", "plaidAccounts",
         "updatedAt",
     )
     public = {key: item[key] for key in keys if key in item}

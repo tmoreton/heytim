@@ -403,6 +403,23 @@ def _plaid_account_label(result: dict) -> str:
     return "Connected institution"
 
 
+def _plaid_account_metadata(result: dict) -> list[dict]:
+    values = result.get("accounts")
+    if not isinstance(values, list):
+        return []
+    return [
+        {
+            "id": account.get("id", account.get("account_id")),
+            "name": account.get("name"),
+            "type": account.get("type"),
+            "subtype": account.get("subtype"),
+            "mask": account.get("mask"),
+        }
+        for account in values
+        if isinstance(account, dict)
+    ]
+
+
 def _plaid_callback(query: dict) -> dict:
     return_url = DEFAULT_RETURN_URL
     deadline = time.monotonic() + CALLBACK_BUDGET_SECONDS
@@ -444,6 +461,7 @@ def _plaid_callback(query: dict) -> dict:
             access_token,
             state["appSecretArn"],
             config["environment"],
+            _plaid_account_metadata(result),
         )
         return _redirect(_result_url(return_url, "connected", "plaid"))
     except (ApiError, CatalogError, KeyError, TypeError, ValueError):

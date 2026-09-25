@@ -105,11 +105,13 @@ class CatalogAccessMixin:
             raise CatalogError("resourceAccess must be an object")
         if not access:
             return {}
-        providers = {
-            item["id"]: item.get("provider")
+        connections = {
+            item["id"]: item
             for item in self._active_connection_items(user_id)
             if item.get("id") in tool_ids
-            and item.get("provider") in {"slack", "notion", "google_workspace"}
+            and item.get("provider") in {
+                "slack", "notion", "google_workspace", "plaid"
+            }
         }
         patterns = {
             "slack": re.compile(r"[A-Z0-9]{2,32}"),
@@ -117,12 +119,14 @@ class CatalogAccessMixin:
             "google_workspace": re.compile(
                 r"(?:file|sheet):[A-Za-z0-9_-]{8,256}|calendar:[A-Za-z0-9_.@%+\-]{1,256}"
             ),
+            "plaid": re.compile(r"[A-Za-z0-9_-]{8,200}"),
         }
         result = {}
         for connection_id, resource_ids in access.items():
-            provider = providers.get(connection_id)
-            if provider is None:
+            connection = connections.get(connection_id)
+            if connection is None:
                 raise CatalogError("Resource access requires an assigned connection")
+            provider = connection.get("provider")
             if (
                 not isinstance(resource_ids, list)
                 or not 1 <= len(resource_ids) <= 100
@@ -133,6 +137,35 @@ class CatalogAccessMixin:
                 )
                 or len(resource_ids) != len(set(resource_ids))
             ):
-                raise CatalogError("Enter valid channel or page IDs")
+                raise CatalogError("Enter valid resource IDs")
+            if provider == "plaid":
+                available = {
+                    account.get("id")
+                    for account in connection.get("plaidAccounts", [])
+                    if isinstance(account, dict)
+                }
+                if not available or any(item not in available for item in resource_ids):
+                    raise CatalogError(
+                        "Choose accounts from the connected Plaid institution"
+                    )
             result[connection_id] = resource_ids
         return result
+
+    def apply_resource_access(
+        self, item: dict, runtime: dict, resource_ids: list[str]
+    ) -> dict | None:
+        if not resource_ids:
+            return None
+        if item.get("provider") != "plaid":
+            runtime["resourceIds"] = resource_ids
+            return runtime
+        available = {
+            account.get("id")
+            for account in item.get("plaidAccounts", [])
+            if isinstance(account, dict)
+        }
+        allowed = [account_id for account_id in resource_ids if account_id in available]
+        if not allowed:
+            return None
+        runtime["accountIds"] = allowed
+        return runtime

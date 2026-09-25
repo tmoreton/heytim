@@ -41,7 +41,7 @@ def _quickbooks_binding() -> dict:
     )
 
 
-def _plaid_binding() -> dict:
+def _plaid_binding(account_ids: list[str] | None = None) -> dict:
     return provider_connections.validated_provider_binding(
         TOOL_ID,
         {
@@ -52,6 +52,7 @@ def _plaid_binding() -> dict:
             "appSecretArn": PLAID_SECRET,
             "environment": "production",
             "accountLabel": "Plaid Bank",
+            **({"accountIds": account_ids} if account_ids is not None else {}),
         },
     )
 
@@ -131,6 +132,55 @@ def test_plaid_exposes_accounts_transactions_and_liabilities(monkeypatch) -> Non
     assert calls[1][0] == "/transactions/get"
     assert calls[1][1]["options"]["count"] == 20
     assert json.loads(tools[2]())["liabilities"] == {"credit": []}
+
+
+def test_plaid_tools_enforce_bot_account_allowlist(monkeypatch) -> None:
+    calls: list[tuple[str, dict]] = []
+    allowed_id = "account_card_456"
+    other_id = "account_checking_123"
+
+    def response(_binding: dict, path: str, payload: dict) -> dict:
+        calls.append((path, payload))
+        accounts = [
+            {"account_id": allowed_id, "name": "Business Card"},
+            {"account_id": other_id, "name": "Personal Checking"},
+        ]
+        if path == "/transactions/get":
+            return {
+                "accounts": accounts,
+                "transactions": [
+                    {"account_id": allowed_id, "name": "Office Store"},
+                    {"account_id": other_id, "name": "Groceries"},
+                ],
+                "total_transactions": 1,
+            }
+        if path == "/liabilities/get":
+            return {
+                "accounts": accounts,
+                "liabilities": {
+                    "credit": [
+                        {"account_id": allowed_id, "minimum_payment_amount": 25},
+                        {"account_id": other_id, "minimum_payment_amount": 10},
+                    ]
+                },
+            }
+        return {"accounts": accounts, "item": {"institution_id": "ins_123"}}
+
+    monkeypatch.setattr(finance_provider_tools, "_plaid_json", response)
+    tools = provider_connections.provider_connection_tools(_plaid_binding([allowed_id]))
+
+    assert [item["account_id"] for item in json.loads(tools[0]())["accounts"]] == [
+        allowed_id
+    ]
+    transactions = json.loads(tools[1]("2026-09-01", "2026-09-25"))
+    assert [item["account_id"] for item in transactions["transactions"]] == [allowed_id]
+    liabilities = json.loads(tools[2]())
+    assert [item["account_id"] for item in liabilities["liabilities"]["credit"]] == [
+        allowed_id
+    ]
+    assert all(call[1]["options"]["account_ids"] == [allowed_id] for call in calls)
+    with pytest.raises(ValueError, match="not assigned to this bot"):
+        tools[1]("2026-09-01", "2026-09-25", account_id=other_id)
 
 
 def test_quickbooks_refresh_rotates_access_and_refresh_tokens(monkeypatch) -> None:

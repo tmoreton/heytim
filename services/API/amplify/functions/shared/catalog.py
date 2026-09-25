@@ -335,12 +335,12 @@ class CatalogService(CatalogAccessMixin, CatalogSyncMixin, ConnectionMixin):
                 runtime["channelAccess"] = selected_channels
             selected_resources = (resource_access or {}).get(tool_id)
             if (
-                item.get("provider") in {"slack", "notion", "google_workspace"}
+                item.get("provider") in {"slack", "notion", "google_workspace", "plaid"}
                 and selected_resources is not None
             ):
-                if not selected_resources:
+                runtime = self.apply_resource_access(item, runtime, selected_resources)
+                if runtime is None:
                     continue
-                runtime["resourceIds"] = selected_resources
             resolved.append({"id": tool_id, "risk": risk, "runtime": runtime})
         return resolved
 

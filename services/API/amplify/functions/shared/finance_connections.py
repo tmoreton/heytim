@@ -5,9 +5,51 @@ from typing import Any
 
 from .catalog_rules import CatalogError
 
+PLAID_ACCOUNT_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{8,200}")
+
 
 def _valid_secret_arn(value: Any) -> bool:
     return isinstance(value, str) and value.startswith("arn:aws:secretsmanager:")
+
+
+def _plaid_accounts(values: Any) -> list[dict]:
+    if not isinstance(values, list) or len(values) > 100:
+        raise CatalogError("Plaid account metadata is invalid")
+    accounts = []
+    seen = set()
+    for value in values:
+        account_id = value.get("id") if isinstance(value, dict) else None
+        name = value.get("name") if isinstance(value, dict) else None
+        account_type = value.get("type") if isinstance(value, dict) else None
+        subtype = value.get("subtype") if isinstance(value, dict) else None
+        mask = value.get("mask") if isinstance(value, dict) else None
+        if (
+            not isinstance(account_id, str)
+            or not PLAID_ACCOUNT_ID_PATTERN.fullmatch(account_id)
+            or account_id in seen
+            or not isinstance(name, str)
+            or not name.strip()
+            or len(name.strip()) > 160
+            or not isinstance(account_type, str)
+            or not re.fullmatch(r"[a-z_]{2,40}", account_type)
+            or (subtype is not None and (
+                not isinstance(subtype, str)
+                or not re.fullmatch(r"[a-z0-9_ -]{1,80}", subtype)
+            ))
+            or (mask is not None and (
+                not isinstance(mask, str) or not re.fullmatch(r"[A-Za-z0-9* -]{1,16}", mask)
+            ))
+        ):
+            raise CatalogError("Plaid account metadata is invalid")
+        seen.add(account_id)
+        accounts.append({
+            "id": account_id,
+            "name": name.strip(),
+            "type": account_type,
+            **({"subtype": subtype} if subtype is not None else {}),
+            **({"mask": mask} if mask is not None else {}),
+        })
+    return accounts
 
 
 class FinanceConnectionMixin:
@@ -69,6 +111,7 @@ class FinanceConnectionMixin:
         access_token: str,
         app_secret_arn: str,
         environment: str,
+        accounts: list[dict] | None = None,
     ) -> dict:
         if not re.fullmatch(r"[A-Za-z0-9_-]{8,200}", item_id):
             raise CatalogError("Plaid Item identity is invalid")
@@ -92,4 +135,8 @@ class FinanceConnectionMixin:
                 "environment": environment,
             },
             provider_account_id=item_id,
+            metadata=(
+                {"plaidAccounts": _plaid_accounts(accounts)}
+                if accounts is not None else None
+            ),
         )
