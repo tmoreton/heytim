@@ -14,9 +14,12 @@ for (const skill of catalog.skills) {
   assert.equal(await readFile(new URL(skill.path, output), 'utf8'),
     await readFile(new URL(`../../../catalog/${skill.path}`, import.meta.url), 'utf8'));
 }
-const association = JSON.parse(await readFile(new URL('.well-known/apple-app-site-association', output), 'utf8'));
+const associationSource = await readFile(new URL('.well-known/apple-app-site-association', output), 'utf8');
+const association = JSON.parse(associationSource);
+assert.equal(await readFile(new URL('apple-app-site-association', output), 'utf8'), associationSource);
 assert(association.applinks.details[0].appIDs.includes('GVXC5FQ2RP.com.heytim.app'));
 assert(association.applinks.details[0].components.some((component) => component['/'] === '/billing*'));
+assert(association.applinks.details[0].components.some((component) => component['/'] === '/plaid-oauth*'));
 const assets = await readdir(new URL('assets/', output));
 let javascriptBytes = 0;
 for (const file of assets.filter((name) => name.endsWith('.js'))) {
