@@ -1,0 +1,8 @@
+# Existing source-size debt. These files must not grow and should be removed
+# from this list after they are split below the default 600-line limit.
+services/API/amplify/backend.ts 612
+services/API/amplify/functions/shared/catalog.py 608
+services/API/amplify/functions/shared/connections.py 764
+services/API/amplify/functions/tests/test_catalog.py 606
+services/runtime/runtime/heytim_runtime/gmail_api.py 636
+services/runtime/runtime/heytim_runtime/mcp_connections.py 601
