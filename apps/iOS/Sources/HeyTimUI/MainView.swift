@@ -2242,7 +2242,7 @@ private struct Composer: View {
   private var sendActionTitle: String {
     model.willQueueNextMessage ? "Queue message" : "Send message"
   }
-  private var conversationAccent: Color { model.conversationAccent }
+  private var conversationAccent: Color { Color(hex: model.conversationAccentHex) }
   private var composerOutlineColor: Color { Color(hex: model.conversationAccentHex) }
   private var queuedMessageTray: some View {
     VStack(alignment: .leading, spacing: 7) {
