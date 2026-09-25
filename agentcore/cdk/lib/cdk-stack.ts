@@ -198,15 +198,26 @@ export class AgentCoreStack extends Stack {
         resourceName: 'heytim/connections/*',
         arnFormat: ArnFormat.COLON_RESOURCE_NAME,
       });
-      const providerConfigurationArns =
-        ['google', 'github', 'x', 'slack', 'microsoft', 'notion', 'hubspot', 'jira', 'zoom'].map(provider =>
-          this.formatArn({
-            service: 'secretsmanager',
-            resource: 'secret',
-            resourceName: `heytim/oauth/${provider}-*`,
-            arnFormat: ArnFormat.COLON_RESOURCE_NAME,
-          })
-        );
+      const providerConfigurationArns = [
+        'google',
+        'github',
+        'x',
+        'slack',
+        'microsoft',
+        'notion',
+        'hubspot',
+        'jira',
+        'zoom',
+        'quickbooks',
+        'plaid',
+      ].map(provider =>
+        this.formatArn({
+          service: 'secretsmanager',
+          resource: 'secret',
+          resourceName: `heytim/oauth/${provider}-*`,
+          arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+        })
+      );
       for (const environment of this.application.environments.values()) {
         environment.runtime.role.addToPrincipalPolicy(
           new iam.PolicyStatement({

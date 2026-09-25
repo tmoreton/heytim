@@ -88,7 +88,19 @@ test('runtime roles can use the configured memory encryption key', async () => {
     })
   );
   const serializedStatements = JSON.stringify(statements);
-  for (const provider of ['google', 'github', 'x', 'slack', 'microsoft', 'notion', 'hubspot', 'jira', 'zoom']) {
+  for (const provider of [
+    'google',
+    'github',
+    'x',
+    'slack',
+    'microsoft',
+    'notion',
+    'hubspot',
+    'jira',
+    'zoom',
+    'quickbooks',
+    'plaid',
+  ]) {
     expect(serializedStatements).toContain(`secret:heytim/oauth/${provider}-*`);
   }
   expect(serializedStatements).not.toContain('secret:frogbot/');
