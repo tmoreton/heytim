@@ -32,9 +32,7 @@ def test_production_source_boundary_is_allowlisted() -> None:
 
 def test_agentcore_package_is_dependency_complete_and_production_only() -> None:
     repository = Path(__file__).resolve().parents[3]
-    # The deployed AgentCore resource keeps its original identity so a brand
-    # change cannot replace the production runtime or its attached data.
-    runtime_name = "FrogBot"
+    runtime_name = "HeyTim"
     staging = repository / f"agentcore/{runtime_name}"
     archive = repository / f"agentcore/{runtime_name}.zip"
     preexisting = [path for path in (staging, archive) if path.exists()]

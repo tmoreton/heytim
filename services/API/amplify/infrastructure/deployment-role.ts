@@ -30,13 +30,13 @@ export function addGithubDeploymentRole({
   const tokenVaultKmsResourceConditions = {
     StringEquals: {
       'aws:ResourceAccount': stack.account,
-      'aws:ResourceTag/agentcore:project': 'FrogBot',
+      'aws:ResourceTag/agentcore:project': 'HeyTim',
     },
   };
   const credentialProviderNames = [
-    'FrogBot_OpenRouter',
-    'FrogBotXApi',
-    'FrogBotYouTubeApi',
+    'HeyTim_OpenRouter',
+    'HeyTimXApi',
+    'HeyTimYouTubeApi',
   ];
   const credentialProviderArns = credentialProviderNames
     .map(name => agentCoreArn('token-vault', `default/apikeycredentialprovider/${name}`));
@@ -57,15 +57,15 @@ export function addGithubDeploymentRole({
     region: '',
     resource: 'role',
     // CloudFormation appends a generated suffix and may truncate the logical ID.
-    resourceName: 'AgentCore-FrogBot-product-ApplicationOnlineEval*',
+    resourceName: 'AgentCore-HeyTim-product-ApplicationOnlineEval*',
     arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
   });
   const projectResourceCondition = {
     StringEquals: {
-      'aws:ResourceTag/agentcore:project-name': 'FrogBot',
+      'aws:ResourceTag/agentcore:project-name': 'HeyTim',
     },
   };
-  const productionFilesBucketName = `frogbot-production-user-files-${stack.account}-${stack.region}`;
+  const productionFilesBucketName = `heytim-production-user-files-${stack.account}-${stack.region}`;
   const productionFilesBucketArn = stack.formatArn({
     service: 's3',
     region: '',
@@ -73,8 +73,7 @@ export function addGithubDeploymentRole({
     resource: productionFilesBucketName,
     arnFormat: ArnFormat.NO_RESOURCE_NAME,
   });
-  // This deployed physical bucket predates the HeyTim brand and must remain stable.
-  const gatewaySchemaBucketName = `bedrock-agentcore-gateway-frogbot-${stack.account}-use1`;
+  const gatewaySchemaBucketName = `bedrock-agentcore-gateway-heytim-${stack.account}-use1`;
   const gatewaySchemaBucketArn = stack.formatArn({
     service: 's3',
     region: '',
@@ -86,7 +85,7 @@ export function addGithubDeploymentRole({
     service: 'iam',
     region: '',
     resource: 'role',
-    resourceName: 'AgentCore-FrogBot-product-McpGatewayFrogBotToolsRol-*',
+    resourceName: 'AgentCore-HeyTim-product-McpGatewayHeyTimToolsRol-*',
     arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
   });
 
@@ -140,7 +139,7 @@ export function addGithubDeploymentRole({
     resources: ['*'],
     conditions: {
       StringEquals: {
-        'aws:RequestTag/agentcore:project': 'FrogBot',
+        'aws:RequestTag/agentcore:project': 'HeyTim',
       },
       'ForAllValues:StringEquals': {
         'aws:TagKeys': ['agentcore:project'],
@@ -254,10 +253,7 @@ export function addGithubDeploymentRole({
     })],
     conditions: {
       'ForAnyValue:StringEquals': {
-        'kms:ResourceAliases': [
-          'alias/frogbot-production-logs',
-          'alias/heytim-production-logs',
-        ],
+        'kms:ResourceAliases': ['alias/heytim-production-logs'],
       },
     },
   }));
@@ -276,7 +272,7 @@ export function addGithubDeploymentRole({
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['cloudwatch:PutMetricAlarm'],
-    resources: ['FroggyBot', 'HeyTim'].map(name => stack.formatArn({
+    resources: ['HeyTim'].map(name => stack.formatArn({
       service: 'cloudwatch',
       resource: 'alarm',
       resourceName: `${name}-production-*`,
@@ -292,7 +288,7 @@ export function addGithubDeploymentRole({
     resources: [stack.formatArn({
       service: 'sns',
       resource: 'app/APNS*',
-      resourceName: 'FroggyBot',
+      resourceName: 'HeyTim',
       arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
     })],
   }));
@@ -342,7 +338,7 @@ export function addGithubDeploymentRole({
     })],
     conditions: {
       'ForAnyValue:StringEquals': {
-        'kms:ResourceAliases': 'alias/frogbot-production-user-files',
+        'kms:ResourceAliases': 'alias/heytim-production-user-files',
       },
     },
   }));

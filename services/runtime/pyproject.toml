@@ -21,6 +21,9 @@ dependencies = [
     # The toolkit resolves its first supported AgentCore target as manylinux2014.
     # Pin compiled transitive packages to versions that publish that ARM64 wheel.
     "greenlet==3.5.5",
+    # CodeZip resolves OpenTelemetry/Google API transitives afresh; keep the
+    # packaged protobuf definitions identical to the tested lockfile.
+    "googleapis-common-protos == 1.75.3",
     # Direct dependency: hardened remote MCP transports use HTTPX directly.
     "httpx == 0.28.1",
     # CodeZip resolves HTTPX transitives afresh; keep the packaged version

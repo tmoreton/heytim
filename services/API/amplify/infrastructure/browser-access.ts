@@ -75,16 +75,6 @@ export function addBrowserAccess(
     resources: [profilesArn],
     conditions: { StringEquals: { 'aws:ResourceTag/heytim:managed-by': 'HeyTim' } },
   }));
-  api.addToRolePolicy(new PolicyStatement({
-    actions: [
-      'bedrock-agentcore:GetBrowserProfile',
-      'bedrock-agentcore:DeleteBrowserProfile',
-      'bedrock-agentcore:SaveBrowserSessionProfile',
-      'bedrock-agentcore:StartBrowserSession',
-    ],
-    resources: [profilesArn],
-    conditions: { StringEquals: { 'aws:ResourceTag/frogbot:managed-by': 'FrogBot' } },
-  }));
   worker.addToRolePolicy(new PolicyStatement({
     actions: [
       'bedrock-agentcore:GetBrowserSession',
@@ -100,13 +90,5 @@ export function addBrowserAccess(
     ],
     resources: [profilesArn],
     conditions: { StringEquals: { 'aws:ResourceTag/heytim:managed-by': 'HeyTim' } },
-  }));
-  worker.addToRolePolicy(new PolicyStatement({
-    actions: [
-      'bedrock-agentcore:StartBrowserSession',
-      'bedrock-agentcore:DeleteBrowserProfile',
-    ],
-    resources: [profilesArn],
-    conditions: { StringEquals: { 'aws:ResourceTag/frogbot:managed-by': 'FrogBot' } },
   }));
 }

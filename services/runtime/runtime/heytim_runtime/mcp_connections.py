@@ -39,19 +39,23 @@ from .mcp_tool_names import _bounded_tool_name
 
 SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:(?:heytim|frogbot)/connections/[a-f0-9]{24}/"
+    r"secret:heytim/connections/[a-f0-9]{24}/"
     r"connection_[a-f0-9]{20}-[a-f0-9]{12}-[A-Za-z0-9]+$"
 )
 OAUTH_CLIENT_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:(?:heytim|frogbot)/oauth/google-[A-Za-z0-9-]+$"
+    r"secret:heytim/oauth/google-[A-Za-z0-9-]+$"
 )
 GITHUB_APP_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:(?:heytim|frogbot)/oauth/github-[A-Za-z0-9-]+$"
+    r"secret:heytim/oauth/github-[A-Za-z0-9-]+$"
 )
 GOOGLE_OAUTH_ENDPOINT = "https://oauth2.googleapis.com/token"
 _secrets_manager = None
+
+
+class ConnectionCredentialUnavailable(ValueError):
+    """A saved connection needs to be reauthenticated before it can be used."""
 
 
 class LabeledMCPAgentTool(MCPAgentTool):
@@ -376,7 +380,9 @@ def _secret_value(secret_arn: str) -> str:
     response = _secrets_manager.get_secret_value(SecretId=secret_arn)
     value = response.get("SecretString")
     if not isinstance(value, str) or not value:
-        raise ValueError("MCP connection credential is unavailable")
+        raise ConnectionCredentialUnavailable(
+            "MCP connection credential is unavailable"
+        )
     return value
 
 
@@ -384,9 +390,9 @@ def _json_secret(secret_arn: str) -> dict:
     try:
         value = json.loads(_secret_value(secret_arn))
     except json.JSONDecodeError as exc:
-        raise ValueError("OAuth credential is invalid") from exc
+        raise ConnectionCredentialUnavailable("OAuth credential is invalid") from exc
     if not isinstance(value, dict):
-        raise TypeError("OAuth credential is invalid")
+        raise ConnectionCredentialUnavailable("OAuth credential is invalid")
     return value
 
 
@@ -405,7 +411,7 @@ def _google_access_token(binding: dict) -> str:
             client_secret,
         )
     ):
-        raise ValueError("OAuth credential is invalid")
+        raise ConnectionCredentialUnavailable("OAuth credential is invalid")
     request = urllib.request.Request(
         GOOGLE_OAUTH_ENDPOINT,
         data=urllib.parse.urlencode(
@@ -423,10 +429,12 @@ def _google_access_token(binding: dict) -> str:
         with urllib.request.urlopen(request, timeout=10) as response:  # nosec B310
             value = json.loads(response.read(100_001).decode("utf-8"))
     except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError) as exc:
-        raise ValueError("OAuth access token is unavailable") from exc
+        raise ConnectionCredentialUnavailable(
+            "OAuth access token is unavailable"
+        ) from exc
     access_token = value.get("access_token") if isinstance(value, dict) else None
     if not isinstance(access_token, str) or not access_token:
-        raise ValueError("OAuth access token is unavailable")
+        raise ConnectionCredentialUnavailable("OAuth access token is unavailable")
     return access_token
 
 
@@ -437,7 +445,9 @@ def _home_assistant_access_token(binding: dict) -> str:
         or not 20 <= len(token) <= 4096
         or not re.fullmatch(r"[A-Za-z0-9._~=-]+", token)
     ):
-        raise ValueError("Home Assistant access token is unavailable")
+        raise ConnectionCredentialUnavailable(
+            "Home Assistant access token is unavailable"
+        )
     return token
 
 
@@ -448,7 +458,9 @@ def _mcp_access_token(binding: dict) -> str:
         or not 20 <= len(token) <= 4096
         or not re.fullmatch(r"[A-Za-z0-9._~+/-]+={0,3}", token)
     ):
-        raise ValueError("MCP server access token is unavailable")
+        raise ConnectionCredentialUnavailable(
+            "MCP server access token is unavailable"
+        )
     return token
 
 

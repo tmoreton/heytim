@@ -299,3 +299,39 @@ def test_capabilities_use_general_availability_gmail_tools(monkeypatch) -> None:
     )
 
     assert config.tools == gmail_tools
+
+
+def test_expired_workspace_connection_does_not_disable_fresh_gmail(
+    monkeypatch, caplog
+) -> None:
+    gmail_tools = [type("Tool", (), {"tool_name": "gmail-search"})()]
+    workspace = {
+        "id": "connection_workspace",
+        "kind": "mcp_bundle",
+        "authType": "oauth",
+    }
+    monkeypatch.setattr(
+        capabilities, "gmail_api_tools", lambda _binding, _prefix: gmail_tools
+    )
+
+    def unavailable(_binding):
+        raise capabilities.ConnectionCredentialUnavailable(
+            "OAuth access token is unavailable"
+        )
+
+    monkeypatch.setattr(capabilities, "connection_clients", unavailable)
+    monkeypatch.setattr(
+        capabilities,
+        "tool_bindings",
+        lambda _bot: [BINDING, workspace],
+    )
+    monkeypatch.setattr(capabilities, "dynamic_skills", lambda _bot: [])
+    monkeypatch.setattr(capabilities, "validate_skill_selection", lambda *_args: None)
+
+    with caplog.at_level("WARNING"):
+        config = capabilities.resolve_capabilities(
+            {"skillIds": [], "skills": []}, "session-1"
+        )
+
+    assert config.tools == gmail_tools
+    assert "Skipping unavailable connection connection_workspace" in caplog.text

@@ -57,7 +57,7 @@ does not keep a second hard-coded bot catalog.
 Every Strands invocation uses DeepSeek V4.1 Flash on OpenRouter with high reasoning. If DeepSeek fails before returning
 any response, the runtime uses GLM 5.3 on OpenRouter. Both models retry bounded transient, provider, or empty responses
 before failing. Tool-heavy histories are managed by Strands harness's automatic context manager. The API key is stored in
-AgentCore Identity as `FrogBot_OpenRouter`; it is never placed in runtime environment variables. Model selection stays
+AgentCore Identity as `HeyTim_OpenRouter`; it is never placed in runtime environment variables. Model selection stays
 deploy-time configurable through these non-secret values in `agentcore/agentcore.json`:
 
 - `HEYTIM_PRIMARY_MODEL_ID` — default for every task; defaults to `deepseek/deepseek-v4.1-flash`

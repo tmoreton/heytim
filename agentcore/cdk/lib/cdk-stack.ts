@@ -198,22 +198,15 @@ export class AgentCoreStack extends Stack {
         resourceName: 'heytim/connections/*',
         arnFormat: ArnFormat.COLON_RESOURCE_NAME,
       });
-      const legacyConnectionSecretsArn = this.formatArn({
-        service: 'secretsmanager',
-        resource: 'secret',
-        resourceName: 'frogbot/connections/*',
-        arnFormat: ArnFormat.COLON_RESOURCE_NAME,
-      });
-      const providerConfigurationArns = ['heytim', 'frogbot'].flatMap(namespace =>
+      const providerConfigurationArns =
         ['google', 'github', 'x', 'slack', 'microsoft', 'notion', 'hubspot', 'jira', 'zoom'].map(provider =>
           this.formatArn({
             service: 'secretsmanager',
             resource: 'secret',
-            resourceName: `${namespace}/oauth/${provider}-*`,
+            resourceName: `heytim/oauth/${provider}-*`,
             arnFormat: ArnFormat.COLON_RESOURCE_NAME,
           })
-        )
-      );
+        );
       for (const environment of this.application.environments.values()) {
         environment.runtime.role.addToPrincipalPolicy(
           new iam.PolicyStatement({
@@ -242,13 +235,13 @@ export class AgentCoreStack extends Stack {
         environment.runtime.role.addToPrincipalPolicy(
           new iam.PolicyStatement({
             actions: ['secretsmanager:GetSecretValue'],
-            resources: [connectionSecretsArn, legacyConnectionSecretsArn, ...providerConfigurationArns],
+            resources: [connectionSecretsArn, ...providerConfigurationArns],
           })
         );
         environment.runtime.role.addToPrincipalPolicy(
           new iam.PolicyStatement({
             actions: ['secretsmanager:PutSecretValue'],
-            resources: [connectionSecretsArn, legacyConnectionSecretsArn],
+            resources: [connectionSecretsArn],
           })
         );
       }

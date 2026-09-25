@@ -37,7 +37,7 @@ feedback_role_arn="$(jq -r '.custom.nativePushFeedbackRoleArn // empty' "$output
 logs_key_arn="$(jq -r '.custom.logsKeyArn // empty' "$outputs_file")"
 
 [[ "$api_url" == https://* ]] || { echo 'Production API URL is missing or is not HTTPS.' >&2; exit 1; }
-[[ "$bucket_name" == "frogbot-production-user-files-$expected_account-$aws_region" ]] || {
+[[ "$bucket_name" == "heytim-production-user-files-$expected_account-$aws_region" ]] || {
   echo 'Production user files are not isolated in the expected bucket.' >&2
   exit 1
 }
@@ -64,7 +64,7 @@ bucket_encryption="$(aws s3api get-bucket-encryption \
   exit 1
 }
 
-meme_prefix="$(jq -r '.runtimes[] | select(.name == "FrogBot") | .envVars[] | select(.name == "HEYTIM_MEME_TEMPLATE_PREFIX") | .value' "$repository_root/agentcore/agentcore.json")"
+meme_prefix="$(jq -r '.runtimes[] | select(.name == "HeyTim") | .envVars[] | select(.name == "HEYTIM_MEME_TEMPLATE_PREFIX") | .value' "$repository_root/agentcore/agentcore.json")"
 [[ -n "$meme_prefix" ]] || { echo 'Meme template prefix is missing.' >&2; exit 1; }
 meme_catalog="$(mktemp)"
 trap 'find "$meme_catalog" -delete 2>/dev/null || true' EXIT

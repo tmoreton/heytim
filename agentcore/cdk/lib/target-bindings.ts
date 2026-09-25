@@ -3,14 +3,12 @@ import type { AgentCoreProjectSpec, AwsDeploymentTarget } from '@aws/agentcore-c
 export const UNCONFIGURED_AWS_ACCOUNT = '000000000000';
 
 export function filesBucketName(target: AwsDeploymentTarget): string {
-  // This bucket predates the product rename. Its physical name stays stable so
-  // existing uploads and generated artifacts remain available.
-  const prefix = target.name === 'production' ? 'frogbot-production-user-files' : 'frogbot-user-files';
+  const prefix = target.name === 'production' ? 'heytim-production-user-files' : 'heytim-user-files';
   return `${prefix}-${target.account}-${target.region}`;
 }
 
 export function filesKeyAlias(target: AwsDeploymentTarget): string {
-  return target.name === 'production' ? 'alias/frogbot-production-user-files' : 'alias/frogbot-user-files';
+  return target.name === 'production' ? 'alias/heytim-production-user-files' : 'alias/heytim-user-files';
 }
 
 export function bindSpecToTarget(

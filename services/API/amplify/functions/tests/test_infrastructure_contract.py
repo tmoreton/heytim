@@ -153,8 +153,8 @@ class InfrastructureContractTests(unittest.TestCase):
         )
 
     def test_production_data_is_isolated_and_protected(self) -> None:
-        self.assertIn("frogbot-production-user-files", self.backend)
-        self.assertIn("alias/frogbot-production-user-files", self.backend)
+        self.assertIn("heytim-production-user-files", self.backend)
+        self.assertIn("alias/heytim-production-user-files", self.backend)
         self.assertGreaterEqual(self.backend.count("deletionProtection:"), 2)
         self.assertIn("auditTrail.addS3EventSelector", self.backend)
         self.assertIn("ReadWriteType.ALL", self.backend)
@@ -182,7 +182,7 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("scripts/sync_meme_templates.py", self.production_workflow)
         self.assertIn("/meme-templates/*", self.deployment_role)
         self.assertIn("'s3:GetObject', 's3:PutObject'", self.deployment_role)
-        self.assertIn("alias/frogbot-production-user-files", self.deployment_role)
+        self.assertIn("alias/heytim-production-user-files", self.deployment_role)
         self.assertIn(".templates[].key", self.production_verifier)
         self.assertIn("aws s3api head-object", self.production_verifier)
 
@@ -198,15 +198,15 @@ class InfrastructureContractTests(unittest.TestCase):
         )
         self.assertIn("HeyTimXSearch", self.gateway_target_deployer)
         self.assertIn("HeyTimYouTube", self.gateway_target_deployer)
-        self.assertIn("FrogBotXApi", self.gateway_target_deployer)
-        self.assertIn("FrogBotYouTubeApi", self.gateway_target_deployer)
+        self.assertIn("HeyTimXApi", self.gateway_target_deployer)
+        self.assertIn("HeyTimYouTubeApi", self.gateway_target_deployer)
         self.assertIn("create-gateway-target", self.gateway_target_deployer)
         self.assertIn("update-gateway-target", self.gateway_target_deployer)
         self.assertIn("HeyTimExternalResearchTargets", self.gateway_target_deployer)
         self.assertIn("retry_aws", self.gateway_target_deployer)
         self.assertIn("heytim-external-research-", self.gateway_target_deployer)
         self.assertIn(
-            "bedrock-agentcore-gateway-frogbot-${account_id}-use1",
+            "bedrock-agentcore-gateway-heytim-${account_id}-use1",
             self.gateway_target_deployer,
         )
         self.assertIn("HeyTimXSearch HeyTimYouTube", self.production_verifier)
@@ -219,7 +219,7 @@ class InfrastructureContractTests(unittest.TestCase):
         ):
             self.assertIn(action, self.deployment_role)
         self.assertIn("/releases/skills-v*/x/openapi.yaml", self.deployment_role)
-        self.assertIn("bedrock-agentcore-gateway-frogbot-", self.deployment_role)
+        self.assertIn("bedrock-agentcore-gateway-heytim-", self.deployment_role)
         self.assertIn(
             "/releases/skills-v*/youtube/openapi.yaml", self.deployment_role
         )
@@ -392,9 +392,10 @@ class InfrastructureContractTests(unittest.TestCase):
         for policy in (api_policy, worker_policy):
             self.assertIn("'secretsmanager:GetSecretValue'", policy)
             self.assertIn(
-                "resources: [connectionSecretsArn, legacyConnectionSecretsArn]",
+                "resources: [connectionSecretsArn]",
                 policy,
             )
+            self.assertNotIn("legacyConnectionSecretsArn", policy)
 
     def test_production_deploy_role_scopes_company_credentials(self) -> None:
         self.assertNotIn("bedrock-agentcore:*", self.deployment_role)
@@ -405,11 +406,11 @@ class InfrastructureContractTests(unittest.TestCase):
         )
         self.assertIn("actions: ['kms:CreateKey', 'kms:TagResource']", self.deployment_role)
         self.assertIn(
-            "'aws:RequestTag/agentcore:project': 'FrogBot'", self.deployment_role
+            "'aws:RequestTag/agentcore:project': 'HeyTim'", self.deployment_role
         )
         self.assertIn("'aws:TagKeys': ['agentcore:project']", self.deployment_role)
         self.assertIn(
-            "'aws:ResourceTag/agentcore:project': 'FrogBot'", self.deployment_role
+            "'aws:ResourceTag/agentcore:project': 'HeyTim'", self.deployment_role
         )
         self.assertIn(
             "`bedrock-agentcore-identity.${stack.region}.amazonaws.com`",
@@ -427,9 +428,9 @@ class InfrastructureContractTests(unittest.TestCase):
             "bedrock-agentcore:UpdateApiKeyCredentialProvider", self.deployment_role
         )
         for provider in (
-            "FrogBot_OpenRouter",
-            "FrogBotXApi",
-            "FrogBotYouTubeApi",
+            "HeyTim_OpenRouter",
+            "HeyTimXApi",
+            "HeyTimYouTubeApi",
         ):
             self.assertIn(provider, self.deployment_role)
         for action in (
@@ -444,12 +445,12 @@ class InfrastructureContractTests(unittest.TestCase):
         )
         self.assertNotIn("secretsmanager:DeleteSecret", self.deployment_role)
         self.assertIn(
-            "'aws:ResourceTag/agentcore:project-name': 'FrogBot'",
+            "'aws:ResourceTag/agentcore:project-name': 'HeyTim'",
             self.deployment_role,
         )
         self.assertIn("actions: ['iam:PassRole']", self.deployment_role)
         self.assertIn(
-            "AgentCore-FrogBot-product-ApplicationOnlineEval*",
+            "AgentCore-HeyTim-product-ApplicationOnlineEval*",
             self.deployment_role,
         )
         self.assertIn(

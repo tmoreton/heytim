@@ -275,10 +275,10 @@ private struct ConversationSidebar: View {
       Button("New group", systemImage: "person.3") { present(.groupEditor(nil)) }
     } label: {
       Label("Create bot or group", systemImage: "plus")
-        .foregroundStyle(createButtonColor)
+        .foregroundStyle(sidebarToolbarButtonColor)
     }
     .labelStyle(.iconOnly)
-    .tint(createButtonColor)
+    .tint(sidebarToolbarButtonColor)
     .accessibilityIdentifier("sidebar.create")
     .help("Add a bot or create a group")
   }
@@ -288,6 +288,8 @@ private struct ConversationSidebar: View {
       present(.account)
     }
     .labelStyle(.iconOnly)
+    .foregroundStyle(sidebarToolbarButtonColor)
+    .tint(sidebarToolbarButtonColor)
     .accessibilityIdentifier("sidebar.settings")
     .accessibilityHint("Opens account settings in this window")
     .help("Settings")
@@ -379,7 +381,7 @@ private struct ConversationSidebar: View {
     return max(sidebarDate, visibleDate)
   }
 
-  private var createButtonColor: Color {
+  private var sidebarToolbarButtonColor: Color {
     colorScheme == .dark ? .white : FrogTheme.conversationChrome
   }
 }
@@ -1087,6 +1089,7 @@ private struct ConversationInspector: View {
   let close: () -> Void
   let clear: () -> Void
   let delete: () -> Void
+  @Environment(\.colorScheme) private var colorScheme
   @State private var botDraft = BotDraft()
   @State private var loadedBotID: String?
   @State private var savingBot = false
@@ -1172,17 +1175,27 @@ private struct ConversationInspector: View {
   private var detailsBackButton: some View {
     Button("Back", systemImage: "chevron.backward", action: close)
       .labelStyle(.iconOnly)
+      .foregroundStyle(inspectorToolbarButtonColor)
+      .tint(inspectorToolbarButtonColor)
       .accessibilityIdentifier("inspector.back")
       .help("Back to chat")
   }
 
   private func detailsSaveButton(for bot: Bot) -> some View {
     Button("Save") { save(bot) }
+      #if os(iOS)
+        .foregroundStyle(inspectorToolbarButtonColor)
+        .tint(inspectorToolbarButtonColor)
+      #endif
       #if os(macOS)
         .froggyGlassButton(tint: FrogTheme.accent)
       #endif
       .disabled(!canSaveBot)
       .accessibilityIdentifier("inspector.save")
+  }
+
+  private var inspectorToolbarButtonColor: Color {
+    colorScheme == .dark ? .white : FrogTheme.conversationChrome
   }
 
   @ViewBuilder private var botEditorSections: some View {
@@ -2061,7 +2074,7 @@ private struct Composer: View {
       .padding(6)
       .frame(minHeight: 56)
       .frame(maxWidth: composerMaxWidth)
-      .froggyComposerSurface(tint: conversationAccent)
+      .froggyComposerSurface(tint: composerOutlineColor)
       .animation(.snappy, value: model.canStop)
     }
 
@@ -2092,7 +2105,7 @@ private struct Composer: View {
           dictationButton
         }
         .frame(minHeight: 51)
-        .froggyComposerSurface(tint: conversationAccent)
+        .froggyComposerSurface(tint: composerOutlineColor)
         .layoutPriority(1)
 
         if model.canStop {
@@ -2223,6 +2236,7 @@ private struct Composer: View {
     return available
   }
   private var conversationAccent: Color { model.conversationAccent }
+  private var composerOutlineColor: Color { Color(hex: model.conversationAccentHex) }
   private var attachmentPicker: some View {
     ScrollView(.horizontal) {
       HStack(spacing: 7) {

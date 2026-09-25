@@ -9,15 +9,15 @@
         "s3:PutObject"
       ],
       "Resource": [
-        "arn:aws:s3:::frogbot-user-files-188757775631-us-east-1/users/*",
-        "arn:aws:s3:::frogbot-user-files-188757775631-us-east-1/groups/*"
+        "arn:aws:s3:::heytim-user-files-188757775631-us-east-1/users/*",
+        "arn:aws:s3:::heytim-user-files-188757775631-us-east-1/groups/*"
       ]
     },
     {
       "Sid": "ListScopedHeyTimArtifacts",
       "Effect": "Allow",
       "Action": "s3:ListBucket",
-      "Resource": "arn:aws:s3:::frogbot-user-files-188757775631-us-east-1",
+      "Resource": "arn:aws:s3:::heytim-user-files-188757775631-us-east-1",
       "Condition": {
         "StringLike": {
           "s3:prefix": [
@@ -32,7 +32,7 @@
       "Sid": "ReadHeyTimMemeTemplates",
       "Effect": "Allow",
       "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::frogbot-user-files-188757775631-us-east-1/meme-templates/*"
+      "Resource": "arn:aws:s3:::heytim-user-files-188757775631-us-east-1/meme-templates/*"
     },
     {
       "Sid": "UseHeyTimUserFilesEncryptionKey",
@@ -50,35 +50,22 @@
       "Action": "secretsmanager:GetSecretValue",
       "Resource": [
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/connections/*",
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/connections/*",
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/google-*",
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/google-*",
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/github-*",
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/github-*",
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/x-*",
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/x-*",
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/slack-*",
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/slack-*",
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/microsoft-*",
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/microsoft-*",
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/notion-*",
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/notion-*",
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/hubspot-*",
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/hubspot-*",
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/jira-*",
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/jira-*",
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/zoom-*",
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/oauth/zoom-*"
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/zoom-*"
       ]
     },
     {
       "Sid": "RotateHeyTimUserOAuthTokens",
       "Effect": "Allow",
       "Action": "secretsmanager:PutSecretValue",
-      "Resource": [
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/connections/*",
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:frogbot/connections/*"
-      ]
+      "Resource": "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/connections/*"
     }
   ]
 }

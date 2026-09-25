@@ -29,7 +29,7 @@ if (!memoryKeyArn?.startsWith(expectedKeyPrefix)) {
 
 // AgentCore keeps the original physical runtime name so production updates in
 // place instead of replacing the deployed runtime and its attached resources.
-const runtime = spec.runtimes?.find(item => item.name === 'FrogBot');
+const runtime = spec.runtimes?.find(item => item.name === 'HeyTim');
 if (!runtime || runtime.authorizerType !== 'AWS_IAM') {
   throw new Error('The HeyTim production runtime must use AWS_IAM authorization.');
 }
@@ -42,7 +42,7 @@ const capture = runtime.envVars?.find(
 if (capture !== 'NO_CONTENT') {
   throw new Error('Production tracing must not capture prompt or response content.');
 }
-const gateway = spec.agentCoreGateways?.find(item => item.name === 'FrogBotTools');
+const gateway = spec.agentCoreGateways?.find(item => item.name === 'HeyTimTools');
 if (!gateway || gateway.authorizerType !== 'AWS_IAM') {
   throw new Error('The HeyTim tools gateway must use AWS_IAM authorization.');
 }

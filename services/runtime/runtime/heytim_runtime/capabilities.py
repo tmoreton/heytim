@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -21,6 +22,7 @@ from .local_tools import CUSTOM_TOOLS
 from .mcp_connections import (
     GITHUB_MCP_ENDPOINT,
     GMAIL_MCP_ENDPOINT,
+    ConnectionCredentialUnavailable,
     connection_clients,
     github_installation_token,
 )
@@ -28,6 +30,8 @@ from .memes import meme_tools
 from .provider_connections import provider_connection_tools
 from .repository_workspace import repository_workspace_tool
 from .workspace_sync import workspace_sync_tool
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -125,7 +129,15 @@ def resolve_capabilities(
             ) == GMAIL_MCP_ENDPOINT.rstrip("/"):
                 tools.extend(gmail_api_tools(item, artifact_prefix))
             else:
-                tools.extend(connection_clients(item))
+                try:
+                    tools.extend(connection_clients(item))
+                except ConnectionCredentialUnavailable as exc:
+                    log.warning(
+                        "Skipping unavailable connection %s (%s): %s",
+                        item.get("id", "unknown"),
+                        item.get("authType", "unknown"),
+                        exc,
+                    )
     for item in bindings:
         if item["kind"] == "provider_api":
             tools.extend(provider_connection_tools(item, usage))

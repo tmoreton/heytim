@@ -34,7 +34,7 @@ if [[ ! "$release" =~ ^skills-v[1-9][0-9]*$ ]]; then
 fi
 
 account_id="$(aws sts get-caller-identity --query Account --output text)"
-schema_bucket="${HEYTIM_GATEWAY_SCHEMA_BUCKET:-bedrock-agentcore-gateway-frogbot-${account_id}-use1}"
+schema_bucket="${HEYTIM_GATEWAY_SCHEMA_BUCKET:-bedrock-agentcore-gateway-heytim-${account_id}-use1}"
 gateway_json="$(retry_aws aws bedrock-agentcore-control get-gateway \
   --gateway-identifier "$gateway_id" \
   --region "$aws_region" \
@@ -48,9 +48,9 @@ if [[ "$gateway_role_arn" != arn:aws:iam::*:role/* || -z "$gateway_role_name" ]]
 fi
 
 x_provider_json="$(aws bedrock-agentcore-control get-api-key-credential-provider \
-  --name FrogBotXApi --region "$aws_region" --output json)"
+  --name HeyTimXApi --region "$aws_region" --output json)"
 youtube_provider_json="$(aws bedrock-agentcore-control get-api-key-credential-provider \
-  --name FrogBotYouTubeApi --region "$aws_region" --output json)"
+  --name HeyTimYouTubeApi --region "$aws_region" --output json)"
 x_provider_arn="$(jq -r '.credentialProviderArn // empty' <<<"$x_provider_json")"
 youtube_provider_arn="$(jq -r '.credentialProviderArn // empty' <<<"$youtube_provider_json")"
 x_secret_arn="$(jq -r '.apiKeySecretArn.secretArn // empty' <<<"$x_provider_json")"
