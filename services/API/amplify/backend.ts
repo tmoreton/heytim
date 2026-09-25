@@ -22,7 +22,7 @@ import {
   WORKER_CONCURRENCY, deploymentEnvironment,
   apnsApplicationArn, apnsSandboxApplicationArn,
   githubAppSecretArn, globalWindowRunUnitLimit, googleOAuthSecretArn,
-  hubspotOAuthSecretArn,
+  hubspotOAuthSecretArn, legacyTokenVaultKmsKeyArn,
   jiraOAuthSecretArn,
   zoomOAuthSecretArn,
   memoryId, memoryKmsKeyArn, microsoftOAuthSecretArn, monthlyBudgetUsd, monthlyRunUnitLimit,
@@ -271,6 +271,7 @@ const nativePushFeedbackRole = addNativePushFeedbackRole(
 const githubDeployRole = addGithubDeploymentRole({
   stack,
   enabled: true,
+  legacyTokenVaultKmsKeyArn,
   nativePushFeedbackRoleArn: nativePushFeedbackRole?.roleArn,
 });
 

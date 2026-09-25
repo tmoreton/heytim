@@ -419,6 +419,13 @@ class InfrastructureContractTests(unittest.TestCase):
             "'aws:ResourceTag/agentcore:project': 'HeyTim'", self.deployment_role
         )
         self.assertIn(
+            "resources: [legacyTokenVaultKmsKeyArn]", self.deployment_role
+        )
+        self.assertIn(
+            "optionalKmsKeyArn(\n  'HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN'",
+            self.settings,
+        )
+        self.assertIn(
             "`bedrock-agentcore-identity.${stack.region}.amazonaws.com`",
             self.deployment_role,
         )
