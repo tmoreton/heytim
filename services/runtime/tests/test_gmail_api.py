@@ -160,40 +160,82 @@ def test_search_threads_caps_page_size(monkeypatch) -> None:
 
 def test_get_thread_prefers_plain_text_and_strips_html(monkeypatch) -> None:
     monkeypatch.setattr(gmail_api, "_google_access_token", lambda _binding: "token")
+    responses = iter(
+        [
+            {
+                "id": "thread-1",
+                "historyId": "history-1",
+                "messages": [{"id": "message-1"}],
+            },
+            {
+                "id": "message-1",
+                "threadId": "thread-1",
+                "payload": {
+                    "mimeType": "multipart/alternative",
+                    "headers": [{"name": "Subject", "value": "Points"}],
+                    "parts": [
+                        {
+                            "mimeType": "text/plain",
+                            "body": {"data": _encoded("Plain newsletter")},
+                        },
+                        {
+                            "mimeType": "text/html",
+                            "body": {"data": _encoded("<p>Rich newsletter</p>")},
+                        },
+                    ],
+                },
+            },
+        ]
+    )
     monkeypatch.setattr(
         gmail_api,
         "_api_json",
-        lambda *_args, **_kwargs: {
-            "id": "thread-1",
-            "messages": [
-                {
-                    "id": "message-1",
-                    "threadId": "thread-1",
-                    "payload": {
-                        "mimeType": "multipart/alternative",
-                        "headers": [{"name": "Subject", "value": "Points"}],
-                        "parts": [
-                            {
-                                "mimeType": "text/plain",
-                                "body": {"data": _encoded("Plain newsletter")},
-                            },
-                            {
-                                "mimeType": "text/html",
-                                "body": {"data": _encoded("<p>Rich newsletter</p>")},
-                            },
-                        ],
-                    },
-                }
-            ],
-        },
+        lambda *_args, **_kwargs: next(responses),
     )
     read = _tools()[_bounded_tool_name(CONNECTION_ID, "get_thread")]
 
     result = json.loads(read("thread-1"))
 
     assert result["messages"][0]["plaintextBody"] == "Plain newsletter"
+    assert result["messageCount"] == 1
     with pytest.raises(ValueError, match="threadId is invalid"):
         read("../other-user")
+
+
+def test_get_thread_reads_only_the_latest_bounded_messages(monkeypatch) -> None:
+    calls = []
+    message_ids = [f"message-{index}" for index in range(30)]
+    monkeypatch.setattr(gmail_api, "_google_access_token", lambda _binding: "token")
+
+    def fake_api(_token, path, **kwargs):
+        calls.append((path, kwargs))
+        if path == "threads/thread-1":
+            return {
+                "id": "thread-1",
+                "historyId": "history-1",
+                "messages": [{"id": message_id} for message_id in message_ids],
+            }
+        message_id = path.removeprefix("messages/")
+        return {
+            "id": message_id,
+            "threadId": "thread-1",
+            "payload": {"headers": []},
+        }
+
+    monkeypatch.setattr(gmail_api, "_api_json", fake_api)
+    read = _tools()[_bounded_tool_name(CONNECTION_ID, "get_thread")]
+
+    result = json.loads(read("thread-1"))
+
+    assert result["messageCount"] == 30
+    assert result["messagesOmitted"] == 5
+    assert result["threadTruncated"] is True
+    assert [message["id"] for message in result["messages"]] == message_ids[-25:]
+    assert calls[0][1]["query"] == {
+        "format": "minimal",
+        "fields": "id,historyId,messages/id",
+    }
+    assert all(call[1]["query"] == {"format": "full"} for call in calls[1:])
 
 
 def test_create_draft_builds_mime_but_never_sends(monkeypatch) -> None:
