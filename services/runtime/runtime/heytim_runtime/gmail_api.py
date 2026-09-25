@@ -19,6 +19,7 @@ from .mcp_connections import _bounded_tool_name, _google_access_token
 GMAIL_API_URL = "https://gmail.googleapis.com/gmail/v1/users/me"
 MAX_BODY_CHARS = 50_000
 MAX_THREAD_CHARS = 120_000
+MAX_THREAD_MESSAGES = 25
 RESOURCE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,256}$")
 ALLOWED_NEWSLETTER_TAGS = {
     "html",
@@ -323,9 +324,13 @@ def _thread(value: dict, *, include_body: bool) -> dict:
     encoded = json.dumps(result, separators=(",", ":"))
     if len(encoded) <= MAX_THREAD_CHARS:
         return result
+    body_limit = min(
+        10_000,
+        max(1_000, (MAX_THREAD_CHARS - 20_000) // max(len(result["messages"]), 1)),
+    )
     for message in result["messages"]:
         if isinstance(message, dict) and isinstance(message.get("plaintextBody"), str):
-            message["plaintextBody"] = message["plaintextBody"][:10_000]
+            message["plaintextBody"] = message["plaintextBody"][:body_limit]
             message["bodyTruncated"] = True
     result["threadTruncated"] = True
     return result
@@ -420,14 +425,48 @@ def gmail_api_tools(
 
     @tool(name=name("get_thread"))
     def get_thread(threadId: str) -> str:
-        """Read the messages and plain-text content in one Gmail thread by thread ID."""
+        """Read up to the 25 latest messages in one Gmail thread by thread ID."""
         resource_id = _resource_id(threadId, "threadId")
+        access_token = _google_access_token(binding)
         value = _api_json(
-            _google_access_token(binding),
+            access_token,
             f"threads/{urllib.parse.quote(resource_id, safe='')}",
-            query={"format": "full"},
+            query={
+                "format": "minimal",
+                "fields": "id,historyId,messages/id",
+            },
         )
-        return json.dumps(_thread(value, include_body=True), separators=(",", ":"))
+        listed_messages = value.get("messages")
+        listed_messages = listed_messages if isinstance(listed_messages, list) else []
+        selected_messages = listed_messages[-MAX_THREAD_MESSAGES:]
+        messages = []
+        for item in selected_messages:
+            message_id = item.get("id") if isinstance(item, dict) else None
+            if not isinstance(message_id, str) or not RESOURCE_ID_PATTERN.fullmatch(
+                message_id
+            ):
+                continue
+            messages.append(
+                _api_json(
+                    access_token,
+                    f"messages/{urllib.parse.quote(message_id, safe='')}",
+                    query={"format": "full"},
+                )
+            )
+        result = _thread(
+            {
+                "id": value.get("id", resource_id),
+                "historyId": value.get("historyId"),
+                "messages": messages,
+            },
+            include_body=True,
+        )
+        result["messageCount"] = len(listed_messages)
+        omitted = len(listed_messages) - len(selected_messages)
+        if omitted:
+            result["messagesOmitted"] = omitted
+            result["threadTruncated"] = True
+        return json.dumps(result, separators=(",", ":"))
 
     @tool(name=name("get_message"))
     def get_message(messageId: str) -> str:
