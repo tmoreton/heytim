@@ -382,9 +382,9 @@ class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
         with patch(
             "shared.catalog_rules._hostname_resolves_publicly", return_value=True
         ):
-            runtime = self.catalog.resolve_tools_for_runtime(
-                "owner", [saved["id"]]
-            )[0]["runtime"]
+            runtime = self.catalog.resolve_tools_for_runtime("owner", [saved["id"]])[0][
+                "runtime"
+            ]
 
         self.assertEqual(runtime["kind"], "mcp_bundle")
         self.assertEqual(runtime["oauthProvider"], "google")
@@ -458,7 +458,10 @@ class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
     def test_jira_projects_are_limited_for_one_bot(self) -> None:
         site_id = "11223344-a1b2-3b33-c444-def123456789"
         saved = self.catalog.save_external_oauth_connection(
-            "owner", "jira", "Frog team", site_id,
+            "owner",
+            "jira",
+            "Frog team",
+            site_id,
             {
                 "accessToken": "access-token",
                 "refreshToken": "refresh-token",
@@ -501,10 +504,12 @@ class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
         )
 
         self.assertEqual(self.catalog.list_connections("owner"), [])
-        with self.assertRaisesRegex(CatalogError, "Unknown tools"):
+        self.assertEqual(
             self.catalog.resolve_tools_for_runtime(
                 "owner", ["connection_aaaaaaaaaaaaaaaaaaaa"]
-            )
+            ),
+            [],
+        )
 
     def test_public_catalog_contains_only_reviewed_installable_metadata(self) -> None:
         personal = self.catalog.save_skill(
@@ -533,10 +538,12 @@ class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
             result["contributionUrl"],
             "https://github.com/tmoreton/heytim/blob/main/CONTRIBUTING.md",
         )
+
     def test_runtime_resolves_dynamodb_decimal_skill_versions(self) -> None:
         skill = self.catalog.resolve_for_runtime({"planner": Decimal(1)})
         self.assertEqual(skill[0]["id"], "planner")
         self.assertEqual(skill[0]["version"], 1)
+
     def test_catalog_removes_stale_listings_but_keeps_immutable_versions(self) -> None:
         stale = {
             "id": "old-skill",
@@ -563,7 +570,9 @@ class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
         self.assertNotIn(("SYSTEM#SKILLS", "SKILL#old-skill"), self.table.items)
         self.assertIn(("SKILL#old-skill", "VERSION#000000001"), self.table.items)
 
-    def test_catalog_requires_new_versions_for_changed_skill_and_bot_content(self) -> None:
+    def test_catalog_requires_new_versions_for_changed_skill_and_bot_content(
+        self,
+    ) -> None:
         original_skill = self.table.items[("SKILL#planner", "VERSION#000000001")].copy()
         revised_skill = {**TEST_SKILLS[0], "instructions": "A revised plan."}
         with self.assertRaisesRegex(CatalogError, "publish a new version"):
@@ -591,6 +600,7 @@ class CatalogServiceTests(ConnectionCatalogCases, unittest.TestCase):
         )
         self.assertIn(("SKILL#planner", "VERSION#000000002"), self.table.items)
         self.assertIn(("BOT_TEMPLATE#helper", "VERSION#000000002"), self.table.items)
+
 
 if __name__ == "__main__":
     unittest.main()

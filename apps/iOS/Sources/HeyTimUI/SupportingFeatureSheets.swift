@@ -602,7 +602,9 @@ struct ConnectionsView: View {
 
   private func connectionStatusLabel(_ connection: Capability) -> String {
     if connection.provider == "mcp_server" { return "Saved · Not tested" }
-    return connection.connectionStatus == "connected" ? "Connected" : "Needs attention"
+    if connection.connectionStatus == "connected" { return "Connected" }
+    if connection.connectionStatus == "reauthorization_required" { return "Reconnect required" }
+    return "Needs attention"
   }
 }
 
@@ -666,9 +668,10 @@ private struct ConnectionDetailView: View {
   }
 
   private var statusLabel: String {
-    connection.provider == "mcp_server"
-      ? "Saved, not tested"
-      : connection.connectionStatus == "connected" ? "Connected" : "Needs attention"
+    if connection.provider == "mcp_server" { return "Saved, not tested" }
+    if connection.connectionStatus == "connected" { return "Connected" }
+    if connection.connectionStatus == "reauthorization_required" { return "Reconnect required" }
+    return "Needs attention"
   }
 }
 
