@@ -14,6 +14,32 @@ public struct ConversationSelection: Hashable, Codable, Identifiable, Sendable {
   }
 }
 
+public struct QueuedChatMessage: Identifiable, Hashable, Sendable {
+  public let id: UUID
+  public let text: String
+  public let attachments: [Attachment]
+  public let workspaceFiles: [Attachment]
+  public let queuedAt: Date
+  public let replyBotId: String?
+  let inboxMessageId: String?
+
+  init(
+    id: UUID = UUID(), text: String, attachments: [Attachment],
+    workspaceFiles: [Attachment], queuedAt: Date = Date(), replyBotId: String?,
+    inboxMessageId: String?
+  ) {
+    self.id = id
+    self.text = text
+    self.attachments = attachments
+    self.workspaceFiles = workspaceFiles
+    self.queuedAt = queuedAt
+    self.replyBotId = replyBotId
+    self.inboxMessageId = inboxMessageId
+  }
+
+  public var attachmentCount: Int { attachments.count + workspaceFiles.count }
+}
+
 public struct Bot: Codable, Identifiable, Hashable, Sendable {
   public var id: String
   public var name: String

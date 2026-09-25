@@ -660,6 +660,72 @@ import UniformTypeIdentifiers
     XCTAssertEqual(model.composerText, "Team draft")
   }
 
+  func testMessagesQueueWhileAReplyIsActiveAndCanReturnToTheComposer() async throws {
+    let model = AppModel(demoMode: true)
+    let selection = try XCTUnwrap(model.selection)
+    model.messages = [
+      ChatMessage(
+        id: "running", role: "assistant", text: "", createdAt: "now", status: "running")
+    ]
+    model.composerText = "Add the launch risks too"
+    model.pendingAttachments = [Self.attachment("risks")]
+
+    await model.send()
+
+    let queued = try XCTUnwrap(model.queuedMessages.first)
+    XCTAssertEqual(queued.text, "Add the launch risks too")
+    XCTAssertEqual(queued.attachments.map(\.id), ["risks"])
+    XCTAssertTrue(model.composerText.isEmpty)
+    XCTAssertTrue(model.pendingAttachments.isEmpty)
+    XCTAssertEqual(model.selection, selection)
+    XCTAssertEqual(model.messages.map(\.id), ["running"])
+
+    model.composerText = "Keep this newer draft"
+    model.editQueuedMessage(queued.id)
+
+    XCTAssertTrue(model.queuedMessages.isEmpty)
+    XCTAssertEqual(model.composerText, "Add the launch risks too\nKeep this newer draft")
+    XCTAssertEqual(model.pendingAttachments.map(\.id), ["risks"])
+  }
+
+  func testQueuedGroupMessageCanSteerTheActiveRun() async throws {
+    var bootstrap = DemoData.bootstrap
+    bootstrap.groups = [Self.demoGroup()]
+    var requestedPaths: [String] = []
+    MockURLProtocol.handler = { request in
+      requestedPaths.append(request.url?.path ?? "")
+      if request.httpMethod == "GET" {
+        return Self.response(
+          for: request,
+          body:
+            #"{"messages":[{"id":"replacement","role":"assistant","authorType":"bot","text":"","runId":"new-run","roundId":"new-round","createdAt":"2026-09-25T12:00:00Z","status":"pending"}]}"#)
+      }
+      return Self.response(for: request, body: #"{}"#)
+    }
+    let api = HeyTimAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let model = AppModel(api: api)
+    model.bootstrap = bootstrap
+    model.selection = .init(kind: .group, id: "group")
+    model.messages = [
+      ChatMessage(
+        id: "active", role: "assistant", authorType: "bot", text: "",
+        roundId: "round", runId: "run-1", createdAt: "now", status: "running")
+    ]
+    model.composerText = "Focus on the customer impact"
+
+    await model.send()
+    let queued = try XCTUnwrap(model.queuedMessages.first)
+    await model.steerQueuedMessage(queued.id)
+
+    XCTAssertTrue(model.queuedMessages.isEmpty)
+    XCTAssertEqual(
+      requestedPaths,
+      ["/groups/group/runs/run-1/cancel", "/groups/group/messages", "/groups/group/messages"])
+    XCTAssertEqual(model.messages.last?.id, "replacement")
+  }
+
   func testRemainingAttachmentSlotsNeverDropsBelowZero() {
     let model = AppModel(demoMode: true)
     var bootstrap = DemoData.bootstrap

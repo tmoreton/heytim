@@ -46,6 +46,22 @@ public final class AppModel {
     var isEmpty: Bool {
       text.isEmpty && attachments.isEmpty && workspaceFiles.isEmpty && inboxMessageId == nil
     }
+
+    init(
+      text: String = "", attachments: [Attachment] = [],
+      workspaceFiles: [Attachment] = [], inboxMessageId: String? = nil
+    ) {
+      self.text = text
+      self.attachments = attachments
+      self.workspaceFiles = workspaceFiles
+      self.inboxMessageId = inboxMessageId
+    }
+
+    init(_ message: QueuedChatMessage) {
+      self.init(
+        text: message.text, attachments: message.attachments,
+        workspaceFiles: message.workspaceFiles, inboxMessageId: message.inboxMessageId)
+    }
   }
 
   private static let pushLogger = Logger(subsystem: "ai.heytim.app", category: "push")
@@ -62,6 +78,7 @@ public final class AppModel {
   public private(set) var isLoadingMessages = false
   public var isSending = false
   public private(set) var sendingSelection: ConversationSelection?
+  public private(set) var messageQueues: [ConversationSelection: [QueuedChatMessage]] = [:]
   public var errorMessage: String?
   public var sheet: AppSheet?
   public var pendingAttachments: [Attachment] = []
@@ -199,6 +216,7 @@ public final class AppModel {
     isLoadingMessages = false
     isSending = false
     sendingSelection = nil
+    messageQueues = [:]
     errorMessage = nil
     sheet = nil
     pendingAttachments = []
@@ -245,6 +263,14 @@ public final class AppModel {
   }
   public var constraints: AppConstraints { bootstrap?.constraints ?? .serviceDefaults }
   public var isUploading: Bool { uploadsInProgress > 0 }
+  public var queuedMessages: [QueuedChatMessage] {
+    guard let selection else { return [] }
+    return messageQueues[selection] ?? []
+  }
+  public var willQueueNextMessage: Bool {
+    guard let selection else { return false }
+    return isSending || conversationHasUnfinishedResponse(for: selection)
+  }
   var sessionIdentifier: UInt { sessionGeneration }
   public var remainingAttachmentSlots: Int {
     guard let selection else { return 0 }
@@ -326,7 +352,7 @@ public final class AppModel {
     }
   }
 
-  public func loadMessages() async throws {
+  public func loadMessages(drainQueuedMessages: Bool = true) async throws {
     guard let requestedSelection = selection else { return }
     let requestedGeneration = selectionGeneration
     let requestedSession = sessionGeneration
@@ -353,6 +379,9 @@ public final class AppModel {
       }
       isLoadingMessages = false
       loadedMessagesSelection = requestedSelection
+      if drainQueuedMessages {
+        await sendNextQueuedMessageIfReady(for: requestedSelection)
+      }
       return
     }
     guard let api else {
@@ -403,6 +432,9 @@ public final class AppModel {
         refreshedConfigurationMessageIDs.formUnion(unrefreshedMessageIDs)
       }
     }
+    if drainQueuedMessages {
+      await sendNextQueuedMessageIfReady(for: requestedSelection)
+    }
   }
 
   public func loadEarlier() async {
@@ -429,23 +461,68 @@ public final class AppModel {
   }
 
   public func send() async {
-    let requestedSession = sessionGeneration
     let submitted = ComposerDraft(
       text: composerText, attachments: pendingAttachments,
       workspaceFiles: pendingWorkspaceFiles, inboxMessageId: composerInboxMessageId)
     let text = submitted.text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard let selection, !text.isEmpty || !submitted.attachments.isEmpty
-      || !submitted.workspaceFiles.isEmpty, !isSending,
-      !isUploading
+      || !submitted.workspaceFiles.isEmpty, !isUploading
     else { return }
-    let attachmentIds = submitted.attachments.map(\.id)
-    let workspaceFileIds = submitted.workspaceFiles.map(\.id)
     let replyBotId = selection.kind == .group ? activeGroupReplyBotId : nil
     composerText = ""
     composerInboxMessageId = nil
     pendingAttachments = []
     pendingWorkspaceFiles = []
     composerDrafts[selection] = nil
+
+    let queuedMessage = QueuedChatMessage(
+      text: text, attachments: submitted.attachments,
+      workspaceFiles: submitted.workspaceFiles, replyBotId: replyBotId,
+      inboxMessageId: submitted.inboxMessageId)
+    if isSending || conversationHasUnfinishedResponse(for: selection) {
+      appendQueuedMessage(queuedMessage, for: selection)
+      return
+    }
+    await transmit(
+      queuedMessage, to: selection, steering: false,
+      recovery: .composer(submitted))
+  }
+
+  public func discardQueuedMessage(_ id: UUID) {
+    guard let selection else { return }
+    _ = removeQueuedMessage(id, from: selection)
+  }
+
+  public func editQueuedMessage(_ id: UUID) {
+    guard let selection,
+      let removed = removeQueuedMessage(id, from: selection)
+    else { return }
+    restoreSubmittedDraft(ComposerDraft(removed.message), for: selection)
+    if selection.kind == .group { groupReplyBotId = removed.message.replyBotId }
+  }
+
+  public func steerQueuedMessage(_ id: UUID) async {
+    guard !isSending, !isUploading, let selection,
+      let removed = removeQueuedMessage(id, from: selection)
+    else { return }
+    await transmit(
+      removed.message, to: selection,
+      steering: conversationHasUnfinishedResponse(for: selection),
+      recovery: .queue(index: removed.index))
+  }
+
+  private enum SendRecovery {
+    case composer(ComposerDraft)
+    case queue(index: Int)
+  }
+
+  private func transmit(
+    _ message: QueuedChatMessage, to selection: ConversationSelection,
+    steering: Bool, recovery: SendRecovery
+  ) async {
+    let requestedSession = sessionGeneration
+    let attachmentIds = message.attachments.map(\.id)
+    let workspaceFileIds = message.workspaceFiles.map(\.id)
     isSending = true
     sendingSelection = selection
     defer {
@@ -456,9 +533,18 @@ public final class AppModel {
     }
     if demoMode {
       let now = ISO8601DateFormatter().string(from: Date())
+      if steering {
+        for index in messages.indices where !messages[index].isUser
+          && (messages[index].isActive || messages[index].needsAction)
+        {
+          messages[index].status = "cancelled"
+          if messages[index].text.isEmpty { messages[index].text = "Steered by you." }
+        }
+      }
       messages.append(
         ChatMessage(
-          id: UUID().uuidString, role: "user", text: text, createdAt: now, status: "complete"))
+          id: UUID().uuidString, role: "user", text: message.text, createdAt: now,
+          status: "complete"))
       await Task.yield()
       messages.append(
         ChatMessage(
@@ -468,30 +554,40 @@ public final class AppModel {
     }
     guard let api else {
       if sessionGeneration == requestedSession {
-        restoreSubmittedDraft(submitted, for: selection)
+        recover(message, for: selection, using: recovery)
       }
       return
     }
     do {
       if selection.kind == .bot {
         try await api.sendMessage(
-          bot: selection.id, text: text, attachments: attachmentIds,
-          workspaceFiles: workspaceFileIds, inboxMessageId: submitted.inboxMessageId)
+          bot: selection.id, text: message.text, attachments: attachmentIds,
+          workspaceFiles: workspaceFileIds, inboxMessageId: message.inboxMessageId)
       } else {
+        if steering {
+          let runIDs = Set(
+            messages.compactMap { current in
+              !current.isUser && (current.isActive || current.needsAction)
+                ? current.runId : nil
+            })
+          for runID in runIDs {
+            try await api.cancelGroupRun(groupId: selection.id, runId: runID)
+          }
+        }
         try await api.sendMessage(
-          group: selection.id, text: text, replyBotId: replyBotId,
+          group: selection.id, text: message.text, replyBotId: message.replyBotId,
           attachments: attachmentIds, workspaceFiles: workspaceFileIds)
       }
     } catch {
       guard sessionIsCurrent(requestedSession, api: api) else { return }
-      restoreSubmittedDraft(submitted, for: selection)
+      recover(message, for: selection, using: recovery)
       present(error)
       return
     }
 
     guard self.selection == selection, sessionIsCurrent(requestedSession, api: api) else { return }
     do {
-      try await loadMessages()
+      try await loadMessages(drainQueuedMessages: false)
     } catch {
       // The message was accepted. Keep the composer cleared even if the
       // follow-up refresh fails so the same message is not sent twice.
@@ -733,6 +829,7 @@ public final class AppModel {
         try await api.deleteGroup(deletedSelection.id)
       }
       composerDrafts[deletedSelection] = nil
+      messageQueues[deletedSelection] = nil
       if selection == deletedSelection {
         setSelection(nil)
         messages = []
@@ -751,6 +848,7 @@ public final class AppModel {
       pollTask?.cancel()
       messages = []
       nextToken = nil
+      messageQueues[clearedSelection] = nil
     } catch { present(error) }
   }
 
@@ -873,6 +971,69 @@ public final class AppModel {
         + (composerDrafts[target]?.workspaceFiles.count ?? 0)
     return max(
       0, constraints.maxAttachmentsPerMessage - attachmentCount - uploadsInProgress)
+  }
+
+  private func conversationHasUnfinishedResponse(
+    for target: ConversationSelection
+  ) -> Bool {
+    if selection == target,
+      messages.contains(where: { !$0.isUser && ($0.isActive || $0.needsAction) })
+    {
+      return true
+    }
+    guard loadedMessagesSelection != target else { return false }
+    switch target.kind {
+    case .bot:
+      return bootstrap?.bots.first { $0.id == target.id }?.processing == true
+    case .group:
+      return bootstrap?.groups.first { $0.id == target.id }?.processing == true
+    }
+  }
+
+  private func appendQueuedMessage(
+    _ message: QueuedChatMessage, for target: ConversationSelection
+  ) {
+    var queue = messageQueues[target] ?? []
+    queue.append(message)
+    messageQueues[target] = queue
+  }
+
+  private func removeQueuedMessage(
+    _ id: UUID, from target: ConversationSelection
+  ) -> (message: QueuedChatMessage, index: Int)? {
+    guard var queue = messageQueues[target],
+      let index = queue.firstIndex(where: { $0.id == id })
+    else { return nil }
+    let message = queue.remove(at: index)
+    messageQueues[target] = queue.isEmpty ? nil : queue
+    return (message, index)
+  }
+
+  private func recover(
+    _ message: QueuedChatMessage, for target: ConversationSelection,
+    using recovery: SendRecovery
+  ) {
+    switch recovery {
+    case .composer(let submitted):
+      restoreSubmittedDraft(submitted, for: target)
+    case .queue(let index):
+      var queue = messageQueues[target] ?? []
+      queue.insert(message, at: min(index, queue.count))
+      messageQueues[target] = queue
+    }
+  }
+
+  private func sendNextQueuedMessageIfReady(
+    for target: ConversationSelection
+  ) async {
+    guard selection == target, !isSending, !isUploading,
+      !conversationHasUnfinishedResponse(for: target),
+      let first = messageQueues[target]?.first,
+      let removed = removeQueuedMessage(first.id, from: target)
+    else { return }
+    await transmit(
+      removed.message, to: target, steering: false,
+      recovery: .queue(index: removed.index))
   }
 
   private func restoreSubmittedDraft(_ submitted: ComposerDraft, for target: ConversationSelection)

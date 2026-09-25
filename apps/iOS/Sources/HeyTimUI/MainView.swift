@@ -1935,6 +1935,7 @@ private struct Composer: View {
   var body: some View {
     VStack(spacing: 0) {
       if model.selectedGroup != nil { replyPicker }
+      if !model.queuedMessages.isEmpty { queuedMessageTray }
       if !model.pendingAttachments.isEmpty || !model.pendingWorkspaceFiles.isEmpty {
         attachmentPicker
       }
@@ -2057,21 +2058,21 @@ private struct Composer: View {
             .background(.quaternary, in: Circle())
             .overlay(Circle().stroke(FrogTheme.border.opacity(0.7), lineWidth: 0.5))
             .accessibilityIdentifier("chat.stop")
-          } else {
-            Button {
-              submitMessage()
-            } label: {
-              macComposerIcon("arrow.up")
-            }
-            .accessibilityLabel("Send message")
-            .buttonStyle(.plain)
-            .foregroundStyle(canSubmit ? Color.white : Color.secondary)
-            .background(
-              canSubmit ? conversationAccent : Color.primary.opacity(0.08), in: Circle())
-            .overlay(Circle().stroke(FrogTheme.border.opacity(0.7), lineWidth: 0.5))
-            .accessibilityIdentifier("chat.send")
-            .disabled(!canSubmit)
           }
+
+          Button {
+            submitMessage()
+          } label: {
+            macComposerIcon("arrow.up")
+          }
+          .accessibilityLabel(sendActionTitle)
+          .buttonStyle(.plain)
+          .foregroundStyle(canSubmit ? Color.white : Color.secondary)
+          .background(
+            canSubmit ? conversationAccent : Color.primary.opacity(0.08), in: Circle())
+          .overlay(Circle().stroke(FrogTheme.border.opacity(0.7), lineWidth: 0.5))
+          .accessibilityIdentifier("chat.send")
+          .disabled(!canSubmit)
         }
       }
       .padding(6)
@@ -2122,7 +2123,7 @@ private struct Composer: View {
         }
 
         if canSubmit {
-          Button("Send message", systemImage: "arrow.up") {
+          Button(sendActionTitle, systemImage: "arrow.up") {
             submitMessage()
           }
           .labelStyle(.iconOnly)
@@ -2234,12 +2235,105 @@ private struct Composer: View {
   }
 
   private var canSubmit: Bool {
-    let available = canSend && !model.isSending && !model.isUploading
+    let available = canSend && !model.isUploading
       && !dictation.isRecording && !dictation.isStarting
     return available
   }
+  private var sendActionTitle: String {
+    model.willQueueNextMessage ? "Queue message" : "Send message"
+  }
   private var conversationAccent: Color { model.conversationAccent }
   private var composerOutlineColor: Color { Color(hex: model.conversationAccentHex) }
+  private var queuedMessageTray: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      HStack(spacing: 6) {
+        Image(systemName: "text.line.first.and.arrowtriangle.forward")
+        Text(
+          model.queuedMessages.count == 1
+            ? "1 queued message" : "\(model.queuedMessages.count) queued messages"
+        )
+        Spacer(minLength: 8)
+        Text("Sends after this reply")
+          .foregroundStyle(.secondary)
+      }
+      .froggyFont(.caption, weight: .semibold)
+
+      ScrollView(.horizontal) {
+        HStack(spacing: 8) {
+          ForEach(Array(model.queuedMessages.enumerated()), id: \.element.id) { index, message in
+            queuedMessageCard(message, position: index + 1)
+          }
+        }
+      }
+      .scrollIndicators(.hidden)
+    }
+    .frame(maxWidth: composerMaxWidth)
+    .padding(.horizontal, 10)
+    .padding(.vertical, 8)
+    .background(FrogTheme.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+    .overlay(
+      RoundedRectangle(cornerRadius: 15, style: .continuous)
+        .stroke(conversationAccent.opacity(0.45), lineWidth: 0.75)
+    )
+    .padding(.bottom, 8)
+    .accessibilityIdentifier("chat.queue")
+  }
+
+  private func queuedMessageCard(
+    _ message: QueuedChatMessage, position: Int
+  ) -> some View {
+    HStack(spacing: 8) {
+      VStack(alignment: .leading, spacing: 3) {
+        Text("Next \(position)")
+          .froggyFont(.caption, weight: .semibold)
+          .foregroundStyle(conversationAccent)
+        Text(message.text.isEmpty ? "Attached files" : message.text)
+          .froggyFont(.callout)
+          .lineLimit(2)
+        if message.attachmentCount > 0 {
+          Label(
+            "\(message.attachmentCount) attachment\(message.attachmentCount == 1 ? "" : "s")",
+            systemImage: "paperclip")
+            .froggyFont(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .frame(width: 170, alignment: .leading)
+
+      Button("Edit queued message", systemImage: "pencil") {
+        model.editQueuedMessage(message.id)
+      }
+      .labelStyle(.iconOnly)
+      .buttonStyle(.plain)
+      .frame(minWidth: 44, minHeight: 44)
+      .accessibilityIdentifier("chat.queue.edit.\(message.id.uuidString)")
+
+      Button("Send now and steer", systemImage: "arrow.turn.up.right") {
+        Task { await model.steerQueuedMessage(message.id) }
+      }
+      .labelStyle(.iconOnly)
+      .buttonStyle(.plain)
+      .foregroundStyle(conversationAccent)
+      .frame(minWidth: 44, minHeight: 44)
+      .disabled(model.isSending || model.isUploading)
+      .accessibilityHint("Stops the current reply and sends this message now")
+      .accessibilityIdentifier("chat.queue.steer.\(message.id.uuidString)")
+
+      Button("Remove queued message", systemImage: "xmark") {
+        model.discardQueuedMessage(message.id)
+      }
+      .labelStyle(.iconOnly)
+      .buttonStyle(.plain)
+      .foregroundStyle(.secondary)
+      .frame(minWidth: 44, minHeight: 44)
+      .accessibilityIdentifier("chat.queue.remove.\(message.id.uuidString)")
+    }
+    .padding(.leading, 11)
+    .padding(.trailing, 3)
+    .padding(.vertical, 4)
+    .background(.quaternary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .accessibilityIdentifier("chat.queue.message.\(message.id.uuidString)")
+  }
   private var attachmentPicker: some View {
     ScrollView(.horizontal) {
       HStack(spacing: 7) {
