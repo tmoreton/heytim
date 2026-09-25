@@ -306,7 +306,7 @@ const auditTrail = new Trail(stack, 'AuditTrail', {
     ? { cloudWatchLogGroup: auditLogGroup }
     : { cloudWatchLogsRetention: RetentionDays.ONE_MONTH }),
 });
-auditTrail.addS3EventSelector([{ bucket: filesBucket }, { bucket: heytimFilesBucket }], {
+auditTrail.addS3EventSelector([{ bucket: legacyFilesBucket }, { bucket: heytimFilesBucket }], {
   readWriteType: ReadWriteType.ALL,
 });
 
