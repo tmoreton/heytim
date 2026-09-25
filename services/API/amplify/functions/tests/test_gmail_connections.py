@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import io
 import json
 import time
 import unittest
 import urllib.error
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import shared.account_state as account_state_module
 import shared.catalog_sync as sync_module
@@ -40,6 +41,19 @@ class GmailConnectionTests(unittest.TestCase):
         item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
         return saved, item["secretArn"]
 
+    def _install_google_client(self) -> None:
+        self.secrets.values[
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+            "heytim/oauth/google-ABC123"
+        ] = json.dumps(
+            {
+                "web": {
+                    "client_id": "google-client-id",
+                    "client_secret": "google-client-secret",
+                }
+            }
+        )
+
     def test_oauth_connection_is_private_and_tool_filtered(self) -> None:
         client_secret_arn = (
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
@@ -66,6 +80,145 @@ class GmailConnectionTests(unittest.TestCase):
         self.assertEqual(runtime["authType"], "oauth")
         self.assertIn("create_draft", runtime["allowedTools"])
         self.assertNotIn("trash_thread", runtime["allowedTools"])
+
+    def test_expired_google_grant_requires_reconnection_and_disables_tool(self) -> None:
+        self._install_google_client()
+        saved, _secret_arn = self._save_gmail("expired-refresh-token")
+        item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
+        item["credentialCheckedAt"] = 0
+        invalid_grant = urllib.error.HTTPError(
+            connections_module.GOOGLE_OAUTH_ENDPOINT,
+            400,
+            "invalid_grant",
+            None,
+            io.BytesIO(
+                json.dumps(
+                    {
+                        "error": "invalid_grant",
+                        "error_description": "Token has been expired or revoked.",
+                    }
+                ).encode()
+            ),
+        )
+
+        with patch.object(
+            connections_module.urllib.request,
+            "urlopen",
+            side_effect=invalid_grant,
+        ):
+            connections = self.catalog.list_connections("owner")
+
+        self.assertEqual(connections[0]["connectionStatus"], "reauthorization_required")
+        item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
+        self.assertEqual(item["connectionStatus"], "reauthorization_required")
+        self.assertEqual(self.catalog.available_tool_ids("owner", [saved["id"]]), [])
+        self.assertNotIn(
+            saved["id"], {tool["id"] for tool in self.catalog.list_tools("owner")}
+        )
+
+        reconnected = self.catalog.save_gmail_connection(
+            "owner",
+            "owner@example.com",
+            "replacement-refresh-token",
+            (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+                "heytim/oauth/google-ABC123"
+            ),
+        )
+
+        self.assertEqual(reconnected["connectionStatus"], "connected")
+        self.assertEqual(
+            self.catalog.available_tool_ids("owner", [saved["id"]]), [saved["id"]]
+        )
+
+    def test_transient_google_health_failure_does_not_force_reconnection(self) -> None:
+        self._install_google_client()
+        saved, _secret_arn = self._save_gmail("healthy-refresh-token")
+        item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
+        item["credentialCheckedAt"] = 0
+        unavailable = urllib.error.HTTPError(
+            connections_module.GOOGLE_OAUTH_ENDPOINT,
+            503,
+            "unavailable",
+            None,
+            io.BytesIO(b'{"error":"temporarily_unavailable"}'),
+        )
+
+        with (
+            patch.object(
+                connections_module.urllib.request,
+                "urlopen",
+                side_effect=unavailable,
+            ),
+            self.assertLogs("shared.connections", level="WARNING"),
+        ):
+            connections = self.catalog.list_connections("owner")
+
+        self.assertEqual(connections[0]["connectionStatus"], "connected")
+        item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
+        self.assertGreater(item["credentialCheckedAt"], 0)
+
+    def test_google_health_check_keeps_a_refreshable_grant_connected(self) -> None:
+        self._install_google_client()
+        saved, _secret_arn = self._save_gmail("healthy-refresh-token")
+        item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
+        item["credentialCheckedAt"] = 0
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = (
+            b'{"access_token":"fresh-access-token"}'
+        )
+
+        with patch.object(
+            connections_module.urllib.request,
+            "urlopen",
+            return_value=response,
+        ) as urlopen:
+            connections = self.catalog.list_connections("owner")
+
+        self.assertEqual(connections[0]["connectionStatus"], "connected")
+        item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
+        self.assertGreater(item["credentialCheckedAt"], 0)
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 5)
+
+    def test_successful_reconnect_wins_an_expired_health_check_race(self) -> None:
+        self._install_google_client()
+        saved, _secret_arn = self._save_gmail("expired-refresh-token")
+        item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
+        item["credentialCheckedAt"] = 0
+        reconnected_item = {
+            **item,
+            "connectionStatus": "connected",
+            "credentialCheckedAt": int(time.time()),
+            "secretArn": item["secretArn"] + "-replacement",
+        }
+        invalid_grant = urllib.error.HTTPError(
+            connections_module.GOOGLE_OAUTH_ENDPOINT,
+            400,
+            "invalid_grant",
+            None,
+            io.BytesIO(b'{"error":"invalid_grant"}'),
+        )
+
+        with (
+            patch.object(
+                connections_module.urllib.request,
+                "urlopen",
+                side_effect=invalid_grant,
+            ),
+            patch.object(
+                self.catalog,
+                "_put_connection_while_account_active",
+                side_effect=account_state_module.UserItemConflictError,
+            ),
+            patch.object(
+                self.catalog,
+                "_get_connection",
+                return_value=reconnected_item,
+            ),
+        ):
+            connections = self.catalog.list_connections("owner")
+
+        self.assertEqual(connections[0]["connectionStatus"], "connected")
 
     def test_deleting_gmail_revokes_refresh_token_and_removes_local_access(
         self,
@@ -241,9 +394,7 @@ class GmailConnectionTests(unittest.TestCase):
         urlopen.assert_called_once()
         request = urlopen.call_args.args[0]
         self.assertEqual(request.data, b"token=new-refresh-token")
-        connection_item = self.table.items[
-            ("USER#owner", f"CONNECTION#{saved['id']}")
-        ]
+        connection_item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
         self.assertEqual(connection_item["secretArn"], old_secret_arn)
         self.assertEqual(self.secrets.values, {old_secret_arn: old_credential})
         self.assertEqual(len(self.secrets.deleted), 1)
@@ -362,6 +513,7 @@ class GmailConnectionTests(unittest.TestCase):
         self.assertEqual(transaction_tokens[0], transaction_tokens[1])
         self.assertEqual(sleeps, [0.5])
         urlopen.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

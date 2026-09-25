@@ -76,12 +76,20 @@ class CatalogService(CatalogAccessMixin, CatalogSyncMixin, ConnectionMixin):
         if user_id:
             items.extend(self._active_connection_items(user_id))
         return [
-            item for item in items
+            item
+            for item in items
             if item.get("enabled", True) is True
             and item.get("id") not in RETIRED_TOOL_IDS
+            and not (
+                item.get("entity") == "CONNECTION"
+                and item.get("authType") in {"oauth", "github_app"}
+                and item.get("connectionStatus") != "connected"
+            )
         ]
 
     def list_tools(self, user_id: str | None = None) -> list[dict]:
+        if user_id:
+            self.refresh_connection_statuses(user_id)
         return sorted(
             (
                 _public_tool(item)
@@ -232,6 +240,7 @@ class CatalogService(CatalogAccessMixin, CatalogSyncMixin, ConnectionMixin):
             isinstance(item, str) for item in tool_ids
         ):
             raise CatalogError("toolIds must be a list")
+        self.refresh_connection_statuses(user_id, tool_ids)
         unique = [
             tool_id
             for tool_id in dict.fromkeys(tool_ids)
@@ -257,6 +266,7 @@ class CatalogService(CatalogAccessMixin, CatalogSyncMixin, ConnectionMixin):
             isinstance(item, str) for item in tool_ids
         ):
             raise CatalogError("toolIds must be a list")
+        self.refresh_connection_statuses(user_id, tool_ids)
         by_id = {
             item["id"]: item
             for item in self._available_tool_items(user_id)
@@ -273,13 +283,15 @@ class CatalogService(CatalogAccessMixin, CatalogSyncMixin, ConnectionMixin):
         return [item["id"] for item in self.available_tools(user_id, tool_ids)]
 
     def resolve_tools_for_runtime(
-        self, user_id: str, tool_ids: Any,
+        self,
+        user_id: str,
+        tool_ids: Any,
         github_repository_access: dict[str, list[int]] | None = None,
         jira_project_access: dict[str, list[str]] | None = None,
         teams_channel_access: dict[str, list[str]] | None = None,
         resource_access: dict[str, list[str]] | None = None,
     ) -> list[dict]:
-        selected = self.validate_tools(user_id, tool_ids)
+        selected = self.available_tool_ids(user_id, tool_ids)
         items = self._available_tool_items(user_id)
         by_id = {item.get("id"): item for item in items}
         resolved = []
@@ -314,12 +326,18 @@ class CatalogService(CatalogAccessMixin, CatalogSyncMixin, ConnectionMixin):
                     continue
                 runtime["projectKeys"] = selected_projects
             selected_channels = (teams_channel_access or {}).get(tool_id)
-            if item.get("provider") == "microsoft_teams" and selected_channels is not None:
+            if (
+                item.get("provider") == "microsoft_teams"
+                and selected_channels is not None
+            ):
                 if not selected_channels:
                     continue
                 runtime["channelAccess"] = selected_channels
             selected_resources = (resource_access or {}).get(tool_id)
-            if item.get("provider") in {"slack", "notion", "google_workspace"} and selected_resources is not None:
+            if (
+                item.get("provider") in {"slack", "notion", "google_workspace"}
+                and selected_resources is not None
+            ):
                 if not selected_resources:
                     continue
                 runtime["resourceIds"] = selected_resources

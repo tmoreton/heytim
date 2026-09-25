@@ -4,9 +4,12 @@ import hashlib
 import json
 import logging
 import re
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
+from decimal import Decimal
 from typing import Any
 
 from botocore.exceptions import BotoCoreError, ClientError
@@ -39,13 +42,19 @@ from .time import utc_now_iso as _now
 MAX_CONNECTIONS = 50
 MAX_CREDENTIAL_DOCUMENT_LENGTH = 64_000
 CONNECTION_SAVE_ATTEMPTS = 4
+CONNECTION_HEALTH_TTL_SECONDS = 15 * 60
+CONNECTION_HEALTH_CHECK_LIMIT = 8
+GOOGLE_OAUTH_ENDPOINT = "https://oauth2.googleapis.com/token"
+GOOGLE_CONNECTION_PROVIDER_IDS = frozenset({"gmail", "google_workspace", "youtube"})
 CONNECTION_SPECS = connection_specs()
 OAUTH_API_SCOPES = {
     provider_id: set(spec["scopes"])
     for provider_id, spec in CONNECTION_SPECS.items()
     if provider_id in {"youtube", "x"}
 }
-EXTERNAL_OAUTH_PROVIDER_IDS = frozenset({"slack", "microsoft", "microsoft_teams", "notion", "hubspot", "jira", "zoom"})
+EXTERNAL_OAUTH_PROVIDER_IDS = frozenset(
+    {"slack", "microsoft", "microsoft_teams", "notion", "hubspot", "jira", "zoom"}
+)
 
 logger = logging.getLogger(__name__)
 
@@ -99,9 +108,153 @@ class ConnectionMixin(MCPServerConnectionMixin, ConnectionLifecycleMixin):
             and item.get("authType") == CONNECTION_SPECS[item["provider"]]["authType"]
         ]
 
+    def _google_connection_health(self, item: dict) -> str | None:
+        runtime = item.get("runtime")
+        runtime = runtime if isinstance(runtime, dict) else {}
+        secret_arn = item.get("secretArn")
+        client_secret_arn = runtime.get("oauthClientSecretArn")
+        if not isinstance(secret_arn, str):
+            return "reauthorization_required"
+        if not isinstance(client_secret_arn, str):
+            logger.warning(
+                "Google connection %s has no OAuth client configuration",
+                item.get("id", "unknown"),
+            )
+            return None
+        try:
+            credential = self._secret_document(secret_arn)
+        except self._secret_client().exceptions.ResourceNotFoundException:
+            return "reauthorization_required"
+        except (BotoCoreError, ClientError, json.JSONDecodeError, TypeError):
+            logger.warning(
+                "Google connection %s credential could not be checked",
+                item.get("id", "unknown"),
+            )
+            return None
+        try:
+            client_document = self._secret_document(client_secret_arn)
+        except (
+            BotoCoreError,
+            ClientError,
+            json.JSONDecodeError,
+            TypeError,
+            self._secret_client().exceptions.ResourceNotFoundException,
+        ):
+            logger.warning("Google OAuth client configuration could not be checked")
+            return None
+        client = client_document.get("web", client_document)
+        refresh_token = credential.get("refreshToken")
+        client_id = client.get("client_id") if isinstance(client, dict) else None
+        client_secret = (
+            client.get("client_secret") if isinstance(client, dict) else None
+        )
+        if not isinstance(refresh_token, str) or not refresh_token:
+            return "reauthorization_required"
+        if not all(
+            isinstance(value, str) and value for value in (client_id, client_secret)
+        ):
+            logger.warning("Google OAuth client configuration is invalid")
+            return None
+        request = urllib.request.Request(
+            GOOGLE_OAUTH_ENDPOINT,
+            data=urllib.parse.urlencode(
+                {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "refresh_token": refresh_token,
+                    "grant_type": "refresh_token",
+                }
+            ).encode("utf-8"),
+            headers={"content-type": "application/x-www-form-urlencoded"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=5) as response:  # nosec B310
+                value = json.loads(response.read(100_001).decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            try:
+                body = json.loads(exc.read(100_001).decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                body = {}
+            finally:
+                exc.close()
+            error = body.get("error") if isinstance(body, dict) else None
+            if exc.code == 400 and error == "invalid_grant":
+                return "reauthorization_required"
+            logger.warning(
+                "Google connection %s health check returned HTTP %s",
+                item.get("id", "unknown"),
+                exc.code,
+            )
+            return None
+        except (urllib.error.URLError, json.JSONDecodeError, UnicodeDecodeError):
+            logger.warning(
+                "Google connection %s health check was unavailable",
+                item.get("id", "unknown"),
+            )
+            return None
+        access_token = value.get("access_token") if isinstance(value, dict) else None
+        return "connected" if isinstance(access_token, str) and access_token else None
+
+    def _record_connection_health(
+        self, user_id: str, item: dict, status: str | None, checked_at: int
+    ) -> dict:
+        secret_arn = item.get("secretArn")
+        if not isinstance(secret_arn, str):
+            return item
+        updated = {
+            **item,
+            "credentialCheckedAt": checked_at,
+            **({"connectionStatus": status} if status is not None else {}),
+        }
+        try:
+            self._put_connection_while_account_active(
+                user_id,
+                updated,
+                require_absent=False,
+                expected_secret_arn=secret_arn,
+            )
+        except (CatalogError, UserItemConflictError):
+            current = self._get_connection(user_id, str(item.get("id", "")))
+            return current or item
+        return updated
+
+    def refresh_connection_statuses(
+        self, user_id: str, connection_ids: list[str] | None = None
+    ) -> list[dict]:
+        """Detect revoked Google grants and require reconnection before reuse."""
+        items = self._active_connection_items(user_id)
+        selected = set(connection_ids) if isinstance(connection_ids, list) else None
+        now = int(time.time())
+        checked = 0
+        refreshed = []
+        for item in items:
+            candidate = (
+                item.get("provider") in GOOGLE_CONNECTION_PROVIDER_IDS
+                and item.get("connectionStatus") == "connected"
+                and (selected is None or item.get("id") in selected)
+            )
+            last_checked = item.get("credentialCheckedAt")
+            is_fresh = (
+                isinstance(last_checked, (int, Decimal))
+                and not isinstance(last_checked, bool)
+                and int(last_checked) > now - CONNECTION_HEALTH_TTL_SECONDS
+            )
+            if (
+                not candidate
+                or is_fresh
+                or (selected is None and checked >= CONNECTION_HEALTH_CHECK_LIMIT)
+            ):
+                refreshed.append(item)
+                continue
+            status = self._google_connection_health(item)
+            refreshed.append(self._record_connection_health(user_id, item, status, now))
+            checked += 1
+        return refreshed
+
     def list_connections(self, user_id: str) -> list[dict]:
         return sorted(
-            (_public_tool(item) for item in self._active_connection_items(user_id)),
+            (_public_tool(item) for item in self.refresh_connection_statuses(user_id)),
             key=lambda item: (
                 item["name"].lower(),
                 str(item.get("connectedAccount", "")).lower(),
@@ -208,11 +361,15 @@ class ConnectionMixin(MCPServerConnectionMixin, ConnectionLifecycleMixin):
 
         account_id = provider_account_id or account.strip()
         connections = self._active_connection_items(user_id)
-        existing = _matching_connection(connections, provider, account_id, account.strip())
+        existing = _matching_connection(
+            connections, provider, account_id, account.strip()
+        )
         if not existing and len(connections) >= MAX_CONNECTIONS:
             raise CatalogError(f"You can add up to {MAX_CONNECTIONS} connections")
         connection_id = (
-            existing["id"] if existing else _connection_id(provider, user_id, account_id)
+            existing["id"]
+            if existing
+            else _connection_id(provider, user_id, account_id)
         )
         secret_arn = self._create_secret(user_id, connection_id, credential_json)
         previous_secret_arn = None
@@ -262,6 +419,8 @@ class ConnectionMixin(MCPServerConnectionMixin, ConnectionLifecycleMixin):
                     ),
                     "updatedAt": current,
                 }
+                if provider in GOOGLE_CONNECTION_PROVIDER_IDS:
+                    item["credentialCheckedAt"] = int(time.time())
                 if "endpoint" in spec:
                     item["endpoint"] = spec["endpoint"]
                 if provider_account_id is not None:
@@ -506,7 +665,14 @@ class ConnectionMixin(MCPServerConnectionMixin, ConnectionLifecycleMixin):
         expires_at = credential.get("expiresAt")
         if not isinstance(access_token, str) or not access_token:
             raise CatalogError("OAuth access token is invalid")
-        if provider in {"slack", "microsoft", "microsoft_teams", "hubspot", "jira", "zoom"} and (
+        if provider in {
+            "slack",
+            "microsoft",
+            "microsoft_teams",
+            "hubspot",
+            "jira",
+            "zoom",
+        } and (
             not isinstance(refresh_token, str)
             or not refresh_token
             or isinstance(expires_at, bool)
@@ -592,7 +758,6 @@ class ConnectionMixin(MCPServerConnectionMixin, ConnectionLifecycleMixin):
             provider_account_id=installation_id,
             repository_count=len(repository_ids),
             repositories=[
-                {"id": value["id"], "name": value["name"]}
-                for value in repositories
+                {"id": value["id"], "name": value["name"]} for value in repositories
             ],
         )
