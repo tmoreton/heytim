@@ -155,6 +155,8 @@ export const notionOAuthSecretArn = stagedProviderSetting('HEYTIM_NOTION_OAUTH_S
 export const hubspotOAuthSecretArn = optionalProviderSetting('HEYTIM_HUBSPOT_OAUTH_SECRET_ARN');
 export const jiraOAuthSecretArn = optionalProviderSetting('HEYTIM_JIRA_OAUTH_SECRET_ARN');
 export const zoomOAuthSecretArn = optionalProviderSetting('HEYTIM_ZOOM_OAUTH_SECRET_ARN');
+export const quickBooksOAuthSecretArn = optionalProviderSetting('HEYTIM_QUICKBOOKS_OAUTH_SECRET_ARN');
+export const plaidSecretArn = optionalProviderSetting('HEYTIM_PLAID_SECRET_ARN');
 export const apnsApplicationArn = optionalPlatformApplicationArn('HEYTIM_APNS_APPLICATION_ARN');
 export const apnsSandboxApplicationArn = optionalPlatformApplicationArn('HEYTIM_APNS_SANDBOX_APPLICATION_ARN');
 if (deploymentEnvironment === 'production' && !apnsApplicationArn) {

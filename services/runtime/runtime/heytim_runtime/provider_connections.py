@@ -37,6 +37,9 @@ from .collaboration_provider_tools import (
 from .collaboration_provider_tools import (
     zoom_tools as _zoom_tools,
 )
+from .finance_provider_tools import plaid_tools as _plaid_tools
+from .finance_provider_tools import quickbooks_access_token as _finance_quickbooks_token
+from .finance_provider_tools import quickbooks_tools as _quickbooks_tools
 from .provider_binding import validated_provider_binding
 from .youtube_provider_tools import _youtube_tools
 
@@ -76,6 +79,14 @@ JIRA_CLIENT_SECRET_ARN_PATTERN = re.compile(
 ZOOM_CLIENT_SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
     r"secret:heytim/oauth/zoom-[A-Za-z0-9-]+$"
+)
+QUICKBOOKS_CLIENT_SECRET_ARN_PATTERN = re.compile(
+    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
+    r"secret:heytim/oauth/quickbooks-[A-Za-z0-9-]+$"
+)
+PLAID_APP_SECRET_ARN_PATTERN = re.compile(
+    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
+    r"secret:heytim/oauth/plaid-[A-Za-z0-9-]+$"
 )
 JIRA_SITE_ID_PATTERN = re.compile(
     r"^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
@@ -134,6 +145,7 @@ PROVIDER_SCOPES = {
     },
     "jira": {"offline_access", "read:jira-work"},
     "zoom": {"user:read:user", "meeting:read:list_meetings", "meeting:read:meeting"},
+    "quickbooks": {"com.intuit.quickbooks.accounting"},
 }
 PROVIDER_CLIENT_SECRET_PATTERNS = {
     "youtube": GOOGLE_CLIENT_SECRET_ARN_PATTERN,
@@ -145,6 +157,7 @@ PROVIDER_CLIENT_SECRET_PATTERNS = {
     "hubspot": HUBSPOT_CLIENT_SECRET_ARN_PATTERN,
     "jira": JIRA_CLIENT_SECRET_ARN_PATTERN,
     "zoom": ZOOM_CLIENT_SECRET_ARN_PATTERN,
+    "quickbooks": QUICKBOOKS_CLIENT_SECRET_ARN_PATTERN,
 }
 _secrets_manager = None
 
@@ -436,6 +449,8 @@ def _provider_access_token(binding: dict) -> str:
         return _x_access_token(binding)
     if provider in {"slack", "microsoft", "microsoft_teams", "hubspot", "jira", "zoom"}:
         return _rotating_provider_access_token(binding)
+    if provider == "quickbooks":
+        return _quickbooks_access_token(binding)
     if provider == "notion":
         credential = _json_secret(binding["secretArn"])
         access_token = credential.get("accessToken")
@@ -443,6 +458,10 @@ def _provider_access_token(binding: dict) -> str:
             return access_token
         raise ValueError("Notion OAuth credential is invalid")
     raise ValueError("OAuth provider connection is unsupported")
+
+
+def _quickbooks_access_token(binding: dict) -> str:
+    return _finance_quickbooks_token(binding)
 
 
 def _api_json(url: str, access_token: str) -> dict:
@@ -542,6 +561,10 @@ def provider_connection_tools(binding: dict, usage: Any = None) -> list[Any]:
         provider_tools = _jira_tools(binding, usage)
     elif binding["provider"] == "zoom":
         provider_tools = _zoom_tools(binding, usage)
+    elif binding["provider"] == "quickbooks":
+        provider_tools = _quickbooks_tools(binding, usage)
+    elif binding["provider"] == "plaid":
+        provider_tools = _plaid_tools(binding, usage)
     else:
         raise ValueError("OAuth provider connection is unsupported")
 

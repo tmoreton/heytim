@@ -8,6 +8,8 @@ type ProviderSecrets = {
   jira: string;
   microsoft: string;
   notion: string;
+  plaid: string;
+  quickbooks: string;
   slack: string;
   x: string;
   zoom: string;
@@ -20,6 +22,8 @@ const providerIdsBySecret: Record<keyof ProviderSecrets, string[]> = {
   jira: ['jira'],
   microsoft: ['microsoft', 'microsoft_teams'],
   notion: ['notion'],
+  plaid: ['plaid'],
+  quickbooks: ['quickbooks'],
   slack: ['slack'],
   x: ['x'],
   zoom: ['zoom'],
@@ -39,6 +43,8 @@ export function addProviderConnectionAccess(
   apiFunction.addEnvironment('MICROSOFT_OAUTH_SECRET_ARN', secrets.microsoft);
   apiFunction.addEnvironment('NOTION_OAUTH_SECRET_ARN', secrets.notion);
   apiFunction.addEnvironment('ZOOM_OAUTH_SECRET_ARN', secrets.zoom);
+  apiFunction.addEnvironment('QUICKBOOKS_OAUTH_SECRET_ARN', secrets.quickbooks);
+  apiFunction.addEnvironment('PLAID_SECRET_ARN', secrets.plaid);
   const disabledProviders = (Object.keys(providerIdsBySecret) as Array<keyof ProviderSecrets>)
     .filter((provider) => secrets[provider].length === 0)
     .flatMap((provider) => providerIdsBySecret[provider]);
@@ -62,6 +68,15 @@ export function addProviderConnectionAccess(
     'EXTERNAL_OAUTH_REDIRECT_URI',
     apiEndpoint + '/public/oauth/provider/callback',
   );
+  apiFunction.addEnvironment(
+    'QUICKBOOKS_OAUTH_REDIRECT_URI',
+    apiEndpoint + '/public/oauth/quickbooks/callback',
+  );
+  apiFunction.addEnvironment(
+    'PLAID_COMPLETION_REDIRECT_URI',
+    apiEndpoint + '/public/plaid/callback',
+  );
+  apiFunction.addEnvironment('PLAID_OAUTH_REDIRECT_URI', 'https://heytim.ai/plaid-oauth');
   const configuredSecrets = Object.values(secrets).filter((value) => value.length > 0);
   if (configuredSecrets.length) {
     apiFunction.addToRolePolicy(new PolicyStatement({

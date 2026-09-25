@@ -35,6 +35,8 @@ server-only; this abstraction does not restore arbitrary customer-supplied crede
 | HubSpot | None | HubSpot OAuth | Bots can search contacts, companies, and deals within individually assigned CRM accounts. |
 | Jira | None | Atlassian OAuth with a single selected site | Bots can list projects and read issues. Optional project keys restrict each bot further. |
 | Zoom | None | Zoom user-managed OAuth | Bots can list and read meetings from individually assigned Zoom accounts. Host start URLs are never returned. |
+| QuickBooks Online | None | Intuit OAuth for one selected company | Read-only tools expose financial reports, chart of accounts, invoices, bills, and vendors. They cannot edit books or run payroll. |
+| Plaid | None | Plaid Hosted Link for one selected institution | Read-only tools expose selected accounts, cached balances, transactions, and supported liabilities. Bank sign-in credentials stay with Plaid. |
 | X | None | OAuth 2.0 Authorization Code with PKCE | Search, profile, authored posts, and mentions require an assigned X account. |
 
 Connections are stored separately even when they use the same provider. A bot receives only the connection IDs selected
@@ -173,10 +175,53 @@ Register a user-managed Zoom OAuth app with the shared callback URL. Add granula
 `meeting:read:list_meetings`, and `meeting:read:meeting`. Store `clientId` and `clientSecret` in
 `heytim/oauth/zoom-production`, then set `HEYTIM_ZOOM_OAUTH_SECRET_ARN`.
 
+### QuickBooks Online app
+
+Create one Intuit app owned by HeyTim, enable QuickBooks Online Accounting, and register this redirect URI:
+
+```text
+https://API_HOST/public/oauth/quickbooks/callback
+```
+
+Store the app configuration in `heytim/oauth/quickbooks-production`, then set
+`HEYTIM_QUICKBOOKS_OAUTH_SECRET_ARN` to the full ARN:
+
+```json
+{
+  "clientId": "replace-with-intuit-client-id",
+  "clientSecret": "replace-with-intuit-client-secret",
+  "environment": "production"
+}
+```
+
+Use `sandbox` only with Intuit development credentials and sandbox companies. Users connect a company through Intuit
+OAuth and never enter developer keys. The initial adapter requests only `com.intuit.quickbooks.accounting` and exposes
+read-only tools. QuickBooks payroll execution is not included in this scope.
+
+### Plaid app
+
+Enable Transactions in the HeyTim-owned Plaid application and, if desired, request Liabilities access. Add
+`https://heytim.ai/plaid-oauth` to Plaid's allowed redirect URIs; this Universal Link is used only when an institution
+requires OAuth inside Hosted Link. Store the application configuration in `heytim/oauth/plaid-production`, then set
+`HEYTIM_PLAID_SECRET_ARN` to the full ARN:
+
+```json
+{
+  "clientId": "replace-with-plaid-client-id",
+  "secret": "replace-with-plaid-production-secret",
+  "environment": "production"
+}
+```
+
+Use `sandbox` with the Plaid Sandbox secret. HeyTim creates a ten-minute Hosted Link URL, retrieves the resulting
+public token on the backend, exchanges it for an Item access token, and stores only that per-user token in the user
+connection secret. The initial Link request asks for 180 days of Transactions history and treats Liabilities as
+optional. Plaid product access and billing remain attached to the HeyTim Plaid account.
+
 ## Deployment boundary
 
 The Amplify deployment requires the Google, GitHub, X, Slack, and Notion provider secret ARN variables above.
-Microsoft 365, Teams, HubSpot, Jira, and Zoom are optional and hidden when their secret ARN is absent. The AgentCore runtime role can read those
+Microsoft 365, Teams, HubSpot, Jira, Zoom, QuickBooks, and Plaid are optional and hidden when their secret ARN is absent. The AgentCore runtime role can read those
 provider configuration paths and each user's connection secret; it can write only the per-user connection path, which
 is needed for rotating refresh grants. Never deploy with AWS account-root credentials. The
 release preflight rejects root sessions.
@@ -204,4 +249,6 @@ Official references: [GitHub App installation authentication](https://docs.githu
 [Microsoft Graph authentication](https://learn.microsoft.com/en-us/graph/auth/auth-concepts),
 [HubSpot OAuth](https://developers.hubspot.com/docs/apps/legacy-apps/authentication/oauth-quickstart-guide),
 [Atlassian 3LO](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/), and
-[Zoom OAuth](https://developers.zoom.us/docs/integrations/end-user-auth/).
+[Zoom OAuth](https://developers.zoom.us/docs/integrations/end-user-auth/),
+[Intuit OAuth](https://developer.intuit.com/app/developer/qbo/docs/develop/authentication-and-authorization), and
+[Plaid Hosted Link](https://plaid.com/docs/link/hosted-link/).

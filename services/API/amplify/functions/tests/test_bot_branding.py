@@ -245,6 +245,7 @@ class BotBrandingTests(unittest.TestCase):
                 "youtube",
                 "slack",
                 "microsoft_teams",
+                "plaid",
                 "github",
                 "gmail",
                 "google_workspace",
@@ -253,6 +254,7 @@ class BotBrandingTests(unittest.TestCase):
                 "mcp_server",
                 "microsoft",
                 "notion",
+                "quickbooks",
                 "zoom",
             ],
         )

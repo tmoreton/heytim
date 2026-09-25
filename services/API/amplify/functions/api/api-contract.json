@@ -9,6 +9,8 @@
     { "id": "githubOAuthCallback", "method": "GET", "path": "/public/oauth/github/callback", "access": "public", "handler": "public" },
     { "id": "xOAuthCallback", "method": "GET", "path": "/public/oauth/x/callback", "access": "public", "handler": "public" },
     { "id": "providerOAuthCallback", "method": "GET", "path": "/public/oauth/provider/callback", "access": "public", "handler": "public" },
+    { "id": "quickBooksOAuthCallback", "method": "GET", "path": "/public/oauth/quickbooks/callback", "access": "public", "handler": "public" },
+    { "id": "plaidCallback", "method": "GET", "path": "/public/plaid/callback", "access": "public", "handler": "public" },
 
     { "id": "bootstrap", "method": "GET", "path": "/bootstrap", "access": "authenticated", "handler": "bot" },
     { "id": "billingSummary", "method": "GET", "path": "/billing", "access": "authenticated", "handler": "billing" },

@@ -19,6 +19,8 @@ from shared.connection_providers import (
 )
 from shared.github_app import GITHUB_MCP_ENDPOINT
 
+from .finance_bindings import validate_plaid_binding
+
 MAX_SKILLS_PER_BOT = 12
 MAX_SKILL_INSTRUCTIONS = SKILL_INSTRUCTIONS_MAX_LENGTH
 RETIRED_TOOL_IDS = frozenset({"meme_composer", "x_search", "youtube_search"})
@@ -68,11 +70,12 @@ BOT_CATALOG_FIELDS = {
 PROVIDER_API_SCOPES = {
     provider_id: frozenset(spec["scopes"])
     for provider_id, spec in connection_specs().items()
-    if provider_id in {"youtube", "x", "slack", "microsoft", "microsoft_teams", "notion", "hubspot", "jira", "zoom"}
+    if provider_id in {
+        "youtube", "x", "slack", "microsoft", "microsoft_teams", "notion",
+        "hubspot", "jira", "zoom", "quickbooks",
+    }
 }
-GOOGLE_WORKSPACE_SCOPES = frozenset(
-    connection_specs()["google_workspace"]["scopes"]
-)
+GOOGLE_WORKSPACE_SCOPES = frozenset(connection_specs()["google_workspace"]["scopes"])
 GOOGLE_WORKSPACE_SERVERS = {
     server["endpoint"]: frozenset(server["allowedTools"])
     for server in GOOGLE_WORKSPACE_MCP_SERVERS
@@ -387,6 +390,11 @@ def _validate_provider_api_binding(value: dict) -> dict:
     scopes = value.get("scopes")
     secret_arn = value.get("secretArn")
     client_secret_arn = value.get("oauthClientSecretArn")
+    if provider == "plaid":
+        try:
+            return validate_plaid_binding(value)
+        except ValueError as exc:
+            raise CatalogError(str(exc)) from exc
     expected = PROVIDER_API_SCOPES.get(provider)
     oauth_provider = "google" if provider == "youtube" else provider
     if (
@@ -409,6 +417,14 @@ def _validate_provider_api_binding(value: dict) -> dict:
     project_keys = value.get("projectKeys")
     channel_access = value.get("channelAccess")
     resource_ids = value.get("resourceIds")
+    realm_id = value.get("realmId")
+    environment = value.get("environment")
+    if provider == "quickbooks" and (
+        not isinstance(realm_id, str)
+        or not re.fullmatch(r"[0-9]{1,32}", realm_id)
+        or environment not in {"sandbox", "production"}
+    ):
+        raise CatalogError("QuickBooks company binding is invalid")
     if provider == "jira" and (
         not isinstance(site_id, str)
         or not re.fullmatch(
@@ -466,6 +482,10 @@ def _validate_provider_api_binding(value: dict) -> dict:
         "secretArn": secret_arn,
         "oauthClientSecretArn": client_secret_arn,
         "scopes": scopes,
+        **(
+            {"realmId": realm_id, "environment": environment}
+            if provider == "quickbooks" else {}
+        ),
         **({"siteId": site_id.lower()} if provider == "jira" else {}),
         **(
             {"projectKeys": project_keys}

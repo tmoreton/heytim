@@ -7,6 +7,7 @@ from . import authenticated_routes
 from .account import _begin_account_deletion
 from .billing import stripe_webhook
 from .external_oauth import _external_callback
+from .finance_connections import _plaid_callback, _quickbooks_callback
 from .github_oauth import _github_callback
 from .github_webhook import github_issue_webhook
 from .google_oauth import _google_callback
@@ -49,6 +50,10 @@ def _public_route(event: dict, method: str, path: str, params: dict) -> dict | N
         return _x_callback(event.get("queryStringParameters") or {})
     if method == "GET" and path == "/public/oauth/provider/callback":
         return _external_callback(event.get("queryStringParameters") or {})
+    if method == "GET" and path == "/public/oauth/quickbooks/callback":
+        return _quickbooks_callback(event.get("queryStringParameters") or {})
+    if method == "GET" and path == "/public/plaid/callback":
+        return _plaid_callback(event.get("queryStringParameters") or {})
     return None
 
 

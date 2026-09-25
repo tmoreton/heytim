@@ -26,7 +26,7 @@ import {
   jiraOAuthSecretArn,
   zoomOAuthSecretArn,
   memoryId, memoryKmsKeyArn, microsoftOAuthSecretArn, monthlyBudgetUsd, monthlyRunUnitLimit,
-  notionOAuthSecretArn,
+  notionOAuthSecretArn, plaidSecretArn, quickBooksOAuthSecretArn,
   runtimeArn, runtimeQualifier, usageWindowSeconds, userWindowRunUnitLimit,
   slackOAuthSecretArn, xOAuthSecretArn, youtubeSearchDailyLimit,
   stripeAvailable,
@@ -569,7 +569,7 @@ addProviderConnectionAccess(apiFunction, httpApi.apiEndpoint, {
   hubspot: hubspotOAuthSecretArn,
   jira: jiraOAuthSecretArn,
   zoom: zoomOAuthSecretArn,
-  microsoft: microsoftOAuthSecretArn, notion: notionOAuthSecretArn,
+  microsoft: microsoftOAuthSecretArn, notion: notionOAuthSecretArn, plaid: plaidSecretArn, quickbooks: quickBooksOAuthSecretArn,
   slack: slackOAuthSecretArn, x: xOAuthSecretArn,
 });
 

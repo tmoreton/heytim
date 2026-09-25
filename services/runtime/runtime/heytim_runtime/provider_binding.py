@@ -12,6 +12,40 @@ def _runtime():
 def validated_provider_binding(tool_id: str, runtime: dict) -> dict:
     provider = runtime.get("provider")
     secret_arn = runtime.get("secretArn")
+    if provider == "plaid":
+        app_secret_arn = runtime.get("appSecretArn")
+        environment = runtime.get("environment")
+        account_label = runtime.get("accountLabel")
+        if (
+            runtime.get("authType") != "plaid_link"
+            or not isinstance(secret_arn, str)
+            or not _runtime().CONNECTION_SECRET_ARN_PATTERN.fullmatch(secret_arn)
+            or not isinstance(app_secret_arn, str)
+            or not _runtime().PLAID_APP_SECRET_ARN_PATTERN.fullmatch(app_secret_arn)
+            or environment not in {"sandbox", "production"}
+            or (
+                account_label is not None
+                and (
+                    not isinstance(account_label, str)
+                    or not account_label.strip()
+                    or len(account_label) > 160
+                )
+            )
+        ):
+            raise ValueError(f"Plaid provider connection is invalid: {tool_id}")
+        return {
+            "id": tool_id,
+            "kind": "provider_api",
+            "provider": "plaid",
+            "authType": "plaid_link",
+            "secretArn": secret_arn,
+            "appSecretArn": app_secret_arn,
+            "environment": environment,
+            **(
+                {"accountLabel": account_label.strip()}
+                if account_label is not None else {}
+            ),
+        }
     client_secret_arn = runtime.get("oauthClientSecretArn")
     scopes = runtime.get("scopes")
     expected_scopes = _runtime().PROVIDER_SCOPES.get(provider)
@@ -38,6 +72,8 @@ def validated_provider_binding(tool_id: str, runtime: dict) -> dict:
     channel_access = runtime.get("channelAccess")
     resource_ids = runtime.get("resourceIds")
     account_label = runtime.get("accountLabel")
+    realm_id = runtime.get("realmId")
+    environment = runtime.get("environment")
     if account_label is not None and (
         not isinstance(account_label, str)
         or not account_label.strip()
@@ -49,6 +85,12 @@ def validated_provider_binding(tool_id: str, runtime: dict) -> dict:
         or not _runtime().JIRA_SITE_ID_PATTERN.fullmatch(site_id)
     ):
         raise ValueError(f"Jira site identity is invalid: {tool_id}")
+    if provider == "quickbooks" and (
+        not isinstance(realm_id, str)
+        or not re.fullmatch(r"[0-9]{1,32}", realm_id)
+        or environment not in {"sandbox", "production"}
+    ):
+        raise ValueError(f"QuickBooks company binding is invalid: {tool_id}")
     if provider == "jira" and project_keys is not None and (
         not isinstance(project_keys, list)
         or not 1 <= len(project_keys) <= 100
@@ -99,6 +141,10 @@ def validated_provider_binding(tool_id: str, runtime: dict) -> dict:
         "secretArn": secret_arn,
         "oauthClientSecretArn": client_secret_arn,
         "scopes": scopes,
+        **(
+            {"realmId": realm_id, "environment": environment}
+            if provider == "quickbooks" else {}
+        ),
         **({"accountLabel": account_label.strip()} if account_label is not None else {}),
         **({"siteId": site_id} if provider == "jira" else {}),
         **(
@@ -111,4 +157,3 @@ def validated_provider_binding(tool_id: str, runtime: dict) -> dict:
         ),
         **({"resourceIds": resource_ids} if resource_ids is not None else {}),
     }
-

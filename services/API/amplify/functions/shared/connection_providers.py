@@ -396,6 +396,67 @@ CONNECTION_PROVIDER_SPECS = (
         "scopes": ["user:read:user", "meeting:read:list_meetings", "meeting:read:meeting"],
     },
     {
+        "id": "quickbooks",
+        "name": "QuickBooks Online",
+        "description": "Read company accounts, reports, invoices, bills, and vendors.",
+        "category": "Finance & accounting",
+        "iconText": "QB",
+        "permissionsSummary": "Read-only accounting access; no creating or changing records",
+        "privacyTitle": "Each QuickBooks company is assigned separately",
+        "privacyDescription": (
+            "HeyTim stores a per-company OAuth grant and exposes only reviewed, "
+            "read-only accounting tools. It cannot change your books or run payroll."
+        ),
+        "connectLabel": "Connect company",
+        "reconnectLabel": "Reconnect company",
+        "authType": "oauth",
+        "risk": "read",
+        "tags": ["private", "finance", "accounting", "quickbooks", "oauth"],
+        "actions": [
+            "Read financial reports",
+            "Read chart of accounts",
+            "Read invoices, bills, and vendors",
+        ],
+        "scopes": ["com.intuit.quickbooks.accounting"],
+        "familyId": "finance",
+        "familyName": "Finance",
+        "familyDescription": (
+            "Connect accounting companies and financial institutions, then assign "
+            "each connection only to the bots that need it."
+        ),
+        "familyIconText": "$",
+        "familyLogoProviderId": "quickbooks",
+        "serviceName": "Accounting company",
+    },
+    {
+        "id": "plaid",
+        "name": "Bank accounts via Plaid",
+        "description": "Read balances, transactions, and supported credit liabilities.",
+        "category": "Finance & accounting",
+        "iconText": "P",
+        "permissionsSummary": "Read-only accounts and transactions selected in Plaid Link",
+        "privacyTitle": "Bank credentials stay with Plaid",
+        "privacyDescription": (
+            "HeyTim never receives bank usernames or passwords. It stores a scoped "
+            "Plaid access token and exposes only reviewed, read-only finance tools."
+        ),
+        "connectLabel": "Connect institution",
+        "reconnectLabel": "Reconnect institution",
+        "authType": "plaid_link",
+        "risk": "read",
+        "tags": ["private", "finance", "banking", "plaid"],
+        "actions": ["Read account balances", "Read transactions", "Read supported liabilities"],
+        "familyId": "finance",
+        "familyName": "Finance",
+        "familyDescription": (
+            "Connect accounting companies and financial institutions, then assign "
+            "each connection only to the bots that need it."
+        ),
+        "familyIconText": "$",
+        "familyLogoProviderId": "quickbooks",
+        "serviceName": "Financial institution",
+    },
+    {
         "id": "x",
         "name": "X",
         "description": "Read your profile and account-visible posts with per-user OAuth.",

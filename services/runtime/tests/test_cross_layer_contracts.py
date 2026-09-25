@@ -177,6 +177,8 @@ def test_runtime_can_read_provider_configuration_but_rotate_only_user_grants() -
     assert any("secret:heytim/oauth/hubspot-*" in arn for arn in readable)
     assert any("secret:heytim/oauth/jira-*" in arn for arn in readable)
     assert any("secret:heytim/oauth/zoom-*" in arn for arn in readable)
+    assert any("secret:heytim/oauth/quickbooks-*" in arn for arn in readable)
+    assert any("secret:heytim/oauth/plaid-*" in arn for arn in readable)
     assert all("secret:frogbot/" not in arn for arn in readable)
 
     rotatable = statements["RotateHeyTimUserOAuthTokens"]["Resource"]

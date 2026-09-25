@@ -18,6 +18,10 @@ from .external_oauth import (
     _begin_slack_authorization,
     _begin_zoom_authorization,
 )
+from .finance_connections import (
+    _begin_plaid_authorization,
+    _begin_quickbooks_authorization,
+)
 from .github_oauth import _begin_github_authorization
 from .google_oauth import (
     _begin_gmail_authorization,
@@ -41,6 +45,8 @@ _AUTHORIZATION_HANDLERS: dict[str, AuthorizationHandler] = {
     "hubspot": _begin_hubspot_authorization,
     "jira": _begin_jira_authorization,
     "zoom": _begin_zoom_authorization,
+    "quickbooks": _begin_quickbooks_authorization,
+    "plaid": _begin_plaid_authorization,
     "x": _begin_x_authorization,
 }
 if frozenset(_AUTHORIZATION_HANDLERS) | {"home_assistant", "mcp_server"} != SUPPORTED_CONNECTION_PROVIDER_IDS:
