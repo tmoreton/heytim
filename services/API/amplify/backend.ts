@@ -272,6 +272,10 @@ const githubDeployRole = addGithubDeploymentRole({
   stack,
   enabled: true,
   legacyTokenVaultKmsKeyArn,
+  nativePushApplicationArns: [
+    nativePushApplications.production,
+    nativePushApplications.sandbox,
+  ],
   nativePushFeedbackRoleArn: nativePushFeedbackRole?.roleArn,
 });
 

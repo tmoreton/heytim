@@ -151,6 +151,10 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn(
             "NOTION_OAUTH_SECRET_ARN APNS_APPLICATION_ARN", self.production_workflow
         )
+        self.assertIn("nativePushApplicationArns", self.backend)
+        self.assertIn("nativePushApplicationArns", self.deployment_role)
+        self.assertIn("resources: nativePushApplications", self.deployment_role)
+        self.assertNotIn("resourceName: 'HeyTim'", self.deployment_role)
 
     def test_production_data_is_isolated_and_protected(self) -> None:
         self.assertIn("heytim-production-user-files", self.backend)

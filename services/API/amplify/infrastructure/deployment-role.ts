@@ -11,6 +11,7 @@ type DeploymentRoleResources = {
   stack: Stack;
   enabled: boolean;
   legacyTokenVaultKmsKeyArn?: string;
+  nativePushApplicationArns?: string[];
   nativePushFeedbackRoleArn?: string;
 };
 
@@ -18,6 +19,7 @@ export function addGithubDeploymentRole({
   stack,
   enabled,
   legacyTokenVaultKmsKeyArn,
+  nativePushApplicationArns = [],
   nativePushFeedbackRoleArn,
 }: DeploymentRoleResources) {
   if (!enabled) return undefined;
@@ -326,15 +328,13 @@ export function addGithubDeploymentRole({
     actions: ['cloudwatch:DescribeAlarms'],
     resources: ['*'],
   }));
-  role.addToPolicy(new PolicyStatement({
-    actions: ['sns:SetPlatformApplicationAttributes', 'sns:GetPlatformApplicationAttributes'],
-    resources: [stack.formatArn({
-      service: 'sns',
-      resource: 'app/APNS*',
-      resourceName: 'HeyTim',
-      arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
-    })],
-  }));
+  const nativePushApplications = [...new Set(nativePushApplicationArns.filter(Boolean))];
+  if (nativePushApplications.length) {
+    role.addToPolicy(new PolicyStatement({
+      actions: ['sns:SetPlatformApplicationAttributes', 'sns:GetPlatformApplicationAttributes'],
+      resources: nativePushApplications,
+    }));
+  }
   if (nativePushFeedbackRoleArn) {
     role.addToPolicy(new PolicyStatement({
       actions: ['iam:PassRole'],
