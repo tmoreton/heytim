@@ -88,11 +88,10 @@ test('runtime roles can use the configured memory encryption key', async () => {
     })
   );
   const serializedStatements = JSON.stringify(statements);
-  for (const namespace of ['heytim', 'frogbot']) {
-    for (const provider of ['google', 'github', 'x', 'slack', 'microsoft', 'notion', 'hubspot', 'jira', 'zoom']) {
-      expect(serializedStatements).toContain(`secret:${namespace}/oauth/${provider}-*`);
-    }
+  for (const provider of ['google', 'github', 'x', 'slack', 'microsoft', 'notion', 'hubspot', 'jira', 'zoom']) {
+    expect(serializedStatements).toContain(`secret:heytim/oauth/${provider}-*`);
   }
+  expect(serializedStatements).not.toContain('secret:frogbot/');
 });
 
 test('target bindings isolate production storage and memory encryption', () => {
@@ -105,7 +104,7 @@ test('target bindings isolate production storage and memory encryption', () => {
         additionalPolicies: ['attachments-policy.json'],
       },
     ],
-    memories: [{ name: 'FrogBotMemory', encryptionKeyArn: 'development-key' }],
+    memories: [{ name: 'HeyTimMemory', encryptionKeyArn: 'development-key' }],
   } as unknown as Parameters<typeof bindSpecToTarget>[0];
   const target = { name: 'production', account: '123456789012', region: 'us-east-1' } as const;
   const bound = bindSpecToTarget(source, target, 'arn:aws:kms:us-east-1:123456789012:key/key-id', true) as unknown as {
@@ -116,10 +115,10 @@ test('target bindings isolate production storage and memory encryption', () => {
 
   expect(bound.name).toBe('testprojectProduction');
   expect((source as unknown as { name: string }).name).toBe('testproject');
-  expect(filesBucketName(target)).toBe('frogbot-production-user-files-123456789012-us-east-1');
+  expect(filesBucketName(target)).toBe('heytim-production-user-files-123456789012-us-east-1');
   expect(bound.runtimes[0].envVars).toContainEqual({
     name: 'HEYTIM_FILES_BUCKET',
-    value: 'frogbot-production-user-files-123456789012-us-east-1',
+    value: 'heytim-production-user-files-123456789012-us-east-1',
   });
   expect(bound.runtimes[0].additionalPolicies).toEqual([]);
   expect(bound.memories[0].encryptionKeyArn).toContain(':123456789012:key/');
@@ -257,9 +256,7 @@ test('authoritative AgentCore config preserves the runtime wiring contract', asy
     credentials: Array<{ name: string }>;
     agentCoreGateways: Array<{ name: string; authorizerType: string; targets: Array<{ connectorId: string }> }>;
   };
-  // The deployed runtime identity remains stable while its implementation and
-  // environment contract use HeyTim names.
-  const runtime = actual.runtimes.find(item => item.name === 'FrogBot');
+  const runtime = actual.runtimes.find(item => item.name === 'HeyTim');
 
   expect(runtime).toMatchObject({
     build: 'CodeZip',
@@ -282,10 +279,10 @@ test('authoritative AgentCore config preserves the runtime wiring contract', asy
     name: 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
     value: 'NO_CONTENT',
   });
-  expect(actual.credentials.map(item => item.name)).toEqual(['FrogBot_OpenRouter', 'FrogBotXApi', 'FrogBotYouTubeApi']);
+  expect(actual.credentials.map(item => item.name)).toEqual(['HeyTim_OpenRouter', 'HeyTimXApi', 'HeyTimYouTubeApi']);
   expect(actual.memories).toContainEqual(
     expect.objectContaining({
-      name: 'FrogBotMemory',
+      name: 'HeyTimMemory',
       strategies: expect.arrayContaining([
         expect.objectContaining({ namespaceTemplates: ['/facts/{actorId}/'] }),
         expect.objectContaining({ namespaceTemplates: ['/summaries/{actorId}/{sessionId}/'] }),
@@ -295,7 +292,7 @@ test('authoritative AgentCore config preserves the runtime wiring contract', asy
   );
   expect(actual.agentCoreGateways).toContainEqual(
     expect.objectContaining({
-      name: 'FrogBotTools',
+      name: 'HeyTimTools',
       authorizerType: 'AWS_IAM',
       targets: [expect.objectContaining({ connectorId: 'web-search' })],
     })

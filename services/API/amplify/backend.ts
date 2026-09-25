@@ -136,8 +136,8 @@ const dataKey = new Key(stack, 'DataKey', {
   removalPolicy: RemovalPolicy.RETAIN,
 });
 const filesKeyAlias = deploymentEnvironment === 'production'
-  ? 'alias/frogbot-production-user-files'
-  : 'alias/frogbot-user-files';
+  ? 'alias/heytim-production-user-files'
+  : 'alias/heytim-user-files';
 dataKey.addAlias(filesKeyAlias);
 
 const table = new Table(stack, 'Data', {
@@ -152,11 +152,13 @@ const table = new Table(stack, 'Data', {
   encryptionKey: dataKey,
 });
 
-const filesBucketPrefix = deploymentEnvironment === 'production'
+const legacyFilesBucketPrefix = deploymentEnvironment === 'production'
   ? 'frogbot-production-user-files'
   : 'frogbot-user-files';
-const filesBucket = new Bucket(stack, 'UserFiles', {
-  bucketName: `${filesBucketPrefix}-${stack.account}-${stack.region}`,
+const heytimFilesBucketPrefix = deploymentEnvironment === 'production'
+  ? 'heytim-production-user-files'
+  : 'heytim-user-files';
+const filesBucketProperties = {
   blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
   encryption: BucketEncryption.KMS,
   encryptionKey: dataKey,
@@ -179,7 +181,18 @@ const filesBucket = new Bucket(stack, 'UserFiles', {
     },
   ],
   removalPolicy: RemovalPolicy.RETAIN,
+};
+const legacyFilesBucket = new Bucket(stack, 'UserFiles', {
+  ...filesBucketProperties,
+  bucketName: `${legacyFilesBucketPrefix}-${stack.account}-${stack.region}`,
 });
+const heytimFilesBucket = new Bucket(stack, 'HeyTimUserFiles', {
+  ...filesBucketProperties,
+  bucketName: `${heytimFilesBucketPrefix}-${stack.account}-${stack.region}`,
+});
+// Keep the retained legacy bucket in the stack for rollback, but route all new
+// application reads and writes through the verified HeyTim copy.
+const filesBucket = heytimFilesBucket;
 
 const logsKey = new Key(stack, 'LogsKey', {
   description: 'Encrypts HeyTim application and audit logs.',
@@ -293,7 +306,7 @@ const auditTrail = new Trail(stack, 'AuditTrail', {
     ? { cloudWatchLogGroup: auditLogGroup }
     : { cloudWatchLogsRetention: RetentionDays.ONE_MONTH }),
 });
-auditTrail.addS3EventSelector([{ bucket: filesBucket }], {
+auditTrail.addS3EventSelector([{ bucket: legacyFilesBucket }, { bucket: heytimFilesBucket }], {
   readWriteType: ReadWriteType.ALL,
 });
 
@@ -443,12 +456,6 @@ const connectionSecretsArn = stack.formatArn({
   resourceName: 'heytim/connections/*',
   arnFormat: ArnFormat.COLON_RESOURCE_NAME,
 });
-const legacyConnectionSecretsArn = stack.formatArn({
-  service: 'secretsmanager',
-  resource: 'secret',
-  resourceName: 'frogbot/connections/*',
-  arnFormat: ArnFormat.COLON_RESOURCE_NAME,
-});
 apiFunction.addToRolePolicy(
   new PolicyStatement({
     actions: [
@@ -458,13 +465,13 @@ apiFunction.addToRolePolicy(
       'secretsmanager:DeleteSecret',
       'secretsmanager:TagResource',
     ],
-    resources: [connectionSecretsArn, legacyConnectionSecretsArn],
+    resources: [connectionSecretsArn],
   }),
 );
 workerFunction.addToRolePolicy(
   new PolicyStatement({
     actions: ['secretsmanager:GetSecretValue', 'secretsmanager:DeleteSecret'],
-    resources: [connectionSecretsArn, legacyConnectionSecretsArn],
+    resources: [connectionSecretsArn],
   }),
 );
 jobs.grantSendMessages(apiFunction);

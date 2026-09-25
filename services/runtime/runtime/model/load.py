@@ -34,7 +34,7 @@ OPENROUTER_BASE_URL = os.environ.get(
 )
 OPENROUTER_CREDENTIAL_PROVIDER = os.environ.get(
     "HEYTIM_OPENROUTER_CREDENTIAL_PROVIDER",
-    "FrogBot_OpenRouter",
+    "HeyTim_OpenRouter",
 )
 SUPPORTED_REASONING_EFFORTS = {"low", "high", "max"}
 PRIMARY_RESPONSE_TIMEOUT_SECONDS = int(

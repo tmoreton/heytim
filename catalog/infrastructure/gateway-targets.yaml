@@ -14,7 +14,7 @@ Parameters:
     Description: Existing HeyTim AgentCore Gateway execution role name.
   SchemaBucketName:
     Type: String
-    Default: bedrock-agentcore-gateway-frogbot-188757775631-use1
+    Default: bedrock-agentcore-gateway-heytim-188757775631-use1
     AllowedPattern: '[a-z0-9.-]{3,63}'
     Description: Private bucket containing immutable schema release objects.
   Release:
@@ -24,20 +24,20 @@ Parameters:
     Description: HeyTim Skills release containing the deployed schemas.
   XCredentialProviderName:
     Type: String
-    Default: FrogBotXApi
+    Default: HeyTimXApi
     AllowedPattern: '[a-zA-Z0-9\-_]+'
   YouTubeCredentialProviderName:
     Type: String
-    Default: FrogBotYouTubeApi
+    Default: HeyTimYouTubeApi
     AllowedPattern: '[a-zA-Z0-9\-_]+'
   XCredentialSecretArn:
     Type: String
     AllowedPattern: '^arn:[^:]+:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:bedrock-agentcore-identity![A-Za-z0-9/_+=.@-]+$'
-    Description: Exact managed Secrets Manager ARN returned for FrogBotXApi.
+    Description: Exact managed Secrets Manager ARN returned for HeyTimXApi.
   YouTubeCredentialSecretArn:
     Type: String
     AllowedPattern: '^arn:[^:]+:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:bedrock-agentcore-identity![A-Za-z0-9/_+=.@-]+$'
-    Description: Exact managed Secrets Manager ARN returned for FrogBotYouTubeApi.
+    Description: Exact managed Secrets Manager ARN returned for HeyTimYouTubeApi.
 
 Resources:
   GatewaySchemaAccessPolicy:

@@ -1,15 +1,15 @@
 {
   "$schema": "https://schema.agentcore.aws.dev/v1/agentcore.json",
-  "name": "FrogBot",
+  "name": "HeyTim",
   "version": 1,
   "managedBy": "CDK",
   "tags": {
     "agentcore:created-by": "agentcore-cli",
-    "agentcore:project-name": "FrogBot"
+    "agentcore:project-name": "HeyTim"
   },
   "runtimes": [
     {
-      "name": "FrogBot",
+      "name": "HeyTim",
       "description": "Strands harness multi-personality chat runtime for the HeyTim app",
       "build": "CodeZip",
       "entrypoint": "main.py",
@@ -24,7 +24,7 @@
       "envVars": [
         {
           "name": "HEYTIM_FILES_BUCKET",
-          "value": "frogbot-user-files-188757775631-us-east-1"
+          "value": "heytim-user-files-188757775631-us-east-1"
         },
         {
           "name": "HEYTIM_POINTS_SCREENSHOT_DOMAINS",
@@ -72,7 +72,7 @@
         },
         {
           "name": "HEYTIM_OPENROUTER_CREDENTIAL_PROVIDER",
-          "value": "FrogBot_OpenRouter"
+          "value": "HeyTim_OpenRouter"
         },
         {
           "name": "HEYTIM_PRIMARY_RESPONSE_TIMEOUT_SECONDS",
@@ -124,27 +124,27 @@
   ],
   "memories": [
     {
-      "name": "FrogBotMemory",
+      "name": "HeyTimMemory",
       "eventExpiryDuration": 30,
       "encryptionKeyArn": "arn:aws:kms:us-east-1:188757775631:key/e9929d3a-9dec-4f34-8c83-dd0586cb0ef8",
       "strategies": [
         {
           "type": "SEMANTIC",
-          "name": "FrogBotFacts",
+          "name": "HeyTimFacts",
           "namespaceTemplates": [
             "/facts/{actorId}/"
           ]
         },
         {
           "type": "SUMMARIZATION",
-          "name": "FrogBotSummaries",
+          "name": "HeyTimSummaries",
           "namespaceTemplates": [
             "/summaries/{actorId}/{sessionId}/"
           ]
         },
         {
           "type": "USER_PREFERENCE",
-          "name": "FrogBotPreferences",
+          "name": "HeyTimPreferences",
           "namespaceTemplates": [
             "/preferences/{actorId}/"
           ]
@@ -156,20 +156,20 @@
   "credentials": [
     {
       "authorizerType": "ApiKeyCredentialProvider",
-      "name": "FrogBot_OpenRouter"
+      "name": "HeyTim_OpenRouter"
     },
     {
       "authorizerType": "ApiKeyCredentialProvider",
-      "name": "FrogBotXApi"
+      "name": "HeyTimXApi"
     },
     {
       "authorizerType": "ApiKeyCredentialProvider",
-      "name": "FrogBotYouTubeApi"
+      "name": "HeyTimYouTubeApi"
     }
   ],
   "evaluators": [
     {
-      "name": "FrogBotRunIntegrity",
+      "name": "HeyTimRunIntegrity",
       "level": "SESSION",
       "description": "Deterministically detects terminal failures without capturing conversation content",
       "config": {
@@ -185,10 +185,10 @@
   ],
   "onlineEvalConfigs": [
     {
-      "name": "FrogBotContinuousQuality",
-      "agent": "FrogBot",
+      "name": "HeyTimContinuousQuality",
+      "agent": "HeyTim",
       "evaluators": [
-        "FrogBotRunIntegrity"
+        "HeyTimRunIntegrity"
       ],
       "samplingRate": 5,
       "description": "Samples deployed sessions for structural completion failures",
@@ -197,12 +197,12 @@
   ],
   "agentCoreGateways": [
     {
-      "name": "FrogBotTools",
+      "name": "HeyTimTools",
       "protocolType": "MCP",
       "description": "Read-only research tools available to HeyTim agents",
       "targets": [
         {
-          "name": "FrogBotWebSearch",
+          "name": "HeyTimWebSearch",
           "targetType": "connector",
           "connectorId": "web-search"
         }
@@ -218,7 +218,7 @@
   "harnesses": [],
   "datasets": [
     {
-      "name": "FrogBotRegression",
+      "name": "HeyTimRegression",
       "schemaType": "AGENTCORE_EVALUATION_PREDEFINED_V1",
       "description": "Critical behavior checks for research, browser, image, bot management, and failover",
       "config": {

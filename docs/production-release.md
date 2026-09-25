@@ -5,8 +5,8 @@ The configured AWS account, third-party approvals, monitored alert destination, 
 deployment are external release inputs. The **Deploy HeyTim production release** workflow fails closed until
 they are present. Production temporarily shares management account `188757775631` with development while the dedicated
 member account's Lambda quota increase is pending; target-scoped stacks, KMS keys, storage, and secrets remain separate.
-AgentCore resources use the legacy `FrogBotProduction` physical project namespace in this temporary shared-account posture;
-the platform API-key credential providers remain account-scoped.
+AgentCore resources use the target-scoped `HeyTimProduction` physical project namespace in this temporary shared-account
+posture; the platform API-key credential providers remain account-scoped.
 
 ## One-time production bootstrap
 

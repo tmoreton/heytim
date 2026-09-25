@@ -73,9 +73,9 @@ jobs:
           HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT: ${{ vars.HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT }}
           HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT: ${{ vars.HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT }}
           HEYTIM_MONTHLY_BUDGET_USD: ${{ vars.HEYTIM_MONTHLY_BUDGET_USD }}
-          AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
-          AGENTCORE_CREDENTIAL_FROGBOTXAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTXAPI }}
-          AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI }}
+          AGENTCORE_CREDENTIAL_HEYTIM_OPENROUTER: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
+          AGENTCORE_CREDENTIAL_HEYTIMXAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTXAPI }}
+          AGENTCORE_CREDENTIAL_HEYTIMYOUTUBEAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI }}
           GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_GOOGLE_OAUTH_SECRET_ARN }}
           GITHUB_APP_SECRET_ARN: ${{ secrets.HEYTIM_GITHUB_APP_SECRET_ARN }}
           X_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_X_OAUTH_SECRET_ARN }}
@@ -114,8 +114,8 @@ jobs:
             AWS_DEPLOY_ROLE_ARN AMPLIFY_APP_ID
             HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN
             HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT HEYTIM_MONTHLY_BUDGET_USD
-            AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER
-            AGENTCORE_CREDENTIAL_FROGBOTXAPI AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI
+            AGENTCORE_CREDENTIAL_HEYTIM_OPENROUTER
+            AGENTCORE_CREDENTIAL_HEYTIMXAPI AGENTCORE_CREDENTIAL_HEYTIMYOUTUBEAPI
             GOOGLE_OAUTH_SECRET_ARN GITHUB_APP_SECRET_ARN X_OAUTH_SECRET_ARN
             SLACK_OAUTH_SECRET_ARN NOTION_OAUTH_SECRET_ARN APNS_APPLICATION_ARN
           )
@@ -299,15 +299,15 @@ jobs:
           HEYTIM_ENVIRONMENT: production
           HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN }}
           HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT: ${{ vars.HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT }}
-          AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
-          AGENTCORE_CREDENTIAL_FROGBOTXAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTXAPI }}
-          AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI }}
+          AGENTCORE_CREDENTIAL_HEYTIM_OPENROUTER: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
+          AGENTCORE_CREDENTIAL_HEYTIMXAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTXAPI }}
+          AGENTCORE_CREDENTIAL_HEYTIMYOUTUBEAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI }}
         run: |
           umask 077
           {
-            printf 'AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER=%s\n' "$AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER"
-            printf 'AGENTCORE_CREDENTIAL_FROGBOTXAPI=%s\n' "$AGENTCORE_CREDENTIAL_FROGBOTXAPI"
-            printf 'AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI=%s\n' "$AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI"
+            printf 'AGENTCORE_CREDENTIAL_HEYTIM_OPENROUTER=%s\n' "$AGENTCORE_CREDENTIAL_HEYTIM_OPENROUTER"
+            printf 'AGENTCORE_CREDENTIAL_HEYTIMXAPI=%s\n' "$AGENTCORE_CREDENTIAL_HEYTIMXAPI"
+            printf 'AGENTCORE_CREDENTIAL_HEYTIMYOUTUBEAPI=%s\n' "$AGENTCORE_CREDENTIAL_HEYTIMYOUTUBEAPI"
           } > agentcore/.env.local
           trap 'rm -f agentcore/.env.local' EXIT
           agentcore deploy --target production --yes
@@ -316,11 +316,11 @@ jobs:
         run: |
           agentcore status --target production --json > /tmp/heytim-production-status.json
           target='.deployedState.targets.production.resources'
-          runtime_arn="$(jq -r "$target.runtimes.FrogBot.runtimeArn // empty" /tmp/heytim-production-status.json)"
-          memory_arn="$(jq -r "$target.memories.FrogBotMemory.memoryArn // empty" /tmp/heytim-production-status.json)"
-          gateway_arn="$(jq -r "$target.mcp.gateways.FrogBotTools.gatewayArn // empty" /tmp/heytim-production-status.json)"
-          gateway_id="$(jq -r "$target.mcp.gateways.FrogBotTools.gatewayId // empty" /tmp/heytim-production-status.json)"
-          gateway_url="$(jq -r "$target.mcp.gateways.FrogBotTools.gatewayUrl // empty" /tmp/heytim-production-status.json)"
+          runtime_arn="$(jq -r "$target.runtimes.HeyTim.runtimeArn // empty" /tmp/heytim-production-status.json)"
+          memory_arn="$(jq -r "$target.memories.HeyTimMemory.memoryArn // empty" /tmp/heytim-production-status.json)"
+          gateway_arn="$(jq -r "$target.mcp.gateways.HeyTimTools.gatewayArn // empty" /tmp/heytim-production-status.json)"
+          gateway_id="$(jq -r "$target.mcp.gateways.HeyTimTools.gatewayId // empty" /tmp/heytim-production-status.json)"
+          gateway_url="$(jq -r "$target.mcp.gateways.HeyTimTools.gatewayUrl // empty" /tmp/heytim-production-status.json)"
           if [[ "$runtime_arn" != arn:aws:bedrock-agentcore:* ]] \
             || [[ "$memory_arn" != arn:aws:bedrock-agentcore:* ]] \
             || [[ "$gateway_arn" != arn:aws:bedrock-agentcore:* ]] \
@@ -412,7 +412,7 @@ jobs:
           outputs='../API/amplify_outputs.json'
           config='../../agentcore/agentcore.json'
           bucket="$(jq -r '.custom.filesBucketName // empty' "$outputs")"
-          prefix="$(jq -r '.runtimes[] | select(.name == "FrogBot") | .envVars[] | select(.name == "HEYTIM_MEME_TEMPLATE_PREFIX") | .value' "$config")"
+          prefix="$(jq -r '.runtimes[] | select(.name == "HeyTim") | .envVars[] | select(.name == "HEYTIM_MEME_TEMPLATE_PREFIX") | .value' "$config")"
           if [[ -z "$bucket" || -z "$prefix" ]]; then
             echo 'Production meme-template storage configuration is missing.' >&2
             exit 1

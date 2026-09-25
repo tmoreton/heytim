@@ -29,9 +29,9 @@ operator-controlled secret storage and are passed to the deployment process as e
 
 Create these environment secrets once under the GitHub `production` environment:
 
-- `AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER`
-- `AGENTCORE_CREDENTIAL_FROGBOTXAPI`
-- `AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI`
+- `AGENTCORE_CREDENTIAL_HEYTIM_OPENROUTER`
+- `AGENTCORE_CREDENTIAL_HEYTIMXAPI`
+- `AGENTCORE_CREDENTIAL_HEYTIMYOUTUBEAPI`
 
 To rotate a provider key, replace that GitHub environment secret and rerun **Deploy HeyTim production
 release**. The AgentCore CLI updates the existing credential provider by name, so never rename a
@@ -41,14 +41,14 @@ AgentCore credential providers are scoped to an account and Region rather than t
 production posture uses the dedicated member account so stable provider names have independent values. During the
 temporary management-account deployment, set `HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT=true`; without that exact
 opt-in, `scripts/check-production-config.mjs`, CDK synthesis, and the release workflow reject development-account
-reuse. The shared-account binding uses the legacy `FrogBotProduction` physical AgentCore project namespace, while production
+reuse. The shared-account binding uses the `HeyTimProduction` physical AgentCore project namespace, while production
 storage, KMS keys, stacks, and application resources remain target-scoped. The three platform API-key credential
 providers remain account-scoped and are therefore shared until production returns to the member account.
 
 The recurring GitHub deployment role can read the existing default token vault and create or rotate only
 these three named providers. It deliberately cannot create the vault encryption key or call
 `SetTokenVaultCMK`. In a new account or Region, perform that one-time bootstrap with a separate reviewed
-principal whose KMS create/tag permissions require the legacy `agentcore:project=FrogBot` request tag, then
+principal whose KMS create/tag permissions require the `agentcore:project=HeyTim` request tag, then
 remove that bootstrap access before enabling routine deployments.
 
 ## Package boundary

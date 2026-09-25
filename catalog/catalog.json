@@ -112,7 +112,7 @@
       "author": "HeyTim",
       "tags": ["social", "search"],
       "actions": ["Search recent public posts"],
-      "credential": "FrogBotXApi",
+      "credential": "HeyTimXApi",
       "schemaPath": "tools/x/openapi.yaml",
       "runtime": { "kind": "gateway", "operations": ["x_search_recent"] },
       "enabled": false,
@@ -128,7 +128,7 @@
       "author": "HeyTim",
       "tags": ["video", "comments"],
       "actions": ["Find videos", "Read video details", "Review comments"],
-      "credential": "FrogBotYouTubeApi",
+      "credential": "HeyTimYouTubeApi",
       "schemaPath": "tools/youtube/openapi.yaml",
       "runtime": {
         "kind": "gateway",

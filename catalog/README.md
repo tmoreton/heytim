@@ -88,7 +88,7 @@ The shared-credential X and YouTube Gateway targets are legacy infrastructure. T
 Before deploying that template, retrieve each provider's managed secret ARN with
 `aws bedrock-agentcore-control get-api-key-credential-provider --name <provider-name> --query 'apiKeySecretArn.secretArn' --output text`
 and pass the exact values as `XCredentialSecretArn` and `YouTubeCredentialSecretArn`. The template scopes the gateway role to
-those two provider and secret ARNs plus the deployed `HeyTim-FrogBotTools` workload identity; do not replace them with
+those two provider and secret ARNs plus the deployed `HeyTim-HeyTimTools` workload identity; do not replace them with
 account-wide wildcards.
 
 The deployment script still maintains the historical targets for compatibility, but no current bot or skill

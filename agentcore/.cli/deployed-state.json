@@ -48,66 +48,66 @@
     "production": {
       "resources": {
         "runtimes": {
-          "FrogBot": {
-            "runtimeId": "FrogBotProduction_FrogBot-WAhqXM7v63",
-            "runtimeArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:runtime/FrogBotProduction_FrogBot-WAhqXM7v63",
-            "roleArn": "arn:aws:iam::188757775631:role/AgentCore-FrogBot-product-ApplicationAgentFrogBotRu-LOPNlHLGBMwK"
+          "HeyTim": {
+            "runtimeId": "HeyTimProduction_HeyTim-so5Mx1Cy33",
+            "runtimeArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:runtime/HeyTimProduction_HeyTim-so5Mx1Cy33",
+            "roleArn": "arn:aws:iam::188757775631:role/AgentCore-HeyTim-producti-ApplicationAgentHeyTimRun-chD7B6tbgMyp"
           }
         },
         "memories": {
-          "FrogBotMemory": {
-            "memoryId": "FrogBotProduction_FrogBotMemory-FWrlGD61iY",
-            "memoryArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:memory/FrogBotProduction_FrogBotMemory-FWrlGD61iY"
+          "HeyTimMemory": {
+            "memoryId": "HeyTimProduction_HeyTimMemory-xeQPMmBQGC",
+            "memoryArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:memory/HeyTimProduction_HeyTimMemory-xeQPMmBQGC"
           }
         },
         "mcp": {
           "gateways": {
-            "FrogBotTools": {
-              "gatewayId": "frogbotproduction-frogbottools-psxeb1nzdt",
-              "gatewayArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:gateway/frogbotproduction-frogbottools-psxeb1nzdt",
-              "gatewayUrl": "https://frogbotproduction-frogbottools-psxeb1nzdt.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp",
+            "HeyTimTools": {
+              "gatewayId": "heytimproduction-heytimtools-hjebsguzzp",
+              "gatewayArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:gateway/heytimproduction-heytimtools-hjebsguzzp",
+              "gatewayUrl": "https://heytimproduction-heytimtools-hjebsguzzp.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp",
               "targets": {
-                "FrogBotWebSearch": {
-                  "targetId": "EBUPN4D6CF"
+                "HeyTimWebSearch": {
+                  "targetId": "RYVMVVLOXQ"
                 }
               }
             }
           }
         },
         "credentials": {
-          "FrogBot_OpenRouter": {
-            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/FrogBot_OpenRouter"
+          "HeyTim_OpenRouter": {
+            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/HeyTim_OpenRouter"
           },
-          "FrogBotXApi": {
-            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/FrogBotXApi"
+          "HeyTimXApi": {
+            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/HeyTimXApi"
           },
-          "FrogBotYouTubeApi": {
-            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/FrogBotYouTubeApi"
+          "HeyTimYouTubeApi": {
+            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/HeyTimYouTubeApi"
           }
         },
         "evaluators": {
-          "FrogBotRunIntegrity": {
-            "evaluatorId": "FrogBotProduction_FrogBotRunIntegrity-DaMKIW3ywv",
-            "evaluatorArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:evaluator/FrogBotProduction_FrogBotRunIntegrity-DaMKIW3ywv"
+          "HeyTimRunIntegrity": {
+            "evaluatorId": "HeyTimProduction_HeyTimRunIntegrity-N7QXPF5Gc2",
+            "evaluatorArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:evaluator/HeyTimProduction_HeyTimRunIntegrity-N7QXPF5Gc2"
           }
         },
         "onlineEvalConfigs": {
-          "FrogBotContinuousQuality": {
-            "onlineEvaluationConfigId": "FrogBotProduction_FrogBotContinuousQuality-hIt7MtFymw",
-            "onlineEvaluationConfigArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:online-evaluation-config/FrogBotProduction_FrogBotContinuousQuality-hIt7MtFymw",
-            "agent": "FrogBot"
+          "HeyTimContinuousQuality": {
+            "onlineEvaluationConfigId": "HeyTimProduction_HeyTimContinuousQuality-j5dDtj9jfi",
+            "onlineEvaluationConfigArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:online-evaluation-config/HeyTimProduction_HeyTimContinuousQuality-j5dDtj9jfi",
+            "agent": "HeyTim"
           }
         },
         "datasets": {
-          "FrogBotRegression": {
-            "datasetId": "FrogBotProduction_FrogBotRegression-p0Q4wn5pPj",
-            "datasetArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:dataset/FrogBotProduction_FrogBotRegression-p0Q4wn5pPj",
-            "contentHash": "a0be71387e88f84e5091d3a9f66651d0694709b89a2d08a82f0226f80223b05a"
+          "HeyTimRegression": {
+            "datasetId": "HeyTimProduction_HeyTimRegression-c3WRAoF3Ku",
+            "datasetArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:dataset/HeyTimProduction_HeyTimRegression-c3WRAoF3Ku",
+            "contentHash": "6d75ceef16adb06c0c228ade88bc1c43b3668739e8a5965640546be34ded02ce"
           }
         },
-        "stackName": "AgentCore-FrogBot-production",
-        "identityKmsKeyArn": "arn:aws:kms:us-east-1:188757775631:key/bd5446e4-6d87-4b60-ba57-4a42e7808983",
-        "deployHash": "de251d46e72d54c7"
+        "stackName": "AgentCore-HeyTim-production",
+        "identityKmsKeyArn": "arn:aws:kms:us-east-1:188757775631:key/5995545e-2e7f-456d-acf4-fab558b3b330",
+        "deployHash": "ad0165ca40ee9035"
       }
     }
   }
