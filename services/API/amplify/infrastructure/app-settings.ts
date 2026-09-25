@@ -74,6 +74,14 @@ function optionalPlatformApplicationArn(name: string): string {
   return value;
 }
 
+function optionalKmsKeyArn(name: string): string {
+  const value = process.env[name]?.trim() ?? '';
+  if (value && !/^arn:aws[a-zA-Z-]*:kms:[a-z0-9-]+:\d{12}:key\/[0-9a-f-]{36}$/.test(value)) {
+    throw new Error(`${name} must be an AWS KMS key ARN.`);
+  }
+  return value;
+}
+
 export const monthlyRunUnitLimit = boundedIntegerSetting(
   'HEYTIM_MONTHLY_RUN_UNIT_LIMIT', 1_000, 1, 1_000_000,
 );
@@ -135,6 +143,9 @@ if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/.test(runtimeQualifier)) {
 }
 export const memoryId = requiredSetting('HEYTIM_MEMORY_ID');
 export const memoryKmsKeyArn = requiredSetting('HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN');
+export const legacyTokenVaultKmsKeyArn = optionalKmsKeyArn(
+  'HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN',
+);
 export const googleOAuthSecretArn = requiredSetting('HEYTIM_GOOGLE_OAUTH_SECRET_ARN');
 export const githubAppSecretArn = requiredSetting('HEYTIM_GITHUB_APP_SECRET_ARN');
 export const xOAuthSecretArn = requiredSetting('HEYTIM_X_OAUTH_SECRET_ARN');

@@ -10,12 +10,14 @@ import {
 type DeploymentRoleResources = {
   stack: Stack;
   enabled: boolean;
+  legacyTokenVaultKmsKeyArn?: string;
   nativePushFeedbackRoleArn?: string;
 };
 
 export function addGithubDeploymentRole({
   stack,
   enabled,
+  legacyTokenVaultKmsKeyArn,
   nativePushFeedbackRoleArn,
 }: DeploymentRoleResources) {
   if (!enabled) return undefined;
@@ -131,6 +133,36 @@ export function addGithubDeploymentRole({
       arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
     })],
   }));
+  if (legacyTokenVaultKmsKeyArn) {
+    // AgentCore has one account-wide token vault. Existing credentials remain
+    // encrypted with this explicitly configured pre-rename key until a
+    // separately reviewed key migration can rotate every credential provider.
+    role.addToPolicy(new PolicyStatement({
+      actions: ['kms:DescribeKey'],
+      resources: [legacyTokenVaultKmsKeyArn],
+      conditions: {
+        StringEquals: {
+          'aws:ResourceAccount': stack.account,
+        },
+      },
+    }));
+    role.addToPolicy(new PolicyStatement({
+      actions: [
+        'kms:Decrypt',
+        'kms:Encrypt',
+        'kms:GenerateDataKeyWithoutPlaintext',
+      ],
+      resources: [legacyTokenVaultKmsKeyArn],
+      conditions: {
+        StringEquals: {
+          'aws:ResourceAccount': stack.account,
+          'kms:ViaService': `bedrock-agentcore-identity.${stack.region}.amazonaws.com`,
+          'kms:EncryptionContext:aws-crypto-ec:aws:bedrock-agentcore-identity:token-vault-arn':
+            tokenVaultArn,
+        },
+      },
+    }));
+  }
   role.addToPolicy(new PolicyStatement({
     actions: ['bedrock-agentcore:GetTokenVault'],
     resources: [tokenVaultArn],
