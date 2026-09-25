@@ -454,7 +454,7 @@ extension View {
       if prominent {
         buttonStyle(.glassProminent).tint(tint).foregroundStyle(FrogTheme.brandInk)
       } else {
-        buttonStyle(.glass)
+        buttonStyle(.glass).tint(tint)
       }
     } else if prominent {
       buttonStyle(.borderedProminent).tint(tint).foregroundStyle(FrogTheme.brandInk)
