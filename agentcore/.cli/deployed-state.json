@@ -74,6 +74,17 @@
             }
           }
         },
+        "credentials": {
+          "HeyTim_OpenRouter": {
+            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/HeyTim_OpenRouter"
+          },
+          "HeyTimXApi": {
+            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/HeyTimXApi"
+          },
+          "HeyTimYouTubeApi": {
+            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/HeyTimYouTubeApi"
+          }
+        },
         "evaluators": {
           "HeyTimRunIntegrity": {
             "evaluatorId": "HeyTimProduction_HeyTimRunIntegrity-N7QXPF5Gc2",

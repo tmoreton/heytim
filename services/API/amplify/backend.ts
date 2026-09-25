@@ -190,9 +190,9 @@ const heytimFilesBucket = new Bucket(stack, 'HeyTimUserFiles', {
   ...filesBucketProperties,
   bucketName: `${heytimFilesBucketPrefix}-${stack.account}-${stack.region}`,
 });
-// Phase one provisions the HeyTim bucket alongside the live bucket. After the
-// versioned copy is verified, the cutover commit changes this binding only.
-const filesBucket = legacyFilesBucket;
+// Keep the retained legacy bucket in the stack for rollback, but route all new
+// application reads and writes through the verified HeyTim copy.
+const filesBucket = heytimFilesBucket;
 
 const logsKey = new Key(stack, 'LogsKey', {
   description: 'Encrypts HeyTim application and audit logs.',
