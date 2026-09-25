@@ -9,7 +9,7 @@ import shared.catalog_sync as sync_module
 import shared.connection_revocation as revocation_module
 import shared.connections as connections_module
 from catalog_test_fakes import FakeSecrets, FakeTable
-from shared.catalog import CatalogService
+from shared.catalog import CatalogError, CatalogService
 
 
 class FinanceCatalogTests(unittest.TestCase):
@@ -81,12 +81,41 @@ class FinanceCatalogTests(unittest.TestCase):
             "access-token",
             app_arn,
             "sandbox",
+            [
+                {
+                    "id": "account_checking_123",
+                    "name": "Checking",
+                    "mask": "1111",
+                    "type": "depository",
+                    "subtype": "checking",
+                },
+                {
+                    "id": "account_card_456",
+                    "name": "Business Card",
+                    "mask": "4242",
+                    "type": "credit",
+                    "subtype": "credit card",
+                },
+            ],
         )
         item = self.table.items[("USER#owner", f"CONNECTION#{saved['id']}")]
         credential_arn = item["secretArn"]
 
         self.assertNotIn("accessToken", saved)
         self.assertEqual(item["runtime"]["environment"], "sandbox")
+        self.assertEqual(saved["plaidAccounts"][1]["mask"], "4242")
+
+        access = self.catalog.validate_resource_access(
+            "owner", [saved["id"]], {saved["id"]: ["account_card_456"]}
+        )
+        runtime = self.catalog.resolve_tools_for_runtime(
+            "owner", [saved["id"]], resource_access=access
+        )[0]["runtime"]
+        self.assertEqual(runtime["accountIds"], ["account_card_456"])
+        with self.assertRaisesRegex(CatalogError, "connected Plaid institution"):
+            self.catalog.validate_resource_access(
+                "owner", [saved["id"]], {saved["id"]: ["account_unknown_999"]}
+            )
 
         with patch.object(connections_module.urllib.request, "urlopen") as urlopen:
             self.catalog.delete_connection("owner", saved["id"])

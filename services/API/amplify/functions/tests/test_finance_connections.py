@@ -230,7 +230,22 @@ class FinanceConnectionTests(unittest.TestCase):
                             {
                                 "public_token": "public-sandbox-token",
                                 "institution": {"name": "Plaid Bank"},
-                                "accounts": [{"name": "Checking"}, {"name": "Card"}],
+                                "accounts": [
+                                    {
+                                        "id": "account_checking_123",
+                                        "name": "Checking",
+                                        "mask": "1111",
+                                        "type": "depository",
+                                        "subtype": "checking",
+                                    },
+                                    {
+                                        "id": "account_card_456",
+                                        "name": "Business Card",
+                                        "mask": "4242",
+                                        "type": "credit",
+                                        "subtype": "credit card",
+                                    },
+                                ],
                             }
                         ]
                     }
@@ -261,6 +276,22 @@ class FinanceConnectionTests(unittest.TestCase):
             "access-sandbox-token",
             arn,
             "sandbox",
+            [
+                {
+                    "id": "account_checking_123",
+                    "name": "Checking",
+                    "mask": "1111",
+                    "type": "depository",
+                    "subtype": "checking",
+                },
+                {
+                    "id": "account_card_456",
+                    "name": "Business Card",
+                    "mask": "4242",
+                    "type": "credit",
+                    "subtype": "credit card",
+                },
+            ],
         )
 
 

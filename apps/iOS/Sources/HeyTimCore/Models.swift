@@ -540,6 +540,7 @@ public struct Capability: Codable, Identifiable, Hashable, Sendable {
   public var connectedAccount: String?
   public var endpoint: String? = nil
   public var repositories: [ConnectedRepository]?
+  public var plaidAccounts: [ConnectedPlaidAccount]?
   public var connectionStatus: String?
   public var relationship: String?
   public var updatedAt: String?
@@ -548,6 +549,19 @@ public struct Capability: Codable, Identifiable, Hashable, Sendable {
 public struct ConnectedRepository: Codable, Identifiable, Hashable, Sendable {
   public var id: Int
   public var name: String
+}
+
+public struct ConnectedPlaidAccount: Codable, Identifiable, Hashable, Sendable {
+  public var id: String
+  public var name: String
+  public var mask: String?
+  public var type: String
+  public var subtype: String?
+
+  public var displayName: String {
+    guard let mask, !mask.isEmpty else { return name }
+    return "\(name) · •••• \(mask)"
+  }
 }
 
 public struct ConnectionProvider: Codable, Identifiable, Hashable, Sendable {

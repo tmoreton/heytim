@@ -1426,6 +1426,9 @@ private struct ConversationInspector: View {
     draft.githubRepositoryAccess = draft.githubRepositoryAccess.filter {
       availableToolIDs.contains($0.key)
     }
+    draft.resourceAccess = draft.resourceAccess.filter {
+      availableToolIDs.contains($0.key)
+    }
     botDraft = draft
     loadedBotID = bot.id
   }

@@ -1104,6 +1104,9 @@ struct BotToolsAndSkillsEditor: View {
       if tool.provider == "github" && draft.toolIds.contains(tool.id) {
         githubRepositoryPicker(tool).padding(.leading, 40)
       }
+      if tool.provider == "plaid" && draft.toolIds.contains(tool.id) {
+        plaidAccountPicker(tool).padding(.leading, 40)
+      }
       if tool.provider == "jira" && draft.toolIds.contains(tool.id) {
         jiraProjectPicker(tool).padding(.leading, 40)
       }
@@ -1155,6 +1158,50 @@ struct BotToolsAndSkillsEditor: View {
       }
     } else {
       Text("Update this GitHub installation to choose individual repositories.")
+        .froggyFont(.caption)
+        .foregroundStyle(.secondary)
+    }
+  }
+
+  @ViewBuilder private func plaidAccountPicker(_ connection: Capability) -> some View {
+    if let accounts = connection.plaidAccounts, !accounts.isEmpty {
+      Toggle("All cards and accounts in this connection", isOn: Binding(
+        get: { draft.resourceAccess[connection.id] == nil },
+        set: { all in
+          if all {
+            draft.resourceAccess.removeValue(forKey: connection.id)
+          } else {
+            draft.resourceAccess[connection.id] = accounts.map(\.id)
+          }
+        }))
+      .accessibilityIdentifier("bot.plaid.all.\(connection.id)")
+      if draft.resourceAccess[connection.id] != nil {
+        ForEach(accounts) { account in
+          Toggle(account.displayName, isOn: Binding(
+            get: { draft.resourceAccess[connection.id]?.contains(account.id) == true },
+            set: { selected in
+              var ids = draft.resourceAccess[connection.id] ?? []
+              if selected {
+                if !ids.contains(account.id) { ids.append(account.id) }
+              } else {
+                ids.removeAll { $0 == account.id }
+              }
+              if !ids.isEmpty { draft.resourceAccess[connection.id] = ids }
+            }))
+          .accessibilityIdentifier("bot.plaid.account.\(account.id)")
+          .accessibilityValue(
+            draft.resourceAccess[connection.id]?.contains(account.id) == true
+              ? "Selected" : "Not selected")
+          .disabled(draft.resourceAccess[connection.id] == [account.id])
+        }
+        if let selected = draft.resourceAccess[connection.id] {
+          Text("\(selected.count) of \(accounts.count) cards and accounts selected")
+            .froggyFont(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+    } else {
+      Text("Reconnect this Plaid institution to choose individual cards or accounts.")
         .froggyFont(.caption)
         .foregroundStyle(.secondary)
     }
