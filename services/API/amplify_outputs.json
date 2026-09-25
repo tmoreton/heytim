@@ -33,6 +33,8 @@
   "custom": {
     "environment": "production",
     "apiUrl": "https://twrxzanvwg.execute-api.us-east-1.amazonaws.com",
+    "billingAvailable": true,
+    "stripeWebhookUrl": "https://twrxzanvwg.execute-api.us-east-1.amazonaws.com/public/webhooks/stripe",
     "shareBaseUrl": "https://heytim.ai/invite",
     "dataTableName": "amplify-d1tu46ki1836w1-main-branch-6ca713cbb2-FrogBotAppE7B48881-JFCXVU7AR8CZ-Data666C94C7-11QZBY5HST87M",
     "inviteTableName": "amplify-d1tu46ki1836w1-main-branch-6ca713cbb2-auth179371D7-1XFXVPVDVYJ2M-InviteAccess65794604-MMIJ330UTNUS",
