@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "npm run assets && vite --host 127.0.0.1",
     "assets": "node scripts/prepare-assets.mjs",
-    "build": "npm run assets && tsc --noEmit && vite build && node --import tsx scripts/prerender.tsx && node scripts/check-build.mjs",
+    "build": "npm run assets && tsc --noEmit && vite build && node --import tsx scripts/prerender.tsx && node scripts/stage-pages.mjs && node scripts/check-build.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test 'src/**/*.test.mjs'",
