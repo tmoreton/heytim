@@ -100,11 +100,62 @@ def test_search_threads_uses_gmail_syntax_and_returns_metadata(monkeypatch) -> N
 
     assert result["resultCountEstimate"] == 8
     assert result["threads"][0]["messages"][0]["subject"] == "Weekly points"
+    assert result["threads"][0]["messageCount"] == 1
+    assert result["threads"][0]["hasUnread"] is False
     assert calls[0][0] == "threads"
     assert calls[0][1]["query"]["q"] == "journey on points"
     assert calls[0][1]["query"]["maxResults"] == 8
     assert calls[1][0] == "threads/thread-1"
     assert calls[1][1]["query"]["format"] == "metadata"
+
+
+def test_search_threads_returns_only_the_latest_bounded_message(monkeypatch) -> None:
+    monkeypatch.setattr(gmail_api, "_google_access_token", lambda _binding: "token")
+    responses = iter(
+        [
+            {"threads": [{"id": "thread-1"}], "resultSizeEstimate": 1},
+            {
+                "id": "thread-1",
+                "messages": [
+                    {
+                        "id": "message-1",
+                        "labelIds": ["INBOX"],
+                        "snippet": "old",
+                        "payload": {"headers": [{"name": "Subject", "value": "Old"}]},
+                    },
+                    {
+                        "id": "message-2",
+                        "labelIds": ["INBOX", "UNREAD"],
+                        "snippet": "x" * 2_000,
+                        "payload": {
+                            "headers": [{"name": "Subject", "value": "Latest"}]
+                        },
+                    },
+                ],
+            },
+        ]
+    )
+    monkeypatch.setattr(
+        gmail_api, "_api_json", lambda *_args, **_kwargs: next(responses)
+    )
+
+    search = _tools()[_bounded_tool_name(CONNECTION_ID, "search_threads")]
+    result = json.loads(search("is:unread"))
+    thread = result["threads"][0]
+
+    assert thread["messageCount"] == 2
+    assert thread["hasUnread"] is True
+    assert thread["messagesTruncated"] is True
+    assert [message["id"] for message in thread["messages"]] == ["message-2"]
+    assert len(thread["messages"][0]["snippet"]) == 500
+
+
+def test_search_threads_caps_page_size(monkeypatch) -> None:
+    monkeypatch.setattr(gmail_api, "_google_access_token", lambda _binding: "token")
+    search = _tools()[_bounded_tool_name(CONNECTION_ID, "search_threads")]
+
+    with pytest.raises(ValueError, match="between 1 and 20"):
+        search("", 21)
 
 
 def test_get_thread_prefers_plain_text_and_strips_html(monkeypatch) -> None:

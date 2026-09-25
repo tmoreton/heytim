@@ -46,9 +46,21 @@ INCOMPLETE_TURN_MESSAGE = (
     "verified step."
 )
 PROVIDER_CALL_LIMIT_MESSAGE = (
-    "I stopped this run before it could exceed HeyTim's provider-call safety "
-    "limit. Start a new, narrower request to continue."
+    "I reached HeyTim's provider-call safety limit before I could finish. I kept "
+    "the verified progress from this run; send “continue” to resume without "
+    "repeating completed external actions."
 )
+
+
+def _provider_call_limit_in_chain(error: BaseException) -> bool:
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen and len(seen) < 8:
+        if isinstance(current, ProviderCallLimitExceeded):
+            return True
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return False
 
 
 async def run_agent(payload, context):
@@ -161,6 +173,16 @@ async def run_agent(payload, context):
                 "message": INCOMPLETE_TURN_MESSAGE,
             }
         except ProviderCallLimitExceeded:
+            terminal_error = {
+                "code": "PROVIDER_CALL_LIMIT",
+                "message": PROVIDER_CALL_LIMIT_MESSAGE,
+            }
+        except Exception as error:
+            # Strands wraps model exceptions in EventLoopException. Preserve the
+            # recoverable provider-limit outcome instead of surfacing a generic
+            # background-job failure.
+            if not _provider_call_limit_in_chain(error):
+                raise
             terminal_error = {
                 "code": "PROVIDER_CALL_LIMIT",
                 "message": PROVIDER_CALL_LIMIT_MESSAGE,

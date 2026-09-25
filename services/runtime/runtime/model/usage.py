@@ -29,6 +29,13 @@ IMAGE_OPERATIONS = {"generate_image", "create_youtube_thumbnail"}
 YOUTUBE_SEARCH_OPERATION = "youtube_search"
 YOUTUBE_SEARCH_MAX_CALLS = 3
 YOUTUBE_QUOTA_TIME_ZONE = ZoneInfo("America/Los_Angeles")
+MODEL_FINALIZATION_RESERVE = 3
+MODEL_FINALIZATION_INSTRUCTION = (
+    "This run is approaching its model-call safety limit. Do not call any more "
+    "tools. Finish now with the best concise answer supported by the results "
+    "already available. State any material limitation plainly, and do not promise "
+    "future work."
+)
 
 
 def _bounded_integer_environment(
@@ -56,7 +63,7 @@ class ProviderCallLimits:
 
 PROVIDER_CALL_LIMITS = ProviderCallLimits(
     model_calls=_bounded_integer_environment(
-        "HEYTIM_MAX_MODEL_CALLS_PER_RUNTIME_RUN", 24, 1, 100
+        "HEYTIM_MAX_MODEL_CALLS_PER_RUNTIME_RUN", 40, 1, 100
     ),
     provider_tool_calls=_bounded_integer_environment(
         "HEYTIM_MAX_PROVIDER_TOOL_CALLS_PER_RUNTIME_RUN", 24, 1, 100
@@ -81,7 +88,7 @@ def _nonnegative_int(value: Any) -> int:
 def _nonnegative_decimal(value: Any) -> Decimal | None:
     try:
         amount = Decimal(str(value))
-    except (InvalidOperation, TypeError, ValueError):
+    except InvalidOperation, TypeError, ValueError:
         return None
     if not amount.is_finite() or amount < 0:
         return None
@@ -133,21 +140,21 @@ class UsageAccumulator:
 
     @staticmethod
     def _youtube_quota_day() -> str:
-        return (
-            datetime.now(UTC)
-            .astimezone(YOUTUBE_QUOTA_TIME_ZONE)
-            .date()
-            .isoformat()
-        )
+        return datetime.now(UTC).astimezone(YOUTUBE_QUOTA_TIME_ZONE).date().isoformat()
 
-    def reserve_model(self, provider: str, model_id: str) -> None:
-        """Reserve one provider model dispatch before any network request."""
+    def reserve_model(self, provider: str, model_id: str) -> bool:
+        """Reserve a dispatch and report when the remaining calls are for finalization."""
         with self._lock:
             if self._model_dispatches >= self._limits.model_calls:
                 raise ProviderCallLimitExceeded(
                     "This run reached its model-call safety limit."
                 )
             self._model_dispatches += 1
+            finalization_start = max(
+                1,
+                self._limits.model_calls - MODEL_FINALIZATION_RESERVE + 1,
+            )
+            return self._model_dispatches >= finalization_start
 
     def observe(self, provider: str, model_id: str, event: StreamEvent) -> None:
         metadata = event.get("metadata")
@@ -174,9 +181,7 @@ class UsageAccumulator:
             for field in TOKEN_FIELDS:
                 model[field] += _nonnegative_int(usage.get(field))
 
-            provider_cost = _nonnegative_decimal(
-                metadata.get("heytimProviderCostUsd")
-            )
+            provider_cost = _nonnegative_decimal(metadata.get("heytimProviderCostUsd"))
             if provider_cost is not None:
                 model["providerCostUsd"] += provider_cost
                 model["hasProviderCost"] = True
@@ -212,12 +217,13 @@ class UsageAccumulator:
                     raise ProviderCallLimitExceeded(
                         "The YouTube search quota reservation has expired."
                     )
-                youtube_limit = min(
-                    lease_calls, self._limits.youtube_search_calls
-                )
+                youtube_limit = min(lease_calls, self._limits.youtube_search_calls)
                 youtube_calls = sum(
                     count
-                    for (tracked_provider, tracked_operation), count in self._tools.items()
+                    for (
+                        tracked_provider,
+                        tracked_operation,
+                    ), count in self._tools.items()
                     if tracked_provider == "youtube"
                     or (
                         tracked_provider == "agentcore-gateway"
@@ -358,7 +364,13 @@ class UsageTrackingModel(Model):
         cancel_signal: threading.Event | None = None,
         **kwargs: Any,
     ) -> AsyncIterable[StreamEvent]:
-        self.accumulator.reserve_model(self.provider, self.model_id)
+        finalize_now = self.accumulator.reserve_model(self.provider, self.model_id)
+        if finalize_now:
+            system_prompt = "\n\n".join(
+                part for part in (system_prompt, MODEL_FINALIZATION_INSTRUCTION) if part
+            )
+            tool_specs = []
+            tool_choice = None
         async for event in self.delegate.stream(
             messages,
             tool_specs,

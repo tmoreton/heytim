@@ -31,3 +31,16 @@ def test_runtime_failure_marker_contains_only_sanitized_json() -> None:
     rendered = json.dumps(logger.error.call_args.args)
     assert "HEYTIM_TERMINAL_ERROR" in rendered
     assert "secret-bearing" not in rendered
+
+
+def test_wrapped_provider_call_limit_is_classified() -> None:
+    class ProviderCallLimitExceeded(RuntimeError):
+        pass
+
+    wrapped = RuntimeError("event loop failed")
+    wrapped.__cause__ = ProviderCallLimitExceeded("model-call safety limit")
+
+    event = runtime_failure_event(wrapped)
+
+    assert event["category"] == "provider"
+    assert event["code"] == "PROVIDER_CALL_LIMIT"

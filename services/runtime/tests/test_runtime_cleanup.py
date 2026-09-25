@@ -181,3 +181,63 @@ def test_provider_call_limit_becomes_terminal_result_without_retry(monkeypatch):
     assert harness.call_args.kwargs["context_manager"] == "auto"
     assert harness.call_args.kwargs["session"] is False
     capabilities.close.assert_awaited_once()
+
+
+def test_wrapped_provider_call_limit_becomes_terminal_result(monkeypatch):
+    capabilities = SimpleNamespace(
+        close=AsyncMock(),
+        bot_mutations=SimpleNamespace(pending=[]),
+    )
+    config = BotConfiguration(
+        instructions="",
+        tools=[],
+        builtin_tools=[],
+        plugins=[],
+        builtin_plugins=[],
+        background_work=SimpleNamespace(pending=[]),
+        capability_configuration=capabilities,
+    )
+    monkeypatch.setattr(
+        runtime_main, "memory_context_from_payload", lambda _payload: None
+    )
+    monkeypatch.setattr(
+        runtime_main,
+        "messages_from_payload",
+        lambda _payload, _actor_id: [{"role": "user", "content": [{"text": "hello"}]}],
+    )
+    monkeypatch.setattr(runtime_main, "memory_stores", lambda _context: [])
+    monkeypatch.setattr(runtime_main, "bot_configuration", lambda *_args: config)
+    monkeypatch.setattr(runtime_main, "load_model", AsyncMock(return_value=object()))
+    monkeypatch.setattr(
+        runtime_main,
+        "create_harness",
+        MagicMock(return_value=SimpleNamespace(messages=[], memory_manager=None)),
+    )
+
+    async def wrapped_limit(*_args, **_kwargs):
+        if False:
+            yield {}
+        try:
+            raise ProviderCallLimitExceeded("model-call safety limit")
+        except ProviderCallLimitExceeded as cause:
+            raise RuntimeError("event loop failed") from cause
+
+    monkeypatch.setattr(runtime_main, "stream_with_token_recovery", wrapped_limit)
+
+    async def collect():
+        return [
+            event
+            async for event in runtime_main.run_agent(
+                {}, SimpleNamespace(session_id="session-1")
+            )
+        ]
+
+    events = asyncio.run(collect())
+
+    terminal = next(
+        event["heytimControl"]["terminalError"]
+        for event in events
+        if "terminalError" in event.get("heytimControl", {})
+    )
+    assert terminal["code"] == "PROVIDER_CALL_LIMIT"
+    capabilities.close.assert_awaited_once()

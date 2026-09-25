@@ -10,7 +10,11 @@ from pydantic import BaseModel
 from strands.models import Model
 
 from model import load as model_loader
-from model.usage import ProviderCallLimitExceeded, ProviderCallLimits
+from model.usage import (
+    MODEL_FINALIZATION_INSTRUCTION,
+    ProviderCallLimitExceeded,
+    ProviderCallLimits,
+)
 
 
 class FakeModel(Model):
@@ -411,6 +415,46 @@ def test_model_dispatch_limit_is_enforced_before_provider_call() -> None:
 
     assert delegate.calls == 1
     assert accumulator.snapshot()["totals"]["modelDispatchCount"] == 1
+
+
+def test_usage_tracker_reserves_final_calls_for_a_tool_free_answer() -> None:
+    accumulator = model_loader.UsageAccumulator(
+        ProviderCallLimits(
+            model_calls=6,
+            provider_tool_calls=10,
+            image_calls=2,
+        )
+    )
+    delegate = FakeModel("primary", [])
+    model = model_loader.UsageTrackingModel(
+        delegate,
+        accumulator,
+        provider="openrouter",
+        model_id="deepseek/deepseek-v4.1-flash",
+    )
+
+    async def call_with_tools():
+        return [
+            event
+            async for event in model.stream(
+                [],
+                [
+                    {
+                        "name": "gmail_search",
+                        "description": "search",
+                        "inputSchema": {"json": {}},
+                    }
+                ],
+                "base instructions",
+            )
+        ]
+
+    for _ in range(4):
+        asyncio.run(call_with_tools())
+
+    assert delegate.last_args is not None
+    assert delegate.last_args[1] == []
+    assert MODEL_FINALIZATION_INSTRUCTION in delegate.last_args[2]
 
 
 def test_openrouter_model_preserves_provider_cost_and_reasoning_tokens() -> None:
