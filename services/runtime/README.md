@@ -67,7 +67,7 @@ deploy-time configurable through these non-secret values in `agentcore/agentcore
 - `HEYTIM_OPENROUTER_BASE_URL` — the OpenRouter OpenAI-compatible endpoint
 - `HEYTIM_OPENROUTER_CREDENTIAL_PROVIDER` — the AgentCore Identity credential name
 - `HEYTIM_OPENROUTER_MAX_ATTEMPTS` — total attempts before a pre-response OpenRouter failure is returned
-- `HEYTIM_MAX_MODEL_CALLS_PER_RUNTIME_RUN` — hard pre-dispatch model-attempt cap; defaults to `24`
+- `HEYTIM_MAX_MODEL_CALLS_PER_RUNTIME_RUN` — hard pre-dispatch model-attempt cap; defaults to `40`; the final three attempts are reserved for a tool-free answer
 - `HEYTIM_MAX_PROVIDER_TOOL_CALLS_PER_RUNTIME_RUN` — combined gateway/image dispatch cap; defaults to `24`
 - `HEYTIM_MAX_IMAGE_CALLS_PER_RUNTIME_RUN` — image-generation sub-cap; defaults to `2`
 - `HEYTIM_MEME_TEMPLATE_PREFIX` — private S3 prefix containing `catalog.json` and normalized template PNGs

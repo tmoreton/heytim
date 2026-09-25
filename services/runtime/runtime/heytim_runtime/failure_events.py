@@ -28,8 +28,19 @@ def _category(chain: list[BaseException]) -> str:
         return "image"
     if "browser" in names or "browser" in detail:
         return "browser"
-    if "openrouter" in names or any(
-        term in detail for term in ("openrouter", "rate limit", "in_flight_budget")
+    if (
+        "openrouter" in names
+        or "providercalllimitexceeded" in names
+        or any(
+            term in detail
+            for term in (
+                "openrouter",
+                "rate limit",
+                "in_flight_budget",
+                "provider-call safety limit",
+                "model-call safety limit",
+            )
+        )
     ):
         return "provider"
     return "other"
@@ -47,6 +58,8 @@ def _location(error: BaseException) -> str:
 def runtime_failure_event(error: BaseException) -> dict[str, object]:
     chain = _error_chain(error)
     code = getattr(error, "code", "UNEXPECTED_EXCEPTION")
+    if any(type(item).__name__ == "ProviderCallLimitExceeded" for item in chain):
+        code = "PROVIDER_CALL_LIMIT"
     if not isinstance(code, str) or not _SAFE_CODE.fullmatch(code):
         code = "UNEXPECTED_EXCEPTION"
     event: dict[str, object] = {

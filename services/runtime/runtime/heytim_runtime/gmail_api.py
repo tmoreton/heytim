@@ -260,7 +260,7 @@ def _decode_data(value: Any) -> str:
     padded = value + "=" * (-len(value) % 4)
     try:
         return base64.urlsafe_b64decode(padded).decode("utf-8", errors="replace")
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return ""
 
 
@@ -331,6 +331,39 @@ def _thread(value: dict, *, include_body: bool) -> dict:
     return result
 
 
+def _search_thread(value: dict) -> dict:
+    """Return one bounded Gmail search summary; full content stays in get_thread."""
+    thread = _thread(value, include_body=False)
+    messages = thread.get("messages", [])
+    messages = messages if isinstance(messages, list) else []
+    latest = dict(messages[-1]) if messages and isinstance(messages[-1], dict) else {}
+    for field, maximum in (
+        ("subject", 300),
+        ("sender", 300),
+        ("toRecipients", 500),
+        ("ccRecipients", 500),
+        ("date", 120),
+        ("snippet", 500),
+    ):
+        if isinstance(latest.get(field), str):
+            latest[field] = latest[field][:maximum]
+    labels = latest.get("labelIds")
+    if isinstance(labels, list):
+        latest["labelIds"] = labels[:20]
+    return {
+        "id": thread.get("id"),
+        "historyId": thread.get("historyId"),
+        "messageCount": len(messages),
+        "hasUnread": any(
+            "UNREAD" in message.get("labelIds", [])
+            for message in messages
+            if isinstance(message, dict) and isinstance(message.get("labelIds"), list)
+        ),
+        "messages": [latest] if latest else [],
+        "messagesTruncated": len(messages) > 1,
+    }
+
+
 def gmail_api_tools(
     binding: dict, artifact_prefix: str | None = None, *, storage_client=None
 ) -> list[Any]:
@@ -341,12 +374,12 @@ def gmail_api_tools(
     @tool(name=name("search_threads"))
     def search_threads(
         query: str = "",
-        pageSize: int = 20,
+        pageSize: int = 10,
         pageToken: str = "",
         includeTrash: bool = False,
     ) -> str:
-        """Search email threads using Gmail search syntax and return message metadata."""
-        count = _page_size(pageSize)
+        """Search Gmail and return concise thread summaries; use get_thread for full content."""
+        count = _page_size(pageSize, maximum=20)
         if not isinstance(query, str) or len(query) > 1_000:
             raise ValueError("query is invalid")
         if not isinstance(pageToken, str) or len(pageToken) > 2_000:
@@ -375,7 +408,7 @@ def gmail_api_tools(
                     "metadataHeaders": ["Subject", "From", "To", "Cc", "Date"],
                 },
             )
-            threads.append(_thread(detail, include_body=False))
+            threads.append(_search_thread(detail))
         return json.dumps(
             {
                 "threads": threads,

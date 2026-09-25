@@ -38,6 +38,19 @@ def _runtime_failure_message(error: Exception) -> str:
         current = current.__cause__ or current.__context__
     detail = " ".join(str(item) for item in chain)
     type_names = {type(item).__name__ for item in chain}
+    if "ProviderCallLimitExceeded" in type_names or any(
+        marker in detail
+        for marker in (
+            "model-call safety limit",
+            "provider-tool safety limit",
+            "image-generation safety limit",
+        )
+    ):
+        return (
+            "I reached HeyTim's provider-call safety limit before I could finish. "
+            "I kept the verified progress from this run; send “continue” to resume "
+            "without repeating completed external actions."
+        )
     if "in_flight_budget_exhausted" in detail:
         return (
             "OpenRouter remained at its temporary in-flight budget after retrying. "
@@ -86,7 +99,13 @@ class RunState:
         event = value.get("event", value)
         control = event.get("heytimControl")
         if isinstance(control, dict):
-            for key in ("usage", "pendingWork", "pendingApproval", "terminalError", "botMutations"):
+            for key in (
+                "usage",
+                "pendingWork",
+                "pendingApproval",
+                "terminalError",
+                "botMutations",
+            ):
                 if key in control:
                     self.value[key] = control[key]
             return

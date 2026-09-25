@@ -155,6 +155,19 @@ def test_wrapped_openrouter_auth_failure_is_actionable():
     assert "OpenRouter authentication" in message
 
 
+def test_wrapped_provider_call_limit_is_actionable():
+    class ProviderCallLimitExceeded(RuntimeError):
+        pass
+
+    wrapped = RuntimeError("event loop failed")
+    wrapped.__cause__ = ProviderCallLimitExceeded("model-call safety limit")
+
+    message = jobs._runtime_failure_message(wrapped)
+
+    assert "provider-call safety limit" in message
+    assert "continue" in message
+
+
 def test_cancellation_before_start_never_calls_agent():
     store = Store()
     store.objects["run.cancel"] = b'{"cancelled":true}'
