@@ -265,6 +265,7 @@ class ApiTestCase(unittest.TestCase):
             cls.group_messages = importlib.import_module("api.group_messages")
             cls.group_runs = importlib.import_module("api.group_runs")
             cls.google_oauth = importlib.import_module("api.google_oauth")
+            cls.finance = importlib.import_module("api.finance_connections")
             cls.github_webhook = importlib.import_module("api.github_webhook")
             cls.memories = importlib.import_module("api.memories")
             cls.schedules = importlib.import_module("api.schedules")

@@ -54,7 +54,8 @@ Set these environment secrets:
 - `HEYTIM_GOOGLE_OAUTH_SECRET_ARN`, `HEYTIM_GITHUB_APP_SECRET_ARN`, `HEYTIM_X_OAUTH_SECRET_ARN`,
   `HEYTIM_SLACK_OAUTH_SECRET_ARN`, `HEYTIM_NOTION_OAUTH_SECRET_ARN`
 - Optional: `HEYTIM_MICROSOFT_OAUTH_SECRET_ARN`, `HEYTIM_HUBSPOT_OAUTH_SECRET_ARN`,
-  `HEYTIM_JIRA_OAUTH_SECRET_ARN`, `HEYTIM_ZOOM_OAUTH_SECRET_ARN`
+  `HEYTIM_JIRA_OAUTH_SECRET_ARN`, `HEYTIM_ZOOM_OAUTH_SECRET_ARN`,
+  `HEYTIM_QUICKBOOKS_OAUTH_SECRET_ARN`, `HEYTIM_PLAID_SECRET_ARN`
 - Optional until subscriptions are enabled: `HEYTIM_STRIPE_SECRET_KEY` and
   `HEYTIM_STRIPE_WEBHOOK_SECRET`. Set both only with the Stripe Price variable. The release workflow stores them in
   the production account's `heytim/stripe/production` Secrets Manager secret and passes only its ARN to Lambda.

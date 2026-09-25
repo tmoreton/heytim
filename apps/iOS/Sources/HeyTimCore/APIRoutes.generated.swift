@@ -23,6 +23,8 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case githubOAuthCallback
     case xOAuthCallback
     case providerOAuthCallback
+    case quickBooksOAuthCallback
+    case plaidCallback
     case bootstrap
     case billingSummary
     case billingCheckout
@@ -220,6 +222,18 @@ public enum GeneratedAPIContract {
             id: .providerOAuthCallback,
             method: .get,
             pathTemplate: "/public/oauth/provider/callback",
+            access: .publicAccess
+        ),
+        .quickBooksOAuthCallback: APIContractRoute(
+            id: .quickBooksOAuthCallback,
+            method: .get,
+            pathTemplate: "/public/oauth/quickbooks/callback",
+            access: .publicAccess
+        ),
+        .plaidCallback: APIContractRoute(
+            id: .plaidCallback,
+            method: .get,
+            pathTemplate: "/public/plaid/callback",
             access: .publicAccess
         ),
         .bootstrap: APIContractRoute(

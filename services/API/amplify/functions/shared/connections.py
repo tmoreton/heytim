@@ -35,6 +35,7 @@ from .connection_providers import (
     connection_specs,
 )
 from .connection_revocation import revoke_google_token
+from .finance_connections import FinanceConnectionMixin
 from .github_app import GITHUB_MCP_ENDPOINT, narrowed_permissions
 from .mcp_servers import MCPServerConnectionMixin
 from .time import utc_now_iso as _now
@@ -63,7 +64,7 @@ def _valid_secret_arn(value: Any) -> bool:
     return isinstance(value, str) and value.startswith("arn:aws:secretsmanager:")
 
 
-class ConnectionMixin(MCPServerConnectionMixin, ConnectionLifecycleMixin):
+class ConnectionMixin(MCPServerConnectionMixin, FinanceConnectionMixin, ConnectionLifecycleMixin):
     table: Any
     secrets_manager: Any
 

@@ -319,6 +319,8 @@ class InfrastructureContractTests(unittest.TestCase):
             "HEYTIM_HUBSPOT_OAUTH_SECRET_ARN",
             "HEYTIM_JIRA_OAUTH_SECRET_ARN",
             "HEYTIM_ZOOM_OAUTH_SECRET_ARN",
+            "HEYTIM_QUICKBOOKS_OAUTH_SECRET_ARN",
+            "HEYTIM_PLAID_SECRET_ARN",
         ):
             self.assertIn(name, self.settings)
             self.assertIn(name, self.production_workflow)
@@ -326,6 +328,8 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("DISABLED_CONNECTION_PROVIDER_IDS", self.provider_connections)
         self.assertIn("GITHUB_OAUTH_REDIRECT_URI", self.provider_connections)
         self.assertIn("/public/oauth/github/callback", self.provider_connections)
+        self.assertIn("/public/oauth/quickbooks/callback", self.provider_connections)
+        self.assertIn("/public/plaid/callback", self.provider_connections)
         self.assertIn(
             "resources: configuredSecrets",
             self.provider_connections,

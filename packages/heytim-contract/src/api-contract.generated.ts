@@ -8,6 +8,8 @@ export const apiContractPaths = {
   "githubOAuthCallback": "/public/oauth/github/callback",
   "xOAuthCallback": "/public/oauth/x/callback",
   "providerOAuthCallback": "/public/oauth/provider/callback",
+  "quickBooksOAuthCallback": "/public/oauth/quickbooks/callback",
+  "plaidCallback": "/public/plaid/callback",
   "bootstrap": "/bootstrap",
   "billingSummary": "/billing",
   "billingCheckout": "/billing/checkout",

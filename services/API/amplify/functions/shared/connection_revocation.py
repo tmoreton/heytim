@@ -21,6 +21,13 @@ SLACK_TOKEN_REVOKE_URL = "https://slack.com/api/auth.revoke"  # nosec B105
 NOTION_TOKEN_REVOKE_URL = "https://api.notion.com/v1/oauth/revoke"  # nosec B105
 HUBSPOT_TOKEN_REVOKE_URL = "https://api.hubapi.com/oauth/2026-03/token/revoke"  # nosec B105
 ZOOM_TOKEN_REVOKE_URL = "https://zoom.us/oauth/revoke"  # nosec B105
+QUICKBOOKS_TOKEN_REVOKE_URL = (  # nosec B105
+    "https://developer.api.intuit.com/v2/oauth2/tokens/revoke"
+)
+PLAID_BASE_URLS = {
+    "sandbox": "https://sandbox.plaid.com",
+    "production": "https://production.plaid.com",
+}
 NOTION_API_VERSION = "2026-03-11"
 PROVIDER_REVOKE_TIMEOUT_SECONDS = 4
 
@@ -219,3 +226,84 @@ def revoke_external_access(
             pass
     except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError):
         logger.warning("%s token revocation failed; removing local access", provider)
+
+
+def revoke_quickbooks_access(
+    credential: dict,
+    config_arn: str,
+    *,
+    valid_secret_arn: Callable[[Any], bool],
+    secret_document: Callable[[str], dict],
+    urlopen: Callable,
+    logger: Any,
+) -> None:
+    if not valid_secret_arn(config_arn):
+        return
+    config = secret_document(config_arn)
+    client_id = config.get("clientId")
+    client_secret = config.get("clientSecret")
+    token = credential.get("refreshToken") or credential.get("accessToken")
+    if not all(
+        isinstance(value, str) and value
+        for value in (client_id, client_secret, token)
+    ):
+        return
+    basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    request = urllib.request.Request(
+        QUICKBOOKS_TOKEN_REVOKE_URL,
+        data=json.dumps({"token": token}, separators=(",", ":")).encode(),
+        headers={
+            "accept": "application/json",
+            "authorization": f"Basic {basic}",
+            "content-type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=PROVIDER_REVOKE_TIMEOUT_SECONDS):
+            pass
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError):
+        logger.warning(
+            "QuickBooks token revocation failed; removing local access"
+        )
+
+
+def revoke_plaid_access(
+    credential: dict,
+    config_arn: str,
+    environment: str,
+    *,
+    valid_secret_arn: Callable[[Any], bool],
+    secret_document: Callable[[str], dict],
+    urlopen: Callable,
+    logger: Any,
+) -> None:
+    if not valid_secret_arn(config_arn) or environment not in PLAID_BASE_URLS:
+        return
+    config = secret_document(config_arn)
+    client_id = config.get("clientId")
+    client_secret = config.get("secret")
+    access_token = credential.get("accessToken")
+    if not all(
+        isinstance(value, str) and value
+        for value in (client_id, client_secret, access_token)
+    ):
+        return
+    request = urllib.request.Request(
+        f"{PLAID_BASE_URLS[environment]}/item/remove",
+        data=json.dumps(
+            {
+                "client_id": client_id,
+                "secret": client_secret,
+                "access_token": access_token,
+            },
+            separators=(",", ":"),
+        ).encode(),
+        headers={"accept": "application/json", "content-type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=PROVIDER_REVOKE_TIMEOUT_SECONDS):
+            pass
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError):
+        logger.warning("Plaid Item removal failed; removing local access")

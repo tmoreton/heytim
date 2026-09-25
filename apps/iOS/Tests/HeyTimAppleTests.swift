@@ -4,6 +4,12 @@ import ImageIO
 import SwiftUI
 import UniformTypeIdentifiers
 
+#if os(iOS)
+  import UIKit
+#elseif os(macOS)
+  import AppKit
+#endif
+
 @testable import HeyTimApple
 
 @MainActor final class HeyTimAppleTests: XCTestCase {
@@ -11,6 +17,14 @@ import UniformTypeIdentifiers
     MockURLProtocol.handler = nil
     ConcurrentMockURLProtocol.handler = nil
     super.tearDown()
+  }
+
+  func testPlaidProviderLogoIsBundled() {
+    #if os(iOS)
+      XCTAssertNotNil(UIImage(named: "Provider-plaid"))
+    #elseif os(macOS)
+      XCTAssertNotNil(NSImage(named: "Provider-plaid"))
+    #endif
   }
 
   #if os(macOS)

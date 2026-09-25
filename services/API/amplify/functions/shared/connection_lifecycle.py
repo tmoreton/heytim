@@ -12,6 +12,8 @@ from .connection_providers import SUPPORTED_CONNECTION_PROVIDER_IDS
 from .connection_revocation import (
     revoke_external_access,
     revoke_github_access,
+    revoke_plaid_access,
+    revoke_quickbooks_access,
     revoke_x_token,
 )
 
@@ -65,6 +67,18 @@ class ConnectionLifecycleMixin:
             logger=logger,
         )
 
+    def revoke_unused_quickbooks_token(
+        self, credential: dict, config_arn: str
+    ) -> None:
+        revoke_quickbooks_access(
+            credential,
+            config_arn,
+            valid_secret_arn=_valid_secret_arn,
+            secret_document=self._secret_document,
+            urlopen=urllib.request.urlopen,
+            logger=logger,
+        )
+
     def _revoke_x_access(self, credential: dict, item: dict) -> None:
         refresh_token = credential.get("refreshToken")
         config_arn = item.get("runtime", {}).get("oauthClientSecretArn")
@@ -102,6 +116,24 @@ class ConnectionLifecycleMixin:
                 config_arn = item.get("runtime", {}).get("oauthClientSecretArn")
                 if isinstance(config_arn, str):
                     self.revoke_unused_external_token(provider, credential, config_arn)
+            elif provider == "quickbooks":
+                config_arn = item.get("runtime", {}).get("oauthClientSecretArn")
+                if isinstance(config_arn, str):
+                    self.revoke_unused_quickbooks_token(credential, config_arn)
+            elif provider == "plaid":
+                runtime = item.get("runtime", {})
+                config_arn = runtime.get("appSecretArn")
+                environment = runtime.get("environment")
+                if isinstance(config_arn, str) and isinstance(environment, str):
+                    revoke_plaid_access(
+                        credential,
+                        config_arn,
+                        environment,
+                        valid_secret_arn=_valid_secret_arn,
+                        secret_document=self._secret_document,
+                        urlopen=urllib.request.urlopen,
+                        logger=logger,
+                    )
         except (
             BotoCoreError,
             ClientError,

@@ -58,7 +58,9 @@
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/notion-*",
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/hubspot-*",
         "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/jira-*",
-        "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/zoom-*"
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/zoom-*",
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/quickbooks-*",
+        "arn:aws:secretsmanager:us-east-1:188757775631:secret:heytim/oauth/plaid-*"
       ]
     },
     {
