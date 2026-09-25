@@ -220,6 +220,12 @@ class InfrastructureContractTests(unittest.TestCase):
             self.assertIn(action, self.deployment_role)
         self.assertIn("/releases/skills-v*/x/openapi.yaml", self.deployment_role)
         self.assertIn("bedrock-agentcore-gateway-heytim-", self.deployment_role)
+        self.assertIn("new Bucket(stack, 'HeyTimGatewaySchemas'", self.deployment_role)
+        self.assertIn("blockPublicAccess: BlockPublicAccess.BLOCK_ALL", self.deployment_role)
+        self.assertIn("encryption: BucketEncryption.S3_MANAGED", self.deployment_role)
+        self.assertIn("objectOwnership: ObjectOwnership.BUCKET_OWNER_ENFORCED", self.deployment_role)
+        self.assertIn("removalPolicy: RemovalPolicy.RETAIN", self.deployment_role)
+        self.assertIn("versioned: true", self.deployment_role)
         self.assertIn(
             "/releases/skills-v*/youtube/openapi.yaml", self.deployment_role
         )

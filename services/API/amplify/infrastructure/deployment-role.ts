@@ -1,5 +1,11 @@
 import { ArnFormat, Duration, RemovalPolicy, type Stack } from 'aws-cdk-lib';
 import { FederatedPrincipal, PolicyStatement, Role } from 'aws-cdk-lib/aws-iam';
+import {
+  BlockPublicAccess,
+  Bucket,
+  BucketEncryption,
+  ObjectOwnership,
+} from 'aws-cdk-lib/aws-s3';
 
 type DeploymentRoleResources = {
   stack: Stack;
@@ -74,13 +80,16 @@ export function addGithubDeploymentRole({
     arnFormat: ArnFormat.NO_RESOURCE_NAME,
   });
   const gatewaySchemaBucketName = `bedrock-agentcore-gateway-heytim-${stack.account}-use1`;
-  const gatewaySchemaBucketArn = stack.formatArn({
-    service: 's3',
-    region: '',
-    account: '',
-    resource: gatewaySchemaBucketName,
-    arnFormat: ArnFormat.NO_RESOURCE_NAME,
+  const gatewaySchemaBucket = new Bucket(stack, 'HeyTimGatewaySchemas', {
+    bucketName: gatewaySchemaBucketName,
+    blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+    encryption: BucketEncryption.S3_MANAGED,
+    enforceSSL: true,
+    objectOwnership: ObjectOwnership.BUCKET_OWNER_ENFORCED,
+    removalPolicy: RemovalPolicy.RETAIN,
+    versioned: true,
   });
+  const gatewaySchemaBucketArn = gatewaySchemaBucket.bucketArn;
   const productionGatewayRoleArn = stack.formatArn({
     service: 'iam',
     region: '',
