@@ -218,6 +218,10 @@ class InfrastructureContractTests(unittest.TestCase):
             "iam:PutRolePolicy",
         ):
             self.assertIn(action, self.deployment_role)
+        self.assertIn(
+            "AgentCore-HeyTim-producti-McpGatewayHeyTimToolsRole-*",
+            self.deployment_role,
+        )
         self.assertIn("/releases/skills-v*/x/openapi.yaml", self.deployment_role)
         self.assertIn("bedrock-agentcore-gateway-heytim-", self.deployment_role)
         self.assertIn("new Bucket(stack, 'HeyTimGatewaySchemas'", self.deployment_role)

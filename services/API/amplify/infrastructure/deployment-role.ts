@@ -96,7 +96,9 @@ export function addGithubDeploymentRole({
     service: 'iam',
     region: '',
     resource: 'role',
-    resourceName: 'AgentCore-HeyTim-product-McpGatewayHeyTimToolsRol-*',
+    // AgentCore truncates the production stack segment before appending the
+    // generated suffix. Keep this scoped to the one production gateway role.
+    resourceName: 'AgentCore-HeyTim-producti-McpGatewayHeyTimToolsRole-*',
     arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
   });
 
