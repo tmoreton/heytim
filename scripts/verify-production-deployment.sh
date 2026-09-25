@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-outputs_file="$repository_root/services/API/amplify_outputs.json"
+outputs_file="${HEYTIM_OUTPUTS_FILE:-$repository_root/services/API/amplify_outputs.json}"
 target_file="$repository_root/agentcore/aws-targets.json"
 runtime_arn="${HEYTIM_AGENT_RUNTIME_ARN:-}"
 gateway_arn="${HEYTIM_AGENT_GATEWAY_ARN:-}"
