@@ -1,8 +1,7 @@
 """Group reply state transitions and notification dispatch."""
 from __future__ import annotations
 
-import json
-
+from shared.job_envelope import send_job
 from shared.time import utc_now_iso
 
 from .support import QUEUE_URL, _group_pk, sqs, table
@@ -89,23 +88,20 @@ def _queue_group_reply_notifications(
         user_id = member.get("userId")
         if not isinstance(user_id, str):
             continue
-        sqs.send_message(
-            QueueUrl=QUEUE_URL,
-            MessageBody=json.dumps(
-                {
-                    "type": "PUSH_NOTIFICATION",
-                    "userId": user_id,
-                    "groupId": group_id,
-                    "botId": bot["id"],
-                    "botName": bot["name"],
-                    "messageId": reply["id"],
-                    "answer": answer,
-                    **({"scheduleId": reply["scheduleId"], "scheduleName": reply.get("scheduleName", "Group report")} if reply.get("source") == "schedule" else {}),
-                    "notificationId": (
-                        f"group:{group_id}:{reply['id']}:{user_id}"
-                    ),
-                }
-            ),
+        send_job(
+            sqs,
+            QUEUE_URL,
+            {
+                "type": "PUSH_NOTIFICATION",
+                "userId": user_id,
+                "groupId": group_id,
+                "botId": bot["id"],
+                "botName": bot["name"],
+                "messageId": reply["id"],
+                "answer": answer,
+                **({"scheduleId": reply["scheduleId"], "scheduleName": reply.get("scheduleName", "Group report")} if reply.get("source") == "schedule" else {}),
+                "notificationId": f"group:{group_id}:{reply['id']}:{user_id}",
+            },
         )
     table.update_item(
         Key=reply_key,

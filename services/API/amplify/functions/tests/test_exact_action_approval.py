@@ -43,7 +43,9 @@ class GroupActionApprovalTests(ApiTestCase):
         self.assertEqual(update["ExpressionAttributeValues"][":proposal"], self.proposal)
         self.assertEqual(len(update["ExpressionAttributeValues"][":decision"]["executionKey"]), 36)
         self.assertEqual(len(self.sqs.send_message.call_args_list), 2)
-        self.assertEqual(json.loads(self.sqs.send_message.call_args.kwargs["MessageBody"]), self.request)
+        queued = json.loads(self.sqs.send_message.call_args.kwargs["MessageBody"])
+        self.assertEqual({key: queued[key] for key in self.request}, self.request)
+        self.assertEqual(queued["schemaVersion"], 1)
 
     def test_owner_can_grant_all_enabled_tools_once_for_group_bot(self) -> None:
         self.data_table.items[("USER#owner", "BOT#bot")]["updatedAt"] = "2026-09-23T12:00:00Z"

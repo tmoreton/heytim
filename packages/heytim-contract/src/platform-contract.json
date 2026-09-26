@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "constraints": {
+    "botNameMaxLength": 48,
+    "botTaglineMaxLength": 120,
+    "botPromptMaxLength": 12000,
+    "groupNameMaxLength": 64,
+    "groupMemoryMaxLength": 4000,
+    "messageMaxLength": 8000,
+    "scheduleNameMaxLength": 64,
+    "schedulePromptMaxLength": 8000,
+    "scheduleDayOfMonthMin": 1,
+    "scheduleDayOfMonthMax": 28,
+    "skillNameMaxLength": 80,
+    "skillDescriptionMaxLength": 240,
+    "skillInstructionsMaxLength": 20000,
+    "memoryMaxLength": 16000,
+    "maxAttachmentsPerMessage": 5,
+    "maxToolsPerBot": 12,
+    "imageMaxBytes": 3750000,
+    "documentMaxBytes": 4500000,
+    "maxPhotoDimension": 1920
+  },
+  "providerRuntimes": {
+    "gmail": {
+      "oauthScopes": [
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.compose"
+      ],
+      "servers": [
+        {
+          "endpoint": "https://gmailmcp.googleapis.com/mcp/v1",
+          "allowedTools": [
+            "create_draft",
+            "list_drafts",
+            "get_draft",
+            "get_thread",
+            "get_message",
+            "search_threads",
+            "list_labels"
+          ],
+          "scopedParameters": {}
+        }
+      ]
+    },
+    "youtube": {
+      "oauthScopes": [
+        "openid",
+        "email",
+        "https://www.googleapis.com/auth/youtube.readonly"
+      ],
+      "servers": []
+    },
+    "google_workspace": {
+      "oauthScopes": [
+        "https://www.googleapis.com/auth/drive.readonly",
+        "https://www.googleapis.com/auth/documents.readonly",
+        "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+        "https://www.googleapis.com/auth/calendar.events.freebusy",
+        "https://www.googleapis.com/auth/calendar.events.readonly"
+      ],
+      "servers": [
+        {
+          "endpoint": "https://drivemcp.googleapis.com/mcp/v1",
+          "allowedTools": [
+            "download_file_content",
+            "get_file_metadata",
+            "get_file_permissions",
+            "list_recent_files",
+            "read_file_content",
+            "search_files"
+          ],
+          "scopedParameters": {
+            "get_file_metadata": "fileId",
+            "get_file_permissions": "fileId",
+            "read_file_content": "fileId",
+            "download_file_content": "fileId"
+          }
+        },
+        {
+          "endpoint": "https://docsmcp.googleapis.com/mcp/v1",
+          "allowedTools": ["read_doc"],
+          "scopedParameters": {"read_doc": "documentId"}
+        },
+        {
+          "endpoint": "https://sheetsmcp.googleapis.com/mcp/v1",
+          "allowedTools": ["get_spreadsheet", "get_values"],
+          "scopedParameters": {
+            "get_spreadsheet": "spreadsheetId",
+            "get_values": "spreadsheetId"
+          }
+        },
+        {
+          "endpoint": "https://calendarmcp.googleapis.com/mcp/v1",
+          "allowedTools": [
+            "get_event",
+            "list_calendars",
+            "list_events",
+            "search_events",
+            "suggest_time"
+          ],
+          "scopedParameters": {
+            "get_event": "calendarId",
+            "list_events": "calendarId"
+          }
+        }
+      ]
+    }
+  },
+  "deviceCapabilities": {
+    "version": 1,
+    "maxOperationsPerDevice": 8,
+    "tools": [
+      {
+        "id": "mac_computer",
+        "platform": "macos",
+        "operations": [
+          "mac_computer_observe",
+          "mac_computer_act_on_element",
+          "mac_computer_type_into_element",
+          "mac_computer_wait_for_state",
+          "mac_computer_scroll"
+        ],
+        "interactiveOperations": [
+          "mac_computer_act_on_element",
+          "mac_computer_type_into_element",
+          "mac_computer_scroll"
+        ]
+      },
+      {
+        "id": "apple_health",
+        "platform": "ios",
+        "operations": [
+          "apple_health_activity_summary",
+          "apple_health_workouts",
+          "apple_health_running_totals",
+          "apple_health_steps"
+        ],
+        "interactiveOperations": []
+      }
+    ]
+  }
+}

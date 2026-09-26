@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import uuid
 
 from boto3.dynamodb.conditions import Attr
@@ -14,6 +13,7 @@ from shared.browser_sessions import delete_browser_context
 from shared.cleanup import has_pending_work
 from shared.client_contract import client_constraints
 from shared.connection_providers import connection_providers
+from shared.job_envelope import send_job
 from shared.memory_identity import direct_session_id, memory_actor_id
 from shared.storage import delete_object_versions
 from shared.work_state import processing_summary
@@ -351,15 +351,14 @@ def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:
 
 
 def _forget_bot_conversation(user_id: str, bot_id: str) -> dict[str, bool]:
-    sqs.send_message(
-        QueueUrl=QUEUE_URL,
-        MessageBody=json.dumps(
-            {
-                "type": "DELETE_MEMORY_SESSION",
-                "actorId": memory_actor_id(user_id),
-                "sessionId": direct_session_id(user_id, bot_id),
-            }
-        ),
+    send_job(
+        sqs,
+        QUEUE_URL,
+        {
+            "type": "DELETE_MEMORY_SESSION",
+            "actorId": memory_actor_id(user_id),
+            "sessionId": direct_session_id(user_id, bot_id),
+        },
     )
     return {"queued": True}
 

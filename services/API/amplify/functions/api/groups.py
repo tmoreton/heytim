@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import secrets
 import uuid
@@ -11,6 +10,7 @@ from boto3.dynamodb.conditions import Attr
 from shared.cleanup import has_pending_work, purge_group
 from shared.client_contract import GROUP_MEMORY_MAX_LENGTH, GROUP_NAME_MAX_LENGTH
 from shared.invites import invite_token_hash, invite_url
+from shared.job_envelope import send_job
 from shared.memory_identity import group_memory_actor_id
 from shared.work_state import processing_summary
 
@@ -187,13 +187,14 @@ def _public_decision(item: dict) -> dict:
 
 
 def _queue_decision_event(group_id: str, decision_id: str) -> None:
-    sqs.send_message(
-        QueueUrl=QUEUE_URL,
-        MessageBody=json.dumps({
+    send_job(
+        sqs,
+        QUEUE_URL,
+        {
             "type": "GROUP_DECISION_EVENT",
             "groupId": group_id,
             "decisionId": decision_id,
-        }),
+        },
     )
 
 
@@ -531,14 +532,13 @@ def _delete_group(user_id: str, group_id: str) -> dict:
 
 def _purge_group(group_id: str, items: list[dict] | None = None) -> None:
     items = items or _partition_items(_group_pk(group_id))
-    sqs.send_message(
-        QueueUrl=QUEUE_URL,
-        MessageBody=json.dumps(
-            {
-                "type": "DELETE_MEMORY_ACTOR",
-                "actorId": group_memory_actor_id(group_id),
-            }
-        ),
+    send_job(
+        sqs,
+        QUEUE_URL,
+        {
+            "type": "DELETE_MEMORY_ACTOR",
+            "actorId": group_memory_actor_id(group_id),
+        },
     )
     purge_group(
         table,

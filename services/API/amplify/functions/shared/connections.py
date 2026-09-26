@@ -14,6 +14,7 @@ from typing import Any
 
 from botocore.exceptions import BotoCoreError, ClientError
 
+from . import provider_contract
 from .account_state import (
     AccountInactiveError,
     UserItemConflictError,
@@ -28,9 +29,6 @@ from .catalog_rules import (
 from .connection_identity import _connection_id, _matching_connection, _secret_name
 from .connection_lifecycle import ConnectionLifecycleMixin
 from .connection_providers import (
-    GMAIL_MCP_ENDPOINT,
-    GMAIL_MCP_TOOLS,
-    GOOGLE_WORKSPACE_MCP_SERVERS,
     SUPPORTED_CONNECTION_PROVIDER_IDS,
     connection_specs,
 )
@@ -489,12 +487,12 @@ class ConnectionMixin(MCPServerConnectionMixin, FinanceConnectionMixin, Connecti
                 {"refreshToken": refresh_token},
                 lambda secret_arn: {
                     "kind": "mcp",
-                    "endpoint": GMAIL_MCP_ENDPOINT,
+                    "endpoint": provider_contract.GMAIL_MCP_ENDPOINT,
                     "authType": "oauth",
                     "oauthProvider": "google",
                     "secretArn": secret_arn,
                     "oauthClientSecretArn": client_secret_arn,
-                    "allowedTools": list(GMAIL_MCP_TOOLS),
+                    "allowedTools": list(provider_contract.GMAIL_MCP_TOOLS),
                 },
                 provider_account_id=account.strip().casefold(),
             )
@@ -612,10 +610,10 @@ class ConnectionMixin(MCPServerConnectionMixin, FinanceConnectionMixin, Connecti
             raise CatalogError("Google Workspace OAuth scopes are invalid")
         servers = [
             {
-                "endpoint": server["endpoint"],
-                "allowedTools": list(server["allowedTools"]),
+                "endpoint": endpoint,
+                "allowedTools": list(allowed_tools),
             }
-            for server in GOOGLE_WORKSPACE_MCP_SERVERS
+            for endpoint, allowed_tools in provider_contract.GOOGLE_WORKSPACE_MCP_SERVERS.items()
         ]
         try:
             return self._save_managed_connection(

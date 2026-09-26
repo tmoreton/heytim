@@ -4,47 +4,10 @@ import os
 from copy import deepcopy
 
 from .github_app import GITHUB_MCP_ENDPOINT
-
-GMAIL_MCP_ENDPOINT = "https://gmailmcp.googleapis.com/mcp/v1"
-GMAIL_MCP_TOOLS = (
-    "create_draft",
-    "list_drafts",
-    "get_draft",
-    "get_thread",
-    "get_message",
-    "search_threads",
-    "list_labels",
-)
-GOOGLE_WORKSPACE_MCP_SERVERS = (
-    {
-        "endpoint": "https://drivemcp.googleapis.com/mcp/v1",
-        "allowedTools": (
-            "download_file_content",
-            "get_file_metadata",
-            "get_file_permissions",
-            "list_recent_files",
-            "read_file_content",
-            "search_files",
-        ),
-    },
-    {
-        "endpoint": "https://docsmcp.googleapis.com/mcp/v1",
-        "allowedTools": ("read_doc",),
-    },
-    {
-        "endpoint": "https://sheetsmcp.googleapis.com/mcp/v1",
-        "allowedTools": ("get_spreadsheet", "get_values"),
-    },
-    {
-        "endpoint": "https://calendarmcp.googleapis.com/mcp/v1",
-        "allowedTools": (
-            "get_event",
-            "list_calendars",
-            "list_events",
-            "search_events",
-            "suggest_time",
-        ),
-    },
+from .provider_contract import (
+    GMAIL_MCP_ENDPOINT,
+    GOOGLE_WORKSPACE_OAUTH_SCOPES,
+    YOUTUBE_OAUTH_SCOPES,
 )
 
 PUBLIC_PROVIDER_FIELDS = (
@@ -190,7 +153,7 @@ CONNECTION_PROVIDER_SPECS = (
         "risk": "read",
         "tags": ["private", "youtube", "oauth"],
         "actions": ["Search videos", "Read channel details", "List uploaded videos"],
-        "scopes": ["openid", "email", "https://www.googleapis.com/auth/youtube.readonly"],
+        "scopes": list(YOUTUBE_OAUTH_SCOPES),
         "familyId": "youtube",
         "familyName": "YouTube",
         "familyDescription": "Connect your YouTube account to search videos and optionally read your channel.",
@@ -217,13 +180,7 @@ CONNECTION_PROVIDER_SPECS = (
         "risk": "read",
         "tags": ["private", "google", "workspace", "mcp"],
         "actions": ["Search Drive", "Read documents", "Read spreadsheets", "Read calendar events"],
-        "scopes": [
-            "https://www.googleapis.com/auth/drive.readonly",
-            "https://www.googleapis.com/auth/documents.readonly",
-            "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
-            "https://www.googleapis.com/auth/calendar.events.freebusy",
-            "https://www.googleapis.com/auth/calendar.events.readonly",
-        ],
+        "scopes": list(GOOGLE_WORKSPACE_OAUTH_SCOPES),
         **GOOGLE_FAMILY,
         "serviceName": "Workspace",
     },

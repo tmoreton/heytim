@@ -118,11 +118,23 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
   const userId = mapping.Item?.userId;
   const connectionId = mapping.Item?.connectionId;
   if (typeof userId !== 'string' || typeof connectionId !== 'string') return { statusCode: 200 };
+  const payload = {
+    type: 'PLAID_SYNC', userId, connectionId,
+    historicalComplete: webhook.webhook_code === 'HISTORICAL_UPDATE',
+  };
+  const correlationId = createHash('sha256')
+    .update(`${webhook.item_id}:${webhook.webhook_code}`)
+    .digest('hex');
   await sqs.send(new SendMessageCommand({
     QueueUrl: process.env.QUEUE_URL,
     MessageBody: JSON.stringify({
-      type: 'PLAID_SYNC', userId, connectionId,
-      historicalComplete: webhook.webhook_code === 'HISTORICAL_UPDATE',
+      schemaVersion: 1,
+      ...payload,
+      correlationId,
+      idempotencyKey: createHash('sha256')
+        .update(JSON.stringify({ ...payload, correlationId }))
+        .digest('hex'),
+      occurredAt: new Date().toISOString(),
     }),
   }));
   return { statusCode: 200 };

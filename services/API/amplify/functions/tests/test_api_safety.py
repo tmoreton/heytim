@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from unittest.mock import patch
 
@@ -162,8 +163,9 @@ class ApiSafetyTests(ApiTestCase):
         ):
             result = self.bots._clear_bot_chat("user-1", "bot-1", forget_memory=True)
 
-        body = self.sqs.send_message.call_args.kwargs["MessageBody"]
-        self.assertIn('"type": "DELETE_MEMORY_SESSION"', body)
+        body = json.loads(self.sqs.send_message.call_args.kwargs["MessageBody"])
+        self.assertEqual(body["type"], "DELETE_MEMORY_SESSION")
+        self.assertEqual(body["schemaVersion"], 1)
         self.assertEqual(result["forgottenMemory"], {"queued": True})
 
     def test_chief_is_a_required_public_template_and_remains_protected(self) -> None:
@@ -346,8 +348,9 @@ class ApiSafetyTests(ApiTestCase):
         )
         approval_update = self.data_table.updated[-1]
         self.assertEqual(approval_update["ConditionExpression"], "#status = :awaiting AND attribute_not_exists(approvalRequest)")
-        message = self.sqs.send_message.call_args.kwargs["MessageBody"]
-        self.assertIn('"turnKey": "TURN#now#turn-1"', message)
+        message = json.loads(self.sqs.send_message.call_args.kwargs["MessageBody"])
+        self.assertEqual(message["turnKey"], "TURN#now#turn-1")
+        self.assertEqual(message["schemaVersion"], 1)
 
     def test_always_approval_is_rejected_without_changing_bot_grants(self) -> None:
         turn = {

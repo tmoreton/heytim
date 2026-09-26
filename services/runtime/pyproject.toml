@@ -17,6 +17,8 @@ dependencies = [
     # identical to the version verified in uv.lock.
     "boto3 == 1.43.90",
     "botocore==1.43.92",
+    # Direct dependency: GitHub App JWTs use audited PEM parsing and RSA signing.
+    "cryptography == 50.0.1",
     "cyclopts == 4.25.2",
     # The toolkit resolves its first supported AgentCore target as manylinux2014.
     # Pin compiled transitive packages to versions that publish that ARM64 wheel.

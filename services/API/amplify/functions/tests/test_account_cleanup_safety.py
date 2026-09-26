@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 from api_test_case import ApiTestCase
@@ -14,8 +15,9 @@ class AccountCleanupSafetyTests(ApiTestCase):
             self.data_table.updated[-1]["ExpressionAttributeValues"][":status"],
             "DELETING",
         )
-        message = self.sqs.send_message.call_args.kwargs["MessageBody"]
-        self.assertIn('"type": "DELETE_ACCOUNT"', message)
+        message = json.loads(self.sqs.send_message.call_args.kwargs["MessageBody"])
+        self.assertEqual(message["type"], "DELETE_ACCOUNT")
+        self.assertEqual(message["schemaVersion"], 1)
 
     def test_account_memory_cleanup_removes_events_and_extracted_records(self) -> None:
         self.agentcore.list_sessions.return_value = {

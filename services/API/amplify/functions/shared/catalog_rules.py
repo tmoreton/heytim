@@ -11,14 +11,14 @@ from shared.client_contract import (
     MAX_TOOLS_PER_BOT,
     SKILL_INSTRUCTIONS_MAX_LENGTH,
 )
-from shared.connection_providers import (
+from shared.connection_providers import connection_specs
+from shared.device_tools import validate_device_binding
+from shared.github_app import GITHUB_MCP_ENDPOINT
+from shared.provider_contract import (
     GMAIL_MCP_ENDPOINT,
     GMAIL_MCP_TOOLS,
     GOOGLE_WORKSPACE_MCP_SERVERS,
-    connection_specs,
 )
-from shared.device_tools import validate_device_binding
-from shared.github_app import GITHUB_MCP_ENDPOINT
 
 from .finance_bindings import validate_plaid_binding
 
@@ -71,10 +71,7 @@ PROVIDER_API_SCOPES = {
     }
 }
 GOOGLE_WORKSPACE_SCOPES = frozenset(connection_specs()["google_workspace"]["scopes"])
-GOOGLE_WORKSPACE_SERVERS = {
-    server["endpoint"]: frozenset(server["allowedTools"])
-    for server in GOOGLE_WORKSPACE_MCP_SERVERS
-}
+GOOGLE_WORKSPACE_SERVERS = GOOGLE_WORKSPACE_MCP_SERVERS
 
 
 class CatalogError(Exception):

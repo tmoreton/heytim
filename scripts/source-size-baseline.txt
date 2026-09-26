@@ -6,3 +6,10 @@ services/API/amplify/functions/shared/connections.py 764
 services/API/amplify/functions/tests/test_catalog.py 606
 services/runtime/runtime/heytim_runtime/gmail_api.py 636
 services/runtime/runtime/heytim_runtime/mcp_connections.py 601
+apps/iOS/Sources/HeyTimCore/APIClient.swift 770
+apps/iOS/Sources/HeyTimCore/AppModel.swift 1507
+apps/iOS/Sources/HeyTimCore/Models.swift 1105
+apps/iOS/Sources/HeyTimPlatform/DesktopControlCoordinator.swift 1259
+apps/iOS/Sources/HeyTimUI/FeatureSheets.swift 3245
+apps/iOS/Sources/HeyTimUI/MainView.swift 2275
+apps/iOS/Sources/HeyTimUI/SupportingFeatureSheets.swift 2014

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
+
+from shared.job_envelope import decode_job
 
 from .account_cleanup import _delete_account
 from .approval_job import process_approval_expiry
@@ -29,8 +30,8 @@ logger = logging.getLogger(__name__)
 
 
 def _process(record: dict) -> None:
-    request = json.loads(record["body"])
-    request_type = request.get("type", "AGENT_REPLY")
+    request = decode_job(record["body"])
+    request_type = request["type"]
     if request_type == "CATALOG_REFRESH":
         catalog.sync_official(force=True)
         return

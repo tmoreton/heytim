@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 from typing import Any
+
+from shared.job_envelope import send_job
 
 from .runtime_jobs import poll_runtime_work, stop_runtime_work
 from .support import QUEUE_URL, agentcore, sqs, table
@@ -101,10 +102,11 @@ def _queue_background_poll(
     delay_seconds: int = POLL_DELAY_SECONDS,
     poll_count: int = 1,
 ) -> None:
-    sqs.send_message(
-        QueueUrl=QUEUE_URL,
-        DelaySeconds=delay_seconds,
-        MessageBody=json.dumps(_poll_message(item_key, resume_request, poll_count)),
+    send_job(
+        sqs,
+        QUEUE_URL,
+        _poll_message(item_key, resume_request, poll_count),
+        delay_seconds=delay_seconds,
     )
 
 
@@ -157,10 +159,7 @@ def _process_background_work(_record: dict, request: dict) -> None:
     raw_work = item.get("pendingWork")
     if raw_work is None:
         if item.get("status") == "PENDING" and (item.get("backgroundResults") or item.get("runtimeResult")):
-            sqs.send_message(
-                QueueUrl=QUEUE_URL,
-                MessageBody=json.dumps(resume_request),
-            )
+            send_job(sqs, QUEUE_URL, resume_request)
         return
 
     pending_work = _validate_pending_work(raw_work)
@@ -211,4 +210,4 @@ def _process_background_work(_record: dict, request: dict) -> None:
         )
     except table.meta.client.exceptions.ConditionalCheckFailedException:
         return
-    sqs.send_message(QueueUrl=QUEUE_URL, MessageBody=json.dumps(resume_request))
+    send_job(sqs, QUEUE_URL, resume_request)

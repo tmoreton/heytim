@@ -7,8 +7,8 @@
   },
   {
     "name": "production",
-    "description": "Temporary stable production stack in the management account pending member-account Lambda quota",
-    "account": "188757775631",
+    "description": "Isolated HeyTim production environment",
+    "account": "820323452649",
     "region": "us-east-1"
   }
 ]

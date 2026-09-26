@@ -17,6 +17,7 @@
 		1AC2B001290CB87EBD5377C9 /* BotInboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 389D7153611901EA6F5911BF /* BotInboxView.swift */; };
 		21F7BAB321576AB17546F6E9 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD0F9A4EAAEEA20FE442CBB /* AuthView.swift */; };
 		28007A1F824DD4E0E1C38D99 /* APIRoutes.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFBB1B96E367269E3D95160A /* APIRoutes.generated.swift */; };
+		A90000000000000000000001 /* PlatformContract.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000001 /* PlatformContract.generated.swift */; };
 		30B8ABEE55C084A69EB75C60 /* DesktopControlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED8FD5F53AD09F8E13BFDBED /* DesktopControlView.swift */; };
 		31A4D03BAA00EFE6B5347A1E /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747D90AB338732CB23C72E87 /* APIClient.swift */; };
 		3D64F3161C45D965C7583C5A /* BrowserHandoffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90179787B9FEB963BE22449 /* BrowserHandoffView.swift */; };
@@ -103,6 +104,7 @@
 		ED8FD5F53AD09F8E13BFDBED /* DesktopControlView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesktopControlView.swift; path = Sources/HeyTimUI/DesktopControlView.swift; sourceTree = "<group>"; };
 		FB2523D5D4D178B8AAFD6592 /* DeveloperIDExportOptions.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = DeveloperIDExportOptions.plist; path = Resources/DeveloperIDExportOptions.plist; sourceTree = "<group>"; };
 		FFBB1B96E367269E3D95160A /* APIRoutes.generated.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = APIRoutes.generated.swift; path = Sources/HeyTimCore/APIRoutes.generated.swift; sourceTree = "<group>"; };
+		A80000000000000000000001 /* PlatformContract.generated.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlatformContract.generated.swift; path = Sources/HeyTimCore/PlatformContract.generated.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -161,6 +163,7 @@
 				9685FC7D38CF710C71C12A66 /* HeyTimAppleApp.swift */,
 				747D90AB338732CB23C72E87 /* APIClient.swift */,
 				FFBB1B96E367269E3D95160A /* APIRoutes.generated.swift */,
+				A80000000000000000000001 /* PlatformContract.generated.swift */,
 				3A8BD71384316330EFB50046 /* AppModel.swift */,
 				6215600B1AD6C11F22092AEB /* Models.swift */,
 				AD0000000000000000000001 /* DeviceModels.swift */,
@@ -387,6 +390,7 @@
 				FFFB4FE497072CA923643791 /* HeyTimAppleApp.swift in Sources */,
 				31A4D03BAA00EFE6B5347A1E /* APIClient.swift in Sources */,
 				28007A1F824DD4E0E1C38D99 /* APIRoutes.generated.swift in Sources */,
+				A90000000000000000000001 /* PlatformContract.generated.swift in Sources */,
 				703716656630AB43ACDA3F0D /* AppModel.swift in Sources */,
 				0A87C1D4CB05978494CB610A /* Models.swift in Sources */,
 				AC0000000000000000000001 /* DeviceModels.swift in Sources */,

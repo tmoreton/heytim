@@ -13,6 +13,7 @@ from shared.device_tools import (
     DEVICE_OPERATION_PLATFORMS,
     DEVICE_TOOL_OPERATIONS,
 )
+from shared.job_envelope import send_job
 
 from .support import QUEUE_URL, ApiError, _body, _now, _response, sqs, table
 
@@ -235,16 +236,15 @@ def _result_response(proposal: dict, value: dict) -> dict:
 
 
 def _queue_resume(call: dict) -> None:
-    sqs.send_message(
-        QueueUrl=QUEUE_URL,
-        MessageBody=json.dumps(
-            {
-                "type": "AGENT_REPLY",
-                "userId": call["userId"],
-                "botId": call["botId"],
-                "turnKey": call["turnKey"],
-            }
-        ),
+    send_job(
+        sqs,
+        QUEUE_URL,
+        {
+            "type": "AGENT_REPLY",
+            "userId": call["userId"],
+            "botId": call["botId"],
+            "turnKey": call["turnKey"],
+        },
     )
 
 

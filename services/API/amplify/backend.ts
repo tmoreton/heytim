@@ -2,23 +2,21 @@ import { defineBackend } from '@aws-amplify/backend';
 import { ArnFormat, Duration, RemovalPolicy } from 'aws-cdk-lib';
 import { ReadWriteType, Trail } from 'aws-cdk-lib/aws-cloudtrail';
 import { AttributeType, BillingMode, Table, TableEncryption } from 'aws-cdk-lib/aws-dynamodb';
-import { Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
+import { EventField, Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
 import { SqsQueue } from 'aws-cdk-lib/aws-events-targets';
 import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { Key } from 'aws-cdk-lib/aws-kms';
-import { Code, Function as LambdaFunction, RecursiveLoop, Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket, BucketEncryption, HttpMethods } from 'aws-cdk-lib/aws-s3';
 import { ScheduleGroup } from 'aws-cdk-lib/aws-scheduler';
 import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
-import path from 'node:path';
 
 import { preSignUp } from './auth/pre-sign-up/resource';
 import { auth, emailCodeMessage } from './auth/resource';
 import {
   ALLOWED_WEB_ORIGINS, CAPABILITY_CATALOG_URL,
-  FUNCTION_ASSET_EXCLUDES, PUBLIC_WEB_BASE_URL,
+  PUBLIC_WEB_BASE_URL,
   WORKER_CONCURRENCY, deploymentEnvironment,
   apnsApplicationArn, apnsSandboxApplicationArn,
   githubAppSecretArn, globalWindowRunUnitLimit, googleOAuthSecretArn,
@@ -31,6 +29,7 @@ import {
   slackOAuthSecretArn, xOAuthSecretArn, youtubeSearchDailyLimit,
   stripeAvailable,
 } from './infrastructure/app-settings';
+import { createApplicationFunctions } from './infrastructure/application-functions';
 import { addBrowserAccess } from './infrastructure/browser-access';
 import { addBotEmailReceiving } from './infrastructure/bot-email';
 import { addProductionAutofix } from './infrastructure/autofix';
@@ -245,7 +244,7 @@ logsKey.addToResourcePolicy(
   }),
 );
 const {
-  apiLogGroup, workerLogGroup, plaidWebhookLogGroup, apiAccessLogGroup,
+  apiLogGroup, publicApiLogGroup, workerLogGroup, plaidWebhookLogGroup, apiAccessLogGroup,
 } = createApplicationLogGroups(stack, logsKey);
 const nativePushFeedbackRole = addNativePushFeedbackRole(
   stack,
@@ -323,7 +322,13 @@ catalogRefresh.addTarget(
   new SqsQueue(jobs, {
     deadLetterQueue,
     retryAttempts: 2,
-    message: RuleTargetInput.fromObject({ type: 'CATALOG_REFRESH' }),
+    message: RuleTargetInput.fromObject({
+      schemaVersion: 1,
+      type: 'CATALOG_REFRESH',
+      correlationId: EventField.eventId,
+      idempotencyKey: EventField.eventId,
+      occurredAt: EventField.time,
+    }),
   }),
 );
 const taskScheduleGroup = new ScheduleGroup(stack, 'TaskSchedules', {
@@ -335,84 +340,41 @@ const taskScheduleRole = new Role(stack, 'TaskScheduleRole', {
 jobs.grantSendMessages(taskScheduleRole);
 deadLetterQueue.grantSendMessages(taskScheduleRole);
 
-const functionDefaults = {
-  runtime: Runtime.PYTHON_3_14,
-  memorySize: 512,
-  environment: { TABLE_NAME: table.tableName },
-  tracing: Tracing.ACTIVE,
+const applicationEnvironment = {
+  TABLE_NAME: table.tableName,
+  QUEUE_URL: jobs.queueUrl,
+  QUEUE_ARN: jobs.queueArn,
+  SCHEDULE_DLQ_ARN: deadLetterQueue.queueArn,
+  SCHEDULE_GROUP_NAME: taskScheduleGroup.scheduleGroupName,
+  SCHEDULE_ROLE_ARN: taskScheduleRole.roleArn,
+  INVITE_TABLE_NAME: inviteAccess.tableName,
+  USER_POOL_ID: backend.auth.resources.userPool.userPoolId,
+  AGENT_RUNTIME_ARN: runtimeArn,
+  AGENT_RUNTIME_QUALIFIER: runtimeQualifier,
+  HEYTIM_MEMORY_ID: memoryId,
+  FILES_BUCKET_NAME: filesBucket.bucketName,
+  PUBLIC_WEB_BASE_URL,
+  BOT_EMAIL_AVAILABLE:
+    deploymentEnvironment === 'production' && process.env.HEYTIM_BOT_EMAIL_AVAILABLE === 'true'
+      ? 'true' : 'false',
+  CAPABILITY_CATALOG_URL,
+  HEYTIM_MONTHLY_RUN_UNIT_LIMIT: String(monthlyRunUnitLimit),
+  HEYTIM_USER_WINDOW_RUN_UNIT_LIMIT: String(userWindowRunUnitLimit),
+  HEYTIM_GLOBAL_WINDOW_RUN_UNIT_LIMIT: String(globalWindowRunUnitLimit),
+  HEYTIM_USAGE_WINDOW_SECONDS: String(usageWindowSeconds),
+  HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT: String(youtubeSearchDailyLimit),
+  ...nativePushEnvironment(nativePushApplications.production, nativePushApplications.sandbox),
 };
-
-const apiFunction = new LambdaFunction(stack, 'ApiFunction', {
-  ...functionDefaults,
-  handler: 'api.handler.handler',
-  code: Code.fromAsset(path.resolve('amplify/functions'), {
-    exclude: FUNCTION_ASSET_EXCLUDES,
-  }),
-  logGroup: apiLogGroup,
-  timeout: Duration.seconds(29),
-  environment: {
-    ...functionDefaults.environment,
-    QUEUE_URL: jobs.queueUrl,
-    QUEUE_ARN: jobs.queueArn,
-    SCHEDULE_DLQ_ARN: deadLetterQueue.queueArn,
-    SCHEDULE_GROUP_NAME: taskScheduleGroup.scheduleGroupName,
-    SCHEDULE_ROLE_ARN: taskScheduleRole.roleArn,
-    INVITE_TABLE_NAME: inviteAccess.tableName,
-    USER_POOL_ID: backend.auth.resources.userPool.userPoolId,
-    AGENT_RUNTIME_ARN: runtimeArn,
-    AGENT_RUNTIME_QUALIFIER: runtimeQualifier,
-    HEYTIM_MEMORY_ID: memoryId,
-    FILES_BUCKET_NAME: filesBucket.bucketName,
-    PUBLIC_WEB_BASE_URL,
-    BOT_EMAIL_AVAILABLE:
-      deploymentEnvironment === 'production' && process.env.HEYTIM_BOT_EMAIL_AVAILABLE === 'true'
-        ? 'true' : 'false',
-    CAPABILITY_CATALOG_URL,
-    HEYTIM_MONTHLY_RUN_UNIT_LIMIT: String(monthlyRunUnitLimit),
-    HEYTIM_USER_WINDOW_RUN_UNIT_LIMIT: String(userWindowRunUnitLimit),
-    HEYTIM_GLOBAL_WINDOW_RUN_UNIT_LIMIT: String(globalWindowRunUnitLimit),
-    HEYTIM_USAGE_WINDOW_SECONDS: String(usageWindowSeconds),
-    HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT: String(youtubeSearchDailyLimit),
-    ...nativePushEnvironment(nativePushApplications.production, nativePushApplications.sandbox),
-  },
-});
-
-const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
-  ...functionDefaults,
-  handler: 'worker.handler.handler',
-  code: Code.fromAsset(path.resolve('amplify/functions'), {
-    exclude: FUNCTION_ASSET_EXCLUDES,
-  }),
-  logGroup: workerLogGroup,
-  timeout: Duration.minutes(14),
-  // Long-running AgentCore jobs intentionally return bounded watchdog messages
-  // to this queue. Allow that lineage past Lambda's approximate 16-hop cutoff;
-  // application deadlines and reserved concurrency provide the guardrails.
-  recursiveLoop: RecursiveLoop.ALLOW,
-  reservedConcurrentExecutions: WORKER_CONCURRENCY,
-  environment: {
-    ...functionDefaults.environment,
-    AGENT_RUNTIME_ARN: runtimeArn,
-    AGENT_RUNTIME_QUALIFIER: runtimeQualifier,
-    QUEUE_URL: jobs.queueUrl,
-    QUEUE_ARN: jobs.queueArn,
-    SCHEDULE_DLQ_ARN: deadLetterQueue.queueArn,
-    SCHEDULE_GROUP_NAME: taskScheduleGroup.scheduleGroupName,
-    SCHEDULE_ROLE_ARN: taskScheduleRole.roleArn,
-    INVITE_TABLE_NAME: inviteAccess.tableName,
-    USER_POOL_ID: backend.auth.resources.userPool.userPoolId,
-    HEYTIM_MEMORY_ID: memoryId,
-    FILES_BUCKET_NAME: filesBucket.bucketName,
-    PUBLIC_WEB_BASE_URL,
+const { apiFunction, publicApiFunction, workerFunction } = createApplicationFunctions({
+  stack,
+  environment: applicationEnvironment,
+  workerEnvironment: {
     EMAIL_QUEUE_URL: botEmail?.outboundQueue.queueUrl ?? '',
-    CAPABILITY_CATALOG_URL,
-    HEYTIM_MONTHLY_RUN_UNIT_LIMIT: String(monthlyRunUnitLimit),
-    HEYTIM_USER_WINDOW_RUN_UNIT_LIMIT: String(userWindowRunUnitLimit),
-    HEYTIM_GLOBAL_WINDOW_RUN_UNIT_LIMIT: String(globalWindowRunUnitLimit),
-    HEYTIM_USAGE_WINDOW_SECONDS: String(usageWindowSeconds),
-    HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT: String(youtubeSearchDailyLimit),
-    ...nativePushEnvironment(nativePushApplications.production, nativePushApplications.sandbox),
   },
+  apiLogGroup,
+  publicApiLogGroup,
+  workerLogGroup,
+  workerConcurrency: WORKER_CONCURRENCY,
 });
 
 const plaidWebhookFunction = addPlaidWebhook({
@@ -421,11 +383,13 @@ const plaidWebhookFunction = addPlaidWebhook({
 });
 
 table.grantReadWriteData(apiFunction);
+table.grantReadWriteData(publicApiFunction);
 addBrowserAccess(stack, apiFunction, workerFunction);
 inviteAccess.grantReadWriteData(apiFunction);
+inviteAccess.grantReadData(publicApiFunction);
 inviteAccess.grantReadWriteData(workerFunction);
 table.grantReadWriteData(workerFunction);
-addStripeBilling(apiFunction, workerFunction);
+addStripeBilling(apiFunction, workerFunction, publicApiFunction);
 addNativePushAccess(apiFunction, workerFunction, [
   nativePushApplications.production,
   nativePushApplications.sandbox,
@@ -471,6 +435,17 @@ apiFunction.addToRolePolicy(
     resources: [connectionSecretsArn],
   }),
 );
+publicApiFunction.addToRolePolicy(
+  new PolicyStatement({
+    actions: [
+      'secretsmanager:CreateSecret',
+      'secretsmanager:GetSecretValue',
+      'secretsmanager:PutSecretValue',
+      'secretsmanager:TagResource',
+    ],
+    resources: [connectionSecretsArn],
+  }),
+);
 workerFunction.addToRolePolicy(
   new PolicyStatement({
     actions: ['secretsmanager:GetSecretValue', 'secretsmanager:DeleteSecret'],
@@ -478,6 +453,7 @@ workerFunction.addToRolePolicy(
   }),
 );
 jobs.grantSendMessages(apiFunction);
+jobs.grantSendMessages(publicApiFunction);
 jobs.grantSendMessages(workerFunction);
 botEmail?.outboundQueue.grantSendMessages(workerFunction);
 taskScheduleGroup.grantWriteSchedules(apiFunction);
@@ -551,6 +527,7 @@ addMemoryAccess({
 const httpApi = addHttpApi({
   stack,
   apiFunction,
+  publicApiFunction,
   plaidWebhookFunction,
   apiAccessLogGroup,
   allowedOrigins: ALLOWED_WEB_ORIGINS,
@@ -572,6 +549,14 @@ addProviderConnectionAccess(apiFunction, httpApi.apiEndpoint, {
   microsoft: microsoftOAuthSecretArn, notion: notionOAuthSecretArn, plaid: plaidSecretArn, quickbooks: quickBooksOAuthSecretArn,
   slack: slackOAuthSecretArn, x: xOAuthSecretArn,
 });
+addProviderConnectionAccess(publicApiFunction, httpApi.apiEndpoint, {
+  github: githubAppSecretArn, google: googleOAuthSecretArn,
+  hubspot: hubspotOAuthSecretArn,
+  jira: jiraOAuthSecretArn,
+  zoom: zoomOAuthSecretArn,
+  microsoft: microsoftOAuthSecretArn, notion: notionOAuthSecretArn, plaid: plaidSecretArn, quickbooks: quickBooksOAuthSecretArn,
+  slack: slackOAuthSecretArn, x: xOAuthSecretArn,
+});
 
 const autofix = addProductionAutofix({
   stack, table, workerLogGroup, logsKey, githubAppSecretArn, runtimeArn, runtimeQualifier,
@@ -581,6 +566,7 @@ const autofix = addProductionAutofix({
 const { alarmTopic, monthlyBudgetName } = addObservability({
   stack,
   apiFunction,
+  publicApiFunction,
   workerFunction,
   workerLogGroup,
   apiAccessLogGroup,

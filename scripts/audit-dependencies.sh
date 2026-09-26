@@ -25,3 +25,7 @@ uvx pip-audit@2.10.0 \
   --cache-dir "$audit_directory/cache" \
   --progress-spinner off \
   -r "$requirements_file"
+uvx pip-audit@2.10.0 \
+  --cache-dir "$audit_directory/cache" \
+  --progress-spinner off \
+  -r "$repository_root/services/API/amplify/functions/requirements.txt"

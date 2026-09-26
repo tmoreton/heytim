@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-import base64
-import hashlib
 import json
 from functools import lru_cache
 
 import httpx
+import jwt
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -71,28 +70,18 @@ def _public_address(*_args, **_kwargs):
 def test_github_app_jwt_is_a_verifiable_short_lived_rs256_token() -> None:
     private_key = _test_private_key()
     token = github_app.github_app_jwt("12345", private_key, now=2_000)
-    header, payload, encoded_signature = token.split(".")
-    decode = lambda value: base64.urlsafe_b64decode(
-        value + ("=" * (-len(value) % 4))
-    )
-
-    assert json.loads(decode(header)) == {"alg": "RS256", "typ": "JWT"}
-    assert json.loads(decode(payload)) == {
+    parsed_key = serialization.load_pem_private_key(private_key.encode(), password=None)
+    assert jwt.get_unverified_header(token) == {"alg": "RS256", "typ": "JWT"}
+    assert jwt.decode(
+        token,
+        parsed_key.public_key(),
+        algorithms=["RS256"],
+        options={"verify_exp": False, "verify_iat": False},
+    ) == {
         "iat": 1_940,
         "exp": 2_540,
         "iss": "12345",
     }
-    modulus, _private_exponent = github_app._rsa_private_numbers(private_key)
-    signature = int.from_bytes(decode(encoded_signature), "big")
-    recovered = pow(signature, 65_537, modulus).to_bytes(
-        (modulus.bit_length() + 7) // 8, "big"
-    )
-    digest_info = (
-        github_app._SHA256_DIGEST_INFO_PREFIX
-        + hashlib.sha256(f"{header}.{payload}".encode("ascii")).digest()
-    )
-    assert recovered.startswith(b"\x00\x01\xff")
-    assert recovered.endswith(b"\x00" + digest_info)
 
 
 @pytest.mark.parametrize(
