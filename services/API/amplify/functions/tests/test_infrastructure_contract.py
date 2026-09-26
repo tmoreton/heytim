@@ -51,6 +51,9 @@ class InfrastructureContractTests(unittest.TestCase):
         cls.production_verifier = (
             Path(__file__).parents[5] / "scripts" / "verify-production-deployment.sh"
         ).read_text(encoding="utf-8")
+        cls.recovery_drill = (
+            Path(__file__).parents[5] / "scripts" / "aws-recovery-drill.sh"
+        ).read_text(encoding="utf-8")
         cls.gateway_target_deployer = (
             Path(__file__).parents[5]
             / "scripts"
@@ -194,6 +197,18 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("auditTrail.addS3EventSelector", self.backend)
         self.assertIn("ReadWriteType.ALL", self.backend)
         self.assertIn("nativePushFeedbackRoleArn", self.backend)
+
+    def test_recovery_drill_is_scoped_to_the_active_production_account(self) -> None:
+        self.assertNotIn("^amplify-heytim-", self.recovery_drill)
+        self.assertIn('deployment_environment" != "production', self.recovery_drill)
+        self.assertIn(
+            'expected_bucket="heytim-production-user-files-${actual_account}-${drill_region}"',
+            self.recovery_drill,
+        )
+        self.assertIn("Table.TableArn", self.recovery_drill)
+        self.assertIn(
+            "outside the active production account or Region", self.recovery_drill
+        )
 
     def test_github_deployment_trust_uses_immutable_repository_ids(self) -> None:
         self.assertIn(
