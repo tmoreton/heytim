@@ -30,6 +30,9 @@ class InfrastructureContractTests(unittest.TestCase):
         cls.production_readiness = (
             Path(__file__).parents[2] / "infrastructure" / "production-readiness.ts"
         ).read_text(encoding="utf-8")
+        cls.bot_email = (
+            Path(__file__).parents[2] / "infrastructure" / "bot-email.ts"
+        ).read_text(encoding="utf-8")
         cls.deployment_role = (
             Path(__file__).parents[2] / "infrastructure" / "deployment-role.ts"
         ).read_text(encoding="utf-8")
@@ -79,6 +82,11 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("emailSendingAccount: 'DEVELOPER'", self.backend)
         self.assertIn("emailSendingAccount: 'COGNITO_DEFAULT'", self.backend)
         self.assertIn("HEYTIM_AUTH_EMAIL_PROVIDER: ses", self.production_workflow)
+
+    def test_destination_bot_email_uses_a_stack_managed_rule_set(self) -> None:
+        self.assertNotIn("inboxai-inboxai-cc", self.production_workflow)
+        self.assertNotIn("HEYTIM_SES_RULE_SET_NAME:", self.production_workflow)
+        self.assertIn("'heytim-production-bot-mail'", self.bot_email)
 
     def test_worker_polling_is_explicitly_allowed(self) -> None:
         worker = self.application_functions.split(

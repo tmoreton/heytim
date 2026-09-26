@@ -43,7 +43,15 @@ destination-account resource identifiers, and CDK synthesis rejects any future f
   traffic remain unchanged.
 - The first destination Amplify create stopped at Cognito because `heytim.ai` was not yet verified in destination SES,
   then reached `ROLLBACK_COMPLETE`; no API, client, DNS, or traffic binding moved. A destination SES domain identity
-  now exists and awaits its three DKIM CNAMEs at the authoritative registrar before the backend is retried.
+  now exists. Its three DKIM CNAMEs were added without changing any website, mail, or `bots.heytim.ai` traffic record;
+  public DNS resolves all three and SES reports the identity verified with DKIM `SUCCESS`.
+- The destination SES account is still in the sandbox. The isolated backend bootstrap therefore uses explicit Cognito
+  default delivery; the production workflow remains pinned to explicit SES delivery and will fail closed until AWS
+  grants production sending access.
+- The empty failed Amplify shell stack was deleted only after every listed stack resource was already
+  `DELETE_COMPLETE`. Its retained empty invite table and retained KMS key remain isolated for inventory and later
+  cleanup. The destination workflow no longer references the source account's SES receipt-rule set; the receive-stage
+  stack will own `heytim-production-bot-mail` in the destination account.
 
 ## Decisions requiring approval
 
