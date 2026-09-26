@@ -15,8 +15,16 @@ for (const route of ['index.html', 'features/index.html', 'skills/index.html', '
   assert(html.includes(`<meta property="og:title" content="${title}"`), `${route} needs matching share metadata`);
 }
 const sitemap = await readFile(new URL('sitemap.xml', output), 'utf8');
-assert(sitemap.includes('https://heytim.ai/features/'));
-assert(!sitemap.includes('https://heytim.ai/invite/'));
+const sitemapURLs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, location]) => new URL(location));
+assert(sitemapURLs.length > 0, 'The sitemap must contain public pages');
+for (const url of sitemapURLs) {
+  assert.equal(url.origin, 'https://heytim.ai');
+  assert.equal(url.search, '');
+  assert.equal(url.hash, '');
+}
+const sitemapPaths = new Set(sitemapURLs.map((url) => url.pathname));
+assert(sitemapPaths.has('/features/'));
+for (const route of ['/invite/', '/app/', '/billing/', '/404/']) assert(!sitemapPaths.has(route));
 for (const route of ['invite', 'app', 'billing']) {
   assert.match(await readFile(new URL(`${route}/index.html`, output), 'utf8'), /name="robots" content="noindex, follow"/);
 }
