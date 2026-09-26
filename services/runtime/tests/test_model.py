@@ -93,6 +93,7 @@ def test_load_model_uses_deepseek_with_glm_fallback(
     assert primary.model.get_config()["params"]["extra_body"] == {
         "reasoning": {"effort": "high"}
     }
+    assert primary.model.get_config()["params"]["max_tokens"] == 8192
     assert fallback.model.get_config()["model_id"] == "z-ai/glm-5.3"
     assert fallback.model.get_config()["params"]["extra_body"] == {
         "reasoning": {"effort": "high"}
@@ -482,3 +483,65 @@ def test_openrouter_model_preserves_provider_cost_and_reasoning_tokens() -> None
     assert event["metadata"]["usage"]["cacheReadInputTokens"] == 40
     assert event["metadata"]["usage"]["cacheWriteInputTokens"] == 15
     assert event["metadata"]["usage"]["reasoningTokens"] == 10
+
+
+def test_openrouter_model_preserves_reasoning_across_tool_turns() -> None:
+    model = model_loader.OpenRouterUsageModel(
+        model_id="deepseek/deepseek-v4.1-flash",
+        client_args={"api_key": "test"},
+    )
+
+    messages = model.format_request_messages(
+        [
+            {
+                "role": "assistant",
+                "content": [
+                    {"reasoningContent": {"text": "I should inspect the result."}},
+                    {
+                        "toolUse": {
+                            "name": "plaid_transactions",
+                            "toolUseId": "tool-1",
+                            "input": {"offset": 0},
+                        }
+                    },
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "toolResult": {
+                            "toolUseId": "tool-1",
+                            "content": [{"json": {"totalTransactions": 21}}],
+                        }
+                    }
+                ],
+            },
+        ]
+    )
+
+    assert messages[0]["reasoning"] == "I should inspect the result."
+    assert messages[0]["tool_calls"][0]["id"] == "tool-1"
+    assert messages[1]["role"] == "tool"
+
+
+def test_openrouter_model_keeps_reasoning_only_continuation() -> None:
+    model = model_loader.OpenRouterUsageModel(
+        model_id="deepseek/deepseek-v4.1-flash",
+        client_args={"api_key": "test"},
+    )
+
+    messages = model.format_request_messages(
+        [
+            {
+                "role": "assistant",
+                "content": [
+                    {"reasoningContent": {"text": "Partial analysis to resume."}}
+                ],
+            }
+        ]
+    )
+
+    assert messages == [
+        {"role": "assistant", "reasoning": "Partial analysis to resume."}
+    ]

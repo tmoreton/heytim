@@ -60,6 +60,10 @@ class AgentIncompleteTurnError(RuntimeError):
     """Raised when an agent repeatedly ends while promising unfinished work."""
 
 
+class AgentOutputLimitError(RuntimeError):
+    """Raised when bounded max-token continuation cannot finish the turn."""
+
+
 def _event_payload(value: Any) -> dict:
     if not isinstance(value, dict):
         return {}
@@ -148,9 +152,15 @@ async def stream_with_token_recovery(
                             break
                         tracker.observe(event)
                         yield event
-                except MaxTokensReachedException:
+                except MaxTokensReachedException as exc:
                     if token_continuations >= MAX_TOKEN_CONTINUATIONS:
-                        raise
+                        if logger:
+                            logger.error(
+                                "Model repeatedly reached its output token limit"
+                            )
+                        raise AgentOutputLimitError(
+                            "Agent exhausted bounded output-token continuations"
+                        ) from exc
                     token_continuations += 1
                     if logger:
                         logger.warning(

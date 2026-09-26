@@ -28,6 +28,7 @@ from heytim_runtime.streaming import (
     AGENT_IDLE_TIMEOUT_SECONDS,
     AGENT_RUN_TIMEOUT_SECONDS,
     AgentIncompleteTurnError,
+    AgentOutputLimitError,
     AgentRunStalledError,
     AgentRunTimeoutError,
     stream_with_token_recovery,
@@ -58,6 +59,11 @@ PROVIDER_CALL_LIMIT_MESSAGE = (
     "I reached HeyTim's provider-call safety limit before I could finish. I kept "
     "the verified progress from this run; send “continue” to resume without "
     "repeating completed external actions."
+)
+OUTPUT_LIMIT_MESSAGE = (
+    "I reached the model's response limit before I could finish. I kept the "
+    "verified progress from this run; send “continue” to resume without repeating "
+    "completed external actions."
 )
 
 
@@ -213,6 +219,11 @@ async def run_agent(payload, context):
             terminal_error = {
                 "code": "INCOMPLETE_TURN",
                 "message": INCOMPLETE_TURN_MESSAGE,
+            }
+        except AgentOutputLimitError:
+            terminal_error = {
+                "code": "OUTPUT_LIMIT",
+                "message": OUTPUT_LIMIT_MESSAGE,
             }
         except ProviderCallLimitExceeded:
             terminal_error = {

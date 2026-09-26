@@ -271,7 +271,90 @@ class UsageAccumulator:
 
 
 class OpenRouterUsageModel(OpenAIModel):
-    """Preserve OpenRouter accounting fields that Strands does not expose."""
+    """Preserve OpenRouter fields that the generic Strands adapter drops."""
+
+    @classmethod
+    def _format_regular_messages(
+        cls, messages: Messages, **kwargs: Any
+    ) -> list[dict[str, Any]]:
+        """Round-trip plaintext reasoning required by OpenRouter tool turns.
+
+        Strands normalizes streamed OpenRouter reasoning into ``reasoningContent``
+        blocks, but its generic OpenAI Chat Completions formatter removes those
+        blocks on the next model call. OpenRouter accepts the same plaintext as the
+        assistant message's ``reasoning`` field and requires it to continue a
+        reasoning model after tool results or a max-token stop.
+        """
+        compatible_messages: list[dict[str, Any]] = []
+        reasoning_by_message: list[str] = []
+        expanded_message_counts: list[int] = []
+
+        for message in messages:
+            contents = message["content"]
+            reasoning_parts: list[str] = []
+            compatible_content = []
+            tool_result_count = 0
+            tool_result_image_count = 0
+            for content in contents:
+                reasoning = content.get("reasoningContent")
+                if isinstance(reasoning, dict):
+                    text = reasoning.get("text")
+                    if isinstance(text, str):
+                        reasoning_parts.append(text)
+                    continue
+                compatible_content.append(content)
+                tool_result = content.get("toolResult")
+                if not isinstance(tool_result, dict):
+                    continue
+                tool_result_count += 1
+                result_content = tool_result.get("content")
+                if isinstance(result_content, list) and any(
+                    isinstance(item, dict) and "image" in item
+                    for item in result_content
+                ):
+                    tool_result_image_count += 1
+
+            compatible_messages.append(
+                {**message, "content": compatible_content}
+            )
+            reasoning_by_message.append("".join(reasoning_parts))
+            expanded_message_counts.append(
+                1 + tool_result_count + tool_result_image_count
+            )
+
+        formatted = super()._format_regular_messages(
+            compatible_messages, **kwargs
+        )
+        formatted_index = 0
+        for reasoning, expanded_count in zip(
+            reasoning_by_message, expanded_message_counts, strict=True
+        ):
+            if reasoning:
+                formatted[formatted_index]["reasoning"] = reasoning
+            formatted_index += expanded_count
+        return formatted
+
+    @classmethod
+    def format_request_messages(
+        cls,
+        messages: Messages,
+        system_prompt: str | None = None,
+        *,
+        system_prompt_content: list[SystemContentBlock] | None = None,
+        **kwargs: Any,
+    ) -> list[dict[str, Any]]:
+        formatted = cls._format_system_messages(
+            system_prompt,
+            system_prompt_content=system_prompt_content,
+        )
+        formatted.extend(cls._format_regular_messages(messages, **kwargs))
+        return [
+            message
+            for message in formatted
+            if "content" in message
+            or "tool_calls" in message
+            or "reasoning" in message
+        ]
 
     def format_chunk(self, event: dict[str, Any], **kwargs: Any) -> StreamEvent:
         chunk = super().format_chunk(event, **kwargs)
