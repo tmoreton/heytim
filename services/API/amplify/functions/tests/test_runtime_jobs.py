@@ -103,10 +103,13 @@ class RuntimeJobTests(WorkerTestCase):
             self.table.updates[-1]["ExpressionAttributeValues"][":result"]["text"],
             "verified",
         )
+        queued = json.loads(self.sqs.send_message.call_args.kwargs["MessageBody"])
         self.assertEqual(
-            json.loads(self.sqs.send_message.call_args.kwargs["MessageBody"]),
+            {key: queued[key] for key in self.resume},
             self.resume,
         )
+        self.assertEqual(queued["schemaVersion"], 1)
+        self.assertIn("idempotencyKey", queued)
 
     def test_cancel_race_does_not_publish_result_or_resume(self):
         self.state({"status": "COMPLETE", "text": "verified"})

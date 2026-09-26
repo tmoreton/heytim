@@ -16,12 +16,29 @@ fi
 
 drill_bucket="${HEYTIM_FILES_BUCKET_NAME:-$(jq -r '.custom.filesBucketName // empty' "$outputs_file")}"
 drill_source_table="${HEYTIM_DATA_TABLE_NAME:-$(jq -r '.custom.dataTableName // empty' "$outputs_file")}"
-if [[ ! "$drill_bucket" =~ ^heytim(-production)?-user-files-[0-9]{12}-[a-z0-9-]+$ ]]; then
-  echo "Refusing to run: the resolved bucket is not a HeyTim user-files bucket." >&2
+deployment_environment="$(jq -r '.custom.environment // empty' "$outputs_file")"
+actual_account="$(aws sts get-caller-identity --query Account --output text)"
+expected_bucket="heytim-production-user-files-${actual_account}-${drill_region}"
+
+if [[ "$deployment_environment" != "production" ]]; then
+  echo "Refusing to run: the outputs are not from the production environment." >&2
   exit 1
 fi
-if [[ ! "$drill_source_table" =~ ^amplify-heytim-.*-Data[[:alnum:]-]+$ ]]; then
-  echo "Refusing to run: the resolved table is not a HeyTim data table." >&2
+if [[ "$drill_bucket" != "$expected_bucket" ]]; then
+  echo "Refusing to run: the resolved bucket is not the production bucket for this account and Region." >&2
+  exit 1
+fi
+if [[ ! "$drill_source_table" =~ ^amplify-[[:alnum:]-]+-Data[[:alnum:]-]+$ ]]; then
+  echo "Refusing to run: the resolved table is not an Amplify data table." >&2
+  exit 1
+fi
+drill_source_table_arn="$(aws dynamodb describe-table \
+  --region "$drill_region" \
+  --table-name "$drill_source_table" \
+  --query 'Table.TableArn' \
+  --output text)"
+if [[ "$drill_source_table_arn" != arn:aws*:dynamodb:"$drill_region":"$actual_account":table/"$drill_source_table" ]]; then
+  echo "Refusing to run: the resolved table is outside the active production account or Region." >&2
   exit 1
 fi
 
@@ -65,7 +82,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-aws sts get-caller-identity >/dev/null
 if [[ "${HEYTIM_SKIP_DYNAMODB_RESTORE:-0}" != "1" ]]; then
   aws dynamodb describe-continuous-backups \
     --region "$drill_region" \

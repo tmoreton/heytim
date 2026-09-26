@@ -6,6 +6,7 @@ const serviceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repositoryRoot = resolve(serviceRoot, '../..');
 const contractPath = resolve(serviceRoot, 'amplify/functions/api/api-contract.json');
 const outputPath = resolve(repositoryRoot, 'packages/heytim-contract/src/api-contract.generated.ts');
+const openApiOutputPath = resolve(repositoryRoot, 'packages/heytim-contract/openapi.generated.json');
 const swiftOutputPath = resolve(
   repositoryRoot,
   'apps/iOS/Sources/HeyTimCore/APIRoutes.generated.swift',
@@ -136,6 +137,72 @@ const swiftOutput = [
   '',
 ].join('\n');
 
+const openApiPaths = {};
+for (const route of validatedRoutes) {
+  const parameters = [...route.path.matchAll(/\{([^}]+)\}/g)].map((match) => ({
+    name: match[1],
+    in: 'path',
+    required: true,
+    schema: { type: 'string', minLength: 1, maxLength: 256 },
+  }));
+  const operation = {
+    operationId: route.id,
+    tags: [route.handler],
+    ...(route.access === 'authenticated' ? { security: [{ cognitoBearer: [] }] } : { security: [] }),
+    ...(parameters.length ? { parameters } : {}),
+    ...(['POST', 'PUT', 'PATCH'].includes(route.method) ? {
+      requestBody: {
+        required: false,
+        content: {
+          'application/json': { schema: { type: 'object', additionalProperties: true } },
+        },
+      },
+    } : {}),
+    responses: {
+      200: {
+        description: 'Successful response',
+        content: {
+          'application/json': { schema: { type: ['object', 'array'], additionalProperties: true } },
+        },
+      },
+      default: {
+        description: 'Stable HeyTim API error',
+        content: {
+          'application/json': { schema: { $ref: '#/components/schemas/ApiError' } },
+        },
+      },
+    },
+  };
+  openApiPaths[route.path] ??= {};
+  openApiPaths[route.path][route.method.toLowerCase()] = operation;
+}
+const openApi = `${JSON.stringify({
+  openapi: '3.1.0',
+  info: {
+    title: 'HeyTim API',
+    version: String(contract.version),
+    description: 'Generated route and authentication contract. Domain schemas remain additive.',
+  },
+  'x-heytim-contract-version': contract.version,
+  paths: openApiPaths,
+  components: {
+    securitySchemes: {
+      cognitoBearer: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+    },
+    schemas: {
+      ApiError: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['code', 'message'],
+        properties: {
+          code: { type: 'string', pattern: '^[a-z][a-z0-9_]{0,63}$' },
+          message: { type: 'string', minLength: 1, maxLength: 1000 },
+        },
+      },
+    },
+  },
+}, null, 2)}\n`;
+
 if (process.argv.includes('--check')) {
   if (readFileSync(outputPath, 'utf8') !== output) {
     throw new Error('API contract output is stale. Run npm run contract:generate from services/API.');
@@ -143,8 +210,12 @@ if (process.argv.includes('--check')) {
   if (readFileSync(swiftOutputPath, 'utf8') !== swiftOutput) {
     throw new Error('Swift API contract output is stale. Run npm run contract:generate from services/API.');
   }
+  if (readFileSync(openApiOutputPath, 'utf8') !== openApi) {
+    throw new Error('OpenAPI contract output is stale. Run npm run contract:generate from services/API.');
+  }
 } else {
   writeFileSync(outputPath, output);
+  writeFileSync(openApiOutputPath, openApi);
   mkdirSync(dirname(swiftOutputPath), { recursive: true });
   writeFileSync(swiftOutputPath, swiftOutput);
 }

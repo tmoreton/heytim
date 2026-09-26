@@ -27,14 +27,17 @@ while IFS= read -r file; do
     services/runtime/vendor/*|*/node_modules/*|*/.amplify/*|*/dist/*|agentcore/cdk/*)
       continue
       ;;
-    services/runtime/*|services/API/amplify/functions/*|services/API/amplify/infrastructure/*|services/API/amplify/backend.ts|services/API/scripts/*|apps/website/src/*|apps/website/scripts/*|catalog/scripts/*|packages/*/src/*|scripts/*)
+    services/runtime/*|services/API/amplify/functions/*|services/API/amplify/infrastructure/*|services/API/amplify/backend.ts|services/API/scripts/*|apps/website/src/*|apps/website/scripts/*|apps/iOS/App/*|apps/iOS/Sources/*|catalog/scripts/*|packages/*/src/*|scripts/*)
       ;;
     *)
       continue
       ;;
   esac
   case "$file" in
-    *.py|*.ts|*.tsx|*.js|*.mjs|*.sh)
+    *.generated.swift)
+      continue
+      ;;
+    *.py|*.swift|*.ts|*.tsx|*.js|*.mjs|*.sh)
       lines="$(wc -l < "$file" | tr -d ' ')"
       file_limit="$(allowed_lines "$file")"
       if (( lines > file_limit )); then

@@ -64,9 +64,11 @@ class PlaidSyncTests(unittest.TestCase):
             status = self.connections._request_plaid_sync("user-1", connection_id)
         self.assertEqual(status["status"], "queued")
         message = json.loads(queue.send_message.call_args.kwargs["MessageBody"])
-        self.assertEqual(message, {
+        expected = {
             "type": "PLAID_SYNC", "userId": "user-1", "connectionId": connection_id,
-        })
+        }
+        self.assertEqual({key: message[key] for key in expected}, expected)
+        self.assertEqual(message["schemaVersion"], 1)
 
     def test_merge_add_modify_remove_is_idempotent(self) -> None:
         original = [

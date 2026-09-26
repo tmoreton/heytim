@@ -345,9 +345,15 @@ export type AppConstraints = {
   skillInstructionsMaxLength: number;
   memoryMaxLength: number;
   maxAttachmentsPerMessage: number;
+  maxToolsPerBot?: number;
   imageMaxBytes: number;
   documentMaxBytes: number;
   maxPhotoDimension: number;
+};
+
+export type ApiErrorResponse = {
+  code: string;
+  message: string;
 };
 
 export type CapabilitySelection = {

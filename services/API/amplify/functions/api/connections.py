@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -11,6 +10,7 @@ from shared.connection_providers import (
     SUPPORTED_CONNECTION_PROVIDER_IDS,
     connection_provider,
 )
+from shared.job_envelope import send_job
 from shared.plaid_ledger import item_mapping_key, public_sync_status, sync_key
 
 from .external_oauth import (
@@ -123,12 +123,13 @@ def _request_plaid_sync(user_id: str, connection_id: str) -> dict:
             ExpressionAttributeValues={":now": now, ":queued": "queued"},
         )
     try:
-        sqs.send_message(
-            QueueUrl=QUEUE_URL,
-            MessageBody=json.dumps({
+        send_job(
+            sqs,
+            QUEUE_URL,
+            {
                 "type": "PLAID_SYNC", "userId": user_id,
                 "connectionId": connection_id,
-            }),
+            },
         )
     except (BotoCoreError, ClientError) as exc:
         table.update_item(
@@ -211,12 +212,13 @@ def _delete_connection(user_id: str, connection_id: str) -> dict:
                 "userId": user_id, "status": "deleted",
                 "revision": int(current.get("revision", 0)) + 1,
             })
-            sqs.send_message(
-                QueueUrl=QUEUE_URL,
-                MessageBody=json.dumps({
+            send_job(
+                sqs,
+                QUEUE_URL,
+                {
                     "type": "PLAID_LEDGER_DELETE", "userId": user_id,
                     "connectionId": connection_id,
-                }),
+                },
             )
         return result
     except CatalogError as exc:

@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "contract:generate": "node scripts/generate-api-contract.mjs",
-    "contract:check": "node scripts/generate-api-contract.mjs --check",
+    "contract:generate": "node scripts/generate-api-contract.mjs && node scripts/generate-platform-contract.mjs",
+    "contract:check": "node scripts/generate-api-contract.mjs --check && node scripts/generate-platform-contract.mjs --check",
     "outputs:apple": "node scripts/sync-apple-outputs.mjs",
     "outputs:apple:check": "node scripts/sync-apple-outputs.mjs --check",
     "outputs:apple:production:check": "node scripts/sync-apple-outputs.mjs --check --require-production",

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import json
-
 from shared.account_cleanup import AccountCleanupConfig, AccountCleanupService
+from shared.job_envelope import send_job
 from shared.memory_identity import memory_actor_id
 from shared.storage import delete_object_versions
 
@@ -67,15 +66,14 @@ def _begin_account_deletion(user_id: str, username: str) -> dict:
     except table.meta.client.exceptions.ConditionalCheckFailedException:
         return {"deletionStarted": True}
     try:
-        sqs.send_message(
-            QueueUrl=QUEUE_URL,
-            MessageBody=json.dumps(
-                {
-                    "type": "DELETE_ACCOUNT",
-                    "userId": user_id,
-                    "username": username,
-                }
-            ),
+        send_job(
+            sqs,
+            QUEUE_URL,
+            {
+                "type": "DELETE_ACCOUNT",
+                "userId": user_id,
+                "username": username,
+            },
         )
     except Exception:
         table.update_item(

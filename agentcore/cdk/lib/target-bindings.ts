@@ -14,8 +14,7 @@ export function filesKeyAlias(target: AwsDeploymentTarget): string {
 export function bindSpecToTarget(
   source: AgentCoreProjectSpec,
   target: AwsDeploymentTarget,
-  productionMemoryKeyArn = process.env.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN?.trim(),
-  sharedProductionAccount = false
+  productionMemoryKeyArn = process.env.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN?.trim()
 ): AgentCoreProjectSpec {
   // The JSON remains the behavioral source of truth. This copy only resolves
   // account/Region-specific infrastructure values that cannot be shared by
@@ -25,13 +24,6 @@ export function bindSpecToTarget(
   // Keep the compatibility cast at this target-binding boundary.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mutable = spec as any;
-
-  // AgentCore service names are account/Region scoped and the L3 derives them
-  // from the project name. Give a temporary same-account production target a
-  // separate physical namespace without changing the authoritative JSON names.
-  if (target.name === 'production' && sharedProductionAccount) {
-    mutable.name = `${mutable.name}Production`;
-  }
 
   for (const runtime of mutable.runtimes ?? []) {
     const bucket = filesBucketName(target);
@@ -57,10 +49,7 @@ export function bindSpecToTarget(
   return spec;
 }
 
-export function assertProductionTargetConfigured(
-  targets: AwsDeploymentTarget[],
-  allowSharedAccount = process.env.HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT === 'true'
-): AwsDeploymentTarget {
+export function assertProductionTargetConfigured(targets: AwsDeploymentTarget[]): AwsDeploymentTarget {
   const development = targets.find(target => target.name === 'development');
   const production = targets.find(target => target.name === 'production');
   if (!development || !production) {
@@ -69,10 +58,8 @@ export function assertProductionTargetConfigured(
   if (production.account === UNCONFIGURED_AWS_ACCOUNT) {
     throw new Error('Replace the production AWS account placeholder before release.');
   }
-  if (production.account === development.account && !allowSharedAccount) {
-    throw new Error(
-      'Production must use a different AWS account from development unless HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT=true.'
-    );
+  if (production.account === development.account) {
+    throw new Error('Production must use a different AWS account from development.');
   }
   return production;
 }

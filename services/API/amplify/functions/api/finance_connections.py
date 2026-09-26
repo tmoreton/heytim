@@ -18,6 +18,7 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 from shared.catalog import CatalogError
+from shared.job_envelope import send_job
 from shared.plaid_ledger import item_mapping_key, sync_key
 
 from .google_oauth import _redirect, _result_url, _return_url, _state_key
@@ -493,12 +494,13 @@ def _plaid_callback(query: dict) -> dict:
                     "entity": "PLAID_ITEM_MAPPING", "userId": state["userId"],
                     "connectionId": saved["id"],
                 })
-                sqs.send_message(
-                    QueueUrl=QUEUE_URL,
-                    MessageBody=json.dumps({
+                send_job(
+                    sqs,
+                    QUEUE_URL,
+                    {
                         "type": "PLAID_SYNC", "userId": state["userId"],
                         "connectionId": saved["id"],
-                    }),
+                    },
                 )
             except (BotoCoreError, ClientError, ValueError):
                 logger.exception("Could not queue initial Plaid sync")

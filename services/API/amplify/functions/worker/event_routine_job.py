@@ -1,10 +1,9 @@
 """Idempotent first-party room decision event delivery."""
 from __future__ import annotations
 
-import json
-
 from boto3.dynamodb.conditions import Key
 from shared.group_chat import group_bots, plan_group_reply_round
+from shared.job_envelope import send_job
 from shared.keys import group_message_sk
 from shared.schedules import scheduled_turn_id
 from shared.workflows import (
@@ -83,14 +82,15 @@ def _process_group_decision_event(request: dict) -> None:
         if str(routine.get("createdAt", "")) > str(decision.get("createdAt", "")):
             # A newly created routine must not replay old decisions.
             continue
-        sqs.send_message(
-            QueueUrl=QUEUE_URL,
-            MessageBody=json.dumps({
+        send_job(
+            sqs,
+            QUEUE_URL,
+            {
                 "type": "EVENT_GROUP_ROUND",
                 "groupId": group_id,
                 "routineId": routine["id"],
                 "decisionId": decision_id,
-            }),
+            },
         )
 
 

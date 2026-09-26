@@ -11,8 +11,8 @@ AWS until a later reviewed deployment updates both infrastructure and state.
 
 ## Environment posture
 
-Development is deployed, and production temporarily uses the management account `188757775631` while the dedicated
-organization member account's Lambda concurrency quota request is pending. Its `PUBLIC` runtime network mode is
+Development and production use separate AWS accounts; production is configured for the dedicated organization member
+account `820323452649`. Its `PUBLIC` runtime network mode is
 intentional because the runtime needs outbound access to OpenRouter and reviewed remote MCP endpoints.
 Moving production into a VPC requires a reviewed NAT egress path and service endpoints; do not switch the
 network mode without that path or rename either existing target.
@@ -20,6 +20,17 @@ network mode without that path or rename either existing target.
 The current AgentCore project schema does not own the runtime CloudWatch log group's KMS key or
 retention. `scripts/harden-agentcore-logs.sh` manages 30-day retention and customer-managed encryption
 after deployment. Keep that ownership outside generated CDK until the schema exposes supported fields.
+
+AgentCore CLI 0.29.0 does not expose a deployment-target option for managed batch evaluations and its default dataset
+invoker sends only a prompt. The production release uses `services/runtime/scripts/run_managed_regression.py`, AWS's
+documented custom-invoker path, with the exact production runtime ARN and managed dataset ID. The invoker adds explicit
+empty, catalog-resolved `bot.tools` and `bot.skills` lists; the runtime must continue rejecting unresolved catalog
+capabilities instead of adding an evaluation-only fallback. Production runtime spans remain content-redacted. The runner
+writes only the fixed regression prompts and their tool-free responses as supported OpenTelemetry spans under the
+KMS-encrypted `/aws/bedrock-agentcore/evaluations/heytim-release-fixtures` group with 30-day retention.
+The release threshold combines assertion-aware `Builtin.GoalSuccessRate` with `Builtin.ResponseRelevance`; generic
+instruction compliance is intentionally excluded because several safety fixtures require refusing an unsafe or
+impossible instruction.
 
 ## Platform-owned provider keys
 
@@ -37,13 +48,9 @@ To rotate a provider key, replace that GitHub environment secret and rerun **Dep
 release**. The AgentCore CLI updates the existing credential provider by name, so never rename a
 provider to perform a rotation. The workflow never writes or prints the secret values.
 
-AgentCore credential providers are scoped to an account and Region rather than to a target stack. The preferred
-production posture uses the dedicated member account so stable provider names have independent values. During the
-temporary management-account deployment, set `HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT=true`; without that exact
-opt-in, `scripts/check-production-config.mjs`, CDK synthesis, and the release workflow reject development-account
-reuse. The shared-account binding uses the `HeyTimProduction` physical AgentCore project namespace, while production
-storage, KMS keys, stacks, and application resources remain target-scoped. The three platform API-key credential
-providers remain account-scoped and are therefore shared until production returns to the member account.
+AgentCore credential providers are scoped to an account and Region rather than to a target stack. Production uses the
+dedicated member account so stable provider names and values remain isolated. `scripts/check-production-config.mjs`,
+CDK synthesis, and the release workflow reject development-account reuse.
 
 The recurring GitHub deployment role can read the existing default token vault and create or rotate only
 these three named providers. It deliberately cannot create the vault encryption key or call

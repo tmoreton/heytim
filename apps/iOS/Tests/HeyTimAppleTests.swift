@@ -221,6 +221,39 @@ import UniformTypeIdentifiers
     XCTAssertEqual(AppModel.nextPollingDelay(base: 1_500, failures: 20, random: 1), 30_000)
     XCTAssertEqual(AppModel.nextPollingDelay(base: 1_500, failures: .max, random: 0), 24_000)
     XCTAssertEqual(AppModel.nextPollingDelay(base: 1_500, failures: .max, random: 1), 30_000)
+    XCTAssertEqual(
+      AppModel.nextPollingDelay(base: 1_500, failures: 0, unchangedSuccesses: 1), 2_250)
+    XCTAssertEqual(
+      AppModel.nextPollingDelay(base: 1_500, failures: 0, unchangedSuccesses: 8), 10_000)
+  }
+
+  func testPollingRestartsAfterClearingTheConversation() async throws {
+    let restartedPoll = expectation(description: "Polling restarted after clear")
+    var messageLoads = 0
+    MockURLProtocol.handler = { request in
+      if request.httpMethod == "DELETE" {
+        return Self.response(for: request, body: #"{}"#)
+      }
+      messageLoads += 1
+      if messageLoads == 3 { restartedPoll.fulfill() }
+      return Self.response(
+        for: request,
+        body:
+          #"{"messages":[{"id":"active","role":"assistant","text":"","createdAt":"2026-09-25T12:00:00Z","status":"running"}],"nextToken":null}"#)
+    }
+    let api = HeyTimAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let model = AppModel(api: api)
+    model.bootstrap = DemoData.bootstrap
+    model.selection = .init(kind: .bot, id: "chief")
+
+    try await model.loadMessages()
+    await model.clearCurrent(forgetMemory: false)
+    try await model.loadMessages()
+
+    await fulfillment(of: [restartedPoll], timeout: 3)
+    XCTAssertGreaterThanOrEqual(messageLoads, 3)
   }
 
   func testConversationScrollUpdatesOnlyForTheLatestMessage() {
@@ -938,7 +971,7 @@ import UniformTypeIdentifiers
     XCTAssertTrue(model.messages.isEmpty)
 
     releaseRequest.signal()
-    try await load.value
+    _ = try await load.value
 
     XCTAssertFalse(model.isLoadingMessages)
     XCTAssertEqual(model.messages.map(\.id), ["history"])
@@ -1108,7 +1141,7 @@ import UniformTypeIdentifiers
     await fulfillment(of: [firstRequestStarted], timeout: 2)
     model.selection = writer
     model.selection = chief
-    try await staleLoad.value
+    _ = try await staleLoad.value
     XCTAssertTrue(model.messages.isEmpty)
 
     try await model.loadMessages()

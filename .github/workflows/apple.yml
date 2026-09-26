@@ -8,6 +8,10 @@ on:
       - packages/heytim-transcription/**
       - services/API/amplify/functions/api/api-contract.json
       - services/API/scripts/generate-api-contract.mjs
+      - services/API/scripts/generate-platform-contract.mjs
+      - packages/heytim-contract/**
+      - scripts/check-source-size.sh
+      - scripts/source-size-baseline.txt
       - scripts/apple-app.sh
       - scripts/verify.sh
       - .github/workflows/apple.yml
@@ -17,6 +21,10 @@ on:
       - packages/heytim-transcription/**
       - services/API/amplify/functions/api/api-contract.json
       - services/API/scripts/generate-api-contract.mjs
+      - services/API/scripts/generate-platform-contract.mjs
+      - packages/heytim-contract/**
+      - scripts/check-source-size.sh
+      - scripts/source-size-baseline.txt
       - scripts/apple-app.sh
       - scripts/verify.sh
       - .github/workflows/apple.yml

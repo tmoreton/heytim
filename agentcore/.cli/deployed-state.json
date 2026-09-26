@@ -49,26 +49,26 @@
       "resources": {
         "runtimes": {
           "HeyTim": {
-            "runtimeId": "HeyTimProduction_HeyTim-so5Mx1Cy33",
-            "runtimeArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:runtime/HeyTimProduction_HeyTim-so5Mx1Cy33",
-            "roleArn": "arn:aws:iam::188757775631:role/AgentCore-HeyTim-producti-ApplicationAgentHeyTimRun-chD7B6tbgMyp"
+            "runtimeId": "HeyTim_HeyTim-V8Ow7U4o3h",
+            "runtimeArn": "arn:aws:bedrock-agentcore:us-east-1:820323452649:runtime/HeyTim_HeyTim-V8Ow7U4o3h",
+            "roleArn": "arn:aws:iam::820323452649:role/AgentCore-HeyTim-producti-ApplicationAgentHeyTimRun-SyNCO7ix73rz"
           }
         },
         "memories": {
           "HeyTimMemory": {
-            "memoryId": "HeyTimProduction_HeyTimMemory-xeQPMmBQGC",
-            "memoryArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:memory/HeyTimProduction_HeyTimMemory-xeQPMmBQGC"
+            "memoryId": "HeyTim_HeyTimMemory-6ltsOWEt5B",
+            "memoryArn": "arn:aws:bedrock-agentcore:us-east-1:820323452649:memory/HeyTim_HeyTimMemory-6ltsOWEt5B"
           }
         },
         "mcp": {
           "gateways": {
             "HeyTimTools": {
-              "gatewayId": "heytimproduction-heytimtools-hjebsguzzp",
-              "gatewayArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:gateway/heytimproduction-heytimtools-hjebsguzzp",
-              "gatewayUrl": "https://heytimproduction-heytimtools-hjebsguzzp.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp",
+              "gatewayId": "heytim-heytimtools-uhozsnikxn",
+              "gatewayArn": "arn:aws:bedrock-agentcore:us-east-1:820323452649:gateway/heytim-heytimtools-uhozsnikxn",
+              "gatewayUrl": "https://heytim-heytimtools-uhozsnikxn.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp",
               "targets": {
                 "HeyTimWebSearch": {
-                  "targetId": "RYVMVVLOXQ"
+                  "targetId": "P8LECQ4QYM"
                 }
               }
             }
@@ -76,38 +76,38 @@
         },
         "credentials": {
           "HeyTim_OpenRouter": {
-            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/HeyTim_OpenRouter"
+            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:820323452649:token-vault/default/apikeycredentialprovider/HeyTim_OpenRouter"
           },
           "HeyTimXApi": {
-            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/HeyTimXApi"
+            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:820323452649:token-vault/default/apikeycredentialprovider/HeyTimXApi"
           },
           "HeyTimYouTubeApi": {
-            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:token-vault/default/apikeycredentialprovider/HeyTimYouTubeApi"
+            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:820323452649:token-vault/default/apikeycredentialprovider/HeyTimYouTubeApi"
           }
         },
         "evaluators": {
           "HeyTimRunIntegrity": {
-            "evaluatorId": "HeyTimProduction_HeyTimRunIntegrity-N7QXPF5Gc2",
-            "evaluatorArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:evaluator/HeyTimProduction_HeyTimRunIntegrity-N7QXPF5Gc2"
+            "evaluatorId": "HeyTim_HeyTimRunIntegrity-k4se788O2L",
+            "evaluatorArn": "arn:aws:bedrock-agentcore:us-east-1:820323452649:evaluator/HeyTim_HeyTimRunIntegrity-k4se788O2L"
           }
         },
         "onlineEvalConfigs": {
           "HeyTimContinuousQuality": {
-            "onlineEvaluationConfigId": "HeyTimProduction_HeyTimContinuousQuality-j5dDtj9jfi",
-            "onlineEvaluationConfigArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:online-evaluation-config/HeyTimProduction_HeyTimContinuousQuality-j5dDtj9jfi",
+            "onlineEvaluationConfigId": "HeyTim_HeyTimContinuousQuality-uCA9UDB312",
+            "onlineEvaluationConfigArn": "arn:aws:bedrock-agentcore:us-east-1:820323452649:online-evaluation-config/HeyTim_HeyTimContinuousQuality-uCA9UDB312",
             "agent": "HeyTim"
           }
         },
         "datasets": {
           "HeyTimRegression": {
-            "datasetId": "HeyTimProduction_HeyTimRegression-c3WRAoF3Ku",
-            "datasetArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:dataset/HeyTimProduction_HeyTimRegression-c3WRAoF3Ku",
-            "contentHash": "6d75ceef16adb06c0c228ade88bc1c43b3668739e8a5965640546be34ded02ce"
+            "datasetId": "HeyTim_HeyTimRegression-sqL3EzF7dw",
+            "datasetArn": "arn:aws:bedrock-agentcore:us-east-1:820323452649:dataset/HeyTim_HeyTimRegression-sqL3EzF7dw",
+            "contentHash": "84be70a14e56d9a1286cbe89c25a9e959a3245cda38590edea7c36e6d729af53"
           }
         },
         "stackName": "AgentCore-HeyTim-production",
-        "identityKmsKeyArn": "arn:aws:kms:us-east-1:188757775631:key/5995545e-2e7f-456d-acf4-fab558b3b330",
-        "deployHash": "ad0165ca40ee9035"
+        "identityKmsKeyArn": "arn:aws:kms:us-east-1:820323452649:key/4893a4c0-00e8-4381-823b-19c8bc8ed248",
+        "deployHash": "0ad34e3d59bdd3e1"
       }
     }
   }

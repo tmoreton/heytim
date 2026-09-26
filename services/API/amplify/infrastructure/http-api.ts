@@ -15,6 +15,7 @@ import apiContract from '../functions/api/api-contract.json';
 type HttpApiProps = {
   stack: Stack;
   apiFunction: LambdaFunction;
+  publicApiFunction: LambdaFunction;
   plaidWebhookFunction: LambdaFunction;
   apiAccessLogGroup: LogGroup;
   allowedOrigins: string[];
@@ -33,6 +34,7 @@ const contractMethods: Record<string, HttpMethod> = {
 export function addHttpApi({
   stack,
   apiFunction,
+  publicApiFunction,
   plaidWebhookFunction,
   apiAccessLogGroup,
   allowedOrigins,
@@ -61,6 +63,11 @@ export function addHttpApi({
   const integration = new HttpLambdaIntegration('ApiIntegration', apiFunction, {
     scopePermissionToRoute: false,
   });
+  const publicIntegration = new HttpLambdaIntegration(
+    'PublicApiIntegration',
+    publicApiFunction,
+    { scopePermissionToRoute: false },
+  );
   const plaidIntegration = new HttpLambdaIntegration('PlaidWebhookIntegration', plaidWebhookFunction, {
     scopePermissionToRoute: false,
   });
@@ -95,7 +102,11 @@ export function addHttpApi({
     httpApi.addRoutes({
       path: route.path,
       methods: [method],
-      integration: route.id === 'plaidWebhook' ? plaidIntegration : integration,
+      integration: route.id === 'plaidWebhook'
+        ? plaidIntegration
+        : route.access === 'public'
+          ? publicIntegration
+          : integration,
       ...(route.access === 'authenticated' ? { authorizer } : {}),
     });
   }

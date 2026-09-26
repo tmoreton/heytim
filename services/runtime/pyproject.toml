@@ -17,6 +17,11 @@ dependencies = [
     # identical to the version verified in uv.lock.
     "boto3 == 1.43.90",
     "botocore==1.43.92",
+    # AgentCore CodeZip resolves async file I/O transitives afresh. Pin caio to
+    # the version exercised by the lockfile instead of accepting same-day PyPI drift.
+    "caio == 0.12.5",
+    # Direct dependency: GitHub App JWTs use audited PEM parsing and RSA signing.
+    "cryptography == 50.0.1",
     "cyclopts == 4.25.2",
     # The toolkit resolves its first supported AgentCore target as manylinux2014.
     # Pin compiled transitive packages to versions that publish that ARM64 wheel.
@@ -89,6 +94,8 @@ dependencies = [
 dev = [
     "jsonschema >= 4.26.0, < 5.0.0",
     "pytest>=8.4.0,<10.0.0",
+    # The managed regression runner downloads a presigned dataset fixture.
+    "requests == 2.34.2",
     "ruff >= 0.14.0, < 1.0.0",
 ]
 

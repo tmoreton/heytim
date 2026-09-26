@@ -4,30 +4,13 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-DEVICE_OPERATION_PLATFORMS = {
-    "mac_computer_observe": "macos",
-    "mac_computer_act_on_element": "macos",
-    "mac_computer_type_into_element": "macos",
-    "mac_computer_wait_for_state": "macos",
-    "mac_computer_scroll": "macos",
-    "apple_health_activity_summary": "ios",
-    "apple_health_workouts": "ios",
-    "apple_health_running_totals": "ios",
-    "apple_health_steps": "ios",
-}
-DEVICE_TOOL_IDS = frozenset({"mac_computer", "apple_health"})
-DEVICE_TOOL_OPERATIONS = {
-    "mac_computer": frozenset(
-        operation
-        for operation, platform in DEVICE_OPERATION_PLATFORMS.items()
-        if platform == "macos"
-    ),
-    "apple_health": frozenset(
-        operation
-        for operation, platform in DEVICE_OPERATION_PLATFORMS.items()
-        if platform == "ios"
-    ),
-}
+from .device_contract import (
+    DEVICE_OPERATION_PLATFORMS,
+    DEVICE_TOOL_IDS,
+    DEVICE_TOOL_OPERATIONS,
+    MAX_DEVICE_OPERATIONS,
+)
+
 DEVICE_LEASE_SECONDS = 180
 MAX_DEVICES_PER_ACCOUNT = 12
 
@@ -41,7 +24,7 @@ def validate_device_binding(value: Any) -> dict:
     if (
         platform not in {"ios", "macos"}
         or not isinstance(operations, list)
-        or not 1 <= len(operations) <= 10
+        or not 1 <= len(operations) <= MAX_DEVICE_OPERATIONS
         or not all(isinstance(operation, str) for operation in operations)
         or len(operations) != len(set(operations))
         or any(

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import time
 import uuid
@@ -10,6 +9,7 @@ from boto3.dynamodb.conditions import Attr
 from shared.action_grants import approval_grant_digest, grant_enabled_interactive_tools
 from shared.approval_storage import approval_snapshot_key
 from shared.client_contract import MESSAGE_MAX_LENGTH
+from shared.job_envelope import send_job
 from shared.memory_identity import direct_session_id
 from shared.work_state import is_in_flight
 
@@ -212,16 +212,15 @@ def _start_bot_turn(
 
 def _queue_bot_turn(item: dict, schedule_item: dict | None = None) -> None:
     try:
-        sqs.send_message(
-            QueueUrl=QUEUE_URL,
-            MessageBody=json.dumps(
-                {
-                    "type": "AGENT_REPLY",
-                    "userId": item["userId"],
-                    "botId": item["botId"],
-                    "turnKey": item["sk"],
-                }
-            ),
+        send_job(
+            sqs,
+            QUEUE_URL,
+            {
+                "type": "AGENT_REPLY",
+                "userId": item["userId"],
+                "botId": item["botId"],
+                "turnKey": item["sk"],
+            },
         )
     except Exception:
         failed_at = _now()

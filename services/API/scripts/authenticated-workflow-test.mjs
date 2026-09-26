@@ -5,9 +5,8 @@ const idToken = process.env.HEYTIM_ID_TOKEN;
 if (!apiUrl || !idToken) {
   throw new Error('Set HEYTIM_API_URL and HEYTIM_ID_TOKEN before running the workflow test.');
 }
-if (process.env.HEYTIM_DISPOSABLE_ACCOUNT !== '1') {
-  throw new Error('This test deletes its account. Set HEYTIM_DISPOSABLE_ACCOUNT=1 only for a disposable test user.');
-}
+const deleteAccount = process.env.HEYTIM_DISPOSABLE_ACCOUNT === '1'
+  || process.env.HEYTIM_DELETE_ACCOUNT === '1';
 
 const terminalStatuses = new Set(['complete', 'cancelled', 'error']);
 const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
@@ -45,8 +44,18 @@ const requireValue = (condition, message) => {
   if (!condition) throw new Error(message);
 };
 
-let deletionQueued = false;
+let accountDeletionQueued = false;
+let cleanupSucceeded = true;
+let workflowError;
+const createdBotIds = [];
 const completed = [];
+
+const deleteBot = async (botId) => {
+  await request('DELETE', `/bots/${encodeURIComponent(botId)}`);
+  const index = createdBotIds.indexOf(botId);
+  if (index >= 0) createdBotIds.splice(index, 1);
+};
+
 try {
   const bootstrap = await request('GET', '/bootstrap');
   requireValue(Array.isArray(bootstrap.bots) && bootstrap.bots.length >= 3, 'Bootstrap did not return the default bots.');
@@ -61,6 +70,7 @@ try {
     toolIds: [],
     skillIds: [],
   });
+  createdBotIds.push(standardBot.id);
 
   const attachmentText = 'HeyTim authenticated attachment workflow passed.';
   const attachmentBytes = new TextEncoder().encode(attachmentText);
@@ -123,6 +133,7 @@ try {
     toolIds: ['browser'],
     skillIds: [],
   });
+  createdBotIds.push(approvalBot.id);
   const deniedTurn = await request('POST', `/bots/${encodeURIComponent(approvalBot.id)}/messages`, {
     text: 'Open example.com and report the page title.',
   });
@@ -146,18 +157,34 @@ try {
   requireValue(approvedReply.status === 'complete', `Approved turn ended as ${approvedReply.status}.`);
   completed.push('approval deny, allow-once, and cancellation');
 
-  await request('DELETE', `/bots/${encodeURIComponent(approvalBot.id)}`);
-  await request('DELETE', `/bots/${encodeURIComponent(standardBot.id)}`);
+  await deleteBot(approvalBot.id);
+  await deleteBot(standardBot.id);
   completed.push('temporary bot cleanup');
+} catch (error) {
+  workflowError = error;
 } finally {
-  try {
-    const deletion = await request('DELETE', '/account');
-    deletionQueued = deletion.deletionStarted === true;
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : error);
+  for (const botId of [...createdBotIds].reverse()) {
+    try {
+      await deleteBot(botId);
+    } catch (error) {
+      cleanupSucceeded = false;
+      console.error(`Could not delete temporary bot ${botId}:`, error instanceof Error ? error.message : error);
+    }
+  }
+  if (deleteAccount) {
+    try {
+      const deletion = await request('DELETE', '/account');
+      accountDeletionQueued = deletion.deletionStarted === true;
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error);
+    }
   }
 }
 
-requireValue(deletionQueued, 'Disposable account deletion was not queued.');
-completed.push('account deletion queued');
+if (workflowError) throw workflowError;
+requireValue(cleanupSucceeded, 'One or more temporary workflow-test bots could not be deleted.');
+if (deleteAccount) {
+  requireValue(accountDeletionQueued, 'Disposable account deletion was not queued.');
+  completed.push('account deletion queued');
+}
 console.log(JSON.stringify({ passed: true, completed }, null, 2));

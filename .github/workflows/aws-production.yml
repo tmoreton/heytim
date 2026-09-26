@@ -86,12 +86,12 @@ jobs:
           AMPLIFY_APP_ID: ${{ vars.AMPLIFY_APP_ID }}
           HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN }}
           HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN: ${{ vars.HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN }}
-          HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT: ${{ vars.HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT }}
           HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT: ${{ vars.HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT }}
           HEYTIM_MONTHLY_BUDGET_USD: ${{ vars.HEYTIM_MONTHLY_BUDGET_USD }}
           AGENTCORE_CREDENTIAL_HEYTIM_OPENROUTER: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
           AGENTCORE_CREDENTIAL_HEYTIMXAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTXAPI }}
           AGENTCORE_CREDENTIAL_HEYTIMYOUTUBEAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI }}
+          HEYTIM_RELEASE_TEST_REFRESH_TOKEN: ${{ secrets.HEYTIM_RELEASE_TEST_REFRESH_TOKEN }}
           GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_GOOGLE_OAUTH_SECRET_ARN }}
           GITHUB_APP_SECRET_ARN: ${{ secrets.HEYTIM_GITHUB_APP_SECRET_ARN }}
           X_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_X_OAUTH_SECRET_ARN }}
@@ -106,6 +106,7 @@ jobs:
           SLACK_REVIEW_APPROVED: ${{ vars.HEYTIM_SLACK_REVIEW_APPROVED }}
           X_REVIEW_APPROVED: ${{ vars.HEYTIM_X_REVIEW_APPROVED }}
           NOTION_REVIEW_APPROVED: ${{ vars.HEYTIM_NOTION_REVIEW_APPROVED }}
+          ACCOUNT_ISOLATION_CUTOVER_APPROVED: ${{ vars.HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED }}
           RELEASE_COMPLIANCE_APPROVED: ${{ vars.HEYTIM_RELEASE_COMPLIANCE_APPROVED }}
           APNS_DEVICE_SMOKE_APPROVED: ${{ vars.HEYTIM_APNS_DEVICE_SMOKE_APPROVED }}
           APPLE_TEAM_ID: ${{ vars.HEYTIM_APPLE_TEAM_ID }}
@@ -134,6 +135,7 @@ jobs:
             HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT HEYTIM_MONTHLY_BUDGET_USD
             AGENTCORE_CREDENTIAL_HEYTIM_OPENROUTER
             AGENTCORE_CREDENTIAL_HEYTIMXAPI AGENTCORE_CREDENTIAL_HEYTIMYOUTUBEAPI
+            HEYTIM_RELEASE_TEST_REFRESH_TOKEN
             GOOGLE_OAUTH_SECRET_ARN GITHUB_APP_SECRET_ARN X_OAUTH_SECRET_ARN
             SLACK_OAUTH_SECRET_ARN NOTION_OAUTH_SECRET_ARN APNS_APPLICATION_ARN
           )
@@ -199,7 +201,8 @@ jobs:
           fi
           attestations=(
             GOOGLE_REVIEW_APPROVED SLACK_REVIEW_APPROVED X_REVIEW_APPROVED
-            NOTION_REVIEW_APPROVED RELEASE_COMPLIANCE_APPROVED APNS_DEVICE_SMOKE_APPROVED
+            NOTION_REVIEW_APPROVED ACCOUNT_ISOLATION_CUTOVER_APPROVED
+            RELEASE_COMPLIANCE_APPROVED APNS_DEVICE_SMOKE_APPROVED
           )
           for name in "${attestations[@]}"; do
             if [[ "${!name}" != true ]]; then
@@ -324,7 +327,6 @@ jobs:
           HEYTIM_ENVIRONMENT: production
           HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN }}
           HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN: ${{ vars.HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN }}
-          HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT: ${{ vars.HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT }}
           AGENTCORE_CREDENTIAL_HEYTIM_OPENROUTER: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
           AGENTCORE_CREDENTIAL_HEYTIMXAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTXAPI }}
           AGENTCORE_CREDENTIAL_HEYTIMYOUTUBEAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI }}
@@ -347,10 +349,12 @@ jobs:
           gateway_arn="$(jq -r "$target.mcp.gateways.HeyTimTools.gatewayArn // empty" /tmp/heytim-production-status.json)"
           gateway_id="$(jq -r "$target.mcp.gateways.HeyTimTools.gatewayId // empty" /tmp/heytim-production-status.json)"
           gateway_url="$(jq -r "$target.mcp.gateways.HeyTimTools.gatewayUrl // empty" /tmp/heytim-production-status.json)"
+          dataset_id="$(jq -r "$target.datasets.HeyTimRegression.datasetId // empty" /tmp/heytim-production-status.json)"
           if [[ "$runtime_arn" != arn:aws:bedrock-agentcore:* ]] \
             || [[ "$memory_arn" != arn:aws:bedrock-agentcore:* ]] \
             || [[ "$gateway_arn" != arn:aws:bedrock-agentcore:* ]] \
             || [[ -z "$gateway_id" ]] \
+            || [[ -z "$dataset_id" ]] \
             || [[ "$gateway_url" != https://*.gateway.bedrock-agentcore.*.amazonaws.com/mcp ]]; then
             echo 'AgentCore production resources are not ready.' >&2
             exit 1
@@ -360,13 +364,14 @@ jobs:
           echo "HEYTIM_AGENT_GATEWAY_ARN=$gateway_arn" >> "$GITHUB_ENV"
           echo "HEYTIM_AGENT_GATEWAY_ID=$gateway_id" >> "$GITHUB_ENV"
           echo "HEYTIM_AGENT_GATEWAY_URL=$gateway_url" >> "$GITHUB_ENV"
+          echo "HEYTIM_REGRESSION_DATASET_ID=$dataset_id" >> "$GITHUB_ENV"
 
       - name: Deploy Amplify production backend
         working-directory: services/API
         env:
           HEYTIM_ENVIRONMENT: production
+          HEYTIM_AUTH_EMAIL_PROVIDER: ses
           HEYTIM_BOT_EMAIL_STAGE: receive
-          HEYTIM_SES_RULE_SET_NAME: inboxai-inboxai-cc
           HEYTIM_BOT_EMAIL_AVAILABLE: 'true'
           HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN }}
           HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN: ${{ vars.HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN }}
@@ -485,6 +490,75 @@ jobs:
           HEYTIM_APNS_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_APPLICATION_ARN }}
           HEYTIM_APNS_SANDBOX_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_SANDBOX_APPLICATION_ARN }}
         run: ./scripts/verify-production-deployment.sh
+
+      - name: Gate release on the managed AgentCore regression dataset
+        working-directory: services/runtime
+        run: |
+          result="$RUNNER_TEMP/heytim-release-evaluation/result.json"
+          mkdir -p "$(dirname "$result")"
+          uv run --frozen python scripts/run_managed_regression.py \
+            --runtime-arn "$HEYTIM_AGENT_RUNTIME_ARN" \
+            --dataset-id "$HEYTIM_REGRESSION_DATASET_ID" \
+            --dataset-version DRAFT \
+            --evaluator Builtin.GoalSuccessRate Builtin.ResponseRelevance \
+            --name "HeyTimRelease_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" \
+            --region "${{ steps.target.outputs.region }}" \
+            --kms-key-arn "$HEYTIM_LOGS_KMS_KEY_ARN" > "$result"
+          if ! jq -e '
+            .status == "COMPLETED"
+            and .evaluationResults.totalNumberOfSessions >= 5
+            and .evaluationResults.numberOfSessionsFailed == 0
+            and (.evaluationResults.evaluatorSummaries | length == 2)
+            and all(
+              .evaluationResults.evaluatorSummaries[];
+              .totalEvaluated >= 5
+              and .totalFailed == 0
+              and .statistics.averageScore >= 0.8
+            )
+          ' "$result" >/dev/null; then
+            echo 'The managed AgentCore regression dataset did not meet the 0.80 release threshold.' >&2
+            jq '{status, evaluationResults}' "$result" >&2
+            exit 1
+          fi
+
+      - name: Preserve AgentCore release evaluation
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: heytim-agentcore-evaluation-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: ${{ runner.temp }}/heytim-release-evaluation
+
+      - name: Run authenticated production workflow
+        env:
+          HEYTIM_RELEASE_TEST_REFRESH_TOKEN: ${{ secrets.HEYTIM_RELEASE_TEST_REFRESH_TOKEN }}
+        run: |
+          outputs='services/API/amplify_outputs.json'
+          api_url="$(jq -r '.custom.apiUrl // empty' "$outputs")"
+          client_id="$(jq -r '.auth.user_pool_client_id // empty' "$outputs")"
+          region="$(jq -r '.auth.aws_region // empty' "$outputs")"
+          if [[ -z "$api_url" || -z "$client_id" || -z "$region" ]]; then
+            echo 'Production client configuration is missing authenticated workflow settings.' >&2
+            exit 1
+          fi
+          auth_parameters="$(jq -nc \
+            --arg refreshToken "$HEYTIM_RELEASE_TEST_REFRESH_TOKEN" \
+            '{REFRESH_TOKEN:$refreshToken}')"
+          id_token="$(aws cognito-idp initiate-auth \
+            --region "$region" \
+            --auth-flow REFRESH_TOKEN_AUTH \
+            --client-id "$client_id" \
+            --auth-parameters "$auth_parameters" \
+            --query 'AuthenticationResult.IdToken' \
+            --output text)"
+          if [[ -z "$id_token" || "$id_token" == None ]]; then
+            echo 'The release-test refresh token did not produce a Cognito ID token.' >&2
+            exit 1
+          fi
+          echo "::add-mask::$id_token"
+          HEYTIM_API_URL="$api_url" HEYTIM_ID_TOKEN="$id_token" \
+            npm --prefix services/API run workflow:test
 
       - name: Stage production client configuration
         run: |

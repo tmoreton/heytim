@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 from shared.client_contract import MAX_TOOLS_PER_BOT
-from shared.connection_providers import (
+from shared.provider_contract import (
     GMAIL_MCP_ENDPOINT,
     GMAIL_MCP_TOOLS,
     GOOGLE_WORKSPACE_MCP_SERVERS,
@@ -34,7 +34,7 @@ class ConnectionPolicySyncTests(unittest.TestCase):
     def test_reviewed_google_mcp_tools_match_runtime(self) -> None:
         path = (
             Path(__file__).resolve().parents[4]
-            / "runtime/runtime/heytim_runtime/mcp_tool_catalog.py"
+            / "runtime/runtime/heytim_runtime/provider_contract.py"
         )
         spec = importlib.util.spec_from_file_location("runtime_mcp_tool_catalog", path)
         assert spec and spec.loader
@@ -43,6 +43,9 @@ class ConnectionPolicySyncTests(unittest.TestCase):
         self.assertEqual(GMAIL_MCP_ENDPOINT, module.GMAIL_MCP_ENDPOINT)
         self.assertEqual(set(GMAIL_MCP_TOOLS), module.GMAIL_MCP_TOOLS)
         self.assertEqual(
-            {item["endpoint"]: set(item["allowedTools"]) for item in GOOGLE_WORKSPACE_MCP_SERVERS},
+            {
+                endpoint: set(allowed_tools)
+                for endpoint, allowed_tools in GOOGLE_WORKSPACE_MCP_SERVERS.items()
+            },
             module.GOOGLE_WORKSPACE_MCP_SERVERS,
         )

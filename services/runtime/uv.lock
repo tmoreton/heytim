@@ -819,6 +819,8 @@ dependencies = [
     { name = "bedrock-agentcore" },
     { name = "boto3" },
     { name = "botocore" },
+    { name = "caio" },
+    { name = "cryptography" },
     { name = "cyclopts" },
     { name = "googleapis-common-protos" },
     { name = "greenlet" },
@@ -857,6 +859,7 @@ dependencies = [
 dev = [
     { name = "jsonschema" },
     { name = "pytest" },
+    { name = "requests" },
     { name = "ruff" },
 ]
 
@@ -866,6 +869,8 @@ requires-dist = [
     { name = "bedrock-agentcore", specifier = ">=1.22.0" },
     { name = "boto3", specifier = "==1.43.90" },
     { name = "botocore", specifier = "==1.43.92" },
+    { name = "caio", specifier = "==0.12.5" },
+    { name = "cryptography", specifier = "==50.0.1" },
     { name = "cyclopts", specifier = "==4.25.2" },
     { name = "googleapis-common-protos", specifier = "==1.75.3" },
     { name = "greenlet", specifier = "==3.5.5" },
@@ -904,6 +909,7 @@ requires-dist = [
 dev = [
     { name = "jsonschema", specifier = ">=4.26.0,<5.0.0" },
     { name = "pytest", specifier = ">=8.4.0,<10.0.0" },
+    { name = "requests", specifier = "==2.34.2" },
     { name = "ruff", specifier = ">=0.14.0,<1.0.0" },
 ]
 
