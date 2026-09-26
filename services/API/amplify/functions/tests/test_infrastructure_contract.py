@@ -241,12 +241,17 @@ class InfrastructureContractTests(unittest.TestCase):
     def test_production_release_supports_a_local_xcode_upload(self) -> None:
         self.assertIn("release_scope:", self.production_workflow)
         self.assertIn("- backend-only", self.production_workflow)
+        self.assertIn("- backend-macos", self.production_workflow)
         self.assertIn(
-            "if: ${{ github.event_name == 'release' || inputs.release_scope == 'full' }}",
+            "if: ${{ github.event_name == 'release' || inputs.release_scope == 'full' || inputs.release_scope == 'backend-macos' }}",
             self.production_workflow,
         )
         self.assertIn(
             'if [[ "$RELEASE_SCOPE" == full ]]; then', self.production_workflow
+        )
+        self.assertIn(
+            'HEYTIM_RELEASE_SCOPE: ${{ github.event_name == \'release\' && \'full\' || inputs.release_scope }}',
+            self.production_workflow,
         )
 
     def test_published_release_deploys_both_apple_apps_with_the_tag_version(self) -> None:
