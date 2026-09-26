@@ -7,9 +7,12 @@ import { BillingReturn } from './pages/billing';
 import { Library } from './library';
 import { OpenApp } from './open-app';
 import { normalizePathname } from './route';
+import { Features } from './pages/features';
+import { Header, Footer } from './site-chrome';
 
 export const pages: Record<string, string> = {
-  '/': 'HeyTim — Turn group talk into action',
+  '/': 'HeyTim — A little team for your whole life',
+  '/features': 'What HeyTim can do — Features & connections',
   '/library': 'Ready-made bots — HeyTim', '/skills': 'Skills — HeyTim',
   '/privacy': 'Privacy Policy — HeyTim', '/terms': 'Terms of Use — HeyTim',
   '/sms': 'SMS program — HeyTim', '/contribute': 'Contribute — HeyTim',
@@ -21,6 +24,7 @@ export const pages: Record<string, string> = {
 export function Website({ pathname }: { pathname: string }) {
   const route = normalizePathname(pathname);
   const content = route === '/' ? <Home />
+    : route === '/features' ? <Features />
     : route === '/library' ? <Library kind="bots" /> : route === '/skills' ? <Library />
     : route === '/privacy' ? <Privacy /> : route === '/terms' ? <Terms />
     : route === '/sms' ? <Sms /> : route === '/contribute' ? <Contribute />
@@ -30,19 +34,8 @@ export function Website({ pathname }: { pathname: string }) {
     : <main className="doc-page" id="main"><h1>We couldn’t find that page.</h1><p>Try the skills library or return home.</p><a className="button" href="/">Back to home</a></main>;
   return <>
     <a className="skip-link" href="#main">Skip to content</a>
-    <header className="site-header">
-      <a className="wordmark" href="/" aria-label="HeyTim home"><img src="/assets/tim-mark.svg" alt="" width="38" height="38" /><span>HeyTim</span></a>
-      <nav className="site-nav" aria-label="Main navigation">
-        <a href="/library/" aria-current={route === '/library' ? 'page' : undefined}>Bots</a>
-        <a href="/skills/" aria-current={route === '/skills' ? 'page' : undefined}>Skills</a>
-        <a className="nav-optional" href="/contribute/">Contribute</a>
-        <a className="button-secondary" href="/download/">Get the app</a>
-      </nav>
-    </header>
+    <Header route={route} />
     {content}
-    <footer className="site-footer"><span>© 2026 HeyTim</span><nav className="footer-links" aria-label="Footer">
-      <a href="/sms/">SMS program</a><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a>
-      <a href="/skills/">Skills</a><a href="mailto:support@heytim.ai">Contact</a>
-    </nav></footer>
+    <Footer />
   </>;
 }

@@ -5,10 +5,20 @@ const site = new URL('../', import.meta.url);
 const output = new URL('dist/', site);
 const catalog = JSON.parse(await readFile(new URL('../../../catalog/catalog.json', import.meta.url), 'utf8'));
 assert.deepEqual(JSON.parse(await readFile(new URL('catalog.json', output), 'utf8')), catalog);
-for (const route of ['index.html', 'skills/index.html', 'library/index.html', 'invite/index.html', 'billing/index.html', 'app/index.html', 'download/index.html', 'privacy/index.html', 'terms/index.html', 'sms/index.html', 'contribute/index.html', '404.html']) {
+for (const route of ['index.html', 'features/index.html', 'skills/index.html', 'library/index.html', 'invite/index.html', 'billing/index.html', 'app/index.html', 'download/index.html', 'privacy/index.html', 'terms/index.html', 'sms/index.html', 'contribute/index.html', '404.html']) {
   const html = await readFile(new URL(route, output), 'utf8');
   assert.match(html, /<h1[ >]/, `${route} must be prerendered`);
   assert.doesNotMatch(html, /https:\/\/app\.heytim\.com/, `${route} must not link to retired browser chat`);
+  const path = route === 'index.html' ? '/' : route === '404.html' ? '/404/' : `/${route.replace('index.html', '')}`;
+  assert(html.includes(`<link rel="canonical" href="https://heytim.ai${path}"`), `${route} needs its own canonical URL`);
+  const title = html.match(/<title>([^<]*)<\/title>/)?.[1];
+  assert(html.includes(`<meta property="og:title" content="${title}"`), `${route} needs matching share metadata`);
+}
+const sitemap = await readFile(new URL('sitemap.xml', output), 'utf8');
+assert(sitemap.includes('https://heytim.ai/features/'));
+assert(!sitemap.includes('https://heytim.ai/invite/'));
+for (const route of ['invite', 'app', 'billing']) {
+  assert.match(await readFile(new URL(`${route}/index.html`, output), 'utf8'), /name="robots" content="noindex, follow"/);
 }
 for (const skill of catalog.skills) {
   assert.equal(await readFile(new URL(skill.path, output), 'utf8'),

@@ -12,11 +12,24 @@ npm run build
 npm run preview
 ```
 
-`src/pages/` reuses the previous public website's content with the HeyTim identity.
-React owns the library search and category filtering. All
+The homepage introduces HeyTim through memory, shared groups, recurring work,
+customizable bots, account connections, and native Apple features. `/features`
+contains the full capability guide, including integration permission boundaries.
+See `../../docs/website-product-audit-2026-09-26.md` for the source audit and copy decisions.
+
+React owns the example conversation switcher, mobile navigation, library search,
+and category filtering. All
 public pages are prerendered at build time so direct links and no-JavaScript
 visits work. `/app` is an Apple-app handoff, not a chat route. `/invite` preserves
 the `kind` and `token` expected by the existing native invitation parser.
+The download page links to the latest direct Mac release and the iPhone beta
+access request; both require an invited account. Route-specific metadata,
+canonical URLs, a sitemap, and robots directives are produced during prerendering.
+
+DM Sans is self-hosted under its bundled SIL Open Font License in
+`public/assets/fonts/`. The bot mark and provider images reuse the Apple app's
+existing brand assets. The illustrative homepage conversations never call a model
+or create real tasks.
 
 The build copies only the public allowlist from `../../catalog`: `catalog.json`,
 `skills/`, `bots/`, and `tools/`. The production API reads the catalog at
