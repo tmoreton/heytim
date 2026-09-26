@@ -29,6 +29,7 @@ from heytim_runtime.streaming import (
     AGENT_IDLE_TIMEOUT_SECONDS,
     AGENT_RUN_TIMEOUT_SECONDS,
     AgentIncompleteTurnError,
+    AgentOutputLimitError,
     AgentRunStalledError,
     AgentRunTimeoutError,
     stream_with_token_recovery,
@@ -66,8 +67,9 @@ PROVIDER_CALL_LIMIT_MESSAGE = (
     "repeating completed external actions."
 )
 OUTPUT_TOKEN_LIMIT_MESSAGE = (
-    "I could not finish the response after recovering from repeated output limits. "
-    "The task is incomplete; completed external actions should be checked before retrying."
+    "I reached the model's response limit before I could finish. I kept the "
+    "verified progress from this run; send “continue” to resume without repeating "
+    "completed external actions."
 )
 
 
@@ -243,7 +245,7 @@ async def run_agent(payload, context):
                 "code": "INCOMPLETE_TURN",
                 "message": INCOMPLETE_TURN_MESSAGE,
             }
-        except MaxTokensReachedException:
+        except (AgentOutputLimitError, MaxTokensReachedException):
             terminal_error = {
                 "code": "OUTPUT_TOKEN_LIMIT",
                 "message": OUTPUT_TOKEN_LIMIT_MESSAGE,

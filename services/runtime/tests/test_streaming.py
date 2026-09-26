@@ -11,6 +11,7 @@ from strands.types.exceptions import MaxTokensReachedException
 from heytim_runtime.streaming import (
     INCOMPLETE_TURN_CONTINUATION_PROMPT,
     AgentIncompleteTurnError,
+    AgentOutputLimitError,
     AgentRunStalledError,
     AgentRunTimeoutError,
     looks_like_incomplete_turn,
@@ -66,7 +67,7 @@ def test_resumes_repeated_partial_turns_without_repeating_the_prompt() -> None:
 def test_token_limit_after_final_continuation_is_propagated() -> None:
     agent = FakeAgent(failures=4)
 
-    with pytest.raises(MaxTokensReachedException, match="partial"):
+    with pytest.raises(AgentOutputLimitError, match="bounded output-token"):
         asyncio.run(_events(agent, "hello"))
 
     assert agent.prompts == ["hello", None, None, None]
@@ -100,7 +101,7 @@ def test_failed_tools_do_not_reset_the_no_progress_recovery_limit() -> None:
             raise MaxTokensReachedException("partial")
 
     agent = FailingAgent(0)
-    with pytest.raises(MaxTokensReachedException):
+    with pytest.raises(AgentOutputLimitError, match="bounded output-token"):
         asyncio.run(_events(agent, "task"))
     assert len(agent.prompts) == 4
 

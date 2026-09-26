@@ -49,6 +49,11 @@ OPENROUTER_MAX_ATTEMPTS = int(
 )
 if not 1 <= OPENROUTER_MAX_ATTEMPTS <= 4:
     raise ValueError("HEYTIM_OPENROUTER_MAX_ATTEMPTS must be between 1 and 4")
+OPENROUTER_MAX_OUTPUT_TOKENS = int(
+    os.environ.get("HEYTIM_MAX_OUTPUT_TOKENS", "8192")
+)
+if not 4096 <= OPENROUTER_MAX_OUTPUT_TOKENS <= 32768:
+    raise ValueError("HEYTIM_MAX_OUTPUT_TOKENS must be between 4096 and 32768")
 MAX_RETRY_AFTER_SECONDS = 150.0
 MAX_RECOVERY_OUTPUT_TOKENS = 16_384
 
@@ -404,7 +409,7 @@ def _load_openrouter_model(
     *,
     model_id: str = PRIMARY_MODEL_ID,
     reasoning_effort: str = PRIMARY_REASONING_EFFORT,
-    max_tokens: int = 4096,
+    max_tokens: int = OPENROUTER_MAX_OUTPUT_TOKENS,
     temperature: float = 0.3,
 ) -> OpenAIModel:
     if reasoning_effort not in SUPPORTED_REASONING_EFFORTS:
