@@ -69,6 +69,17 @@ class InfrastructureContractTests(unittest.TestCase):
             "cfnIdentityPool.allowUnauthenticatedIdentities = false", self.backend
         )
 
+    def test_production_auth_email_provider_is_explicit_and_staged(self) -> None:
+        self.assertIn(
+            "HEYTIM_AUTH_EMAIL_PROVIDER must be set before deploying production",
+            self.settings,
+        )
+        self.assertIn("['cognito', 'ses'].includes(authEmailProviderValue)", self.settings)
+        self.assertIn("authEmailProvider === 'ses'", self.backend)
+        self.assertIn("emailSendingAccount: 'DEVELOPER'", self.backend)
+        self.assertIn("emailSendingAccount: 'COGNITO_DEFAULT'", self.backend)
+        self.assertIn("HEYTIM_AUTH_EMAIL_PROVIDER: ses", self.production_workflow)
+
     def test_worker_polling_is_explicitly_allowed(self) -> None:
         worker = self.application_functions.split(
             "const workerFunction =", 1

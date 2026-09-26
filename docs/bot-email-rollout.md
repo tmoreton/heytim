@@ -27,6 +27,11 @@ The address contains an opaque owner identifier, bot identifier digest, and a ra
 AWS inspection on September 18, 2026 confirmed that `bots.heytim.ai` has no SES identity and no MX record. The domain uses `dns1.registrar-servers.com` and `dns2.registrar-servers.com`; there is no matching Route 53 hosted zone in this AWS account. Publish the DNS records through the domain registrar.
 Production deployments require an explicit `HEYTIM_BOT_EMAIL_STAGE` value. Omitting it stops synthesis rather than silently changing the mail resources.
 
+Cognito delivery is staged separately from inbound bot email. Production deployments also require an explicit
+`HEYTIM_AUTH_EMAIL_PROVIDER`: use `cognito` only while bootstrapping a new account before the `heytim.ai` SES identity
+is verified, then change it to `ses` for the final production deployment. The production release workflow is pinned to
+`ses`, so an unverified identity fails closed rather than silently shipping with Cognito's limited default delivery.
+
 ## References
 
 - [SES receiving setup](https://docs.aws.amazon.com/ses/latest/dg/receiving-email-setting-up.html)

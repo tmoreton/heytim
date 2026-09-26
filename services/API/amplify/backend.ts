@@ -18,7 +18,7 @@ import {
   ALLOWED_WEB_ORIGINS, CAPABILITY_CATALOG_URL,
   PUBLIC_WEB_BASE_URL,
   WORKER_CONCURRENCY, deploymentEnvironment,
-  apnsApplicationArn, apnsSandboxApplicationArn,
+  apnsApplicationArn, apnsSandboxApplicationArn, authEmailProvider,
   githubAppSecretArn, globalWindowRunUnitLimit, googleOAuthSecretArn,
   hubspotOAuthSecretArn, legacyTokenVaultKmsKeyArn,
   jiraOAuthSecretArn,
@@ -64,11 +64,13 @@ cfnUserPool.overrideLogicalId('FrogBotEmailUserPool');
 cfnUserPoolClient.overrideLogicalId('FrogBotEmailUserPoolClient');
 cfnUserPool.userPoolTier = 'ESSENTIALS';
 cfnUserPool.deletionProtection = 'ACTIVE';
-cfnUserPool.emailConfiguration = {
-  emailSendingAccount: 'DEVELOPER',
-  sourceArn: `arn:aws:ses:${stack.region}:${stack.account}:identity/heytim.ai`,
-  from: 'Hey Tim <no-reply@heytim.ai>',
-};
+cfnUserPool.emailConfiguration = authEmailProvider === 'ses'
+  ? {
+      emailSendingAccount: 'DEVELOPER',
+      sourceArn: `arn:aws:ses:${stack.region}:${stack.account}:identity/heytim.ai`,
+      from: 'Hey Tim <no-reply@heytim.ai>',
+    }
+  : { emailSendingAccount: 'COGNITO_DEFAULT' };
 // Username attributes already create Cognito's standard email schema. Omitting
 // the generated schema prevents CloudFormation from re-submitting that immutable
 // attribute as a new custom attribute on later updates.

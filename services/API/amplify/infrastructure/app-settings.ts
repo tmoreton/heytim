@@ -5,6 +5,15 @@ if (!/^[a-z][a-z0-9-]{0,20}$/.test(deploymentEnvironment)) {
   throw new Error('HEYTIM_ENVIRONMENT must be a short lowercase environment name.');
 }
 
+const authEmailProviderValue = process.env.HEYTIM_AUTH_EMAIL_PROVIDER?.trim() ?? '';
+if (deploymentEnvironment === 'production' && !authEmailProviderValue) {
+  throw new Error('HEYTIM_AUTH_EMAIL_PROVIDER must be set before deploying production.');
+}
+if (authEmailProviderValue && !['cognito', 'ses'].includes(authEmailProviderValue)) {
+  throw new Error('HEYTIM_AUTH_EMAIL_PROVIDER must be cognito or ses.');
+}
+export const authEmailProvider = (authEmailProviderValue || 'cognito') as 'cognito' | 'ses';
+
 const PRODUCTION_WEB_ORIGINS = [
   PUBLIC_WEB_BASE_URL,
   'https://www.heytim.ai',

@@ -367,6 +367,7 @@ jobs:
         working-directory: services/API
         env:
           HEYTIM_ENVIRONMENT: production
+          HEYTIM_AUTH_EMAIL_PROVIDER: ses
           HEYTIM_BOT_EMAIL_STAGE: receive
           HEYTIM_SES_RULE_SET_NAME: inboxai-inboxai-cc
           HEYTIM_BOT_EMAIL_AVAILABLE: 'true'
