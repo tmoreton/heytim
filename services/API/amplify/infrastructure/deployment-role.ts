@@ -1,5 +1,12 @@
 import { ArnFormat, Duration, RemovalPolicy, type Stack } from 'aws-cdk-lib';
-import { FederatedPrincipal, PolicyStatement, Role } from 'aws-cdk-lib/aws-iam';
+import {
+  Effect,
+  FederatedPrincipal,
+  PolicyStatement,
+  Role,
+  ServicePrincipal,
+} from 'aws-cdk-lib/aws-iam';
+import type { Key } from 'aws-cdk-lib/aws-kms';
 import {
   BlockPublicAccess,
   Bucket,
@@ -10,7 +17,7 @@ import {
 type DeploymentRoleResources = {
   stack: Stack;
   enabled: boolean;
-  logsKmsKeyArn: string;
+  logsKmsKey: Key;
   legacyTokenVaultKmsKeyArn?: string;
   nativePushApplicationArns?: string[];
   nativePushFeedbackRoleArn?: string;
@@ -19,7 +26,7 @@ type DeploymentRoleResources = {
 export function addGithubDeploymentRole({
   stack,
   enabled,
-  logsKmsKeyArn,
+  logsKmsKey,
   legacyTokenVaultKmsKeyArn,
   nativePushApplicationArns = [],
   nativePushFeedbackRoleArn,
@@ -140,6 +147,18 @@ export function addGithubDeploymentRole({
     ),
     maxSessionDuration: Duration.hours(1),
   });
+  logsKmsKey.addToResourcePolicy(new PolicyStatement({
+    effect: Effect.ALLOW,
+    principals: [new ServicePrincipal('bedrock-agentcore.amazonaws.com')],
+    actions: ['kms:GenerateDataKey', 'kms:Decrypt'],
+    resources: ['*'],
+    conditions: {
+      StringEquals: { 'aws:SourceAccount': stack.account },
+      ArnLike: {
+        'aws:SourceArn': agentCoreArn('batch-evaluate', '*'),
+      },
+    },
+  }));
   role.applyRemovalPolicy(RemovalPolicy.RETAIN);
   role.addToPolicy(new PolicyStatement({
     actions: ['sts:AssumeRole'],
@@ -340,11 +359,11 @@ export function addGithubDeploymentRole({
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['kms:DescribeKey'],
-    resources: [logsKmsKeyArn],
+    resources: [logsKmsKey.keyArn],
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['kms:GenerateDataKey', 'kms:Decrypt'],
-    resources: [logsKmsKeyArn],
+    resources: [logsKmsKey.keyArn],
     conditions: {
       StringLike: {
         'kms:EncryptionContext:aws:bedrock-agentcore:batchEvaluationArn':

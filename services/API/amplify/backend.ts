@@ -224,27 +224,6 @@ logsKey.addToResourcePolicy(
 logsKey.addToResourcePolicy(
   new PolicyStatement({
     effect: Effect.ALLOW,
-    principals: [new ServicePrincipal('bedrock-agentcore.amazonaws.com')],
-    actions: ['kms:GenerateDataKey', 'kms:Decrypt'],
-    resources: ['*'],
-    conditions: {
-      StringEquals: {
-        'aws:SourceAccount': stack.account,
-      },
-      ArnLike: {
-        'aws:SourceArn': stack.formatArn({
-          service: 'bedrock-agentcore',
-          resource: 'batch-evaluate',
-          resourceName: '*',
-          arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
-        }),
-      },
-    },
-  }),
-);
-logsKey.addToResourcePolicy(
-  new PolicyStatement({
-    effect: Effect.ALLOW,
     principals: [new ServicePrincipal('cloudtrail.amazonaws.com')],
     actions: ['kms:GenerateDataKey*', 'kms:DescribeKey'],
     resources: ['*'],
@@ -277,7 +256,7 @@ const nativePushFeedbackRole = addNativePushFeedbackRole(
 const githubDeployRole = addGithubDeploymentRole({
   stack,
   enabled: true,
-  logsKmsKeyArn: logsKey.keyArn,
+  logsKmsKey: logsKey,
   legacyTokenVaultKmsKeyArn,
   nativePushApplicationArns: [
     nativePushApplications.production,
