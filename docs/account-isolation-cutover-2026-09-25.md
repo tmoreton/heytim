@@ -1,13 +1,15 @@
 # Production account-isolation cutover plan
 
-**Status:** Draft — not approved for execution  
+**Status:** Approved for guarded execution
 **Observed:** 2026-09-25 in `us-east-1`  
 **Source account:** `188757775631`  
 **Destination account:** `820323452649`
 
 This plan covers moving the live HeyTim service out of the development/shared account. It does not authorize a
-deployment, traffic cutover, deletion, resource rename, or secret disclosure. Set
-`HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED=true` only after the decisions and pre-cutover evidence below are reviewed.
+source-account deletion, branding-driven resource rename, or secret disclosure outside the protected destination
+systems. The repository owner approved guarded execution on 2026-09-26. Traffic cutover remains fail-closed until the
+pre-cutover evidence below passes, including complete AgentCore memory preservation. Set
+`HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED=true` only while executing this reviewed plan.
 
 ## Read-only inventory
 
@@ -34,15 +36,15 @@ Record an owner and decision for every row before the maintenance window is sche
 
 | Decision | Recommended default | Approved choice / owner |
 | --- | --- | --- |
-| Cognito identity | Require the single user to sign in again in the destination. Do not attempt to move passwords or refresh tokens. Recreate the synthetic release-test user and token separately. | Pending |
-| Application records | Export the two source tables after the write freeze, validate counts and a canonical-record checksum, import into destination tables, then validate indexes, TTL fields, ownership keys, and representative reads. | Pending |
-| File history | Copy all object versions and delete markers because the versioned history is small; re-encrypt with the destination key and validate key/version counts, total bytes, and metadata checksums. | Pending |
-| AgentCore memory | Decide explicitly whether to preserve user facts, summaries, and preferences or start fresh. Do not claim memory migration until an export/import path and count validation have been exercised. | Pending |
-| Provider connections | Prefer reconnecting the single user and rotating production OAuth/App credentials in the destination. If any token is copied, preserve its owning record mapping, encrypt it under the destination key, and prove revoke/delete behavior before cutover. | Pending |
-| Billing and finance | Recreate/rotate Stripe and Plaid secrets in the destination, register destination webhook URLs, replay signed test events, and reconcile entitlement state before enabling live mode. | Pending |
-| Bot email and DNS | Deploy identity-only first, validate SES ownership and the existing receipt-rule set, then stage receive resources and change MX/API bindings only inside the window. | Pending |
-| Client cutover | Publish destination Amplify outputs only after authenticated smoke tests pass. Release iPhone and Mac builds from the same commit and preserve the prior configuration for rollback. | Pending |
-| Rollback window | Keep source stacks, keys, logs, backups, and provider callbacks recoverable and read-only for an agreed period. Cleanup is a separate review. | Pending |
+| Cognito identity | Require the single user to sign in again in the destination. Do not attempt to move passwords or refresh tokens. Recreate the synthetic release-test user and token separately. | Approved: destination reauthentication; repository owner |
+| Application records | Export the two source tables after the write freeze, validate counts and a canonical-record checksum, import into destination tables, then validate indexes, TTL fields, ownership keys, and representative reads. | Approved: complete table migration and validation; repository owner |
+| File history | Copy all object versions and delete markers because the versioned history is small; re-encrypt with the destination key and validate key/version counts, total bytes, and metadata checksums. | Approved: all versions and delete markers; repository owner |
+| AgentCore memory | Preserve short-term events and long-term facts, summaries, and preferences. Stop before traffic cutover unless actor, session, event, record, and retrieval validation succeeds. | Approved: preservation is mandatory; repository owner |
+| Provider connections | Require the user to reconnect providers in the destination. Do not move end-user access or refresh tokens. Recreate protected application credentials and prove connect/read/revoke behavior before cutover. | Approved: provider reauthentication; repository owner |
+| Billing and finance | Recreate protected Stripe and Plaid application credentials in the destination, register destination webhook URLs, replay signed test events, and reconcile entitlement state before enabling live mode. Do not migrate end-user access or refresh tokens. | Approved as part of provider reauthentication; repository owner |
+| Bot email and DNS | Deploy identity-only first, validate SES ownership and the existing receipt-rule set, then stage receive resources and change MX/API bindings only inside the window. | Approved: staged cutover after destination validation; repository owner |
+| Client cutover | Publish destination Amplify outputs only after authenticated smoke tests pass. Release iPhone and Mac builds from the same commit and preserve the prior configuration for rollback. | Approved: fail-closed client cutover; repository owner |
+| Rollback window | Keep source stacks, keys, logs, backups, and provider callbacks recoverable and read-only for 30 days after successful cutover. Cleanup is a separate review. | Approved: 30 days; repository owner |
 
 ## Execution phases
 
@@ -100,4 +102,8 @@ Record an owner and decision for every row before the maintenance window is sche
 - [ ] Maintenance window, freeze operator, cutover operator, and rollback owner are named.
 - [ ] `HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED=true` is set only after all preceding items pass.
 
-**Approval record:** Pending.
+**Approval record:** On 2026-09-26, Tim Moreton, the repository owner, approved executing this guarded cutover with
+destination reauthentication for users and providers, complete DynamoDB and versioned-S3 migration, mandatory
+AgentCore memory preservation, a 30-day read-only rollback window, and export of the local Developer ID Application
+identity into protected GitHub production secrets. The approved stop condition is unchanged: do not move traffic if
+AgentCore memory or any other required acceptance check cannot be preserved and validated.
