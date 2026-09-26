@@ -5,20 +5,31 @@ apple_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repository_root="$(cd "$apple_root/../.." && pwd)"
 project_file="$apple_root/HeyTimApple.xcodeproj/project.pbxproj"
 
-if rg -n '^import (SwiftUI|AuthenticationServices|Security|UserNotifications|HealthKit|AppKit|UIKit)$' \
-  "$apple_root/Sources/HeyTimCore" --glob '*.swift'; then
+search_swift_sources() {
+  local pattern="$1"
+  local directory="$2"
+  if command -v rg >/dev/null 2>&1; then
+    rg -n "$pattern" "$directory" --glob '*.swift'
+  else
+    grep -R -n -E --include='*.swift' "$pattern" "$directory"
+  fi
+}
+
+if search_swift_sources \
+  '^import (SwiftUI|AuthenticationServices|Security|UserNotifications|HealthKit|AppKit|UIKit)$' \
+  "$apple_root/Sources/HeyTimCore"; then
   echo 'HeyTimCore must remain framework-neutral and must not import UI/platform frameworks.' >&2
   exit 1
 fi
-if rg -n '^import SwiftUI$' "$apple_root/Sources/HeyTimPlatform" --glob '*.swift'; then
+if search_swift_sources '^import SwiftUI$' "$apple_root/Sources/HeyTimPlatform"; then
   echo 'HeyTimPlatform must expose adapters without depending on SwiftUI.' >&2
   exit 1
 fi
-if rg -n 'HeyTimAPI\(|AuthSession\(' "$apple_root/Sources/HeyTimUI" --glob '*.swift'; then
+if search_swift_sources 'HeyTimAPI\(|AuthSession\(' "$apple_root/Sources/HeyTimUI"; then
   echo 'HeyTimUI must receive application state and cannot construct service/auth clients.' >&2
   exit 1
 fi
-if ! rg -q 'PlatformContract\.generated\.swift in Sources' "$project_file"; then
+if ! grep -q 'PlatformContract\.generated\.swift in Sources' "$project_file"; then
   echo 'The generated platform contract must be registered in the Apple application target.' >&2
   exit 1
 fi
