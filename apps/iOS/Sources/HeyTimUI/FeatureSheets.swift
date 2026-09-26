@@ -299,6 +299,7 @@ struct BotLibrary: View {
           search.isEmpty ? "No Templates" : "No Matching Bots",
           systemImage: search.isEmpty ? "square.grid.2x2" : "magnifyingglass",
           description: Text(search.isEmpty ? "Bot templates are temporarily unavailable." : "Try another name, category, or skill."))
+          .frame(maxWidth: .infinity, minHeight: 280)
       }
     }
     .froggyListSurface()
@@ -479,9 +480,6 @@ private struct BotTemplateDetailView: View {
 
 struct BotEditor: View {
   @Bindable var model: AppModel
-  #if os(macOS)
-    @Environment(DesktopControlCoordinator.self) private var desktopControl
-  #endif
   let id: String?
   var showsDismissButton = true
   @State private var draft = BotDraft()
@@ -533,13 +531,7 @@ struct BotEditor: View {
   private var selectedSkillCount: Int { draft.skillIds.count }
 
   private var effectiveToolCount: Int {
-    let catalogCount = effectiveCatalogToolIDs(
-      draft: draft, skills: model.bootstrap?.skills ?? []).count
-    #if os(macOS)
-      return catalogCount + (editingBot.map { desktopControl.enabledBotIDs.contains($0.id) } == true ? 1 : 0)
-    #else
-      return catalogCount
-    #endif
+    effectiveCatalogToolIDs(draft: draft, skills: model.bootstrap?.skills ?? []).count
   }
 
   var body: some View {
@@ -773,6 +765,10 @@ struct BotToolsAndSkillsEditor: View {
   let skills: [Skill]
   let tools: [Capability]
   let providers: [ConnectionProvider]
+  @Environment(AppleDeviceToolCoordinator.self) private var deviceTools
+  #if os(iOS)
+    @Environment(AppleHealthCoordinator.self) private var appleHealth
+  #endif
   #if os(macOS)
     @Environment(DesktopControlCoordinator.self) private var desktopControl
     @Environment(\.scenePhase) private var scenePhase
@@ -798,8 +794,11 @@ struct BotToolsAndSkillsEditor: View {
   }
 
   private var maxTools: Int { model.constraints.maxToolsPerBot ?? 12 }
+  private var effectiveToolIDs: Set<String> {
+    effectiveCatalogToolIDs(draft: draft, skills: skills)
+  }
   private var selectedToolCount: Int {
-    effectiveCatalogToolIDs(draft: draft, skills: skills).count
+    effectiveToolIDs.count
   }
   private var filteredSkills: [Skill] {
     skills.filter {
@@ -874,6 +873,7 @@ struct BotToolsAndSkillsEditor: View {
           }
           if skills.isEmpty {
             ContentUnavailableView("No Skills", systemImage: "sparkles")
+              .frame(maxWidth: .infinity, minHeight: 180)
           }
         }
       } else {
@@ -899,6 +899,7 @@ struct BotToolsAndSkillsEditor: View {
           #if os(iOS)
             if tools.isEmpty && providers.isEmpty {
               ContentUnavailableView("No Tools", systemImage: "wrench.and.screwdriver")
+                .frame(maxWidth: .infinity, minHeight: 180)
             }
           #endif
         } header: {
@@ -919,17 +920,21 @@ struct BotToolsAndSkillsEditor: View {
               set: { enabled in
                 guard let botID else { return }
                 desktopControl.setEnabled(enabled, for: botID)
+                deviceTools.refreshNow()
               })) {
                 VStack(alignment: .leading, spacing: 3) {
                   Text("Mac app actions")
-                  Text("Create Apple Notes or press a visible control in another Mac app.")
+                  Text("Inspect, navigate, type, and scroll in authorized Mac apps.")
                     .froggyFont(.caption).foregroundStyle(.secondary)
                 }
               }
-              .disabled(botID == nil)
+              .disabled(botID == nil || !effectiveToolIDs.contains("mac_computer"))
               .accessibilityIdentifier("bot.tool.mac-desktop")
             if botID == nil {
               Text("Save this bot first to enable Mac app actions.")
+                .froggyFont(.caption).foregroundStyle(.secondary)
+            } else if !effectiveToolIDs.contains("mac_computer") {
+              Text("Enable the Mac computer tool above before granting this Mac.")
                 .froggyFont(.caption).foregroundStyle(.secondary)
             } else if !desktopControl.isEnabled {
               Button("Enable Mac app actions") { desktopControl.isEnabled = true }
@@ -942,11 +947,55 @@ struct BotToolsAndSkillsEditor: View {
               Button("Open macOS Settings") { desktopControl.openAccessibilitySettings() }
               Text("After enabling Hey Tim in macOS Settings, quit and reopen the app.")
                 .froggyFont(.caption).foregroundStyle(.secondary)
+            } else if desktopControl.isPaused {
+              Button("Resume computer use on this Mac") {
+                desktopControl.resumeComputerUse()
+                deviceTools.refreshNow()
+              }
             }
           } header: {
             Text("On this Mac")
           } footer: {
-            Text("Action approvals below control whether the bot asks first. Turn this off to remove access.")
+            Text("The bot receives semantic controls and optional on-device OCR text, not a continuous screen feed. Your keyboard, mouse, or trackpad input pauses an active session; action approvals below still apply.")
+          }
+        #endif
+
+        #if os(iOS)
+          Section {
+            Toggle(isOn: Binding(
+              get: { botID.map { appleHealth.isEnabled(for: $0) } ?? false },
+              set: { enabled in
+                guard let botID else { return }
+                Task {
+                  if await appleHealth.setEnabled(enabled, for: botID) {
+                    deviceTools.refreshNow()
+                  }
+                }
+              })) {
+                VStack(alignment: .leading, spacing: 3) {
+                  Text("Apple Health on this iPhone")
+                  Text("Share activity, workout, running, and step summaries with this bot.")
+                    .froggyFont(.caption).foregroundStyle(.secondary)
+                }
+              }
+              .disabled(
+                botID == nil || !appleHealth.isAvailable
+                  || !effectiveToolIDs.contains("apple_health"))
+              .accessibilityIdentifier("bot.tool.apple-health-device")
+            if botID == nil {
+              Text("Save this bot first to grant access on this iPhone.")
+                .froggyFont(.caption).foregroundStyle(.secondary)
+            } else if !effectiveToolIDs.contains("apple_health") {
+              Text("Enable the Apple Health tool or its Health Coach skill above first.")
+                .froggyFont(.caption).foregroundStyle(.secondary)
+            } else if let error = appleHealth.errorMessage {
+              Label(error, systemImage: "exclamationmark.triangle")
+                .froggyFont(.caption).foregroundStyle(.orange)
+            }
+          } header: {
+            Text("On this iPhone")
+          } footer: {
+            Text("Health stays off for this bot until you grant it here. Hey Tim reads bounded aggregates on demand; it does not upload routes, clinical records, or raw sensor streams.")
           }
         #endif
 
@@ -994,12 +1043,16 @@ struct BotToolsAndSkillsEditor: View {
       jiraProjectText = draft.jiraProjectAccess.mapValues { $0.joined(separator: ", ") }
       teamsChannelText = draft.teamsChannelAccess.mapValues { $0.joined(separator: ", ") }
       resourceText = draft.resourceAccess.mapValues { $0.joined(separator: ", ") }
+      reconcileDeviceGrants()
     }
     .onChange(of: draft) { _, updatedDraft in
       guard let botID else { return }
       autosave.submit(updatedDraft, botID: botID) { draft, id in
         await model.saveBot(draft, id: id, selectAfterSaving: false)
       }
+    }
+    .onChange(of: effectiveToolIDs) { _, _ in
+      reconcileDeviceGrants()
     }
     .task { _ = await model.refreshBootstrap() }
     .sheet(isPresented: $showingMCPServerSetup) {
@@ -1037,6 +1090,23 @@ struct BotToolsAndSkillsEditor: View {
       Label("Changes save automatically.", systemImage: "checkmark.circle")
         .foregroundStyle(.secondary)
     }
+  }
+
+  private func reconcileDeviceGrants() {
+    guard let botID else { return }
+    #if os(macOS)
+      if !effectiveToolIDs.contains("mac_computer") {
+        desktopControl.setEnabled(false, for: botID)
+        deviceTools.refreshNow()
+      }
+    #elseif os(iOS)
+      if !effectiveToolIDs.contains("apple_health"), appleHealth.isEnabled(for: botID) {
+        Task {
+          _ = await appleHealth.setEnabled(false, for: botID)
+          deviceTools.refreshNow()
+        }
+      }
+    #endif
   }
 
   @ViewBuilder private func capabilityToggle(
@@ -2316,6 +2386,51 @@ private struct MemoryListSection: Identifiable {
   let records: [MemoryRecord]
 }
 
+struct MemoryPreview: Equatable {
+  let title: String
+  let summary: String?
+
+  static func make(from content: String) -> MemoryPreview {
+    let readable = content
+      .replacingOccurrences(of: #"<[^>]+>"#, with: "\n", options: .regularExpression)
+    let lines = readable.components(separatedBy: .newlines)
+      .map { line in
+        line.replacingOccurrences(of: #"^\s*[-*#]+\s*"#, with: "", options: .regularExpression)
+          .replacingOccurrences(of: "**", with: "")
+          .replacingOccurrences(of: "__", with: "")
+          .replacingOccurrences(of: "`", with: "")
+          .trimmingCharacters(in: .whitespacesAndNewlines)
+      }
+      .filter { !$0.isEmpty }
+    guard let first = lines.first else { return MemoryPreview(title: "Empty memory", summary: nil) }
+
+    let hasHeading = lines.count > 1 && first.count <= 80
+      && !first.hasSuffix(".") && !first.hasSuffix("!") && !first.hasSuffix("?")
+    if hasHeading {
+      let summary = sentence(from: lines.dropFirst().joined(separator: " "))
+      return MemoryPreview(
+        title: first,
+        summary: summary.isEmpty ? nil : summary)
+    }
+    return MemoryPreview(title: sentence(from: lines.joined(separator: " ")), summary: nil)
+  }
+
+  private static func sentence(from text: String) -> String {
+    let normalized = text.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let firstSentence: String
+    if let boundary = normalized.range(of: #"(?<=[.!?])\s+"#, options: .regularExpression) {
+      firstSentence = String(normalized[..<boundary.lowerBound])
+    } else {
+      firstSentence = normalized
+    }
+    guard firstSentence.count > 180 else { return firstSentence }
+    let prefix = String(firstSentence.prefix(180))
+    let completeWords = prefix.split(separator: " ").dropLast().joined(separator: " ")
+    return "\(completeWords.isEmpty ? prefix : completeWords)…"
+  }
+}
+
 struct MemoriesView: View {
   @Bindable var model: AppModel
   var botId: String? = nil
@@ -2336,6 +2451,7 @@ struct MemoriesView: View {
   @State private var savingNewMemory = false
   @State private var busyMemoryIDs: Set<String> = []
   @State private var forgetCandidates: [MemoryRecord] = []
+  @State private var expandedMemoryIDs: Set<String> = []
 
   private var editable: Bool {
     guard let groupId else { return true }
@@ -2407,8 +2523,8 @@ struct MemoriesView: View {
   }
 
   var body: some View {
-    List {
-      if let snapshot {
+    Form {
+      if let snapshot, botId == nil && groupId == nil {
         overview(snapshot)
       }
 
@@ -2433,6 +2549,7 @@ struct MemoriesView: View {
           } actions: {
             Button("Try Again") { Task { await load() } }
           }
+          .frame(maxWidth: .infinity, minHeight: 280)
         }
       } else if records.isEmpty {
         Section {
@@ -2442,6 +2559,7 @@ struct MemoriesView: View {
               botId == nil
                 ? "Facts and preferences you add or ask Hey Tim to remember will appear here."
                 : "This bot has no private memories yet. Add a note here to keep it just for this bot."))
+            .frame(maxWidth: .infinity, minHeight: 280)
         }
       } else if filteredRecords.isEmpty {
         Section {
@@ -2452,6 +2570,7 @@ struct MemoriesView: View {
               filter == .cleanup
                 ? "Every saved memory is still connected to an active bot or group."
                 : "Try another search or choose a different filter."))
+            .frame(maxWidth: .infinity, minHeight: 280)
         }
       } else {
         ForEach(sections) { section in
@@ -2475,12 +2594,13 @@ struct MemoriesView: View {
         Section("How Memory Works") {
           Text("In-use memories are searched for relevance; they are not all added to every reply.")
           Text(
-            "Raw conversation history expires after \(snapshot.rawConversationRetentionDays) days. The memories listed here remain until you edit or forget them."
+            "Raw conversation history expires after \(snapshot.rawConversationRetentionDays) days. The memories listed here remain until you edit or delete them."
           )
         }
         .froggyFont(.footnote)
       }
     }
+    .formStyle(.grouped)
     .froggyListSurface()
     .froggyNavigationTitle(
       botId != nil ? "\(botName ?? "Bot") Memory" : groupId == nil ? "Memory" : "Group Memory")
@@ -2522,7 +2642,7 @@ struct MemoriesView: View {
     .task { await load() }
     .confirmationDialog(
       forgetCandidates.count == 1
-        ? "Forget this memory?" : "Forget \(forgetCandidates.count) memories?",
+        ? "Delete this memory?" : "Delete \(forgetCandidates.count) memories?",
       isPresented: Binding(
         get: { !forgetCandidates.isEmpty },
         set: { if !$0 { forgetCandidates = [] } }),
@@ -2530,7 +2650,7 @@ struct MemoriesView: View {
     ) {
       if !forgetCandidates.isEmpty {
         Button(
-          forgetCandidates.count == 1 ? "Forget Memory" : "Forget Selected Memories",
+          forgetCandidates.count == 1 ? "Delete Memory" : "Delete Selected Memories",
           role: .destructive
         ) {
           remove(forgetCandidates)
@@ -2538,11 +2658,7 @@ struct MemoriesView: View {
       }
       Button("Cancel", role: .cancel) { forgetCandidates = [] }
     } message: {
-      Text(
-        forgetCandidates.count == 1
-          ? "Hey Tim will stop using this information in future conversations."
-          : "This permanently removes the selected memories. This cannot be undone."
-      )
+      Text("This permanently removes the \(forgetCandidates.count == 1 ? "memory" : "selected memories"). This cannot be undone.")
     }
   }
 
@@ -2570,13 +2686,7 @@ struct MemoriesView: View {
     } header: {
       Text("At a Glance")
     } footer: {
-      Text(
-        botId != nil
-          ? "Only this bot can recall the memories listed here. Shared facts and preferences are managed in Settings."
-          : groupId == nil
-            ? "“In use” means the memory can be recalled when it is relevant, not that it is sent with every message."
-            : "Every listed record can be recalled by bots in this group when it is relevant."
-      )
+      Text("“In use” means a memory can be recalled when relevant, not that it is sent with every message.")
     }
   }
 
@@ -2612,19 +2722,17 @@ struct MemoriesView: View {
     } header: {
       Text("Add Memory")
     } footer: {
-      Text(
-        botId != nil
-          ? "Only this bot can recall notes added here."
-          : groupId == nil
-            ? "Facts and preferences are available to every bot."
-            : "New group memories are available to every bot in this group."
-      )
+      if botId == nil && groupId == nil {
+        Text("Facts and preferences are available to every bot.")
+      }
     }
   }
 
   @ViewBuilder private func memoryRow(_ record: MemoryRecord) -> some View {
     if editingID == record.id {
       VStack(alignment: .leading, spacing: 8) {
+        Text("Edit memory")
+          .froggyFont(.headline)
         TextField("Memory text", text: $editingText, axis: .vertical)
           .lineLimit(3...12)
         HStack {
@@ -2656,37 +2764,48 @@ struct MemoriesView: View {
       }
       .buttonStyle(.plain)
       .accessibilityLabel(
-        "\(selectedIDs.contains(record.id) ? "Deselect" : "Select") memory: \(record.content)"
+        "\(selectedIDs.contains(record.id) ? "Deselect" : "Select") memory: \(MemoryPreview.make(from: record.content).title)"
       )
     } else {
-      HStack(alignment: .top, spacing: 12) {
+      VStack(alignment: .leading, spacing: 10) {
         memorySummary(record)
-        if editable {
-          HStack(spacing: 4) {
-            Button("Edit memory", systemImage: "pencil") { beginEditing(record) }
-              .labelStyle(.iconOnly)
-              .help("Edit memory")
-            Button("Forget memory", systemImage: "trash", role: .destructive) {
+        if expandedMemoryIDs.contains(record.id) {
+          Divider()
+          Text(record.content)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        HStack(spacing: 12) {
+          Button(
+            expandedMemoryIDs.contains(record.id) ? "Hide details" : "Show details",
+            systemImage: expandedMemoryIDs.contains(record.id) ? "chevron.up" : "chevron.down"
+          ) {
+            toggleExpanded(record.id)
+          }
+          Spacer(minLength: 8)
+          if editable {
+            Button("Edit", systemImage: "pencil") { beginEditing(record) }
+            Button("Delete", systemImage: "trash", role: .destructive) {
               forgetCandidates = [record]
             }
-            .labelStyle(.iconOnly)
-            .help("Forget memory")
           }
-          .buttonStyle(.borderless)
-          .disabled(!busyMemoryIDs.isEmpty)
         }
+        .froggyFont(.subheadline)
+        .buttonStyle(.borderless)
+        .disabled(!busyMemoryIDs.isEmpty)
       }
+      .padding(.vertical, 4)
       .opacity(busyMemoryIDs.contains(record.id) ? 0.5 : 1)
       .swipeActions(edge: .trailing, allowsFullSwipe: false) {
         if editable {
-          Button("Forget", role: .destructive) { forgetCandidates = [record] }
+          Button("Delete", role: .destructive) { forgetCandidates = [record] }
           Button("Edit") { beginEditing(record) }.tint(FrogTheme.green)
         }
       }
       .contextMenu {
         if editable {
           Button("Edit Memory", systemImage: "pencil") { beginEditing(record) }
-          Button("Forget Memory", systemImage: "trash", role: .destructive) {
+          Button("Delete Memory", systemImage: "trash", role: .destructive) {
             forgetCandidates = [record]
           }
         }
@@ -2696,10 +2815,17 @@ struct MemoriesView: View {
 
   private func memorySummary(_ record: MemoryRecord) -> some View {
     let usage = memoryUsageState(for: record, groupID: groupId)
+    let preview = MemoryPreview.make(from: record.content)
     return VStack(alignment: .leading, spacing: 6) {
-      Text(record.content)
-        .textSelection(.enabled)
+      Text(preview.title)
+        .froggyFont(.headline)
         .frame(maxWidth: .infinity, alignment: .leading)
+      if let summary = preview.summary {
+        Text(summary)
+          .froggyFont(.subheadline)
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
       Label(usage.label, systemImage: usage.systemImage)
         .froggyFont(.caption, weight: .semibold)
         .foregroundStyle(usage.isInUse ? FrogTheme.accent : Color.orange)
@@ -2732,7 +2858,7 @@ struct MemoriesView: View {
     Text("\(selectedIDs.count) selected")
       .froggyFont(.caption)
       .foregroundStyle(.secondary)
-    Button("Forget Selected", role: .destructive) {
+    Button("Delete Selected", role: .destructive) {
       forgetCandidates = records.filter { selectedIDs.contains($0.id) }
     }
     .disabled(selectedIDs.isEmpty || !busyMemoryIDs.isEmpty)
@@ -2764,6 +2890,14 @@ struct MemoriesView: View {
     editingText = record.content
   }
 
+  private func toggleExpanded(_ id: String) {
+    if expandedMemoryIDs.contains(id) {
+      expandedMemoryIDs.remove(id)
+    } else {
+      expandedMemoryIDs.insert(id)
+    }
+  }
+
   private func toggleSelection(_ id: String) {
     if selectedIDs.contains(id) {
       selectedIDs.remove(id)
@@ -2779,6 +2913,7 @@ struct MemoriesView: View {
       snapshot = try await model.requireAPI().memories(botId: botId, groupId: groupId)
       loadError = nil
       selectedIDs.formIntersection(Set(records.map(\.id)))
+      expandedMemoryIDs.formIntersection(Set(records.map(\.id)))
     } catch {
       if snapshot == nil {
         loadError = error.localizedDescription
@@ -2836,6 +2971,7 @@ struct MemoriesView: View {
       snapshot?.records.removeAll { deletedIDs.contains($0.id) }
       busyMemoryIDs.subtract(ids)
       selectedIDs.subtract(deletedIDs)
+      expandedMemoryIDs.subtract(deletedIDs)
       if selectedIDs.isEmpty && deletedIDs == ids { selecting = false }
     }
   }
@@ -2909,6 +3045,7 @@ struct SkillsView: View {
             ContentUnavailableView(
               searchText.isEmpty ? "No Skills" : "No Matching Skills",
               systemImage: "sparkles")
+              .frame(maxWidth: .infinity, minHeight: 220)
           }
         }
       case .tools:
@@ -2929,6 +3066,7 @@ struct SkillsView: View {
           }
           if model.bootstrap?.tools.filter({ $0.source != "user" }).isEmpty != false {
             ContentUnavailableView("No Tools", systemImage: "wrench.and.screwdriver")
+              .frame(maxWidth: .infinity, minHeight: 220)
           }
         }
         Section("Connected Tools") {
@@ -3074,6 +3212,7 @@ private struct SkillDetailView: View {
         } actions: {
           Button("Try Again") { Task { await load() } }
         }
+        .frame(maxWidth: .infinity, minHeight: 280)
       } else {
         ProgressView().frame(maxWidth: .infinity)
       }

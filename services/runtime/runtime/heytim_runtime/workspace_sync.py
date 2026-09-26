@@ -49,12 +49,20 @@ def workspace_files_from_payload(payload: dict, actor_id: str | None) -> list[di
             parsed_id = str(uuid.UUID(file_id))
         except (TypeError, ValueError, AttributeError) as exc:
             raise ValueError("workspace file identity is invalid") from exc
+        legacy_key = f"{base}{parsed_id}/{name}"
+        revision_key = re.fullmatch(
+            re.escape(f"{base}{parsed_id}/revisions/")
+            + r"[1-9]\d*/(?:[a-f0-9]{16}/)?"
+            + re.escape(name),
+            key if isinstance(key, str) else "",
+        )
         if (
             parsed_id in seen
             or not isinstance(name, str) or not name or len(name) > 200
             or name in {".", ".."} or "/" in name or "\\" in name
             or any(ord(char) < 32 or ord(char) == 127 for char in name)
-            or not isinstance(key, str) or key != f"{base}{parsed_id}/{name}"
+            or not isinstance(key, str)
+            or (key != legacy_key and revision_key is None)
             or type(size) is not int or not 0 < size <= MAX_FILE_BYTES
         ):
             raise ValueError("workspace file metadata is invalid")

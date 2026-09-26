@@ -104,15 +104,33 @@ private signing material must never be committed. The Mac app does not link or
 bundle Laya; requests use the bot's configured tools and the main agent.
 
 On Mac, enable **Mac App Actions** in Hey Tim Settings, then turn on the Mac app
-actions tool for each bot that should use it. Grant Accessibility access in
+computer tool and grant this Mac for each bot that should use it. Grant Accessibility access in
 macOS System Settings. Return to Hey Tim to refresh the status; if the
 permission was just requested, the app offers to quit and reopen. If macOS
 shows Hey Tim as enabled but the app still lacks access, Settings can reveal
 the exact app copy to remove and re-add. There is no separate Desktop Control
-window or composer button: an explicit Mac-app request uses the conversation's
-normal approval bubble before acting. Text-only sends from enabled bots use
-bounded local routing for note creation or an exact visible control. Other
-requests continue to the bot. This is not yet a general client-side tool broker.
+window or composer shortcut: every request goes to the bot, which can inspect a
+fresh semantic Accessibility snapshot and then reference its short-lived target
+IDs and advertised actions. Buttons, menu items, tabs, toggles, bounded scrolling,
+editable fields, and event-driven state verification share the same stale-window
+checks. Interactive actions use the conversation's normal approval bubble. If you
+use the keyboard, mouse, or trackpad during an active session, Hey Tim pauses
+computer use and requires an explicit resume from Settings or the bot's Tools screen. Screen
+Recording access is optional and adds on-device Vision OCR for controls without
+useful accessibility labels; screenshots are neither uploaded nor retained.
+
+The Mac Operator template pairs the structured AgentCore browser with this local
+Mac tool. It uses browser-native controls for websites, Accessibility for native
+apps, and local OCR only as a fallback. Instructions displayed inside pages,
+documents, email, chat, or app content are treated as untrusted data and cannot
+expand the user's goal or override permissions and safety checks.
+
+On iPhone, enable the Apple Health tool (or Health Coach skill), then grant that
+specific bot access from Tools & Skills. HealthKit shows Apple's permission
+sheet. Hey Tim requests read-only activity, workout, running, and step data and
+returns bounded aggregates on demand. It does not request routes, clinical
+records, write access, background delivery, or raw sensor streams. Revoking the
+per-bot switch removes the device grant immediately.
 
 Add Home Assistant as an MCP server using its public HTTPS
 `/api/mcp/assist` endpoint and a long-lived access token. Add other trusted

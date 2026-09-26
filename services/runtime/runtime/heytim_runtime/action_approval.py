@@ -110,27 +110,12 @@ def approval_configuration(payload: dict, actor_id: str | None) -> tuple[ActionA
     resume = payload.get("actionApproval")
     if not unapproved_ids and resume is None:
         return None
-    memory = memory_context_from_payload(payload)
-    prefix = artifact_prefix_from_payload(payload, actor_id)
-    if not memory or not prefix or not (
-        prefix.startswith(f"users/{actor_id}/bots/")
-        or (payload.get("group") is not None and prefix.startswith("groups/")
-            and memory.scope == "group")
-    ):
-        raise ValueError("Approval requires an authorized turn")
-    event_id = memory.event_id
-    if not isinstance(event_id, str) or not _ID.fullmatch(event_id):
-        raise ValueError("Approval turn identity is invalid")
     if resume is not None and (
         not isinstance(resume, dict)
         or set(resume) != {"id", "digest", "toolUseId"}
         or not all(isinstance(value, str) and value for value in resume.values())
     ):
         raise ValueError("Approval response is invalid")
-    bucket = os.environ.get("HEYTIM_FILES_BUCKET")
-    if not bucket:
-        raise ValueError("Approval storage is unavailable")
-    storage = S3Storage(bucket, prefix=f"{prefix.replace('/artifacts/', '/approval-state/')}")
     read_only_home_tools = {
         _bounded_tool_name(item["id"], "homeassistant__GetLiveContext")
         for item in selected
@@ -156,6 +141,8 @@ def approval_configuration(payload: dict, actor_id: str | None) -> tuple[ActionA
             interactive_names.update({"browser", "capture_points_screenshot"})
         elif kind == "local" and runtime.get("name") == "image_generator":
             interactive_names.update({"generate_image", "create_youtube_thumbnail"})
+        elif kind == "device":
+            interactive_names.update(runtime.get("interactiveOperations", []))
         else:
             # Unknown interactive bindings keep the conservative original hook.
             interactive_names.clear()
@@ -166,16 +153,44 @@ def approval_configuration(payload: dict, actor_id: str | None) -> tuple[ActionA
         allow_after_resume=not unapproved_ids,
         interactive_names=interactive_names,
         interactive_prefixes=interactive_prefixes,
-    ), SnapshotSessionManager(
-        event_id, storage=storage, save_latest_on="trigger"
+    ), interrupt_session_manager(payload, actor_id)
+
+
+def interrupt_session_manager(
+    payload: dict, actor_id: str | None
+) -> SnapshotSessionManager:
+    """Return the authorized snapshot store shared by approval and device interrupts."""
+    memory = memory_context_from_payload(payload)
+    prefix = artifact_prefix_from_payload(payload, actor_id)
+    if not memory or not prefix or not (
+        prefix.startswith(f"users/{actor_id}/bots/")
+        or (
+            payload.get("group") is not None
+            and prefix.startswith("groups/")
+            and memory.scope == "group"
+        )
+    ):
+        raise ValueError("Interrupts require an authorized turn")
+    event_id = memory.event_id
+    if not isinstance(event_id, str) or not _ID.fullmatch(event_id):
+        raise ValueError("Interrupt turn identity is invalid")
+    bucket = os.environ.get("HEYTIM_FILES_BUCKET")
+    if not bucket:
+        raise ValueError("Interrupt storage is unavailable")
+    storage = S3Storage(
+        bucket,
+        prefix=f"{prefix.replace('/artifacts/', '/approval-state/')}",
     )
+    return SnapshotSessionManager(event_id, storage=storage, save_latest_on="trigger")
 
 
 def pending_approval(result: Any) -> dict | None:
     if getattr(result, "stop_reason", None) != "interrupt":
         return None
     interrupts = getattr(result, "interrupts", None) or []
-    if len(interrupts) != 1 or interrupts[0].name != "heytim_exact_action":
+    if len(interrupts) == 1 and interrupts[0].name != "heytim_exact_action":
+        return None
+    if len(interrupts) != 1:
         raise ValueError("Unexpected runtime interrupt")
     proposal = interrupts[0].reason
     if not isinstance(proposal, dict) or proposal != _proposal({

@@ -1,4 +1,4 @@
-import { Duration, type Stack } from 'aws-cdk-lib';
+import { Duration, RemovalPolicy, type Stack } from 'aws-cdk-lib';
 import { CfnBudget } from 'aws-cdk-lib/aws-budgets';
 import {
   Alarm,
@@ -15,7 +15,7 @@ import { SnsAction } from 'aws-cdk-lib/aws-cloudwatch-actions';
 import { Effect, PolicyStatement, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import type { Key } from 'aws-cdk-lib/aws-kms';
 import type { Function as LambdaFunction } from 'aws-cdk-lib/aws-lambda';
-import { FilterPattern, MetricFilter, type LogGroup } from 'aws-cdk-lib/aws-logs';
+import { FilterPattern, LogGroup, MetricFilter, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import type { Queue } from 'aws-cdk-lib/aws-sqs';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 
@@ -32,6 +32,20 @@ type ObservabilityResources = {
   workerConcurrencyLimit: number;
   availabilityProbe?: LambdaFunction;
 };
+
+export function createApplicationLogGroups(stack: Stack, logsKey: Key) {
+  const create = (id: string) => new LogGroup(stack, id, {
+    encryptionKey: logsKey,
+    retention: RetentionDays.ONE_MONTH,
+    removalPolicy: RemovalPolicy.RETAIN,
+  });
+  return {
+    apiLogGroup: create('ApiLogs'),
+    workerLogGroup: create('WorkerLogs'),
+    plaidWebhookLogGroup: create('PlaidWebhookLogs'),
+    apiAccessLogGroup: create('ApiAccessLogs'),
+  };
+}
 
 export function addObservability({
   stack,

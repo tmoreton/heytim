@@ -4,8 +4,17 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from strands.agent.agent_result import AgentResult
 from strands_harness import create_harness
 
-from heytim_runtime.action_approval import approval_configuration, pending_approval
+from heytim_runtime.action_approval import (
+    approval_configuration,
+    interrupt_session_manager,
+    pending_approval,
+)
 from heytim_runtime.configuration import bot_configuration
+from heytim_runtime.device_tools import (
+    has_device_tools,
+    pending_device_call,
+    validated_device_resume,
+)
 from heytim_runtime.memory import (
     latest_assistant_text,
     memory_context_from_payload,
@@ -77,6 +86,16 @@ async def run_agent(payload, context):
     )
     config = bot_configuration(payload, session_id, actor_id, messages, usage)
     approval = approval_configuration(payload, actor_id)
+    device_resume = validated_device_resume(payload.get("deviceResult"))
+    if device_resume is not None and payload.get("actionApproval") is not None:
+        raise ValueError("Only one interrupted tool call can resume at a time")
+    session_manager = (
+        approval[1]
+        if approval
+        else interrupt_session_manager(payload, actor_id)
+        if has_device_tools(payload)
+        else None
+    )
     log.info(
         "Invoking HeyTim session %s with %d history messages",
         session_id,
@@ -87,6 +106,7 @@ async def run_agent(payload, context):
     completed = False
     terminal_error = None
     approval_request = None
+    device_request = None
     try:
         model = await load_model(usage)
         agent = create_harness(
@@ -108,11 +128,11 @@ async def run_agent(payload, context):
             session=False,
             **(
                 {
-                    "hooks": [approval[0]],
-                    "session_manager": approval[1],
+                    **({"hooks": [approval[0]]} if approval else {}),
+                    "session_manager": session_manager,
                     "agent_id": f"turn-{payload['memory']['eventId']}",
                 }
-                if approval
+                if session_manager
                 else {}
             ),
         )
@@ -126,6 +146,19 @@ async def run_agent(payload, context):
             resume = payload.get("actionApproval")
             prompt = (
                 [
+                    {
+                        "interruptResponse": {
+                            "interruptId": device_resume["id"],
+                            "response": {
+                                key: value
+                                for key, value in device_resume.items()
+                                if key != "id"
+                            },
+                        }
+                    }
+                ]
+                if device_resume
+                else [
                     {
                         "interruptResponse": {
                             "interruptId": resume["id"],
@@ -143,12 +176,21 @@ async def run_agent(payload, context):
                 agent, prompt, logger=log, timeout_seconds=budget
             ):
                 if isinstance(event, dict) and "stop" in event:
-                    proposed = pending_approval(AgentResult(*event["stop"]))
+                    stopped = AgentResult(*event["stop"])
+                    proposed = pending_approval(stopped)
+                    proposed_device = pending_device_call(stopped)
+                    if proposed and proposed_device:
+                        raise ValueError("Multiple runtime interrupts are unsupported")
                     if proposed:
-                        if not approval:
+                        if not approval or not session_manager:
                             raise ValueError("Approval hook is unavailable")
-                        await approval[1].save_snapshot(agent, is_latest=True)
+                        await session_manager.save_snapshot(agent, is_latest=True)
                         approval_request = proposed
+                    elif proposed_device:
+                        if not session_manager:
+                            raise ValueError("Device interrupt storage is unavailable")
+                        await session_manager.save_snapshot(agent, is_latest=True)
+                        device_request = proposed_device
                 if not isinstance(event, dict) or "event" not in event:
                     continue
                 block_start = event["event"].get("contentBlockStart")
@@ -196,13 +238,15 @@ async def run_agent(payload, context):
         ):
             control["usage"] = usage_report
         if config.background_work.pending:
-            if approval_request:
+            if approval_request or device_request:
                 raise ValueError(
                     "Background work cannot be combined with an interrupted tool call"
                 )
             control["pendingWork"] = config.background_work.pending
         elif approval_request:
             control["pendingApproval"] = approval_request
+        elif device_request:
+            control["pendingDeviceCall"] = device_request
         elif terminal_error:
             control["terminalError"] = terminal_error
         else:

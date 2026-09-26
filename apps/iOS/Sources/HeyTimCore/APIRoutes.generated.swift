@@ -19,6 +19,7 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case publicCatalog
     case githubWebhook
     case stripeWebhook
+    case plaidWebhook
     case googleOAuthCallback
     case githubOAuthCallback
     case xOAuthCallback
@@ -102,6 +103,10 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case groupRoutinePreview
     case pushTokenPut
     case pushTokenDelete
+    case deviceCapabilitiesPut
+    case deviceCapabilitiesDelete
+    case deviceCallsList
+    case deviceCallResult
     case uploadCreate
     case uploadComplete
     case fileDownload
@@ -122,6 +127,8 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case skillShare
     case skillShareImport
     case connectionsList
+    case plaidSyncStatus
+    case plaidSyncRequest
     case homeAssistantConnect
     case mcpServerConnect
     case mcpServerRename
@@ -198,6 +205,12 @@ public enum GeneratedAPIContract {
             id: .stripeWebhook,
             method: .post,
             pathTemplate: "/public/webhooks/stripe",
+            access: .publicAccess
+        ),
+        .plaidWebhook: APIContractRoute(
+            id: .plaidWebhook,
+            method: .post,
+            pathTemplate: "/public/webhooks/plaid",
             access: .publicAccess
         ),
         .googleOAuthCallback: APIContractRoute(
@@ -698,6 +711,30 @@ public enum GeneratedAPIContract {
             pathTemplate: "/devices/push-token",
             access: .authenticated
         ),
+        .deviceCapabilitiesPut: APIContractRoute(
+            id: .deviceCapabilitiesPut,
+            method: .put,
+            pathTemplate: "/devices/{deviceId}/capabilities",
+            access: .authenticated
+        ),
+        .deviceCapabilitiesDelete: APIContractRoute(
+            id: .deviceCapabilitiesDelete,
+            method: .delete,
+            pathTemplate: "/devices/{deviceId}/capabilities",
+            access: .authenticated
+        ),
+        .deviceCallsList: APIContractRoute(
+            id: .deviceCallsList,
+            method: .get,
+            pathTemplate: "/devices/{deviceId}/calls",
+            access: .authenticated
+        ),
+        .deviceCallResult: APIContractRoute(
+            id: .deviceCallResult,
+            method: .post,
+            pathTemplate: "/devices/{deviceId}/calls/{callId}/result",
+            access: .authenticated
+        ),
         .uploadCreate: APIContractRoute(
             id: .uploadCreate,
             method: .post,
@@ -816,6 +853,18 @@ public enum GeneratedAPIContract {
             id: .connectionsList,
             method: .get,
             pathTemplate: "/connections",
+            access: .authenticated
+        ),
+        .plaidSyncStatus: APIContractRoute(
+            id: .plaidSyncStatus,
+            method: .get,
+            pathTemplate: "/connections/{connectionId}/plaid-sync",
+            access: .authenticated
+        ),
+        .plaidSyncRequest: APIContractRoute(
+            id: .plaidSyncRequest,
+            method: .post,
+            pathTemplate: "/connections/{connectionId}/plaid-sync",
             access: .authenticated
         ),
         .homeAssistantConnect: APIContractRoute(

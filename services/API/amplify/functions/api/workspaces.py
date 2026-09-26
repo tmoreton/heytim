@@ -25,7 +25,7 @@ from .support import (
     table,
 )
 
-WORKSPACE_VERSION = 1
+WORKSPACE_VERSION = 2
 MAX_WORKSPACE_FILES = 50
 MAX_WORKSPACE_BYTES = 100_000_000
 
@@ -101,6 +101,18 @@ def _public_workspace_file(item: dict) -> dict:
         **_public_file(item),
         "workspaceVersion": WORKSPACE_VERSION,
         "uploadedBy": item.get("uploadedBy"),
+        "revision": int(item.get("revision", 1)),
+        "updatedAt": item.get("updatedAt", item.get("createdAt")),
+        **(
+            {"assetKey": item["assetKey"]}
+            if isinstance(item.get("assetKey"), str)
+            else {}
+        ),
+        **(
+            {"managedBy": item["managedBy"]}
+            if isinstance(item.get("managedBy"), str)
+            else {}
+        ),
     }
 
 
@@ -160,6 +172,7 @@ def _add_workspace_file(user_id: str, kind: str, scope_id: str, value: dict) -> 
         "sk": f"{prefix}{file_id}",
         "entity": "WORKSPACE_FILE",
         "workspaceVersion": WORKSPACE_VERSION,
+        "revision": 1,
         "id": file_id,
         "scope": kind,
         "scopeId": scope_id,
@@ -169,6 +182,7 @@ def _add_workspace_file(user_id: str, kind: str, scope_id: str, value: dict) -> 
         "createdAt": _now(),
         **{key: source[key] for key in ("name", "size", "kind", "format", "contentType")},
     }
+    item["updatedAt"] = item["createdAt"]
     alias = {
         **item,
         "sk": f"FILE#{file_id}",
@@ -211,8 +225,11 @@ def _delete_workspace_file(user_id: str, kind: str, scope_id: str, file_id: str)
         meta, _ = _require_group_member(user_id, scope_id)
         if item.get("uploadedBy") != user_id and meta.get("ownerId") != user_id:
             raise ApiError(403, "Only the uploader or group owner can remove this file")
+    _, _, object_prefix = _scope(user_id, kind, scope_id)
     delete_object_versions(
-        s3, FILES_BUCKET_NAME, item["objectKey"].rsplit("/", 1)[0] + "/",
+        s3,
+        FILES_BUCKET_NAME,
+        f"{object_prefix}{file_id}/",
         resource_label="workspace file",
     )
     deleted = table.delete_item(

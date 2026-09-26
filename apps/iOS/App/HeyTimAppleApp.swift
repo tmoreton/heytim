@@ -12,6 +12,10 @@ struct HeyTimAppleApp: App {
   private let configurationError: String?
   @State private var auth: AuthSession?
   @State private var model: AppModel
+  @State private var deviceTools = AppleDeviceToolCoordinator()
+  #if os(iOS)
+    @State private var appleHealth = AppleHealthCoordinator()
+  #endif
   #if os(macOS)
     @State private var desktopControl = DesktopControlCoordinator()
     private let updateController = DesktopUpdateController.shared
@@ -43,6 +47,7 @@ struct HeyTimAppleApp: App {
             configurationFailure
           }
         }
+        .environment(deviceTools)
         .environment(desktopControl)
       }
       .defaultSize(width: 1200, height: 760)
@@ -73,6 +78,8 @@ struct HeyTimAppleApp: App {
             configurationFailure
           }
         }
+        .environment(deviceTools)
+        .environment(appleHealth)
         .frame(minWidth: 360, minHeight: 520)
       }
     #endif
@@ -98,6 +105,12 @@ private struct AppRoot: View {
     FroggyTextSizePreference.platformDefaultRawValue
   @Environment(\.dynamicTypeSize) private var systemTextSize
   @Environment(\.scenePhase) private var scenePhase
+  @Environment(AppleDeviceToolCoordinator.self) private var deviceTools
+  #if os(iOS)
+    @Environment(AppleHealthCoordinator.self) private var appleHealth
+  #elseif os(macOS)
+    @Environment(DesktopControlCoordinator.self) private var desktopControl
+  #endif
   @State private var invitation: PendingInvitation?
   @State private var connected = false
   @State private var pendingPushSelection: PushSelection?
@@ -131,12 +144,22 @@ private struct AppRoot: View {
       } else if phase == .signedOut {
         connected = false
         pendingPushSelection = nil
+        deviceTools.disconnect()
         model.resetSession()
       }
     }
     .onChange(of: scenePhase) { _, phase in
+      #if os(iOS)
+        // iOS device tools are intentionally foreground-only. macOS must keep
+        // polling while another app is frontmost so a multi-step computer-use
+        // turn can inspect, act, and verify that app.
+        deviceTools.setActive(phase == .active)
+      #endif
       guard phase == .active, auth.phase == .signedIn, connected else { return }
-      Task { _ = await model.refreshBootstrap() }
+      Task {
+        _ = await model.refreshBootstrap()
+        deviceTools.refreshNow()
+      }
     }
     .onOpenURL { url in
       let billingWebReturn = ["heytim.ai", "www.heytim.ai"].contains(url.host ?? "")
@@ -214,6 +237,19 @@ private struct AppRoot: View {
       connected = true
       await model.load()
       guard auth.phase == .signedIn, auth.sessionIdentifier == authSession else { return }
+      #if os(iOS)
+        let health = appleHealth
+        deviceTools.connect(
+          api: api,
+          registration: { Self.healthRegistration(health) },
+          execute: { call in await health.execute(call) })
+      #elseif os(macOS)
+        let desktop = desktopControl
+        deviceTools.connect(
+          api: api,
+          registration: { Self.macRegistration(desktop) },
+          execute: { call in await desktop.execute(call) })
+      #endif
       await NativeNotifications.registerIfAuthorized()
       if let invitation {
         model.deepLinkInvite = (invitation.kind, invitation.token)
@@ -230,6 +266,56 @@ private struct AppRoot: View {
   private var textSize: FroggyTextSizePreference {
     FroggyTextSizePreference(rawValue: storedTextSize) ?? .system
   }
+
+  private static var appVersion: String {
+    let version = Bundle.main.object(
+      forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+    let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+      ?? "unknown"
+    return "\(version) (\(build))"
+  }
+
+  #if os(iOS)
+    @MainActor private static func healthRegistration(
+      _ health: AppleHealthCoordinator
+    ) -> DeviceCapabilityRegistration {
+      let tools = health.isAvailable
+        ? [DeviceToolCapability(
+          id: "apple_health",
+          operations: [
+            "apple_health_activity_summary", "apple_health_workouts",
+            "apple_health_running_totals", "apple_health_steps",
+          ])]
+        : []
+      return DeviceCapabilityRegistration(
+        platform: "ios", appVersion: appVersion, tools: tools,
+        botGrants: health.enabledBotIDs.sorted().map {
+          DeviceBotGrant(botId: $0, toolIds: ["apple_health"])
+        })
+    }
+  #elseif os(macOS)
+    @MainActor private static func macRegistration(
+      _ desktop: DesktopControlCoordinator
+    ) -> DeviceCapabilityRegistration {
+      let available = desktop.isEnabled && desktop.permissionGranted && !desktop.isPaused
+      let tools = available
+        ? [DeviceToolCapability(
+          id: "mac_computer",
+          operations: [
+            "mac_computer_observe", "mac_computer_act_on_element",
+            "mac_computer_type_into_element", "mac_computer_wait_for_state",
+            "mac_computer_scroll",
+          ])]
+        : []
+      return DeviceCapabilityRegistration(
+        platform: "macos", appVersion: appVersion, tools: tools,
+        botGrants: available
+          ? desktop.enabledBotIDs.sorted().map {
+            DeviceBotGrant(botId: $0, toolIds: ["mac_computer"])
+          }
+          : [])
+    }
+  #endif
 
   static func invitation(from url: URL) -> PendingInvitation? {
     InvitationParser.parse(url)

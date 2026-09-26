@@ -7,13 +7,18 @@ on:
   workflow_dispatch:
     inputs:
       release_scope:
-        description: Release both Apple apps in CI or deploy the backend for signed local releases
+        description: Choose backend only, backend plus Mac/Sparkle, or the full Apple release
         required: true
         default: full
         type: choice
         options:
           - full
           - backend-only
+          - backend-macos
+      release_tag:
+        description: Existing draft release tag required for backend-macos (vMAJOR.MINOR.PATCH)
+        required: false
+        type: string
 
 concurrency:
   group: heytim-production-release
@@ -26,6 +31,7 @@ permissions:
 
 jobs:
   deploy:
+    if: ${{ github.event_name != 'release' || !contains(github.event.release.body, '<!-- heytim-backend-macos-predeployed -->') }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     environment: production
@@ -42,6 +48,8 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_DRAFT: ${{ github.event.release.draft }}
           RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+          RELEASE_SCOPE: ${{ inputs.release_scope }}
+          MANUAL_RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           if [[ "$GITHUB_EVENT_NAME" == release ]]; then
             if [[ "$RELEASE_DRAFT" == true || "$RELEASE_PRERELEASE" == true ]]; then
@@ -63,6 +71,13 @@ jobs:
           elif [[ "$GITHUB_REF" != refs/heads/main ]]; then
             echo 'Manual production releases must run from main.' >&2
             exit 1
+          fi
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$RELEASE_SCOPE" == backend-macos ]]; then
+            if [[ ! "$MANUAL_RELEASE_TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+              echo 'backend-macos requires release_tag vMAJOR.MINOR.PATCH.' >&2
+              exit 1
+            fi
+            echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Check release branch and production configuration
@@ -107,8 +122,9 @@ jobs:
           SPARKLE_PRIVATE_KEY: ${{ secrets.HEYTIM_SPARKLE_PRIVATE_KEY }}
           RELEASE_SCOPE: ${{ github.event_name == 'release' && 'full' || inputs.release_scope }}
         run: |
-          if [[ "$RELEASE_SCOPE" != full && "$RELEASE_SCOPE" != backend-only ]]; then
-            echo 'release_scope must be full or backend-only.' >&2
+          if [[ "$RELEASE_SCOPE" != full && "$RELEASE_SCOPE" != backend-only \
+            && "$RELEASE_SCOPE" != backend-macos ]]; then
+            echo 'release_scope must be full, backend-only, or backend-macos.' >&2
             exit 1
           fi
           required_values=(
@@ -131,6 +147,13 @@ jobs:
               DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD
               HEYTIM_SPARKLE_PUBLIC_KEY SPARKLE_PRIVATE_KEY
             )
+          elif [[ "$RELEASE_SCOPE" == backend-macos ]]; then
+            required_values+=(
+              APPLE_TEAM_ID APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID
+              APP_STORE_CONNECT_PRIVATE_KEY DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64
+              DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD
+              HEYTIM_SPARKLE_PUBLIC_KEY SPARKLE_PRIVATE_KEY
+            )
           fi
           missing=()
           for name in "${required_values[@]}"; do
@@ -140,7 +163,7 @@ jobs:
             printf 'Missing production configuration: %s\n' "${missing[*]}" >&2
             exit 1
           fi
-          if [[ "$RELEASE_SCOPE" == full ]]; then
+          if [[ "$RELEASE_SCOPE" == full || "$RELEASE_SCOPE" == backend-macos ]]; then
             if ! sparkle_public_key_size="$(printf '%s' "$HEYTIM_SPARKLE_PUBLIC_KEY" \
               | base64 --decode 2>/dev/null | wc -c | tr -d ' ')" \
               || [[ "$sparkle_public_key_size" != 32 ]]; then
@@ -480,9 +503,9 @@ jobs:
           path: ${{ runner.temp }}/heytim-production-client-configuration
 
   apple:
-    name: Release iPhone to TestFlight and Mac directly
+    name: Release requested Apple targets
     needs: deploy
-    if: ${{ github.event_name == 'release' || inputs.release_scope == 'full' }}
+    if: ${{ github.event_name == 'release' || inputs.release_scope == 'full' || inputs.release_scope == 'backend-macos' }}
     runs-on: [self-hosted, macOS, ARM64, heytim-apple]
     timeout-minutes: 120
     environment: production
@@ -540,14 +563,15 @@ jobs:
           SPARKLE_PRIVATE_KEY: ${{ secrets.HEYTIM_SPARKLE_PRIVATE_KEY }}
           HEYTIM_BUILD_NUMBER: ${{ steps.apple-build.outputs.number }}
           HEYTIM_MARKETING_VERSION: ${{ steps.apple-build.outputs.version }}
-          HEYTIM_RELEASE_TAG: ${{ github.event.release.tag_name }}
+          HEYTIM_RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+          HEYTIM_RELEASE_SCOPE: ${{ github.event_name == 'release' && 'full' || inputs.release_scope }}
         run: ./apps/iOS/scripts/testflight-ci.sh
 
       - name: Attach Mac download and Sparkle feed to the GitHub Release
-        if: ${{ github.event_name == 'release' }}
+        if: ${{ github.event_name == 'release' || inputs.release_tag != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
           HEYTIM_BUILD_NUMBER: ${{ steps.apple-build.outputs.number }}
           HEYTIM_MARKETING_VERSION: ${{ steps.apple-build.outputs.version }}
         run: |

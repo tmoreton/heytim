@@ -546,6 +546,9 @@ public final class HeyTimAPI: Sendable {
     let envelope: ArrayEnvelope<Capability> = try await request(.connectionsList)
     return envelope.values
   }
+  public func requestPlaidSync(_ id: String) async throws -> PlaidSyncStatus {
+    try await request(.plaidSyncRequest, parameters: ["connectionId": id])
+  }
   public func deleteConnection(_ id: String) async throws {
     let _: EmptyResponse = try await request(.connectionDelete, parameters: ["connectionId": id])
   }
@@ -593,6 +596,39 @@ public final class HeyTimAPI: Sendable {
     let _: EmptyResponse = try await request(
       .pushTokenDelete,
       body: PushRegistration(provider: "apns", token: value, platform: nil, environment: nil))
+  }
+  public func registerDeviceCapabilities(
+    deviceId: String, registration: DeviceCapabilityRegistration
+  ) async throws -> DeviceCapabilityReceipt {
+    try await request(
+      .deviceCapabilitiesPut, parameters: ["deviceId": deviceId], body: registration)
+  }
+  public func unregisterDeviceCapabilities(deviceId: String) async throws {
+    let _: EmptyResponse = try await request(
+      .deviceCapabilitiesDelete, parameters: ["deviceId": deviceId])
+  }
+  public func deviceCalls(deviceId: String) async throws -> [DeviceCall] {
+    let page: DeviceCallPage = try await request(
+      .deviceCallsList, parameters: ["deviceId": deviceId])
+    return page.calls
+  }
+  public func submitDeviceCall(
+    _ call: DeviceCall, deviceId: String, outcome: DeviceCallOutcome
+  ) async throws -> DeviceCallReceipt {
+    var body: [String: JSONValue] = [
+      "requestDigest": .string(call.requestDigest)
+    ]
+    switch outcome {
+    case .success(let result):
+      body["status"] = .string("success")
+      body["result"] = result
+    case .failure(let message):
+      body["status"] = .string("error")
+      body["error"] = .string(String(message.prefix(1_000)))
+    }
+    return try await request(
+      .deviceCallResult,
+      parameters: ["deviceId": deviceId, "callId": call.id], body: body)
   }
   public func deleteAccount() async throws {
     let _: EmptyResponse = try await request(.accountDelete)

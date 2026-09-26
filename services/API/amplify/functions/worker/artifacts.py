@@ -8,6 +8,7 @@ from typing import Any
 from boto3.dynamodb.conditions import Attr
 from shared.memory_identity import memory_actor_id
 
+from . import workspace_artifacts
 from .support import (
     FILES_BUCKET_NAME,
     GENERATED_ARTIFACT_FORMATS,
@@ -17,6 +18,16 @@ from .support import (
     table,
 )
 
+
+def _workspace_metadata(object_key: str) -> dict[str, str]:
+    workspace_artifacts.s3 = s3
+    return workspace_artifacts._workspace_metadata(object_key)
+
+
+def _promote_workspace_artifact(*args: Any, **kwargs: Any) -> dict:
+    workspace_artifacts.s3 = s3
+    workspace_artifacts.table = table
+    return workspace_artifacts._promote_workspace_artifact(*args, **kwargs)
 
 def _attachment_blocks(turn: dict, user_id: str, bot_id: str | None = None) -> list[dict]:
     attachments = turn.get("attachments", [])
@@ -111,7 +122,8 @@ def _group_generated_artifact_prefix(group_id: str, event_id: str) -> str:
 def _collect_artifacts(
     prefix: str, partition_key: str, owner: dict[str, str] | None = None
 ) -> list[dict]:
-    prefix = f"{prefix}/"
+    artifact_prefix = prefix
+    prefix = f"{artifact_prefix}/"
     objects = []
     continuation_token = None
     while True:
@@ -124,7 +136,12 @@ def _collect_artifacts(
             request["ContinuationToken"] = continuation_token
         response = s3.list_objects_v2(**request)
         objects.extend(response.get("Contents", []))
-        if len(objects) > MAX_GENERATED_ARTIFACTS:
+        main_object_count = sum(
+            "--" in str(item.get("Key", "")).rsplit("/", 1)[-1]
+            for item in objects
+            if isinstance(item, dict)
+        )
+        if main_object_count > MAX_GENERATED_ARTIFACTS:
             raise ValueError(
                 f"A reply can create at most {MAX_GENERATED_ARTIFACTS} artifacts"
             )
@@ -161,6 +178,20 @@ def _collect_artifacts(
         ):
             continue
         kind, file_format, content_type = format_spec
+        metadata = _workspace_metadata(object_key)
+        if metadata.get("heytim-purpose") == "workspace-asset":
+            artifacts.append(
+                _promote_workspace_artifact(
+                    artifact_prefix,
+                    partition_key,
+                    owner,
+                    stored,
+                    name,
+                    format_spec,
+                    metadata,
+                )
+            )
+            continue
         created_at = _now_from_s3(stored.get("LastModified"))
         item = {
             "pk": partition_key,

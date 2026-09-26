@@ -11,15 +11,17 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from typing import Any
 
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 from shared.catalog import CatalogError
+from shared.plaid_ledger import item_mapping_key, sync_key
 
 from .google_oauth import _redirect, _result_url, _return_url, _state_key
-from .support import ApiError, _ensure_account_active, catalog, table
+from .support import QUEUE_URL, ApiError, _ensure_account_active, catalog, sqs, table
 
 QUICKBOOKS_AUTH_URL = "https://appcenter.intuit.com/connect/oauth2"
 QUICKBOOKS_TOKEN_URL = (  # nosec B105 - fixed OAuth endpoint, not a credential.
@@ -325,7 +327,9 @@ def _begin_plaid_authorization(user_id: str, value: dict) -> dict:
             "language": "en",
             "products": ["transactions"],
             "optional_products": ["liabilities"],
-            "transactions": {"days_requested": 180},
+            "transactions": {"days_requested": 730},
+            **({"webhook": os.environ["PLAID_WEBHOOK_URL"]}
+               if os.environ.get("PLAID_WEBHOOK_URL") else {}),
             "redirect_uri": redirect_uri,
             "user": {
                 "client_user_id": hashlib.sha256(
@@ -454,7 +458,7 @@ def _plaid_callback(query: dict) -> dict:
             or not re.fullmatch(r"[A-Za-z0-9_-]{8,200}", item_id)
         ):
             raise ApiError(400, "Plaid did not return reusable institution access")
-        catalog.save_plaid_connection(
+        saved = catalog.save_plaid_connection(
             state["userId"],
             _plaid_account_label(result),
             item_id,
@@ -463,6 +467,41 @@ def _plaid_callback(query: dict) -> dict:
             config["environment"],
             _plaid_account_metadata(result),
         )
+        if isinstance(saved, dict) and isinstance(saved.get("id"), str):
+            try:
+                key = sync_key(state["userId"], saved["id"])
+                requested_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                prior = table.get_item(Key=key, ConsistentRead=True).get("Item")
+                if prior and prior.get("status") != "deleted":
+                    table.update_item(
+                        Key=key,
+                        UpdateExpression="SET requestedAt = :now, #status = :queued",
+                        ExpressionAttributeNames={"#status": "status"},
+                        ExpressionAttributeValues={":now": requested_at, ":queued": "queued"},
+                    )
+                else:
+                    table.put_item(Item={
+                        **key, "entity": "PLAID_SYNC", "connectionId": saved["id"],
+                        "userId": state["userId"], "cursor": "", "revision": 0,
+                        "status": "queued", "transactionCount": 0,
+                        "webhookConfigured": bool(os.environ.get("PLAID_WEBHOOK_URL")),
+                        "requestedAt": requested_at,
+                    }, **({"ConditionExpression": "attribute_not_exists(pk)"}
+                         if not prior else {}))
+                table.put_item(Item={
+                    **item_mapping_key(config["environment"], item_id),
+                    "entity": "PLAID_ITEM_MAPPING", "userId": state["userId"],
+                    "connectionId": saved["id"],
+                })
+                sqs.send_message(
+                    QueueUrl=QUEUE_URL,
+                    MessageBody=json.dumps({
+                        "type": "PLAID_SYNC", "userId": state["userId"],
+                        "connectionId": saved["id"],
+                    }),
+                )
+            except (BotoCoreError, ClientError, ValueError):
+                logger.exception("Could not queue initial Plaid sync")
         return _redirect(_result_url(return_url, "connected", "plaid"))
     except (ApiError, CatalogError, KeyError, TypeError, ValueError):
         if access_token and config:

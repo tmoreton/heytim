@@ -288,6 +288,7 @@ struct ConnectionsView: View {
   @State private var loadError: String?
   @State private var connectingProviderID: String?
   @State private var disconnectCandidate: Capability?
+  @State private var refreshingPlaidID: String?
   @State private var successMessage: String?
   @State private var showingMCPServerSetup = false
   @State private var mcpServerName = ""
@@ -302,17 +303,7 @@ struct ConnectionsView: View {
 
   var body: some View {
     List {
-      if let loadError {
-        Section {
-          ContentUnavailableView {
-            Label("Couldn’t Load Accounts", systemImage: "wifi.exclamationmark")
-          } description: {
-            Text(loadError)
-          } actions: {
-            Button("Try Again") { Task { await load() } }
-          }
-        }
-      } else {
+      if loadError == nil {
         Section("Connected accounts") {
           ForEach(providers.filter { $0.id != "mcp_server" }) { provider in
             providerAccessRow(provider)
@@ -361,7 +352,20 @@ struct ConnectionsView: View {
         .accessibilityIdentifier("connections.add")
       }
     }
-    .overlay { if loading { ProgressView() } }
+    .overlay {
+      if loading {
+        ProgressView()
+      } else if let loadError {
+        ContentUnavailableView {
+          Label("Couldn’t Load Accounts", systemImage: "wifi.exclamationmark")
+        } description: {
+          Text(loadError)
+        } actions: {
+          Button("Try Again") { Task { await load() } }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+      }
+    }
     .refreshable { await load() }
     .task { await load() }
     .sheet(isPresented: $showingMCPServerSetup) {
@@ -542,6 +546,18 @@ struct ConnectionsView: View {
     }
   }
 
+  private func refreshPlaid(_ connection: Capability) {
+    guard refreshingPlaidID == nil else { return }
+    refreshingPlaidID = connection.id
+    Task {
+      defer { refreshingPlaidID = nil }
+      do {
+        _ = try await model.requireAPI().requestPlaidSync(connection.id)
+        await load()
+      } catch { model.present(error) }
+    }
+  }
+
   private func connections(for providerID: String) -> [Capability] {
     connections.filter { $0.provider == providerID }
   }
@@ -563,7 +579,8 @@ struct ConnectionsView: View {
                 if provider.id == "mcp_server" { updateMCPServer(connection) }
                 else { connect(provider.id, chooseAnotherAccount: true) }
               },
-              disconnect: { disconnectCandidate = connection })
+              disconnect: { disconnectCandidate = connection },
+              refreshPlaid: provider.id == "plaid" ? { refreshPlaid(connection) } : nil)
           } label: {
             connectionRow(connection, provider: provider)
           }
@@ -614,6 +631,9 @@ struct ConnectionsView: View {
 
   private func connectionStatusLabel(_ connection: Capability) -> String {
     if connection.provider == "mcp_server" { return "Saved · Not tested" }
+    if connection.provider == "plaid", connection.plaidSync?.status == "needs_reconnect" {
+      return "Reconnect required"
+    }
     if connection.connectionStatus == "connected" { return "Connected" }
     if connection.connectionStatus == "reauthorization_required" { return "Reconnect required" }
     return "Needs attention"
@@ -625,6 +645,7 @@ private struct ConnectionDetailView: View {
   let provider: ConnectionProvider?
   let reconnect: (() -> Void)?
   let disconnect: () -> Void
+  let refreshPlaid: (() -> Void)?
 
   var body: some View {
     Form {
@@ -660,6 +681,24 @@ private struct ConnectionDetailView: View {
           }
         }
       }
+      if connection.provider == "plaid" {
+        Section("Transactions") {
+          LabeledContent("Sync", value: plaidSyncLabel)
+          if let count = connection.plaidSync?.transactionCount {
+            LabeledContent("Saved transactions", value: count.formatted())
+          }
+          if let date = connection.plaidSync?.lastSyncedAt?.froggyDate {
+            LabeledContent("Last synced", value: date.formatted(date: .abbreviated, time: .shortened))
+          }
+          if connection.plaidSync?.historicalComplete == false {
+            Text("Historical transactions are still arriving from Plaid. New changes sync automatically.")
+              .froggyFont(.caption).foregroundStyle(.secondary)
+          }
+          if let refreshPlaid {
+            Button("Sync transactions now", systemImage: "arrow.triangle.2.circlepath", action: refreshPlaid)
+          }
+        }
+      }
       Section {
         if let reconnect {
           Button(
@@ -681,9 +720,25 @@ private struct ConnectionDetailView: View {
 
   private var statusLabel: String {
     if connection.provider == "mcp_server" { return "Saved, not tested" }
+    if connection.provider == "plaid", connection.plaidSync?.status == "needs_reconnect" {
+      return "Reconnect required"
+    }
     if connection.connectionStatus == "connected" { return "Connected" }
     if connection.connectionStatus == "reauthorization_required" { return "Reconnect required" }
     return "Needs attention"
+  }
+
+  private var plaidSyncLabel: String {
+    switch connection.plaidSync?.status {
+    case "ready": return connection.plaidSync?.historicalComplete == false
+      ? "History pending" : "Up to date"
+    case "queued": return "Queued"
+    case "syncing": return "Syncing"
+    case "waiting_for_plaid": return "Waiting for Plaid"
+    case "needs_reconnect": return "Reconnect required"
+    case "error": return "Sync needs attention"
+    default: return "Not synced yet"
+    }
   }
 }
 
@@ -840,7 +895,9 @@ struct GroupRoutinesView: View {
           }
         }
         if routines.isEmpty && !loading {
-          Text("No event routines yet.").foregroundStyle(.secondary)
+          Text("No event routines yet.")
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, minHeight: 140)
         }
       }
       Section("Recent runs") {
@@ -853,7 +910,9 @@ struct GroupRoutinesView: View {
           }
         }
         if runs.isEmpty && !loading {
-          Text("No event runs yet.").foregroundStyle(.secondary)
+          Text("No event runs yet.")
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, minHeight: 140)
         }
       }
     }
@@ -1125,6 +1184,11 @@ struct WorkspaceFilesView: View {
               }
               .buttonStyle(.plain)
               Spacer()
+              if let revision = file.revision, revision > 1 {
+                Text("v\(revision)")
+                  .froggyFont(.caption)
+                  .foregroundStyle(.secondary)
+              }
               Text(ByteCountFormatter.string(fromByteCount: Int64(file.size), countStyle: .file))
                 .foregroundStyle(.secondary)
               Button("Delete", systemImage: "trash", role: .destructive) {
@@ -1140,9 +1204,6 @@ struct WorkspaceFilesView: View {
           Text("\(snapshot.fileCount) of \(snapshot.limits.files) files · \(ByteCountFormatter.string(fromByteCount: Int64(snapshot.totalBytes), countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: Int64(snapshot.limits.bytes), countStyle: .file))")
         }
       }
-      if snapshot?.files.isEmpty == true {
-        ContentUnavailableView("No saved files", systemImage: "folder", description: Text("Add a file to use it in a later code session."))
-      }
       if snapshot?.files.isEmpty == false {
         Text("The exported download list contains links that expire after five minutes. Save the files you need before the links expire.")
           .froggyFont(.footnote)
@@ -1150,6 +1211,15 @@ struct WorkspaceFilesView: View {
       }
     }
     .froggyListSurface()
+    .overlay {
+      if snapshot?.files.isEmpty == true && !loading {
+        ContentUnavailableView(
+          "No saved files", systemImage: "folder",
+          description: Text("Add a file to use it in a later code session."))
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .allowsHitTesting(false)
+      }
+    }
     .froggyNavigationTitle("Workspace files")
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
@@ -1366,6 +1436,9 @@ struct AccountView: View {
   @Bindable var model: AppModel
   let auth: AuthSession
   var showsDismissButton = true
+  #if os(iOS)
+    @Environment(AppleHealthCoordinator.self) private var appleHealth
+  #endif
   #if os(macOS)
     @Environment(DesktopControlCoordinator.self) private var desktopControl
   #endif
@@ -1456,6 +1529,8 @@ struct AccountView: View {
 
       #if os(macOS)
         DesktopControlSettingsSection(coordinator: desktopControl)
+      #elseif os(iOS)
+        AppleHealthSettingsSection(coordinator: appleHealth)
       #endif
 
       Section {

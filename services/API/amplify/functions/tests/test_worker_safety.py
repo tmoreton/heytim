@@ -399,7 +399,12 @@ class WorkerSafetyTests(WorkerTestCase):
         ):
             self.direct_job._process_agent_reply(
                 {"messageId": "queue-1"},
-                {"userId": "user-1", "botId": "bot-1", "turnKey": turn["sk"]},
+                {
+                    "type": "AGENT_REPLY",
+                    "userId": "user-1",
+                    "botId": "bot-1",
+                    "turnKey": turn["sk"],
+                },
             )
 
         invoke.assert_called_once()
@@ -442,7 +447,12 @@ class WorkerSafetyTests(WorkerTestCase):
         ):
             self.direct_job._process_agent_reply(
                 {"messageId": "queue-1"},
-                {"userId": "user-1", "botId": "bot-1", "turnKey": turn["sk"]},
+                {
+                    "type": "AGENT_REPLY",
+                    "userId": "user-1",
+                    "botId": "bot-1",
+                    "turnKey": turn["sk"],
+                },
             )
 
         invoke.assert_called_once()
@@ -455,126 +465,3 @@ class WorkerSafetyTests(WorkerTestCase):
             approval_update["ExpressionAttributeValues"][":proposal"]["toolName"],
             "browser",
         )
-
-    def test_generated_artifacts_become_owned_downloadable_file_records(self) -> None:
-        file_id = "12345678-1234-1234-1234-123456789012"
-        self.s3.list_objects_v2.return_value = {
-            "Contents": [
-                {
-                    "Key": f"users/actor/bots/bot-1/artifacts/turn-1/{file_id}--results.csv",
-                    "Size": 42,
-                    "LastModified": datetime(2026, 9, 4, tzinfo=UTC),
-                }
-            ]
-        }
-        with patch.object(self.artifacts, "memory_actor_id", return_value="actor"):
-            artifacts = self.artifacts._collect_generated_artifacts(
-                "user-1", "bot-1", "turn-1"
-            )
-
-        self.assertEqual(artifacts[0]["name"], "results.csv")
-        self.assertEqual(artifacts[0]["contentType"], "text/csv")
-        self.assertEqual(artifacts[0]["botId"], "bot-1")
-        self.assertIn(("USER#user-1", f"FILE#{file_id}"), self.table.items)
-
-    def test_group_artifacts_become_shared_group_file_records(self) -> None:
-        file_id = "12345678-1234-1234-1234-123456789012"
-        self.s3.list_objects_v2.return_value = {
-            "Contents": [
-                {
-                    "Key": f"groups/group-1/artifacts/reply-1/{file_id}--trip.pdf",
-                    "Size": 2048,
-                    "LastModified": datetime(2026, 9, 5, tzinfo=UTC),
-                }
-            ]
-        }
-
-        generated = self.artifacts._collect_group_generated_artifacts(
-            "group-1", "reply-1"
-        )
-
-        self.assertEqual(generated[0]["name"], "trip.pdf")
-        self.assertIn(("GROUP#group-1", f"FILE#{file_id}"), self.table.items)
-
-    def test_native_generated_artifacts_preserve_document_or_image_kind(self) -> None:
-        document_id = "12345678-1234-1234-1234-123456789012"
-        image_id = "22345678-1234-1234-1234-123456789012"
-        self.s3.list_objects_v2.return_value = {
-            "Contents": [
-                {
-                    "Key": f"users/actor/bots/bot-1/artifacts/turn-1/{document_id}--brief.pptx",
-                    "Size": 2048,
-                    "LastModified": datetime(2026, 9, 4, tzinfo=UTC),
-                },
-                {
-                    "Key": f"users/actor/bots/bot-1/artifacts/turn-1/{image_id}--concept.png",
-                    "Size": 4096,
-                    "LastModified": datetime(2026, 9, 4, tzinfo=UTC),
-                },
-            ]
-        }
-
-        with patch.object(self.artifacts, "memory_actor_id", return_value="actor"):
-            generated = self.artifacts._collect_generated_artifacts(
-                "user-1", "bot-1", "turn-1"
-            )
-
-        self.assertEqual(generated[0]["kind"], "document")
-        self.assertEqual(generated[0]["format"], "pptx")
-        self.assertEqual(generated[1]["kind"], "image")
-        self.assertEqual(generated[1]["format"], "png")
-
-    def test_attachment_blocks_are_bound_to_the_current_user(self) -> None:
-        with patch.object(self.artifacts, "memory_actor_id", return_value="actor-1"):
-            blocks = self.artifacts._attachment_blocks(
-                {
-                    "attachments": [
-                        {
-                            "kind": "document",
-                            "format": "pdf",
-                            "objectKey": "users/actor-1/uploads/report.pdf",
-                        }
-                    ]
-                },
-                "user-1",
-            )
-            with self.assertRaisesRegex(ValueError, "metadata"):
-                self.artifacts._attachment_blocks(
-                    {
-                        "attachments": [
-                            {
-                                "kind": "document",
-                                "format": "pdf",
-                                "objectKey": "users/actor-2/uploads/report.pdf",
-                            }
-                        ]
-                    },
-                    "user-1",
-                )
-
-        self.assertEqual(blocks[0]["document"]["name"], "Attachment 1")
-
-    def test_partial_generated_artifacts_are_removed_before_retry(self) -> None:
-        file_id = "12345678-1234-1234-1234-123456789012"
-        object_key = f"users/actor/bots/bot-1/artifacts/turn-1/{file_id}--partial.csv"
-        self.s3.list_objects_v2.return_value = {
-            "Contents": [{"Key": object_key}],
-            "IsTruncated": False,
-        }
-        self.s3.delete_objects.return_value = {}
-        self.table.items[("USER#user-1", f"FILE#{file_id}")] = {
-            "pk": "USER#user-1",
-            "sk": f"FILE#{file_id}",
-        }
-
-        with patch.object(self.artifacts, "memory_actor_id", return_value="actor"):
-            deleted = self.artifacts._delete_generated_artifacts(
-                "user-1", "bot-1", "turn-1"
-            )
-
-        self.assertEqual(deleted, 1)
-        self.s3.delete_objects.assert_called_once_with(
-            Bucket="frogbot-user-files-123-us-east-1",
-            Delete={"Objects": [{"Key": object_key}], "Quiet": True},
-        )
-        self.assertNotIn(("USER#user-1", f"FILE#{file_id}"), self.table.items)

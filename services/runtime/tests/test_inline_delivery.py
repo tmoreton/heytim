@@ -29,6 +29,11 @@ def test_direct_answers_are_inline_by_default() -> None:
         in config.instructions
     )
     assert "downloadable file automatically" not in config.instructions
+    assert "The HeyTim chat supports native inline elements" in config.instructions
+    assert '```chart\n  {"type":"bar|line|area"' in config.instructions
+    assert '```metrics\n  {"title":"optional"' in config.instructions
+    assert '```callout\n  {"title":"..."' in config.instructions
+    assert '```steps\n  {"title":"optional"' in config.instructions
 
 
 def test_delivery_policy_overrides_legacy_template_export_defaults() -> None:

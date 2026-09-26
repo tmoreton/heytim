@@ -22,6 +22,17 @@ RUNTIME_NAMES = {
     "stan_plugin": {"todos"},
     "stan_subagent": {"generalist"},
 }
+DEVICE_OPERATION_PLATFORMS = {
+    "mac_computer_observe": "macos",
+    "mac_computer_act_on_element": "macos",
+    "mac_computer_type_into_element": "macos",
+    "mac_computer_wait_for_state": "macos",
+    "mac_computer_scroll": "macos",
+    "apple_health_activity_summary": "ios",
+    "apple_health_workouts": "ios",
+    "apple_health_running_totals": "ios",
+    "apple_health_steps": "ios",
+}
 MAX_TAGS = 6
 TOOL_RISKS = {"read", "sandbox", "interactive"}
 BOT_COLORS = {"#FFBC3B", "#007A3D", "#58BEAA", "#FFAA34", "#6C5CE7", "#3984F6", "#F46A27", "#E95383"}
@@ -132,6 +143,25 @@ def main() -> int:
                 or any(not isinstance(operation, str) or not RUNTIME_NAME_PATTERN.fullmatch(operation) for operation in operations)
             ):
                 fail(f"{tool.get('id')} has invalid gateway operations")
+        elif kind == "device":
+            platform = runtime.get("platform")
+            operations = runtime.get("operations")
+            interactive = runtime.get("interactiveOperations", [])
+            if (
+                platform not in {"ios", "macos"}
+                or not isinstance(operations, list)
+                or not 1 <= len(operations) <= 8
+                or len(operations) != len(set(operations))
+                or any(
+                    not isinstance(operation, str)
+                    or DEVICE_OPERATION_PLATFORMS.get(operation) != platform
+                    for operation in operations
+                )
+                or not isinstance(interactive, list)
+                or len(interactive) != len(set(interactive))
+                or not set(interactive).issubset(operations)
+            ):
+                fail(f"{tool.get('id')} has invalid device operations")
         elif kind in RUNTIME_NAMES:
             if runtime.get("name") not in RUNTIME_NAMES[kind]:
                 fail(f"{tool.get('id')} has an unsupported {kind} binding")
@@ -141,11 +171,12 @@ def main() -> int:
         credential = tool.get("credential")
         if credential and not schema_path:
             fail(f"{tool.get('id')} must name its reviewed OpenAPI schema")
-        if schema_path:
-            if not isinstance(schema_path, str) or not re.fullmatch(
+        if schema_path and (
+            not isinstance(schema_path, str) or not re.fullmatch(
                 r"tools/[a-z0-9-]+/openapi\.yaml", schema_path
-            ) or not (ROOT / schema_path).is_file():
-                fail(f"{tool.get('id')} schemaPath is invalid")
+            ) or not (ROOT / schema_path).is_file()
+        ):
+            fail(f"{tool.get('id')} schemaPath is invalid")
 
     skill_ids: set[str] = set()
     for skill in skills:

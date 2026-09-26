@@ -266,11 +266,13 @@ def _interrupt_bot_turn(
             Key={"pk": turn["pk"], "sk": turn["sk"]},
             UpdateExpression=(
                 "SET #status = :cancelled, assistantText = :message, completedAt = :now "
-                "REMOVE leaseOwner, leaseExpiresAt, backgroundResults, runtimeResult"
+                "REMOVE leaseOwner, leaseExpiresAt, backgroundResults, runtimeResult, "
+                "deviceRequest, deviceResult, deviceResultReceivedAt, "
+                "deviceResultConsumedAt"
             ),
             ConditionExpression=(
                 "#status = :pending OR #status = :running OR #status = :waiting OR "
-                "#status = :needsInput OR #status = :awaiting"
+                "#status = :needsInput OR #status = :awaiting OR #status = :device"
             ),
             ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={
@@ -279,6 +281,7 @@ def _interrupt_bot_turn(
                 ":waiting": "WAITING",
                 ":needsInput": "NEEDS_INPUT",
                 ":awaiting": "AWAITING_APPROVAL",
+                ":device": "AWAITING_DEVICE",
                 ":cancelled": "CANCELLED",
                 ":message": message,
                 ":now": cancelled_at,
@@ -291,7 +294,9 @@ def _interrupt_bot_turn(
     if turn.get("source") == "schedule":
         _update_cancelled_schedule(user_id, turn, cancelled_at)
     _stop_background_work(turn)
-    if isinstance(turn.get("approvalRequest"), dict):
+    if isinstance(turn.get("approvalRequest"), dict) or isinstance(
+        turn.get("deviceRequest"), dict
+    ):
         s3.delete_object(Bucket=FILES_BUCKET_NAME,
                          Key=approval_snapshot_key("direct", user_id, turn["id"], bot_id))
     if turn.get("status") == "RUNNING" and AGENT_RUNTIME_ARN:

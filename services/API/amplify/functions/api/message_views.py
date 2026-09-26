@@ -64,7 +64,7 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
                         ["reject", "approveOnce", "approveAlways"]
                         if status == "awaiting_approval"
                         else ["cancel"]
-                        if status in {"pending", "running"}
+                        if status in {"pending", "running", "awaiting_device"}
                         else []
                     ),
                     "activity": turn.get("activity", []),
@@ -101,6 +101,7 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
             "RUNNING",
             "NEEDS_INPUT",
             "AWAITING_APPROVAL",
+            "AWAITING_DEVICE",
         }:
             messages.append(
                 {
@@ -114,7 +115,7 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
                         ["reject", "approveOnce", "approveAlways"]
                         if turn.get("status") == "AWAITING_APPROVAL"
                         else ["cancel"]
-                        if turn.get("status") in {"PENDING", "RUNNING"}
+                        if turn.get("status") in {"PENDING", "RUNNING", "AWAITING_DEVICE"}
                         else []
                     ),
                     "activity": turn.get("activity", []),

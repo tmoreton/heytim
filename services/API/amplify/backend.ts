@@ -43,13 +43,13 @@ import {
   nativePushEnvironment,
   resolveNativePushApplicationArns,
 } from './infrastructure/native-push';
-import { addObservability } from './infrastructure/observability';
+import { addObservability, createApplicationLogGroups } from './infrastructure/observability';
+import { addPlaidWebhook } from './infrastructure/plaid-webhook';
 import { addPublicAvailabilityProbe } from './infrastructure/production-readiness';
 import { addProviderConnectionAccess } from './infrastructure/provider-connections';
 import { addStripeBilling } from './infrastructure/stripe-billing';
 const backend = defineBackend({ auth, preSignUp });
-// Keep the original construct identity so the rename updates the live stack
-// instead of replacing customer data, auth, and file resources.
+// Keep the original identity so this updates rather than replaces live resources.
 const stack = backend.createStack('FrogBotApp');
 const nativePushApplications = resolveNativePushApplicationArns(
   stack,
@@ -58,11 +58,9 @@ const nativePushApplications = resolveNativePushApplicationArns(
 );
 
 const { cfnIdentityPool, cfnUserPool, cfnUserPoolClient } = backend.auth.resources.cfnResources;
-// The app's public routes use API Gateway directly and never need AWS guest
-// credentials. Keep the identity pool deny-by-default for signed-out devices.
+// Public routes use API Gateway; keep signed-out AWS credentials deny-by-default.
 cfnIdentityPool.allowUnauthenticatedIdentities = false;
-// Cognito username attributes are immutable after creation. These logical IDs
-// intentionally replace the phone-only pool with the current email-only pool.
+// These IDs intentionally replace the immutable phone-only pool with email-only.
 cfnUserPool.overrideLogicalId('FrogBotEmailUserPool');
 cfnUserPoolClient.overrideLogicalId('FrogBotEmailUserPoolClient');
 cfnUserPool.userPoolTier = 'ESSENTIALS';
@@ -81,8 +79,7 @@ cfnUserPool.addPropertyOverride('Policies.SignInPolicy.AllowedFirstAuthFactors',
   'EMAIL_OTP',
 ]);
 cfnUserPoolClient.explicitAuthFlows = ['ALLOW_REFRESH_TOKEN_AUTH', 'ALLOW_USER_AUTH'];
-// Authentication happens in the native/web clients through Cognito APIs. Do
-// not synthesize the generated example.com hosted-UI callback configuration.
+// Native/web clients use Cognito APIs, not the generated example.com hosted UI.
 cfnUserPoolClient.allowedOAuthFlows = undefined;
 cfnUserPoolClient.allowedOAuthFlowsUserPoolClient = false;
 cfnUserPoolClient.allowedOAuthScopes = undefined;
@@ -190,8 +187,7 @@ const heytimFilesBucket = new Bucket(stack, 'HeyTimUserFiles', {
   ...filesBucketProperties,
   bucketName: `${heytimFilesBucketPrefix}-${stack.account}-${stack.region}`,
 });
-// Keep the retained legacy bucket in the stack for rollback, but route all new
-// application reads and writes through the verified HeyTim copy.
+// Retain the legacy bucket for rollback; route new access through the HeyTim copy.
 const filesBucket = heytimFilesBucket;
 
 const logsKey = new Key(stack, 'LogsKey', {
@@ -248,21 +244,9 @@ logsKey.addToResourcePolicy(
     },
   }),
 );
-const apiLogGroup = new LogGroup(stack, 'ApiLogs', {
-  encryptionKey: logsKey,
-  retention: RetentionDays.ONE_MONTH,
-  removalPolicy: RemovalPolicy.RETAIN,
-});
-const workerLogGroup = new LogGroup(stack, 'WorkerLogs', {
-  encryptionKey: logsKey,
-  retention: RetentionDays.ONE_MONTH,
-  removalPolicy: RemovalPolicy.RETAIN,
-});
-const apiAccessLogGroup = new LogGroup(stack, 'ApiAccessLogs', {
-  encryptionKey: logsKey,
-  retention: RetentionDays.ONE_MONTH,
-  removalPolicy: RemovalPolicy.RETAIN,
-});
+const {
+  apiLogGroup, workerLogGroup, plaidWebhookLogGroup, apiAccessLogGroup,
+} = createApplicationLogGroups(stack, logsKey);
 const nativePushFeedbackRole = addNativePushFeedbackRole(
   stack,
   [nativePushApplications.production, nativePushApplications.sandbox],
@@ -431,6 +415,11 @@ const workerFunction = new LambdaFunction(stack, 'WorkerFunction', {
   },
 });
 
+const plaidWebhookFunction = addPlaidWebhook({
+  stack, table, jobs, logGroup: plaidWebhookLogGroup,
+  secretArn: plaidSecretArn, workerFunction,
+});
+
 table.grantReadWriteData(apiFunction);
 addBrowserAccess(stack, apiFunction, workerFunction);
 inviteAccess.grantReadWriteData(apiFunction);
@@ -455,6 +444,15 @@ workerFunction.addToRolePolicy(
 );
 filesBucket.grantReadWrite(apiFunction);
 filesBucket.grantReadWrite(workerFunction);
+workerFunction.addToRolePolicy(new PolicyStatement({
+  actions: ['s3:ListBucketVersions'],
+  resources: [filesBucket.bucketArn],
+  conditions: { StringLike: { 's3:prefix': ['users/*', 'groups/*'] } },
+}));
+workerFunction.addToRolePolicy(new PolicyStatement({
+  actions: ['s3:DeleteObjectVersion'],
+  resources: [filesBucket.arnForObjects('users/*'), filesBucket.arnForObjects('groups/*')],
+}));
 const connectionSecretsArn = stack.formatArn({
   service: 'secretsmanager',
   resource: 'secret',
@@ -553,11 +551,13 @@ addMemoryAccess({
 const httpApi = addHttpApi({
   stack,
   apiFunction,
+  plaidWebhookFunction,
   apiAccessLogGroup,
   allowedOrigins: ALLOWED_WEB_ORIGINS,
   userPoolId: backend.auth.resources.userPool.userPoolId,
   userPoolClientId: backend.auth.resources.userPoolClient.userPoolClientId,
 });
+workerFunction.addEnvironment('PLAID_WEBHOOK_URL', httpApi.apiEndpoint + '/public/webhooks/plaid');
 const availabilityProbe = addPublicAvailabilityProbe({
   stack,
   apiEndpoint: httpApi.apiEndpoint,

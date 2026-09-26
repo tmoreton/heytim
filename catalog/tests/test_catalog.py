@@ -68,6 +68,7 @@ class CatalogTests(unittest.TestCase):
                 "event-planner",
                 "group-decision",
                 "shared-budget",
+                "health-coach",
             },
         )
 
@@ -222,6 +223,25 @@ class CatalogTests(unittest.TestCase):
         self.assertTrue(bots["social-writer"]["featured"])
         self.assertTrue(bots["meeting-prep"]["featured"])
         self.assertFalse(bots["career-coach"]["featured"])
+
+    def test_mac_operator_is_browser_first_and_takeover_safe(self) -> None:
+        catalog = json.loads((ROOT / "catalog.json").read_text())
+        bots = {bot["id"]: bot for bot in catalog["bots"]}
+        skills = {skill["id"]: skill for skill in catalog["skills"]}
+        tools = {tool["id"]: tool for tool in catalog["tools"]}
+
+        operator = bots["mac-operator"]
+        skill = skills["computer-operator"]
+        self.assertEqual(operator["skillIds"], ["computer-operator"])
+        self.assertEqual(set(skill["requiredToolIds"]), {"browser", "mac_computer"})
+        self.assertIn("Prefer the browser tool", operator["prompt"])
+        self.assertIn("untrusted data", operator["prompt"])
+        self.assertIn("If the user takes over", operator["prompt"])
+        self.assertIn("mac_computer_scroll", tools["mac_computer"]["runtime"]["operations"])
+        self.assertIn(
+            "mac_computer_scroll",
+            tools["mac_computer"]["runtime"]["interactiveOperations"],
+        )
 
     def test_build_publishes_every_skill_document(self) -> None:
         source_skills = sorted(

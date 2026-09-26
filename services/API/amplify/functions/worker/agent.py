@@ -3,16 +3,19 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from decimal import Decimal
+from typing import Any
 
 from shared.action_grants import effective_allowed_interactive_tool_ids
 from shared.agent_stream import AgentTerminalError, ProgressCallback, read_agent_stream
 from shared.catalog import CatalogError
+from shared.device_tools import available_device_tools
 from shared.group_chat import (
     MAX_HISTORY_BLOCK_CHARS,
     group_history_from_items,
     group_runtime_context,
 )
 from shared.memory_identity import direct_session_id, memory_actor_id, scoped_session_id
+from shared.plaid_ledger import ledger_prefix, sync_key
 
 from .artifacts import (
     _attachment_blocks,
@@ -34,6 +37,7 @@ from .support import (
 )
 from .usage_controls import UsageControlUnavailable
 from .work import _pause_work, _restore_paused_work
+from .workspace_context import _workspace_asset_manifest, _workspace_payload_files
 from .youtube_quota import (
     YOUTUBE_SEARCH_RESERVATION_CALLS,
     _uses_youtube_search,
@@ -83,6 +87,7 @@ class AgentInvocationResult:
     terminal_error: str | None = None
     usage_event_id: str | None = None
     pending_approval: dict | None = None
+    pending_device_call: dict | None = None
 
 
 def _continuation_payload(value: list[dict] | None) -> list[dict]:
@@ -100,27 +105,15 @@ def _continuation_payload(value: list[dict] | None) -> list[dict]:
     return results
 
 
-def _workspace_payload_files(value: list[dict] | None) -> list[dict]:
-    selected = []
-    for item in value or []:
-        if not isinstance(item, dict) or item.get("source") != "workspace":
-            continue
-        if not all(key in item for key in ("workspaceFileId", "name", "size", "objectKey")):
-            raise ValueError("Workspace attachment metadata is incomplete")
-        size = item["size"]
-        if isinstance(size, Decimal):
-            if size != size.to_integral_value():
-                raise ValueError("Workspace file size is invalid")
-            size = int(size)
-        if type(size) is not int:
-            raise ValueError("Workspace file size is invalid")
-        selected.append({
-            "workspaceFileId": item["workspaceFileId"],
-            "name": item["name"],
-            "size": size,
-            "objectKey": item["objectKey"],
-        })
-    return selected
+def _json_payload(value: Any) -> Any:
+    """Convert DynamoDB Decimal values back to JSON-native numbers."""
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, dict):
+        return {key: _json_payload(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_payload(item) for item in value]
+    return value
 
 
 def _get_history(
@@ -309,6 +302,8 @@ def _invoke(
     allow_bot_management: bool = False,
     workspace_files: list[dict] | None = None,
     action_approval: dict | None = None,
+    device_result: dict | None = None,
+    allow_device_tools: bool = False,
 ) -> AgentInvocationResult:
     if runtime_result is not None:
         error = runtime_result.get("terminalError", {}).get("message")
@@ -319,6 +314,7 @@ def _invoke(
             usage=runtime_result.get("usage"), terminal_error=error,
             usage_event_id=runtime_result.get("usageEventId"),
             pending_approval=runtime_result.get("pendingApproval"),
+            pending_device_call=runtime_result.get("pendingDeviceCall"),
         )
     runtime_billing_user_id = billing_user_id if billing_user_id is not None else user_id
     if (
@@ -381,6 +377,36 @@ def _invoke(
             user_id, tool_ids, bot.get("githubRepositoryAccess", {})
         )
     )
+    for resolved in resolved_tools:
+        runtime = resolved.get("runtime", {})
+        if runtime.get("provider") != "plaid":
+            continue
+        connection_id = resolved.get("id")
+        if not isinstance(connection_id, str):
+            continue
+        state = table.get_item(
+            Key=sync_key(user_id, connection_id), ConsistentRead=True
+        ).get("Item") or {}
+        object_key = state.get("objectKey")
+        if isinstance(object_key, str) and object_key.startswith(
+            ledger_prefix(user_id, connection_id)
+        ):
+            runtime["ledgerObjectKey"] = object_key
+            runtime["ledgerLastSyncedAt"] = state.get("lastSyncedAt", "")
+            runtime["ledgerHistoricalComplete"] = state.get("historicalComplete") is True
+    if device_result is None:
+        if allow_device_tools:
+            resolved_tools = available_device_tools(
+                table, user_id, bot_id, resolved_tools
+            )
+        else:
+            resolved_tools = [
+                item
+                for item in resolved_tools
+                if item.get("runtime", {}).get("kind") != "device"
+            ]
+    # On resume, keep the interrupted device tool registered while the runtime
+    # restores its snapshot. Any later device call is re-authorized separately.
     uses_youtube_search = _uses_youtube_search(resolved_tools)
     payload = {
         "messages": (
@@ -438,6 +464,11 @@ def _invoke(
         selected_workspace_files = _workspace_payload_files(workspace_files)
         if selected_workspace_files:
             payload["workspaceFiles"] = selected_workspace_files
+    workspace_assets = _workspace_asset_manifest(
+        user_id, bot_id, attachment_prefix
+    )
+    if workspace_assets:
+        payload["workspaceAssets"] = workspace_assets
     if group_context is None and event_id and any(
         tool.get("runtime", {}).get("kind") == "agentcore"
         and tool.get("runtime", {}).get("name") == "browser"
@@ -457,6 +488,8 @@ def _invoke(
         payload["continuation"] = normalized_continuation
     if action_approval is not None:
         payload["actionApproval"] = action_approval
+    if device_result is not None:
+        payload["deviceResult"] = _json_payload(device_result)
     if work_key is not None and lease_owner and resume_request is not None:
         work = runtime_work(payload, normalized_continuation)
         if uses_youtube_search:
@@ -520,9 +553,10 @@ def _invoke(
     bot_mutations: list[dict] = []
     usage: dict | None = None
     pending_approval: dict | None = None
+    pending_device_call: dict | None = None
 
     def capture_control(control: dict) -> None:
-        nonlocal usage, pending_approval
+        nonlocal usage, pending_approval, pending_device_call
         raw_work = control.get("pendingWork")
         if isinstance(raw_work, list):
             pending_work.extend(item for item in raw_work if isinstance(item, dict))
@@ -536,6 +570,8 @@ def _invoke(
             usage = raw_usage
         if isinstance(control.get("pendingApproval"), dict):
             pending_approval = control["pendingApproval"]
+        if isinstance(control.get("pendingDeviceCall"), dict):
+            pending_device_call = control["pendingDeviceCall"]
 
     try:
         text = read_agent_stream(
@@ -558,4 +594,5 @@ def _invoke(
         bot_mutations=bot_mutations,
         usage=usage,
         pending_approval=pending_approval,
+        pending_device_call=pending_device_call,
     )

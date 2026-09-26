@@ -103,6 +103,7 @@ class RunState:
                 "usage",
                 "pendingWork",
                 "pendingApproval",
+                "pendingDeviceCall",
                 "terminalError",
                 "botMutations",
             ):
@@ -136,6 +137,7 @@ class RunState:
             and not self.value["text"]
             and not self.value["pendingWork"]
             and not self.value.get("pendingApproval")
+            and not self.value.get("pendingDeviceCall")
         ):
             self.fail(
                 "The agent stopped without a completed answer. Verify completed external actions before continuing."

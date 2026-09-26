@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from . import device_calls
 from .api_contract import authenticated_route_keys, authenticated_routes
 from .attachments import (
     _complete_upload,
@@ -37,7 +38,9 @@ from .connections import (
     _connect_mcp_server,
     _connections,
     _delete_connection,
+    _plaid_sync_status,
     _rename_mcp_server,
+    _request_plaid_sync,
 )
 from .direct_chat import (
     _approve_bot_turn,
@@ -105,6 +108,11 @@ from .support import ApiError, _body, _response, _verified_email
 from .workspaces import _workspace_route
 
 Route = Callable[[str, str, str, str, dict, dict], dict | None]
+device_route = device_calls.device_route
+register_device_capabilities = device_calls.register_device_capabilities
+unregister_device_capabilities = device_calls.unregister_device_capabilities
+list_device_calls = device_calls.list_device_calls
+submit_device_call_result = device_calls.submit_device_call_result
 
 
 def _group_routine_route(
@@ -154,6 +162,12 @@ def _library_route(
 ) -> dict | None:
     if method == "GET" and path == "/connections":
         return _response(200, _connections(user_id))
+    if path.endswith("/plaid-sync"):
+        connection_id = params.get("connectionId", "")
+        if method == "GET":
+            return _response(200, _plaid_sync_status(user_id, connection_id))
+        if method == "POST":
+            return _response(202, _request_plaid_sync(user_id, connection_id))
     if method == "POST" and path == "/connections/home-assistant":
         return _response(201, _connect_home_assistant(user_id, _body(event)))
     if method == "POST" and path == "/connections/mcp-servers":
@@ -478,6 +492,9 @@ def _file_and_device_route(
     params: dict,
     event: dict,
 ) -> dict | None:
+    response = device_route(user_id, _display_name, method, path, params, event)
+    if response is not None:
+        return response
     if method == "PUT" and path == "/devices/push-token":
         return _response(200, _register_push_token(user_id, _body(event)))
     if method == "DELETE" and path == "/devices/push-token":

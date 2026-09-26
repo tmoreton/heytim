@@ -4,6 +4,7 @@ import re
 
 from strands.vended_plugins.skills import Skill
 
+from .device_tools import DEVICE_TOOL_SPECS
 from .local_tools import CUSTOM_TOOLS
 from .mcp_connections import (
     validated_connection_binding,
@@ -120,6 +121,35 @@ def tool_bindings(bot: dict) -> list[dict]:
             binding = validated_connection_bundle_binding(tool_id, runtime)
         elif kind == "provider_api":
             binding = validated_provider_binding(tool_id, runtime)
+        elif kind == "device":
+            platform = runtime.get("platform")
+            operations = runtime.get("operations")
+            interactive = runtime.get("interactiveOperations", [])
+            if (
+                platform not in {"ios", "macos"}
+                or not isinstance(operations, list)
+                or not 1 <= len(operations) <= 8
+                or not all(isinstance(operation, str) for operation in operations)
+                or len(set(operations)) != len(operations)
+                or any(
+                    not isinstance(operation, str)
+                    or operation not in DEVICE_TOOL_SPECS
+                    or DEVICE_TOOL_SPECS[operation]["platform"] != platform
+                    for operation in operations
+                )
+                or not isinstance(interactive, list)
+                or not all(isinstance(operation, str) for operation in interactive)
+                or len(set(interactive)) != len(interactive)
+                or not set(interactive).issubset(operations)
+            ):
+                raise ValueError(f"device operations are invalid: {tool_id}")
+            binding = {
+                "id": tool_id,
+                "kind": kind,
+                "platform": platform,
+                "operations": operations,
+                "interactiveOperations": interactive,
+            }
         else:
             name = runtime.get("name")
             allowed = {

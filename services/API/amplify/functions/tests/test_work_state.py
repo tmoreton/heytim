@@ -13,6 +13,7 @@ class WorkStateTests(unittest.TestCase):
             "WAITING",
             "NEEDS_INPUT",
             "AWAITING_APPROVAL",
+            "AWAITING_DEVICE",
         ):
             self.assertTrue(is_in_flight(status))
         for status in ("COMPLETE", "ERROR", "CANCELLED", None):
@@ -22,6 +23,7 @@ class WorkStateTests(unittest.TestCase):
         self.assertTrue(is_claimable("PENDING"))
         self.assertTrue(is_claimable("RUNNING"))
         self.assertFalse(is_claimable("WAITING"))
+        self.assertFalse(is_claimable("AWAITING_DEVICE"))
         self.assertFalse(is_claimable("COMPLETE"))
 
 
@@ -42,7 +44,11 @@ class ProcessingSummaryTests(unittest.TestCase):
     def test_waiting_and_approval_states_are_not_shown_as_processing(self) -> None:
         self.assertEqual(
             processing_summary(
-                [{"status": "WAITING"}, {"status": "AWAITING_APPROVAL"}]
+                [
+                    {"status": "WAITING"},
+                    {"status": "AWAITING_APPROVAL"},
+                    {"status": "AWAITING_DEVICE"},
+                ]
             ),
             {"processing": False},
         )

@@ -19,6 +19,7 @@ from .instructions import (
 )
 from .memes import image_attachments_from_messages
 from .request import image_references_from_payload
+from .workspace_assets import workspace_assets_from_payload
 from .workspace_sync import workspace_files_from_payload
 
 MAX_INSTRUCTIONS_CHARS = 12_000
@@ -64,6 +65,7 @@ def bot_configuration(
     team_context = team_instructions(payload.get("team"))
     artifact_prefix = artifact_prefix_from_payload(payload, actor_id)
     workspace_files = workspace_files_from_payload(payload, actor_id)
+    workspace_assets = workspace_assets_from_payload(payload, actor_id)
     image_references = image_references_from_payload(payload, actor_id)
     if not image_references:
         image_references = [
@@ -84,6 +86,7 @@ def bot_configuration(
         image_references=image_references,
         usage=usage,
         workspace_files=workspace_files,
+        workspace_assets=workspace_assets,
     )
     instructions = base_instructions(name.strip(), prompt.strip())
     if workspace_files and any(
@@ -95,6 +98,23 @@ def bot_configuration(
             "Call load_workspace_files before using them in code_interpreter. "
             "Those files persist in the app workspace across code sessions."
         )
+    if any(
+        getattr(candidate, "tool_name", None) == "save_workspace_asset"
+        for candidate in capabilities.tools
+    ):
+        asset_summary = ", ".join(
+            f"{item['assetKey']} (revision {item['revision']}, {item['name']})"
+            for item in workspace_assets
+        )
+        instructions += (
+            "\n\nUse save_workspace_asset for files that should persist and be revised "
+            "across future turns. Reuse one stable asset_key instead of creating a "
+            "new file or filename for each refresh. Read an existing asset with "
+            "read_workspace_asset before revising it when prior content matters. "
+            "Use save_artifact only for one-time downloads."
+        )
+        if asset_summary:
+            instructions += " Existing durable assets: " + asset_summary + "."
     for context in (
         team_context,
         image_reference_instructions(image_references),

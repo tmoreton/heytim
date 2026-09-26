@@ -180,6 +180,10 @@ public struct Attachment: Codable, Identifiable, Hashable, Sendable {
   public var format: String
   public var contentType: String
   public var createdAt: String?
+  public var revision: Int? = nil
+  public var updatedAt: String? = nil
+  public var assetKey: String? = nil
+  public var managedBy: String? = nil
 }
 
 public typealias BotDocument = Attachment
@@ -319,7 +323,9 @@ public struct ChatMessage: Codable, Identifiable, Hashable, Sendable {
   public var configurationChanged: Bool? = nil
 
   public var isUser: Bool { role == "user" }
-  public var isActive: Bool { ["waiting", "pending", "running"].contains(status) }
+  public var isActive: Bool {
+    ["waiting", "pending", "running", "awaiting_device"].contains(status)
+  }
   public var needsAction: Bool { ["needs_input", "awaiting_approval"].contains(status) }
 }
 
@@ -567,9 +573,20 @@ public struct Capability: Codable, Identifiable, Hashable, Sendable {
   public var endpoint: String? = nil
   public var repositories: [ConnectedRepository]?
   public var plaidAccounts: [ConnectedPlaidAccount]?
+  public var plaidSync: PlaidSyncStatus?
   public var connectionStatus: String?
   public var relationship: String?
   public var updatedAt: String?
+}
+
+public struct PlaidSyncStatus: Codable, Hashable, Sendable {
+  public var status: String
+  public var transactionCount: Int?
+  public var lastSyncedAt: String?
+  public var lastCheckedAt: String?
+  public var requestedAt: String?
+  public var errorCode: String?
+  public var historicalComplete: Bool?
 }
 
 public struct ConnectedRepository: Codable, Identifiable, Hashable, Sendable {

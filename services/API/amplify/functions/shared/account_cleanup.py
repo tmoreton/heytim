@@ -13,6 +13,7 @@ from shared.cleanup import delete_share_record, purge_group
 from shared.keys import group_pk, push_owner_key, user_pk, user_state_key
 from shared.memory_cleanup import delete_group_memory, delete_user_memory
 from shared.memory_identity import direct_session_id, memory_actor_id, scoped_session_id
+from shared.plaid_ledger import item_mapping_key
 from shared.schedules import delete_remote_schedule
 from shared.storage import delete_object_versions
 from shared.work_state import IN_FLIGHT_STATUSES
@@ -501,6 +502,17 @@ class AccountCleanupService:
         self.remove_invite_access_for_user(user_id)
         deleted_skills = self.remove_owned_skills(user_id, user_items)
         deleted_connections = self.catalog.delete_connection_secrets(user_items)
+        for connection in user_items:
+            if connection.get("entity") != "CONNECTION" or connection.get("provider") != "plaid":
+                continue
+            runtime = connection.get("runtime") or {}
+            try:
+                mapping_key = item_mapping_key(
+                    runtime.get("environment"), connection.get("providerAccountId")
+                )
+            except ValueError:
+                continue
+            self.table.delete_item(Key=mapping_key)
         deleted_memory = delete_user_memory(
             self.agentcore, self.config.memory_id, user_id
         )

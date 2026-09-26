@@ -44,6 +44,7 @@ struct BrowserHandoffView: View {
         } actions: {
           Button("Try Again") { Task { await refresh() } }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else if let raw = state?.liveViewUrl, let url = URL(string: raw) {
         BrowserWebView(url: url)
       } else {
@@ -54,6 +55,7 @@ struct BrowserHandoffView: View {
             state?.contextLabel
               ?? "Open a website when a bot asks you to sign in or complete a private step.")
         )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

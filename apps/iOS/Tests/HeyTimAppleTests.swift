@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
   import UIKit
 #elseif os(macOS)
   import AppKit
+  import ApplicationServices
 #endif
 
 @testable import HeyTimApple
@@ -47,12 +48,54 @@ import UniformTypeIdentifiers
     }
 
     func testDesktopLocalPolicyBlocksHighImpactControls() {
-      for label in ["Send", "Delete message", "Delete…", "Buy now", "Allow", "OK", "Save"] {
+      for label in [
+        "Send", "Delete message", "Delete…", "Buy now", "Allow", "OK", "Save",
+        "Reveal password", "Copy secret token",
+      ] {
         XCTAssertTrue(DesktopControlCoordinator.isHighImpact(label: label), label)
       }
       for label in ["Open details", "Next tab", "Show calendar", "Pause"] {
         XCTAssertFalse(DesktopControlCoordinator.isHighImpact(label: label), label)
       }
+    }
+
+    func testDesktopSemanticActionsAndScrollRemainAllowlisted() {
+      XCTAssertEqual(
+        DesktopControlCoordinator.accessibilityAction(
+          "increment", supportedActions: ["press", "increment"]),
+        kAXIncrementAction as String)
+      XCTAssertNil(DesktopControlCoordinator.accessibilityAction(
+        "show_menu", supportedActions: ["press"]))
+      XCTAssertNil(DesktopControlCoordinator.accessibilityAction(
+        "delete", supportedActions: ["press"]))
+
+      let pageDown = DesktopControlCoordinator.scrollDeltas(
+        direction: "down", amount: "page")
+      XCTAssertEqual(pageDown?.vertical, -12)
+      XCTAssertEqual(pageDown?.horizontal, 0)
+      XCTAssertNil(DesktopControlCoordinator.scrollDeltas(
+        direction: "diagonal", amount: "line"))
+      XCTAssertNil(DesktopControlCoordinator.scrollDeltas(
+        direction: "down", amount: "unbounded"))
+    }
+
+    func testDesktopHumanTakeoverPausesOnlyAnActiveExternalActionWindow() {
+      let now = Date()
+      XCTAssertTrue(DesktopControlCoordinator.shouldPauseForHumanInput(
+        isPaused: false, isSynthesizing: false,
+        armedUntil: now.addingTimeInterval(10), now: now))
+      XCTAssertFalse(DesktopControlCoordinator.shouldPauseForHumanInput(
+        isPaused: true, isSynthesizing: false,
+        armedUntil: now.addingTimeInterval(10), now: now))
+      XCTAssertFalse(DesktopControlCoordinator.shouldPauseForHumanInput(
+        isPaused: false, isSynthesizing: true,
+        armedUntil: now.addingTimeInterval(10), now: now))
+      XCTAssertFalse(DesktopControlCoordinator.shouldPauseForHumanInput(
+        isPaused: false, isSynthesizing: false,
+        armedUntil: now.addingTimeInterval(-1), now: now))
+      XCTAssertFalse(DesktopControlCoordinator.shouldPauseForHumanInput(
+        isPaused: false, isSynthesizing: false,
+        armedUntil: nil, now: now))
     }
 
     func testDesktopAutomaticActionsRequireAnExactLowRiskMatch() {
@@ -365,6 +408,62 @@ import UniformTypeIdentifiers
     XCTAssertEqual(blocks[2], .code(language: "swift", text: "let ready = true"))
   }
 
+  func testMessageMarkdownParsesNativeInlineElements() throws {
+    let blocks = MarkdownBlockParser.parse(
+      """
+      ```chart
+      {"type":"bar","title":"Monthly net","format":"currency","currency":"USD","series":[{"name":"Net","values":[{"label":"Jul","value":8466},{"label":"Aug","value":-12603}]}]}
+      ```
+
+      ```metrics
+      {"title":"Quarter summary","items":[{"label":"Revenue","value":"$43,175","detail":"Up 18%","tone":"positive"}]}
+      ```
+
+      ```callout
+      {"title":"Cash-flow risk","body":"August finished below plan.","tone":"warning"}
+      ```
+
+      ```steps
+      {"title":"Close checklist","items":[{"label":"Reconcile accounts","status":"complete"},{"label":"Review payroll","detail":"Waiting for September statement","status":"active"}]}
+      ```
+      """)
+
+    XCTAssertEqual(blocks.count, 4)
+    guard case .element(.chart(let chart)) = blocks[0] else {
+      return XCTFail("Expected a native chart")
+    }
+    XCTAssertEqual(chart.type, .bar)
+    XCTAssertEqual(chart.series[0].values.map(\.value), [8466, -12603])
+
+    guard case .element(.metrics(let metrics)) = blocks[1] else {
+      return XCTFail("Expected native metrics")
+    }
+    XCTAssertEqual(metrics.items[0].tone, .positive)
+
+    guard case .element(.callout(let callout)) = blocks[2] else {
+      return XCTFail("Expected a native callout")
+    }
+    XCTAssertEqual(callout.tone, .warning)
+
+    guard case .element(.steps(let steps)) = blocks[3] else {
+      return XCTFail("Expected native steps")
+    }
+    XCTAssertEqual(steps.items.map(\.status), [.complete, .active])
+  }
+
+  func testInvalidInlineElementFallsBackToReadableCode() {
+    let blocks = MarkdownBlockParser.parse(
+      """
+      ```chart
+      {"type":"pie","title":"Unsupported","series":[]}
+      ```
+      """)
+
+    XCTAssertEqual(
+      blocks,
+      [.code(language: "chart", text: "{\"type\":\"pie\",\"title\":\"Unsupported\",\"series\":[]}")])
+  }
+
   func testResetSessionClearsAccountScopedStateAndDisconnects() throws {
     let api = HeyTimAPI(baseURL: try XCTUnwrap(URL(string: "https://api.example.com"))) {
       "id-token"
@@ -472,6 +571,36 @@ import UniformTypeIdentifiers
     XCTAssertEqual(memoryUsageState(for: activeSummary, groupID: nil), .bot("Travel Bot"))
     XCTAssertEqual(memoryUsageState(for: unusedSummary, groupID: nil), .unused)
     XCTAssertEqual(memoryUsageState(for: fact, groupID: "group"), .group)
+  }
+
+  func testMemoryPreviewUsesHeadingAndOneSentenceInsteadOfFullRecord() {
+    let content = """
+      Graph Request and ASCII Visualization
+
+      The user requested a graph of the pulled data. The assistant rendered two inline ASCII bar graphs.
+
+      - **Graph 1:** Monthly income, expenses, and net.
+      """
+    let preview = MemoryPreview.make(from: content)
+
+    XCTAssertEqual(preview.title, "Graph Request and ASCII Visualization")
+    XCTAssertEqual(preview.summary, "The user requested a graph of the pulled data.")
+  }
+
+  func testMemoryPreviewCleansMarkupAndTruncatesLongText() {
+    let content = """
+      <topic name="September 2026 Income">
+      **Total income:** $43,175.00 from three deposits.
+      </topic>
+      """
+    let preview = MemoryPreview.make(from: content)
+    XCTAssertEqual(preview.title, "Total income: $43,175.00 from three deposits.")
+    XCTAssertNil(preview.summary)
+
+    let longPreview = MemoryPreview.make(from: String(repeating: "Long memory detail ", count: 20))
+    XCTAssertLessThanOrEqual(longPreview.title.count, 181)
+    XCTAssertTrue(longPreview.title.hasSuffix("…"))
+    XCTAssertNil(longPreview.summary)
   }
 
   func testBotMemoryUsesScopedRoutesInsteadOfAccountMemory() async throws {
