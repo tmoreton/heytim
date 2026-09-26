@@ -50,6 +50,31 @@ OPENROUTER_MAX_ATTEMPTS = int(
 if not 1 <= OPENROUTER_MAX_ATTEMPTS <= 4:
     raise ValueError("HEYTIM_OPENROUTER_MAX_ATTEMPTS must be between 1 and 4")
 MAX_RETRY_AFTER_SECONDS = 150.0
+MAX_RECOVERY_OUTPUT_TOKENS = 16_384
+
+
+def increase_output_budget(model: Model | None) -> bool:
+    """Give a truncated response more output space within a fixed ceiling."""
+    if model is None:
+        return False
+    if isinstance(model, PreResponseFallbackModel):
+        primary = increase_output_budget(model.primary)
+        fallback = increase_output_budget(model.fallback)
+        return primary or fallback
+    if isinstance(model, ResilientOpenRouterModel):
+        return increase_output_budget(model.model)
+    config = model.get_config()
+    params = config.get("params", {})
+    current = params.get("max_tokens")
+    if type(current) is not int or current < 1 or current >= MAX_RECOVERY_OUTPUT_TOKENS:
+        return False
+    model.update_config(
+        params={
+            **params,
+            "max_tokens": min(MAX_RECOVERY_OUTPUT_TOKENS, current * 2),
+        }
+    )
+    return True
 
 
 class IncompleteOpenRouterResponseError(RuntimeError):
@@ -222,8 +247,13 @@ class ResilientOpenRouterModel(Model):
                         buffered.append(event)
                         if _completes_response(event):
                             if not _usable_response(buffered):
+                                if (
+                                    event["messageStop"].get("stopReason")
+                                    == "max_tokens"
+                                ):
+                                    increase_output_budget(self.model)
                                 raise IncompleteOpenRouterResponseError(
-                                    "OpenRouter returned an empty response"
+                                    "OpenRouter returned no usable completed response"
                                 )
                             committed = True
                             log.info(
@@ -268,6 +298,10 @@ def _usable_response(events: list[StreamEvent]) -> bool:
         return has_text
     if stop_reason == "tool_use":
         return has_tool
+    if stop_reason == "max_tokens":
+        # Never commit truncated tool arguments to SDK parsing or execution.
+        # Retry the buffered response with a larger allowance before any tool runs.
+        return has_text and not has_tool
     return stop_reason is not None
 
 

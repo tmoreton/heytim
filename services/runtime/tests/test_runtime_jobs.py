@@ -13,6 +13,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from bedrock_agentcore.runtime.app import SESSION_HEADER
 from botocore.exceptions import ClientError
 from starlette.testclient import TestClient
+from strands.types.exceptions import MaxTokensReachedException
 
 from heytim_runtime import runtime_jobs as jobs
 
@@ -141,6 +142,12 @@ def test_openrouter_budget_failure_is_actionable():
 
     assert "OpenRouter" in message
     assert "wait a few minutes" in message
+
+
+def test_background_output_exhaustion_is_classified():
+    message = jobs._runtime_failure_message(MaxTokensReachedException("truncated"))
+    assert "automatic recovery" in message
+    assert "unexpected runtime error" not in message
 
 
 def test_wrapped_openrouter_auth_failure_is_actionable():

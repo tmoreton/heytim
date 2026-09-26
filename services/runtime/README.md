@@ -69,6 +69,8 @@ deploy-time configurable through these non-secret values in `agentcore/agentcore
 - `HEYTIM_OPENROUTER_MAX_ATTEMPTS` — total attempts before a pre-response OpenRouter failure is returned
 - `HEYTIM_MAX_MODEL_CALLS_PER_RUNTIME_RUN` — hard pre-dispatch model-attempt cap; defaults to `40`; the final three attempts are reserved for a tool-free answer
 - `HEYTIM_MAX_PROVIDER_TOOL_CALLS_PER_RUNTIME_RUN` — combined gateway/image dispatch cap; defaults to `24`
+- `HEYTIM_MAX_MODEL_CALLS_PER_LONG_RUN` — cumulative model-attempt cap for background jobs; defaults to `160`
+- `HEYTIM_MAX_PROVIDER_TOOL_CALLS_PER_LONG_RUN` — cumulative metered-tool cap for background jobs; defaults to `96`
 - `HEYTIM_MAX_IMAGE_CALLS_PER_RUNTIME_RUN` — image-generation sub-cap; defaults to `2`
 - `HEYTIM_MEME_TEMPLATE_PREFIX` — private S3 prefix containing `catalog.json` and normalized template PNGs
 - `HEYTIM_IMAGE_MODEL_ID` — OpenRouter image model; defaults to `openai/gpt-image-2.5-sunburst`
@@ -76,9 +78,27 @@ deploy-time configurable through these non-secret values in `agentcore/agentcore
 - `HEYTIM_IMAGE_REQUEST_TIMEOUT_SECONDS` — maximum duration of one OpenRouter image request
 - `HEYTIM_IMAGE_MAX_ATTEMPTS` — total attempts for retryable OpenRouter image failures
 
-The three per-runtime-run caps are enforced before network dispatch. Reaching one returns a terminal result instead
-of retrying the over-limit call. They bound one AgentCore invocation; a durable cross-invocation dollar ledger is a
-separate billing-control phase.
+All caps are enforced before network dispatch. Background jobs run in eight-turn slices, save a private agent
+snapshot at each boundary, and automatically continue the same history without replaying the request or completed
+tools. Model retries, fallback calls, output recovery, and every slice share one usage accumulator and one deadline.
+Image and leased YouTube limits remain unchanged. A hard cumulative cap still stops the job; slicing never resets it.
+The cumulative limits bound one background job invocation, not a cross-invocation dollar ledger.
+
+Output-limit recovery counts consecutive truncations without successful tool work, rather than all truncations
+throughout a long task. Recovery expands the model's output allowance from 4,096 to at most 16,384 tokens while
+preserving each route's reasoning configuration. Reasoning-only responses and truncated tool arguments retry before
+being committed to the SDK. An unrecoverable output limit has an explicit terminal code instead of an unexpected-runtime error.
+
+Oversized tool results are stored in full under the authorized turn's private S3 prefix. The shared retrieval tool
+formats JSON for inspection and provides bounded character pages with `nextOffset`, including for individual long
+lines. References survive runtime recreation for the same turn and cannot read another turn's objects. The shared
+`export_tool_result` tool converts one or more saved JSON pages directly to CSV/JSON, optionally staging a durable
+workspace revision. It avoids fetching the same provider data again or making the model transcribe large datasets.
+Only explicit user export requests authorize file creation. This path applies to all connected tools, not only finance.
+
+Snapshots support controlled resumption; an unknown process failure is not automatically replayed. An external action
+may have completed after the latest snapshot, so the existing durable job claim and cancellation protections remain
+in force. See [long-task recovery verification](../../docs/long-running-task-recovery.md).
 
 ## Meme template catalog
 

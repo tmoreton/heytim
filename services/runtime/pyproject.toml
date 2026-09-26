@@ -17,6 +17,9 @@ dependencies = [
     # identical to the version verified in uv.lock.
     "boto3 == 1.43.90",
     "botocore==1.43.92",
+    # AgentCore CodeZip resolves async file I/O transitives afresh. Pin caio to
+    # the version exercised by the lockfile instead of accepting same-day PyPI drift.
+    "caio == 0.12.5",
     "cyclopts == 4.25.2",
     # The toolkit resolves its first supported AgentCore target as manylinux2014.
     # Pin compiled transitive packages to versions that publish that ARM64 wheel.

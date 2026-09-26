@@ -38,6 +38,11 @@ def _runtime_failure_message(error: Exception) -> str:
         current = current.__cause__ or current.__context__
     detail = " ".join(str(item) for item in chain)
     type_names = {type(item).__name__ for item in chain}
+    if "MaxTokensReachedException" in type_names:
+        return (
+            "The response remained too long after automatic recovery. The task is "
+            "incomplete; completed external actions should be checked before retrying."
+        )
     if "ProviderCallLimitExceeded" in type_names or any(
         marker in detail
         for marker in (

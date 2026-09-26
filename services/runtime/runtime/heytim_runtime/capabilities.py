@@ -30,6 +30,7 @@ from .mcp_connections import (
 from .memes import meme_tools
 from .provider_connections import provider_connection_tools
 from .repository_workspace import repository_workspace_tool
+from .tool_results import ResultStorage, ToolResultOffloader
 from .workspace_assets import workspace_asset_tools
 from .workspace_sync import workspace_sync_tool
 
@@ -148,6 +149,13 @@ def resolve_capabilities(
             tools.extend(provider_connection_tools(item, usage))
     validate_skill_selection(bot, skills)
 
+    named_tools = {item.tool_name: item for item in tools if hasattr(item, "tool_name")}
+    saved_results = ToolResultOffloader(
+        ResultStorage(artifact_prefix),
+        save_artifact=named_tools.get("save_artifact"),
+        save_workspace=named_tools.get("save_workspace_asset"),
+    )
+
     return CapabilityConfiguration(
         tools=tools,
         builtin_tools=[
@@ -158,7 +166,8 @@ def resolve_capabilities(
             if any(item["kind"] == "stan_subagent" for item in bindings)
             else []
         ),
-        plugins=[AgentSkills(skills=skills, strict=True)] if skills else [],
+        plugins=[saved_results]
+        + ([AgentSkills(skills=skills, strict=True)] if skills else []),
         builtin_plugins=[
             item["name"] for item in bindings if item["kind"] == "stan_plugin"
         ],
