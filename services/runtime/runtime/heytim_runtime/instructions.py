@@ -22,7 +22,21 @@ INLINE_DELIVERY_INSTRUCTIONS = (
     "a file was created or updated without a successful tool result.\n"
     "- Use readable Markdown and short sections. Be concise by removing repetition and process narration, "
     "not by moving the answer into a file or omitting requested content. Intermediate group contributions "
-    "must still respect their assigned role and length; the final synthesis contains the complete answer."
+    "must still respect their assigned role and length; the final synthesis contains the complete answer.\n"
+    "- The HeyTim chat supports native inline elements. Use at most two only when they make data, status, or an "
+    "important conclusion materially easier to understand; never use them as decoration or repeat all of their "
+    "content in prose. Emit strict JSON inside one of these fenced blocks and include no comments or trailing commas:\n"
+    "  ```chart\n  {\"type\":\"bar|line|area\",\"title\":\"...\",\"subtitle\":\"optional\","
+    "\"format\":\"number|currency|percent\",\"currency\":\"USD\",\"series\":[{\"name\":\"...\","
+    "\"values\":[{\"label\":\"...\",\"value\":0}]}]}\n  ```\n  Use charts for comparisons or trends; percentage values "
+    "are expressed as display percentages such as 18 for 18%.\n"
+    "  ```metrics\n  {\"title\":\"optional\",\"items\":[{\"label\":\"...\",\"value\":\"...\","
+    "\"detail\":\"optional\",\"tone\":\"neutral|info|positive|warning|negative\"}]}\n  ```\n  Use metrics for two to six key figures.\n"
+    "  ```callout\n  {\"title\":\"...\",\"body\":\"...\","
+    "\"tone\":\"neutral|info|positive|warning|negative\"}\n  ```\n  Use a callout for one important conclusion or warning.\n"
+    "  ```steps\n  {\"title\":\"optional\",\"items\":[{\"label\":\"...\",\"detail\":\"optional\","
+    "\"status\":\"complete|active|pending|blocked\"}]}\n  ```\n  Use steps for a real workflow or milestone sequence. "
+    "Use ordinary Markdown tables, lists, links, and code blocks for everything else."
 )
 
 

@@ -59,6 +59,34 @@ class EventRoutineWorkerTests(WorkerTestCase):
         self.assertEqual(selected[0]["size"], 12)
         json.dumps(selected)
 
+    def test_workspace_manifest_exposes_one_current_revision_per_asset(self):
+        self.table.put_item(Item={
+            "pk": "USER#owner",
+            "sk": "WORKSPACE_FILE#BOT#finance#asset",
+            "entity": "WORKSPACE_FILE",
+            "id": "12345678-1234-4234-8234-123456789abc",
+            "assetKey": "finance/plaid-ledger",
+            "name": "Plaid ledger.xlsx",
+            "revision": Decimal(4),
+            "objectKey": (
+                "users/actor/bots/finance/workspace/asset/revisions/4/"
+                "Plaid ledger.xlsx"
+            ),
+            "sourceObjectKey": (
+                "users/actor/bots/finance/workspace/asset/revisions/4/source.txt"
+            ),
+            "updatedAt": "2026-09-25T17:00:00Z",
+        })
+
+        manifest = self.agent._workspace_asset_manifest(
+            "owner", "finance", None
+        )
+
+        self.assertEqual(len(manifest), 1)
+        self.assertEqual(manifest[0]["revision"], 4)
+        self.assertEqual(manifest[0]["assetKey"], "finance/plaid-ledger")
+        json.dumps(manifest)
+
     def test_github_duplicate_delivery_uses_one_stable_run(self):
         trigger = {
             "kind": "event", "eventType": "github.issue.opened",
@@ -222,6 +250,8 @@ class WorkspaceApiTests(ApiTestCase):
         listed = self.module._list_workspace_files("owner", "bot", "bot-1")
         refs = self.module._resolve_workspace_files("owner", "bot", "bot-1", [created["id"]])
         self.assertEqual(listed["fileCount"], 1)
+        self.assertEqual(listed["workspaceVersion"], 2)
+        self.assertEqual(created["revision"], 1)
         self.assertEqual(refs[0]["workspaceFileId"], created["id"])
         self.assertEqual(refs[0]["botId"], "bot-1")
         self.assertIn("/bots/bot-1/workspace/", refs[0]["objectKey"])

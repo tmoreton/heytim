@@ -17,6 +17,7 @@ from shared.connection_providers import (
     GOOGLE_WORKSPACE_MCP_SERVERS,
     connection_specs,
 )
+from shared.device_tools import validate_device_binding
 from shared.github_app import GITHUB_MCP_ENDPOINT
 
 from .finance_bindings import validate_plaid_binding
@@ -44,14 +45,8 @@ RUNTIME_NAMES = {
 }
 TOOL_RISKS = {"read", "sandbox", "interactive"}
 BOT_COLORS = {
-    "#FFBC3B",
-    "#007A3D",
-    "#58BEAA",
-    "#FFAA34",
-    "#6C5CE7",
-    "#3984F6",
-    "#F46A27",
-    "#E95383",
+    "#FFBC3B", "#007A3D", "#58BEAA", "#FFAA34",
+    "#6C5CE7", "#3984F6", "#F46A27", "#E95383",
 }
 BOT_CATALOG_FIELDS = {
     "id",
@@ -511,6 +506,11 @@ def _validate_runtime_binding(value: Any) -> dict:
         return _validate_mcp_bundle_binding(value)
     if kind == "provider_api":
         return _validate_provider_api_binding(value)
+    if kind == "device":
+        try:
+            return validate_device_binding(value)
+        except ValueError as exc:
+            raise CatalogError(str(exc)) from exc
     allowed_names = RUNTIME_NAMES.get(kind)
     name = value.get("name")
     if not allowed_names or name not in allowed_names:

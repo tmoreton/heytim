@@ -269,7 +269,14 @@ class AccountCleanupSafetyTests(ApiTestCase):
                 for key, value in update["ExpressionAttributeValues"].items()
                 if key.startswith(":status")
             },
-            {"PENDING", "RUNNING", "WAITING", "NEEDS_INPUT", "AWAITING_APPROVAL"},
+            {
+                "PENDING",
+                "RUNNING",
+                "WAITING",
+                "NEEDS_INPUT",
+                "AWAITING_APPROVAL",
+                "AWAITING_DEVICE",
+            },
         )
 
     def test_account_cleanup_refreshes_direct_work_after_cancellation_fence(self) -> None:

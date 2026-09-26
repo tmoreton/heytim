@@ -8,6 +8,7 @@ enum MarkdownBlock: Equatable {
   case quote(String)
   case code(language: String?, text: String)
   case table(MarkdownTable)
+  case element(InlineMessageElement)
   case divider
 }
 
@@ -55,7 +56,12 @@ enum MarkdownBlockParser {
           index += 1
         }
         if index < lines.count { index += 1 }
-        blocks.append(.code(language: fence.language, text: body.joined(separator: "\n")))
+        let text = body.joined(separator: "\n")
+        if let element = InlineMessageElementParser.parse(language: fence.language, text: text) {
+          blocks.append(.element(element))
+        } else {
+          blocks.append(.code(language: fence.language, text: text))
+        }
         continue
       }
 
@@ -353,11 +359,18 @@ struct MarkdownMessageView: View {
   private let blocks: [MarkdownBlock]
   private let expandsToFill: Bool
   private let baseColor: Color
+  private let accentColor: Color
 
-  init(_ markdown: String, expandsToFill: Bool = true, baseColor: Color) {
+  init(
+    _ markdown: String,
+    expandsToFill: Bool = true,
+    baseColor: Color,
+    accentColor: Color = FrogTheme.accent
+  ) {
     blocks = MarkdownBlockParser.parse(markdown)
     self.expandsToFill = expandsToFill
     self.baseColor = baseColor
+    self.accentColor = accentColor
   }
 
   var body: some View {
@@ -374,7 +387,7 @@ struct MarkdownMessageView: View {
   private var content: some View {
     VStack(alignment: .leading, spacing: 12) {
       ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-        MarkdownBlockView(block: block, baseColor: baseColor)
+        MarkdownBlockView(block: block, baseColor: baseColor, accentColor: accentColor)
       }
     }
   }
@@ -383,6 +396,7 @@ struct MarkdownMessageView: View {
 private struct MarkdownBlockView: View {
   let block: MarkdownBlock
   let baseColor: Color
+  let accentColor: Color
 
   @ViewBuilder var body: some View {
     switch block {
@@ -417,6 +431,9 @@ private struct MarkdownBlockView: View {
       code(language: language, text: text)
     case .table(let table):
       markdownTable(table)
+    case .element(let element):
+      InlineMessageElementView(
+        element: element, baseColor: baseColor, accentColor: accentColor)
     case .divider:
       Divider()
         .overlay(baseColor.opacity(0.22))

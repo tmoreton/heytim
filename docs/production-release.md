@@ -128,6 +128,10 @@ permissions from protected environment secrets immediately before deployment and
    `distribute-macos` command from a clean checkout of the same commit. Manual
    runs remain available for recovery and use the version in the checked-in Xcode project unless an explicit
    `HEYTIM_MARKETING_VERSION` is supplied for a local archive.
+   For a backend plus Mac-only release, first create a draft `vMAJOR.MINOR.PATCH` GitHub Release whose body contains
+   `<!-- heytim-backend-macos-predeployed -->`, then dispatch `backend-macos` with that tag. The workflow deploys the
+   backend, produces and attaches the notarized DMG, update ZIP, and signed appcast, and skips TestFlight. Publish the
+   draft only after the workflow succeeds; the marker prevents the publication event from redeploying the release.
 3. Confirm the iPhone build completes App Store Connect processing. Mount the Mac DMG on a clean machine, drag the app
    to Applications, verify Gatekeeper accepts it, and test an update from the previous release through the published
    appcast. The preserved

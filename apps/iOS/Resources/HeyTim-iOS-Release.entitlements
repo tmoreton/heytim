@@ -4,4 +4,5 @@
   <key>aps-environment</key><string>production</string>
   <key>com.apple.developer.associated-domains</key>
   <array><string>applinks:heytim.ai</string><string>applinks:www.heytim.ai</string></array>
+  <key>com.apple.developer.healthkit</key><true/>
 </dict></plist>

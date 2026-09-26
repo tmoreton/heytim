@@ -11,7 +11,8 @@
     "outputs:apple:production:check": "node scripts/sync-apple-outputs.mjs --check --require-production",
     "typecheck": "tsc --noEmit",
     "test": "PYTHONPATH=amplify/functions uv run --project ../runtime --frozen python -m unittest discover -s amplify/functions/tests -p 'test_*.py'",
-    "verify": "npm run contract:check && npm run outputs:apple:check && npm --prefix ../../packages/heytim-contract test && npm run typecheck && npm test",
+    "test:plaid-webhook": "node scripts/test-plaid-webhook.mjs",
+    "verify": "npm run contract:check && npm run outputs:apple:check && npm --prefix ../../packages/heytim-contract test && npm run typecheck && npm run test:plaid-webhook && npm test",
     "load:test": "node scripts/authenticated-load-test.mjs",
     "workflow:test": "node scripts/authenticated-workflow-test.mjs",
     "sandbox": "ampx sandbox --outputs-out-dir ."
@@ -27,6 +28,8 @@
     "typescript": "~6.0.3"
   },
   "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.1126.0",
+    "@aws-sdk/client-sqs": "^3.1126.0",
     "@aws-sdk/client-cognito-identity-provider": "^3.1126.0",
     "@aws-sdk/client-dynamodb": "^3.1126.0",
     "@aws-sdk/lib-dynamodb": "^3.1126.0"

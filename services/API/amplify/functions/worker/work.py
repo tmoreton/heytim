@@ -62,7 +62,9 @@ def _finish_work(
         update_expression += ", configurationChanged = :configurationChanged"
         values[":configurationChanged"] = True
     update_expression += (
-        " REMOVE leaseOwner, leaseExpiresAt, pendingWork, backgroundResults, runtimeResult"
+        " REMOVE leaseOwner, leaseExpiresAt, pendingWork, backgroundResults, "
+        "runtimeResult, deviceRequest, deviceResult, deviceResultReceivedAt, "
+        "deviceResultConsumedAt"
     )
     try:
         table.update_item(

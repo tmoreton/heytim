@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		0A87C1D4CB05978494CB610A /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6215600B1AD6C11F22092AEB /* Models.swift */; };
+		AC0000000000000000000001 /* DeviceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0000000000000000000001 /* DeviceModels.swift */; };
+		AA0000000000000000000001 /* AppleDeviceToolCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000001 /* AppleDeviceToolCoordinator.swift */; };
+		AA0000000000000000000002 /* AppleHealthCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000002 /* AppleHealthCoordinator.swift */; };
 		115CF026C6D962CAEDF7D3DE /* SupportingFeatureSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E8F50345C6F715CCAD7D4AA /* SupportingFeatureSheets.swift */; };
 		1267B165AF70AFB92CAD09C9 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 642770B43219595507412311 /* Foundation.framework */; };
 		173187A9F62136A680BF6106 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 642770B43219595507412311 /* Foundation.framework */; };
@@ -31,6 +34,7 @@
 		C7CAA251A1831ED10FD24B0C /* amplify_outputs.json in Resources */ = {isa = PBXBuildFile; fileRef = DF6DC85847D1E63C3F66E5AE /* amplify_outputs.json */; };
 		CB46C889E20746FC5BBFEC49 /* ProviderLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EDB7CD6380F2E79F6618CA2 /* ProviderLogoView.swift */; };
 		CB80F9873D7BFF9273FF2FBA /* MarkdownMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A19D11F0E89F27CAF6551997 /* MarkdownMessageView.swift */; };
+		D1B67E1E7A81452DA53DDF60 /* InlineMessageElements.swift in Sources */ = {isa = PBXBuildFile; fileRef = C43D57AF9FB34824A9837501 /* InlineMessageElements.swift */; };
 		DDE3D07C8C81D52818A77A8F /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5B2D823EB4B14FCB4EA414E /* MainView.swift */; };
 		E7EB289FBB120C17E7264656 /* NativeNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4EDCA1D09AFBECD3B7E3B1 /* NativeNotifications.swift */; };
 		EE66D1AA11AD250C3142F225 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 642770B43219595507412311 /* Foundation.framework */; };
@@ -63,6 +67,8 @@
 		0941498FBD04101B8F9E6E1B /* GitHubSkillImportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GitHubSkillImportView.swift; path = Sources/HeyTimUI/GitHubSkillImportView.swift; sourceTree = "<group>"; };
 		0ADC75ACF7C8147100D02ED3 /* Info-macOS.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "Info-macOS.plist"; path = "Resources/Info-macOS.plist"; sourceTree = "<group>"; };
 		0CB8E42C1443BED003885D42 /* DesktopControlCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesktopControlCoordinator.swift; path = Sources/HeyTimPlatform/DesktopControlCoordinator.swift; sourceTree = "<group>"; };
+		AB0000000000000000000001 /* AppleDeviceToolCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppleDeviceToolCoordinator.swift; path = Sources/HeyTimPlatform/AppleDeviceToolCoordinator.swift; sourceTree = "<group>"; };
+		AB0000000000000000000002 /* AppleHealthCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppleHealthCoordinator.swift; path = Sources/HeyTimPlatform/AppleHealthCoordinator.swift; sourceTree = "<group>"; };
 		1699D193B8D3D576EFFA1341 /* HeyTimAppleUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HeyTimAppleUITests.swift; path = UITests/HeyTimAppleUITests.swift; sourceTree = "<group>"; };
 		17C3A6AC39F485405F85856B /* AuthSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthSession.swift; path = Sources/HeyTimPlatform/AuthSession.swift; sourceTree = "<group>"; };
 		1E8F50345C6F715CCAD7D4AA /* SupportingFeatureSheets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SupportingFeatureSheets.swift; path = Sources/HeyTimUI/SupportingFeatureSheets.swift; sourceTree = "<group>"; };
@@ -77,6 +83,7 @@
 		5EEAFB13611E1267A3DB575D /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
 		60F7238078E80305A1011170 /* HeyTimAppleUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HeyTimAppleUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6215600B1AD6C11F22092AEB /* Models.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Models.swift; path = Sources/HeyTimCore/Models.swift; sourceTree = "<group>"; };
+		AD0000000000000000000001 /* DeviceModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DeviceModels.swift; path = Sources/HeyTimCore/DeviceModels.swift; sourceTree = "<group>"; };
 		642770B43219595507412311 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		6F25A4E6E1346DB162542258 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Resources/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		747D90AB338732CB23C72E87 /* APIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = APIClient.swift; path = Sources/HeyTimCore/APIClient.swift; sourceTree = "<group>"; };
@@ -89,6 +96,7 @@
 		B5B2D823EB4B14FCB4EA414E /* MainView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MainView.swift; path = Sources/HeyTimUI/MainView.swift; sourceTree = "<group>"; };
 		B6CB7FC2235146114897D4DF /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = Resources/Info.plist; sourceTree = "<group>"; };
 		B90179787B9FEB963BE22449 /* BrowserHandoffView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BrowserHandoffView.swift; path = Sources/HeyTimUI/BrowserHandoffView.swift; sourceTree = "<group>"; };
+		C43D57AF9FB34824A9837501 /* InlineMessageElements.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InlineMessageElements.swift; path = Sources/HeyTimUI/InlineMessageElements.swift; sourceTree = "<group>"; };
 		DDE53AA49C9A9760A2879553 /* FeatureSheets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FeatureSheets.swift; path = Sources/HeyTimUI/FeatureSheets.swift; sourceTree = "<group>"; };
 		DE4EDCA1D09AFBECD3B7E3B1 /* NativeNotifications.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeNotifications.swift; path = Sources/HeyTimPlatform/NativeNotifications.swift; sourceTree = "<group>"; };
 		DF6DC85847D1E63C3F66E5AE /* amplify_outputs.json */ = {isa = PBXFileReference; includeInIndex = 1; name = amplify_outputs.json; path = Resources/amplify_outputs.json; sourceTree = "<group>"; };
@@ -155,7 +163,10 @@
 				FFBB1B96E367269E3D95160A /* APIRoutes.generated.swift */,
 				3A8BD71384316330EFB50046 /* AppModel.swift */,
 				6215600B1AD6C11F22092AEB /* Models.swift */,
+				AD0000000000000000000001 /* DeviceModels.swift */,
 				17C3A6AC39F485405F85856B /* AuthSession.swift */,
+				AB0000000000000000000001 /* AppleDeviceToolCoordinator.swift */,
+				AB0000000000000000000002 /* AppleHealthCoordinator.swift */,
 				0CB8E42C1443BED003885D42 /* DesktopControlCoordinator.swift */,
 				59B11CC18130A3BD60A1157F /* DesktopUpdateController.swift */,
 				2AF4C4F234301D2BBDF33497 /* DictationModel.swift */,
@@ -168,6 +179,7 @@
 				0941498FBD04101B8F9E6E1B /* GitHubSkillImportView.swift */,
 				B5B2D823EB4B14FCB4EA414E /* MainView.swift */,
 				A19D11F0E89F27CAF6551997 /* MarkdownMessageView.swift */,
+				C43D57AF9FB34824A9837501 /* InlineMessageElements.swift */,
 				9EDB7CD6380F2E79F6618CA2 /* ProviderLogoView.swift */,
 				1E8F50345C6F715CCAD7D4AA /* SupportingFeatureSheets.swift */,
 				023CEBD733F786082B5D08D4 /* Theme.swift */,
@@ -377,7 +389,10 @@
 				28007A1F824DD4E0E1C38D99 /* APIRoutes.generated.swift in Sources */,
 				703716656630AB43ACDA3F0D /* AppModel.swift in Sources */,
 				0A87C1D4CB05978494CB610A /* Models.swift in Sources */,
+				AC0000000000000000000001 /* DeviceModels.swift in Sources */,
 				BDB8BCB47B824F3D57866385 /* AuthSession.swift in Sources */,
+				AA0000000000000000000001 /* AppleDeviceToolCoordinator.swift in Sources */,
+				AA0000000000000000000002 /* AppleHealthCoordinator.swift in Sources */,
 				60B61E316F326C765ECFB10C /* DesktopControlCoordinator.swift in Sources */,
 				F0B453354EBC79485FD61DEA /* DesktopUpdateController.swift in Sources */,
 				4B60EAA6CFC8E6C938CBBFC5 /* DictationModel.swift in Sources */,
@@ -390,6 +405,7 @@
 				A2AA81DADA4C4DF4ABFE972D /* GitHubSkillImportView.swift in Sources */,
 				DDE3D07C8C81D52818A77A8F /* MainView.swift in Sources */,
 				CB80F9873D7BFF9273FF2FBA /* MarkdownMessageView.swift in Sources */,
+				D1B67E1E7A81452DA53DDF60 /* InlineMessageElements.swift in Sources */,
 				CB46C889E20746FC5BBFEC49 /* ProviderLogoView.swift in Sources */,
 				115CF026C6D962CAEDF7D3DE /* SupportingFeatureSheets.swift in Sources */,
 				71657CB25210E15EB004C3B3 /* Theme.swift in Sources */,

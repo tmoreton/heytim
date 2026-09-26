@@ -7,6 +7,7 @@ from typing import Any
 from .account_cleanup import _delete_account
 from .approval_job import process_approval_expiry
 from .background_work import _process_background_work
+from .device_calls import process_device_call_expiry
 from .direct_job import _process_agent_reply
 from .email_inbound_job import _process_email_inbound
 from .event_routine_job import _process_event_group_round, _process_group_decision_event
@@ -17,6 +18,7 @@ from .group_job import (
 )
 from .memory_cleanup_job import _delete_memory_actor, _delete_memory_session
 from .notifications import _check_push_receipts, _send_push_notification
+from .plaid_sync import delete_plaid_ledger, process_plaid_sync
 from .scheduled_group_job import _process_scheduled_group_round
 from .scheduled_job import _process_scheduled_agent_reply, _request_string
 from .support import ACTIVE_VISIBILITY_SECONDS, QUEUE_URL, catalog, sqs
@@ -31,6 +33,12 @@ def _process(record: dict) -> None:
     request_type = request.get("type", "AGENT_REPLY")
     if request_type == "CATALOG_REFRESH":
         catalog.sync_official(force=True)
+        return
+    if request_type == "PLAID_SYNC":
+        process_plaid_sync(request)
+        return
+    if request_type == "PLAID_LEDGER_DELETE":
+        delete_plaid_ledger(request)
         return
     if request_type == "DELETE_ACCOUNT":
         _delete_account(
@@ -58,6 +66,9 @@ def _process(record: dict) -> None:
         return
     if request_type == "APPROVAL_EXPIRY":
         process_approval_expiry(request)
+        return
+    if request_type == "DEVICE_CALL_EXPIRY":
+        process_device_call_expiry(request)
         return
     if request_type == "GROUP_AGENT_REPLY":
         _process_group_agent_reply(record, request)

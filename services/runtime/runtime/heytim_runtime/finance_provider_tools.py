@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import base64
 import datetime as dt
+import gzip
 import json
+import os
 import re
 import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
+
+import boto3
+from botocore.config import Config
 
 from strands import tool
 
@@ -22,6 +27,49 @@ PLAID_BASE_URLS = {
 QUICKBOOKS_TOKEN_URL = (  # nosec B105 - fixed OAuth endpoint, not a credential.
     "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
 )
+MAX_LEDGER_BYTES = 64_000_000
+
+
+def _plaid_cached_transactions(binding: dict, start: str, end: str,
+                               count: int, account_id: str, offset: int) -> dict:
+    key = binding["ledgerObjectKey"]
+    bucket = os.environ.get("HEYTIM_FILES_BUCKET", "")
+    if not bucket:
+        raise ValueError("Plaid transaction cache is unavailable")
+    client = boto3.client("s3", config=Config(
+        retries={"total_max_attempts": 4, "mode": "adaptive"},
+        connect_timeout=3, read_timeout=20,
+    ))
+    response = client.get_object(Bucket=bucket, Key=key)
+    stream = response["Body"]
+    try:
+        with gzip.GzipFile(fileobj=stream) as compressed:
+            data = compressed.read(MAX_LEDGER_BYTES + 1)
+    finally:
+        stream.close()
+    if len(data) > MAX_LEDGER_BYTES:
+        raise ValueError("Plaid transaction cache is too large")
+    records = json.loads(data)
+    if not isinstance(records, list):
+        raise ValueError("Plaid transaction cache is invalid")
+    allowed = _plaid_account_ids(binding)
+    matching = [
+        item for item in records
+        if isinstance(item, dict)
+        and isinstance(item.get("date"), str)
+        and start <= item["date"] <= end
+        and (allowed is None or item.get("account_id") in allowed)
+        and (not account_id or item.get("account_id") == account_id)
+    ]
+    matching.sort(key=lambda item: (item.get("date", ""), item.get("transaction_id", "")), reverse=True)
+    return {
+        "transactions": matching[offset:offset + count],
+        "totalTransactions": len(matching),
+        "offset": offset, "hasMore": offset + count < len(matching),
+        "source": "cached_plaid_sync",
+        "lastSyncedAt": binding.get("ledgerLastSyncedAt"),
+        "historicalComplete": binding.get("ledgerHistoricalComplete", False),
+    }
 
 
 def _runtime():
@@ -330,13 +378,29 @@ def plaid_tools(binding: dict, usage: Any) -> list[Any]:
         end_date: str,
         max_results: int = 100,
         account_id: str = "",
+        offset: int = 0,
     ) -> str:
-        """Read posted and pending bank or card transactions in a date range."""
+        """Read a page of transactions in a date range. Increase offset for more."""
         start, end = _date_range(start_date, end_date)
         count = _runtime()._limit(max_results, minimum=1, maximum=100)
+        page_offset = _runtime()._limit(offset, minimum=0, maximum=100_000)
+        if account_id:
+            if not re.fullmatch(r"[A-Za-z0-9_-]{8,200}", account_id):
+                raise ValueError("account_id is invalid")
+            allowed = _plaid_account_ids(binding)
+            if allowed is not None and account_id not in allowed:
+                raise ValueError("account_id is not assigned to this bot")
+        if binding.get("ledgerObjectKey"):
+            _runtime()._record(usage, "plaid", "plaid_transactions")
+            return json.dumps(
+                _plaid_cached_transactions(
+                    binding, start, end, count, account_id, page_offset
+                ),
+                separators=(",", ":"),
+            )
         options: dict[str, Any] = {
             "count": count,
-            "offset": 0,
+            "offset": page_offset,
             "personal_finance_category_version": "v2",
         }
         allowed_account_ids = _plaid_account_ids(binding)
@@ -363,6 +427,8 @@ def plaid_tools(binding: dict, usage: Any) -> list[Any]:
                     value.get("transactions", []), allowed_account_ids
                 ),
                 "totalTransactions": value.get("total_transactions", 0),
+                "offset": page_offset,
+                "hasMore": page_offset + count < value.get("total_transactions", 0),
             },
             separators=(",", ":"),
         )
@@ -385,7 +451,11 @@ def plaid_tools(binding: dict, usage: Any) -> list[Any]:
             separators=(",", ":"),
         )
 
-    return [plaid_accounts, plaid_transactions, plaid_liabilities]
+    return [
+        plaid_accounts,
+        plaid_transactions,
+        plaid_liabilities,
+    ]
 
 
 __all__ = ["plaid_tools", "quickbooks_access_token", "quickbooks_tools"]

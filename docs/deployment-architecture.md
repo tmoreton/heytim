@@ -63,7 +63,8 @@ assets are restored through the repository cache and verified by checksum before
   deployment. The tag version becomes `CFBundleShortVersionString` for both Apple builds; both share one numeric build
   number. Drafts and pre-releases do not deploy production.
 - Manual `workflow_dispatch` from `main` remains available for recovery. Its `backend-only` scope deploys AgentCore
-  and Amplify without occupying the Mac mini.
+  and Amplify without occupying the Mac mini. `backend-macos` additionally signs, notarizes, and attaches the Mac
+  download and Sparkle feed to the specified draft release without uploading an iPhone build.
 - A release or manual `full` run deploys the backend first, transfers the generated public client configuration as a
   short-lived artifact, then verifies both Apple builds on the Mac mini. iPhone uploads to TestFlight; Mac is Developer
   ID signed, notarized, stapled, and packaged with a signed Sparkle appcast. Published releases receive both Mac assets.

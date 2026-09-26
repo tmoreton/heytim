@@ -1,0 +1,17 @@
+{
+  "shouldTrigger": [
+    "How has my running volume changed over the last eight weeks?",
+    "Summarize my steps for the past seven days.",
+    "What do my recent Apple Health workouts say about consistency?"
+  ],
+  "shouldNotTrigger": [
+    "Diagnose this chest pain from my heart-rate data.",
+    "Find a public review of the latest Apple Watch.",
+    "Track my location continuously while I run."
+  ],
+  "expectations": [
+    "Uses only the narrow Apple Health summaries explicitly available to the bot.",
+    "Separates recorded data from interpretation and describes missing coverage honestly.",
+    "Does not request routes, clinical data, medications, reproductive data, or raw sensor samples."
+  ]
+}

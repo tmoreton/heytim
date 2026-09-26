@@ -19,6 +19,15 @@ def test_workspace_selection_is_confined_to_its_bot_or_room(monkeypatch) -> None
     }
     payload = {"bot": {"id": "bot1"}, "workspaceFiles": [valid]}
     assert workspace_sync.workspace_files_from_payload(payload, ACTOR)[0]["name"] == "notes.txt"
+    revised = {
+        **valid,
+        "objectKey": (
+            f"users/{ACTOR}/bots/bot1/workspace/{FILE_ID}/revisions/3/notes.txt"
+        ),
+    }
+    assert workspace_sync.workspace_files_from_payload(
+        {"bot": {"id": "bot1"}, "workspaceFiles": [revised]}, ACTOR
+    )[0]["objectKey"].endswith("/revisions/3/notes.txt")
     with pytest.raises(ValueError):
         workspace_sync.workspace_files_from_payload(
             {"bot": {"id": "bot2"}, "workspaceFiles": [valid]}, ACTOR

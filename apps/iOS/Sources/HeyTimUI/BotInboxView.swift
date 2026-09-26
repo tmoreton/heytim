@@ -83,6 +83,7 @@ struct BotInboxView: View {
             ContentUnavailableView(
               "All Caught Up", systemImage: "checkmark.circle",
               description: Text("No email needs review. Processed conversations appear in chat history."))
+              .frame(maxWidth: .infinity, minHeight: 220)
           } else {
             ForEach(pendingMessages) { message in
               inboxMessageRow(message)
@@ -123,6 +124,7 @@ struct BotInboxView: View {
           ContentUnavailableView(
             "Inbox Unavailable", systemImage: "tray",
             description: Text("Refresh to load this bot’s email inbox."))
+            .frame(maxWidth: .infinity, minHeight: 260)
         }
       }
     }

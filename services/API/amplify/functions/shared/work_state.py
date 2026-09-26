@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 IN_FLIGHT_STATUSES = frozenset(
-    {"PENDING", "RUNNING", "WAITING", "NEEDS_INPUT", "AWAITING_APPROVAL"}
+    {
+        "PENDING", "RUNNING", "WAITING", "NEEDS_INPUT",
+        "AWAITING_APPROVAL", "AWAITING_DEVICE",
+    }
 )
 CLAIMABLE_STATUSES = frozenset({"PENDING", "RUNNING"})
 

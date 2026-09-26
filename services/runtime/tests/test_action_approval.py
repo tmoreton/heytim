@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
+import heytim_runtime.action_approval as action_approval_module
 from heytim_runtime.action_approval import (
     ActionApproval,
     _proposal,
@@ -124,3 +125,66 @@ def test_previously_granted_bot_skips_runtime_approval_setup() -> None:
         "alwaysAllowedToolIds": ["browser"],
     }}
     assert approval_configuration(payload, None) is None
+
+
+def test_device_binding_approves_only_declared_interactive_operations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        action_approval_module,
+        "interrupt_session_manager",
+        lambda _payload, _actor_id: "snapshot-manager",
+    )
+    payload = {
+        "bot": {
+            "tools": [
+                {
+                    "id": "mac_computer",
+                    "risk": "interactive",
+                    "runtime": {
+                        "kind": "device",
+                        "platform": "macos",
+                        "operations": [
+                            "mac_computer_observe",
+                            "mac_computer_act_on_element",
+                            "mac_computer_type_into_element",
+                        ],
+                        "interactiveOperations": [
+                            "mac_computer_act_on_element",
+                            "mac_computer_type_into_element",
+                        ],
+                    },
+                }
+            ],
+            "alwaysAllowedToolIds": [],
+        }
+    }
+
+    configured = approval_configuration(payload, None)
+    assert configured is not None
+    approval, manager = configured
+    assert manager == "snapshot-manager"
+
+    observe = SimpleNamespace(
+        tool_use={
+            "toolUseId": "observe-1",
+            "name": "mac_computer_observe",
+            "input": {},
+        },
+        interrupt=Mock(),
+    )
+    approval.before_tool(observe)
+    observe.interrupt.assert_not_called()
+
+    press = SimpleNamespace(
+        tool_use={
+            "toolUseId": "press-1",
+            "name": "mac_computer_act_on_element",
+            "input": {"snapshot_revision": "revision-1", "target_id": "control-1"},
+        },
+        interrupt=Mock(return_value=None),
+        cancel_tool=None,
+    )
+    approval.before_tool(press)
+    press.interrupt.assert_called_once()
+    assert press.cancel_tool == "This tool call was not approved."

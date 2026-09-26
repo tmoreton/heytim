@@ -5,6 +5,7 @@
     { "id": "publicCatalog", "method": "GET", "path": "/public/catalog", "access": "public", "handler": "public" },
     { "id": "githubWebhook", "method": "POST", "path": "/public/webhooks/github", "access": "public", "handler": "public" },
     { "id": "stripeWebhook", "method": "POST", "path": "/public/webhooks/stripe", "access": "public", "handler": "public" },
+    { "id": "plaidWebhook", "method": "POST", "path": "/public/webhooks/plaid", "access": "public", "handler": "public" },
     { "id": "googleOAuthCallback", "method": "GET", "path": "/public/oauth/google/callback", "access": "public", "handler": "public" },
     { "id": "githubOAuthCallback", "method": "GET", "path": "/public/oauth/github/callback", "access": "public", "handler": "public" },
     { "id": "xOAuthCallback", "method": "GET", "path": "/public/oauth/x/callback", "access": "public", "handler": "public" },
@@ -96,6 +97,10 @@
 
     { "id": "pushTokenPut", "method": "PUT", "path": "/devices/push-token", "access": "authenticated", "handler": "fileAndDevice" },
     { "id": "pushTokenDelete", "method": "DELETE", "path": "/devices/push-token", "access": "authenticated", "handler": "fileAndDevice" },
+    { "id": "deviceCapabilitiesPut", "method": "PUT", "path": "/devices/{deviceId}/capabilities", "access": "authenticated", "handler": "fileAndDevice" },
+    { "id": "deviceCapabilitiesDelete", "method": "DELETE", "path": "/devices/{deviceId}/capabilities", "access": "authenticated", "handler": "fileAndDevice" },
+    { "id": "deviceCallsList", "method": "GET", "path": "/devices/{deviceId}/calls", "access": "authenticated", "handler": "fileAndDevice" },
+    { "id": "deviceCallResult", "method": "POST", "path": "/devices/{deviceId}/calls/{callId}/result", "access": "authenticated", "handler": "fileAndDevice" },
     { "id": "uploadCreate", "method": "POST", "path": "/uploads", "access": "authenticated", "handler": "fileAndDevice" },
     { "id": "uploadComplete", "method": "POST", "path": "/uploads/{fileId}/complete", "access": "authenticated", "handler": "fileAndDevice" },
     { "id": "fileDownload", "method": "GET", "path": "/files/{fileId}/download", "access": "authenticated", "handler": "fileAndDevice" },
@@ -120,6 +125,8 @@
     { "id": "skillShareImport", "method": "POST", "path": "/skill-shares/{token}/import", "access": "authenticated", "handler": "skill" },
 
     { "id": "connectionsList", "method": "GET", "path": "/connections", "access": "authenticated", "handler": "library" },
+    { "id": "plaidSyncStatus", "method": "GET", "path": "/connections/{connectionId}/plaid-sync", "access": "authenticated", "handler": "library" },
+    { "id": "plaidSyncRequest", "method": "POST", "path": "/connections/{connectionId}/plaid-sync", "access": "authenticated", "handler": "library" },
     { "id": "homeAssistantConnect", "method": "POST", "path": "/connections/home-assistant", "access": "authenticated", "handler": "library" },
     { "id": "mcpServerConnect", "method": "POST", "path": "/connections/mcp-servers", "access": "authenticated", "handler": "library" },
     { "id": "mcpServerRename", "method": "PATCH", "path": "/connections/{connectionId}", "access": "authenticated", "handler": "library" },

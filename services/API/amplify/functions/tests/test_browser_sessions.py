@@ -274,7 +274,14 @@ class BrowserSessionTests(BrowserRouteCases, BrowserDisplayCases, BrowserRecover
         self.assertLessEqual(len(expected), 100)
 
     def test_active_turn_even_on_later_page_blocks_open(self):
-        for state in ("PENDING", "RUNNING", "WAITING", "NEEDS_INPUT", "AWAITING_APPROVAL"):
+        for state in (
+            "PENDING",
+            "RUNNING",
+            "WAITING",
+            "NEEDS_INPUT",
+            "AWAITING_APPROVAL",
+            "AWAITING_DEVICE",
+        ):
             self.table.put_item(Item={"pk": "CHAT#user-1#bot-1", "sk": "TURN#old", "status": state})
             self.assert_error(409, self.service.open)
         self.dp.start_browser_session.assert_not_called()

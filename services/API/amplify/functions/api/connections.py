@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Callable
+from datetime import datetime, timezone
 
+from botocore.exceptions import BotoCoreError, ClientError
 from shared.catalog import CatalogError
 from shared.connection_providers import (
     SUPPORTED_CONNECTION_PROVIDER_IDS,
     connection_provider,
 )
+from shared.plaid_ledger import item_mapping_key, public_sync_status, sync_key
 
 from .external_oauth import (
     _begin_hubspot_authorization,
@@ -28,7 +32,7 @@ from .google_oauth import (
     _begin_google_workspace_authorization,
     _begin_youtube_authorization,
 )
-from .support import ApiError, catalog
+from .support import QUEUE_URL, ApiError, catalog, sqs, table
 from .x_oauth import _begin_x_authorization
 
 AuthorizationHandler = Callable[[str, dict], dict]
@@ -54,7 +58,87 @@ if frozenset(_AUTHORIZATION_HANDLERS) | {"home_assistant", "mcp_server"} != SUPP
 
 
 def _connections(user_id: str) -> dict:
-    return {"connections": catalog.list_connections(user_id)}
+    connections = catalog.list_connections(user_id)
+    for connection in connections:
+        if connection.get("provider") == "plaid":
+            state = table.get_item(
+                Key=sync_key(user_id, connection["id"]), ConsistentRead=True
+            ).get("Item")
+            connection["plaidSync"] = public_sync_status(state)
+    return {"connections": connections}
+
+
+def _plaid_sync_status(user_id: str, connection_id: str) -> dict:
+    _owned_plaid_connection(user_id, connection_id)
+    state = table.get_item(Key=sync_key(user_id, connection_id), ConsistentRead=True).get("Item")
+    return public_sync_status(state)
+
+
+def _owned_plaid_connection(user_id: str, connection_id: str) -> dict:
+    try:
+        connection = catalog._get_connection(user_id, connection_id)
+    except CatalogError as exc:
+        raise ApiError(404, "Plaid connection not found") from exc
+    if not connection or connection.get("provider") != "plaid":
+        raise ApiError(404, "Plaid connection not found")
+    return connection
+
+
+def _request_plaid_sync(user_id: str, connection_id: str) -> dict:
+    connection = _owned_plaid_connection(user_id, connection_id)
+    runtime = connection.get("runtime") or {}
+    item_id = connection.get("providerAccountId")
+    environment = runtime.get("environment")
+    try:
+        mapping_key = item_mapping_key(environment, item_id)
+    except ValueError as exc:
+        raise ApiError(409, "Plaid connection needs to be reconnected") from exc
+    table.put_item(Item={
+        **mapping_key, "entity": "PLAID_ITEM_MAPPING", "userId": user_id,
+        "connectionId": connection_id,
+    })
+    key = sync_key(user_id, connection_id)
+    current = table.get_item(Key=key, ConsistentRead=True).get("Item")
+    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    if not current:
+        try:
+            table.put_item(
+                Item={**key, "entity": "PLAID_SYNC", "connectionId": connection_id,
+                      "userId": user_id, "cursor": "", "revision": 0,
+                      "status": "queued", "transactionCount": 0, "requestedAt": now},
+                ConditionExpression="attribute_not_exists(pk)",
+            )
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+                raise
+            # A concurrent request can have created the row; the queued message is safe.
+            current = table.get_item(Key=key, ConsistentRead=True).get("Item")
+            if not current:
+                raise
+    else:
+        table.update_item(
+            Key=key,
+            UpdateExpression="SET requestedAt = :now, #status = :queued",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={":now": now, ":queued": "queued"},
+        )
+    try:
+        sqs.send_message(
+            QueueUrl=QUEUE_URL,
+            MessageBody=json.dumps({
+                "type": "PLAID_SYNC", "userId": user_id,
+                "connectionId": connection_id,
+            }),
+        )
+    except (BotoCoreError, ClientError) as exc:
+        table.update_item(
+            Key=key,
+            UpdateExpression="SET #status = :failed, errorCode = :code",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={":failed": "error", ":code": "QUEUE_UNAVAILABLE"},
+        )
+        raise ApiError(503, "Plaid sync could not be queued. Please try again.") from exc
+    return {"status": "queued", "requestedAt": now}
 
 
 def _connect_home_assistant(user_id: str, value: dict) -> dict:
@@ -110,7 +194,31 @@ def _begin_connection_authorization(
 
 def _delete_connection(user_id: str, connection_id: str) -> dict:
     try:
-        return catalog.delete_connection(user_id, connection_id)
+        connection = catalog._get_connection(user_id, connection_id)
+        result = catalog.delete_connection(user_id, connection_id)
+        if connection and connection.get("provider") == "plaid":
+            runtime = connection.get("runtime") or {}
+            try:
+                table.delete_item(Key=item_mapping_key(
+                    runtime.get("environment"), connection.get("providerAccountId")
+                ))
+            except ValueError:
+                logger.warning("Plaid Item mapping was invalid during disconnect")
+            key = sync_key(user_id, connection_id)
+            current = table.get_item(Key=key, ConsistentRead=True).get("Item") or {}
+            table.put_item(Item={
+                **key, "entity": "PLAID_SYNC", "connectionId": connection_id,
+                "userId": user_id, "status": "deleted",
+                "revision": int(current.get("revision", 0)) + 1,
+            })
+            sqs.send_message(
+                QueueUrl=QUEUE_URL,
+                MessageBody=json.dumps({
+                    "type": "PLAID_LEDGER_DELETE", "userId": user_id,
+                    "connectionId": connection_id,
+                }),
+            )
+        return result
     except CatalogError as exc:
         status = 409 if "before deleting" in str(exc) else 404
         raise ApiError(status, str(exc)) from exc

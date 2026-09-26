@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import UTC, datetime
 
@@ -12,6 +13,7 @@ from .approval_job import delete_approval_snapshot, queue_approval_expiry
 from .artifacts import _collect_generated_artifacts, _delete_generated_artifacts
 from .background_work import _queue_background_poll
 from .bot_mutations import apply_bot_mutations
+from .device_calls import create_device_call, unavailable_device_result
 from .health_events import record_terminal_error
 from .job_lifecycle import (
     FailureDisposition,
@@ -24,7 +26,15 @@ from .notifications import (
     _update_schedule_result,
 )
 from .progress import progress_updater
-from .support import _account_is_active, _bot_key, _turn_pk, catalog, table
+from .support import (
+    QUEUE_URL,
+    _account_is_active,
+    _bot_key,
+    _turn_pk,
+    catalog,
+    sqs,
+    table,
+)
 from .usage import record_invocation_usage
 from .usage_controls import (
     AdmissionDecision,
@@ -139,6 +149,43 @@ def _process_agent_reply(record: dict, request: dict) -> None:
                     ":decision": decision, ":now": utc_now_iso(),
                 },
             )
+        device_result = turn.get("deviceResult")
+        if device_result and not turn.get("runtimeResult"):
+            device_request = turn.get("deviceRequest")
+            device_received_at = turn.get("deviceResultReceivedAt")
+            if (
+                not isinstance(device_result, dict)
+                or not isinstance(device_request, dict)
+                or not isinstance(device_received_at, str)
+                or any(
+                    device_result.get(key) != device_request.get(key)
+                    for key in ("id", "digest", "toolUseId")
+                )
+                or device_result.get("status") not in {"success", "error"}
+                or datetime.fromisoformat(
+                    device_received_at.replace("Z", "+00:00")
+                )
+                > datetime.fromisoformat(
+                    device_request["expiresAt"].replace("Z", "+00:00")
+                )
+                or turn.get("deviceResultConsumedAt")
+            ):
+                raise ValueError("Device result expired, changed, or was already consumed")
+            table.update_item(
+                Key=turn_key,
+                UpdateExpression="SET deviceResultConsumedAt = :now",
+                ConditionExpression=(
+                    "#status = :running AND leaseOwner = :owner AND "
+                    "deviceResult = :result AND attribute_not_exists(deviceResultConsumedAt)"
+                ),
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={
+                    ":running": "RUNNING",
+                    ":owner": lease_owner,
+                    ":result": device_result,
+                    ":now": utc_now_iso(),
+                },
+            )
         result = _invoke(
             user_id,
             bot_id,
@@ -155,6 +202,12 @@ def _process_agent_reply(record: dict, request: dict) -> None:
                 {key: decision[key] for key in ("id", "digest", "toolUseId")}
                 if decision and not turn.get("runtimeResult") else None
             ),
+            device_result=(
+                device_result
+                if device_result and not turn.get("runtimeResult")
+                else None
+            ),
+            allow_device_tools=turn.get("source") not in {"schedule", "email"},
         )
         record_invocation_usage(
             user_id,
@@ -163,13 +216,73 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             work_type=("schedule" if turn.get("source") == "schedule" else "direct"),
             bot_id=bot_id,
         )
-        if result.bot_mutations and (result.pending_work or result.pending_approval or result.terminal_error):
+        if result.bot_mutations and (
+            result.pending_work
+            or result.pending_approval
+            or result.pending_device_call
+            or result.terminal_error
+        ):
             raise ValueError(
                 "A bot, skill, or memory change cannot be combined with unfinished or failed work"
             )
         if result.pending_work:
             if _pause_work(turn_key, lease_owner, result.pending_work):
                 _queue_background_poll(turn_key, request)
+            return
+        if result.pending_device_call:
+            proposal = result.pending_device_call
+            device_request = create_device_call(
+                user_id, bot, turn, turn_key, proposal
+            )
+            if device_request is None:
+                retry_result = unavailable_device_result(proposal)
+                table.update_item(
+                    Key=turn_key,
+                    UpdateExpression=(
+                        "SET #status = :pending, deviceRequest = :proposal, "
+                        "deviceResult = :result, deviceResultReceivedAt = :now, "
+                        "activity = :activity, "
+                        "activityUpdatedAt = :now "
+                        "REMOVE leaseOwner, leaseExpiresAt, runtimeResult, "
+                        "deviceResultConsumedAt, approvalRequest, approvalDecision, "
+                        "approvalConsumedAt, approvalTools, approvalToolIds"
+                    ),
+                    ConditionExpression="#status = :running AND leaseOwner = :owner",
+                    ExpressionAttributeNames={"#status": "status"},
+                    ExpressionAttributeValues={
+                        ":pending": "PENDING",
+                        ":running": "RUNNING",
+                        ":owner": lease_owner,
+                        ":proposal": proposal,
+                        ":result": retry_result,
+                        ":activity": ["Authorized device is unavailable"],
+                        ":now": utc_now_iso(),
+                    },
+                )
+                sqs.send_message(
+                    QueueUrl=QUEUE_URL, MessageBody=json.dumps(request)
+                )
+                return
+            table.update_item(
+                Key=turn_key,
+                UpdateExpression=(
+                    "SET #status = :awaiting, deviceRequest = :request, "
+                    "activity = :activity, activityUpdatedAt = :now "
+                    "REMOVE leaseOwner, leaseExpiresAt, runtimeResult, deviceResult, "
+                    "deviceResultReceivedAt, deviceResultConsumedAt, approvalRequest, approvalDecision, "
+                    "approvalConsumedAt, approvalTools, approvalToolIds"
+                ),
+                ConditionExpression="#status = :running AND leaseOwner = :owner",
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={
+                    ":awaiting": "AWAITING_DEVICE",
+                    ":running": "RUNNING",
+                    ":owner": lease_owner,
+                    ":request": device_request,
+                    ":activity": ["Waiting for authorized Apple device"],
+                    ":now": utc_now_iso(),
+                },
+            )
             return
         if result.pending_approval:
             proposal = result.pending_approval
@@ -213,7 +326,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             )
             if not completed_at:
                 return
-            if decision:
+            if decision or device_result:
                 try:
                     delete_approval_snapshot("direct", user_id, turn["id"], bot_id)
                 except Exception:
@@ -264,7 +377,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
     if not completed_at:
         cleanup_artifacts()
         return
-    if decision:
+    if decision or device_result:
         try:
             delete_approval_snapshot("direct", user_id, turn["id"], bot_id)
         except Exception:

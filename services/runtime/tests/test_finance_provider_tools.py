@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import gzip
+import io
 import json
 
 import pytest
@@ -55,6 +57,31 @@ def _plaid_binding(account_ids: list[str] | None = None) -> dict:
             **({"accountIds": account_ids} if account_ids is not None else {}),
         },
     )
+
+
+def test_plaid_transactions_use_saved_ledger_and_enforce_bot_accounts(monkeypatch) -> None:
+    key = "users/" + "a" * 64 + f"/finance/plaid/{TOOL_ID}/snapshots/" + "b" * 32 + ".json.gz"
+    binding = provider_connections.validated_provider_binding(TOOL_ID, {
+        **_plaid_binding(["account_allowed_123"]),
+        "ledgerObjectKey": key,
+        "ledgerLastSyncedAt": "2026-09-25T20:00:00Z",
+        "ledgerHistoricalComplete": True,
+    })
+    ledger = [
+        {"transaction_id": "tx_allowed", "account_id": "account_allowed_123", "date": "2026-09-25"},
+        {"transaction_id": "tx_private", "account_id": "account_private_456", "date": "2026-09-25"},
+    ]
+    client = type("Client", (), {"get_object": lambda self, **_kwargs: {
+        "Body": io.BytesIO(gzip.compress(json.dumps(ledger).encode()))
+    }})()
+    monkeypatch.setenv("HEYTIM_FILES_BUCKET", "test-files")
+    monkeypatch.setattr(finance_provider_tools.boto3, "client", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(finance_provider_tools, "_plaid_json", lambda *_args: pytest.fail("live pull"))
+    tools = provider_connections.provider_connection_tools(binding)
+    result = json.loads(tools[1]("2026-09-01", "2026-09-25", 100))
+    assert [item["transaction_id"] for item in result["transactions"]] == ["tx_allowed"]
+    assert result["source"] == "cached_plaid_sync"
+    assert result["historicalComplete"] is True
 
 
 def test_finance_bindings_accept_only_scoped_provider_configuration() -> None:
@@ -124,7 +151,11 @@ def test_plaid_exposes_accounts_transactions_and_liabilities(monkeypatch) -> Non
 
     assert [item.tool_name for item in tools] == [
         _bounded_tool_name(TOOL_ID, name)
-        for name in ("plaid_accounts", "plaid_transactions", "plaid_liabilities")
+        for name in (
+            "plaid_accounts",
+            "plaid_transactions",
+            "plaid_liabilities",
+        )
     ]
     assert json.loads(tools[0]())["accounts"][0]["name"] == "Card"
     result = json.loads(tools[1]("2026-09-01", "2026-09-25", 20))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import unittest
 from unittest.mock import patch
@@ -185,6 +186,7 @@ class FinanceConnectionTests(unittest.TestCase):
                         "https://api.example.com/public/plaid/callback"
                     ),
                     "PLAID_OAUTH_REDIRECT_URI": "https://heytim.ai/plaid-oauth",
+                    "PLAID_WEBHOOK_URL": "https://api.example.com/public/webhooks/plaid",
                 },
             ),
         ):
@@ -196,6 +198,8 @@ class FinanceConnectionTests(unittest.TestCase):
         payload = plaid.call_args.args[2]
         self.assertEqual(payload["products"], ["transactions"])
         self.assertEqual(payload["optional_products"], ["liabilities"])
+        self.assertEqual(payload["transactions"]["days_requested"], 730)
+        self.assertEqual(payload["webhook"], "https://api.example.com/public/webhooks/plaid")
         self.assertIn("state=plaid-state-with-enough-entropy", payload["hosted_link"]["completion_redirect_uri"])
         saved = self.data_table.items[(self.finance._state_key(state)["pk"], "STATE")]
         self.assertEqual(saved["appSecretArn"], arn)
@@ -266,9 +270,14 @@ class FinanceConnectionTests(unittest.TestCase):
             ),
             patch.object(self.finance.catalog, "save_plaid_connection") as save,
         ):
+            save.return_value = {"id": "connection_1234567890abcdef1234"}
             response = self.finance._plaid_callback({"state": state})
 
         self.assertIn("status=connected", response["headers"]["location"])
+        mapping = self.data_table.items[("PLAID_ITEM#sandbox#item_12345678", "CONNECTION")]
+        self.assertEqual(mapping["connectionId"], "connection_1234567890abcdef1234")
+        queued = json.loads(self.finance.sqs.send_message.call_args.kwargs["MessageBody"])
+        self.assertEqual(queued["type"], "PLAID_SYNC")
         save.assert_called_once_with(
             "user-1",
             "Plaid Bank · 2 accounts",

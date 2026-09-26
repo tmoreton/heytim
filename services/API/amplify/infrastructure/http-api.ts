@@ -15,6 +15,7 @@ import apiContract from '../functions/api/api-contract.json';
 type HttpApiProps = {
   stack: Stack;
   apiFunction: LambdaFunction;
+  plaidWebhookFunction: LambdaFunction;
   apiAccessLogGroup: LogGroup;
   allowedOrigins: string[];
   userPoolId: string;
@@ -32,6 +33,7 @@ const contractMethods: Record<string, HttpMethod> = {
 export function addHttpApi({
   stack,
   apiFunction,
+  plaidWebhookFunction,
   apiAccessLogGroup,
   allowedOrigins,
   userPoolId,
@@ -57,6 +59,9 @@ export function addHttpApi({
     { jwtAudience: [userPoolClientId] },
   );
   const integration = new HttpLambdaIntegration('ApiIntegration', apiFunction, {
+    scopePermissionToRoute: false,
+  });
+  const plaidIntegration = new HttpLambdaIntegration('PlaidWebhookIntegration', plaidWebhookFunction, {
     scopePermissionToRoute: false,
   });
 
@@ -90,7 +95,7 @@ export function addHttpApi({
     httpApi.addRoutes({
       path: route.path,
       methods: [method],
-      integration,
+      integration: route.id === 'plaidWebhook' ? plaidIntegration : integration,
       ...(route.access === 'authenticated' ? { authorizer } : {}),
     });
   }

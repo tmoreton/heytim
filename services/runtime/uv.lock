@@ -355,21 +355,21 @@ wheels = [
 
 [[package]]
 name = "caio"
-version = "0.12.4"
+version = "0.12.5"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d2/c9/ac301b7f86ccf6ad02ee78eb953ce8f75175754cc5e76d398e447af42e3e/caio-0.12.4.tar.gz", hash = "sha256:32d8e9f3e2099c8db29446679252766c9bcd806eb88b4fb60ad274f73df2a5e9", size = 81006, upload-time = "2026-09-07T06:52:39.18Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c2/d5/950ea8ada83cd5e13ced7f008b7d39418b1f3c2bd679cdf77e6113069731/caio-0.12.5.tar.gz", hash = "sha256:3b28842db82f83dfc4d7a8578585d2ef792a9a889069b7f5e1bddab94d2d1605", size = 82370, upload-time = "2026-09-25T21:00:29.35Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6d/07/ab0bc8a481126e6b4f6f56f3bb94e41568fc4604df15420616251b2e28da/caio-0.12.4-cp314-cp314-macosx_26_0_arm64.whl", hash = "sha256:cd1d00ed1867a3b7a4cffb64b1bd8644de4b6f88cb25240cf82a9cc160ace975", size = 41131, upload-time = "2026-09-07T06:52:26.512Z" },
-    { url = "https://files.pythonhosted.org/packages/24/3b/49382d9f7b3f65c76bb63a18a657833c4bfa695555b9663139950dec3c11/caio-0.12.4-cp314-cp314-manylinux_2_34_aarch64.whl", hash = "sha256:4189104e5579553031340a677762398c130b81ddb7d7c9b69eebffddaecc4f58", size = 162063, upload-time = "2026-09-07T06:52:27.717Z" },
-    { url = "https://files.pythonhosted.org/packages/14/7c/eaf41fb7e0c864c3a5ce4c259eba0f505633efe4f789fffb6d3f1eb7e9e1/caio-0.12.4-cp314-cp314-manylinux_2_34_x86_64.whl", hash = "sha256:4f2e0b6d393dc0ea78cfd13a9a4321fc35fd6a2db802e5f64651317e859fc929", size = 159514, upload-time = "2026-09-07T06:52:28.914Z" },
-    { url = "https://files.pythonhosted.org/packages/41/7e/4041947d8caa760b74a27c8082844c72974da7cbfb96737990b8c6749e53/caio-0.12.4-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:710ffe4a6f3d69dbfe98e9f856c24a544e4d639c7bd210f9f5503a26e62502f4", size = 159753, upload-time = "2026-09-07T06:52:30.081Z" },
-    { url = "https://files.pythonhosted.org/packages/32/76/b6c524a51eca13b861e8f98c927b933fdf5766f0c7c9017a21d889a84e3d/caio-0.12.4-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:ddf8d946b795ebd7c75b331b6dcbab4808fdd2c9f16ca76012b4757512861133", size = 159167, upload-time = "2026-09-07T06:52:31.288Z" },
-    { url = "https://files.pythonhosted.org/packages/d3/f4/c39ed874d420bb2719d52932d763953c28371c536d6bf264de1febeb27d5/caio-0.12.4-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:17a41de51203fc4d787d8d577bd56f169167aa9822f14fada015504688791aa4", size = 41920, upload-time = "2026-09-07T06:52:32.432Z" },
-    { url = "https://files.pythonhosted.org/packages/e7/54/58f4ba2ac9ba69bd30e5c89493d34aa483743f823f79a854f20771fb80ca/caio-0.12.4-cp314-cp314t-manylinux_2_34_aarch64.whl", hash = "sha256:ee9de68d6ede7ed69e55a1c09073ce146d9f9470088796d55238c485a93fe203", size = 183327, upload-time = "2026-09-07T06:52:33.492Z" },
-    { url = "https://files.pythonhosted.org/packages/25/81/6b86722be50975b80a636afebed5af1a6e6588afeff0ae1a0a7f8c262707/caio-0.12.4-cp314-cp314t-manylinux_2_34_x86_64.whl", hash = "sha256:1c1a387f8784a86a56a8912ca42e1ad67599f16406f497b5b655b461a1b89426", size = 179368, upload-time = "2026-09-07T06:52:34.66Z" },
-    { url = "https://files.pythonhosted.org/packages/a3/a3/19ab810f11d1688bb2009e669b2645410a89b7a35b608239ac4076dc1611/caio-0.12.4-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:ceee64265a55b9aba9c38c1d01a159b99f1e36eb56938022018199d2e7fe1742", size = 181460, upload-time = "2026-09-07T06:52:35.841Z" },
-    { url = "https://files.pythonhosted.org/packages/0f/b2/e54e6e445d600e22b107e4005714cad0657bc7dc19d200817ab7a62ac722/caio-0.12.4-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:456a93868ff007cea65d916d96d192cda8b9992c6eee046cb0159040f9446ab5", size = 179230, upload-time = "2026-09-07T06:52:36.978Z" },
-    { url = "https://files.pythonhosted.org/packages/e8/e6/07100a694613344d22958fb6d803fdf914ee9395278fe58ad1b1b9c59e52/caio-0.12.4-py3-none-any.whl", hash = "sha256:7a5e231bbf81eaed269f99afa9ef46457f51f9407952a1795c0795b3a62c23c0", size = 25628, upload-time = "2026-09-07T06:52:38.147Z" },
+    { url = "https://files.pythonhosted.org/packages/81/b7/69c0eeeaffe145590837ef55eb7dfaca28d08c979be71d4ea81ea98d3851/caio-0.12.5-cp314-cp314-macosx_26_0_arm64.whl", hash = "sha256:d74f41839f5af1379e1928eac7b8190d7ab5434ff06e2cd157d0c1b032d9938c", size = 41133, upload-time = "2026-09-25T21:00:16.211Z" },
+    { url = "https://files.pythonhosted.org/packages/e6/42/d670021908b603de2a71801b42b42a43c88fb9a48cbb1c11e6cee8cf5ca4/caio-0.12.5-cp314-cp314-manylinux_2_34_aarch64.whl", hash = "sha256:2d8cc9b0ba41a0c7321a58ddc932bb762728875c98a8100770b2c3642c57e13d", size = 163661, upload-time = "2026-09-25T21:00:17.197Z" },
+    { url = "https://files.pythonhosted.org/packages/80/70/edd71c800988d563d323da4e4af4bd752a25d3b52925a1ea32a042d7fc26/caio-0.12.5-cp314-cp314-manylinux_2_34_x86_64.whl", hash = "sha256:3e1c3b12da014f8819f3a58c9609296cff1ef246529827990189a4748e12a1f2", size = 160896, upload-time = "2026-09-25T21:00:18.393Z" },
+    { url = "https://files.pythonhosted.org/packages/11/b2/655540d8940c2dd9edfff86bc308265dedb092956140b0271abd51da3ffa/caio-0.12.5-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:ea49ed192e7c66e5b2a3c47737a5d24deef80297f62453f58a590229478045ed", size = 161336, upload-time = "2026-09-25T21:00:19.596Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/2b/a6d976abccba0b485e7b8f7c075d327b42b76a99ce9508f3c5d9798ab327/caio-0.12.5-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:99893542f04dbc9cfaaf1c13ed631b17d9968a689ae0e9192d9ee3146f294ed2", size = 160557, upload-time = "2026-09-25T21:00:20.936Z" },
+    { url = "https://files.pythonhosted.org/packages/98/c8/d22e087d09cb0776545edde4e34ce617b2594c57b66e33ee06e5793eb62f/caio-0.12.5-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:a7e8235f4e751d4fbb9b97215cc0004a7218b0946f48195a351487f664373525", size = 41918, upload-time = "2026-09-25T21:00:22.377Z" },
+    { url = "https://files.pythonhosted.org/packages/e8/b5/44c065329c69a06442ee0d4df7c84c09bf9c4f7c851aee29ec9d8284f866/caio-0.12.5-cp314-cp314t-manylinux_2_34_aarch64.whl", hash = "sha256:bb4c51fcdc41df119382d702ff29a7023ca34602a362262e2d108b3031525348", size = 184827, upload-time = "2026-09-25T21:00:23.422Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/ee/4183630b53eaf490744d94ab7d669f587c5663189027aa961af95fdc4986/caio-0.12.5-cp314-cp314t-manylinux_2_34_x86_64.whl", hash = "sha256:0a774bdbd08b5edb5fc9bb0d9eb730fe524c649ebb067a7e7730adeae85c23c4", size = 180767, upload-time = "2026-09-25T21:00:24.656Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/d3/b3c7a4ee9875998957bb2d3df5dc4958be51750ab8779fb92e83c4be8043/caio-0.12.5-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:99b6afc0d60355f55a46485b0dcafd2e8761f6ca563e607553cc078bc908c8f1", size = 182990, upload-time = "2026-09-25T21:00:25.94Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/3e/630df3f67380f27c1da4b98d297b471911006d6f4ecc9e8106200a1d20f9/caio-0.12.5-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:ec6cd380c4a2d6b3d15c821241591b11d1fcb192320e92afffe002a6959ae709", size = 180625, upload-time = "2026-09-25T21:00:27.148Z" },
+    { url = "https://files.pythonhosted.org/packages/af/18/47bffacc6113e79fffa5e9a1424fda98df485f558e4543e4548122afbaa7/caio-0.12.5-py3-none-any.whl", hash = "sha256:579e759be8b7e6f0183899ad06264e30b84739e6a34ee4394a543b266eac6bc8", size = 25629, upload-time = "2026-09-25T21:00:28.293Z" },
 ]
 
 [[package]]
@@ -820,6 +820,7 @@ dependencies = [
     { name = "boto3" },
     { name = "botocore" },
     { name = "cyclopts" },
+    { name = "googleapis-common-protos" },
     { name = "greenlet" },
     { name = "grpcio" },
     { name = "httpx" },
@@ -866,6 +867,7 @@ requires-dist = [
     { name = "boto3", specifier = "==1.43.90" },
     { name = "botocore", specifier = "==1.43.92" },
     { name = "cyclopts", specifier = "==4.25.2" },
+    { name = "googleapis-common-protos", specifier = "==1.75.3" },
     { name = "greenlet", specifier = "==3.5.5" },
     { name = "grpcio", specifier = "==1.83.1" },
     { name = "httpx", specifier = "==0.28.1" },

@@ -15,6 +15,7 @@ from .capability_contract import (
     tool_bindings,
     validate_skill_selection,
 )
+from .device_tools import device_tools
 from .gateway_tools import gateway_client, gateway_operations
 from .gmail_api import gmail_api_tools
 from .image_generation import image_generation_tools
@@ -29,6 +30,7 @@ from .mcp_connections import (
 from .memes import meme_tools
 from .provider_connections import provider_connection_tools
 from .repository_workspace import repository_workspace_tool
+from .workspace_assets import workspace_asset_tools
 from .workspace_sync import workspace_sync_tool
 
 log = logging.getLogger(__name__)
@@ -60,6 +62,7 @@ def resolve_capabilities(
     image_references: list[dict] | None = None,
     usage: Any = None,
     workspace_files: list[dict] | None = None,
+    workspace_assets: list[dict] | None = None,
 ) -> CapabilityConfiguration:
     bindings = tool_bindings(bot)
     skills = dynamic_skills(bot)
@@ -70,11 +73,13 @@ def resolve_capabilities(
         for item in bindings
         if item["kind"] == "local" and item["name"] in CUSTOM_TOOLS
     ]
+    tools.extend(device_tools(bindings))
     local_names = {item["name"] for item in bindings if item["kind"] == "local"}
     if "bot_manager" in local_names and bot_management is not None:
         tools.extend(bot_management_tools(bot_management, bot_mutations))
     if artifact_prefix:
         tools.append(artifact_tool(artifact_prefix))
+        tools.extend(workspace_asset_tools(artifact_prefix, workspace_assets or []))
         if "meme_lord" in local_names:
             tools.extend(
                 meme_tools(

@@ -17,6 +17,9 @@ def validated_provider_binding(tool_id: str, runtime: dict) -> dict:
         environment = runtime.get("environment")
         account_label = runtime.get("accountLabel")
         account_ids = runtime.get("accountIds")
+        ledger_key = runtime.get("ledgerObjectKey")
+        ledger_synced = runtime.get("ledgerLastSyncedAt")
+        ledger_complete = runtime.get("ledgerHistoricalComplete")
         if (
             runtime.get("authType") != "plaid_link"
             or not isinstance(secret_arn, str)
@@ -24,6 +27,18 @@ def validated_provider_binding(tool_id: str, runtime: dict) -> dict:
             or not isinstance(app_secret_arn, str)
             or not _runtime().PLAID_APP_SECRET_ARN_PATTERN.fullmatch(app_secret_arn)
             or environment not in {"sandbox", "production"}
+            or (ledger_key is not None and (
+                not isinstance(ledger_key, str)
+                or not re.fullmatch(
+                    r"users/[a-f0-9]{64}/finance/plaid/"
+                    + re.escape(tool_id)
+                    + r"/snapshots/[a-f0-9]{32}\.json\.gz", ledger_key,
+                )
+            ))
+            or (ledger_synced is not None and (
+                not isinstance(ledger_synced, str) or len(ledger_synced) > 40
+            ))
+            or (ledger_complete is not None and type(ledger_complete) is not bool)
             or (account_ids is not None and (
                 not isinstance(account_ids, list)
                 or not 1 <= len(account_ids) <= 100
@@ -57,6 +72,10 @@ def validated_provider_binding(tool_id: str, runtime: dict) -> dict:
                 if account_label is not None else {}
             ),
             **({"accountIds": account_ids} if account_ids is not None else {}),
+            **({"ledgerObjectKey": ledger_key} if ledger_key is not None else {}),
+            **({"ledgerLastSyncedAt": ledger_synced} if ledger_synced is not None else {}),
+            **({"ledgerHistoricalComplete": ledger_complete}
+               if ledger_complete is not None else {}),
         }
     client_secret_arn = runtime.get("oauthClientSecretArn")
     scopes = runtime.get("scopes")
