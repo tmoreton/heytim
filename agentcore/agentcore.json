@@ -83,6 +83,10 @@
           "value": "2"
         },
         {
+          "name": "HEYTIM_MAX_OUTPUT_TOKENS",
+          "value": "8192"
+        },
+        {
           "name": "HEYTIM_AGENT_RUN_TIMEOUT_SECONDS",
           "value": "28800"
         },
