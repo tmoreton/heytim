@@ -74,6 +74,19 @@ PROVIDER_CALL_LIMITS = ProviderCallLimits(
     youtube_search_calls=YOUTUBE_SEARCH_MAX_CALLS,
 )
 
+# Background jobs span multiple checkpointed agent invocations. Keep one finite
+# cumulative budget across every slice, retry, and fallback; never reset usage.
+LONG_RUN_CALL_LIMITS = ProviderCallLimits(
+    model_calls=_bounded_integer_environment(
+        "HEYTIM_MAX_MODEL_CALLS_PER_LONG_RUN", 160, 1, 500
+    ),
+    provider_tool_calls=_bounded_integer_environment(
+        "HEYTIM_MAX_PROVIDER_TOOL_CALLS_PER_LONG_RUN", 96, 1, 500
+    ),
+    image_calls=PROVIDER_CALL_LIMITS.image_calls,
+    youtube_search_calls=PROVIDER_CALL_LIMITS.youtube_search_calls,
+)
+
 
 class ProviderCallLimitExceeded(RuntimeError):
     """Raised before a paid provider dispatch would exceed a run-local cap."""

@@ -4,13 +4,15 @@ import asyncio
 import logging
 import os
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
 from strands.types.exceptions import MaxTokensReachedException
 
-# A tool-heavy change can legitimately need more than two model chunks. Keep the
-# cap finite so a model that never concludes still fails instead of looping forever.
+from model.load import increase_output_budget
+
+# Limit consecutive truncations without completed work. Successful tool results
+# reset this streak; the shared model-call cap and deadline still bound the run.
 MAX_TOKEN_CONTINUATIONS = 3
 MAX_INCOMPLETE_TURN_CONTINUATIONS = 1
 AGENT_RUN_TIMEOUT_SECONDS = int(
@@ -65,6 +67,25 @@ def _event_payload(value: Any) -> dict:
         return {}
     event = value.get("event", value)
     return event if isinstance(event, dict) else {}
+
+
+def _completed_tool_work(event: Any) -> bool:
+    if not isinstance(event, dict):
+        return False
+    results = [event.get("tool_result")]
+    # The public SDK stream emits the assembled message, not its internal
+    # ToolResultEvent. Support both shapes so completed work resets recovery.
+    message = event.get("message")
+    if isinstance(message, dict) and message.get("role") == "user":
+        results.extend(
+            block.get("toolResult")
+            for block in message.get("content", [])
+            if isinstance(block, dict)
+        )
+    return any(
+        isinstance(result, dict) and result.get("status") == "success"
+        for result in results
+    )
 
 
 class _CompletionTracker:
@@ -122,12 +143,18 @@ async def stream_with_token_recovery(
     logger: logging.Logger | None = None,
     timeout_seconds: float = AGENT_RUN_TIMEOUT_SECONDS,
     idle_timeout_seconds: float = AGENT_IDLE_TIMEOUT_SECONDS,
+    turn_slice_size: int | None = None,
+    checkpoint: Callable[[Any], Awaitable[None]] | None = None,
 ) -> AsyncIterator[Any]:
     """Resume partial or prematurely-ended responses within bounded budgets."""
     if timeout_seconds <= 0:
         raise ValueError("timeout_seconds must be positive")
     if idle_timeout_seconds <= 0:
         raise ValueError("idle_timeout_seconds must be positive")
+    if turn_slice_size is not None and (
+        type(turn_slice_size) is not int or turn_slice_size < 1
+    ):
+        raise ValueError("turn_slice_size must be a positive integer")
     token_continuations = 0
     incomplete_turn_continuations = 0
     next_prompt = prompt
@@ -136,8 +163,16 @@ async def stream_with_token_recovery(
         async with asyncio.timeout(timeout_seconds) as timeout_context:
             while True:
                 tracker = _CompletionTracker()
+                stop_reason = None
                 try:
-                    stream = agent.stream_async(next_prompt)
+                    stream = agent.stream_async(
+                        next_prompt,
+                        **(
+                            {"limits": {"turns": turn_slice_size}}
+                            if turn_slice_size
+                            else {}
+                        ),
+                    )
                     iterator = stream.__aiter__()
                     while True:
                         try:
@@ -147,11 +182,22 @@ async def stream_with_token_recovery(
                         except StopAsyncIteration:
                             break
                         tracker.observe(event)
+                        if isinstance(event, dict) and event.get("stop"):
+                            stop_reason = event["stop"][0]
+                        if isinstance(event, dict) and event.get("result") is not None:
+                            stop_reason = getattr(
+                                event["result"], "stop_reason", stop_reason
+                            )
+                        if _completed_tool_work(event):
+                            token_continuations = 0
                         yield event
                 except MaxTokensReachedException:
                     if token_continuations >= MAX_TOKEN_CONTINUATIONS:
                         raise
                     token_continuations += 1
+                    increase_output_budget(getattr(agent, "model", None))
+                    if checkpoint is not None:
+                        await checkpoint(agent)
                     if logger:
                         logger.warning(
                             "Model reached its output token limit; resuming partial turn (%d/%d)",
@@ -170,6 +216,16 @@ async def stream_with_token_recovery(
                             idle_timeout_seconds,
                         )
                     raise
+
+                if stop_reason == "limit_turns":
+                    # Strands stops between complete tool batches with valid
+                    # history. Continue that history, never the original prompt.
+                    if checkpoint is not None:
+                        await checkpoint(agent)
+                    next_prompt = None
+                    if logger:
+                        logger.info("Saved long-running task checkpoint; continuing")
+                    continue
 
                 if not looks_like_incomplete_turn(tracker.final_text):
                     return

@@ -19,6 +19,7 @@ from .instructions import (
 )
 from .memes import image_attachments_from_messages
 from .request import image_references_from_payload
+from .tool_results import RESULT_INSTRUCTIONS
 from .workspace_assets import workspace_assets_from_payload
 from .workspace_sync import workspace_files_from_payload
 
@@ -89,6 +90,7 @@ def bot_configuration(
         workspace_assets=workspace_assets,
     )
     instructions = base_instructions(name.strip(), prompt.strip())
+    instructions += "\n\n" + RESULT_INSTRUCTIONS
     if workspace_files and any(
         getattr(candidate, "tool_name", None) == "load_workspace_files"
         for candidate in capabilities.tools
