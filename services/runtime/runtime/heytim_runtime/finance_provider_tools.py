@@ -13,7 +13,6 @@ from typing import Any
 
 import boto3
 from botocore.config import Config
-
 from strands import tool
 
 QUICKBOOKS_BASE_URLS = {
@@ -51,7 +50,7 @@ def _plaid_cached_transactions(binding: dict, start: str, end: str,
         raise ValueError("Plaid transaction cache is too large")
     records = json.loads(data)
     if not isinstance(records, list):
-        raise ValueError("Plaid transaction cache is invalid")
+        raise TypeError("Plaid transaction cache is invalid")
     allowed = _plaid_account_ids(binding)
     matching = [
         item for item in records
