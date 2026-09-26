@@ -10,6 +10,7 @@ import {
 type DeploymentRoleResources = {
   stack: Stack;
   enabled: boolean;
+  logsKmsKeyArn: string;
   legacyTokenVaultKmsKeyArn?: string;
   nativePushApplicationArns?: string[];
   nativePushFeedbackRoleArn?: string;
@@ -18,6 +19,7 @@ type DeploymentRoleResources = {
 export function addGithubDeploymentRole({
   stack,
   enabled,
+  logsKmsKeyArn,
   legacyTokenVaultKmsKeyArn,
   nativePushApplicationArns = [],
   nativePushFeedbackRoleArn,
@@ -338,21 +340,25 @@ export function addGithubDeploymentRole({
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['kms:DescribeKey'],
-    resources: [stack.formatArn({
-      service: 'kms',
-      resource: 'key',
-      resourceName: '*',
-      arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
-    })],
+    resources: [logsKmsKeyArn],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['kms:GenerateDataKey', 'kms:Decrypt'],
+    resources: [logsKmsKeyArn],
     conditions: {
-      'ForAnyValue:StringEquals': {
-        'kms:ResourceAliases': ['alias/heytim-production-logs'],
+      StringLike: {
+        'kms:EncryptionContext:aws:bedrock-agentcore:batchEvaluationArn':
+          agentCoreArn('batch-evaluate', '*'),
       },
     },
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['logs:AssociateKmsKey', 'logs:PutRetentionPolicy'],
-    resources: [runtimeLogGroupArn],
+    resources: [
+      runtimeLogGroupArn,
+      evaluationLogGroupArn,
+      `${evaluationLogGroupArn}:*`,
+    ],
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['logs:DescribeLogGroups'],

@@ -94,6 +94,8 @@ dependencies = [
 dev = [
     "jsonschema >= 4.26.0, < 5.0.0",
     "pytest>=8.4.0,<10.0.0",
+    # The managed regression runner downloads a presigned dataset fixture.
+    "requests == 2.34.2",
     "ruff >= 0.14.0, < 1.0.0",
 ]
 

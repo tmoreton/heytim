@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 
@@ -61,6 +62,25 @@ class InfrastructureContractTests(unittest.TestCase):
             / "scripts"
             / "authenticated-workflow-test.mjs"
         ).read_text(encoding="utf-8")
+        cls.managed_regression_runner = (
+            Path(__file__).parents[5]
+            / "services"
+            / "runtime"
+            / "scripts"
+            / "run_managed_regression.py"
+        ).read_text(encoding="utf-8")
+        cls.regression_examples = [
+            json.loads(line)
+            for line in (
+                Path(__file__).parents[5]
+                / "agentcore"
+                / "datasets"
+                / "HeyTimRegression.jsonl"
+            )
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
 
     def test_worker_concurrency_protects_agentcore_and_is_observed(self) -> None:
         self.assertIn("reservedConcurrentExecutions: workerConcurrency", self.application_functions)
@@ -421,9 +441,9 @@ class InfrastructureContractTests(unittest.TestCase):
         for value in (
             "HEYTIM_RELEASE_TEST_REFRESH_TOKEN",
             "HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED",
-            "agentcore run batch-evaluation",
-            "--dataset HeyTimRegression",
-            "Builtin.GoalSuccessRate Builtin.InstructionFollowing",
+            "scripts/run_managed_regression.py",
+            "HEYTIM_REGRESSION_DATASET_ID",
+            "Builtin.GoalSuccessRate Builtin.ResponseRelevance",
             '.statistics.averageScore >= 0.8',
             "REFRESH_TOKEN_AUTH",
             "npm --prefix services/API run workflow:test",
@@ -438,8 +458,34 @@ class InfrastructureContractTests(unittest.TestCase):
             "bedrock-agentcore:GetBatchEvaluation",
             "bedrock-agentcore:ListBatchEvaluations",
             "bedrock-agentcore:ListDatasetExamples",
+            "kms:GenerateDataKey",
+            "kms:Decrypt",
         ):
             self.assertIn(action, self.deployment_role)
+        self.assertIn(
+            "kms:EncryptionContext:aws:bedrock-agentcore:batchEvaluationArn",
+            self.deployment_role,
+        )
+        self.assertIn("logsKmsKeyArn: logsKey.keyArn", self.backend)
+        self.assertIn("bedrock-agentcore.amazonaws.com", self.backend)
+        self.assertIn("'aws:SourceAccount': stack.account", self.backend)
+
+    def test_managed_regression_uses_an_explicit_structured_invoker(self) -> None:
+        self.assertIn("DatasetManagementServiceProvider", self.managed_regression_runner)
+        self.assertIn('"tools": []', self.managed_regression_runner)
+        self.assertIn('"skills": []', self.managed_regression_runner)
+        self.assertIn("agentRuntimeArn=runtime_arn", self.managed_regression_runner)
+        self.assertIn("gen_ai.task.input", self.managed_regression_runner)
+        self.assertIn("gen_ai.task.output", self.managed_regression_runner)
+        self.assertIn("kms_key_arn=args.kms_key_arn", self.managed_regression_runner)
+        self.assertNotIn(".env.local", self.managed_regression_runner)
+
+    def test_managed_regression_inputs_use_the_runtime_contract(self) -> None:
+        self.assertGreaterEqual(len(self.regression_examples), 5)
+        for example in self.regression_examples:
+            for turn in example["turns"]:
+                self.assertIsInstance(turn["input"], str)
+                self.assertTrue(turn["input"].strip())
 
     def test_memory_clients_can_use_the_configured_encryption_key(self) -> None:
         self.assertIn(

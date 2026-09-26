@@ -349,10 +349,12 @@ jobs:
           gateway_arn="$(jq -r "$target.mcp.gateways.HeyTimTools.gatewayArn // empty" /tmp/heytim-production-status.json)"
           gateway_id="$(jq -r "$target.mcp.gateways.HeyTimTools.gatewayId // empty" /tmp/heytim-production-status.json)"
           gateway_url="$(jq -r "$target.mcp.gateways.HeyTimTools.gatewayUrl // empty" /tmp/heytim-production-status.json)"
+          dataset_id="$(jq -r "$target.datasets.HeyTimRegression.datasetId // empty" /tmp/heytim-production-status.json)"
           if [[ "$runtime_arn" != arn:aws:bedrock-agentcore:* ]] \
             || [[ "$memory_arn" != arn:aws:bedrock-agentcore:* ]] \
             || [[ "$gateway_arn" != arn:aws:bedrock-agentcore:* ]] \
             || [[ -z "$gateway_id" ]] \
+            || [[ -z "$dataset_id" ]] \
             || [[ "$gateway_url" != https://*.gateway.bedrock-agentcore.*.amazonaws.com/mcp ]]; then
             echo 'AgentCore production resources are not ready.' >&2
             exit 1
@@ -362,6 +364,7 @@ jobs:
           echo "HEYTIM_AGENT_GATEWAY_ARN=$gateway_arn" >> "$GITHUB_ENV"
           echo "HEYTIM_AGENT_GATEWAY_ID=$gateway_id" >> "$GITHUB_ENV"
           echo "HEYTIM_AGENT_GATEWAY_URL=$gateway_url" >> "$GITHUB_ENV"
+          echo "HEYTIM_REGRESSION_DATASET_ID=$dataset_id" >> "$GITHUB_ENV"
 
       - name: Deploy Amplify production backend
         working-directory: services/API
@@ -489,18 +492,18 @@ jobs:
         run: ./scripts/verify-production-deployment.sh
 
       - name: Gate release on the managed AgentCore regression dataset
-        working-directory: agentcore
+        working-directory: services/runtime
         run: |
           result="$RUNNER_TEMP/heytim-release-evaluation/result.json"
           mkdir -p "$(dirname "$result")"
-          agentcore run batch-evaluation \
-            --runtime HeyTim \
-            --dataset HeyTimRegression \
+          uv run --frozen python scripts/run_managed_regression.py \
+            --runtime-arn "$HEYTIM_AGENT_RUNTIME_ARN" \
+            --dataset-id "$HEYTIM_REGRESSION_DATASET_ID" \
             --dataset-version DRAFT \
-            --evaluator Builtin.GoalSuccessRate Builtin.InstructionFollowing \
+            --evaluator Builtin.GoalSuccessRate Builtin.ResponseRelevance \
             --name "HeyTimRelease_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" \
-            --wait \
-            --json > "$result"
+            --region "${{ steps.target.outputs.region }}" \
+            --kms-key-arn "$HEYTIM_LOGS_KMS_KEY_ARN" > "$result"
           if ! jq -e '
             .status == "COMPLETED"
             and .evaluationResults.totalNumberOfSessions >= 5

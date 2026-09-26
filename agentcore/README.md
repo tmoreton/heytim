@@ -21,6 +21,17 @@ The current AgentCore project schema does not own the runtime CloudWatch log gro
 retention. `scripts/harden-agentcore-logs.sh` manages 30-day retention and customer-managed encryption
 after deployment. Keep that ownership outside generated CDK until the schema exposes supported fields.
 
+AgentCore CLI 0.29.0 does not expose a deployment-target option for managed batch evaluations and its default dataset
+invoker sends only a prompt. The production release uses `services/runtime/scripts/run_managed_regression.py`, AWS's
+documented custom-invoker path, with the exact production runtime ARN and managed dataset ID. The invoker adds explicit
+empty, catalog-resolved `bot.tools` and `bot.skills` lists; the runtime must continue rejecting unresolved catalog
+capabilities instead of adding an evaluation-only fallback. Production runtime spans remain content-redacted. The runner
+writes only the fixed regression prompts and their tool-free responses as supported OpenTelemetry spans under the
+KMS-encrypted `/aws/bedrock-agentcore/evaluations/heytim-release-fixtures` group with 30-day retention.
+The release threshold combines assertion-aware `Builtin.GoalSuccessRate` with `Builtin.ResponseRelevance`; generic
+instruction compliance is intentionally excluded because several safety fixtures require refusing an unsafe or
+impossible instruction.
+
 ## Platform-owned provider keys
 
 OpenRouter, X, and YouTube use company-owned API keys. End users never enter, receive, or manage these
