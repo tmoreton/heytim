@@ -1,6 +1,6 @@
 # Production account-isolation cutover plan
 
-**Status:** Approved for guarded execution
+**Status:** Guarded execution in progress; traffic has not moved
 **Observed:** 2026-09-25 in `us-east-1`  
 **Source account:** `188757775631`  
 **Destination account:** `820323452649`
@@ -17,18 +17,33 @@ The counts below are deployment-planning metadata. No customer record or object 
 
 | Area | Source production | Destination readiness |
 | --- | --- | --- |
-| AgentCore | HeyTim runtime, memory, gateway, evaluator, online evaluation, regression dataset, and three API-key credential providers | A retained legacy `AgentCore-FrogBot-production` stack is ready, but the current HeyTim target is not deployed or adopted |
+| AgentCore | HeyTim runtime, memory, gateway, evaluator, online evaluation, regression dataset, and three API-key credential providers | Destination-owned HeyTim runtime, memory, gateway, evaluator, online evaluation, regression dataset, and credential providers deployed on 2026-09-26 |
 | Cognito | One user in the production pool | No user pool |
-| DynamoDB | Application table: approximately 610 items / 1,008,905 bytes; invite table: 0 items; deletion protection and SSE enabled | No application tables |
+| DynamoDB | Application table: 606 items / 1,008,606 backup bytes; invite table: 0 items; deletion protection and SSE enabled | No application tables; the failed first backend attempt retained one empty invite table for later cleanup |
 | S3 | 251 current objects / 65,094,560 bytes; 557 object versions / 65,252,597 bytes; 6 delete markers | No application file bucket |
-| Queues and schedules | Production job queue/DLQ and bot-email delivery queues are deployed; schedules can be active | No application queues; only the default Scheduler group |
+| Queues and schedules | Production job queue/DLQ and bot-email delivery queues are deployed; both current schedules are disabled | No application queues; only the default Scheduler group |
 | Secrets and connections | Production OAuth, billing, finance, and per-connection secrets exist | Legacy FrogBot OAuth secrets and AgentCore credential backing secrets exist; current HeyTim secrets are not provisioned |
 | Push | Production and sandbox APNs applications exist | Production and sandbox APNs applications exist under retained legacy physical names |
 | Operations | Application and AgentCore alarms, encrypted logs, budget, and a confirmed alert path are required | No application alarms, AgentCore alarms, budget, or recurring GitHub OIDC deployment role |
 | Amplify | Live app `d1tu46ki1836w1` with API/client outputs | Empty app `d17sj7dvhx07c`; no backend stacks |
 
-The checked-in production deployment state still contains source-account ARNs. CDK synthesis now rejects that state
-when authenticated to the destination account, so it cannot be silently reused across accounts.
+Commit `c65ed57` preserves the source deployment state for audit. The active production state now contains only
+destination-account resource identifiers, and CDK synthesis rejects any future foreign-account ARN before deployment.
+
+## Execution checkpoint: 2026-09-26
+
+- Pull request checks passed for the exact deployment source, including backend, AgentCore runtime/configuration,
+  dependency, security, website/catalog, iOS, and macOS gates.
+- The addition-only `AgentCore-HeyTim-production` stack reached `CREATE_COMPLETE` in account `820323452649`. The
+  destination runtime, memory, gateway target, evaluator, online evaluation, dataset, and three credential providers
+  report ready/deployed.
+- A contract-valid destination runtime invocation returned the exact expected text through the primary model and
+  emitted usage/cost telemetry without a tool or terminal error.
+- Source application and invite-table backups are `AVAILABLE`. Source data, object versions, memory, secrets, and
+  traffic remain unchanged.
+- The first destination Amplify create stopped at Cognito because `heytim.ai` was not yet verified in destination SES,
+  then reached `ROLLBACK_COMPLETE`; no API, client, DNS, or traffic binding moved. A destination SES domain identity
+  now exists and awaits its three DKIM CNAMEs at the authoritative registrar before the backend is retried.
 
 ## Decisions requiring approval
 
@@ -92,7 +107,7 @@ Record an owner and decision for every row before the maintenance window is sche
 
 ## Go/no-go checklist
 
-- [ ] Every decision above has an accountable owner and an approved outcome.
+- [x] Every decision above has an accountable owner and an approved outcome.
 - [ ] Destination AgentCore and Amplify diffs contain no unintended replacement or deletion.
 - [ ] Destination state is complete and all count/checksum exceptions are documented.
 - [ ] Production synthetic user/token and all destination provider credentials are ready.
