@@ -139,6 +139,85 @@ def test_checkpoint_round_trip_preserves_completed_tool_receipts():
     asyncio.run(run())
 
 
+def test_truncated_tool_arguments_are_retried_before_any_action_executes():
+    completed = []
+
+    @tool
+    def record_action(value: str = "default") -> str:
+        """Record an external action using the supplied value."""
+        completed.append(value)
+        return "Action completed"
+
+    def tool_response(raw_input, stop_reason):
+        return [
+            {"messageStart": {"role": "assistant"}},
+            {
+                "contentBlockStart": {
+                    "contentBlockIndex": 0,
+                    "start": {
+                        "toolUse": {"toolUseId": "action-1", "name": "record_action"}
+                    },
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "contentBlockIndex": 0,
+                    "delta": {"toolUse": {"input": raw_input}},
+                }
+            },
+            {"contentBlockStop": {"contentBlockIndex": 0}},
+            {"messageStop": {"stopReason": stop_reason}},
+        ]
+
+    delegate = SequencedFakeModel(
+        [
+            tool_response('{"value":"unfinished', "max_tokens"),
+            tool_response('{"value":"intended"}', "tool_use"),
+            [
+                {"messageStart": {"role": "assistant"}},
+                {
+                    "contentBlockDelta": {
+                        "contentBlockIndex": 0,
+                        "delta": {"text": "Completed."},
+                    }
+                },
+                {"messageStop": {"stopReason": "end_turn"}},
+            ],
+        ]
+    )
+    delegate.config["params"] = {"max_tokens": 4_096}
+    agent = create_harness(
+        model=ResilientOpenRouterModel(delegate),
+        tools=[record_action],
+        builtin_tools=[],
+        builtin_plugins=[],
+        skills=False,
+        memory=False,
+        context_manager="auto",
+        session=False,
+        caching=False,
+        callback_handler=None,
+    )
+
+    async def run():
+        return [
+            event
+            async for event in stream_with_token_recovery(agent, "Record the action")
+        ]
+
+    events = asyncio.run(run())
+    tool_inputs = [
+        event["event"]["contentBlockDelta"]["delta"]["toolUse"]["input"]
+        for event in events
+        if "toolUse"
+        in event.get("event", {}).get("contentBlockDelta", {}).get("delta", {})
+    ]
+    assert tool_inputs == ['{"value":"intended"}']
+    assert completed == ["intended"]
+    assert delegate.calls == 3
+    assert delegate.config["params"]["max_tokens"] == 8_192
+
+
 def test_long_run_budget_is_cumulative_and_does_not_relax_provider_subcaps():
     usage = UsageAccumulator(limits=LONG_RUN_CALL_LIMITS)
     for _ in range(LONG_RUN_CALL_LIMITS.provider_tool_calls):

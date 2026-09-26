@@ -253,7 +253,7 @@ class ResilientOpenRouterModel(Model):
                                 ):
                                     increase_output_budget(self.model)
                                 raise IncompleteOpenRouterResponseError(
-                                    "OpenRouter returned an empty response"
+                                    "OpenRouter returned no usable completed response"
                                 )
                             committed = True
                             log.info(
@@ -299,7 +299,9 @@ def _usable_response(events: list[StreamEvent]) -> bool:
     if stop_reason == "tool_use":
         return has_tool
     if stop_reason == "max_tokens":
-        return has_text or has_tool
+        # Never commit truncated tool arguments to SDK parsing or execution.
+        # Retry the buffered response with a larger allowance before any tool runs.
+        return has_text and not has_tool
     return stop_reason is not None
 
 

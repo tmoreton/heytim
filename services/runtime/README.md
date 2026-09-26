@@ -86,8 +86,8 @@ The cumulative limits bound one background job invocation, not a cross-invocatio
 
 Output-limit recovery counts consecutive truncations without successful tool work, rather than all truncations
 throughout a long task. Recovery expands the model's output allowance from 4,096 to at most 16,384 tokens while
-preserving each route's reasoning configuration. Reasoning-only truncated responses retry before becoming public
-output. An unrecoverable output limit has an explicit terminal code instead of an unexpected-runtime error.
+preserving each route's reasoning configuration. Reasoning-only responses and truncated tool arguments retry before
+being committed to the SDK. An unrecoverable output limit has an explicit terminal code instead of an unexpected-runtime error.
 
 Oversized tool results are stored in full under the authorized turn's private S3 prefix. The shared retrieval tool
 formats JSON for inspection and provides bounded character pages with `nextOffset`, including for individual long

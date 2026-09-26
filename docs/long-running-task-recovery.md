@@ -15,7 +15,8 @@ escaped to the generic background-job error.
 - The entire job keeps one deadline and usage accumulator. Retries and fallback calls are included. The background
   envelope is 160 model attempts and 96 metered provider calls by default; image and YouTube sublimits are unchanged.
 - Output recovery adapts the response allowance up to 16,384 tokens and stops after three consecutive recoveries
-  without successful tool work. Terminal output exhaustion is classified explicitly.
+  without successful tool work. Truncated tool arguments stay buffered and retry before SDK parsing or execution.
+  Terminal output exhaustion is classified explicitly.
 - Every oversized tool result is stored behind a reference bound to its authorized turn. JSON can be inspected in
   readable lines or bounded character pages, so a long individual field remains accessible. Stored references survive
   recreation within that scope. Export converts saved records directly without provider calls or model transcription.
