@@ -15,26 +15,22 @@ from typing import Any
 import boto3
 from botocore.config import Config
 from shared.catalog import CatalogError
+from shared.provider_contract import (
+    GMAIL_OAUTH_SCOPES,
+    GOOGLE_WORKSPACE_OAUTH_SCOPES,
+    YOUTUBE_OAUTH_SCOPES,
+)
 
 from .support import ApiError, _ensure_account_active, catalog, table
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_OAUTH_ENDPOINT = "https://oauth2.googleapis.com/token"
 GMAIL_PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile"
-GMAIL_SCOPES = (
-    "https://www.googleapis.com/auth/gmail.readonly",
-    "https://www.googleapis.com/auth/gmail.compose",
-)
-YOUTUBE_SCOPES = ("openid", "email", "https://www.googleapis.com/auth/youtube.readonly")
+GMAIL_SCOPES = GMAIL_OAUTH_SCOPES
+YOUTUBE_SCOPES = YOUTUBE_OAUTH_SCOPES
 YOUTUBE_CHANNELS_URL = "https://www.googleapis.com/youtube/v3/channels"
 GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
-GOOGLE_WORKSPACE_SCOPES = (
-    "https://www.googleapis.com/auth/drive.readonly",
-    "https://www.googleapis.com/auth/documents.readonly",
-    "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
-    "https://www.googleapis.com/auth/calendar.events.freebusy",
-    "https://www.googleapis.com/auth/calendar.events.readonly",
-)
+GOOGLE_WORKSPACE_SCOPES = GOOGLE_WORKSPACE_OAUTH_SCOPES
 GOOGLE_DRIVE_ABOUT_URL = "https://www.googleapis.com/drive/v3/about"
 GOOGLE_PROVIDER_SCOPES = {
     "gmail": GMAIL_SCOPES,

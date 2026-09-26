@@ -22,6 +22,7 @@ from shared.account_state import (
     put_user_item_while_account_active,
 )
 from shared.bot_inbox import resolve_mail_address
+from shared.job_envelope import send_job
 from shared.keys import user_pk
 
 logger = logging.getLogger(__name__)
@@ -235,17 +236,16 @@ def _queue_automatic_turn(
     inbox_key: str,
     turn_id: str,
 ) -> None:
-    sqs.send_message(
-        QueueUrl=JOB_QUEUE_URL,
-        MessageBody=json.dumps(
-            {
-                "type": "EMAIL_INBOUND",
-                "userId": user_id,
-                "botId": bot["id"],
-                "inboxKey": inbox_key,
-                "turnId": turn_id,
-            }
-        ),
+    send_job(
+        sqs,
+        JOB_QUEUE_URL,
+        {
+            "type": "EMAIL_INBOUND",
+            "userId": user_id,
+            "botId": bot["id"],
+            "inboxKey": inbox_key,
+            "turnId": turn_id,
+        },
     )
 
 

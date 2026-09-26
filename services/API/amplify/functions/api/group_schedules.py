@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 import uuid
 
 from boto3.dynamodb.conditions import Attr
 from shared.action_grants import effective_allowed_interactive_tool_ids
 from shared.group_chat import group_bots, plan_group_reply_round
+from shared.job_envelope import send_job
 from shared.schedules import scheduler_name
 
 from .attachments import _public_file
@@ -128,11 +128,11 @@ def _run_group_schedule(user_id: str, group_id: str, schedule_id: str) -> dict:
     _group_schedule_team(user_id, group_id)
     _get_group_schedule(user_id, group_id, schedule_id)
     execution_id = str(uuid.uuid4())
-    sqs.send_message(QueueUrl=QUEUE_URL, MessageBody=json.dumps({
+    send_job(sqs, QUEUE_URL, {
         "type": "SCHEDULED_GROUP_ROUND", "userId": user_id, "groupId": group_id,
         "scheduleId": schedule_id, "executionId": execution_id,
         "scheduledTime": _now(), "manual": True,
-    }))
+    })
     return {"executionId": execution_id}
 
 

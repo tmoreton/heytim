@@ -5,6 +5,7 @@ import json
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from shared.job_envelope import send_job
 from shared.time import utc_now_iso
 
 from .health_events import record_terminal_error
@@ -51,16 +52,15 @@ def runtime_work(payload: dict, continuation: list[dict]) -> dict:
 def queue_runtime_poll(
     item_key: dict, resume_request: dict, delay: int = RUNTIME_POLL_SECONDS
 ) -> None:
-    sqs.send_message(
-        QueueUrl=QUEUE_URL,
-        DelaySeconds=delay,
-        MessageBody=json.dumps(
-            {
-                "type": "BACKGROUND_WORK_POLL",
-                "itemKey": item_key,
-                "resumeRequest": resume_request,
-            }
-        ),
+    send_job(
+        sqs,
+        QUEUE_URL,
+        {
+            "type": "BACKGROUND_WORK_POLL",
+            "itemKey": item_key,
+            "resumeRequest": resume_request,
+        },
+        delay_seconds=delay,
     )
 
 
@@ -179,4 +179,4 @@ def poll_runtime_work(
         )
     except table.meta.client.exceptions.ConditionalCheckFailedException:
         return
-    sqs.send_message(QueueUrl=QUEUE_URL, MessageBody=json.dumps(resume_request))
+    send_job(sqs, QUEUE_URL, resume_request)

@@ -3,16 +3,35 @@
 The repository is release-hardened, but a production release is not complete merely because the code passes locally.
 The configured AWS account, third-party approvals, monitored alert destination, device evidence, and controlled
 deployment are external release inputs. The **Deploy HeyTim production release** workflow fails closed until
-they are present. Production temporarily shares management account `188757775631` with development while the dedicated
-member account's Lambda quota increase is pending; target-scoped stacks, KMS keys, storage, and secrets remain separate.
-AgentCore resources use the target-scoped `HeyTimProduction` physical project namespace in this temporary shared-account
-posture; the platform API-key credential providers remain account-scoped.
+they are present. Production uses dedicated member account `820323452649`; stacks, KMS keys, storage, credentials, and
+service quotas are isolated from development.
+
+## Production account isolation cutover
+
+Changing the configured account provisions independent resources; it does not move the production state previously
+hosted in management account `188757775631`. Before setting
+`HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED=true`, approve and record a migration plan that:
+
+1. Inventories the legacy and destination AgentCore runtimes, memory, credentials, DynamoDB tables and recovery
+   points, S3 objects and versions, Cognito users and clients, queues and schedules, KMS keys, Secrets Manager values,
+   API/domain bindings, provider webhooks, APNs applications, logs, alarms, budgets, and deployment roles.
+2. Defines data movement and validation for every retained stateful resource. Include item/object counts and checksums,
+   the Cognito user migration or reauthentication path, memory retention decisions, secret rotation, signing assets,
+   queue draining, and a bounded write-freeze because the application does not dual-write across accounts.
+3. Bootstraps and verifies the destination without directing production traffic to it, then captures a final recoverable
+   source backup, drains work, copies the approved state, and exercises authentication, provider callbacks, the managed
+   evaluation, and the authenticated release workflow.
+4. Defines the API/domain and client-configuration cutover, named owners, maintenance window, acceptance evidence, and
+   rollback to the retained legacy environment. Keep the old resources read-only and recoverable through the agreed
+   rollback window.
+5. Deletes or disables legacy resources only in a separately reviewed cleanup after rollback expires and data-retention,
+   audit, signing, and recovery obligations have been verified.
+
+This change does not perform that migration or authorize cleanup of the legacy account.
 
 ## One-time production bootstrap
 
-1. Use the configured production AWS account in `us-east-1` and do not rename either target. While production shares
-   the management account, set `HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT=true`. Remove that variable when the target
-   returns to dedicated member account `820323452649`.
+1. Use dedicated production AWS account `820323452649` in `us-east-1` and do not rename either target.
 2. Bootstrap CDK and the AgentCore token vault with a reviewed IAM Identity Center or administrator role. Create a
    rotating customer-managed KMS key for AgentCore memory and retain its ARN.
 3. Perform the first AgentCore and Amplify bootstrap with that reviewed principal. The Amplify stack creates the
@@ -30,7 +49,6 @@ posture; the platform API-key credential providers remain account-scoped.
 Set these non-secret variables:
 
 - `AWS_DEPLOY_ROLE_ARN`, `AMPLIFY_APP_ID`, `HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN`
-- `HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT=true` only while production and development share an AWS account
 - `HEYTIM_APPLE_TEAM_ID`, `HEYTIM_APP_STORE_CONNECT_KEY_ID`, and
   `HEYTIM_APP_STORE_CONNECT_ISSUER_ID`
 - `HEYTIM_APNS_APPLICATION_ARN` and optional `HEYTIM_APNS_SANDBOX_APPLICATION_ARN`
@@ -42,6 +60,8 @@ Set these non-secret variables:
 - `HEYTIM_GOOGLE_REVIEW_APPROVED`, `HEYTIM_SLACK_REVIEW_APPROVED`,
   `HEYTIM_X_REVIEW_APPROVED`, and `HEYTIM_NOTION_REVIEW_APPROVED` set to `true` only after the provider's
   production verification/distribution requirements are complete
+- `HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED=true` only after the account-isolation plan above is approved and its
+  pre-cutover requirements are complete
 - `HEYTIM_RELEASE_COMPLIANCE_APPROVED=true` only after privacy policy, terms, support and deletion disclosures,
   data-retention statements, and store metadata match the deployed behavior
 - `HEYTIM_APNS_DEVICE_SMOKE_APPROVED=true` only after a production-signed build receives and opens a notification
@@ -51,6 +71,9 @@ Set these environment secrets:
 
 - `AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER`, `AGENTCORE_CREDENTIAL_FROGBOTXAPI`,
   `AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI`
+- `HEYTIM_RELEASE_TEST_REFRESH_TOKEN`, issued only to a dedicated production synthetic user. Keep that user free of
+  personal data and third-party connections. The release test deletes every temporary bot it creates but deliberately
+  retains the account so the refresh token can be reused and rotated independently.
 - `HEYTIM_GOOGLE_OAUTH_SECRET_ARN`, `HEYTIM_GITHUB_APP_SECRET_ARN`, `HEYTIM_X_OAUTH_SECRET_ARN`,
   `HEYTIM_SLACK_OAUTH_SECRET_ARN`, `HEYTIM_NOTION_OAUTH_SECRET_ARN`
 - Optional: `HEYTIM_MICROSOFT_OAUTH_SECRET_ARN`, `HEYTIM_HUBSPOT_OAUTH_SECRET_ARN`,
@@ -69,10 +92,10 @@ The three `AGENTCORE_CREDENTIAL_FROGBOT_*` keys and the currently configured
 `FROGBOT_APP_*` Apple signing secret keys are compatibility names for protected
 values that GitHub cannot reveal or rename. The workflow maps them into HeyTim's
 runtime variables. Keep those protected names until their values are deliberately
-rotated into new `HEYTIM_*` secrets. Likewise, the AgentCore resource names,
-existing Cognito logical IDs, storage bucket names, KMS aliases, and deployed-state
-records retain their original physical identifiers so this branding change updates
-the live product in place instead of replacing accounts, memory, or user files.
+rotated into new `HEYTIM_*` secrets. Likewise, retain AgentCore resource names, Cognito logical IDs, storage bucket
+names, KMS aliases, and deployed-state records within each account. The dedicated-account cutover is a separately
+reviewed infrastructure and data migration; it does not authorize branding-driven renames or early deletion of the
+legacy resources.
 
 The `production` environment must allow deployment from `main` and tags matching `v*`. The workflow still verifies
 that a release tag has the exact `vMAJOR.MINOR.PATCH` form and points to a commit on `main`. A full release stops before
@@ -112,7 +135,9 @@ permissions from protected environment secrets immediately before deployment and
 2. Publishing the release starts **Deploy HeyTim production release**. It validates the tag, target/account, and approvals, verifies and
    audits dependencies, deploys AgentCore then Amplify, generates the client outputs, hardens runtime logs, configures
    AgentCore alarms and APNs delivery feedback, seeds the private meme-template catalog when absent, verifies every
-   referenced template image along with storage/PITR/alerts/public API, and preserves the exact production client
+   referenced template image along with storage/PITR/alerts/public API, runs the managed five-scenario regression
+   dataset with a minimum 0.80 score and no evaluation failures, executes the authenticated attachment/schedule/share/
+   approval workflow with the synthetic user, and preserves the exact production client
    configuration. A dependent job on the repository-scoped `frogbot-macmini` runner then verifies the native suites
    once, uploads iPhone to the HeyTim TestFlight listing, and creates a Developer ID signed and notarized Mac DMG
    for drag-to-Applications installation, plus a ZIP and signed Sparkle appcast for updates. All three attach to the
@@ -136,8 +161,10 @@ permissions from protected environment secrets immediately before deployment and
    to Applications, verify Gatekeeper accepts it, and test an update from the previous release through the published
    appcast. The preserved
    configuration and Mac release artifacts remain available for reproduction and incident review.
-4. Run an authenticated disposable-user workflow and the agreed concurrency test against production. Verify OAuth
-   connect/read/revoke for every enabled provider and confirm logs contain neither content nor tokens.
+4. Confirm the workflow's managed evaluation and authenticated production checks passed. Run the agreed concurrency
+   test separately, verify OAuth connect/read/revoke for every enabled provider, and confirm logs contain neither
+   content nor tokens. Rotate `HEYTIM_RELEASE_TEST_REFRESH_TOKEN` immediately if the synthetic user is disabled,
+   its app client changes, or the token may have been exposed.
 5. Run `scripts/aws-recovery-drill.sh` against the production outputs, record the restore evidence, and verify an alarm
    notification reaches the accountable destination.
 6. Record commit SHA, workflow run, deployed resource IDs, smoke/load results, provider evidence, recovery evidence,

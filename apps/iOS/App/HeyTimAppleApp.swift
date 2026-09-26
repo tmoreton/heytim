@@ -32,8 +32,12 @@ struct HeyTimAppleApp: App {
       configurationError = error.localizedDescription
       _auth = State(initialValue: nil)
     }
-    _model = State(
-      initialValue: AppModel(demoMode: ProcessInfo.processInfo.arguments.contains("--ui-testing")))
+    #if DEBUG
+      let demoMode = ProcessInfo.processInfo.arguments.contains("--ui-testing")
+    #else
+      let demoMode = false
+    #endif
+    _model = State(initialValue: AppModel(demoMode: demoMode))
   }
 
   var body: some Scene {
@@ -221,7 +225,7 @@ private struct AppRoot: View {
     guard auth.phase == .signedIn, !connected else { return }
     // UI automation uses deterministic local fixtures and must never call the
     // live service with its synthetic account credentials.
-    if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+    if Self.isUITesting {
       connected = true
       return
     }
@@ -282,10 +286,7 @@ private struct AppRoot: View {
       let tools = health.isAvailable
         ? [DeviceToolCapability(
           id: "apple_health",
-          operations: [
-            "apple_health_activity_summary", "apple_health_workouts",
-            "apple_health_running_totals", "apple_health_steps",
-          ])]
+          operations: GeneratedDeviceCapabilities.operationsByTool["apple_health"] ?? [])]
         : []
       return DeviceCapabilityRegistration(
         platform: "ios", appVersion: appVersion, tools: tools,
@@ -301,11 +302,7 @@ private struct AppRoot: View {
       let tools = available
         ? [DeviceToolCapability(
           id: "mac_computer",
-          operations: [
-            "mac_computer_observe", "mac_computer_act_on_element",
-            "mac_computer_type_into_element", "mac_computer_wait_for_state",
-            "mac_computer_scroll",
-          ])]
+          operations: GeneratedDeviceCapabilities.operationsByTool["mac_computer"] ?? [])]
         : []
       return DeviceCapabilityRegistration(
         platform: "macos", appVersion: appVersion, tools: tools,
@@ -323,6 +320,14 @@ private struct AppRoot: View {
 
   private static var isUnitTestHost: Bool {
     ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-      && !ProcessInfo.processInfo.arguments.contains("--ui-testing")
+      && !isUITesting
+  }
+
+  private static var isUITesting: Bool {
+    #if DEBUG
+      ProcessInfo.processInfo.arguments.contains("--ui-testing")
+    #else
+      false
+    #endif
   }
 }

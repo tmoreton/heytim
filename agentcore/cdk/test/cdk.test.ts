@@ -4,7 +4,11 @@ import { ConfigIO } from '@aws/agentcore-cdk';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AgentCoreStack } from '../lib/cdk-stack';
-import { dirtySourceEntries } from '../lib/deploy-preflight';
+import {
+  assertDeployedStateMatchesTarget,
+  deployedStateAccountMismatches,
+  dirtySourceEntries,
+} from '../lib/deploy-preflight';
 import {
   UNCONFIGURED_AWS_ACCOUNT,
   assertProductionTargetConfigured,
@@ -18,6 +22,56 @@ test('deployment preflight rejects source changes but ignores generated deploy s
       ' M services/runtime/runtime/main.py\n' + ' M agentcore/.cli/deployed-state.json\n' + '?? scratch.txt\n'
     )
   ).toEqual([' M services/runtime/runtime/main.py', '?? scratch.txt']);
+});
+
+test('deployment preflight rejects deployed resource ARNs from another account', () => {
+  const target = { name: 'production', account: '210987654321', region: 'us-east-1' } as const;
+  const state = {
+    targets: {
+      production: {
+        resources: {
+          runtimes: {
+            HeyTim: {
+              runtimeArn: 'arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/HeyTim-old',
+              roleArn: 'arn:aws:iam::123456789012:role/OldRuntimeRole',
+            },
+          },
+          credentials: {
+            HeyTim_OpenRouter: {
+              credentialProviderArn:
+                'arn:aws:bedrock-agentcore:us-east-1:123456789012:token-vault/default/apikeycredentialprovider/HeyTim_OpenRouter',
+            },
+          },
+        },
+      },
+    },
+  };
+
+  expect(deployedStateAccountMismatches(state, target)).toEqual([
+    'targets.production.resources.runtimes.HeyTim.runtimeArn (account 123456789012)',
+    'targets.production.resources.runtimes.HeyTim.roleArn (account 123456789012)',
+    'targets.production.resources.credentials.HeyTim_OpenRouter.credentialProviderArn (account 123456789012)',
+  ]);
+  expect(() => assertDeployedStateMatchesTarget(state, target)).toThrow(
+    'Reconcile or migrate the target state in a separately reviewed cutover'
+  );
+});
+
+test('deployment preflight accepts missing state and target-local resource ARNs', () => {
+  const target = { name: 'production', account: '210987654321', region: 'us-east-1' } as const;
+  const state = {
+    targets: {
+      production: {
+        resources: {
+          runtimeArn: 'arn:aws:bedrock-agentcore:us-east-1:210987654321:runtime/HeyTim-current',
+          gatewayId: 'gateway-id-without-an-account',
+        },
+      },
+    },
+  };
+
+  expect(() => assertDeployedStateMatchesTarget(undefined, target)).not.toThrow();
+  expect(() => assertDeployedStateMatchesTarget(state, target)).not.toThrow();
 });
 
 test('AgentCoreStack synthesizes with a minimal resource spec', () => {
@@ -119,13 +173,13 @@ test('target bindings isolate production storage and memory encryption', () => {
     memories: [{ name: 'HeyTimMemory', encryptionKeyArn: 'development-key' }],
   } as unknown as Parameters<typeof bindSpecToTarget>[0];
   const target = { name: 'production', account: '123456789012', region: 'us-east-1' } as const;
-  const bound = bindSpecToTarget(source, target, 'arn:aws:kms:us-east-1:123456789012:key/key-id', true) as unknown as {
+  const bound = bindSpecToTarget(source, target, 'arn:aws:kms:us-east-1:123456789012:key/key-id') as unknown as {
     name: string;
     runtimes: Array<{ envVars: Array<{ name: string; value: string }>; additionalPolicies: string[] }>;
     memories: Array<{ encryptionKeyArn: string }>;
   };
 
-  expect(bound.name).toBe('testprojectProduction');
+  expect(bound.name).toBe('testproject');
   expect((source as unknown as { name: string }).name).toBe('testproject');
   expect(filesBucketName(target)).toBe('heytim-production-user-files-123456789012-us-east-1');
   expect(bound.runtimes[0].envVars).toContainEqual({
@@ -139,7 +193,7 @@ test('target bindings isolate production storage and memory encryption', () => {
   ).toEqual(['attachments-policy.json']);
 });
 
-test('production target rejects placeholders and requires an explicit shared-account override', () => {
+test('production target rejects placeholders and shared accounts', () => {
   expect(() =>
     assertProductionTargetConfigured([
       { name: 'development', account: '123456789012', region: 'us-east-1' },
@@ -153,14 +207,11 @@ test('production target rejects placeholders and requires an explicit shared-acc
     ])
   ).toThrow('different AWS account');
   expect(
-    assertProductionTargetConfigured(
-      [
-        { name: 'development', account: '123456789012', region: 'us-east-1' },
-        { name: 'production', account: '123456789012', region: 'us-east-1' },
-      ],
-      true
-    )
-  ).toEqual({ name: 'production', account: '123456789012', region: 'us-east-1' });
+    assertProductionTargetConfigured([
+      { name: 'development', account: '123456789012', region: 'us-east-1' },
+      { name: 'production', account: '210987654321', region: 'us-east-1' },
+    ])
+  ).toEqual({ name: 'production', account: '210987654321', region: 'us-east-1' });
 });
 
 test('AgentCore service roles are protected against confused-deputy access', () => {

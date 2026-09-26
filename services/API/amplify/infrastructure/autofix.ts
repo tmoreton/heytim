@@ -4,7 +4,6 @@ import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import type { Key } from 'aws-cdk-lib/aws-kms';
 import {
   CfnPermission,
-  Code,
   Function as LambdaFunction,
   Runtime,
   Tracing,
@@ -17,9 +16,8 @@ import {
   SubscriptionFilter,
 } from 'aws-cdk-lib/aws-logs';
 import { LambdaDestination } from 'aws-cdk-lib/aws-logs-destinations';
-import path from 'node:path';
 
-import { FUNCTION_ASSET_EXCLUDES } from './app-settings';
+import { applicationPythonCode } from './python-code';
 
 type AutofixResources = {
   stack: Stack;
@@ -61,9 +59,7 @@ export function addProductionAutofix({
   const dispatcher = new LambdaFunction(stack, 'AutofixDispatcher', {
     runtime: Runtime.PYTHON_3_14,
     handler: 'autofix_dispatcher.handler.handler',
-    code: Code.fromAsset(path.resolve('amplify/functions'), {
-      exclude: FUNCTION_ASSET_EXCLUDES,
-    }),
+    code: applicationPythonCode(),
     logGroup: dispatcherLogGroup,
     memorySize: 256,
     timeout: Duration.seconds(30),

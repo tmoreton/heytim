@@ -72,15 +72,16 @@ class BotEmailConversationTests(WorkerTestCase):
             json.loads(call.kwargs["MessageBody"])
             for call in self.sqs.send_message.call_args_list
         ]
-        self.assertIn(
-            {
-                "type": "AGENT_REPLY",
-                "userId": user_id,
-                "botId": "bot-1",
-                "turnKey": turn["sk"],
-            },
-            queued,
+        expected = {
+            "type": "AGENT_REPLY",
+            "userId": user_id,
+            "botId": "bot-1",
+            "turnKey": turn["sk"],
+        }
+        self.assertTrue(
+            any({key: item[key] for key in expected} == expected for item in queued)
         )
+        self.assertTrue(all(item["schemaVersion"] == 1 for item in queued))
 
     def test_existing_email_thread_runs_while_new_mail_is_reviewed(self) -> None:
         user_id = str(uuid.uuid4())

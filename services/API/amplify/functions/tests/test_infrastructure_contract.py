@@ -13,6 +13,11 @@ class InfrastructureContractTests(unittest.TestCase):
         cls.settings = (
             Path(__file__).parents[2] / "infrastructure" / "app-settings.ts"
         ).read_text(encoding="utf-8")
+        cls.application_functions = (
+            Path(__file__).parents[2]
+            / "infrastructure"
+            / "application-functions.ts"
+        ).read_text(encoding="utf-8")
         cls.observability = (
             Path(__file__).parents[2] / "infrastructure" / "observability.ts"
         ).read_text(encoding="utf-8")
@@ -24,6 +29,9 @@ class InfrastructureContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         cls.production_readiness = (
             Path(__file__).parents[2] / "infrastructure" / "production-readiness.ts"
+        ).read_text(encoding="utf-8")
+        cls.bot_email = (
+            Path(__file__).parents[2] / "infrastructure" / "bot-email.ts"
         ).read_text(encoding="utf-8")
         cls.deployment_role = (
             Path(__file__).parents[2] / "infrastructure" / "deployment-role.ts"
@@ -43,14 +51,22 @@ class InfrastructureContractTests(unittest.TestCase):
         cls.production_verifier = (
             Path(__file__).parents[5] / "scripts" / "verify-production-deployment.sh"
         ).read_text(encoding="utf-8")
+        cls.recovery_drill = (
+            Path(__file__).parents[5] / "scripts" / "aws-recovery-drill.sh"
+        ).read_text(encoding="utf-8")
         cls.gateway_target_deployer = (
             Path(__file__).parents[5]
             / "scripts"
             / "deploy-external-gateway-targets.sh"
         ).read_text(encoding="utf-8")
+        cls.authenticated_workflow = (
+            Path(__file__).parents[3]
+            / "scripts"
+            / "authenticated-workflow-test.mjs"
+        ).read_text(encoding="utf-8")
 
     def test_worker_concurrency_protects_agentcore_and_is_observed(self) -> None:
-        self.assertIn("reservedConcurrentExecutions: WORKER_CONCURRENCY", self.backend)
+        self.assertIn("reservedConcurrentExecutions: workerConcurrency", self.application_functions)
         self.assertIn("maxConcurrency: WORKER_CONCURRENCY", self.backend)
         self.assertIn("WorkerConcurrencyAlarm", self.observability)
 
@@ -59,12 +75,28 @@ class InfrastructureContractTests(unittest.TestCase):
             "cfnIdentityPool.allowUnauthenticatedIdentities = false", self.backend
         )
 
+    def test_production_auth_email_provider_is_explicit_and_staged(self) -> None:
+        self.assertIn(
+            "HEYTIM_AUTH_EMAIL_PROVIDER must be set before deploying production",
+            self.settings,
+        )
+        self.assertIn("['cognito', 'ses'].includes(authEmailProviderValue)", self.settings)
+        self.assertIn("authEmailProvider === 'ses'", self.backend)
+        self.assertIn("emailSendingAccount: 'DEVELOPER'", self.backend)
+        self.assertIn("emailSendingAccount: 'COGNITO_DEFAULT'", self.backend)
+        self.assertIn("HEYTIM_AUTH_EMAIL_PROVIDER: ses", self.production_workflow)
+
+    def test_destination_bot_email_uses_a_stack_managed_rule_set(self) -> None:
+        self.assertNotIn("inboxai-inboxai-cc", self.production_workflow)
+        self.assertNotIn("HEYTIM_SES_RULE_SET_NAME:", self.production_workflow)
+        self.assertIn("'heytim-production-bot-mail'", self.bot_email)
+
     def test_worker_polling_is_explicitly_allowed(self) -> None:
-        worker = self.backend.split("const workerFunction =", 1)[1].split(
-            "table.grantReadWriteData", 1
-        )[0]
+        worker = self.application_functions.split(
+            "const workerFunction =", 1
+        )[1].split("return {", 1)[0]
         self.assertIn("recursiveLoop: RecursiveLoop.ALLOW", worker)
-        self.assertNotIn("HEYTIM_ALLOW_RECURSIVE_POLLS", self.backend)
+        self.assertNotIn("HEYTIM_ALLOW_RECURSIVE_POLLS", self.application_functions)
         self.assertEqual(worker.count("recursiveLoop:"), 1)
 
     def test_access_log_5xx_responses_raise_an_alarm(self) -> None:
@@ -119,7 +151,9 @@ class InfrastructureContractTests(unittest.TestCase):
 
     def test_catalog_refresh_is_scheduled_off_the_api_path(self) -> None:
         self.assertIn("new Rule(stack, 'CatalogRefresh'", self.backend)
-        self.assertIn("{ type: 'CATALOG_REFRESH' }", self.backend)
+        self.assertIn("type: 'CATALOG_REFRESH'", self.backend)
+        self.assertIn("schemaVersion: 1", self.backend)
+        self.assertIn("idempotencyKey: EventField.eventId", self.backend)
 
     def test_api_role_does_not_receive_cognito_delete_permissions(self) -> None:
         permission = (
@@ -163,6 +197,18 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("auditTrail.addS3EventSelector", self.backend)
         self.assertIn("ReadWriteType.ALL", self.backend)
         self.assertIn("nativePushFeedbackRoleArn", self.backend)
+
+    def test_recovery_drill_is_scoped_to_the_active_production_account(self) -> None:
+        self.assertNotIn("^amplify-heytim-", self.recovery_drill)
+        self.assertIn('deployment_environment" != "production', self.recovery_drill)
+        self.assertIn(
+            'expected_bucket="heytim-production-user-files-${actual_account}-${drill_region}"',
+            self.recovery_drill,
+        )
+        self.assertIn("Table.TableArn", self.recovery_drill)
+        self.assertIn(
+            "outside the active production account or Region", self.recovery_drill
+        )
 
     def test_github_deployment_trust_uses_immutable_repository_ids(self) -> None:
         self.assertIn(
@@ -353,8 +399,10 @@ class InfrastructureContractTests(unittest.TestCase):
             self.assertIn(setting, self.backend)
 
     def test_api_can_admit_new_browser_sessions_with_the_same_limits(self) -> None:
-        api = self.backend.split("const apiFunction =", 1)[1].split(
-            "const workerFunction =", 1
+        api_environment = self.backend.split(
+            "const applicationEnvironment =", 1
+        )[1].split(
+            "const { apiFunction", 1
         )[0]
         for setting in (
             "HEYTIM_MONTHLY_RUN_UNIT_LIMIT",
@@ -363,8 +411,59 @@ class InfrastructureContractTests(unittest.TestCase):
             "HEYTIM_USAGE_WINDOW_SECONDS",
             "HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT",
         ):
-            self.assertIn(setting, api)
+            self.assertIn(setting, api_environment)
+        self.assertIn("environment: applicationEnvironment", self.backend)
+        self.assertGreaterEqual(self.application_functions.count("environment,"), 2)
         self.assertGreaterEqual(self.backend.count("dynamodb:TransactWriteItems"), 2)
+
+    def test_public_api_has_a_separate_least_privilege_execution_role(self) -> None:
+        self.assertIn(
+            "const publicApiFunction = new LambdaFunction", self.application_functions
+        )
+        self.assertIn(
+            "handler: 'api.public_handler.handler'", self.application_functions
+        )
+        self.assertIn("table.grantReadWriteData(publicApiFunction)", self.backend)
+        self.assertIn("inviteAccess.grantReadData(publicApiFunction)", self.backend)
+        self.assertIn("jobs.grantSendMessages(publicApiFunction)", self.backend)
+        self.assertNotIn("filesBucket.grantReadWrite(publicApiFunction)", self.backend)
+        self.assertNotIn("addBrowserAccess(stack, publicApiFunction", self.backend)
+        self.assertNotIn("addMemoryAccess({\n  stack, publicApiFunction", self.backend)
+        self.assertNotIn("grantWriteSchedules(publicApiFunction)", self.backend)
+        self.assertNotIn("iam:PassRole',\n    resources: [publicApiFunction", self.backend)
+
+    def test_production_release_has_managed_and_authenticated_quality_gates(self) -> None:
+        for value in (
+            "HEYTIM_RELEASE_TEST_REFRESH_TOKEN",
+            "HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED",
+            "scripts/run_managed_regression.py",
+            "HEYTIM_REGRESSION_DATASET_ID",
+            "Builtin.GoalSuccessRate Builtin.ResponseRelevance",
+            '.statistics.averageScore >= 0.8',
+            "REFRESH_TOKEN_AUTH",
+            "npm --prefix services/API run workflow:test",
+        ):
+            self.assertIn(value, self.production_workflow)
+        self.assertIn("const deleteAccount =", self.authenticated_workflow)
+        self.assertIn("if (deleteAccount)", self.authenticated_workflow)
+        self.assertNotIn("HEYTIM_DISPOSABLE_ACCOUNT=1", self.production_workflow)
+        for action in (
+            "bedrock-agentcore:InvokeAgentRuntime",
+            "bedrock-agentcore:StartBatchEvaluation",
+            "bedrock-agentcore:GetBatchEvaluation",
+            "bedrock-agentcore:ListBatchEvaluations",
+            "bedrock-agentcore:ListDatasetExamples",
+            "kms:GenerateDataKey",
+            "kms:Decrypt",
+        ):
+            self.assertIn(action, self.deployment_role)
+        self.assertIn(
+            "kms:EncryptionContext:aws:bedrock-agentcore:batchEvaluationArn",
+            self.deployment_role,
+        )
+        self.assertIn("logsKmsKey: logsKey", self.backend)
+        self.assertIn("bedrock-agentcore.amazonaws.com", self.deployment_role)
+        self.assertIn("'aws:SourceAccount': stack.account", self.deployment_role)
 
     def test_memory_clients_can_use_the_configured_encryption_key(self) -> None:
         self.assertIn(

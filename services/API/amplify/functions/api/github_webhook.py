@@ -10,6 +10,8 @@ import os
 import re
 from datetime import UTC, datetime
 
+from shared.job_envelope import send_job
+
 from .github_oauth import _secret_client
 from .support import QUEUE_URL, ApiError, _partition_items, _response, sqs
 
@@ -123,13 +125,14 @@ def github_issue_webhook(event: dict) -> dict:
     for subscription in subscriptions:
         if subscription.get("entity") != "GITHUB_ROUTINE_SUBSCRIPTION":
             continue
-        sqs.send_message(
-            QueueUrl=QUEUE_URL,
-            MessageBody=json.dumps({
+        send_job(
+            sqs,
+            QUEUE_URL,
+            {
                 "type": "EVENT_GROUP_ROUND", "groupId": subscription["groupId"],
                 "routineId": subscription["routineId"],
                 "deliveryId": delivery_id, "githubIssue": issue,
-            }),
+            },
         )
         matched += 1
     return _response(202, {"accepted": True, "matchedRoutines": matched})

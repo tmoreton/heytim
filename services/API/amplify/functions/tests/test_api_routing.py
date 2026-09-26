@@ -15,6 +15,7 @@ class ApiRoutingTests(unittest.TestCase):
         if not hasattr(base, "handler"):
             base.setUpClass()
         cls.handler = base.handler
+        cls.public_handler = base.public_handler
         cls.support = base.support
         cls.routes = base.handler.authenticated_routes
 
@@ -345,9 +346,11 @@ class ApiRoutingTests(unittest.TestCase):
 
     def test_public_catalog_keeps_its_short_cache_policy(self) -> None:
         with patch.object(
-            self.handler.catalog, "public_catalog", return_value={"skills": []}
+            self.public_handler.catalog, "public_catalog", return_value={"skills": []}
         ):
-            response = self.handler._public_route({}, "GET", "/public/catalog", {})
+            response = self.public_handler.route_public(
+                {}, "GET", "/public/catalog", {}
+            )
 
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(

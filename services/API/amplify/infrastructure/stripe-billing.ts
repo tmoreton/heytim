@@ -16,6 +16,7 @@ import {
 export function addStripeBilling(
   apiFunction: LambdaFunction,
   workerFunction: LambdaFunction,
+  publicApiFunction: LambdaFunction,
 ): void {
   const sharedEnvironment = {
     HEYTIM_FREE_MONTHLY_CREDITS: String(freeMonthlyCredits),
@@ -23,15 +24,17 @@ export function addStripeBilling(
     HEYTIM_STRIPE_AVAILABLE: String(stripeAvailable),
   };
   for (const [name, value] of Object.entries(sharedEnvironment)) {
-    apiFunction.addEnvironment(name, value);
+    for (const fn of [apiFunction, publicApiFunction]) fn.addEnvironment(name, value);
     workerFunction.addEnvironment(name, value);
   }
-  apiFunction.addEnvironment('HEYTIM_PLUS_PRICE_CENTS', String(plusPriceCents));
-  apiFunction.addEnvironment('STRIPE_SECRET_ID', stripeSecretId);
-  apiFunction.addEnvironment('STRIPE_PLUS_PRICE_ID', stripePlusPriceId);
-  apiFunction.addEnvironment('STRIPE_LIVE_MODE', String(stripeLiveMode));
-  apiFunction.addEnvironment('STRIPE_AUTOMATIC_TAX', String(stripeAutomaticTax));
-  apiFunction.addEnvironment('STRIPE_API_VERSION', '2026-08-26.dahlia');
+  for (const fn of [apiFunction, publicApiFunction]) {
+    fn.addEnvironment('HEYTIM_PLUS_PRICE_CENTS', String(plusPriceCents));
+    fn.addEnvironment('STRIPE_SECRET_ID', stripeSecretId);
+    fn.addEnvironment('STRIPE_PLUS_PRICE_ID', stripePlusPriceId);
+    fn.addEnvironment('STRIPE_LIVE_MODE', String(stripeLiveMode));
+    fn.addEnvironment('STRIPE_AUTOMATIC_TAX', String(stripeAutomaticTax));
+    fn.addEnvironment('STRIPE_API_VERSION', '2026-08-26.dahlia');
+  }
   if (stripeSecretId) {
     const stack = Stack.of(apiFunction);
     const stripeSecretArn = stack.formatArn({
@@ -40,11 +43,13 @@ export function addStripeBilling(
       resourceName: `${stripeSecretId}-*`,
       arnFormat: ArnFormat.COLON_RESOURCE_NAME,
     });
-    apiFunction.addToRolePolicy(
-      new PolicyStatement({
-        actions: ['secretsmanager:GetSecretValue'],
-        resources: [stripeSecretArn],
-      }),
-    );
+    for (const fn of [apiFunction, publicApiFunction]) {
+      fn.addToRolePolicy(
+        new PolicyStatement({
+          actions: ['secretsmanager:GetSecretValue'],
+          resources: [stripeSecretArn],
+        }),
+      );
+    }
   }
 }

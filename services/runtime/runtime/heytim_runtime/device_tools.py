@@ -10,6 +10,8 @@ from strands import tool
 from strands.agent.agent_result import AgentResult
 from strands.types.tools import ToolContext
 
+from .device_contract import DEVICE_OPERATION_PLATFORMS
+
 MAX_DEVICE_INPUT_BYTES = 8_000
 MAX_DEVICE_RESULT_BYTES = 64_000
 DEVICE_CALL_LIFETIME_MINUTES = 5
@@ -28,7 +30,6 @@ def _schema(properties: dict, required: list[str] | None = None) -> dict:
 
 DEVICE_TOOL_SPECS: dict[str, dict[str, Any]] = {
     "mac_computer_observe": {
-        "platform": "macos",
         "description": (
             "Inspect the focused window of one running Mac app through Accessibility. "
             "Returns an ephemeral snapshot revision and semantic target IDs. Use those "
@@ -49,7 +50,6 @@ DEVICE_TOOL_SPECS: dict[str, dict[str, Any]] = {
         ),
     },
     "mac_computer_act_on_element": {
-        "platform": "macos",
         "description": (
             "Perform one supported semantic action on a Mac control from a fresh "
             "mac_computer_observe result. Use the control's supportedActions value; "
@@ -70,7 +70,6 @@ DEVICE_TOOL_SPECS: dict[str, dict[str, Any]] = {
         ),
     },
     "mac_computer_type_into_element": {
-        "platform": "macos",
         "description": (
             "Replace the value of one non-secure editable field from a fresh Mac "
             "snapshot. The client revalidates the app, window, target, and revision."
@@ -85,7 +84,6 @@ DEVICE_TOOL_SPECS: dict[str, dict[str, Any]] = {
         ),
     },
     "mac_computer_wait_for_state": {
-        "platform": "macos",
         "description": (
             "Wait briefly and observe the same Mac app again. Use this after an action "
             "to verify the resulting UI state instead of assuming success."
@@ -99,7 +97,6 @@ DEVICE_TOOL_SPECS: dict[str, dict[str, Any]] = {
         ),
     },
     "mac_computer_scroll": {
-        "platform": "macos",
         "description": (
             "Scroll one semantic container from a fresh Mac snapshot. The client "
             "revalidates the app, window, target, and revision, pauses if the user "
@@ -122,7 +119,6 @@ DEVICE_TOOL_SPECS: dict[str, dict[str, Any]] = {
         ),
     },
     "apple_health_activity_summary": {
-        "platform": "ios",
         "description": (
             "Read on-device Apple Health activity-ring summaries for a bounded recent "
             "period. Returns daily aggregates only, never routes or individual sensor samples."
@@ -132,7 +128,6 @@ DEVICE_TOOL_SPECS: dict[str, dict[str, Any]] = {
         ),
     },
     "apple_health_workouts": {
-        "platform": "ios",
         "description": (
             "Read a bounded list of recent workouts from Apple Health without routes, "
             "heart-rate samples, clinical records, or other sensitive sample streams."
@@ -149,7 +144,6 @@ DEVICE_TOOL_SPECS: dict[str, dict[str, Any]] = {
         ),
     },
     "apple_health_running_totals": {
-        "platform": "ios",
         "description": (
             "Aggregate recent Apple Health running workouts into totals and weekly "
             "trends on the device. Does not return route or sensor samples."
@@ -159,7 +153,6 @@ DEVICE_TOOL_SPECS: dict[str, dict[str, Any]] = {
         ),
     },
     "apple_health_steps": {
-        "platform": "ios",
         "description": (
             "Read daily step-count aggregates from Apple Health for a bounded recent period."
         ),
@@ -168,6 +161,11 @@ DEVICE_TOOL_SPECS: dict[str, dict[str, Any]] = {
         ),
     },
 }
+
+if set(DEVICE_TOOL_SPECS) != set(DEVICE_OPERATION_PLATFORMS):
+    raise RuntimeError("Device tool specs do not match the generated platform contract")
+for operation, platform in DEVICE_OPERATION_PLATFORMS.items():
+    DEVICE_TOOL_SPECS[operation]["platform"] = platform
 
 
 def _encoded_size(value: Any) -> int:

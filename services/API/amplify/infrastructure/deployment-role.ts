@@ -1,5 +1,12 @@
 import { ArnFormat, Duration, RemovalPolicy, type Stack } from 'aws-cdk-lib';
-import { FederatedPrincipal, PolicyStatement, Role } from 'aws-cdk-lib/aws-iam';
+import {
+  Effect,
+  FederatedPrincipal,
+  PolicyStatement,
+  Role,
+  ServicePrincipal,
+} from 'aws-cdk-lib/aws-iam';
+import type { Key } from 'aws-cdk-lib/aws-kms';
 import {
   BlockPublicAccess,
   Bucket,
@@ -10,6 +17,7 @@ import {
 type DeploymentRoleResources = {
   stack: Stack;
   enabled: boolean;
+  logsKmsKey: Key;
   legacyTokenVaultKmsKeyArn?: string;
   nativePushApplicationArns?: string[];
   nativePushFeedbackRoleArn?: string;
@@ -18,6 +26,7 @@ type DeploymentRoleResources = {
 export function addGithubDeploymentRole({
   stack,
   enabled,
+  logsKmsKey,
   legacyTokenVaultKmsKeyArn,
   nativePushApplicationArns = [],
   nativePushFeedbackRoleArn,
@@ -84,6 +93,18 @@ export function addGithubDeploymentRole({
     arnFormat: ArnFormat.NO_RESOURCE_NAME,
   });
   const gatewaySchemaBucketName = `bedrock-agentcore-gateway-heytim-${stack.account}-use1`;
+  const runtimeLogGroupArn = stack.formatArn({
+    service: 'logs',
+    resource: 'log-group',
+    resourceName: '/aws/bedrock-agentcore/runtimes/*',
+    arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+  });
+  const evaluationLogGroupArn = stack.formatArn({
+    service: 'logs',
+    resource: 'log-group',
+    resourceName: '/aws/bedrock-agentcore/evaluations/*',
+    arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+  });
   const gatewaySchemaBucket = new Bucket(stack, 'HeyTimGatewaySchemas', {
     bucketName: gatewaySchemaBucketName,
     blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
@@ -126,6 +147,18 @@ export function addGithubDeploymentRole({
     ),
     maxSessionDuration: Duration.hours(1),
   });
+  logsKmsKey.addToResourcePolicy(new PolicyStatement({
+    effect: Effect.ALLOW,
+    principals: [new ServicePrincipal('bedrock-agentcore.amazonaws.com')],
+    actions: ['kms:GenerateDataKey', 'kms:Decrypt'],
+    resources: ['*'],
+    conditions: {
+      StringEquals: { 'aws:SourceAccount': stack.account },
+      ArnLike: {
+        'aws:SourceArn': agentCoreArn('batch-evaluate', '*'),
+      },
+    },
+  }));
   role.applyRemovalPolicy(RemovalPolicy.RETAIN);
   role.addToPolicy(new PolicyStatement({
     actions: ['sts:AssumeRole'],
@@ -281,6 +314,8 @@ export function addGithubDeploymentRole({
   role.addToPolicy(new PolicyStatement({
     actions: [
       'bedrock-agentcore:GetDataset',
+      'bedrock-agentcore:ListDatasetExamples',
+      'bedrock-agentcore:ListDatasetVersions',
       'bedrock-agentcore:AddDatasetExamples',
       'bedrock-agentcore:UpdateDatasetExamples',
       'bedrock-agentcore:DeleteDatasetExamples',
@@ -289,27 +324,60 @@ export function addGithubDeploymentRole({
     conditions: projectResourceCondition,
   }));
   role.addToPolicy(new PolicyStatement({
+    actions: ['bedrock-agentcore:InvokeAgentRuntime'],
+    resources: [
+      agentCoreArn('runtime', '*'),
+      agentCoreArn('runtime-endpoint', '*'),
+    ],
+    conditions: projectResourceCondition,
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: [
+      'bedrock-agentcore:StartBatchEvaluation',
+      'bedrock-agentcore:GetBatchEvaluation',
+      'bedrock-agentcore:ListBatchEvaluations',
+    ],
+    resources: [agentCoreArn('batch-evaluate', '*')],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: [
+      'logs:GetLogEvents',
+      'logs:FilterLogEvents',
+      'logs:StartQuery',
+      'logs:GetQueryResults',
+    ],
+    resources: [runtimeLogGroupArn, `${runtimeLogGroupArn}:*`, evaluationLogGroupArn, `${evaluationLogGroupArn}:*`],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: [
+      'logs:CreateLogGroup',
+      'logs:CreateLogStream',
+      'logs:PutLogEvents',
+      'logs:PutRetentionPolicy',
+    ],
+    resources: [evaluationLogGroupArn, `${evaluationLogGroupArn}:*`],
+  }));
+  role.addToPolicy(new PolicyStatement({
     actions: ['kms:DescribeKey'],
-    resources: [stack.formatArn({
-      service: 'kms',
-      resource: 'key',
-      resourceName: '*',
-      arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
-    })],
+    resources: [logsKmsKey.keyArn],
+  }));
+  role.addToPolicy(new PolicyStatement({
+    actions: ['kms:GenerateDataKey', 'kms:Decrypt'],
+    resources: [logsKmsKey.keyArn],
     conditions: {
-      'ForAnyValue:StringEquals': {
-        'kms:ResourceAliases': ['alias/heytim-production-logs'],
+      StringLike: {
+        'kms:EncryptionContext:aws:bedrock-agentcore:batchEvaluationArn':
+          agentCoreArn('batch-evaluate', '*'),
       },
     },
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['logs:AssociateKmsKey', 'logs:PutRetentionPolicy'],
-    resources: [stack.formatArn({
-      service: 'logs',
-      resource: 'log-group',
-      resourceName: '/aws/bedrock-agentcore/runtimes/*',
-      arnFormat: ArnFormat.COLON_RESOURCE_NAME,
-    })],
+    resources: [
+      runtimeLogGroupArn,
+      evaluationLogGroupArn,
+      `${evaluationLogGroupArn}:*`,
+    ],
   }));
   role.addToPolicy(new PolicyStatement({
     actions: ['logs:DescribeLogGroups'],

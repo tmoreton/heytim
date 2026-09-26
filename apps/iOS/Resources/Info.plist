@@ -14,6 +14,7 @@
   <key>ITSAppUsesNonExemptEncryption</key><false/>
   <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
   <key>NSHealthShareUsageDescription</key><string>Hey Tim reads only the activity, workout, running, and step summaries you choose to share with an enabled bot.</string>
+  <key>NSHealthUpdateUsageDescription</key><string>Hey Tim uses HealthKit only to read summaries you choose to share; it never writes or changes your Apple Health data.</string>
   <key>NSMicrophoneUsageDescription</key><string>Hey Tim uses the microphone only while you dictate a message. Speech recognition stays on this device.</string>
   <key>NSUserNotificationUsageDescription</key><string>Hey Tim can notify you when a bot finishes a reply or scheduled task.</string>
   <key>UIApplicationSupportsIndirectInputEvents</key><true/>

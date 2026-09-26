@@ -19,9 +19,9 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
         cls.data_table = base.data_table
         cls.catalog = base.support.catalog
         cls.google = base.google_oauth
-        cls.github = ModuleGlobals(base.handler._github_callback)
-        cls.x = ModuleGlobals(base.handler._x_callback)
-        cls.external = ModuleGlobals(base.handler._external_callback)
+        cls.github = ModuleGlobals(base.public_handler._github_callback)
+        cls.x = ModuleGlobals(base.public_handler._x_callback)
+        cls.external = ModuleGlobals(base.public_handler._external_callback)
 
     def setUp(self) -> None:
         self.data_table.items.clear()

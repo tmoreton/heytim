@@ -1,13 +1,13 @@
 """User-initiated cancellation of queued room workflow steps."""
 from __future__ import annotations
 
-import json
 import uuid
 from datetime import UTC, datetime
 
 from boto3.dynamodb.conditions import Attr
 from shared.action_grants import approval_grant_digest, grant_enabled_interactive_tools
 from shared.approval_storage import approval_snapshot_key
+from shared.job_envelope import send_job
 from shared.workflows import run_key
 
 from .groups import _require_group_member
@@ -80,7 +80,7 @@ def _decide_group_action(user_id: str, group_id: str, run_id: str,
     now = _now()
     # A delayed duplicate gives the queue a recovery path if the immediate
     # dispatch fails after the conditional state transition.
-    sqs.send_message(QueueUrl=QUEUE_URL, DelaySeconds=10, MessageBody=json.dumps(request))
+    send_job(sqs, QUEUE_URL, request, delay_seconds=10)
     if approved:
         decision = {key: proposal[key] for key in ("id", "digest", "toolUseId")}
         decision["executionKey"] = str(uuid.uuid4())
@@ -107,7 +107,7 @@ def _decide_group_action(user_id: str, group_id: str, run_id: str,
         )
     except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
         raise ApiError(409, "This approval request is no longer active") from exc
-    sqs.send_message(QueueUrl=QUEUE_URL, MessageBody=json.dumps(request))
+    send_job(sqs, QUEUE_URL, request)
     if not approved:
         s3.delete_object(Bucket=FILES_BUCKET_NAME,
                          Key=approval_snapshot_key("group", group_id, task_id))

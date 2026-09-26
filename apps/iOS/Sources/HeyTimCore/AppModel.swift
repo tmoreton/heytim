@@ -104,7 +104,8 @@ public final class AppModel {
 
   public init(api: HeyTimAPI? = nil, demoMode: Bool = false) {
     self.api = api
-    self.demoMode = demoMode
+    #if DEBUG
+      self.demoMode = demoMode
     if demoMode {
       bootstrap = DemoData.bootstrap
       selection = .init(kind: .bot, id: DemoData.bootstrap.bots[0].id)
@@ -168,6 +169,9 @@ public final class AppModel {
         }
       #endif
     }
+    #else
+      self.demoMode = false
+    #endif
   }
 
   #if DEBUG
@@ -327,13 +331,15 @@ public final class AppModel {
   /// Opens the exact conversation represented by a notification, including when
   /// the tap arrives during a cold launch or while that conversation is already selected.
   public func openConversationFromNotification(_ value: ConversationSelection) async {
-    if demoMode {
-      guard conversationExists(value) else { return }
-      sheet = nil
-      _ = transitionSelection(to: value)
-      notificationFocusRevision &+= 1
-      return
-    }
+    #if DEBUG
+      if demoMode {
+        guard conversationExists(value) else { return }
+        sheet = nil
+        _ = transitionSelection(to: value)
+        notificationFocusRevision &+= 1
+        return
+      }
+    #endif
     guard let api else { return }
     let requestedSession = sessionGeneration
     do {
@@ -352,38 +358,44 @@ public final class AppModel {
     }
   }
 
-  public func loadMessages(drainQueuedMessages: Bool = true) async throws {
-    guard let requestedSelection = selection else { return }
+  @discardableResult public func loadMessages(
+    drainQueuedMessages: Bool = true
+  ) async throws -> Bool {
+    guard let requestedSelection = selection else { return false }
     let requestedGeneration = selectionGeneration
     let requestedSession = sessionGeneration
-    if demoMode {
-      if demoHistorySwitch {
-        isLoadingMessages = true
-        try? await Task.sleep(for: .milliseconds(180))
-        guard selection == requestedSelection, selectionGeneration == requestedGeneration else {
-          return
+    let previousMessages = messages
+    let previousNextToken = nextToken
+    #if DEBUG
+      if demoMode {
+        if demoHistorySwitch {
+          isLoadingMessages = true
+          try? await Task.sleep(for: .milliseconds(180))
+          guard selection == requestedSelection, selectionGeneration == requestedGeneration else {
+            return false
+          }
+          messages = switch requestedSelection.kind {
+          case .group: DemoData.historySwitchGroupMessages
+          case .bot: requestedSelection.id == "researcher"
+            ? DemoData.historySwitchResearchMessages : DemoData.messages
+          }
+        } else if demoDelayedBotSwitch {
+          isLoadingMessages = true
+          try? await Task.sleep(for: .milliseconds(550))
+          guard selection == requestedSelection, selectionGeneration == requestedGeneration else {
+            return false
+          }
+          messages = requestedSelection.id == "researcher"
+            ? DemoData.delayedResearchMessages : DemoData.messages
         }
-        messages = switch requestedSelection.kind {
-        case .group: DemoData.historySwitchGroupMessages
-        case .bot: requestedSelection.id == "researcher"
-          ? DemoData.historySwitchResearchMessages : DemoData.messages
+        isLoadingMessages = false
+        loadedMessagesSelection = requestedSelection
+        if drainQueuedMessages {
+          await sendNextQueuedMessageIfReady(for: requestedSelection)
         }
-      } else if demoDelayedBotSwitch {
-        isLoadingMessages = true
-        try? await Task.sleep(for: .milliseconds(550))
-        guard selection == requestedSelection, selectionGeneration == requestedGeneration else {
-          return
-        }
-        messages = requestedSelection.id == "researcher"
-          ? DemoData.delayedResearchMessages : DemoData.messages
+        return messages != previousMessages || nextToken != previousNextToken
       }
-      isLoadingMessages = false
-      loadedMessagesSelection = requestedSelection
-      if drainQueuedMessages {
-        await sendNextQueuedMessageIfReady(for: requestedSelection)
-      }
-      return
-    }
+    #endif
     guard let api else {
       isLoadingMessages = false
       throw APIError.configuration("The service is not connected.")
@@ -403,7 +415,7 @@ public final class AppModel {
     guard selection == requestedSelection, selectionGeneration == requestedGeneration,
       sessionIsCurrent(requestedSession, api: api)
     else {
-      return
+      return false
     }
     loadedMessagesSelection = requestedSelection
     let wasProcessing = messages.contains(where: \.isActive)
@@ -414,13 +426,15 @@ public final class AppModel {
     case .group:
       listedProcessing = bootstrap?.groups.first { $0.id == requestedSelection.id }?.processing == true
     }
-    messages = Self.mergeLatest(current: messages, latest: page.messages)
+    let mergedMessages = Self.mergeLatest(current: messages, latest: page.messages)
+    let changed = mergedMessages != messages || page.nextToken != nextToken
+    messages = mergedMessages
     nextToken = page.nextToken
     if !messages.contains(where: \.isActive), wasProcessing || listedProcessing {
       _ = await refreshBootstrap()
       guard selection == requestedSelection, selectionGeneration == requestedGeneration,
         sessionIsCurrent(requestedSession, api: api)
-      else { return }
+      else { return false }
     }
     configurePolling()
     let changedMessageIDs = Set(
@@ -435,6 +449,7 @@ public final class AppModel {
     if drainQueuedMessages {
       await sendNextQueuedMessageIfReady(for: requestedSelection)
     }
+    return changed
   }
 
   public func loadEarlier() async {
@@ -846,6 +861,7 @@ public final class AppModel {
       try await api.clearBot(bot.id, forgetMemory: forgetMemory)
       guard selection == clearedSelection else { return }
       pollTask?.cancel()
+      pollTask = nil
       messages = []
       nextToken = nil
       messageQueues[clearedSelection] = nil
@@ -1101,27 +1117,46 @@ public final class AppModel {
   }
 
   private func configurePolling() {
-    pollTask?.cancel()
-    guard messages.contains(where: { $0.isActive }) else { return }
+    guard messages.contains(where: { $0.isActive }) else {
+      pollTask?.cancel()
+      pollTask = nil
+      return
+    }
+    guard pollTask == nil else { return }
     pollTask = Task { [weak self] in
       var failures = 0
+      var unchangedSuccesses = 0
       while !Task.isCancelled {
-        let delay = Self.nextPollingDelay(base: 1_500, failures: failures)
+        let delay = Self.nextPollingDelay(
+          base: 1_500, failures: failures, unchangedSuccesses: unchangedSuccesses)
         try? await Task.sleep(for: .milliseconds(delay))
         guard let self, !Task.isCancelled else { return }
         do {
-          try await self.loadMessages()
+          let changed = try await self.loadMessages()
           failures = 0
-        } catch { failures += 1 }
-        if !self.messages.contains(where: { $0.isActive }) { return }
+          unchangedSuccesses = changed ? 0 : min(unchangedSuccesses + 1, 30)
+        } catch {
+          failures = min(failures + 1, 30)
+          unchangedSuccesses = 0
+        }
+        if !self.messages.contains(where: { $0.isActive }) {
+          self.pollTask = nil
+          return
+        }
       }
     }
   }
 
   public static func nextPollingDelay(
-    base: Int, failures: Int, random: Double = Double.random(in: 0...1)
+    base: Int, failures: Int, unchangedSuccesses: Int = 0,
+    random: Double = Double.random(in: 0...1)
   ) -> Int {
-    guard failures > 0 else { return base }
+    if failures <= 0 {
+      guard unchangedSuccesses > 0 else { return base }
+      return min(
+        10_000,
+        Int((Double(base) * pow(1.5, Double(min(unchangedSuccesses, 8)))).rounded()))
+    }
     let bounded = min(
       30_000.0, Double(base) * pow(2.0, Double(min(failures, 30))))
     let jitter = 0.8 + min(1, max(0, random)) * 0.4
@@ -1142,6 +1177,7 @@ public final class AppModel {
   }
 }
 
+#if DEBUG
 public enum DemoData {
   public static let constraints = AppConstraints(
     botNameMaxLength: 60, botTaglineMaxLength: 160, botPromptMaxLength: 20_000,
@@ -1445,6 +1481,7 @@ public enum DemoData {
       createdAt: "2026-09-12T12:03:00.000Z", status: "complete")
   ]
 }
+#endif
 
 public enum InvitationParser {
   public static func parse(_ url: URL) -> PendingInvitation? {

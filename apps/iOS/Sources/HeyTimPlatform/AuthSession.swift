@@ -87,6 +87,22 @@ public final class AuthSession {
     service: AuthSession.keychainServiceForCurrentProcess)
   @ObservationIgnored private var sessionGeneration: UInt = 0
 
+  private static var uiTestingEnabled: Bool {
+    #if DEBUG
+      ProcessInfo.processInfo.arguments.contains("--ui-testing")
+    #else
+      false
+    #endif
+  }
+
+  private static var uiTestingAuthEnabled: Bool {
+    #if DEBUG
+      ProcessInfo.processInfo.arguments.contains("--ui-testing-auth")
+    #else
+      false
+    #endif
+  }
+
   static var keychainServiceForCurrentProcess: String {
     let process = ProcessInfo.processInfo
     let isRunningTests =
@@ -105,11 +121,11 @@ public final class AuthSession {
   public var sessionIdentifier: UInt { sessionGeneration }
 
   public func restore() async {
-    if ProcessInfo.processInfo.arguments.contains("--ui-testing-auth") {
+    if Self.uiTestingAuthEnabled {
       phase = .signedOut
       return
     }
-    if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+    if Self.uiTestingEnabled {
       phase = .signedIn
       return
     }
@@ -271,7 +287,7 @@ public final class AuthSession {
     if let expectedSession, expectedSession != sessionGeneration {
       throw APIError.sessionExpired
     }
-    if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return "ui-test-token" }
+    if Self.uiTestingEnabled { return "ui-test-token" }
     guard var current = tokens else { return nil }
     if current.expiresAt.timeIntervalSinceNow > 60 { return current.idToken }
     let requestedSession = sessionGeneration

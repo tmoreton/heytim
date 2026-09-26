@@ -11,6 +11,7 @@ from shared.device_tools import (
     DEVICE_TOOL_OPERATIONS,
     select_device,
 )
+from shared.job_envelope import send_job
 from shared.time import utc_now_iso
 
 from .approval_job import delete_approval_snapshot
@@ -136,16 +137,15 @@ def create_device_call(
         ).get("Item")
         if not existing or existing.get("request") != request:
             raise ValueError("Device call identity was reused with different input")
-    sqs.send_message(
-        QueueUrl=QUEUE_URL,
-        DelaySeconds=DEVICE_CALL_EXPIRY_SECONDS,
-        MessageBody=json.dumps(
-            {
-                "type": "DEVICE_CALL_EXPIRY",
-                "itemKey": turn_key,
-                "callId": call_id,
-            }
-        ),
+    send_job(
+        sqs,
+        QUEUE_URL,
+        {
+            "type": "DEVICE_CALL_EXPIRY",
+            "itemKey": turn_key,
+            "callId": call_id,
+        },
+        delay_seconds=DEVICE_CALL_EXPIRY_SECONDS,
     )
     return request
 
@@ -189,9 +189,7 @@ def process_device_call_expiry(request: dict) -> None:
                 int((expires - datetime.now(UTC)).total_seconds()) + 1,
             ),
         )
-        sqs.send_message(
-            QueueUrl=QUEUE_URL, DelaySeconds=remaining, MessageBody=json.dumps(request)
-        )
+        send_job(sqs, QUEUE_URL, request, delay_seconds=remaining)
         return
     message = (
         "The authorized Apple device did not answer in time. No device action was "

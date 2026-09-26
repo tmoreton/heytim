@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 
 from shared.account_state import (
@@ -12,6 +11,7 @@ from shared.account_state import (
 from shared.bot_inbox import mail_address
 from shared.browser_session_store import BrowserSessionError
 from shared.browser_sessions import ensure_browser_send_allowed
+from shared.job_envelope import send_job
 from shared.work_state import is_in_flight
 
 from .support import QUEUE_URL, _bot_key, _turn_pk, sqs, table
@@ -46,10 +46,11 @@ def _requeue(request: dict) -> None:
     if attempt >= MAX_WAIT_ATTEMPTS:
         _mark_for_review(request["userId"], request["inboxKey"], "bot_busy")
         return
-    sqs.send_message(
-        QueueUrl=QUEUE_URL,
-        DelaySeconds=15,
-        MessageBody=json.dumps({**request, "waitAttempt": attempt + 1}),
+    send_job(
+        sqs,
+        QUEUE_URL,
+        {**request, "waitAttempt": attempt + 1},
+        delay_seconds=15,
     )
 
 
@@ -233,16 +234,15 @@ def _process_email_inbound(record: dict, request: dict) -> None:
             )
         except table.meta.client.exceptions.ConditionalCheckFailedException:
             return
-        sqs.send_message(
-            QueueUrl=QUEUE_URL,
-            MessageBody=json.dumps(
-                {
-                    "type": "AGENT_REPLY",
-                    "userId": user_id,
-                    "botId": bot_id,
-                    "turnKey": turn["sk"],
-                }
-            ),
+        send_job(
+            sqs,
+            QUEUE_URL,
+            {
+                "type": "AGENT_REPLY",
+                "userId": user_id,
+                "botId": bot_id,
+                "turnKey": turn["sk"],
+            },
         )
         try:
             table.update_item(

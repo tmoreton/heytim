@@ -4,7 +4,7 @@ import { ConfigIO, HarnessSpecSchema, type AwsDeploymentTarget } from '@aws/agen
 import { App, type Environment } from 'aws-cdk-lib';
 import * as path from 'path';
 import * as fs from 'fs';
-import { assertCleanDeploySource } from '../lib/deploy-preflight';
+import { assertCleanDeploySource, assertDeployedStateMatchesTarget } from '../lib/deploy-preflight';
 import {
   assertProductionTargetConfigured,
   bindSpecToTarget,
@@ -124,18 +124,12 @@ async function main() {
   }
 
   const app = new App();
-  const developmentTarget = targets.find(target => target.name === 'development');
-  const sharedAccountOverride = process.env.HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT === 'true';
 
   for (const target of targets) {
     const env = toEnvironment(target);
     const stackName = toStackName(spec.name, target.name);
-    const sharedProductionAccount =
-      target.name === 'production' &&
-      sharedAccountOverride &&
-      developmentTarget?.account === target.account &&
-      developmentTarget.region === target.region;
-    const targetSpec = bindSpecToTarget(spec, target, undefined, sharedProductionAccount);
+    const targetSpec = bindSpecToTarget(spec, target);
+    assertDeployedStateMatchesTarget(deployedState, target);
 
     // Extract credentials from deployed state for this target
     const targetState = (deployedState as Record<string, unknown>)?.targets as

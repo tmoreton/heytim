@@ -22,6 +22,7 @@ import { Topic } from 'aws-cdk-lib/aws-sns';
 type ObservabilityResources = {
   stack: Stack;
   apiFunction: LambdaFunction;
+  publicApiFunction: LambdaFunction;
   workerFunction: LambdaFunction;
   workerLogGroup: LogGroup;
   apiAccessLogGroup: LogGroup;
@@ -41,6 +42,7 @@ export function createApplicationLogGroups(stack: Stack, logsKey: Key) {
   });
   return {
     apiLogGroup: create('ApiLogs'),
+    publicApiLogGroup: create('PublicApiLogs'),
     workerLogGroup: create('WorkerLogs'),
     plaidWebhookLogGroup: create('PlaidWebhookLogs'),
     apiAccessLogGroup: create('ApiAccessLogs'),
@@ -50,6 +52,7 @@ export function createApplicationLogGroups(stack: Stack, logsKey: Key) {
 export function addObservability({
   stack,
   apiFunction,
+  publicApiFunction,
   workerFunction,
   workerLogGroup,
   apiAccessLogGroup,
@@ -79,6 +82,14 @@ export function addObservability({
     datapointsToAlarm: 2,
     treatMissingData: TreatMissingData.NOT_BREACHING,
   });
+  const publicApiErrorAlarm = new Alarm(stack, 'PublicApiErrorRateAlarm', {
+    metric: lambdaErrorRate(publicApiFunction, 'Public API'),
+    threshold: 5,
+    comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+    evaluationPeriods: 3,
+    datapointsToAlarm: 2,
+    treatMissingData: TreatMissingData.NOT_BREACHING,
+  });
   const workerErrorAlarm = new Alarm(stack, 'WorkerErrorRateAlarm', {
     metric: lambdaErrorRate(workerFunction, 'Worker'),
     threshold: 5,
@@ -95,12 +106,20 @@ export function addObservability({
     datapointsToAlarm: 2,
     treatMissingData: TreatMissingData.NOT_BREACHING,
   });
+  const publicApiLatencyAlarm = new Alarm(stack, 'PublicApiLatencyP99Alarm', {
+    metric: publicApiFunction.metricDuration({ statistic: 'p99', period: Duration.minutes(1) }),
+    threshold: Duration.seconds(5).toMilliseconds(),
+    comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+    evaluationPeriods: 3,
+    datapointsToAlarm: 2,
+    treatMissingData: TreatMissingData.NOT_BREACHING,
+  });
   const workerLatencyAlarm = new Alarm(stack, 'WorkerLatencyP99Alarm', {
     metric: workerFunction.metricDuration({ statistic: 'p99', period: Duration.minutes(1) }),
-    threshold: Duration.minutes(13).toMilliseconds(),
+    threshold: Duration.minutes(5).toMilliseconds(),
     comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
-    evaluationPeriods: 1,
-    datapointsToAlarm: 1,
+    evaluationPeriods: 3,
+    datapointsToAlarm: 2,
     treatMissingData: TreatMissingData.NOT_BREACHING,
   });
   const workerJobFailureMetric = new MetricFilter(stack, 'WorkerJobFailureMetric', {
@@ -164,6 +183,14 @@ export function addObservability({
   });
   const apiThrottleAlarm = new Alarm(stack, 'ApiThrottleAlarm', {
     metric: apiFunction.metricThrottles({ period: Duration.minutes(1) }),
+    threshold: 0,
+    comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+    evaluationPeriods: 3,
+    datapointsToAlarm: 1,
+    treatMissingData: TreatMissingData.NOT_BREACHING,
+  });
+  const publicApiThrottleAlarm = new Alarm(stack, 'PublicApiThrottleAlarm', {
+    metric: publicApiFunction.metricThrottles({ period: Duration.minutes(1) }),
     threshold: 0,
     comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
     evaluationPeriods: 3,
@@ -287,12 +314,15 @@ export function addObservability({
   });
   for (const alarm of [
     apiErrorAlarm,
+    publicApiErrorAlarm,
     apiServerErrorAlarm,
     workerErrorAlarm,
     workerJobFailureAlarm,
     apiLatencyAlarm,
+    publicApiLatencyAlarm,
     workerLatencyAlarm,
     apiThrottleAlarm,
+    publicApiThrottleAlarm,
     workerThrottleAlarm,
     workerConcurrencyAlarm,
     queueAgeAlarm,
@@ -317,12 +347,15 @@ export function addObservability({
       title: 'Service alarms',
       alarms: [
         apiErrorAlarm,
+        publicApiErrorAlarm,
         apiServerErrorAlarm,
         workerErrorAlarm,
         workerJobFailureAlarm,
         apiLatencyAlarm,
+        publicApiLatencyAlarm,
         workerLatencyAlarm,
         apiThrottleAlarm,
+        publicApiThrottleAlarm,
         workerThrottleAlarm,
         workerConcurrencyAlarm,
         queueAgeAlarm,
@@ -333,11 +366,17 @@ export function addObservability({
     new GraphWidget({
       width: 12,
       title: 'Lambda requests and errors',
-      left: [apiFunction.metricInvocations(), workerFunction.metricInvocations()],
+      left: [
+        apiFunction.metricInvocations(),
+        publicApiFunction.metricInvocations(),
+        workerFunction.metricInvocations(),
+      ],
       right: [
         apiFunction.metricErrors(),
+        publicApiFunction.metricErrors(),
         workerFunction.metricErrors(),
         apiFunction.metricThrottles(),
+        publicApiFunction.metricThrottles(),
         workerFunction.metricThrottles(),
       ],
     }),

@@ -204,15 +204,14 @@ class DeviceCallTests(ApiTestCase):
             turn_update["ExpressionAttributeValues"][":now"], str
         )
         queued = json.loads(self.sqs.send_message.call_args.kwargs["MessageBody"])
-        self.assertEqual(
-            queued,
-            {
-                "type": "AGENT_REPLY",
-                "userId": "user-1",
-                "botId": self.bot_id,
-                "turnKey": "TURN#turn-1",
-            },
-        )
+        expected = {
+            "type": "AGENT_REPLY",
+            "userId": "user-1",
+            "botId": self.bot_id,
+            "turnKey": "TURN#turn-1",
+        }
+        self.assertEqual({key: queued[key] for key in expected}, expected)
+        self.assertEqual(queued["schemaVersion"], 1)
 
         with self.assertRaises(self.support.ApiError) as error:
             self.device_calls.submit_device_call_result(

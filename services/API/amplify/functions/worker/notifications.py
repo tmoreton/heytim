@@ -9,6 +9,7 @@ from typing import Any
 
 from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import BotoCoreError, ClientError
+from shared.job_envelope import send_job
 from shared.push_delivery import receipt_key, receipt_status, ticket_status
 
 from .support import (
@@ -355,17 +356,16 @@ def _queue_receipt_check(key: dict, user_id: str) -> None:
     ]
     if not receipts:
         return
-    sqs.send_message(
-        QueueUrl=QUEUE_URL,
-        DelaySeconds=900,
-        MessageBody=json.dumps(
-            {
-                "type": "PUSH_RECEIPTS",
-                "userId": user_id,
-                "receipts": receipts,
-                "deliveryKey": key,
-            }
-        ),
+    send_job(
+        sqs,
+        QUEUE_URL,
+        {
+            "type": "PUSH_RECEIPTS",
+            "userId": user_id,
+            "receipts": receipts,
+            "deliveryKey": key,
+        },
+        delay_seconds=900,
     )
     table.update_item(
         Key=key,
@@ -466,18 +466,17 @@ def _check_push_receipts(request: dict) -> None:
     attempt = int(request.get("attempt", 1))
     _record_receipts(request, receipts, exhausted=attempt >= 3)
     if missing and attempt < 3:
-        sqs.send_message(
-            QueueUrl=QUEUE_URL,
-            DelaySeconds=300,
-            MessageBody=json.dumps(
-                {
-                    "type": "PUSH_RECEIPTS",
-                    "userId": request["userId"],
-                    "receipts": missing,
-                    "deliveryKey": request.get("deliveryKey"),
-                    "attempt": attempt + 1,
-                }
-            ),
+        send_job(
+            sqs,
+            QUEUE_URL,
+            {
+                "type": "PUSH_RECEIPTS",
+                "userId": request["userId"],
+                "receipts": missing,
+                "deliveryKey": request.get("deliveryKey"),
+                "attempt": attempt + 1,
+            },
+            delay_seconds=300,
         )
     elif missing:
         logger.warning(
@@ -504,10 +503,7 @@ def _queue_reply_notification(
                 "scheduleName": turn.get("scheduleName"),
             }
         )
-    sqs.send_message(
-        QueueUrl=QUEUE_URL,
-        MessageBody=json.dumps(payload),
-    )
+    send_job(sqs, QUEUE_URL, payload)
     _queue_email_delivery(user_id, bot_id, turn, bot, event="reply")
     table.update_item(
         Key=turn_key,

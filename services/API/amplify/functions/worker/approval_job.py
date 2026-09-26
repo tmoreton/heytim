@@ -1,10 +1,10 @@
 """Expire paused proposals without ever resuming an unapproved tool call."""
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 
 from shared.approval_storage import approval_snapshot_key
+from shared.job_envelope import send_job
 from shared.time import utc_now_iso
 
 from .support import FILES_BUCKET_NAME, QUEUE_URL, _bot_key, s3, sqs, table
@@ -17,10 +17,12 @@ def delete_approval_snapshot(scope: str, scope_id: str, turn_id: str,
 
 
 def queue_approval_expiry(item_key: dict, proposal: dict, scope: str) -> None:
-    sqs.send_message(
-        QueueUrl=QUEUE_URL, DelaySeconds=900,
-        MessageBody=json.dumps({"type": "APPROVAL_EXPIRY", "scope": scope,
-                                "itemKey": item_key, "proposalId": proposal["id"]}),
+    send_job(
+        sqs,
+        QUEUE_URL,
+        {"type": "APPROVAL_EXPIRY", "scope": scope,
+         "itemKey": item_key, "proposalId": proposal["id"]},
+        delay_seconds=900,
     )
 
 
@@ -40,14 +42,12 @@ def process_approval_expiry(request: dict) -> None:
     expires = datetime.fromisoformat(proposal["expiresAt"].replace("Z", "+00:00"))
     if expires > datetime.now(UTC):
         remaining = max(1, min(900, int((expires - datetime.now(UTC)).total_seconds()) + 1))
-        sqs.send_message(QueueUrl=QUEUE_URL, DelaySeconds=remaining,
-                         MessageBody=json.dumps(request))
+        send_job(sqs, QUEUE_URL, request, delay_seconds=remaining)
         return
     message = "The proposed action expired without approval. No action was taken."
     request_to_resume = item.get("resumeRequest") if scope == "group" else None
     if isinstance(request_to_resume, dict):
-        sqs.send_message(QueueUrl=QUEUE_URL, DelaySeconds=10,
-                         MessageBody=json.dumps(request_to_resume))
+        send_job(sqs, QUEUE_URL, request_to_resume, delay_seconds=10)
     try:
         table.update_item(
             Key=key,
@@ -74,4 +74,4 @@ def process_approval_expiry(request: dict) -> None:
     else:
         delete_approval_snapshot("group", item["pk"].removeprefix("GROUP#"), item["id"])
         if isinstance(request_to_resume, dict):
-            sqs.send_message(QueueUrl=QUEUE_URL, MessageBody=json.dumps(request_to_resume))
+            send_job(sqs, QUEUE_URL, request_to_resume)

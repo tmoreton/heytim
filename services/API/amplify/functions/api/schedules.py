@@ -130,7 +130,11 @@ def _schedule_target(item: dict) -> dict:
         "RoleArn": SCHEDULE_ROLE_ARN,
         "Input": json.dumps(
             {
+                "schemaVersion": 1,
                 "type": "SCHEDULED_GROUP_ROUND" if item.get("groupId") else "SCHEDULED_AGENT_REPLY",
+                "correlationId": "<aws.scheduler.execution-id>",
+                "idempotencyKey": "<aws.scheduler.execution-id>",
+                "occurredAt": "<aws.scheduler.scheduled-time>",
                 "userId": item["userId"],
                 "botId": item["botId"],
                 **({"groupId": item["groupId"]} if item.get("groupId") else {}),

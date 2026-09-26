@@ -898,25 +898,25 @@ public struct AppConstraints: Codable, Equatable, Sendable {
 
   /// Matches the limits used by the deployed service before `/bootstrap` began returning them.
   public static let serviceDefaults = AppConstraints(
-    botNameMaxLength: 48,
-    botTaglineMaxLength: 120,
-    botPromptMaxLength: 12_000,
-    groupNameMaxLength: 64,
-    groupMemoryMaxLength: 4_000,
-    messageMaxLength: 8_000,
-    scheduleNameMaxLength: 64,
-    schedulePromptMaxLength: 8_000,
-    scheduleDayOfMonthMin: 1,
-    scheduleDayOfMonthMax: 28,
-    skillNameMaxLength: 80,
-    skillDescriptionMaxLength: 240,
-    skillInstructionsMaxLength: 20_000,
-    memoryMaxLength: 16_000,
-    maxAttachmentsPerMessage: 5,
-    maxToolsPerBot: 12,
-    imageMaxBytes: 3_750_000,
-    documentMaxBytes: 4_500_000,
-    maxPhotoDimension: 1_920)
+    botNameMaxLength: GeneratedAppConstraints.botNameMaxLength,
+    botTaglineMaxLength: GeneratedAppConstraints.botTaglineMaxLength,
+    botPromptMaxLength: GeneratedAppConstraints.botPromptMaxLength,
+    groupNameMaxLength: GeneratedAppConstraints.groupNameMaxLength,
+    groupMemoryMaxLength: GeneratedAppConstraints.groupMemoryMaxLength,
+    messageMaxLength: GeneratedAppConstraints.messageMaxLength,
+    scheduleNameMaxLength: GeneratedAppConstraints.scheduleNameMaxLength,
+    schedulePromptMaxLength: GeneratedAppConstraints.schedulePromptMaxLength,
+    scheduleDayOfMonthMin: GeneratedAppConstraints.scheduleDayOfMonthMin,
+    scheduleDayOfMonthMax: GeneratedAppConstraints.scheduleDayOfMonthMax,
+    skillNameMaxLength: GeneratedAppConstraints.skillNameMaxLength,
+    skillDescriptionMaxLength: GeneratedAppConstraints.skillDescriptionMaxLength,
+    skillInstructionsMaxLength: GeneratedAppConstraints.skillInstructionsMaxLength,
+    memoryMaxLength: GeneratedAppConstraints.memoryMaxLength,
+    maxAttachmentsPerMessage: GeneratedAppConstraints.maxAttachmentsPerMessage,
+    maxToolsPerBot: GeneratedAppConstraints.maxToolsPerBot,
+    imageMaxBytes: GeneratedAppConstraints.imageMaxBytes,
+    documentMaxBytes: GeneratedAppConstraints.documentMaxBytes,
+    maxPhotoDimension: GeneratedAppConstraints.maxPhotoDimension)
 }
 
 public struct Bootstrap: Codable, Sendable {

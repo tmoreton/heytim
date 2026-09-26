@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import json
 import logging
 from decimal import Decimal
 
 from botocore.exceptions import BotoCoreError, ClientError
 from shared.action_grants import approval_grant_digest
 from shared.group_chat import group_round_step
+from shared.job_envelope import send_job
 from shared.keys import group_message_sk
 from shared.memory_identity import group_memory_actor_id, group_memory_session_id
 from shared.time import utc_now_iso
@@ -483,14 +483,15 @@ def _process_group_agent_round(record: dict, request: dict) -> None:
         return
     if answer is not None and is_parallel_group_round(replies) and len(replies) <= 5 and index == 0:
         for child_index in range(1, len(replies) - 1):
-            sqs.send_message(
-                QueueUrl=QUEUE_URL,
-                MessageBody=json.dumps({
+            send_job(
+                sqs,
+                QUEUE_URL,
+                {
                     **request,
                     "type": "GROUP_AGENT_CONTRIBUTOR",
                     "nextReplyIndex": child_index,
                     "parallelRound": True,
-                }),
+                },
             )
         logger.info(
             "Group round %s queued %d parallel contributors",
@@ -498,10 +499,7 @@ def _process_group_agent_round(record: dict, request: dict) -> None:
         )
         return
     if answer is not None and not final_reply:
-        sqs.send_message(
-            QueueUrl=QUEUE_URL,
-            MessageBody=json.dumps({**request, "nextReplyIndex": index + 1}),
-        )
+        send_job(sqs, QUEUE_URL, {**request, "nextReplyIndex": index + 1})
         logger.info("Group round %s queued step %d/%d", request.get("messageId"), index + 2, len(replies))
     if answer is not None and final_reply and request.get("scheduleId"):
         states = [table.get_item(Key={"pk": _group_pk(request["groupId"]), "sk": entry["replyKey"]}, ConsistentRead=True).get("Item", {}) for entry in replies]
@@ -574,12 +572,13 @@ def _queue_parallel_synthesis_if_ready(request: dict) -> None:
     if current.get("status") in TERMINAL_STATUSES:
         return
     # Duplicate SQS messages are safe: the synthesis reply has one durable lease.
-    sqs.send_message(
-        QueueUrl=QUEUE_URL,
-        MessageBody=json.dumps({
+    send_job(
+        sqs,
+        QUEUE_URL,
+        {
             **request,
             "type": "GROUP_AGENT_ROUND",
             "nextReplyIndex": synthesis_index,
             "parallelRound": True,
-        }),
+        },
     )

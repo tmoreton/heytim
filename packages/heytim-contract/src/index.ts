@@ -5,3 +5,9 @@ export type * from './api/conversations-api.ts';
 export type * from './api/groups-api.ts';
 export type * from './api/schedules-api.ts';
 export { apiRoutes } from './routes.ts';
+export {
+  appConstraints,
+  deviceCapabilityContract,
+  platformContractVersion,
+  providerRuntimeContract,
+} from './platform-contract.generated.ts';

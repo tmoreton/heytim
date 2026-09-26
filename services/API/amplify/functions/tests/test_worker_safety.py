@@ -170,9 +170,10 @@ class WorkerSafetyTests(WorkerTestCase):
         results = update["ExpressionAttributeValues"][":results"]
         self.assertEqual(results[0]["status"], "completed")
         self.assertEqual(results[0]["exitCode"], 0)
-        self.sqs.send_message.assert_called_once_with(
-            QueueUrl="https://sqs.example/jobs", MessageBody=json.dumps(resume)
-        )
+        self.sqs.send_message.assert_called_once()
+        queued = json.loads(self.sqs.send_message.call_args.kwargs["MessageBody"])
+        self.assertEqual({key: queued[key] for key in resume}, resume)
+        self.assertEqual(queued["schemaVersion"], 1)
 
     def test_background_work_stops_polling_after_the_attempt_limit(self) -> None:
         item_key = {"pk": "CHAT#1", "sk": "TURN#1"}

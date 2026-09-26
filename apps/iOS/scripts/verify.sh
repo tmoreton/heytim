@@ -46,6 +46,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
+"$apple_root/scripts/check-architecture.sh"
 "$apple_root/scripts/prepare-transcription.sh"
 
 (

@@ -238,6 +238,7 @@ class ApiTestCase(unittest.TestCase):
         botocore_exceptions.ParamValidationError = ParamValidationError
 
         sys.modules.pop("api.handler", None)
+        sys.modules.pop("api.public_handler", None)
         with (
             patch.dict(os.environ, environment),
             patch.dict(
@@ -254,6 +255,7 @@ class ApiTestCase(unittest.TestCase):
             ),
         ):
             cls.handler = importlib.import_module("api.handler")
+            cls.public_handler = importlib.import_module("api.public_handler")
             cls.billing = importlib.import_module("api.billing")
             cls.support = importlib.import_module("api.support")
             cls.attachments = importlib.import_module("api.attachments")

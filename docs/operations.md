@@ -1,9 +1,9 @@
 # HeyTim operations
 
 This runbook defines service objectives and response steps for the current serverless architecture. Declarative
-`development` and `production` AgentCore targets exist. Production temporarily uses management account
-`188757775631` while the dedicated member account's Lambda quota request is pending, with target-scoped resources kept
-separate. Treat these objectives as production launch gates until the
+`development` and `production` AgentCore targets exist. Production uses dedicated member account `820323452649`,
+with state, credentials, quotas, and operational telemetry isolated from development. Treat these objectives as
+production launch gates until the
 production deployment, authenticated end-to-end checks, alert subscription, and recovery drill are complete.
 Review them after 30 days of representative
 traffic and tighten them from observed percentiles rather than relaxing them to hide incidents.

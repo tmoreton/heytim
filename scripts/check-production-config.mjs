@@ -9,16 +9,13 @@ const targets = JSON.parse(await readFile(path.join(root, 'agentcore/aws-targets
 const spec = JSON.parse(await readFile(path.join(root, 'agentcore/agentcore.json'), 'utf8'));
 const development = targets.find(target => target.name === 'development');
 const production = targets.find(target => target.name === 'production');
-const sharedProductionAccountAllowed = process.env.HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT === 'true';
 
 if (!development || !production) throw new Error('Development and production targets are both required.');
 if (production.account === '000000000000') {
   throw new Error('Replace the production AWS account placeholder in agentcore/aws-targets.json.');
 }
-if (production.account === development.account && !sharedProductionAccountAllowed) {
-  throw new Error(
-    'Production must use a different AWS account from development unless HEYTIM_ALLOW_SHARED_PRODUCTION_ACCOUNT=true.',
-  );
+if (production.account === development.account) {
+  throw new Error('Production must use a different AWS account from development.');
 }
 
 const memoryKeyArn = process.env.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN?.trim();
@@ -47,8 +44,6 @@ if (!gateway || gateway.authorizerType !== 'AWS_IAM') {
   throw new Error('The HeyTim tools gateway must use AWS_IAM authorization.');
 }
 
-const posture =
-  production.account === development.account
-    ? 'temporarily shares its AWS account with development while retaining target-scoped resources'
-    : 'is isolated in its own AWS account';
-process.stdout.write(`Production ${posture}: ${production.account}/${production.region}.\n`);
+process.stdout.write(
+  `Production is isolated in its own AWS account: ${production.account}/${production.region}.\n`,
+);

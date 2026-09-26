@@ -9,6 +9,7 @@ from shared.group_chat import (
     plan_group_reply_round,
     select_group_reply_targets,
 )
+from shared.job_envelope import send_job
 from shared.workflows import group_run_record, task_metadata
 
 from .attachments import _public_file, _resolve_group_attachments
@@ -241,10 +242,10 @@ def _send_group_message(
 
     if replies:
         try:
-            sqs.send_message(
-                QueueUrl=QUEUE_URL,
-                MessageBody=json.dumps(
-                    {
+            send_job(
+                sqs,
+                QUEUE_URL,
+                {
                         "type": "GROUP_AGENT_ROUND",
                         "requestedBy": user_id,
                         "groupId": group_id,
@@ -263,8 +264,7 @@ def _send_group_message(
                             }
                             for reply in replies
                         ],
-                    }
-                ),
+                },
             )
         except Exception:
             with table.batch_writer() as batch:

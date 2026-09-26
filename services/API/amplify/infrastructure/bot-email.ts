@@ -1,7 +1,7 @@
 import { CfnOutput, Duration, Fn, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Table } from 'aws-cdk-lib/aws-dynamodb';
 import { PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
-import { Code, Function as LambdaFunction, Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
+import { Function as LambdaFunction, Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket, BucketEncryption } from 'aws-cdk-lib/aws-s3';
@@ -10,9 +10,9 @@ import { CfnEmailIdentity, CfnReceiptRule, CfnReceiptRuleSet } from 'aws-cdk-lib
 import { Topic } from 'aws-cdk-lib/aws-sns';
 import { LambdaSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
-import path from 'node:path';
 
-import { FUNCTION_ASSET_EXCLUDES, PUBLIC_WEB_BASE_URL } from './app-settings';
+import { PUBLIC_WEB_BASE_URL } from './app-settings';
+import { applicationPythonCode } from './python-code';
 
 type BotEmailProps = {
   stack: Stack;
@@ -130,9 +130,7 @@ export function addBotEmailReceiving(
   const receiver = new LambdaFunction(stack, 'BotEmailReceiver', {
     runtime: Runtime.PYTHON_3_14,
     handler: 'email_ingest.handler.handler',
-    code: Code.fromAsset(path.resolve('amplify/functions'), {
-      exclude: FUNCTION_ASSET_EXCLUDES,
-    }),
+    code: applicationPythonCode(),
     memorySize: 512,
     timeout: Duration.seconds(60),
     tracing: Tracing.ACTIVE,
@@ -173,9 +171,7 @@ export function addBotEmailReceiving(
   const sender = new LambdaFunction(stack, 'BotEmailSender', {
     runtime: Runtime.PYTHON_3_14,
     handler: 'email_send.handler.handler',
-    code: Code.fromAsset(path.resolve('amplify/functions'), {
-      exclude: FUNCTION_ASSET_EXCLUDES,
-    }),
+    code: applicationPythonCode(),
     memorySize: 512,
     timeout: Duration.seconds(20),
     tracing: Tracing.ACTIVE,

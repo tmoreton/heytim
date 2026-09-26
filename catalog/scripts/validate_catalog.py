@@ -22,16 +22,15 @@ RUNTIME_NAMES = {
     "stan_plugin": {"todos"},
     "stan_subagent": {"generalist"},
 }
+PLATFORM_CONTRACT = json.loads(
+    (ROOT.parent / "packages" / "heytim-contract" / "src" / "platform-contract.json").read_text()
+)
+DEVICE_CAPABILITIES = PLATFORM_CONTRACT["deviceCapabilities"]
+MAX_DEVICE_OPERATIONS = DEVICE_CAPABILITIES["maxOperationsPerDevice"]
 DEVICE_OPERATION_PLATFORMS = {
-    "mac_computer_observe": "macos",
-    "mac_computer_act_on_element": "macos",
-    "mac_computer_type_into_element": "macos",
-    "mac_computer_wait_for_state": "macos",
-    "mac_computer_scroll": "macos",
-    "apple_health_activity_summary": "ios",
-    "apple_health_workouts": "ios",
-    "apple_health_running_totals": "ios",
-    "apple_health_steps": "ios",
+    operation: tool["platform"]
+    for tool in DEVICE_CAPABILITIES["tools"]
+    for operation in tool["operations"]
 }
 MAX_TAGS = 6
 TOOL_RISKS = {"read", "sandbox", "interactive"}
@@ -138,7 +137,7 @@ def main() -> int:
             operations = runtime.get("operations")
             if (
                 not isinstance(operations, list)
-                or not 1 <= len(operations) <= 8
+                or not 1 <= len(operations) <= MAX_DEVICE_OPERATIONS
                 or len(set(operations)) != len(operations)
                 or any(not isinstance(operation, str) or not RUNTIME_NAME_PATTERN.fullmatch(operation) for operation in operations)
             ):

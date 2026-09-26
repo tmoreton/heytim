@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import json
 import logging
 from datetime import UTC, datetime
 
 from shared.action_grants import approval_grant_digest
+from shared.job_envelope import send_job
 from shared.time import utc_now_iso
 from shared.work_state import is_claimable
 
@@ -259,9 +259,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
                         ":now": utc_now_iso(),
                     },
                 )
-                sqs.send_message(
-                    QueueUrl=QUEUE_URL, MessageBody=json.dumps(request)
-                )
+                send_job(sqs, QUEUE_URL, request)
                 return
             table.update_item(
                 Key=turn_key,
