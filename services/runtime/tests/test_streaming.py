@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from strands.types.exceptions import MaxTokensReachedException
@@ -69,6 +70,79 @@ def test_token_limit_after_final_continuation_is_propagated() -> None:
         asyncio.run(_events(agent, "hello"))
 
     assert agent.prompts == ["hello", None, None, None]
+
+
+def test_successful_work_resets_token_recovery_streak_without_replaying_prompt() -> (
+    None
+):
+    class WorkingAgent(FakeAgent):
+        async def stream_async(self, prompt):
+            self.prompts.append(prompt)
+            call = len(self.prompts)
+            if call < 7:
+                yield {"tool_result": {"status": "success", "toolUseId": str(call)}}
+                raise MaxTokensReachedException("partial")
+            yield {"done": True}
+
+    agent = WorkingAgent(0)
+    checkpoint = AsyncMock()
+    events = asyncio.run(_events(agent, "original task", checkpoint=checkpoint))
+    assert events[-1] == {"done": True}
+    assert agent.prompts == ["original task"] + [None] * 6
+    assert checkpoint.await_count == 6
+
+
+def test_failed_tools_do_not_reset_the_no_progress_recovery_limit() -> None:
+    class FailingAgent(FakeAgent):
+        async def stream_async(self, prompt):
+            self.prompts.append(prompt)
+            yield {"tool_result": {"status": "error", "toolUseId": "failed"}}
+            raise MaxTokensReachedException("partial")
+
+    agent = FailingAgent(0)
+    with pytest.raises(MaxTokensReachedException):
+        asyncio.run(_events(agent, "task"))
+    assert len(agent.prompts) == 4
+
+
+def test_long_run_slices_checkpoint_and_continue_without_new_user_input() -> None:
+    class SlicedAgent:
+        def __init__(self):
+            self.calls = []
+
+        async def stream_async(self, prompt, *, limits):
+            self.calls.append((prompt, limits))
+            if len(self.calls) < 4:
+                yield {"stop": ("limit_turns", {}, None, {})}
+            else:
+                yield {"event": {"messageStart": {"role": "assistant"}}}
+                yield {"event": {"contentBlockDelta": {"delta": {"text": "Complete."}}}}
+                yield {"event": {"messageStop": {"stopReason": "end_turn"}}}
+
+    agent = SlicedAgent()
+    checkpoint = AsyncMock()
+    events = asyncio.run(
+        _events(agent, "task", turn_slice_size=8, checkpoint=checkpoint)
+    )
+    assert agent.calls == [("task", {"turns": 8})] + [(None, {"turns": 8})] * 3
+    assert checkpoint.await_count == 3
+    assert events[-1]["event"]["messageStop"]["stopReason"] == "end_turn"
+
+
+def test_checkpoint_failure_stops_before_starting_another_slice() -> None:
+    class SlicedAgent:
+        def __init__(self):
+            self.calls = 0
+
+        async def stream_async(self, _prompt, *, limits):
+            self.calls += 1
+            yield {"stop": ("limit_turns", {}, None, {})}
+
+    agent = SlicedAgent()
+    checkpoint = AsyncMock(side_effect=RuntimeError("checkpoint unavailable"))
+    with pytest.raises(RuntimeError, match="checkpoint unavailable"):
+        asyncio.run(_events(agent, "task", turn_slice_size=8, checkpoint=checkpoint))
+    assert agent.calls == 1
 
 
 def test_complete_turn_has_a_wall_clock_deadline() -> None:

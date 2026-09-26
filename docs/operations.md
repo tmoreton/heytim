@@ -94,17 +94,21 @@ The AgentCore runtime also enforces in-process dispatch caps before paid provide
 
 | Setting | Default | Allowed range | Meaning |
 | --- | ---: | ---: | --- |
-| `HEYTIM_MAX_MODEL_CALLS_PER_RUNTIME_RUN` | 24 | 1–100 | OpenRouter model attempts, including retry and fallback dispatches |
-| `HEYTIM_MAX_PROVIDER_TOOL_CALLS_PER_RUNTIME_RUN` | 24 | 1–100 | Combined metered AgentCore Gateway and OpenRouter image tool dispatches |
+| `HEYTIM_MAX_MODEL_CALLS_PER_RUNTIME_RUN` | 40 | 1–100 | Model attempts for synchronous invocations, including retry and fallback |
+| `HEYTIM_MAX_PROVIDER_TOOL_CALLS_PER_RUNTIME_RUN` | 24 | 1–100 | Metered provider/gateway/image dispatches for synchronous invocations |
+| `HEYTIM_MAX_MODEL_CALLS_PER_LONG_RUN` | 160 | 1–500 | Cumulative model attempts for a background job, across all checkpoint slices and retries |
+| `HEYTIM_MAX_PROVIDER_TOOL_CALLS_PER_LONG_RUN` | 96 | 1–500 | Cumulative metered tool dispatches for a background job, across all checkpoint slices |
 | `HEYTIM_MAX_IMAGE_CALLS_PER_RUNTIME_RUN` | 2 | 1–10 | OpenRouter image-generation dispatches within the combined tool cap |
 
 Each valid YouTube quota lease has a fixed three-call ceiling across public search and connected-channel tools in
 addition to the combined tool cap.
 
 These runtime caps terminate the current AgentCore invocation with a user-readable error rather than dispatching
-the over-limit call. A later backend continuation is a separate runtime invocation and therefore gets a fresh
-in-process budget. Cross-invocation dollar ceilings require a durable provider ledger and are intentionally not
-claimed by this phase.
+the over-limit call. Background jobs checkpoint and automatically resume every eight agent turns within the same
+invocation; this does not reset usage or the job deadline. A later backend continuation is a separate runtime
+invocation and gets a fresh in-process budget. Cross-invocation dollar ceilings require a durable provider ledger.
+The larger background-job envelope allows legitimate multi-step work; monitor cumulative model/tool usage and
+provider costs when rolling it out. See [long-task recovery](long-running-task-recovery.md) for the regression gate.
 
 ## Alarm response
 

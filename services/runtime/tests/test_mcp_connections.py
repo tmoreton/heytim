@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from heytim_runtime import github_app, mcp_connections
+from heytim_runtime.mcp_auth import AccessToken, RefreshingBearerAuth
 
 
 def test_home_assistant_binding_requires_assist_path_and_private_secret(monkeypatch) -> None:
@@ -175,8 +176,9 @@ def test_github_app_connection_mints_installation_token_server_side(
     assert transport.func is mcp_connections._secure_streamable_http
     assert transport.args == (
         "https://api.githubcopilot.com/mcp/",
-        {"Authorization": "Bearer installation-token"},
+        None,
     )
+    assert isinstance(transport.keywords["auth"], RefreshingBearerAuth)
 
 
 def test_legacy_bearer_connection_is_rejected(monkeypatch) -> None:
@@ -308,8 +310,9 @@ def test_google_oauth_connection_refreshes_token_and_filters_tools(monkeypatch) 
 
     assert captured["transport"].args == (
         "https://gmailmcp.googleapis.com/mcp/v1",
-        {"Authorization": "Bearer access-token"},
+        None,
     )
+    assert isinstance(captured["transport"].keywords["auth"], RefreshingBearerAuth)
     assert captured["tool_filters"] == {"allowed": ["search_threads", "create_draft"]}
 
 
@@ -388,10 +391,7 @@ def test_google_workspace_bundle_refreshes_once_and_isolates_server_tools(
         entry["transport"].args[0]: set(entry["tool_filters"]["allowed"])
         for entry in captured
     } == mcp_connections.GOOGLE_WORKSPACE_MCP_SERVERS
-    assert all(
-        entry["transport"].args[1] == {"Authorization": "Bearer access-token"}
-        for entry in captured
-    )
+    assert len({id(entry["transport"].keywords["auth"]) for entry in captured}) == 1
     assert len({entry["connection_id"] for entry in captured}) == len(
         mcp_connections.GOOGLE_WORKSPACE_MCP_SERVERS
     )
@@ -456,7 +456,10 @@ def test_existing_google_workspace_bundle_remains_valid_without_sheets(monkeypat
 
 
 def test_workspace_resource_selection_exposes_only_selected_service_tools(monkeypatch) -> None:
-    monkeypatch.setattr(mcp_connections, "_google_access_token", lambda _binding: "token")
+    monkeypatch.setattr(
+        mcp_connections, "_google_access_credential",
+        lambda _binding: AccessToken.expiring("token", 3_600),
+    )
     captured = []
 
     class FakeMCPClient:

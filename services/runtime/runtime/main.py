@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from strands.agent.agent_result import AgentResult
+from strands.types.exceptions import MaxTokensReachedException
 from strands_harness import create_harness
 
 from heytim_runtime.action_approval import (
@@ -34,7 +35,12 @@ from heytim_runtime.streaming import (
 )
 from heytim_runtime.telemetry import install_private_tracer
 from model.load import load_model
-from model.usage import ProviderCallLimitExceeded, UsageAccumulator
+from model.usage import (
+    LONG_RUN_CALL_LIMITS,
+    PROVIDER_CALL_LIMITS,
+    ProviderCallLimitExceeded,
+    UsageAccumulator,
+)
 
 install_private_tracer()
 app = BedrockAgentCoreApp()
@@ -59,6 +65,10 @@ PROVIDER_CALL_LIMIT_MESSAGE = (
     "the verified progress from this run; send “continue” to resume without "
     "repeating completed external actions."
 )
+OUTPUT_TOKEN_LIMIT_MESSAGE = (
+    "I could not finish the response after recovering from repeated output limits. "
+    "The task is incomplete; completed external actions should be checked before retrying."
+)
 
 
 def _provider_call_limit_in_chain(error: BaseException) -> bool:
@@ -82,7 +92,10 @@ async def run_agent(payload, context):
     if provider_quota is not None and not isinstance(provider_quota, dict):
         raise ValueError("providerQuota must be an object")
     usage = UsageAccumulator(
-        youtube_search_quota=(provider_quota or {}).get("youtubeSearch")
+        limits=LONG_RUN_CALL_LIMITS
+        if payload.get("runtimeJob")
+        else PROVIDER_CALL_LIMITS,
+        youtube_search_quota=(provider_quota or {}).get("youtubeSearch"),
     )
     config = bot_configuration(payload, session_id, actor_id, messages, usage)
     approval = approval_configuration(payload, actor_id)
@@ -93,7 +106,7 @@ async def run_agent(payload, context):
         approval[1]
         if approval
         else interrupt_session_manager(payload, actor_id)
-        if has_device_tools(payload)
+        if has_device_tools(payload) or payload.get("runtimeJob")
         else None
     )
     log.info(
@@ -114,6 +127,7 @@ async def run_agent(payload, context):
             # Reasoning is configured directly on the pre-built OpenRouter model.
             effort="auto",
             caching=False,
+            callback_handler=None,
             instructions=config.instructions,
             tools=config.tools,
             builtin_tools=config.builtin_tools,
@@ -123,8 +137,8 @@ async def run_agent(payload, context):
             skills=False,
             memory={"stores": memories} if memories else False,
             context_manager="auto",
-            # Chat history is owned by the application backend. The approval
-            # snapshot manager below is the only supported session override.
+            # Chat history is owned by the application backend. Private turn
+            # snapshots below support background slices and interrupted tools.
             session=False,
             **(
                 {
@@ -173,10 +187,25 @@ async def run_agent(payload, context):
                 else messages
             )
             async for event in stream_with_token_recovery(
-                agent, prompt, logger=log, timeout_seconds=budget
+                agent,
+                prompt,
+                logger=log,
+                timeout_seconds=budget,
+                turn_slice_size=8 if payload.get("runtimeJob") else None,
+                checkpoint=(
+                    lambda current: session_manager.save_snapshot(
+                        current, is_latest=True
+                    )
+                )
+                if session_manager and payload.get("runtimeJob")
+                else None,
             ):
-                if isinstance(event, dict) and "stop" in event:
-                    stopped = AgentResult(*event["stop"])
+                stopped = None
+                if isinstance(event, dict):
+                    stopped = event.get("result")
+                    if stopped is None and "stop" in event:
+                        stopped = AgentResult(*event["stop"])
+                if isinstance(stopped, AgentResult):
                     proposed = pending_approval(stopped)
                     proposed_device = pending_device_call(stopped)
                     if proposed and proposed_device:
@@ -213,6 +242,11 @@ async def run_agent(payload, context):
             terminal_error = {
                 "code": "INCOMPLETE_TURN",
                 "message": INCOMPLETE_TURN_MESSAGE,
+            }
+        except MaxTokensReachedException:
+            terminal_error = {
+                "code": "OUTPUT_TOKEN_LIMIT",
+                "message": OUTPUT_TOKEN_LIMIT_MESSAGE,
             }
         except ProviderCallLimitExceeded:
             terminal_error = {

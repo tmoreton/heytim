@@ -15,9 +15,7 @@ import boto3
 import httpx
 from botocore.config import Config
 from mcp.client.streamable_http import streamable_http_client
-from strands.tools.mcp.mcp_agent_tool import MCPAgentTool
 from strands.tools.mcp.mcp_client import MCPClient
-from strands.types import PaginatedList
 
 from .github_app import (
     GITHUB_API_URL,
@@ -28,6 +26,8 @@ from .github_app import (
     github_app_jwt,
     validate_installation_grant,
 )
+from .mcp_auth import AccessToken, RefreshingBearerAuth
+from .mcp_client import BoundedMCPClient
 from .mcp_tool_catalog import (
     GMAIL_MCP_ENDPOINT,
     GMAIL_MCP_TOOLS,
@@ -36,6 +36,12 @@ from .mcp_tool_catalog import (
     SCOPED_GOOGLE_TOOLS,
 )
 from .mcp_tool_names import _bounded_tool_name
+
+__all__ = [
+    "BoundedMCPClient", "ConnectionCredentialUnavailable", "_bounded_tool_name",
+    "connection_client", "connection_clients", "github_installation_token",
+    "validated_connection_binding", "validated_connection_bundle_binding",
+]
 
 SECRET_ARN_PATTERN = re.compile(
     r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
@@ -56,86 +62,6 @@ _secrets_manager = None
 
 class ConnectionCredentialUnavailable(ValueError):
     """A saved connection needs to be reauthenticated before it can be used."""
-
-
-class LabeledMCPAgentTool(MCPAgentTool):
-    def __init__(self, *args: Any, account_label: str | None = None, **kwargs: Any) -> None:
-        self._heytim_account_label = account_label
-        super().__init__(*args, **kwargs)
-
-    @property
-    def tool_spec(self):
-        spec = super().tool_spec
-        if self._heytim_account_label:
-            spec["description"] += f" Connected account: {self._heytim_account_label}."
-        return spec
-
-
-class BoundedMCPClient(MCPClient):
-    """Expose stable MCP aliases that every supported text model can accept."""
-
-    def __init__(
-        self, *args: Any, connection_id: str,
-        resource_ids: set[str] | None = None,
-        resource_server: str | None = None,
-        account_label: str | None = None,
-        **kwargs: Any,
-    ) -> None:
-        self._heytim_connection_id = connection_id
-        self._heytim_resource_ids = resource_ids
-        self._heytim_resource_server = resource_server
-        self._heytim_account_label = account_label
-        super().__init__(*args, prefix=None, **kwargs)
-
-    def list_tools_sync(
-        self,
-        pagination_token: str | None = None,
-        prefix: str | None = None,
-        tool_filters: Any = None,
-    ) -> PaginatedList[MCPAgentTool]:
-        page = super().list_tools_sync(
-            pagination_token,
-            prefix="",
-            tool_filters=tool_filters,
-        )
-        tools = [
-            LabeledMCPAgentTool(
-                tool.mcp_tool,
-                self,
-                account_label=self._heytim_account_label,
-                name_override=_bounded_tool_name(
-                    self._heytim_connection_id,
-                    tool.mcp_tool.name,
-                ),
-                timeout=tool.timeout,
-            )
-            for tool in page
-            if self._heytim_resource_ids is None
-            or tool.mcp_tool.name in SCOPED_GOOGLE_TOOLS.get(
-                self._heytim_resource_server or "", {}
-            )
-        ]
-        return PaginatedList(tools, token=page.pagination_token)
-
-    async def call_tool_async(
-        self, tool_use_id: str, name: str,
-        arguments: dict[str, Any] | None = None,
-        **kwargs: Any,
-    ):
-        if self._heytim_resource_ids is not None:
-            field = SCOPED_GOOGLE_TOOLS.get(
-                self._heytim_resource_server or "", {}
-            ).get(name)
-            resource = arguments.get(field) if isinstance(arguments, dict) and field else None
-            if not isinstance(resource, str) or resource not in self._heytim_resource_ids:
-                return {
-                    "toolUseId": tool_use_id,
-                    "status": "error",
-                    "content": [{"text": "This bot is not assigned that Workspace resource"}],
-                }
-        return await super().call_tool_async(
-            tool_use_id, name, arguments=arguments, **kwargs
-        )
 
 
 def _validated_endpoint(value: Any) -> str:
@@ -191,9 +117,11 @@ def _secure_http_client(
 
 
 @asynccontextmanager
-async def _secure_streamable_http(endpoint: str, headers: dict[str, str] | None):
+async def _secure_streamable_http(
+    endpoint: str, headers: dict[str, str] | None = None, *, auth: httpx.Auth | None = None
+):
     async with (
-        _secure_http_client(headers=headers) as client,
+        _secure_http_client(headers=headers, auth=auth) as client,
         streamable_http_client(endpoint, http_client=client) as streams,
     ):
         yield streams
@@ -397,6 +325,10 @@ def _json_secret(secret_arn: str) -> dict:
 
 
 def _google_access_token(binding: dict) -> str:
+    return _google_access_credential(binding).value
+
+
+def _google_access_credential(binding: dict) -> AccessToken:
     credential = _json_secret(binding["secretArn"])
     client_document = _json_secret(binding["oauthClientSecretArn"])
     client = client_document.get("web", client_document)
@@ -435,7 +367,7 @@ def _google_access_token(binding: dict) -> str:
     access_token = value.get("access_token") if isinstance(value, dict) else None
     if not isinstance(access_token, str) or not access_token:
         raise ConnectionCredentialUnavailable("OAuth access token is unavailable")
-    return access_token
+    return AccessToken.expiring(access_token, value.get("expires_in"))
 
 
 def _home_assistant_access_token(binding: dict) -> str:
@@ -465,6 +397,10 @@ def _mcp_access_token(binding: dict) -> str:
 
 
 def github_installation_token(binding: dict) -> str:
+    return _github_installation_credential(binding).value
+
+
+def _github_installation_credential(binding: dict) -> AccessToken:
     if binding.get("authType") != "github_app":
         raise ValueError("Connection does not use a GitHub App installation")
     grant = validate_installation_grant(_json_secret(binding["secretArn"]))
@@ -512,15 +448,20 @@ def github_installation_token(binding: dict) -> str:
     token = value.get("token") if isinstance(value, dict) else None
     if not isinstance(token, str) or not token:
         raise ValueError("GitHub installation access is unavailable")
-    return token
+    return AccessToken.until(token, value.get("expires_at"))
 
 
 def connection_client(binding: dict) -> MCPClient:
     headers = None
+    auth = None
     if binding["authType"] == "oauth":
-        headers = {"Authorization": f"Bearer {_google_access_token(binding)}"}
+        auth = RefreshingBearerAuth(
+            lambda: _google_access_credential(binding), [binding["endpoint"]]
+        )
     elif binding["authType"] == "github_app":
-        headers = {"Authorization": f"Bearer {github_installation_token(binding)}"}
+        auth = RefreshingBearerAuth(
+            lambda: _github_installation_credential(binding), [binding["endpoint"]]
+        )
     elif binding["authType"] == "home_assistant_token":
         headers = {"Authorization": f"Bearer {_home_assistant_access_token(binding)}"}
     elif binding["authType"] == "bearer_token":
@@ -535,7 +476,7 @@ def connection_client(binding: dict) -> MCPClient:
     if binding["authType"] == "oauth":
         options["tool_filters"] = {"allowed": binding["allowedTools"]}
     return BoundedMCPClient(
-        partial(_secure_streamable_http, binding["endpoint"], headers),
+        partial(_secure_streamable_http, binding["endpoint"], headers, auth=auth),
         **options,
     )
 
@@ -545,7 +486,9 @@ def connection_clients(binding: dict) -> list[MCPClient]:
         return [connection_client(binding)]
     if binding["kind"] != "mcp_bundle" or binding["authType"] != "oauth":
         raise ValueError("MCP connection bundle is invalid")
-    headers = {"Authorization": f"Bearer {_google_access_token(binding)}"}
+    auth = RefreshingBearerAuth(
+        lambda: _google_access_credential(binding), list(GOOGLE_WORKSPACE_MCP_SERVERS)
+    )
     clients = []
     servers = list(binding["servers"])
     if (
@@ -587,7 +530,7 @@ def connection_clients(binding: dict) -> list[MCPClient]:
                 continue
         clients.append(
             BoundedMCPClient(
-                partial(_secure_streamable_http, server["endpoint"], headers),
+                partial(_secure_streamable_http, server["endpoint"], auth=auth),
                 connection_id=f"{binding['id']}:{hostname}",
                 resource_ids=resource_ids,
                 resource_server=hostname,

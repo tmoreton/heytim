@@ -159,7 +159,7 @@ def approval_configuration(payload: dict, actor_id: str | None) -> tuple[ActionA
 def interrupt_session_manager(
     payload: dict, actor_id: str | None
 ) -> SnapshotSessionManager:
-    """Return the authorized snapshot store shared by approval and device interrupts."""
+    """Return the private turn snapshot store for jobs and interrupted tool calls."""
     memory = memory_context_from_payload(payload)
     prefix = artifact_prefix_from_payload(payload, actor_id)
     if not memory or not prefix or not (

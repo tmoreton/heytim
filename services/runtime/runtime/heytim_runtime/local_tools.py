@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import math
 import operator
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -19,21 +20,29 @@ _BINARY_OPERATORS = {
 _UNARY_OPERATORS = {ast.UAdd: operator.pos, ast.USub: operator.neg}
 
 
+def _bounded_number(value: float) -> float:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise TypeError("Expression must produce a real number")
+    if abs(value) > 1e100 or not math.isfinite(value):
+        raise ValueError("Result is too large or non-finite")
+    return value
+
+
 def _evaluate_number(node: ast.AST) -> int | float:
     if (
         isinstance(node, ast.Constant)
         and isinstance(node.value, (int, float))
         and not isinstance(node.value, bool)
     ):
-        return node.value
+        return _bounded_number(node.value)
     if isinstance(node, ast.BinOp) and type(node.op) in _BINARY_OPERATORS:
         left = _evaluate_number(node.left)
         right = _evaluate_number(node.right)
         if isinstance(node.op, ast.Pow) and abs(right) > 12:
             raise ValueError("Exponent is too large")
-        return _BINARY_OPERATORS[type(node.op)](left, right)
+        return _bounded_number(_BINARY_OPERATORS[type(node.op)](left, right))
     if isinstance(node, ast.UnaryOp) and type(node.op) in _UNARY_OPERATORS:
-        return _UNARY_OPERATORS[type(node.op)](_evaluate_number(node.operand))
+        return _bounded_number(_UNARY_OPERATORS[type(node.op)](_evaluate_number(node.operand)))
     raise ValueError("Expression contains an unsupported operation")
 
 
@@ -45,8 +54,6 @@ def calculate(expression: str) -> str:
     if not expression.strip() or len(expression) > 200:
         raise ValueError("expression must be non-empty and at most 200 characters")
     result = _evaluate_number(ast.parse(expression, mode="eval").body)
-    if abs(float(result)) > 1e100:
-        raise ValueError("Result is too large")
     return str(result)
 
 
