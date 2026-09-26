@@ -4,6 +4,7 @@ set -euo pipefail
 apple_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repository_root="$(cd "$apple_root/../.." && pwd)"
 project_file="$apple_root/HeyTimApple.xcodeproj/project.pbxproj"
+ios_info_plist="$apple_root/Resources/Info.plist"
 
 search_swift_sources() {
   local pattern="$1"
@@ -33,6 +34,12 @@ if ! grep -q 'PlatformContract\.generated\.swift in Sources' "$project_file"; th
   echo 'The generated platform contract must be registered in the Apple application target.' >&2
   exit 1
 fi
+for health_usage_key in NSHealthShareUsageDescription NSHealthUpdateUsageDescription; do
+  if ! grep -q "<key>$health_usage_key</key><string>[^<]" "$ios_info_plist"; then
+    echo "$health_usage_key must contain a user-facing purpose string." >&2
+    exit 1
+  fi
+done
 
 node "$repository_root/services/API/scripts/generate-api-contract.mjs" --check
 node "$repository_root/services/API/scripts/generate-platform-contract.mjs" --check
