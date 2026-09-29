@@ -236,6 +236,12 @@ export class AgentCoreStack extends Stack {
         );
         environment.runtime.role.addToPrincipalPolicy(
           new iam.PolicyStatement({
+            actions: ['s3:PutObjectTagging'],
+            resources: [`${bucketArn}/users/*`, `${bucketArn}/groups/*`],
+          })
+        );
+        environment.runtime.role.addToPrincipalPolicy(
+          new iam.PolicyStatement({
             actions: ['kms:Decrypt', 'kms:DescribeKey', 'kms:Encrypt', 'kms:GenerateDataKey'],
             resources: ['*'],
             conditions: {

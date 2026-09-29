@@ -91,12 +91,14 @@ def test_load_model_uses_deepseek_with_glm_fallback(
     assert isinstance(fallback, model_loader.ResilientOpenRouterModel)
     assert primary.model.get_config()["model_id"] == "deepseek/deepseek-v4.1-flash"
     assert primary.model.get_config()["params"]["extra_body"] == {
-        "reasoning": {"effort": "high"}
+        "reasoning": {"effort": "high"},
+        "provider": {"zdr": True, "data_collection": "deny"},
     }
     assert primary.model.get_config()["params"]["max_tokens"] == 8192
     assert fallback.model.get_config()["model_id"] == "z-ai/glm-5.3"
     assert fallback.model.get_config()["params"]["extra_body"] == {
-        "reasoning": {"effort": "high"}
+        "reasoning": {"effort": "high"},
+        "provider": {"zdr": True, "data_collection": "deny"},
     }
     assert "test-secret" not in repr(primary.get_config())
 
@@ -113,6 +115,7 @@ def test_load_model_routes_each_model_with_the_same_conversation_id(
     for route in (model.primary, model.fallback):
         assert route.model.get_config()["params"]["extra_body"] == {
             "reasoning": {"effort": "high"},
+            "provider": {"zdr": True, "data_collection": "deny"},
             "session_id": "private-conversation",
         }
 
@@ -121,24 +124,6 @@ def test_load_model_routes_each_model_with_the_same_conversation_id(
 def test_openrouter_model_rejects_invalid_session_id(session_id: Any) -> None:
     with pytest.raises(ValueError, match="OpenRouter session ID"):
         model_loader._load_openrouter_model("test-secret", session_id=session_id)
-
-
-@pytest.mark.parametrize("effort", ["low", "high", "max"])
-def test_openrouter_model_accepts_supported_reasoning_efforts(effort: str) -> None:
-    model = model_loader._load_openrouter_model(
-        "test-secret",
-        model_id="z-ai/glm-5.3",
-        reasoning_effort=effort,
-        max_tokens=2048,
-        temperature=0.1,
-    )
-
-    config = model.get_config()
-    assert config["model_id"] == "z-ai/glm-5.3"
-    assert config["params"]["max_tokens"] == 2048
-    assert config["params"]["temperature"] == 0.1
-    assert config["params"]["extra_body"] == {"reasoning": {"effort": effort}}
-    assert model.client_args["max_retries"] == 0
 
 
 def test_openrouter_model_rejects_unsupported_reasoning_effort() -> None:
@@ -379,13 +364,20 @@ def test_cache_diagnostics_record_each_call_without_prompt_contents() -> None:
     accumulator = model_loader.UsageAccumulator()
     delegate = FakeModel(
         "primary",
-        [{"metadata": {
-            "usage": {"inputTokens": 100, "cacheReadInputTokens": 75},
-            "heytimCacheReadReported": True,
-        }}],
+        [
+            {
+                "metadata": {
+                    "usage": {"inputTokens": 100, "cacheReadInputTokens": 75},
+                    "heytimCacheReadReported": True,
+                }
+            }
+        ],
     )
     model = model_loader.UsageTrackingModel(
-        delegate, accumulator, provider="openrouter", model_id="deepseek/deepseek-v4.1-flash"
+        delegate,
+        accumulator,
+        provider="openrouter",
+        model_id="deepseek/deepseek-v4.1-flash",
     )
 
     async def call() -> None:

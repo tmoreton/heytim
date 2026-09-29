@@ -7,7 +7,7 @@ import io
 import pytest
 from PIL import Image, ImageDraw
 
-from heytim_runtime import artifacts, image_generation
+from heytim_runtime import artifacts, capabilities, image_generation
 from heytim_runtime.image_generation import image_generation_tools
 from model.usage import (
     ProviderCallLimitExceeded,
@@ -121,6 +121,102 @@ def test_image_generator_calls_openrouter_and_saves_png(monkeypatch) -> None:
     output = Image.open(io.BytesIO(saved["Body"]))
     assert output.format == "PNG"
     assert output.size == (640, 480)
+
+
+@pytest.mark.parametrize(
+    ("connections", "image_available"),
+    [
+        ([], True),
+        (
+            [
+                {
+                    "kind": "mcp",
+                    "endpoint": "https://gmailmcp.googleapis.com/mcp/v1",
+                    "oauthProvider": "google",
+                }
+            ],
+            False,
+        ),
+        ([{"kind": "mcp_bundle", "oauthProvider": "google"}], False),
+        (
+            [
+                {
+                    "kind": "provider_api",
+                    "provider": "youtube",
+                    "oauthProvider": "google",
+                }
+            ],
+            False,
+        ),
+        (
+            [
+                {
+                    "kind": "mcp",
+                    "endpoint": "https://example.com/mcp",
+                    "oauthProvider": "github",
+                }
+            ],
+            True,
+        ),
+        (
+            [
+                {
+                    "kind": "mcp",
+                    "endpoint": "https://example.com/mcp",
+                    "oauthProvider": "github",
+                },
+                {"kind": "mcp_bundle", "oauthProvider": "google"},
+            ],
+            False,
+        ),
+    ],
+    ids=["no-connection", "gmail", "workspace", "youtube", "other-provider", "mixed"],
+)
+def test_google_connection_disables_image_tools(
+    monkeypatch, connections, image_available
+) -> None:
+    image_calls: list[str] = []
+    prefix = f"users/{'a' * 64}/artifacts/12345678-1234-1234-1234-123456789012"
+    monkeypatch.setattr(capabilities, "tool_bindings", lambda bot: bot["bindings"])
+    monkeypatch.setattr(capabilities, "dynamic_skills", lambda _bot: [])
+    monkeypatch.setattr(capabilities, "validate_skill_selection", lambda *_: None)
+    monkeypatch.setattr(capabilities, "connection_clients", lambda _binding: [])
+    monkeypatch.setattr(capabilities, "gmail_api_tools", lambda *_: [])
+    monkeypatch.setattr(capabilities, "provider_connection_tools", lambda *_: [])
+    monkeypatch.setattr(
+        capabilities,
+        "artifact_tool",
+        lambda _prefix: type("Tool", (), {"tool_name": "save_artifact"})(),
+    )
+    monkeypatch.setattr(capabilities, "workspace_asset_tools", lambda *_: [])
+    monkeypatch.setattr(capabilities, "ResultStorage", lambda _prefix: object())
+    monkeypatch.setattr(
+        capabilities, "ToolResultOffloader", lambda *_args, **_kwargs: object()
+    )
+    monkeypatch.setattr(
+        capabilities,
+        "image_generation_tools",
+        lambda *_args, **_kwargs: (
+            image_calls.append("called")
+            or [type("Tool", (), {"tool_name": "generate_image"})()]
+        ),
+    )
+    image_binding = {
+        "id": "image_generator",
+        "kind": "local",
+        "name": "image_generator",
+    }
+    bindings = [image_binding] + [
+        {"id": f"connection_{index}", **item} for index, item in enumerate(connections)
+    ]
+    config = capabilities.resolve_capabilities(
+        {"bindings": bindings}, "session", prefix
+    )
+
+    assert (
+        "generate_image" in {tool.tool_name for tool in config.tools}
+    ) is image_available
+    assert bool(image_calls) is image_available
 
 
 def test_thumbnail_sends_full_composition_and_references_to_openrouter(

@@ -62,6 +62,19 @@ fi
 apple_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repository_root="$(cd "$apple_root/../.." && pwd)"
 export_options="$apple_root/Resources/TestFlightExportOptions.plist"
+if [[ "${HEYTIM_RELEASE_SCOPE:-}" == ios-smoke ]]; then
+  # Xcode marks this upload ineligible for external TestFlight and App Store
+  # distribution. The ordinary release export options remain unchanged.
+  export_options="$apple_root/Resources/TestFlightInternalExportOptions.plist"
+  if [[ "$(plutil -extract testFlightInternalTestingOnly raw -o - "$export_options")" != true ]]; then
+    echo 'The iOS smoke export must be restricted to internal TestFlight.' >&2
+    exit 1
+  fi
+  if [[ "$(xcodebuild -help 2>&1)" != *testFlightInternalTestingOnly* ]]; then
+    echo 'This Xcode version cannot enforce internal-only TestFlight uploads.' >&2
+    exit 1
+  fi
+fi
 
 if [[ "$dry_run" == true ]]; then
   for release_platform in "${platforms[@]}"; do

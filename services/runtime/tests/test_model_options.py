@@ -8,6 +8,27 @@ import pytest
 from model import load as model_loader
 
 
+@pytest.mark.parametrize("effort", ["low", "high", "max"])
+def test_openrouter_model_accepts_supported_reasoning_efforts(effort: str) -> None:
+    model = model_loader._load_openrouter_model(
+        "test-secret",
+        model_id="z-ai/glm-5.3",
+        reasoning_effort=effort,
+        max_tokens=2048,
+        temperature=0.1,
+    )
+
+    config = model.get_config()
+    assert config["model_id"] == "z-ai/glm-5.3"
+    assert config["params"]["max_tokens"] == 2048
+    assert config["params"]["temperature"] == 0.1
+    assert config["params"]["extra_body"] == {
+        "reasoning": {"effort": effort},
+        "provider": {"zdr": True, "data_collection": "deny"},
+    }
+    assert model.client_args["max_retries"] == 0
+
+
 def test_bot_can_choose_glm_with_deepseek_fallback_and_reasoning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -20,9 +41,12 @@ def test_bot_can_choose_glm_with_deepseek_fallback_and_reasoning(
     )
 
     assert model.primary.model.get_config()["model_id"] == "z-ai/glm-5.3"
-    assert model.fallback.model.get_config()["model_id"] == "deepseek/deepseek-v4.1-flash"
+    assert (
+        model.fallback.model.get_config()["model_id"] == "deepseek/deepseek-v4.1-flash"
+    )
     assert model.primary.model.get_config()["params"]["extra_body"] == {
-        "reasoning": {"effort": "low"}
+        "reasoning": {"effort": "low"},
+        "provider": {"zdr": True, "data_collection": "deny"},
     }
 
 

@@ -2,19 +2,24 @@
 set -euo pipefail
 
 release_scope="${HEYTIM_RELEASE_SCOPE:-full}"
-if [[ "$release_scope" != full && "$release_scope" != backend-macos ]]; then
-  echo 'HEYTIM_RELEASE_SCOPE must be full or backend-macos.' >&2
+if [[ "$release_scope" != full && "$release_scope" != backend-macos \
+  && "$release_scope" != ios-smoke ]]; then
+  echo 'HEYTIM_RELEASE_SCOPE must be full, backend-macos, or ios-smoke.' >&2
   exit 2
 fi
 required_values=(
   APPLE_TEAM_ID APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID
   APP_STORE_CONNECT_PRIVATE_KEY
-  DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64
-  DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD
-  HEYTIM_SPARKLE_PUBLIC_KEY SPARKLE_PRIVATE_KEY
   HEYTIM_BUILD_NUMBER HEYTIM_MARKETING_VERSION
 )
-if [[ "$release_scope" == full ]]; then
+if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
+  required_values+=(
+    DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64
+    DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD
+    HEYTIM_SPARKLE_PUBLIC_KEY SPARKLE_PRIVATE_KEY
+  )
+fi
+if [[ "$release_scope" == full || "$release_scope" == ios-smoke ]]; then
   required_values+=(
     APPLE_DISTRIBUTION_CERTIFICATE_BASE64 APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD
     APPLE_DEVELOPMENT_CERTIFICATE_BASE64 APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD
@@ -32,7 +37,6 @@ fi
 apple_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 temporary_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/HeyTimSigning.XXXXXX")"
 keychain="$temporary_root/heytim-signing.keychain-db"
-developer_id_certificate="$temporary_root/developer-id-application.p12"
 signing_intermediate="$temporary_root/AppleWWDRCAG3.cer"
 api_key="$temporary_root/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
 keychain_password="$(uuidgen | tr -d '-')"
@@ -55,8 +59,11 @@ cleanup() {
 trap cleanup EXIT
 
 umask 077
-printf '%s' "$DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64" | base64 -D > "$developer_id_certificate"
-if [[ "$release_scope" == full ]]; then
+if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
+  developer_id_certificate="$temporary_root/developer-id-application.p12"
+  printf '%s' "$DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64" | base64 -D > "$developer_id_certificate"
+fi
+if [[ "$release_scope" == full || "$release_scope" == ios-smoke ]]; then
   certificate="$temporary_root/distribution.p12"
   development_certificate="$temporary_root/development.p12"
   printf '%s' "$APPLE_DISTRIBUTION_CERTIFICATE_BASE64" | base64 -D > "$certificate"
@@ -76,27 +83,23 @@ security create-keychain -p "$keychain_password" "$keychain"
 security set-keychain-settings -lut 7200 "$keychain"
 security unlock-keychain -p "$keychain_password" "$keychain"
 security add-certificates -k "$keychain" "$signing_intermediate"
-if [[ "$release_scope" == full ]]; then
+if [[ "$release_scope" == full || "$release_scope" == ios-smoke ]]; then
   security import "$certificate" -k "$keychain" -P "$APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD" \
     -T /usr/bin/codesign -T /usr/bin/security
   security import "$development_certificate" -k "$keychain" \
     -P "$APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD" \
     -T /usr/bin/codesign -T /usr/bin/security
 fi
-security import "$developer_id_certificate" -k "$keychain" \
-  -P "$DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD" \
-  -T /usr/bin/codesign -T /usr/bin/security
+if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
+  security import "$developer_id_certificate" -k "$keychain" \
+    -P "$DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD" \
+    -T /usr/bin/codesign -T /usr/bin/security
+fi
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
   -k "$keychain_password" "$keychain" >/dev/null
 security list-keychains -d user -s "$keychain" "${original_keychains[@]}"
-developer_id_identity="$(security find-identity -v -p codesigning "$keychain" \
-  | awk '/"Developer ID Application:/ { print $2; exit }')"
-if [[ -z "$developer_id_identity" ]]; then
-  echo 'The CI Developer ID identity is not valid.' >&2
-  exit 1
-fi
 cp /usr/bin/true "$temporary_root/signing-probe"
-if [[ "$release_scope" == full ]]; then
+if [[ "$release_scope" == full || "$release_scope" == ios-smoke ]]; then
   signing_identity="$(security find-identity -v -p codesigning "$keychain" \
     | awk '/"Apple Distribution:/ { print $2; exit }')"
   development_identity="$(security find-identity -v -p codesigning "$keychain" \
@@ -110,21 +113,31 @@ if [[ "$release_scope" == full ]]; then
   codesign --force --sign "$signing_identity" --keychain "$keychain" \
     "$temporary_root/signing-probe"
 fi
-codesign --force --sign "$developer_id_identity" --keychain "$keychain" \
-  --timestamp "$temporary_root/signing-probe"
+if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
+  developer_id_identity="$(security find-identity -v -p codesigning "$keychain" \
+    | awk '/"Developer ID Application:/ { print $2; exit }')"
+  if [[ -z "$developer_id_identity" ]]; then
+    echo 'The CI Developer ID identity is not valid.' >&2
+    exit 1
+  fi
+  codesign --force --sign "$developer_id_identity" --keychain "$keychain" \
+    --timestamp "$temporary_root/signing-probe"
+fi
 
 # Secrets were written under the private umask above. Release artifacts must
 # remain readable by the non-root user who installs and runs the Mac app.
 umask 022
 
-if [[ "$release_scope" == full ]]; then
+if [[ "$release_scope" == full || "$release_scope" == ios-smoke ]]; then
   APP_STORE_CONNECT_KEY_PATH="$api_key" \
     HEYTIM_SIGNING_KEYCHAIN="$keychain" \
     HEYTIM_ALLOW_GENERIC_IOS_BUILD=true \
     "$apple_root/scripts/testflight.sh" ios
 fi
 
-APP_STORE_CONNECT_KEY_PATH="$api_key" \
-  HEYTIM_SIGNING_KEYCHAIN="$keychain" \
-  HEYTIM_RELEASE_TAG="${HEYTIM_RELEASE_TAG:-v$HEYTIM_MARKETING_VERSION}" \
-  "$apple_root/scripts/distribute-macos.sh"
+if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
+  APP_STORE_CONNECT_KEY_PATH="$api_key" \
+    HEYTIM_SIGNING_KEYCHAIN="$keychain" \
+    HEYTIM_RELEASE_TAG="${HEYTIM_RELEASE_TAG:-v$HEYTIM_MARKETING_VERSION}" \
+    "$apple_root/scripts/distribute-macos.sh"
+fi

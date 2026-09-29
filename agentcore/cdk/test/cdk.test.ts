@@ -114,6 +114,7 @@ test('runtime roles can use the configured memory encryption key', async () => {
   const memoryKeyArn = 'arn:aws:kms:us-east-1:123456789012:key/memory-key';
   const spec = {
     ...source,
+    runtimes: source.runtimes.map(runtime => ({ ...runtime, additionalPolicies: [] })),
     memories: source.memories.map(memory => ({ ...memory, encryptionKeyArn: memoryKeyArn })),
     evaluators: [],
     onlineEvalConfigs: [],
@@ -123,6 +124,8 @@ test('runtime roles can use the configured memory encryption key', async () => {
   const stack = new AgentCoreStack(app, 'MemoryKeyStack', {
     env: { account: '123456789012', region: 'us-east-1' },
     spec,
+    filesBucketName: 'heytim-production-user-files-123456789012-us-east-1',
+    filesKeyAlias: 'alias/heytim-production-user-files',
   });
   const template = Template.fromStack(stack).toJSON();
   const statements = Object.values(
@@ -141,6 +144,14 @@ test('runtime roles can use the configured memory encryption key', async () => {
       Resource: memoryKeyArn,
     })
   );
+  const taggingGrant = statements.find(statement =>
+    [statement.Action].flat().includes('s3:PutObjectTagging')
+  );
+  expect(taggingGrant).toEqual(expect.objectContaining({ Effect: 'Allow' }));
+  const taggingResources = JSON.stringify(taggingGrant?.Resource);
+  expect(taggingResources).toContain('heytim-production-user-files-123456789012-us-east-1/users/*');
+  expect(taggingResources).toContain('heytim-production-user-files-123456789012-us-east-1/groups/*');
+  expect(JSON.stringify(taggingGrant)).not.toContain('meme-templates');
   const serializedStatements = JSON.stringify(statements);
   for (const provider of [
     'google',

@@ -6,6 +6,7 @@ import io
 import json
 import re
 from unittest.mock import Mock
+from urllib.parse import parse_qsl
 
 import pytest
 from strands import tool
@@ -24,9 +25,13 @@ class Store:
     def __init__(self):
         self.objects = {}
         self.reads = []
+        self.writes = []
 
-    def put_object(self, *, Key, Body, ContentType, **_kwargs):
+    def put_object(self, *, Key, Body, ContentType, **kwargs):
         self.objects[Key] = (Body, ContentType)
+        self.writes.append(
+            {"Key": Key, "Body": Body, "ContentType": ContentType, **kwargs}
+        )
 
     def get_object(self, *, Key, **_kwargs):
         data, content_type = self.objects[Key]
@@ -98,6 +103,10 @@ def test_saved_results_survive_recreation_and_are_bound_to_authorized_turn():
         client = Store()
         first = ResultStorage(PREFIX, client=client)
         reference = await first.store("call", b'{"private":true}')
+        assert client.writes[-1]["Key"] == f"{first.prefix}/{reference}"
+        assert parse_qsl(client.writes[-1]["Tagging"]) == [
+            ("heytim-retention", "transient-tool-result")
+        ]
         resumed = ResultStorage(PREFIX, client=client)
         assert await resumed.retrieve(reference) == (b'{"private":true}', "text/plain")
         assert client.reads[-1].closed

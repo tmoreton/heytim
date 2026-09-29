@@ -73,10 +73,28 @@ destination-account resource identifiers, and CDK synthesis rejects any future f
   `verify-production-deployment.sh` check then passed using the destination outputs: protected storage, template
   images, encrypted runtime logs, confirmed alarm subscription, five AgentCore alarms, gateway target readiness,
   and the public catalog endpoint.
-- The destination application table has 0 records versus 639 in the source, and its file bucket has 0 object versions
-  versus 455 in the source HeyTim bucket and 557 in the legacy bucket. These are read-only counts at this checkpoint;
-  AgentCore memory preservation also remains unverified. Do not
-  publish the destination client configuration until authenticated smoke tests and state migration have passed.
+- The destination application table remains empty. The source scan on September 29 contained 638 records, down from
+  the earlier 639-record checkpoint while source traffic remained live. The destination file bucket contains 101 staged
+  template versions; the source HeyTim bucket has 455 versions and one delete marker, and the legacy bucket has 557
+  versions and six delete markers. These are planning counts, not frozen migration totals. Do not publish the
+  destination client configuration until authenticated smoke tests and state migration have passed.
+- A destination-only recovery drill restored a DynamoDB point-in-time backup and an S3 object version, verified both,
+  and removed the temporary table. Read-only migration plans now account for the current source application records,
+  all 1,012 source file versions and 13 delete markers, and AgentCore memory's four actors, 16 sessions, 187 events,
+  and 404 long-term records. The planned single-user Cognito subject remap is mandatory for DynamoDB keys, S3 user
+  prefixes, and personal memory IDs. None of these customer records or memory events has been copied yet.
+- The new Google callback is registered alongside the retained source callback. The Google consent app, OAuth client
+  display label, and Cloud project display name now say HeyTim; the immutable project ID is unchanged. Google Search
+  Console verified ownership of `https://heytim.ai/` after the website published its verification tag. Google still
+  marks branding and sensitive/restricted data access unverified; its branding check instructs waiting 24 hours after
+  ownership verification before retry. The data-access review button remains disabled until branding is verified.
+  Google OAuth is therefore **not approved for a warning-free public sign-in** at this checkpoint.
+- The existing live Stripe credential bundle was copied through process memory into destination Secrets Manager as
+  `heytim/stripe/production` and read back without printing values. The Stripe webhook and subscription metadata still
+  point to the source. The GitHub App still exposes a legacy homepage and source webhook URL. Neither provider's live
+  traffic has moved. The obsolete `froggybot.com` Google authorized-domain entry could not be removed safely: Google's
+  console warned that a client still uses it, and automatic approval review rejected the save. Resolve the client
+  dependency before removing the domain.
 
 ## Decisions requiring approval
 

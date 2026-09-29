@@ -6,6 +6,45 @@ was recorded, including legacy repository, cloud-resource, secret, and bundle ID
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-09-29 — isolated-account cutover preparation
+
+- The source account `188757775631` remains live; no customer traffic, Apple clients, provider webhooks, or production
+  GitHub environment variables have switched to destination account `820323452649`.
+- The destination backend and AgentCore resource checks passed with the candidate outputs. A destination recovery drill
+  restored and verified a DynamoDB point-in-time table and an S3 object version, then removed the temporary table.
+- Read-only migration inventories found 638 current source application records, 1,012 file object versions and 13
+  delete markers across both source buckets, and AgentCore memory with four actors, 16 sessions, 187 events, and 404
+  long-term records. The destination application table and memory remain empty. Migration tools and private identity
+  maps are prepared for a fresh write-frozen snapshot; these numbers are not final cutover checksums.
+- After hardening the migration identity checks and provider-state exclusions, a new read-only DynamoDB plan again
+  found 638 source rows, 625 retained rows, and 13 excluded connection/device/push rows. Its source and plan digests
+  are checkpoints only; both must be regenerated after writes stop. The destination API Lambda currently points Google
+  and GitHub callbacks at the destination API and uses `https://heytim.ai` as its public site. Stripe remains disabled
+  in that Lambda until the subscription identity and webhook cutover is complete.
+- A new read-only S3 plan, with Cognito-derived actor checks, again found 295 HeyTim source keys, 455 versions, and one
+  delete marker for the canonical-and-archive pass. Separate dry runs of the transient-result retention backfill found
+  nine untagged result versions in the HeyTim source bucket and none in the legacy source or destination bucket. No
+  tags or lifecycle rules have been applied in AWS; review the backfill only after migration and rollback planning.
+- Google saved the destination OAuth callback while retaining source callbacks. The consent app, OAuth client label,
+  and Cloud project display name now show HeyTim. The website serves a Search Console tag that verified ownership of
+  `https://heytim.ai/`. Google still reports branding and data access unverified. Its branding retry requires waiting
+  24 hours after ownership verification; sensitive YouTube and restricted Gmail scopes require subsequent review.
+  A warning-free Google sign-in is **not** verified.
+- The destination `heytim/stripe/production` secret was created by an in-memory copy of the existing live credential
+  bundle and verified by readback; no values were printed. The live Stripe webhook, subscription user metadata, and
+  GitHub App webhook still point to the source. An attempt to remove Google's obsolete `froggybot.com` authorized
+  domain was blocked by automatic approval review after Google said an OAuth client still uses that domain. The
+  proposed removal was not saved.
+- The latest published Apple release remains `v1.0.12`. Local `./scripts/apple-app.sh build` passed for iPhone and Mac,
+  and `./scripts/apple-app.sh verify` completed successfully on both platforms on September 29 after the new workflow
+  and release-script changes. A destination-configured, internal-only iOS TestFlight smoke workflow is being prepared
+  to obtain physical-device push evidence without publishing the Mac Sparkle release. No new Apple version has been
+  uploaded from this checkpoint.
+- The September 29 preparation checkout also passed 42 migration tests (plus three subtests), 66 focused runtime
+  tests, the API verification gate (including 568 backend tests), all 10 AgentCore CDK tests, API typecheck, Python
+  lint/format checks, and the Apple architecture/source-size gate. These local checks do not substitute for the
+  protected CI and provider/device checks required before release.
+
 ## 2026-09-23 — Home Assistant backend-only rollout
 
 - Merged [PR #58](https://github.com/tmoreton/heytim/pull/58) as commit `b029fd796c87cb1871c4b5643dd5d3d51be4038c`. The required application, runtime, AgentCore, Apple, dependency, and security checks passed.

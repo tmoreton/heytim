@@ -418,7 +418,13 @@ def _load_openrouter_model(
         not isinstance(session_id, str) or not 1 <= len(session_id) <= 256
     ):
         raise ValueError("OpenRouter session ID must be 1 to 256 characters")
-    extra_body: dict[str, Any] = {"reasoning": {"effort": reasoning_effort}}
+    # Connected provider content can enter the model prompt. Restrict every
+    # route, including retries and fallback, to endpoints that retain neither
+    # prompts nor responses and do not collect them for model training.
+    extra_body: dict[str, Any] = {
+        "reasoning": {"effort": reasoning_effort},
+        "provider": {"zdr": True, "data_collection": "deny"},
+    }
     if session_id is not None:
         # OpenRouter keeps successive calls on one provider even when opening
         # messages change. Cache hits still require a matching prompt prefix.
@@ -474,7 +480,10 @@ async def load_model(
     reasoning_effort: str | None = None,
 ) -> Model:
     """Load a supported OpenRouter model with the other route as fallback."""
-    if not isinstance(model_preference, str) or model_preference not in {"deepseek", "glm"}:
+    if not isinstance(model_preference, str) or model_preference not in {
+        "deepseek",
+        "glm",
+    }:
         raise ValueError("modelPreference must be deepseek or glm")
     if reasoning_effort is not None and (
         not isinstance(reasoning_effort, str)

@@ -177,6 +177,12 @@ const filesBucketProperties = {
       abortIncompleteMultipartUploadAfter: Duration.days(1),
       noncurrentVersionExpiration: Duration.days(30),
     },
+    {
+      id: 'ExpireTransientToolResults',
+      tagFilters: { 'heytim-retention': 'transient-tool-result' },
+      expiration: Duration.days(7),
+      noncurrentVersionExpiration: Duration.days(1),
+    },
   ],
   removalPolicy: RemovalPolicy.RETAIN,
 };

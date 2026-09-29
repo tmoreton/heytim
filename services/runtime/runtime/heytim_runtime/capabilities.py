@@ -94,6 +94,10 @@ def resolve_capabilities(
     local_names = {item["name"] for item in bindings if item["kind"] == "local"}
     if "bot_manager" in local_names and bot_management is not None:
         tools.extend(bot_management_tools(bot_management, bot_mutations))
+    # Google tool output can enter an image prompt on this bot. The OpenRouter
+    # Image API has no documented per-request ZDR control, so do not expose a
+    # route that could send connected Google content to its image provider.
+    google_connected = any(item.get("oauthProvider") == "google" for item in bindings)
     if artifact_prefix:
         tools.append(artifact_tool(artifact_prefix))
         tools.extend(workspace_asset_tools(artifact_prefix, workspace_assets or []))
@@ -104,10 +108,12 @@ def resolve_capabilities(
                     [item["body"] for item in image_references or []],
                 )
             )
-        if "image_generator" in local_names:
+        if "image_generator" in local_names and not google_connected:
             tools.extend(
                 image_generation_tools(
-                    artifact_prefix, image_references or [], usage=usage
+                    artifact_prefix,
+                    image_references or [],
+                    usage=usage,
                 )
             )
     managed_tools, interpreter, browser = agentcore_tools(

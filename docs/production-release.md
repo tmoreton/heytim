@@ -124,6 +124,17 @@ the U.S.-only external web purchase flow. Do not set `HEYTIM_STRIPE_LIVE_MODE=tr
 
 ## Release and evidence
 
+Before the destination account cutover, dispatch **Upload destination iOS TestFlight smoke build** from the current
+`main` commit with the next marketing version (for example `1.0.13` after `v1.0.12`). The workflow pins the committed
+destination candidate to account `820323452649`, stages it only on the Apple runner, runs the iPhone and Mac verification
+gate, and uploads an iPhone build marked **internal TestFlight only**. Its sole retained artifact is a build receipt with
+the version, build number, commit, and destination identifiers. It does not deploy AWS resources, create a GitHub
+Release, or publish a Mac/Sparkle update. Wait for App Store Connect processing, but do not assign or install it until
+the write-frozen customer-state migration has been verified: signing in before migration would create destination
+records and invalidate the empty-table migration gate. Then assign it to the intended internal group, install it on a
+physical device, and record destination APNs delivery evidence before setting the release's device-smoke approval. The
+subsequent full release must use a later build number for the same version.
+
 The workflow installs the checked-in `agentcore/cdk/package-lock.json` and disables the AgentCore CLI's automatic CDK
 dependency rewriting. This keeps the audited repository lockfile authoritative during deployment. Because the CLI
 requires its ignored `.env.local` file during credential provisioning, the workflow creates that file with owner-only

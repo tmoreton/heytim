@@ -10,6 +10,7 @@ import json
 import re
 import uuid
 from typing import Any
+from urllib.parse import urlencode
 
 import boto3
 from botocore.config import Config
@@ -22,6 +23,7 @@ from .artifacts import FILES_BUCKET_NAME, MAX_ARTIFACT_SOURCE_BYTES, _valid_pref
 
 MAX_RESULT_BYTES = 8_000_000
 PAGE_CHARS = 3_200
+RESULT_RETENTION_TAG = ("heytim-retention", "transient-tool-result")
 RESULT_INSTRUCTIONS = (
     "Large tool results are saved in full. Use retrieve_offloaded_content with its "
     "nextOffset to read further; never refetch provider data just to work around a "
@@ -77,6 +79,7 @@ class ResultStorage:
                 Key=f"{self.prefix}/{reference}",
                 Body=content,
                 ContentType=content_type,
+                Tagging=urlencode([RESULT_RETENTION_TAG]),
             )
         return reference
 
