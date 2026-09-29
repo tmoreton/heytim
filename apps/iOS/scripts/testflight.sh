@@ -5,8 +5,13 @@ usage() {
   cat <<'EOF'
 Usage: APPLE_TEAM_ID=TEAMID ./scripts/testflight.sh [--dry-run] ios
 
-This creates a release archive from the SwiftUI project and uploads it to App
-Store Connect for TestFlight processing. Xcode can use the signed-in developer
+This creates a release archive from the SwiftUI project and normally uploads
+it to App Store Connect for TestFlight processing. With
+HEYTIM_RELEASE_SCOPE=ios-preflight, it exports a signed IPA locally and does
+not contact App Store Connect for upload. The manual
+HEYTIM_RELEASE_SCOPE=ios-post-migration scope uploads an internal-only build
+after the migration operator has checked the private migration manifests and
+live destination state. Xcode can use the signed-in developer
 account, or all three optional API-key variables below:
 
   APP_STORE_CONNECT_KEY_PATH
@@ -28,6 +33,15 @@ if [[ -z "$platform" || $# -ne 1 ]]; then
   usage >&2
   exit 2
 fi
+
+release_scope="${HEYTIM_RELEASE_SCOPE:-full}"
+case "$release_scope" in
+  full|ios-preflight|ios-post-migration) ;;
+  *)
+    echo 'HEYTIM_RELEASE_SCOPE must be full, ios-preflight, or ios-post-migration.' >&2
+    exit 2
+    ;;
+esac
 
 case "$platform" in
   ios) platforms=(ios) ;;
@@ -62,12 +76,27 @@ fi
 apple_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repository_root="$(cd "$apple_root/../.." && pwd)"
 export_options="$apple_root/Resources/TestFlightExportOptions.plist"
-if [[ "${HEYTIM_RELEASE_SCOPE:-}" == ios-smoke ]]; then
-  # Xcode marks this upload ineligible for external TestFlight and App Store
-  # distribution. The ordinary release export options remain unchanged.
-  export_options="$apple_root/Resources/TestFlightInternalExportOptions.plist"
+if [[ "$release_scope" == ios-preflight ]]; then
+  # Pre-cutover candidates are exported locally; uploading can automatically
+  # expose the build to internal testers before customer state is migrated.
+  export_options="$apple_root/Resources/TestFlightCandidateExportOptions.plist"
+  if [[ "$(plutil -extract destination raw -o - "$export_options")" != export ]]; then
+    echo 'The iOS preflight must export locally without uploading.' >&2
+    exit 1
+  fi
   if [[ "$(plutil -extract testFlightInternalTestingOnly raw -o - "$export_options")" != true ]]; then
-    echo 'The iOS smoke export must be restricted to internal TestFlight.' >&2
+    echo 'The iOS preflight export must be restricted to internal TestFlight.' >&2
+    exit 1
+  fi
+  if [[ "$(xcodebuild -help 2>&1)" != *testFlightInternalTestingOnly* ]]; then
+    echo 'This Xcode version cannot enforce internal-only TestFlight uploads.' >&2
+    exit 1
+  fi
+elif [[ "$release_scope" == ios-post-migration ]]; then
+  export_options="$apple_root/Resources/TestFlightInternalUploadOptions.plist"
+  if [[ "$(plutil -extract destination raw -o - "$export_options")" != upload \
+    || "$(plutil -extract testFlightInternalTestingOnly raw -o - "$export_options")" != true ]]; then
+    echo 'The post-migration iOS upload must be restricted to internal TestFlight.' >&2
     exit 1
   fi
   if [[ "$(xcodebuild -help 2>&1)" != *testFlightInternalTestingOnly* ]]; then
@@ -80,7 +109,11 @@ if [[ "$dry_run" == true ]]; then
   for release_platform in "${platforms[@]}"; do
     HEYTIM_BUILD_NUMBER="$build_number" "$apple_root/scripts/archive.sh" --dry-run "$release_platform"
   done
-  echo "Upload destination: App Store Connect / TestFlight"
+  if [[ "$release_scope" == ios-preflight ]]; then
+    echo "Export destination: local signed IPA; no App Store Connect upload"
+  else
+    echo "Upload destination: App Store Connect / TestFlight"
+  fi
   exit 0
 fi
 
@@ -127,7 +160,11 @@ for release_platform in "${platforms[@]}"; do
     macos) platform_label="macOS" ;;
   esac
   archive_path="$apple_root/Archives/HeyTim-$platform_label-$build_number.xcarchive"
-  export_path="$apple_root/Archives/TestFlight-$platform_label-$build_number"
+  if [[ "$release_scope" == ios-preflight ]]; then
+    export_path="$apple_root/Archives/Preflight-$platform_label-$build_number"
+  else
+    export_path="$apple_root/Archives/TestFlight-$platform_label-$build_number"
+  fi
 
   HEYTIM_BUILD_NUMBER="$build_number" "$apple_root/scripts/archive.sh" "$release_platform"
 
@@ -152,6 +189,14 @@ for release_platform in "${platforms[@]}"; do
   fi
   xcodebuild "${export_args[@]}"
 
-  echo "$platform_label build $build_number was uploaded to App Store Connect."
+  if [[ "$release_scope" == ios-preflight ]]; then
+    echo "$platform_label build $build_number was exported locally to $export_path."
+  else
+    echo "$platform_label build $build_number was uploaded to App Store Connect."
+  fi
 done
-echo "Apple will show the iPhone build in TestFlight after processing completes."
+if [[ "$release_scope" == ios-preflight ]]; then
+  echo 'No build was uploaded to App Store Connect or made available in TestFlight.'
+else
+  echo "Apple will show the iPhone build in TestFlight after processing completes."
+fi

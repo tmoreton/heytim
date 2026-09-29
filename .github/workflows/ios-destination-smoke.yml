@@ -1,4 +1,4 @@
-name: Upload destination iOS TestFlight smoke build
+name: Build destination iOS candidate without upload
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
         required: true
         type: string
 
-# Share the release lock so two jobs never upload or sign Apple builds at once.
+# Share the release lock so two jobs never sign Apple builds at once.
 concurrency:
   group: heytim-production-release
   cancel-in-progress: false
@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 jobs:
-  ios-smoke:
+  ios-candidate:
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, macOS, ARM64, heytim-apple]
     timeout-minutes: 120
@@ -41,7 +41,7 @@ jobs:
           fi
           git fetch origin main
           if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
-            echo 'The smoke build must use the current main commit.' >&2
+            echo 'The iOS candidate must use the current main commit.' >&2
             exit 1
           fi
           latest_tag="$(gh release view --json tagName --jq .tagName)"
@@ -55,7 +55,7 @@ jobs:
           const proposed = parse(process.env.MARKETING_VERSION);
           const comparison = proposed.findIndex((part, index) => part !== latest[index]);
           if (comparison < 0 || proposed[comparison] < latest[comparison]) {
-            throw new Error('The smoke version must be newer than the latest published release.');
+            throw new Error('The candidate version must be newer than the latest published release.');
           }
           NODE
           node --input-type=module <<'NODE'
@@ -101,7 +101,7 @@ jobs:
         id: build
         run: echo "number=$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
 
-      - name: Verify iPhone and Mac, then upload iPhone to TestFlight
+      - name: Verify iPhone and Mac, then export signed iPhone IPA locally
         env:
           APPLE_TEAM_ID: ${{ vars.HEYTIM_APPLE_TEAM_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_KEY_ID }}
@@ -111,18 +111,40 @@ jobs:
           APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
           APPLE_DEVELOPMENT_CERTIFICATE_BASE64: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_BASE64 }}
           APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD }}
-          HEYTIM_RELEASE_SCOPE: ios-smoke
+          HEYTIM_RELEASE_SCOPE: ios-preflight
           HEYTIM_BUILD_NUMBER: ${{ steps.build.outputs.number }}
           HEYTIM_MARKETING_VERSION: ${{ inputs.marketing_version }}
+          HEYTIM_DERIVED_DATA_PATH: ${{ runner.temp }}/heytim-ios-candidate-derived-${{ steps.build.outputs.number }}
         run: ./apps/iOS/scripts/testflight-ci.sh
 
-      - name: Record the upload for physical device testing
+      - name: Verify embedded destination and record ephemeral candidate
         env:
           BUILD_NUMBER: ${{ steps.build.outputs.number }}
           MARKETING_VERSION: ${{ inputs.marketing_version }}
         run: |
-          receipt="$RUNNER_TEMP/heytim-ios-smoke/receipt.json"
-          mkdir -p "$(dirname "$receipt")"
+          shopt -s nullglob
+          ipas=(apps/iOS/Archives/Preflight-iOS-"$BUILD_NUMBER"/*.ipa)
+          if (( ${#ipas[@]} != 1 )); then
+            echo "Expected exactly one locally exported IPA, found ${#ipas[@]}." >&2
+            exit 1
+          fi
+          source_ipa="${ipas[0]}"
+          config_entry="$(unzip -Z1 "$source_ipa" \
+            | awk '/^Payload\/[^/]+\.app\/amplify_outputs\.json$/ { print; count++ } END { if (count != 1) exit 1 }')"
+          unzip -p "$source_ipa" "$config_entry" | node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const output = JSON.parse(readFileSync(0, "utf8"));
+            if (output.auth?.user_pool_id !== "us-east-1_biJejrNQF"
+              || output.custom?.apiUrl !== "https://srrkqsqrqd.execute-api.us-east-1.amazonaws.com"
+              || output.custom?.environment !== "production") {
+              throw new Error("The signed IPA does not contain destination production configuration.");
+            }
+          '
+          candidate_dir="$RUNNER_TEMP/heytim-ios-candidate"
+          mkdir -p "$candidate_dir"
+          export IPA_SHA256="$(shasum -a 256 "$source_ipa" | awk '{print $1}')"
+          export IPA_BYTES="$(stat -f '%z' "$source_ipa")"
+          receipt="$candidate_dir/receipt.json"
           node --input-type=module -e '
             import { writeFileSync } from "node:fs";
             writeFileSync(process.argv[1], JSON.stringify({
@@ -132,19 +154,44 @@ jobs:
               destinationAccount: "820323452649",
               destinationApi: "https://srrkqsqrqd.execute-api.us-east-1.amazonaws.com",
               destinationUserPool: "us-east-1_biJejrNQF",
-              result: "uploaded-to-app-store-connect",
+              ipaSha256: process.env.IPA_SHA256,
+              ipaBytes: Number(process.env.IPA_BYTES),
+              result: "signed-ipa-exported-locally-not-uploaded",
             }, null, 2) + "\n");
           ' "$receipt"
+          chmod 600 "$receipt"
           {
-            echo "iOS $MARKETING_VERSION ($BUILD_NUMBER) was uploaded to App Store Connect."
-            echo 'Xcode marked this upload for internal TestFlight only. Confirm processing and assign it to the intended internal group before physical device APNs testing.'
+            echo "iOS $MARKETING_VERSION ($BUILD_NUMBER) was exported as a signed IPA for destination verification."
+            echo "IPA SHA-256: $IPA_SHA256"
+            echo 'The signed IPA stayed on this runner for inspection and was deleted after the job. Nothing was uploaded to App Store Connect or made available in TestFlight.'
+            echo 'The full release uploads a new iOS build only after the customer-state migration and cutover gates pass.'
             echo 'This workflow did not publish a Mac build, Sparkle feed, or GitHub Release.'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Preserve smoke build receipt
+      - name: Preserve nonsecret verification receipt
         uses: actions/upload-artifact@v7
         with:
-          name: heytim-ios-destination-smoke-${{ steps.build.outputs.number }}
+          name: heytim-ios-destination-candidate-${{ steps.build.outputs.number }}
           if-no-files-found: error
           retention-days: 30
-          path: ${{ runner.temp }}/heytim-ios-smoke/receipt.json
+          path: ${{ runner.temp }}/heytim-ios-candidate/receipt.json
+
+      - name: Remove ephemeral signed candidate and archive
+        if: ${{ always() }}
+        env:
+          BUILD_NUMBER: ${{ steps.build.outputs.number }}
+        run: |
+          if [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
+            for path in \
+              "apps/iOS/Archives/Preflight-iOS-$BUILD_NUMBER" \
+              "apps/iOS/Archives/HeyTim-iOS-$BUILD_NUMBER.xcarchive" \
+              "$RUNNER_TEMP/heytim-ios-candidate-derived-$BUILD_NUMBER"; do
+              if [[ -e "$path" ]]; then
+                find "$path" -depth -delete
+              fi
+            done
+          fi
+          receipt_dir="$RUNNER_TEMP/heytim-ios-candidate"
+          if [[ -d "$receipt_dir" ]]; then
+            find "$receipt_dir" -depth -delete
+          fi

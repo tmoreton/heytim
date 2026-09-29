@@ -35,11 +35,20 @@ the current checkout or environment still has the same status.
   GitHub App webhook still point to the source. An attempt to remove Google's obsolete `froggybot.com` authorized
   domain was blocked by automatic approval review after Google said an OAuth client still uses that domain. The
   proposed removal was not saved.
+- A repository-wide hostname audit found no `froggybot.com` or `frogbot.com` URL in live app, website, API, catalog,
+  AgentCore configuration, scripts, or workflows. Public web and in-app links use `heytim.ai`. The checked-in active
+  API and Apple outputs still use the source AWS API endpoint; the destination endpoint is staged as a candidate,
+  not live. The GitHub App homepage and Google's obsolete authorized-domain entry remain external settings to resolve.
 - The latest published Apple release remains `v1.0.12`. Local `./scripts/apple-app.sh build` passed for iPhone and Mac,
   and `./scripts/apple-app.sh verify` completed successfully on both platforms on September 29 after the new workflow
-  and release-script changes. A destination-configured, internal-only iOS TestFlight smoke workflow is being prepared
-  to obtain physical-device push evidence without publishing the Mac Sparkle release. No new Apple version has been
-  uploaded from this checkpoint.
+  and release-script changes. Destination-configured iPhone and Mac candidate workflows are being prepared without
+  publishing TestFlight or the Mac Sparkle release. No new Apple version has been uploaded from this checkpoint.
+- The first internal TestFlight dispatch, [run 36618354768](https://github.com/tmoreton/heytim/actions/runs/36618354768),
+  was canceled while its sole job was queued, before signing or upload. Apple permits automatic distribution to
+  internal groups and makes eligible builds available to App Store Connect Users; even an internal-only upload could
+  expose the empty destination account before migration. The revised pre-cutover workflow builds and checks a signed
+  candidate without uploading it to TestFlight. The repository is public, so signed binaries are not retained as
+  downloadable Actions artifacts.
 - The September 29 preparation checkout also passed 42 migration tests (plus three subtests), 66 focused runtime
   tests, the API verification gate (including 568 backend tests), all 10 AgentCore CDK tests, API typecheck, Python
   lint/format checks, and the Apple architecture/source-size gate. These local checks do not substitute for the

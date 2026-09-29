@@ -10,6 +10,7 @@ Environment:
   HEYTIM_BUILD_NUMBER       Optional numeric override. Defaults to a UTC timestamp.
   HEYTIM_MARKETING_VERSION  Optional MAJOR.MINOR.PATCH app version override.
   HEYTIM_SPARKLE_PUBLIC_KEY Required for a directly distributed Mac release.
+  HEYTIM_DERIVED_DATA_PATH  Optional isolated Xcode build directory.
   APP_STORE_CONNECT_KEY_PATH, APP_STORE_CONNECT_KEY_ID, and
   APP_STORE_CONNECT_ISSUER_ID may be supplied together for API-key signing.
 EOF
@@ -120,6 +121,9 @@ if [[ "$platform" == macos && -n "${HEYTIM_SPARKLE_PUBLIC_KEY:-}" ]]; then
 fi
 if [[ -n "$marketing_version" ]]; then
   archive_args+=(MARKETING_VERSION="$marketing_version")
+fi
+if [[ -n "${HEYTIM_DERIVED_DATA_PATH:-}" ]]; then
+  archive_args+=(-derivedDataPath "$HEYTIM_DERIVED_DATA_PATH")
 fi
 if [[ -n "$key_path" ]]; then
   archive_args+=(

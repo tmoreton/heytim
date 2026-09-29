@@ -1,0 +1,201 @@
+name: Build private destination Mac candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: Next Mac version (MAJOR.MINOR.PATCH, for example 1.0.13)
+        required: true
+        type: string
+
+# Signing jobs share one runner and must not overlap a production release.
+concurrency:
+  group: heytim-production-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  mac-candidate:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: [self-hosted, macOS, ARM64, heytim-apple]
+    timeout-minutes: 180
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Add Homebrew build tools to PATH
+        run: echo /opt/homebrew/bin >> "$GITHUB_PATH"
+
+      - name: Check main, version, and destination candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MARKETING_VERSION: ${{ inputs.marketing_version }}
+        run: |
+          if [[ ! "$MARKETING_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'marketing_version must be MAJOR.MINOR.PATCH.' >&2
+            exit 1
+          fi
+          git fetch origin main
+          if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
+            echo 'The Mac candidate must use the current main commit.' >&2
+            exit 1
+          fi
+          latest_tag="$(gh release view --json tagName --jq .tagName)"
+          LATEST_TAG="$latest_tag" node --input-type=module <<'NODE'
+          const parse = value => {
+            const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(value);
+            if (!match) throw new Error('The latest release does not have a stable version.');
+            return match.slice(1).map(Number);
+          };
+          const latest = parse(process.env.LATEST_TAG);
+          const proposed = parse(process.env.MARKETING_VERSION);
+          const comparison = proposed.findIndex((part, index) => part !== latest[index]);
+          if (comparison < 0 || proposed[comparison] < latest[comparison]) {
+            throw new Error('The candidate version must be newer than the latest published release.');
+          }
+          NODE
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const target = JSON.parse(readFileSync('agentcore/aws-targets.json', 'utf8'))
+            .find(item => item.name === 'production');
+          const output = JSON.parse(readFileSync(
+            'services/API/amplify_outputs.production-candidate.json', 'utf8'));
+          const expected = {
+            account: '820323452649',
+            region: 'us-east-1',
+            api: 'https://srrkqsqrqd.execute-api.us-east-1.amazonaws.com',
+            pool: 'us-east-1_biJejrNQF',
+          };
+          if (target?.account !== expected.account || target?.region !== expected.region
+            || output.auth?.aws_region !== expected.region
+            || output.auth?.user_pool_id !== expected.pool
+            || !output.auth?.user_pool_client_id
+            || output.custom?.environment !== 'production'
+            || output.custom?.apiUrl !== expected.api
+            || !output.custom?.githubDeployRoleArn?.startsWith(
+              `arn:aws:iam::${expected.account}:role/`)
+            || output.custom?.filesBucketName !==
+              `heytim-production-user-files-${expected.account}-${expected.region}`) {
+            throw new Error('The committed candidate does not identify the approved destination account.');
+          }
+          NODE
+
+      - name: Stage destination client configuration in this runner
+        run: |
+          cp services/API/amplify_outputs.production-candidate.json \
+            services/API/amplify_outputs.json
+          npm --prefix services/API run outputs:apple
+          npm --prefix services/API run outputs:apple:production:check
+
+      - name: Cache native transcription assets
+        uses: actions/cache@v6
+        with:
+          path: packages/heytim-transcription/ios/Generated
+          key: heytim-nemotron-apple-v3
+
+      - name: Select unique Mac build number
+        id: build
+        run: echo "number=$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify iPhone and Mac against destination configuration
+        run: ./scripts/apple-app.sh verify
+
+      - name: Sign, notarize, verify, and remove Mac candidate
+        env:
+          APPLE_TEAM_ID: ${{ vars.HEYTIM_APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY }}
+          DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64: ${{ secrets.HEYTIM_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
+          DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD: ${{ secrets.HEYTIM_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
+          HEYTIM_SPARKLE_PUBLIC_KEY: ${{ vars.HEYTIM_SPARKLE_PUBLIC_KEY }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.HEYTIM_SPARKLE_PRIVATE_KEY }}
+          HEYTIM_RELEASE_SCOPE: backend-macos
+          HEYTIM_RELEASE_TAG: v${{ inputs.marketing_version }}
+          HEYTIM_BUILD_NUMBER: ${{ steps.build.outputs.number }}
+          HEYTIM_MARKETING_VERSION: ${{ inputs.marketing_version }}
+          HEYTIM_DERIVED_DATA_PATH: ${{ runner.temp }}/heytim-mac-candidate-derived-${{ steps.build.outputs.number }}
+        run: |
+          if [[ ! "$HEYTIM_BUILD_NUMBER" =~ ^[0-9]{14}$ ]]; then
+            echo 'The candidate build number must be a UTC timestamp.' >&2
+            exit 1
+          fi
+          output="apps/iOS/Archives/Direct-macOS-$HEYTIM_BUILD_NUMBER"
+          archive="apps/iOS/Archives/HeyTim-macOS-$HEYTIM_BUILD_NUMBER.xcarchive"
+          cleanup_candidate() {
+            if ! rm -rf -- "$output" "$archive" "$HEYTIM_DERIVED_DATA_PATH"; then
+              echo 'Failed to remove signed Mac candidate files from the runner.' >&2
+              exit 1
+            fi
+          }
+          trap cleanup_candidate EXIT
+          ./apps/iOS/scripts/testflight-ci.sh
+          receipt="$RUNNER_TEMP/heytim-mac-candidate/receipt.json"
+          mkdir -p "$(dirname "$receipt")"
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
+          import { createReadStream, statSync, writeFileSync } from 'node:fs';
+          import { join } from 'node:path';
+
+          const version = process.env.HEYTIM_MARKETING_VERSION;
+          const build = process.env.HEYTIM_BUILD_NUMBER;
+          const output = `apps/iOS/Archives/Direct-macOS-${build}`;
+          const names = [
+            `HeyTim-${version}-macOS.dmg`,
+            `HeyTim-${version}-macOS.zip`,
+            'appcast.xml',
+          ];
+          const artifacts = {};
+          for (const name of names) {
+            const path = join(output, name);
+            const sha256 = await new Promise((resolve, reject) => {
+              const hash = createHash('sha256');
+              const stream = createReadStream(path);
+              stream.on('data', chunk => hash.update(chunk));
+              stream.on('error', reject);
+              stream.on('end', () => resolve(hash.digest('hex')));
+            });
+            artifacts[name] = { sha256, sizeBytes: statSync(path).size };
+          }
+          const receipt = {
+            version,
+            build,
+            sourceCommit: process.env.GITHUB_SHA,
+            destinationAccount: '820323452649',
+            destinationApi: 'https://srrkqsqrqd.execute-api.us-east-1.amazonaws.com',
+            destinationUserPool: 'us-east-1_biJejrNQF',
+            result: 'signed-and-notarized-on-runner',
+            artifacts,
+          };
+          writeFileSync(join(process.env.RUNNER_TEMP, 'heytim-mac-candidate', 'receipt.json'),
+            JSON.stringify(receipt, null, 2) + '\n');
+          NODE
+          {
+            echo "Mac $HEYTIM_MARKETING_VERSION ($HEYTIM_BUILD_NUMBER) was signed and notarized."
+            echo 'Only a checksum receipt is retained; signed binaries are removed from the runner.'
+            echo 'This workflow did not publish a GitHub Release or replace the live Sparkle feed.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Ensure signed candidate files are absent from the runner
+        if: always()
+        env:
+          BUILD_NUMBER: ${{ steps.build.outputs.number }}
+        run: |
+          if [[ "$BUILD_NUMBER" =~ ^[0-9]{14}$ ]]; then
+            rm -rf -- \
+              "apps/iOS/Archives/Direct-macOS-$BUILD_NUMBER" \
+              "apps/iOS/Archives/HeyTim-macOS-$BUILD_NUMBER.xcarchive" \
+              "$RUNNER_TEMP/heytim-mac-candidate-derived-$BUILD_NUMBER"
+          fi
+
+      - name: Preserve nonsecret Mac candidate receipt
+        uses: actions/upload-artifact@v7
+        with:
+          name: heytim-macos-destination-receipt-${{ steps.build.outputs.number }}
+          if-no-files-found: error
+          retention-days: 30
+          path: ${{ runner.temp }}/heytim-mac-candidate/receipt.json

@@ -124,18 +124,54 @@ the U.S.-only external web purchase flow. Do not set `HEYTIM_STRIPE_LIVE_MODE=tr
 
 ## Release and evidence
 
-Before the destination account cutover, dispatch **Upload destination iOS TestFlight smoke build** from the current
+Before the destination account cutover, dispatch **Build destination iOS candidate without upload** from the current
 `main` commit with the next marketing version (for example `1.0.13` after `v1.0.12`). The workflow pins the committed
 destination candidate to account `820323452649`, stages it only on the Apple runner, runs the iPhone and Mac verification
-gate, and uploads an iPhone build marked **internal TestFlight only**. Its sole retained artifact is a build receipt with
-the version, build number, commit, and destination identifiers. It does not deploy AWS resources, create a GitHub
-Release, or publish a Mac/Sparkle update. Wait for App Store Connect processing, but do not assign or install it until
-the write-frozen customer-state migration has been verified: signing in before migration would create destination
-records and invalidate the empty-table migration gate. Then assign it to the intended internal group, install it on a
-physical device, and record destination APNs delivery evidence before setting the release's device-smoke approval. The
-subsequent full release must use a later build number for the same version.
+gate, and exports a signed iPhone IPA locally. It verifies the destination configuration inside that IPA, records its
+SHA-256 and build details in a 30-day Actions receipt, then deletes the signed IPA and archive from the runner. The
+repository is public, so the IPA is never uploaded as an Actions artifact. This preflight does not upload to App Store
+Connect, deploy AWS resources, create a GitHub Release, or publish a Mac/Sparkle update.
+Dispatch **Build private destination Mac candidate** from the same `main` commit and version. It verifies both Apple
+platforms, signs and notarizes the Mac app and disk image, checks the Sparkle ZIP and appcast, records nonsecret
+checksums, and deletes the signed files and isolated build directory from the runner. Its Actions artifact contains
+only the receipt; the live Sparkle feed and GitHub Release remain unchanged.
+[Apple says](https://developer.apple.com/help/app-store-connect/test-a-beta-version/add-testers-to-builds/)
+that eligible builds can be made available automatically to the **App Store Connect Users** internal group. Therefore,
+even an internal-only upload is deferred until the write-frozen customer-state migration has been verified; signing in
+before migration would create destination records and invalidate the empty-table migration gate. The receipt is
+preflight evidence, not a TestFlight build. After migration, an operator-controlled internal TestFlight upload creates a
+new iOS build with a later build number for the same version. Confirm processing and physical-device APNs delivery
+before recording the release's device-smoke approval.
 
-The workflow installs the checked-in `agentcore/cdk/package-lock.json` and disables the AgentCore CLI's automatic CDK
+### Post-migration internal TestFlight handoff
+
+There is no unattended upload workflow for the first destination TestFlight build. While the source write freeze is
+active, the migration operator must inspect the **private** final DynamoDB, versioned-S3, and AgentCore-memory
+manifests and their apply/verification output. Check that the source snapshot digests remained stable, destination
+counts and content digests match the reviewed plan, all identity-remapping and preservation exceptions are recorded,
+and live destination reads show the migrated records, files, and memory. Record those results, the freeze operator,
+rollback owner, and current `main` commit in `docs/verification-history.md`. A dry-run plan, nonempty destination, or
+caller-entered approval string alone is insufficient evidence. Keep the source frozen and rollback available.
+
+After that evidence is complete, the Apple release operator reviews the **App Store Connect Users** group membership,
+uses a clean checkout of the recorded commit, stages the verified destination candidate outputs, runs
+`./scripts/apple-app.sh verify` for both platforms, and runs the following command from the checked-out repository:
+
+```bash
+APPLE_TEAM_ID=GVXC5FQ2RP \
+  HEYTIM_MARKETING_VERSION=1.0.13 \
+  HEYTIM_RELEASE_SCOPE=ios-post-migration \
+  ./scripts/apple-app.sh testflight ios
+```
+
+`ios-post-migration` selects an Xcode export option that uploads to App Store Connect and marks the build internal-only.
+The operator must first place the validated candidate file at `services/API/amplify_outputs.json` and regenerate
+`apps/iOS/Resources/amplify_outputs.json` using `npm --prefix services/API run outputs:apple`; the script checks the
+production outputs again. Capture the resulting build number and processing status. Install through TestFlight on a
+physical device, prove destination APNs delivery and sign-in, then set `HEYTIM_APNS_DEVICE_SMOKE_APPROVED=true` only
+after that evidence is recorded. A later full release uses a new build number and publishes the Mac/Sparkle artifacts.
+
+The full production release workflow installs the checked-in `agentcore/cdk/package-lock.json` and disables the AgentCore CLI's automatic CDK
 dependency rewriting. This keeps the audited repository lockfile authoritative during deployment. Because the CLI
 requires its ignored `.env.local` file during credential provisioning, the workflow creates that file with owner-only
 permissions from protected environment secrets immediately before deployment and deletes it when the step exits.
