@@ -38,6 +38,56 @@ class BotBrandingTests(unittest.TestCase):
             )
         self.assertEqual(raised.exception.status_code, 400)
 
+    def test_model_and_conversation_mode_are_allowlisted(self) -> None:
+        base = {"name": "Researcher", "prompt": "Research carefully.", "toolIds": []}
+        with (
+            patch.object(self.bots.catalog, "validate_and_pin", return_value={}),
+            patch.object(self.bots.catalog, "validate_tools", return_value=[]),
+            patch.object(self.bots.catalog, "approval_tool_ids", return_value=[]),
+        ):
+            values = self.bots._bot_values("user-1", {
+                **base, "modelPreference": "glm", "reasoningEffort": "low",
+                "conversationMode": "chat",
+            })
+            self.assertEqual(values["modelPreference"], "glm")
+            self.assertEqual(values["conversationMode"], "chat")
+            for field, invalid in (
+                ("modelPreference", "unapproved/model"),
+                ("reasoningEffort", "unbounded"),
+                ("conversationMode", "unsafe"),
+            ):
+                with self.assertRaises(self.support.ApiError):
+                    self.bots._bot_values("user-1", {**base, field: invalid})
+
+    def test_fork_copies_only_recent_completed_text_exchanges(self) -> None:
+        self.bots.table.items.clear()
+        turns = [
+            {"id": "first", "createdAt": "2026-09-28T10:00:00Z", "status": "COMPLETE",
+             "userText": "Question", "assistantText": "Answer", "attachments": [{"id": "file"}]},
+            {"id": "failed", "createdAt": "2026-09-28T11:00:00Z", "status": "ERROR",
+             "userText": "Next", "assistantText": "Failed"},
+        ]
+        with (
+            patch.object(self.bots, "_get_bot", return_value={"id": "source"}),
+            patch.object(self.bots, "_list_turn_page", return_value=(turns, None)),
+            patch.object(self.bots, "_bot_values", return_value={
+                "name": "Researcher branch", "tagline": "", "prompt": "Help",
+                "color": "#58BEAA", "toolIds": [], "extraToolIds": [],
+                "alwaysAllowedToolIds": [], "githubRepositoryAccess": {},
+                "skillIds": [], "skillVersions": {},
+            }),
+        ):
+            branch = self.bots._create_bot(
+                "user-1", {"forkFromBotId": "source"}, bot_id="branch"
+            )
+
+        self.assertEqual(branch["id"], "branch")
+        copied = [item for item in self.bots.table.items.values()
+                  if item.get("pk") == self.support._turn_pk("user-1", "branch")]
+        self.assertEqual(len(copied), 1)
+        self.assertEqual(copied[0]["assistantText"], "Answer")
+        self.assertNotIn("attachments", copied[0])
+
     def test_chief_is_first_even_when_another_bot_is_more_recent(self) -> None:
         ordered = self.bots._ensure_chief(
             "user-1",

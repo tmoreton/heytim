@@ -101,6 +101,28 @@ def test_load_model_uses_deepseek_with_glm_fallback(
     assert "test-secret" not in repr(primary.get_config())
 
 
+def test_load_model_routes_each_model_with_the_same_conversation_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def key() -> str:
+        return "test-secret"
+
+    monkeypatch.setattr(model_loader, "_openrouter_api_key", key)
+    model = asyncio.run(model_loader.load_model(session_id="private-conversation"))
+
+    for route in (model.primary, model.fallback):
+        assert route.model.get_config()["params"]["extra_body"] == {
+            "reasoning": {"effort": "high"},
+            "session_id": "private-conversation",
+        }
+
+
+@pytest.mark.parametrize("session_id", ["", "x" * 257, 17])
+def test_openrouter_model_rejects_invalid_session_id(session_id: Any) -> None:
+    with pytest.raises(ValueError, match="OpenRouter session ID"):
+        model_loader._load_openrouter_model("test-secret", session_id=session_id)
+
+
 @pytest.mark.parametrize("effort", ["low", "high", "max"])
 def test_openrouter_model_accepts_supported_reasoning_efforts(effort: str) -> None:
     model = model_loader._load_openrouter_model(
@@ -351,6 +373,31 @@ def test_usage_tracker_aggregates_each_model_call() -> None:
     ]
     assert report["totals"]["callCount"] == 2
     assert report["totals"]["totalTokens"] == 250
+
+
+def test_cache_diagnostics_record_each_call_without_prompt_contents() -> None:
+    accumulator = model_loader.UsageAccumulator()
+    delegate = FakeModel(
+        "primary",
+        [{"metadata": {
+            "usage": {"inputTokens": 100, "cacheReadInputTokens": 75},
+            "heytimCacheReadReported": True,
+        }}],
+    )
+    model = model_loader.UsageTrackingModel(
+        delegate, accumulator, provider="openrouter", model_id="deepseek/deepseek-v4.1-flash"
+    )
+
+    async def call() -> None:
+        async for _ in model.stream([], [], "private instructions"):
+            pass
+
+    asyncio.run(call())
+    report = accumulator.snapshot()
+    assert report["calls"][0]["cacheReadPercent"] == 75
+    assert report["calls"][0]["cacheReportAvailable"] is True
+    assert report["calls"][0]["status"] == "complete"
+    assert "private instructions" not in str(report)
 
 
 def test_usage_tracker_observes_structured_output_metadata() -> None:

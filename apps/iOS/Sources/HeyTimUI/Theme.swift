@@ -102,15 +102,15 @@ extension EnvironmentValues {
 
 private extension Font.TextStyle {
   var froggyMacPointSize: CGFloat {
-    if self == .largeTitle { return 26 }
-    if self == .title { return 22 }
-    if self == .title2 { return 17 }
-    if self == .title3 { return 15 }
-    if self == .headline { return 13 }
-    if self == .subheadline { return 11 }
-    if self == .callout { return 12 }
-    if self == .footnote || self == .caption || self == .caption2 { return 10 }
-    return 13
+    if self == .largeTitle { return 28 }
+    if self == .title { return 24 }
+    if self == .title2 { return 19 }
+    if self == .title3 { return 17 }
+    if self == .headline { return 15 }
+    if self == .subheadline { return 14 }
+    if self == .callout { return 14 }
+    if self == .footnote || self == .caption || self == .caption2 { return 12 }
+    return 15
   }
 
   var froggyMacDefaultWeight: Font.Weight {
@@ -191,11 +191,10 @@ private struct FroggyNavigationTitleModifier: ViewModifier {
 }
 
 public enum FrogTheme {
-  // Tim's logo yellow is the single brand accent throughout the app.
+  // Chief's yellow is a bot identity color, never a default control tint.
   public static let brand = Color(hex: "#FFBC3B")
-  // Primary controls follow the surrounding appearance: black in light mode and white in dark.
-  public static let brandInk = Color.primary
-  public static let mascot = brand
+  public static let brandInk = adaptive(light: RGB(255, 255, 255), dark: RGB(23, 23, 23))
+  public static let mascot = Color.primary
   public static let sky = Color(hex: "#3984F6")
   public static let mint = Color(hex: "#58BEAA")
   public static let coral = Color(hex: "#F46A27")
@@ -211,6 +210,28 @@ public enum FrogTheme {
       self.red = CGFloat(red) / 255
       self.green = CGFloat(green) / 255
       self.blue = CGFloat(blue) / 255
+    }
+
+    init?(hex: String) {
+      let value = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+      guard value.count == 6, let number = UInt32(value, radix: 16) else { return nil }
+      self.init(Int((number >> 16) & 255), Int((number >> 8) & 255), Int(number & 255))
+    }
+
+    var color: Color { Color(red: red, green: green, blue: blue) }
+
+    var luminance: CGFloat {
+      func channel(_ value: CGFloat) -> CGFloat {
+        value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+      }
+      return 0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue)
+    }
+
+    func blended(toward other: RGB, amount: CGFloat) -> RGB {
+      RGB(
+        Int(((red * (1 - amount) + other.red * amount) * 255).rounded()),
+        Int(((green * (1 - amount) + other.green * amount) * 255).rounded()),
+        Int(((blue * (1 - amount) + other.blue * amount) * 255).rounded()))
     }
   }
 
@@ -232,33 +253,54 @@ public enum FrogTheme {
     #endif
   }
 
-  // Neutral, Codex-like surfaces keep yellow and bot colors reserved for identity.
-  // Readable controls and operational state use calmer, contrast-safe semantic colors.
-  public static let accent = brand
-  public static let conversationChrome = adaptive(
-    light: RGB(47, 111, 163), dark: RGB(122, 174, 222))
-  public static let activity = adaptive(
-    light: RGB(31, 112, 101), dark: RGB(105, 205, 190))
-  public static let canvas = adaptive(light: RGB(255, 255, 255), dark: RGB(0, 0, 0))
-  public static let appBackground = adaptive(light: RGB(255, 255, 255), dark: RGB(0, 0, 0))
-  public static let pageBackground = adaptive(light: RGB(247, 247, 248), dark: RGB(0, 0, 0))
-  public static let drawer = adaptive(light: RGB(250, 250, 250), dark: RGB(9, 9, 10))
-  public static let surface = adaptive(light: RGB(255, 255, 255), dark: RGB(22, 22, 24))
-  public static let border = adaptive(light: RGB(215, 215, 218), dark: RGB(58, 58, 62))
-  public static let subtleBorder = adaptive(light: RGB(232, 232, 234), dark: RGB(38, 38, 42))
-  public static let assistantBubble = adaptive(light: RGB(244, 244, 245), dark: RGB(24, 24, 27))
+  // Opaque neutral layers make the sidebar, reading canvas, and composer distinct.
+  public static let accent = adaptive(light: RGB(28, 28, 28), dark: RGB(245, 245, 245))
+  public static let conversationChrome = accent
+  public static let activity = adaptive(light: RGB(89, 89, 89), dark: RGB(189, 189, 189))
+  public static let canvas = adaptive(light: RGB(255, 255, 255), dark: RGB(23, 23, 23))
+  public static let appBackground = canvas
+  public static let pageBackground = adaptive(light: RGB(250, 250, 250), dark: RGB(23, 23, 23))
+  public static let drawer = adaptive(light: RGB(245, 245, 245), dark: RGB(36, 36, 36))
+  public static let surface = adaptive(light: RGB(242, 242, 242), dark: RGB(45, 45, 45))
+  public static let border = adaptive(light: RGB(205, 205, 205), dark: RGB(78, 78, 78))
+  public static let subtleBorder = adaptive(light: RGB(228, 228, 228), dark: RGB(58, 58, 58))
+  public static let assistantBubble = adaptive(light: RGB(245, 245, 245), dark: RGB(43, 43, 43))
   public static let text = Color.primary
   public static let textSoft = Color.primary
   public static let muted = Color.secondary
   public static let mutedWarm = Color.secondary
   // Operational metadata is small and needs more contrast than ordinary secondary copy.
   public static let statusText = Color.primary.opacity(0.68)
-  public static let selected = accent.opacity(0.12)
-  public static let teamBubble = accent.opacity(0.10)
-  public static let teamBorder = accent.opacity(0.35)
-  public static let approval = brand.opacity(0.16)
-  public static let approvalBorder = brand.opacity(0.55)
+  public static let selected = adaptive(light: RGB(231, 231, 231), dark: RGB(59, 59, 59))
+  public static let teamBubble = assistantBubble
+  public static let teamBorder = border
+  public static let approval = assistantBubble
+  public static let approvalBorder = border
   public static let danger = Color.red
+
+  // Keep exact bot color for avatar and send fill. Small text and thin strokes
+  // need a contrast-adjusted shade, particularly for Chief yellow in light mode.
+  public static func botReadableColor(_ hex: String, scheme: ColorScheme) -> Color {
+    guard let base = RGB(hex: hex) else { return accent }
+    let background = scheme == .dark ? RGB(23, 23, 23) : RGB(255, 255, 255)
+    let target = scheme == .dark ? RGB(255, 255, 255) : RGB(0, 0, 0)
+    for step in 0...20 {
+      let candidate = base.blended(toward: target, amount: CGFloat(step) / 20)
+      let brighter = max(candidate.luminance, background.luminance)
+      let darker = min(candidate.luminance, background.luminance)
+      if (brighter + 0.05) / (darker + 0.05) >= 5 { return candidate.color }
+    }
+    return target.color
+  }
+
+  public static func ink(onBotColor hex: String) -> Color {
+    botUsesDarkInk(hex) ? .black : .white
+  }
+
+  public static func botUsesDarkInk(_ hex: String) -> Bool {
+    guard let color = RGB(hex: hex) else { return false }
+    return color.luminance > 0.179
+  }
 
   // Compatibility names used by the first native implementation.
   public static let green = accent
@@ -272,7 +314,7 @@ public struct FrogMark: View {
   public init(size: CGFloat = 84) { self.size = size }
 
   public var body: some View {
-    TimMark(color: FrogTheme.mascot, size: size)
+    TimMark(color: FrogTheme.mascot, ink: FrogTheme.brandInk, eye: FrogTheme.mascot, size: size)
       .accessibilityHidden(true)
   }
 }
@@ -289,7 +331,9 @@ public struct BotAvatar: View {
   }
 
   public var body: some View {
-    TimMark(color: Color(hex: color), size: size)
+    TimMark(
+      color: Color(hex: color), ink: FrogTheme.ink(onBotColor: color),
+      eye: FrogTheme.botUsesDarkInk(color) ? .white : .black, size: size)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel("\(name) bot")
   }
@@ -328,24 +372,32 @@ public struct BotIdentityLabel: View {
   }
 }
 
-private struct TimMark: View {
+struct TimMark: View {
   let color: Color
+  let ink: Color
+  let eye: Color
   let size: CGFloat
-
+  init(
+    color: Color, ink: Color = FrogTheme.brandInk,
+    eye: Color = FrogTheme.mascot, size: CGFloat
+  ) {
+    self.color = color
+    self.ink = ink
+    self.eye = eye
+    self.size = size
+  }
   var body: some View {
     Canvas { context, _ in
       var context = context
       let scale = size / 100
       context.scaleBy(x: scale, y: scale)
-      let ink = Color(hex: "#202123")
-      let white = Color.white
 
       var antenna = Path()
       antenna.move(to: CGPoint(x: 50, y: 21))
       antenna.addCurve(to: CGPoint(x: 65, y: 7), control1: CGPoint(x: 50, y: 11), control2: CGPoint(x: 56, y: 7))
       context.stroke(antenna, with: .color(ink), style: StrokeStyle(lineWidth: 8, lineCap: .round))
       context.fill(Path(ellipseIn: CGRect(x: 61, y: 0, width: 16, height: 16)), with: .color(color))
-      context.fill(Path(ellipseIn: CGRect(x: 66.3, y: 5.3, width: 5.4, height: 5.4)), with: .color(white))
+      context.fill(Path(ellipseIn: CGRect(x: 66.3, y: 5.3, width: 5.4, height: 5.4)), with: .color(eye))
       context.fill(Path(ellipseIn: CGRect(x: 11, y: 19, width: 78, height: 78)), with: .color(color))
       context.fill(Path(roundedRect: CGRect(x: 18, y: 40, width: 64, height: 38), cornerRadius: 19), with: .color(ink))
 
@@ -354,7 +406,7 @@ private struct TimMark: View {
       eyes.addCurve(to: CGPoint(x: 41, y: 62), control1: CGPoint(x: 30, y: 55), control2: CGPoint(x: 40, y: 55))
       eyes.move(to: CGPoint(x: 59, y: 62))
       eyes.addCurve(to: CGPoint(x: 71, y: 62), control1: CGPoint(x: 60, y: 55), control2: CGPoint(x: 70, y: 55))
-      context.stroke(eyes, with: .color(white), style: StrokeStyle(lineWidth: 5.5, lineCap: .round))
+      context.stroke(eyes, with: .color(eye), style: StrokeStyle(lineWidth: 5.5, lineCap: .round))
     }
     .frame(width: size, height: size)
   }
@@ -377,14 +429,12 @@ public struct PersonAvatar: View {
   }
 
   private var personColor: Color {
-    let palette = ["#2F6FA3", "#7A52A3", "#D94F70", "#2D8C7B", "#D9822B"]
-    let sum = name.unicodeScalars.reduce(0) { $0 + Int($1.value) }
-    return Color(hex: palette[sum % palette.count])
+    Color(hex: "#666666")
   }
 }
 
 enum ConversationStyle {
-  static let sharedGroupAccentHex = "#FFBC3B"
+  static let sharedGroupAccentHex = "#737373"
 
   static func accentHex(
     bot: Bot?, group: BotGroup?, activeGroupBotID: String?
@@ -429,10 +479,8 @@ public struct GroupAvatar: View {
 extension Color {
   public init(hex: String) {
     let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-    var value: UInt64 = 0
-    Scanner(string: cleaned).scanHexInt64(&value)
-    guard cleaned.count == 6 else {
-      self = FrogTheme.brand
+    guard cleaned.count == 6, let value = UInt32(cleaned, radix: 16) else {
+      self = FrogTheme.accent
       return
     }
     self.init(
@@ -483,24 +531,29 @@ extension View {
   }
 
   @ViewBuilder func froggyGlassButton(prominent: Bool = false, tint: Color? = nil) -> some View {
-    if #available(iOS 26.0, macOS 26.0, *) {
-      if prominent {
-        buttonStyle(.glassProminent).tint(tint).foregroundStyle(FrogTheme.brandInk)
-      } else {
-        buttonStyle(.glass).tint(tint)
-      }
-    } else if prominent {
-      buttonStyle(.borderedProminent).tint(tint).foregroundStyle(FrogTheme.brandInk)
+    if prominent {
+      buttonStyle(.borderedProminent)
+        .tint(tint ?? FrogTheme.accent)
+        .foregroundStyle(FrogTheme.brandInk)
     } else {
-      buttonStyle(.bordered).tint(tint)
+      buttonStyle(.bordered).tint(tint ?? FrogTheme.accent)
     }
   }
 
-  @ViewBuilder func froggyComposerSurface(tint: Color? = nil) -> some View {
-    background(FrogTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+  @ViewBuilder func froggyComposerSurface(
+    tint: Color? = nil, backgroundTint: Color? = nil
+  ) -> some View {
+    background {
+      RoundedRectangle(cornerRadius: 22, style: .continuous)
+        .fill(FrogTheme.surface)
+        .overlay {
+          RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .fill((backgroundTint ?? tint)?.opacity(0.06) ?? .clear)
+        }
+    }
       .overlay(
         RoundedRectangle(cornerRadius: 22, style: .continuous)
-          .stroke(tint?.opacity(0.55) ?? FrogTheme.border.opacity(0.7), lineWidth: 0.75)
+          .stroke(tint ?? FrogTheme.border, lineWidth: 1)
       )
   }
 

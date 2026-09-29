@@ -89,6 +89,10 @@ def _list_group_message_page(
                     "completedAt": item.get("completedAt"),
                     "activityUpdatedAt": item.get("activityUpdatedAt"),
                     "status": str(item.get("status", "COMPLETE")).lower(),
+                    "usageSummary": (
+                        item.get("usageSummary")
+                        if item.get("billingUserId") == user_id else None
+                    ),
                     "allowedActions": (["approveOnce", "approveAlways", "reject"]
                                        if item.get("status") == "AWAITING_APPROVAL"
                                        and item.get("billingUserId") == user_id

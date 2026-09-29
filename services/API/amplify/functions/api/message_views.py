@@ -59,6 +59,11 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
                     "createdAt": turn.get("completedAt", turn["createdAt"]),
                     "startedAt": turn.get("startedAt", turn["createdAt"]),
                     "status": status,
+                    **(
+                        {"usageSummary": turn["usageSummary"]}
+                        if isinstance(turn.get("usageSummary"), dict)
+                        else {}
+                    ),
                     **({"source": "desktop_action"} if turn.get("source") == "desktop_action" else {}),
                     "allowedActions": (
                         ["reject", "approveOnce", "approveAlways"]

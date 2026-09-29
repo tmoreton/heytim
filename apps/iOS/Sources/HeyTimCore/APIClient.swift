@@ -294,12 +294,12 @@ public final class HeyTimAPI: Sendable {
     let route: APIRouteID = selection.kind == .bot ? .botWorkspaceExport : .groupWorkspaceExport
     return try await request(route, parameters: workspaceParameters(selection))
   }
-  public func workspaceDownloadURL(_ fileId: String, selection: ConversationSelection) async throws -> URL {
+  public func downloadWorkspaceFile(fileId: String, name: String, selection: ConversationSelection) async throws -> URL {
     let route: APIRouteID = selection.kind == .bot ? .botWorkspaceDownload : .groupWorkspaceDownload
     let value: StringEnvelope = try await request(
       route, parameters: workspaceParameters(selection, fileId: fileId))
     guard let url = URL(string: value.url) else { throw APIError.invalidResponse }
-    return url
+    return try await downloadFile(from: url, name: name)
   }
   public func groupRoutines(_ groupId: String) async throws -> [GroupRoutine] {
     let envelope: ArrayEnvelope<GroupRoutine> = try await request(
@@ -693,10 +693,10 @@ public final class HeyTimAPI: Sendable {
     return url
   }
 
-  public func downloadFile(fileId: String, name: String, groupId: String? = nil) async throws
-    -> URL
-  {
-    let source = try await downloadURL(fileId: fileId, groupId: groupId)
+  public func downloadFile(fileId: String, name: String, groupId: String? = nil) async throws -> URL {
+    return try await downloadFile(from: try await downloadURL(fileId: fileId, groupId: groupId), name: name)
+  }
+  private func downloadFile(from source: URL, name: String) async throws -> URL {
     let (temporaryURL, response) = try await session.download(from: source)
     guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
     guard (200..<300).contains(http.statusCode) else {

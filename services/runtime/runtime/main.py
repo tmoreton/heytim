@@ -114,7 +114,12 @@ async def run_agent(payload, context):
     approval_request = None
     device_request = None
     try:
-        model = await load_model(usage)
+        model = await load_model(
+            usage,
+            session_id=memory_context.session_id if memory_context else None,
+            model_preference=payload.get("bot", {}).get("modelPreference", "deepseek"),
+            reasoning_effort=payload.get("bot", {}).get("reasoningEffort"),
+        )
         agent = create_harness(
             model=model,
             # Reasoning is configured directly on the pre-built OpenRouter model.

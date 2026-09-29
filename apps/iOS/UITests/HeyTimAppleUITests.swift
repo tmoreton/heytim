@@ -17,7 +17,7 @@ import XCTest
         app.descendants(matching: .any)["chat.composer"].firstMatch.waitForExistence(timeout: 10))
     }
 
-    func testAssistantReplyUsesFullMobileTranscriptWidth() {
+  func testAssistantReplyKeepsReadableMobileTranscriptWidth() {
       let app = XCUIApplication()
       app.launchArguments = ["--ui-testing"]
       app.launchForUITesting()
@@ -28,12 +28,12 @@ import XCTest
       XCTAssertTrue(reply.waitForExistence(timeout: 10))
       XCTAssertTrue(transcript.exists)
       let screenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
-      screenshot.name = "Assistant reply width on iPhone"
+      screenshot.name = "Bot reply surface on iPhone"
       screenshot.lifetime = .keepAlways
       add(screenshot)
       XCTAssertTrue(reply.isHittable)
-      XCTAssertGreaterThanOrEqual(reply.frame.width, transcript.frame.width - 50)
-      XCTAssertLessThanOrEqual(reply.frame.minX - transcript.frame.minX, 20)
+      XCTAssertGreaterThanOrEqual(reply.frame.width, transcript.frame.width * 0.8)
+      XCTAssertLessThanOrEqual(reply.frame.minX - transcript.frame.minX, 32)
       XCTAssertLessThanOrEqual(transcript.frame.maxX - reply.frame.maxX, 40)
       XCTAssertLessThan(userMessage.frame.width, reply.frame.width)
     }

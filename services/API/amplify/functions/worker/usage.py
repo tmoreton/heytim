@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -52,7 +53,11 @@ MODEL_PRICING_PER_MILLION_USD = {
 
 
 def _count(value: Any) -> int:
-    if isinstance(value, Decimal) and value.is_finite() and value == value.to_integral_value():
+    if (
+        isinstance(value, Decimal)
+        and value.is_finite()
+        and value == value.to_integral_value()
+    ):
         value = int(value)
     if isinstance(value, bool) or not isinstance(value, int):
         return 0
@@ -85,8 +90,22 @@ def _estimated_cost(model_id: str, model: dict[str, Any]) -> Decimal | None:
     prices = MODEL_PRICING_PER_MILLION_USD.get(model_id)
     if prices is None:
         return None
-    cost = sum(
-        Decimal(model.get(field, 0)) * rate for field, rate in prices.items()
+    input_tokens = model.get("inputTokens", 0)
+    cache_read_tokens = model.get("cacheReadInputTokens", 0)
+    cache_write_tokens = model.get("cacheWriteInputTokens", 0)
+    if model.get("provider") == "openrouter":
+        # OpenRouter's prompt_tokens includes cached tokens. Bedrock's
+        # inputTokens excludes them, so only OpenRouter needs subtraction.
+        cache_read_tokens = min(cache_read_tokens, input_tokens)
+        cache_write_tokens = min(cache_write_tokens, input_tokens - cache_read_tokens)
+        input_tokens -= cache_read_tokens + cache_write_tokens
+    cost = (
+        Decimal(input_tokens) * prices.get("inputTokens", Decimal(0))
+        + Decimal(cache_read_tokens)
+        * prices.get("cacheReadInputTokens", prices.get("inputTokens", Decimal(0)))
+        + Decimal(cache_write_tokens)
+        * prices.get("cacheWriteInputTokens", prices.get("inputTokens", Decimal(0)))
+        + Decimal(model.get("outputTokens", 0)) * prices.get("outputTokens", Decimal(0))
     ) / Decimal(1_000_000)
     return cost.quantize(USD_QUANTUM)
 
@@ -127,6 +146,7 @@ def _usage_item(
     unpriced_models = 0
     tools: list[dict[str, Any]] = []
     tool_call_count = 0
+    calls: list[dict[str, Any]] = []
 
     for raw_model in raw_models[:8]:
         if not isinstance(raw_model, dict):
@@ -182,15 +202,45 @@ def _usage_item(
         )
         tool_call_count += call_count
 
+    for raw_call in usage.get("calls", [])[:100] if isinstance(usage.get("calls"), list) else []:
+        if not isinstance(raw_call, dict):
+            continue
+        provider = _identifier(raw_call.get("provider"), 32)
+        model_id = _identifier(raw_call.get("modelId"), 256)
+        fingerprint = raw_call.get("headerFingerprint")
+        if (
+            provider is None
+            or model_id is None
+            or not isinstance(fingerprint, str)
+            or re.fullmatch(r"[0-9a-f]{16}", fingerprint) is None
+        ):
+            continue
+        calls.append({
+            "provider": provider,
+            "modelId": model_id,
+            "headerFingerprint": fingerprint,
+            "toolCount": min(_count(raw_call.get("toolCount")), 1000),
+            "messageCount": min(_count(raw_call.get("messageCount")), 1000),
+            "durationMs": min(_count(raw_call.get("durationMs")), 3_600_000),
+            "status": "failed" if raw_call.get("status") == "failed" else "complete",
+            "inputTokens": _count(raw_call.get("inputTokens")),
+            "cacheReadInputTokens": _count(raw_call.get("cacheReadInputTokens")),
+            "cacheReportAvailable": raw_call.get("cacheReportAvailable") is True,
+        })
+
     if not models and not tools:
         return None
 
     recorded_at = (now or datetime.now(UTC)).astimezone(UTC)
     timestamp = recorded_at.isoformat(timespec="milliseconds").replace("+00:00", "Z")
     month = recorded_at.strftime("%Y-%m")
+    uncertain_calls = any(
+        call["status"] == "failed" and call["inputTokens"] == 0
+        for call in calls
+    )
     if not models:
         cost_basis = "not_applicable"
-    elif unpriced_models:
+    elif unpriced_models or uncertain_calls:
         cost_basis = "partial"
     elif exact_models and estimated_models:
         cost_basis = "mixed"
@@ -208,13 +258,14 @@ def _usage_item(
         "workType": safe_work_type,
         "botId": safe_bot_id,
         "models": models,
+        "calls": calls,
         "tools": tools,
         "toolCallCount": tool_call_count,
         **totals,
         "costUsd": normalized_cost.quantize(USD_QUANTUM),
         "providerReportedCostUsd": provider_cost.quantize(USD_QUANTUM),
         "costBasis": cost_basis,
-        "costIncomplete": unpriced_models > 0,
+        "costIncomplete": unpriced_models > 0 or uncertain_calls,
         "pricingVersion": PRICING_VERSION,
         "createdAt": timestamp,
         "expiresAt": int(
@@ -225,6 +276,35 @@ def _usage_item(
     if safe_group_id is not None:
         item["groupId"] = safe_group_id
     return item
+
+
+def message_usage_summary(
+    usage: dict[str, Any] | None, *, reasoning_effort: str | None = None
+) -> dict[str, Any] | None:
+    """Small provider-usage summary for the reply that completed this invocation."""
+    if not isinstance(usage, dict):
+        return None
+    item = _usage_item("summary", "summary", usage, work_type="direct", bot_id="summary")
+    if item is None or not item["models"]:
+        return None
+    measured_calls = [call for call in item["calls"] if call["inputTokens"] > 0]
+    cache_reported = bool(measured_calls) and all(
+        call["cacheReportAvailable"] for call in measured_calls
+    )
+    summary = {
+        "modelIds": [model["modelId"] for model in item["models"]],
+        "callCount": item["callCount"],
+        "inputTokens": item["inputTokens"],
+        "outputTokens": item["outputTokens"],
+        "cacheReadInputTokens": item["cacheReadInputTokens"],
+        "cacheReportAvailable": cache_reported,
+        "costUsd": format(item["costUsd"], "f"),
+        "costBasis": item["costBasis"],
+        "costIncomplete": item["costIncomplete"],
+    }
+    if isinstance(reasoning_effort, str) and reasoning_effort in {"low", "high", "max"}:
+        summary["reasoningEffort"] = reasoning_effort
+    return summary
 
 
 def record_invocation_usage(

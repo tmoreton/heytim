@@ -405,8 +405,7 @@ def _invoke(
                 for item in resolved_tools
                 if item.get("runtime", {}).get("kind") != "device"
             ]
-    # On resume, keep the interrupted device tool registered while the runtime
-    # restores its snapshot. Any later device call is re-authorized separately.
+    # On resume, keep the interrupted device tool registered; later calls are re-authorized.
     uses_youtube_search = _uses_youtube_search(resolved_tools)
     payload = {
         "messages": (
@@ -418,6 +417,9 @@ def _invoke(
             "id": bot_id,
             "name": bot["name"],
             "prompt": bot["prompt"],
+            "modelPreference": bot.get("modelPreference", "deepseek"),
+            "reasoningEffort": bot.get("reasoningEffort"),
+            "conversationMode": bot.get("conversationMode", "agent"),
             **(
                 {"systemRole": bot["systemRole"]}
                 if isinstance(bot.get("systemRole"), str)

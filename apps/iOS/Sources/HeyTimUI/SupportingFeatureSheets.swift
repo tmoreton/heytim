@@ -1298,9 +1298,8 @@ struct WorkspaceFilesView: View {
   private func open(_ file: Attachment) async {
     guard let api = model.api else { return }
     do {
-      previewURL = try await api.downloadFile(
-        fileId: file.id, name: file.name,
-        groupId: selection.kind == .group ? selection.id : nil)
+      previewURL = try await api.downloadWorkspaceFile(
+        fileId: file.id, name: file.name, selection: selection)
     } catch { model.present(error) }
   }
 
@@ -1345,7 +1344,7 @@ struct ShareView: View {
       if let url {
         Text(url.absoluteString).textSelection(.enabled).froggyFont(.caption)
         ShareLink(item: url) { Label("Share invitation", systemImage: "square.and.arrow.up") }
-          .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
+          .froggyGlassButton(prominent: true, tint: FrogTheme.accent)
       } else {
         Button { createLink() } label: {
           if creatingLink {
@@ -1357,7 +1356,7 @@ struct ShareView: View {
             Label("Create Invitation Link", systemImage: "link.badge.plus")
           }
         }
-        .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
+        .froggyGlassButton(prominent: true, tint: FrogTheme.accent)
         .controlSize(.large)
         .disabled(creatingLink)
         Text("The link becomes active only after you create it, and you can revoke it from Settings.")
@@ -1546,7 +1545,7 @@ struct AccountView: View {
         {
           Label(message, systemImage: "exclamationmark.triangle")
             .froggyFont(.footnote)
-            .foregroundStyle(.orange)
+            .foregroundStyle(FrogTheme.danger)
         }
       } header: {
         Text("Notifications")
@@ -1805,7 +1804,7 @@ struct AccountView: View {
       if let billingError {
         Label(billingError, systemImage: "exclamationmark.triangle")
           .froggyFont(.footnote)
-          .foregroundStyle(.orange)
+          .foregroundStyle(FrogTheme.danger)
         Button("Try Again") { Task { await loadBilling() } }
       }
     } header: {

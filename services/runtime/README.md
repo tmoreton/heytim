@@ -54,11 +54,22 @@ does not keep a second hard-coded bot catalog.
 
 ## Models
 
-Every Strands invocation uses DeepSeek V4.1 Flash on OpenRouter with high reasoning. If DeepSeek fails before returning
-any response, the runtime uses GLM 5.3 on OpenRouter. Both models retry bounded transient, provider, or empty responses
-before failing. Tool-heavy histories are managed by Strands harness's automatic context manager. The API key is stored in
-AgentCore Identity as `HeyTim_OpenRouter`; it is never placed in runtime environment variables. Model selection stays
-deploy-time configurable through these non-secret values in `agentcore/agentcore.json`:
+Bots default to DeepSeek V4.1 Flash on OpenRouter with high reasoning. A bot can select GLM 5.3 or low/max reasoning;
+the other supported model is its pre-response fallback. Both models retry bounded transient, provider, or empty
+responses before failing. A bot can also use chat-only mode, which registers no tools or skills for the run.
+OpenRouter receives the stable, hashed conversation ID as `session_id` on both routes for provider affinity. This does
+not guarantee a cache hit: DeepSeek still requires a matching prompt prefix. Reusable instructions now precede
+per-turn context, and authorized tools have a stable order. Revoked tools are never retained for caching.
+The Strands `caching=False` setting only disables harness-managed cache points; it does not disable DeepSeek's
+automatic caching. Per-call usage records include cache-read tokens, latency, tool count, message count, and a short
+hash of the system/tool header. No prompt or tool arguments are logged in these records. When the provider omits
+cache details, the app shows cache data as unavailable rather than calling it a miss. Provider-reported cost is
+preferred over the versioned fallback estimate. Cache share should be evaluated with task success and latency,
+because a long or noisy context can increase hits while hurting answers.
+Whole-response caching must not be enabled for agent turns because it could replay tool calls. Tool-heavy
+histories are managed by Strands harness's automatic context manager. The API key is stored in AgentCore
+Identity as `HeyTim_OpenRouter`; it is never placed in runtime environment variables. The two supported model IDs
+remain deploy-time configurable through these non-secret values in `agentcore/agentcore.json`:
 
 - `HEYTIM_PRIMARY_MODEL_ID` — default for every task; defaults to `deepseek/deepseek-v4.1-flash`
 - `HEYTIM_REASONING_EFFORT` — default-model reasoning; defaults to `high`

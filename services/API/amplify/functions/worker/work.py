@@ -45,6 +45,7 @@ def _finish_work(
     answer: str,
     artifacts: list[dict] | None = None,
     configuration_changed: bool = False,
+    usage_summary: dict | None = None,
 ) -> str | None:
     completed_at = utc_now_iso()
     update_expression = "SET #status = :status, #answer = :answer, completedAt = :now"
@@ -61,6 +62,9 @@ def _finish_work(
     if configuration_changed:
         update_expression += ", configurationChanged = :configurationChanged"
         values[":configurationChanged"] = True
+    if usage_summary:
+        update_expression += ", usageSummary = :usageSummary"
+        values[":usageSummary"] = usage_summary
     update_expression += (
         " REMOVE leaseOwner, leaseExpiresAt, pendingWork, backgroundResults, "
         "runtimeResult, deviceRequest, deviceResult, deviceResultReceivedAt, "

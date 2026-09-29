@@ -60,6 +60,9 @@ def bot_configuration(
         raise ValueError(
             f"bot.prompt must be at most {MAX_INSTRUCTIONS_CHARS} characters"
         )
+    conversation_mode = bot.get("conversationMode", "agent")
+    if not isinstance(conversation_mode, str) or conversation_mode not in {"agent", "chat"}:
+        raise ValueError("bot.conversationMode must be agent or chat")
 
     continuation_context = continuation_instructions(payload)
     team_context = team_instructions(payload.get("team"))
@@ -88,7 +91,12 @@ def bot_configuration(
         workspace_files=workspace_files,
         workspace_assets=workspace_assets,
     )
-    instructions = base_instructions(name.strip(), prompt.strip())
+    # Keep the reusable policy before per-turn manifests and continuation data.
+    # DeepSeek can reuse only an unchanged request prefix.
+    instructions = (
+        f"{base_instructions(name.strip(), prompt.strip())}\n\n"
+        f"{INLINE_DELIVERY_INSTRUCTIONS}"
+    )
     if workspace_files and any(
         getattr(candidate, "tool_name", None) == "load_workspace_files"
         for candidate in capabilities.tools
@@ -125,7 +133,6 @@ def bot_configuration(
     group_instructions = collaboration_instructions(payload.get("group"))
     if group_instructions:
         instructions = f"{instructions}\n\n{group_instructions}"
-    instructions = f"{instructions}\n\n{INLINE_DELIVERY_INSTRUCTIONS}"
     return BotConfiguration(
         instructions=instructions,
         tools=capabilities.tools,

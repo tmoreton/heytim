@@ -99,6 +99,9 @@ def _put_bot(
         "teamsChannelAccess": values.get("teamsChannelAccess", {}),
         "resourceAccess": values.get("resourceAccess", {}),
         "actionApprovalMode": values.get("actionApprovalMode", "automatic"),
+        "modelPreference": values.get("modelPreference", "deepseek"),
+        "reasoningEffort": values.get("reasoningEffort", "high"),
+        "conversationMode": values.get("conversationMode", "agent"),
         **{
             key: values[key]
             for key in (
@@ -305,13 +308,58 @@ def _create_bot(
     require_active_account: bool = False,
     create_only: bool = False,
 ) -> dict:
-    return _put_bot(
+    fork_from = value.get("forkFromBotId")
+    source_turns: list[dict] = []
+    if fork_from is not None:
+        if not isinstance(fork_from, str) or not fork_from or len(fork_from) > 128:
+            raise ApiError(400, "forkFromBotId is invalid")
+        _get_bot(user_id, fork_from)
+        source_turns, _ = _list_turn_page(user_id, fork_from, limit=25)
+        if has_pending_work(source_turns):
+            raise ApiError(409, "Wait for the current reply before forking")
+    values = _bot_values(user_id, value)
+    completed_turns = [
+        turn for turn in source_turns
+        if turn.get("status") == "COMPLETE"
+        and isinstance(turn.get("userText"), str)
+        and isinstance(turn.get("assistantText"), str)
+    ]
+    if completed_turns:
+        values["lastMessage"] = completed_turns[-1]["assistantText"][:280]
+        values["lastMessageAt"] = _now()
+    bot = _put_bot(
         user_id,
-        _bot_values(user_id, value),
+        values,
         bot_id=bot_id,
         require_active_account=require_active_account,
         create_only=create_only,
     )
+    if completed_turns:
+        copied_keys: list[dict] = []
+        try:
+            with table.batch_writer() as batch:
+                for turn in completed_turns:
+                    copied_id = str(uuid.uuid4())
+                    copied = {
+                        "pk": _turn_pk(user_id, bot["id"]),
+                        "sk": f"TURN#{turn['createdAt']}#{copied_id}",
+                        "entity": "TURN",
+                        "id": copied_id,
+                        "userText": turn["userText"],
+                        "assistantText": turn["assistantText"],
+                        "createdAt": turn["createdAt"],
+                        "completedAt": turn.get("completedAt", turn["createdAt"]),
+                        "status": "COMPLETE",
+                    }
+                    copied_keys.append({"pk": copied["pk"], "sk": copied["sk"]})
+                    batch.put_item(Item=copied)
+        except Exception:
+            with table.batch_writer() as batch:
+                for key in copied_keys:
+                    batch.delete_item(Key=key)
+            table.delete_item(Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot["id"])})
+            raise
+    return bot
 
 
 def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:

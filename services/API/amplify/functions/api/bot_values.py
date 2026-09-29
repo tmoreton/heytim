@@ -12,6 +12,9 @@ from .bot_roles import ALLOWED_COLORS, CHIEF_COLOR, CHIEF_SYSTEM_ROLE, DEFAULT_B
 from .support import ApiError, _validate_string, catalog
 
 ACTION_APPROVAL_MODES = {"automatic", "ask"}
+MODEL_PREFERENCES = {"deepseek", "glm"}
+REASONING_EFFORTS = {"low", "high", "max"}
+CONVERSATION_MODES = {"agent", "chat"}
 
 
 def _bot_values(
@@ -122,6 +125,21 @@ def _bot_values(
         )
         if action_approval_mode not in ACTION_APPROVAL_MODES:
             raise ApiError(400, "actionApprovalMode must be automatic or ask")
+        model_preference = value.get(
+            "modelPreference", previous.get("modelPreference", "deepseek")
+        )
+        if not isinstance(model_preference, str) or model_preference not in MODEL_PREFERENCES:
+            raise ApiError(400, "modelPreference must be deepseek or glm")
+        reasoning_effort = value.get(
+            "reasoningEffort", previous.get("reasoningEffort", "high")
+        )
+        if not isinstance(reasoning_effort, str) or reasoning_effort not in REASONING_EFFORTS:
+            raise ApiError(400, "reasoningEffort must be low, high, or max")
+        conversation_mode = value.get(
+            "conversationMode", previous.get("conversationMode", "agent")
+        )
+        if not isinstance(conversation_mode, str) or conversation_mode not in CONVERSATION_MODES:
+            raise ApiError(400, "conversationMode must be agent or chat")
         raw_always_allowed = value.get(
             "alwaysAllowedToolIds", previous.get("alwaysAllowedToolIds", [])
         )
@@ -173,6 +191,9 @@ def _bot_values(
         "toolIds": tool_ids,
         "extraToolIds": extra_tool_ids,
         "actionApprovalMode": action_approval_mode,
+        "modelPreference": model_preference,
+        "reasoningEffort": reasoning_effort,
+        "conversationMode": conversation_mode,
         "alwaysAllowedToolIds": always_allowed_tool_ids,
         "githubRepositoryAccess": github_repository_access,
         "jiraProjectAccess": jira_project_access,

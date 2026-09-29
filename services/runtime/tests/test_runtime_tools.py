@@ -102,13 +102,15 @@ def test_catalog_bindings_select_stan_features_and_local_tools(monkeypatch) -> N
     config = bot_configuration(payload)
 
     assert [tool.tool_name for tool in config.tools] == [
-        "calculate",
-        "code_interpreter",
         "background_command",
         "browser",
+        "calculate",
+        "code_interpreter",
     ]
-    assert config.builtin_tools == ["web_fetch", "subagent"]
+    assert config.builtin_tools == ["subagent", "web_fetch"]
     assert config.builtin_plugins == ["todos"]
+
+
     assert "does not need to name a skill or tool" in config.instructions
     assert "activate it with the skills tool" in config.instructions
     assert "actually activated or called it" in config.instructions
@@ -126,6 +128,22 @@ def test_catalog_bindings_select_stan_features_and_local_tools(monkeypatch) -> N
     )
     assert "background_command" not in config.instructions
     assert "private browser" not in config.instructions
+
+
+def test_chat_mode_registers_no_tools_or_skills() -> None:
+    config = bot_configuration({
+        "bot": {
+            "name": "Researcher", "prompt": "Answer directly.",
+            "conversationMode": "chat",
+            "tools": [{"id": "calculator", "runtime": {"kind": "local", "name": "calculator"}}],
+            "skills": [],
+        }
+    })
+
+    assert config.tools == []
+    assert config.builtin_tools == []
+    assert config.plugins == []
+    assert config.builtin_plugins == []
 
 
 def test_team_roster_is_validated_and_added_as_context() -> None:

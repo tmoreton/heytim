@@ -1726,6 +1726,40 @@ import UniformTypeIdentifiers
     XCTAssertFalse(FileManager.default.fileExists(atPath: previewFolder.path))
   }
 
+  func testDownloadedWorkspaceFileUsesScopedWorkspaceRoute() async throws {
+    var requestedURLs: [URL] = []
+    MockURLProtocol.handler = { request in
+      requestedURLs.append(try XCTUnwrap(request.url))
+      if request.url?.host == "files.example.com" {
+        return (
+          HTTPURLResponse(
+            url: try XCTUnwrap(request.url), statusCode: 200, httpVersion: nil,
+            headerFields: ["Content-Type": "text/csv"])!,
+          Data("date,amount\n2026-09-26,42\n".utf8)
+        )
+      }
+      return Self.response(
+        for: request, body: #"{"url":"https://files.example.com/signed/workspace"}"#)
+    }
+    let api = HeyTimAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let selection = ConversationSelection(kind: .bot, id: "finance/bot")
+
+    let file = try await api.downloadWorkspaceFile(
+      fileId: "workspace file", name: "transactions.csv", selection: selection)
+    let previewFolder = file.deletingLastPathComponent()
+
+    XCTAssertEqual(file.lastPathComponent, "transactions.csv")
+    XCTAssertEqual(try Data(contentsOf: file), Data("date,amount\n2026-09-26,42\n".utf8))
+    XCTAssertEqual(
+      requestedURLs.first?.absoluteString,
+      "https://api.example.com/bots/finance%2Fbot/workspace/files/workspace%20file/download")
+    XCTAssertEqual(requestedURLs.last?.absoluteString, "https://files.example.com/signed/workspace")
+    HeyTimAPI.removeDownloadedPreview(at: file)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: previewFolder.path))
+  }
+
   func testMemoryExportDownloadsAndValidatesTheSignedJSONFile() async throws {
     var requestedURLs: [URL] = []
     let export = #"{"format":"HeyTim memory export","version":1,"memories":[]}"#

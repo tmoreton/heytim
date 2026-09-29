@@ -64,8 +64,20 @@ def resolve_capabilities(
     workspace_files: list[dict] | None = None,
     workspace_assets: list[dict] | None = None,
 ) -> CapabilityConfiguration:
+    if bot.get("conversationMode", "agent") == "chat":
+        # Validate the supplied bot recipe even though this mode exposes none
+        # of its capabilities to the model.
+        tool_bindings(bot)
+        selected_skills = dynamic_skills(bot)
+        validate_skill_selection(bot, selected_skills)
+        return CapabilityConfiguration(
+            tools=[], builtin_tools=[], plugins=[], builtin_plugins=[],
+            background_work=BackgroundWorkTracker(),
+            bot_mutations=BotMutationTracker(), browser=None,
+        )
     bindings = tool_bindings(bot)
     skills = dynamic_skills(bot)
+    skills.sort(key=lambda skill: skill.name)
     background_work = BackgroundWorkTracker()
     bot_mutations = BotMutationTracker()
     tools = [
@@ -148,20 +160,32 @@ def resolve_capabilities(
             tools.extend(provider_connection_tools(item, usage))
     validate_skill_selection(bot, skills)
 
+    # A stable order preserves the model's tool-schema prefix across turns when
+    # the authorized tool set is unchanged. Never keep a tool after it is revoked.
+    tools.sort(
+        key=lambda item: (
+            getattr(item, "tool_name", None)
+            or getattr(item, "__name__", None)
+            or type(item).__name__
+        )
+    )
+
     return CapabilityConfiguration(
         tools=tools,
-        builtin_tools=[
-            item["name"] for item in bindings if item["kind"] == "stan_builtin"
-        ]
-        + (
-            ["subagent"]
-            if any(item["kind"] == "stan_subagent" for item in bindings)
-            else []
+        builtin_tools=sorted(
+            [item["name"] for item in bindings if item["kind"] == "stan_builtin"]
+            + (
+                ["subagent"]
+                if any(item["kind"] == "stan_subagent" for item in bindings)
+                else []
+            )
         ),
         plugins=[AgentSkills(skills=skills, strict=True)] if skills else [],
-        builtin_plugins=[
+        builtin_plugins=sorted(
+            [
             item["name"] for item in bindings if item["kind"] == "stan_plugin"
-        ],
+            ]
+        ),
         background_work=background_work,
         bot_mutations=bot_mutations,
         browser=browser,

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import threading
+import time
 from collections.abc import AsyncGenerator, AsyncIterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -107,6 +110,7 @@ class UsageAccumulator:
         self._models: dict[tuple[str, str], dict[str, Any]] = {}
         self._tools: dict[tuple[str, str], int] = {}
         self._model_dispatches = 0
+        self._calls: list[dict[str, Any]] = []
         self._image_dispatches = 0
         self._limits = limits
         self._youtube_search_quota = self._validate_youtube_search_quota(
@@ -156,7 +160,54 @@ class UsageAccumulator:
             )
             return self._model_dispatches >= finalization_start
 
-    def observe(self, provider: str, model_id: str, event: StreamEvent) -> None:
+    def begin_call(
+        self,
+        provider: str,
+        model_id: str,
+        *,
+        system_prompt: str | None,
+        system_prompt_content: list[SystemContentBlock] | None = None,
+        tool_specs: list[ToolSpec] | None,
+        message_count: int,
+    ) -> int:
+        """Keep bounded, content-free diagnostics for a dispatched model call."""
+        header = json.dumps(
+            {
+                "system": system_prompt or "",
+                "systemContent": system_prompt_content or [],
+                "tools": tool_specs or [],
+            },
+            sort_keys=True,
+            ensure_ascii=False,
+            default=str,
+        )
+        with self._lock:
+            call_id = len(self._calls)
+            self._calls.append(
+                {
+                    "provider": provider,
+                    "modelId": model_id,
+                    "toolCount": len(tool_specs or []),
+                    "messageCount": message_count,
+                    "headerFingerprint": hashlib.sha256(header.encode()).hexdigest()[:16],
+                    "started": time.monotonic(),
+                    "status": "running",
+                    "inputTokens": 0,
+                    "cacheReadInputTokens": 0,
+                    "cacheReportAvailable": False,
+                }
+            )
+            return call_id
+
+    def finish_call(self, call_id: int, *, failed: bool = False) -> None:
+        with self._lock:
+            call = self._calls[call_id]
+            call["durationMs"] = max(0, round((time.monotonic() - call["started"]) * 1000))
+            call["status"] = "failed" if failed else "complete"
+
+    def observe(
+        self, provider: str, model_id: str, event: StreamEvent, call_id: int | None = None
+    ) -> None:
         metadata = event.get("metadata")
         if not isinstance(metadata, dict):
             return
@@ -174,17 +225,26 @@ class UsageAccumulator:
                     "callCount": 0,
                     **{field: 0 for field in TOKEN_FIELDS},
                     "providerCostUsd": Decimal(0),
-                    "hasProviderCost": False,
+                    "costReportCount": 0,
                 },
             )
             model["callCount"] += 1
             for field in TOKEN_FIELDS:
                 model[field] += _nonnegative_int(usage.get(field))
+            if call_id is not None:
+                call = self._calls[call_id]
+                call["inputTokens"] += _nonnegative_int(usage.get("inputTokens"))
+                call["cacheReadInputTokens"] += _nonnegative_int(
+                    usage.get("cacheReadInputTokens")
+                )
+                call["cacheReportAvailable"] |= metadata.get(
+                    "heytimCacheReadReported"
+                ) is True
 
             provider_cost = _nonnegative_decimal(metadata.get("heytimProviderCostUsd"))
             if provider_cost is not None:
                 model["providerCostUsd"] += provider_cost
-                model["hasProviderCost"] = True
+                model["costReportCount"] += 1
 
     def observe_tool(self, provider: str, operation: str) -> None:
         """Reserve and count a provider tool dispatch without its arguments."""
@@ -246,6 +306,7 @@ class UsageAccumulator:
             tracked_models = [dict(item) for item in self._models.values()]
             tracked_tools = list(self._tools.items())
             model_dispatches = self._model_dispatches
+            tracked_calls = [dict(call) for call in self._calls]
         for tracked in tracked_models:
             model = {
                 "provider": tracked["provider"],
@@ -258,7 +319,7 @@ class UsageAccumulator:
                 if value:
                     model[field] = value
             totals["callCount"] += tracked["callCount"]
-            if tracked["hasProviderCost"]:
+            if tracked["callCount"] and tracked["costReportCount"] == tracked["callCount"]:
                 model["providerCostUsd"] = format(tracked["providerCostUsd"], "f")
             models.append(model)
         tools = [
@@ -267,7 +328,16 @@ class UsageAccumulator:
         ]
         totals["toolCallCount"] = sum(item["callCount"] for item in tools)
         totals["modelDispatchCount"] = model_dispatches
-        return {"models": models, "tools": tools, "totals": totals}
+        calls = []
+        for call in tracked_calls:
+            call.pop("started")
+            if call["cacheReportAvailable"] and call["inputTokens"]:
+                call["cacheReadPercent"] = min(
+                    100,
+                    round(100 * call["cacheReadInputTokens"] / call["inputTokens"]),
+                )
+            calls.append(call)
+        return {"models": models, "tools": tools, "totals": totals, "calls": calls}
 
 
 class OpenRouterUsageModel(OpenAIModel):
@@ -373,6 +443,9 @@ class OpenRouterUsageModel(OpenAIModel):
         usage = metadata.get("usage")
         if isinstance(usage, dict):
             prompt_details = getattr(raw_usage, "prompt_tokens_details", None)
+            metadata["heytimCacheReadReported"] = (
+                getattr(prompt_details, "cached_tokens", None) is not None
+            )
             completion_details = getattr(raw_usage, "completion_tokens_details", None)
             reasoning_tokens = _nonnegative_int(
                 getattr(completion_details, "reasoning_tokens", None)
@@ -421,19 +494,23 @@ class UsageTrackingModel(Model):
         **kwargs: Any,
     ) -> AsyncGenerator[dict[str, T | Any]]:
         self.accumulator.reserve_model(self.provider, self.model_id)
-        async for event in self.delegate.structured_output(
-            output_model,
-            prompt,
-            system_prompt,
-            **kwargs,
-        ):
-            if isinstance(event, dict):
-                self.accumulator.observe(
-                    self.provider,
-                    self.model_id,
-                    cast(StreamEvent, event),
-                )
-            yield event
+        call_id = self.accumulator.begin_call(
+            self.provider, self.model_id,
+            system_prompt=system_prompt, tool_specs=None, message_count=len(prompt),
+        )
+        failed = True
+        try:
+            async for event in self.delegate.structured_output(
+                output_model, prompt, system_prompt, **kwargs,
+            ):
+                if isinstance(event, dict):
+                    self.accumulator.observe(
+                        self.provider, self.model_id, cast(StreamEvent, event), call_id,
+                    )
+                yield event
+            failed = False
+        finally:
+            self.accumulator.finish_call(call_id, failed=failed)
 
     async def stream(
         self,
@@ -454,15 +531,24 @@ class UsageTrackingModel(Model):
             )
             tool_specs = []
             tool_choice = None
-        async for event in self.delegate.stream(
-            messages,
-            tool_specs,
-            system_prompt,
-            tool_choice=tool_choice,
+        call_id = self.accumulator.begin_call(
+            self.provider, self.model_id,
+            system_prompt=system_prompt, tool_specs=tool_specs,
             system_prompt_content=system_prompt_content,
-            invocation_state=invocation_state,
-            cancel_signal=cancel_signal,
-            **kwargs,
-        ):
-            self.accumulator.observe(self.provider, self.model_id, event)
-            yield event
+            message_count=len(messages),
+        )
+        failed = True
+        try:
+            async for event in self.delegate.stream(
+                messages, tool_specs, system_prompt,
+                tool_choice=tool_choice,
+                system_prompt_content=system_prompt_content,
+                invocation_state=invocation_state,
+                cancel_signal=cancel_signal,
+                **kwargs,
+            ):
+                self.accumulator.observe(self.provider, self.model_id, event, call_id)
+                yield event
+            failed = False
+        finally:
+            self.accumulator.finish_call(call_id, failed=failed)

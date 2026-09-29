@@ -36,6 +36,8 @@ INLINE_DELIVERY_INSTRUCTIONS = (
     "\"tone\":\"neutral|info|positive|warning|negative\"}\n  ```\n  Use a callout for one important conclusion or warning.\n"
     "  ```steps\n  {\"title\":\"optional\",\"items\":[{\"label\":\"...\",\"detail\":\"optional\","
     "\"status\":\"complete|active|pending|blocked\"}]}\n  ```\n  Use steps for a real workflow or milestone sequence. "
+    "  ```flow\n  {\"title\":\"...\",\"nodes\":[{\"label\":\"...\",\"detail\":\"optional\","
+    "\"nextLabel\":\"optional\"},{\"label\":\"...\"}]}\n  ```\n  Use flow for a two-to-six stage process diagram. "
     "Use ordinary Markdown tables, lists, links, and code blocks for everything else."
 )
 

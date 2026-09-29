@@ -7,6 +7,30 @@ enum InlineMessageElement: Equatable {
   case metrics(InlineMetrics)
   case callout(InlineCallout)
   case steps(InlineSteps)
+  case flow(InlineFlow)
+
+  var revisionLabel: String {
+    switch self {
+    case .chart(let chart): "chart titled \"\(chart.title)\""
+    case .metrics: "metrics card"
+    case .callout: "callout"
+    case .steps: "workflow graphic"
+    case .flow(let flow): "flow diagram titled \"\(flow.title)\""
+    }
+  }
+
+  var revisionContext: String {
+    let encoder = JSONEncoder()
+    let data: Data?
+    switch self {
+    case .chart(let value): data = try? encoder.encode(value)
+    case .metrics(let value): data = try? encoder.encode(value)
+    case .callout(let value): data = try? encoder.encode(value)
+    case .steps(let value): data = try? encoder.encode(value)
+    case .flow(let value): data = try? encoder.encode(value)
+    }
+    return data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+  }
 }
 
 struct InlineChart: Codable, Equatable {
@@ -146,13 +170,18 @@ enum InlineMessageElementParser {
         return nil
       }
       return .steps(value)
+    case "flow", "heytim-flow":
+      guard let value = try? decoder.decode(InlineFlow.self, from: data), value.isValid else {
+        return nil
+      }
+      return .flow(value)
     default:
       return nil
     }
   }
 }
 
-private extension String {
+extension String {
   var trimmedForInlineElement: String {
     trimmingCharacters(in: .whitespacesAndNewlines)
   }
@@ -162,7 +191,7 @@ private extension String {
   }
 }
 
-private extension Optional where Wrapped == String {
+extension Optional where Wrapped == String {
   func isOptionalInlineElementText(maximum: Int) -> Bool {
     guard let self else { return true }
     return self.isInlineElementText(maximum: maximum)
@@ -173,17 +202,31 @@ struct InlineMessageElementView: View {
   let element: InlineMessageElement
   let baseColor: Color
   let accentColor: Color
+  var onRevise: ((InlineMessageElement) -> Void)? = nil
 
   @ViewBuilder var body: some View {
-    switch element {
-    case .chart(let chart):
-      InlineChartView(chart: chart, baseColor: baseColor, accentColor: accentColor)
-    case .metrics(let metrics):
-      InlineMetricsView(metrics: metrics, baseColor: baseColor, accentColor: accentColor)
-    case .callout(let callout):
-      InlineCalloutView(callout: callout, baseColor: baseColor, accentColor: accentColor)
-    case .steps(let steps):
-      InlineStepsView(steps: steps, baseColor: baseColor, accentColor: accentColor)
+    VStack(alignment: .leading, spacing: 4) {
+      switch element {
+      case .chart(let chart):
+        InlineChartView(chart: chart, baseColor: baseColor, accentColor: accentColor)
+      case .metrics(let metrics):
+        InlineMetricsView(metrics: metrics, baseColor: baseColor, accentColor: accentColor)
+      case .callout(let callout):
+        InlineCalloutView(callout: callout, baseColor: baseColor, accentColor: accentColor)
+      case .steps(let steps):
+        InlineStepsView(steps: steps, baseColor: baseColor, accentColor: accentColor)
+      case .flow(let flow):
+        InlineFlowView(flow: flow, baseColor: baseColor, accentColor: accentColor)
+      }
+      if let onRevise {
+        Button("Revise", systemImage: "arrow.triangle.2.circlepath") {
+          onRevise(element)
+        }
+        .buttonStyle(.plain)
+        .froggyFont(.caption, weight: .semibold)
+        .foregroundStyle(accentColor)
+        .accessibilityIdentifier("chat.element.revise")
+      }
     }
   }
 }
@@ -531,7 +574,7 @@ private func elementIcon(_ tone: InlineElementTone) -> String {
   }
 }
 
-private extension View {
+extension View {
   func inlineElementCard(baseColor: Color, accentColor: Color) -> some View {
     padding(12)
       .frame(maxWidth: .infinity, alignment: .leading)

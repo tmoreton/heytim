@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F20000000000000000000001 /* AppModel+Fork.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000001 /* AppModel+Fork.swift */; };
+		F20000000000000000000002 /* BotSettingsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000002 /* BotSettingsModels.swift */; };
+		F20000000000000000000003 /* ChatUsageSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000003 /* ChatUsageSummary.swift */; };
+		F20000000000000000000004 /* BotEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000004 /* BotEditorView.swift */; };
+		F20000000000000000000005 /* InlineFlowDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000005 /* InlineFlowDisplay.swift */; };
+		F20000000000000000000006 /* ConversationMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000006 /* ConversationMessageView.swift */; };
 		0A87C1D4CB05978494CB610A /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6215600B1AD6C11F22092AEB /* Models.swift */; };
 		AC0000000000000000000001 /* DeviceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0000000000000000000001 /* DeviceModels.swift */; };
 		AA0000000000000000000001 /* AppleDeviceToolCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000001 /* AppleDeviceToolCoordinator.swift */; };
@@ -63,6 +69,12 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		F30000000000000000000001 /* AppModel+Fork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AppModel+Fork.swift"; path = "Sources/HeyTimCore/AppModel+Fork.swift"; sourceTree = "<group>"; };
+		F30000000000000000000002 /* BotSettingsModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BotSettingsModels.swift; path = Sources/HeyTimCore/BotSettingsModels.swift; sourceTree = "<group>"; };
+		F30000000000000000000003 /* ChatUsageSummary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatUsageSummary.swift; path = Sources/HeyTimCore/ChatUsageSummary.swift; sourceTree = "<group>"; };
+		F30000000000000000000004 /* BotEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BotEditorView.swift; path = Sources/HeyTimUI/BotEditorView.swift; sourceTree = "<group>"; };
+		F30000000000000000000005 /* InlineFlowDisplay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InlineFlowDisplay.swift; path = Sources/HeyTimUI/InlineFlowDisplay.swift; sourceTree = "<group>"; };
+		F30000000000000000000006 /* ConversationMessageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConversationMessageView.swift; path = Sources/HeyTimUI/ConversationMessageView.swift; sourceTree = "<group>"; };
 		023CEBD733F786082B5D08D4 /* Theme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Theme.swift; path = Sources/HeyTimUI/Theme.swift; sourceTree = "<group>"; };
 		0827082CADD0435A0DB5D202 /* HeyTimAppleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HeyTimAppleTests.swift; path = Tests/HeyTimAppleTests.swift; sourceTree = "<group>"; };
 		0941498FBD04101B8F9E6E1B /* GitHubSkillImportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GitHubSkillImportView.swift; path = Sources/HeyTimUI/GitHubSkillImportView.swift; sourceTree = "<group>"; };
@@ -165,6 +177,9 @@
 				FFBB1B96E367269E3D95160A /* APIRoutes.generated.swift */,
 				A80000000000000000000001 /* PlatformContract.generated.swift */,
 				3A8BD71384316330EFB50046 /* AppModel.swift */,
+				F30000000000000000000001 /* AppModel+Fork.swift */,
+				F30000000000000000000002 /* BotSettingsModels.swift */,
+				F30000000000000000000003 /* ChatUsageSummary.swift */,
 				6215600B1AD6C11F22092AEB /* Models.swift */,
 				AD0000000000000000000001 /* DeviceModels.swift */,
 				17C3A6AC39F485405F85856B /* AuthSession.swift */,
@@ -179,10 +194,13 @@
 				B90179787B9FEB963BE22449 /* BrowserHandoffView.swift */,
 				ED8FD5F53AD09F8E13BFDBED /* DesktopControlView.swift */,
 				DDE53AA49C9A9760A2879553 /* FeatureSheets.swift */,
+				F30000000000000000000004 /* BotEditorView.swift */,
 				0941498FBD04101B8F9E6E1B /* GitHubSkillImportView.swift */,
 				B5B2D823EB4B14FCB4EA414E /* MainView.swift */,
+				F30000000000000000000006 /* ConversationMessageView.swift */,
 				A19D11F0E89F27CAF6551997 /* MarkdownMessageView.swift */,
 				C43D57AF9FB34824A9837501 /* InlineMessageElements.swift */,
+				F30000000000000000000005 /* InlineFlowDisplay.swift */,
 				9EDB7CD6380F2E79F6618CA2 /* ProviderLogoView.swift */,
 				1E8F50345C6F715CCAD7D4AA /* SupportingFeatureSheets.swift */,
 				023CEBD733F786082B5D08D4 /* Theme.swift */,
@@ -392,6 +410,9 @@
 				28007A1F824DD4E0E1C38D99 /* APIRoutes.generated.swift in Sources */,
 				A90000000000000000000001 /* PlatformContract.generated.swift in Sources */,
 				703716656630AB43ACDA3F0D /* AppModel.swift in Sources */,
+				F20000000000000000000001 /* AppModel+Fork.swift in Sources */,
+				F20000000000000000000002 /* BotSettingsModels.swift in Sources */,
+				F20000000000000000000003 /* ChatUsageSummary.swift in Sources */,
 				0A87C1D4CB05978494CB610A /* Models.swift in Sources */,
 				AC0000000000000000000001 /* DeviceModels.swift in Sources */,
 				BDB8BCB47B824F3D57866385 /* AuthSession.swift in Sources */,
@@ -406,10 +427,13 @@
 				3D64F3161C45D965C7583C5A /* BrowserHandoffView.swift in Sources */,
 				30B8ABEE55C084A69EB75C60 /* DesktopControlView.swift in Sources */,
 				F9C8848123F759C6919EFF9B /* FeatureSheets.swift in Sources */,
+				F20000000000000000000004 /* BotEditorView.swift in Sources */,
 				A2AA81DADA4C4DF4ABFE972D /* GitHubSkillImportView.swift in Sources */,
 				DDE3D07C8C81D52818A77A8F /* MainView.swift in Sources */,
+				F20000000000000000000006 /* ConversationMessageView.swift in Sources */,
 				CB80F9873D7BFF9273FF2FBA /* MarkdownMessageView.swift in Sources */,
 				D1B67E1E7A81452DA53DDF60 /* InlineMessageElements.swift in Sources */,
+				F20000000000000000000005 /* InlineFlowDisplay.swift in Sources */,
 				CB46C889E20746FC5BBFEC49 /* ProviderLogoView.swift in Sources */,
 				115CF026C6D962CAEDF7D3DE /* SupportingFeatureSheets.swift in Sources */,
 				71657CB25210E15EB004C3B3 /* Theme.swift in Sources */,

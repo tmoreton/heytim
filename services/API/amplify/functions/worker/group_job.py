@@ -50,7 +50,7 @@ from .support import (
     sqs,
     table,
 )
-from .usage import record_invocation_usage
+from .usage import message_usage_summary, record_invocation_usage
 from .usage_controls import (
     AdmissionDecision,
     UsageControlUnavailable,
@@ -380,7 +380,10 @@ def _process_group_agent_reply(
         return answer
 
     completed_at = _finish_work(
-        reply_key, lease_owner, "COMPLETE", "text", answer, artifacts=artifacts
+        reply_key, lease_owner, "COMPLETE", "text", answer, artifacts=artifacts,
+        usage_summary=message_usage_summary(
+            result.usage, reasoning_effort=bot.get("reasoningEffort")
+        ),
     )
     if not completed_at:
         cleanup_artifacts()

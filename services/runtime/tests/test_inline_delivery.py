@@ -17,7 +17,7 @@ def test_direct_answers_are_inline_by_default() -> None:
         {"bot": {"name": "Researcher", "tools": [], "skills": []}}
     )
 
-    assert config.instructions.endswith(INLINE_DELIVERY_INSTRUCTIONS)
+    assert INLINE_DELIVERY_INSTRUCTIONS in config.instructions
     assert (
         "Deliver the useful content inline in the chat by default"
         in config.instructions
@@ -34,6 +34,7 @@ def test_direct_answers_are_inline_by_default() -> None:
     assert '```metrics\n  {"title":"optional"' in config.instructions
     assert '```callout\n  {"title":"..."' in config.instructions
     assert '```steps\n  {"title":"optional"' in config.instructions
+    assert '```flow\n  {"title":"..."' in config.instructions
 
 
 def test_delivery_policy_overrides_legacy_template_export_defaults() -> None:
@@ -69,7 +70,10 @@ def test_delivery_policy_applies_to_every_group_role(role: str) -> None:
         }
     )
 
-    assert config.instructions.endswith(INLINE_DELIVERY_INSTRUCTIONS)
+    assert INLINE_DELIVERY_INSTRUCTIONS in config.instructions
+    assert config.instructions.index(INLINE_DELIVERY_INSTRUCTIONS) < config.instructions.index(
+        "Creator group"
+    )
     assert (
         "Intermediate group contributions must still respect their assigned role"
         in config.instructions

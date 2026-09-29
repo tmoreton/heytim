@@ -49,6 +49,7 @@ class UsageTests(unittest.TestCase):
     def test_durable_usage_keeps_integer_decimal_token_counts(self):
         self.assertEqual(self.usage._count(Decimal(1234)), 1234)
         self.assertEqual(self.usage._count(Decimal("1.2")), 0)
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.table = FakeTable()
@@ -63,6 +64,8 @@ class UsageTests(unittest.TestCase):
         botocore = ModuleType("botocore")
         botocore_config = ModuleType("botocore.config")
         botocore_config.Config = FakeConfig  # type: ignore[attr-defined]
+        support = ModuleType("worker.support")
+        support.table = cls.table  # type: ignore[attr-defined]
         environment = {
             "TABLE_NAME": "data",
             "AGENT_RUNTIME_ARN": "arn:aws:bedrock-agentcore:us-east-1:123:runtime/test",
@@ -81,6 +84,7 @@ class UsageTests(unittest.TestCase):
                     "boto3.dynamodb.conditions": conditions,
                     "botocore": botocore,
                     "botocore.config": botocore_config,
+                    "worker.support": support,
                 },
             ),
         ):
@@ -214,6 +218,104 @@ class UsageTests(unittest.TestCase):
 
         self.assertEqual(item["costUsd"], Decimal("0.750000000000"))
         self.assertFalse(item["costIncomplete"])
+
+    def test_deepseek_cache_reads_replace_regular_input_in_estimate(self) -> None:
+        item = self.usage._usage_item(
+            "user-1",
+            "queue-message-1",
+            {
+                "models": [
+                    {
+                        "provider": "openrouter",
+                        "modelId": "deepseek/deepseek-v4.1-flash",
+                        "callCount": 1,
+                        "inputTokens": 1_000_000,
+                        "cacheReadInputTokens": 800_000,
+                        "outputTokens": 0,
+                    }
+                ]
+            },
+            work_type="direct",
+            bot_id="bot-1",
+        )
+
+        self.assertEqual(item["costUsd"], Decimal("0.032400000000"))
+
+    def test_message_summary_exposes_cost_and_reported_cache_share(self) -> None:
+        summary = self.usage.message_usage_summary({
+            "models": [{
+                "provider": "openrouter",
+                "modelId": "deepseek/deepseek-v4.1-flash",
+                "callCount": 1,
+                "inputTokens": 100,
+                "cacheReadInputTokens": 75,
+                "outputTokens": 20,
+                "providerCostUsd": "0.00012",
+            }],
+            "calls": [{
+                "provider": "openrouter",
+                "modelId": "deepseek/deepseek-v4.1-flash",
+                "headerFingerprint": "0123456789abcdef",
+                "toolCount": 2,
+                "messageCount": 3,
+                "durationMs": 150,
+                "status": "complete",
+                "inputTokens": 100,
+                "cacheReadInputTokens": 75,
+                "cacheReportAvailable": True,
+            }],
+        })
+
+        self.assertEqual(summary["costUsd"], "0.000120000000")
+        self.assertTrue(summary["cacheReportAvailable"])
+        self.assertEqual(summary["cacheReadInputTokens"], 75)
+        self.assertNotIn("headerFingerprint", summary)
+
+    def test_failed_unmetered_attempt_marks_cost_incomplete(self) -> None:
+        item = self.usage._usage_item(
+            "user-1", "event-1",
+            {
+                "models": [{
+                    "provider": "openrouter",
+                    "modelId": "deepseek/deepseek-v4.1-flash",
+                    "callCount": 1, "inputTokens": 100, "outputTokens": 10,
+                    "providerCostUsd": "0.0001",
+                }],
+                "calls": [{
+                    "provider": "openrouter",
+                    "modelId": "deepseek/deepseek-v4.1-flash",
+                    "headerFingerprint": "0123456789abcdef",
+                    "status": "failed", "inputTokens": 0,
+                }],
+            },
+            work_type="direct", bot_id="bot-1",
+        )
+
+        self.assertTrue(item["costIncomplete"])
+        self.assertEqual(item["costBasis"], "partial")
+
+    def test_bedrock_cache_tokens_are_separate_from_regular_input(self) -> None:
+        item = self.usage._usage_item(
+            "user-1",
+            "queue-message-1",
+            {
+                "models": [
+                    {
+                        "provider": "bedrock",
+                        "modelId": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                        "callCount": 1,
+                        "inputTokens": 100,
+                        "cacheReadInputTokens": 800,
+                        "cacheWriteInputTokens": 100,
+                        "outputTokens": 0,
+                    }
+                ]
+            },
+            work_type="direct",
+            bot_id="bot-1",
+        )
+
+        self.assertEqual(item["costUsd"], Decimal("0.001140000000"))
 
     def test_idempotency_key_does_not_change_across_month_boundary(self) -> None:
         report = {

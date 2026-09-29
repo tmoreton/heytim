@@ -35,7 +35,7 @@ from .support import (
     sqs,
     table,
 )
-from .usage import record_invocation_usage
+from .usage import message_usage_summary, record_invocation_usage
 from .usage_controls import (
     AdmissionDecision,
     UsageControlUnavailable,
@@ -371,6 +371,9 @@ def _process_agent_reply(record: dict, request: dict) -> None:
         answer,
         artifacts=artifacts,
         configuration_changed=configuration_changed,
+        usage_summary=message_usage_summary(
+            result.usage, reasoning_effort=bot.get("reasoningEffort")
+        ),
     )
     if not completed_at:
         cleanup_artifacts()

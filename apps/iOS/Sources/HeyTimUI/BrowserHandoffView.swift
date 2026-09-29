@@ -22,7 +22,7 @@ struct BrowserHandoffView: View {
             .disabled(isBusy)
             .onSubmit { open() }
           Button("Open") { open() }
-            .froggyGlassButton(prominent: true, tint: FrogTheme.brand)
+            .froggyGlassButton(prominent: true, tint: FrogTheme.accent)
             .disabled(isBusy)
         }
         if state?.status == "human_control" {

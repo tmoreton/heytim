@@ -360,17 +360,20 @@ struct MarkdownMessageView: View {
   private let expandsToFill: Bool
   private let baseColor: Color
   private let accentColor: Color
+  private let onRevise: ((InlineMessageElement) -> Void)?
 
   init(
     _ markdown: String,
     expandsToFill: Bool = true,
     baseColor: Color,
-    accentColor: Color = FrogTheme.accent
+    accentColor: Color = .primary,
+    onRevise: ((InlineMessageElement) -> Void)? = nil
   ) {
     blocks = MarkdownBlockParser.parse(markdown)
     self.expandsToFill = expandsToFill
     self.baseColor = baseColor
     self.accentColor = accentColor
+    self.onRevise = onRevise
   }
 
   var body: some View {
@@ -387,7 +390,9 @@ struct MarkdownMessageView: View {
   private var content: some View {
     VStack(alignment: .leading, spacing: 12) {
       ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-        MarkdownBlockView(block: block, baseColor: baseColor, accentColor: accentColor)
+        MarkdownBlockView(
+          block: block, baseColor: baseColor, accentColor: accentColor,
+          onRevise: onRevise)
       }
     }
   }
@@ -397,6 +402,7 @@ private struct MarkdownBlockView: View {
   let block: MarkdownBlock
   let baseColor: Color
   let accentColor: Color
+  let onRevise: ((InlineMessageElement) -> Void)?
 
   @ViewBuilder var body: some View {
     switch block {
@@ -417,7 +423,7 @@ private struct MarkdownBlockView: View {
     case .quote(let text):
       HStack(alignment: .top, spacing: 10) {
         Capsule()
-          .fill(FrogTheme.accent.opacity(0.75))
+          .fill(accentColor.opacity(0.75))
           .frame(width: 3)
         Text(inlineMarkdown(text))
           .froggyFont(.body)
@@ -433,7 +439,8 @@ private struct MarkdownBlockView: View {
       markdownTable(table)
     case .element(let element):
       InlineMessageElementView(
-        element: element, baseColor: baseColor, accentColor: accentColor)
+        element: element, baseColor: baseColor, accentColor: accentColor,
+        onRevise: onRevise)
     case .divider:
       Divider()
         .overlay(baseColor.opacity(0.22))

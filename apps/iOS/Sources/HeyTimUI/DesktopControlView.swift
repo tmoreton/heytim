@@ -13,7 +13,7 @@
           .accessibilityIdentifier("settings.desktop-control.enabled")
         LabeledContent {
           Text(coordinator.isPaused ? "Paused" : "Ready")
-            .foregroundStyle(coordinator.isPaused ? Color.orange : Color.green)
+            .foregroundStyle(coordinator.isPaused ? FrogTheme.muted : FrogTheme.text)
         } label: {
           Label("Computer use", systemImage: coordinator.isPaused ? "pause.circle" : "play.circle")
         }
@@ -36,13 +36,13 @@
         }
         LabeledContent {
           Text(coordinator.permissionGranted ? "Granted" : "Not granted")
-            .foregroundStyle(coordinator.permissionGranted ? Color.green : Color.secondary)
+            .foregroundStyle(coordinator.permissionGranted ? FrogTheme.text : FrogTheme.muted)
         } label: {
           Label("Accessibility", systemImage: "hand.raised")
         }
         LabeledContent {
           Text(coordinator.screenRecordingGranted ? "Granted" : "Optional")
-            .foregroundStyle(coordinator.screenRecordingGranted ? Color.green : Color.secondary)
+            .foregroundStyle(coordinator.screenRecordingGranted ? FrogTheme.text : FrogTheme.muted)
         } label: {
           Label("Local OCR", systemImage: "text.viewfinder")
         }
@@ -106,7 +106,7 @@
       Section {
         LabeledContent {
           Text(coordinator.permissionRequested ? "Requested" : "Not requested")
-            .foregroundStyle(coordinator.permissionRequested ? Color.green : Color.secondary)
+            .foregroundStyle(coordinator.permissionRequested ? FrogTheme.text : FrogTheme.muted)
         } label: {
           Label("Health access", systemImage: "heart.text.square")
         }
@@ -117,7 +117,7 @@
           .disabled(!coordinator.isAvailable)
         }
         if let error = coordinator.errorMessage {
-          Text(error).foregroundStyle(.orange)
+          Text(error).foregroundStyle(FrogTheme.danger)
         }
       } header: {
         Text("Apple Health")

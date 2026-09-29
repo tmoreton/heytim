@@ -25,9 +25,7 @@ PRIMARY_MODEL_ID = os.environ.get(
 )
 PRIMARY_REASONING_EFFORT = os.environ.get("HEYTIM_REASONING_EFFORT", "high")
 FALLBACK_MODEL_ID = os.environ.get("HEYTIM_FALLBACK_MODEL_ID", "z-ai/glm-5.3")
-FALLBACK_REASONING_EFFORT = os.environ.get(
-    "HEYTIM_FALLBACK_REASONING_EFFORT", "high"
-)
+FALLBACK_REASONING_EFFORT = os.environ.get("HEYTIM_FALLBACK_REASONING_EFFORT", "high")
 OPENROUTER_BASE_URL = os.environ.get(
     "HEYTIM_OPENROUTER_BASE_URL",
     "https://openrouter.ai/api/v1",
@@ -44,14 +42,10 @@ if not 15 <= PRIMARY_RESPONSE_TIMEOUT_SECONDS <= 600:
     raise ValueError(
         "HEYTIM_PRIMARY_RESPONSE_TIMEOUT_SECONDS must be between 15 and 600"
     )
-OPENROUTER_MAX_ATTEMPTS = int(
-    os.environ.get("HEYTIM_OPENROUTER_MAX_ATTEMPTS", "2")
-)
+OPENROUTER_MAX_ATTEMPTS = int(os.environ.get("HEYTIM_OPENROUTER_MAX_ATTEMPTS", "2"))
 if not 1 <= OPENROUTER_MAX_ATTEMPTS <= 4:
     raise ValueError("HEYTIM_OPENROUTER_MAX_ATTEMPTS must be between 1 and 4")
-OPENROUTER_MAX_OUTPUT_TOKENS = int(
-    os.environ.get("HEYTIM_MAX_OUTPUT_TOKENS", "8192")
-)
+OPENROUTER_MAX_OUTPUT_TOKENS = int(os.environ.get("HEYTIM_MAX_OUTPUT_TOKENS", "8192"))
 if not 4096 <= OPENROUTER_MAX_OUTPUT_TOKENS <= 32768:
     raise ValueError("HEYTIM_MAX_OUTPUT_TOKENS must be between 4096 and 32768")
 MAX_RETRY_AFTER_SECONDS = 150.0
@@ -68,9 +62,7 @@ class OpenRouterCredentialError(RuntimeError):
 class PreResponseFallbackModel(Model):
     """Use a fallback only when the current provider has not completed a response."""
 
-    def __init__(
-        self, primary: Model, fallback: Model, *, fallback_name: str
-    ) -> None:
+    def __init__(self, primary: Model, fallback: Model, *, fallback_name: str) -> None:
         self.primary = primary
         self.fallback = fallback
         self.fallback_name = fallback_name
@@ -305,7 +297,7 @@ def _retry_after_seconds(error: Exception) -> float | None:
             )
         try:
             seconds = float(raw)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             continue
         return min(MAX_RETRY_AFTER_SECONDS, max(0.0, seconds))
     return None
@@ -375,6 +367,7 @@ def _load_openrouter_model(
     *,
     model_id: str = PRIMARY_MODEL_ID,
     reasoning_effort: str = PRIMARY_REASONING_EFFORT,
+    session_id: str | None = None,
     max_tokens: int = OPENROUTER_MAX_OUTPUT_TOKENS,
     temperature: float = 0.3,
 ) -> OpenAIModel:
@@ -387,6 +380,15 @@ def _load_openrouter_model(
         or max_tokens < 1
     ):
         raise ValueError("max_tokens must be a positive integer")
+    if session_id is not None and (
+        not isinstance(session_id, str) or not 1 <= len(session_id) <= 256
+    ):
+        raise ValueError("OpenRouter session ID must be 1 to 256 characters")
+    extra_body: dict[str, Any] = {"reasoning": {"effort": reasoning_effort}}
+    if session_id is not None:
+        # OpenRouter keeps successive calls on one provider even when opening
+        # messages change. Cache hits still require a matching prompt prefix.
+        extra_body["session_id"] = session_id
     return OpenRouterUsageModel(
         model_id=model_id,
         context_window_limit=200_000,
@@ -397,7 +399,7 @@ def _load_openrouter_model(
             # effort that both DeepSeek V4.1 Flash and GLM 5.3 support.
             # OpenRouter-specific parameters must travel through the OpenAI
             # SDK's extra_body escape hatch rather than as top-level kwargs.
-            "extra_body": {"reasoning": {"effort": reasoning_effort}},
+            "extra_body": extra_body,
         },
         client_args={
             "api_key": api_key,
@@ -430,8 +432,30 @@ def _tracked(
     )
 
 
-async def load_model(usage: UsageAccumulator | None = None) -> Model:
-    """Load DeepSeek with GLM as its OpenRouter-only fallback."""
+async def load_model(
+    usage: UsageAccumulator | None = None,
+    *,
+    session_id: str | None = None,
+    model_preference: str = "deepseek",
+    reasoning_effort: str | None = None,
+) -> Model:
+    """Load a supported OpenRouter model with the other route as fallback."""
+    if not isinstance(model_preference, str) or model_preference not in {"deepseek", "glm"}:
+        raise ValueError("modelPreference must be deepseek or glm")
+    if reasoning_effort is not None and (
+        not isinstance(reasoning_effort, str)
+        or reasoning_effort not in SUPPORTED_REASONING_EFFORTS
+    ):
+        raise ValueError("reasoningEffort must be low, high, or max")
+    routes = (
+        (PRIMARY_MODEL_ID, PRIMARY_REASONING_EFFORT),
+        (FALLBACK_MODEL_ID, FALLBACK_REASONING_EFFORT),
+    )
+    if model_preference == "glm":
+        routes = routes[::-1]
+    (primary_id, primary_effort), (fallback_id, fallback_effort) = routes
+    primary_effort = reasoning_effort or primary_effort
+    fallback_effort = reasoning_effort or fallback_effort
     try:
         api_key = await _openrouter_api_key()
     except Exception as error:
@@ -440,33 +464,39 @@ async def load_model(usage: UsageAccumulator | None = None) -> Model:
         ) from error
     log.info(
         "Configured OpenRouter primary %s/%s with fallback %s/%s",
-        PRIMARY_MODEL_ID,
-        PRIMARY_REASONING_EFFORT,
-        FALLBACK_MODEL_ID,
-        FALLBACK_REASONING_EFFORT,
+        primary_id,
+        primary_effort,
+        fallback_id,
+        fallback_effort,
     )
     primary = ResilientOpenRouterModel(
         _tracked(
-            _load_openrouter_model(api_key),
+            _load_openrouter_model(
+                api_key,
+                model_id=primary_id,
+                reasoning_effort=primary_effort,
+                session_id=session_id,
+            ),
             usage,
             provider="openrouter",
-            model_id=PRIMARY_MODEL_ID,
+            model_id=primary_id,
         )
     )
     fallback = ResilientOpenRouterModel(
         _tracked(
             _load_openrouter_model(
                 api_key,
-                model_id=FALLBACK_MODEL_ID,
-                reasoning_effort=FALLBACK_REASONING_EFFORT,
+                model_id=fallback_id,
+                reasoning_effort=fallback_effort,
+                session_id=session_id,
             ),
             usage,
             provider="openrouter",
-            model_id=FALLBACK_MODEL_ID,
+            model_id=fallback_id,
         )
     )
     return PreResponseFallbackModel(
         primary,
         fallback,
-        fallback_name="GLM on OpenRouter",
+        fallback_name=f"{fallback_id} on OpenRouter",
     )
