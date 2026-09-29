@@ -35,6 +35,15 @@ the current checkout or environment still has the same status.
   GitHub App webhook still point to the source. An attempt to remove Google's obsolete `froggybot.com` authorized
   domain was blocked by automatic approval review after Google said an OAuth client still uses that domain. The
   proposed removal was not saved.
+- A fresh live audit found the source application table at 638 rows and the destination application table and memory
+  still empty. The source table digest changed between two read-only scans despite stable row counts, confirming that
+  customer writes are ongoing. No customer data migration or write freeze has begun. A read-only reconciliation found
+  the one live Stripe subscription and its customer, Price, status, period, and source user mapping match the source
+  billing record; the destination billing path is still disabled and no Stripe setting was changed.
+- Google's Verification Center still marks HeyTim branding and data access unverified and does not offer submission
+  until branding verification is complete. The authorized destination callback is saved, but it is not Google approval.
+  On September 29 the protected GitHub production flags for Google review, physical-device APNs smoke, and release
+  compliance were corrected from `true` to `false` and read back as `false`. The account-cutover flag remains absent.
 - A repository-wide hostname audit found no `froggybot.com` or `frogbot.com` URL in live app, website, API, catalog,
   AgentCore configuration, scripts, or workflows. Public web and in-app links use `heytim.ai`. The checked-in active
   API and Apple outputs still use the source AWS API endpoint; the destination endpoint is staged as a candidate,

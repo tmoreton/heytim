@@ -139,6 +139,10 @@ Record an owner and decision for every row before the maintenance window is sche
 
 ### 3. Cut over in a bounded maintenance window
 
+The [source write-freeze runbook](source-write-freeze-runbook.md) is a **NO-GO draft** until its read-path,
+live-inventory, policy-probe, and AgentCore memory/drain gaps are resolved. A stable source digest requires disabling
+and settling DynamoDB TTL and S3 Lifecycle as well as stopping application ingress.
+
 1. Announce the write freeze and named rollback owner.
 2. Stop new schedules and paid-work admission, drain queues, and verify no in-flight job remains.
 3. Capture final DynamoDB backups/exports and S3 inventory; record source counts and checksums.
