@@ -30,6 +30,7 @@ from .mcp_connections import (
 from .memes import meme_tools
 from .provider_connections import provider_connection_tools
 from .repository_workspace import repository_workspace_tool
+from .tool_results import ResultStorage, ToolResultOffloader
 from .workspace_assets import workspace_asset_tools
 from .workspace_sync import workspace_sync_tool
 
@@ -71,9 +72,13 @@ def resolve_capabilities(
         selected_skills = dynamic_skills(bot)
         validate_skill_selection(bot, selected_skills)
         return CapabilityConfiguration(
-            tools=[], builtin_tools=[], plugins=[], builtin_plugins=[],
+            tools=[],
+            builtin_tools=[],
+            plugins=[],
+            builtin_plugins=[],
             background_work=BackgroundWorkTracker(),
-            bot_mutations=BotMutationTracker(), browser=None,
+            bot_mutations=BotMutationTracker(),
+            browser=None,
         )
     bindings = tool_bindings(bot)
     skills = dynamic_skills(bot)
@@ -169,6 +174,12 @@ def resolve_capabilities(
             or type(item).__name__
         )
     )
+    named_tools = {item.tool_name: item for item in tools if hasattr(item, "tool_name")}
+    saved_results = ToolResultOffloader(
+        ResultStorage(artifact_prefix),
+        save_artifact=named_tools.get("save_artifact"),
+        save_workspace=named_tools.get("save_workspace_asset"),
+    )
 
     return CapabilityConfiguration(
         tools=tools,
@@ -180,11 +191,10 @@ def resolve_capabilities(
                 else []
             )
         ),
-        plugins=[AgentSkills(skills=skills, strict=True)] if skills else [],
+        plugins=[saved_results]
+        + ([AgentSkills(skills=skills, strict=True)] if skills else []),
         builtin_plugins=sorted(
-            [
-            item["name"] for item in bindings if item["kind"] == "stan_plugin"
-            ]
+            [item["name"] for item in bindings if item["kind"] == "stan_plugin"]
         ),
         background_work=background_work,
         bot_mutations=bot_mutations,

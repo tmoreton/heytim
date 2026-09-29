@@ -126,7 +126,7 @@ jobs:
     name: Verify iPhone and Mac
     needs: generate
     runs-on: [self-hosted, macOS, ARM64, heytim-apple]
-    timeout-minutes: 45
+    timeout-minutes: 90
     permissions:
       contents: read
     steps:

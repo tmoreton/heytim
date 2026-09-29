@@ -53,6 +53,20 @@ destination-account resource identifiers, and CDK synthesis rejects any future f
   cleanup. The destination workflow no longer references the source account's SES receipt-rule set; the receive-stage
   stack will own `heytim-production-bot-mail` in the destination account.
 
+## Readiness checkpoint: 2026-09-29
+
+- AWS reports production SES sending access enabled and healthy in account `820323452649`. The SES sandbox blocker
+  recorded above is resolved.
+- The destination Amplify application `d17sj7dvhx07c` now has an updated backend with an API, data and invite tables,
+  file bucket, service alarm topic, log key, and GitHub deployment role. The AgentCore production stack remains
+  `CREATE_COMPLETE`. These are destination resources; their presence alone does not verify migrated customer state.
+- GitHub's protected production environment still points `AMPLIFY_APP_ID`, `AWS_DEPLOY_ROLE_ARN`, and
+  `HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN` at the source account. The account-isolation cutover approval variable is
+  absent. Leave these values in place until the go/no-go checks and maintenance window are complete.
+- The local API outputs currently reference the destination, while the checked-in Apple outputs reference the source.
+  The normal backend verification detects this mismatch. Do not publish the destination client configuration until
+  authenticated smoke tests and state migration have passed.
+
 ## Decisions requiring approval
 
 Record an owner and decision for every row before the maintenance window is scheduled.

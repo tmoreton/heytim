@@ -6,8 +6,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import main as runtime_main
 import pytest
+from strands.agent.agent_result import AgentResult
+from strands.interrupt import Interrupt
+from strands.telemetry.metrics import EventLoopMetrics
+from strands.types.exceptions import MaxTokensReachedException
 
+from heytim_runtime.action_approval import _proposal
 from heytim_runtime.configuration import BotConfiguration
+from heytim_runtime.device_tools import _request
 from heytim_runtime.memory import BalancedMemoryStore
 from model.load import _load_openrouter_model
 from model.usage import ProviderCallLimitExceeded
@@ -118,7 +124,14 @@ def test_home_assistant_request_uses_normal_agent(monkeypatch):
     model.assert_awaited_once()
 
 
-def test_provider_call_limit_becomes_terminal_result_without_retry(monkeypatch):
+@pytest.mark.parametrize(
+    "error,code",
+    [
+        (ProviderCallLimitExceeded("model-call safety limit"), "PROVIDER_CALL_LIMIT"),
+        (MaxTokensReachedException("output exhausted"), "OUTPUT_TOKEN_LIMIT"),
+    ],
+)
+def test_known_limit_becomes_terminal_result_without_retry(monkeypatch, error, code):
     capabilities = SimpleNamespace(
         close=AsyncMock(),
         bot_mutations=SimpleNamespace(pending=[]),
@@ -154,7 +167,7 @@ def test_provider_call_limit_becomes_terminal_result_without_retry(monkeypatch):
     async def over_limit(*_args, **_kwargs):
         if False:
             yield {}
-        raise ProviderCallLimitExceeded("model-call safety limit")
+        raise error
 
     monkeypatch.setattr(runtime_main, "stream_with_token_recovery", over_limit)
 
@@ -173,8 +186,8 @@ def test_provider_call_limit_becomes_terminal_result_without_retry(monkeypatch):
         for event in events
         if "terminalError" in event.get("heytimControl", {})
     )
-    assert terminal["code"] == "PROVIDER_CALL_LIMIT"
-    assert "provider-call safety limit" in terminal["message"]
+    assert terminal["code"] == code
+    assert "unexpected" not in terminal["message"]
     assert harness.call_args.kwargs["effort"] == "auto"
     assert harness.call_args.kwargs["skills"] is False
     assert harness.call_args.kwargs["memory"] is False
@@ -241,3 +254,81 @@ def test_wrapped_provider_call_limit_becomes_terminal_result(monkeypatch):
     )
     assert terminal["code"] == "PROVIDER_CALL_LIMIT"
     capabilities.close.assert_awaited_once()
+
+
+@pytest.mark.parametrize("kind", ["approval", "device"])
+def test_public_result_event_saves_and_exposes_pending_interrupt(monkeypatch, kind):
+    config = BotConfiguration(
+        instructions="",
+        tools=[],
+        builtin_tools=[],
+        plugins=[],
+        builtin_plugins=[],
+        background_work=SimpleNamespace(pending=[]),
+        capability_configuration=SimpleNamespace(
+            close=AsyncMock(), bot_mutations=SimpleNamespace(pending=[])
+        ),
+    )
+    session = SimpleNamespace(save_snapshot=AsyncMock())
+    agent = SimpleNamespace(messages=[], memory_manager=None)
+    monkeypatch.setattr(runtime_main, "memory_context_from_payload", lambda _: None)
+    monkeypatch.setattr(runtime_main, "memory_stores", lambda _: [])
+    monkeypatch.setattr(
+        runtime_main,
+        "messages_from_payload",
+        lambda *_: [{"role": "user", "content": [{"text": "Complete the task"}]}],
+    )
+    monkeypatch.setattr(runtime_main, "bot_configuration", lambda *_: config)
+    monkeypatch.setattr(runtime_main, "load_model", AsyncMock(return_value=object()))
+    harness = MagicMock(return_value=agent)
+    monkeypatch.setattr(runtime_main, "create_harness", harness)
+    monkeypatch.setattr(runtime_main, "interrupt_session_manager", lambda *_: session)
+    monkeypatch.setattr(
+        runtime_main,
+        "approval_configuration",
+        lambda *_: (object(), session) if kind == "approval" else None,
+    )
+    if kind == "approval":
+        proposal = _proposal(
+            {"toolUseId": "call-1", "name": "update_record", "input": {"id": "1"}}
+        )
+        interrupt_name, control_key = "heytim_exact_action", "pendingApproval"
+    else:
+        proposal = _request(
+            {"toolUseId": "call-1", "name": "apple_health_steps", "input": {"days": 7}},
+            platform="ios",
+            tool_id="apple_health",
+        )
+        interrupt_name, control_key = "heytim_device_call", "pendingDeviceCall"
+    result = AgentResult(
+        stop_reason="interrupt",
+        message={"role": "assistant", "content": []},
+        metrics=EventLoopMetrics(),
+        state={},
+        interrupts=[Interrupt("interrupt-1", interrupt_name, proposal)],
+    )
+
+    async def interrupted(_agent, _prompt, **kwargs):
+        assert kwargs["turn_slice_size"] == 8
+        assert kwargs["checkpoint"] is not None
+        yield {"result": result}
+
+    monkeypatch.setattr(runtime_main, "stream_with_token_recovery", interrupted)
+
+    async def collect():
+        return [
+            event
+            async for event in runtime_main.run_agent(
+                {"runtimeJob": {"id": "job-1"}, "memory": {"eventId": "turn-1"}},
+                SimpleNamespace(session_id="session-1"),
+            )
+        ]
+
+    events = asyncio.run(collect())
+    control = events[-1]["heytimControl"]
+    assert control[control_key]["id"] == "interrupt-1"
+    assert control[control_key]["digest"] == proposal["digest"]
+    assert "terminalError" not in control
+    session.save_snapshot.assert_awaited_once_with(agent, is_latest=True)
+    assert harness.call_args.kwargs["callback_handler"] is None
+    config.capability_configuration.close.assert_awaited_once()

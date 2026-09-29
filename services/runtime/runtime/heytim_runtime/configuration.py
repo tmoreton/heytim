@@ -19,6 +19,7 @@ from .instructions import (
 )
 from .memes import image_attachments_from_messages
 from .request import image_references_from_payload
+from .tool_results import RESULT_INSTRUCTIONS
 from .workspace_assets import workspace_assets_from_payload
 from .workspace_sync import workspace_files_from_payload
 
@@ -61,7 +62,10 @@ def bot_configuration(
             f"bot.prompt must be at most {MAX_INSTRUCTIONS_CHARS} characters"
         )
     conversation_mode = bot.get("conversationMode", "agent")
-    if not isinstance(conversation_mode, str) or conversation_mode not in {"agent", "chat"}:
+    if not isinstance(conversation_mode, str) or conversation_mode not in {
+        "agent",
+        "chat",
+    }:
         raise ValueError("bot.conversationMode must be agent or chat")
 
     continuation_context = continuation_instructions(payload)
@@ -95,7 +99,8 @@ def bot_configuration(
     # DeepSeek can reuse only an unchanged request prefix.
     instructions = (
         f"{base_instructions(name.strip(), prompt.strip())}\n\n"
-        f"{INLINE_DELIVERY_INSTRUCTIONS}"
+        f"{INLINE_DELIVERY_INSTRUCTIONS}\n\n"
+        f"{RESULT_INSTRUCTIONS}"
     )
     if workspace_files and any(
         getattr(candidate, "tool_name", None) == "load_workspace_files"
