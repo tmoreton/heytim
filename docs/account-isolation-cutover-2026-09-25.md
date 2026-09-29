@@ -63,9 +63,20 @@ destination-account resource identifiers, and CDK synthesis rejects any future f
 - GitHub's protected production environment still points `AMPLIFY_APP_ID`, `AWS_DEPLOY_ROLE_ARN`, and
   `HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN` at the source account. The account-isolation cutover approval variable is
   absent. Leave these values in place until the go/no-go checks and maintenance window are complete.
-- The local API outputs currently reference the destination, while the checked-in Apple outputs reference the source.
-  The normal backend verification detects this mismatch. Do not publish the destination client configuration until
-  authenticated smoke tests and state migration have passed.
+- The checked-in API and Apple client outputs still reference the source. Destination outputs are preserved separately
+  in `services/API/amplify_outputs.production-candidate.json` for verification; they are not active client configuration.
+- Destination infrastructure checks passed account identity, DynamoDB deletion protection and point-in-time recovery,
+  and bucket existence, versioning, and encryption. The initial check stopped at the absent
+  `meme-templates/v1/catalog.json` object. The destination-only sync then stored 100 reviewed template images and its
+  catalog, and the `HeyTimXSearch` and `HeyTimYouTube` gateway targets reached `READY` for `skills-v35`. Neither step
+  changed clients, DNS, GitHub variables, or the source account. The complete post-stage
+  `verify-production-deployment.sh` check then passed using the destination outputs: protected storage, template
+  images, encrypted runtime logs, confirmed alarm subscription, five AgentCore alarms, gateway target readiness,
+  and the public catalog endpoint.
+- The destination application table has 0 records versus 639 in the source, and its file bucket has 0 object versions
+  versus 455 in the source HeyTim bucket and 557 in the legacy bucket. These are read-only counts at this checkpoint;
+  AgentCore memory preservation also remains unverified. Do not
+  publish the destination client configuration until authenticated smoke tests and state migration have passed.
 
 ## Decisions requiring approval
 

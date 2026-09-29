@@ -66,9 +66,13 @@ dependencies = [
     "python-docx >= 1.2.0, < 2.0.0",
     "python-pptx >= 1.0.2, < 2.0.0",
     "reportlab>=4.4.4,<6.0.0",
+    # CodeZip resolves transitive formatting packages independently of uv.lock.
+    "rich-rst == 2.1.0",
     # CodeZip resolves Beautiful Soup transitives afresh; keep its selector
     # parser aligned with the version exercised by the locked runtime.
     "soupsieve == 2.9.2",
+    # Keep the packaged AgentCore event-stream dependency on the tested lock version.
+    "sse-starlette == 3.4.11",
     # CodeZip resolves transitives independently; keep it on the tested lock.
     "starlette == 1.6.0",
     # CodeZip resolves afresh; deploy the live harness and SDK versions exercised
