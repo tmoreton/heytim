@@ -52,6 +52,17 @@ read permission is NO-GO. Do not assume a Lambda gate blocks
 [runtime S3 writes](../services/runtime/runtime/heytim_runtime/runtime_jobs.py) or
 [memory writes](../services/runtime/runtime/heytim_runtime/memory.py).
 
+The two auxiliary buckets in the source Amplify stack were classified read-only on
+2026-09-30. `AuditLogs` is the active multi-region CloudTrail destination with
+log-file validation; its checked-in retention is seven years, so it must keep
+receiving audit records and remain in the source account through its retention
+obligation. `HeyTimGatewaySchemas` contains two versioned, deployment-owned
+OpenAPI schema objects under `releases/skills-v33/`, for X and YouTube. Neither
+bucket is an application user-file or raw-mail migration source. Keep the
+preflight's auxiliary-bucket review blocker until the live trail binding,
+schema key inventory, and ownership are rechecked at the actual freeze; do not
+fence the audit trail just to make the customer-state digest stable.
+
 ## 1. Inventory and reversible snapshots (read-only)
 
 Use a private snapshot directory; record its path, timestamp, role ARN, and SHA-256 of each saved JSON file in the
