@@ -6,6 +6,14 @@ The source API and its provider endpoints remain active until the migration
 acceptance checks pass. Keep the source configuration available for the 30-day
 rollback period.
 
+Before either endpoint changes, complete the immutable event, attempt, owner,
+and downstream-effect checks in
+[`provider-delivery-reconciliation-2026-09-29.md`](provider-delivery-reconciliation-2026-09-29.md).
+Its current read-only inventory is **NO-GO**: destination billing/event state
+is empty, the source has one Plaid connection without an Item mapping, and no
+bounded provider delivery ledger exists. SES inbound mail has a separate
+quarantine and replay gate.
+
 ## Read-only inventory, 2026-09-29
 
 | Provider | Current live configuration | Destination requirement |
