@@ -26,9 +26,9 @@ export function Footer() {
     <div className="footer-top">
       <div className="footer-about"><a className="wordmark" href="/" aria-label="HeyTim home"><img src="/assets/tim-mark.svg" alt="" width="38" height="38" /><span>HeyTim.</span></a><p>A little team for your whole life.</p><span className="footer-beta">Made for iPhone & Mac · Private beta</span></div>
       <nav aria-label="Product"><h2>The good stuff</h2><a href="/features/">All features</a><a href="/library/">Meet the bots</a><a href="/skills/">Explore skills</a><a href="/download/">Get the app</a></nav>
-      <nav aria-label="Community"><h2>Make it yours</h2><a href="/contribute/">Contribute</a><a href="https://github.com/tmoreton/heytim">View the source <Icon name="diagonal" size={13} /></a><a href="mailto:support@heytim.ai">Say hello</a></nav>
+      <nav aria-label="Community"><h2>Make it yours</h2><a href="/contribute/">Contribute</a><a href="https://github.com/tmoreton/heytim">View the source <Icon name="diagonal" size={13} /></a><a href="/support/">Support</a></nav>
     </div>
-    <div className="footer-bottom"><span>© 2026 HeyTim</span><nav aria-label="Legal"><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a><a href="/sms/">SMS program</a></nav><span>Big on possibilities. Small on fuss.</span></div>
+    <div className="footer-bottom"><span>© 2026 HeyTim</span><nav aria-label="Legal"><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a><a href="/account-deletion/">Account deletion</a><a href="/sms/">SMS program</a></nav><span>Big on possibilities. Small on fuss.</span></div>
   </footer>;
 }
 

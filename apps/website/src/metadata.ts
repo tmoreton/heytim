@@ -9,6 +9,8 @@ export const descriptions: Record<string, string> = {
   '/billing': 'Return to HeyTim to view your current plan and work-credit balance.',
   '/contribute': 'Propose a useful bot, reusable skill, or reviewed tool for the HeyTim community. Learn how contribution and review work.',
   '/privacy': 'How HeyTim handles accounts, conversations, files, memory, connected services, and your privacy choices.',
+  '/support': 'Contact HeyTim support for help with the iPhone and Mac apps, account access, billing, or privacy.',
+  '/account-deletion': 'How to delete your HeyTim account in the iPhone or Mac app and what happens to your content.',
   '/terms': 'Terms for using HeyTim and its AI bots, shared groups, connected tools, and native apps.',
   '/sms': 'HeyTim SMS program details, consent, message frequency, and opt-out instructions.',
 };

@@ -5,7 +5,7 @@ const site = new URL('../', import.meta.url);
 const output = new URL('dist/', site);
 const catalog = JSON.parse(await readFile(new URL('../../../catalog/catalog.json', import.meta.url), 'utf8'));
 assert.deepEqual(JSON.parse(await readFile(new URL('catalog.json', output), 'utf8')), catalog);
-for (const route of ['index.html', 'features/index.html', 'skills/index.html', 'library/index.html', 'invite/index.html', 'billing/index.html', 'app/index.html', 'download/index.html', 'privacy/index.html', 'terms/index.html', 'sms/index.html', 'contribute/index.html', '404.html']) {
+for (const route of ['index.html', 'features/index.html', 'skills/index.html', 'library/index.html', 'invite/index.html', 'billing/index.html', 'app/index.html', 'download/index.html', 'privacy/index.html', 'terms/index.html', 'support/index.html', 'account-deletion/index.html', 'sms/index.html', 'contribute/index.html', '404.html']) {
   const html = await readFile(new URL(route, output), 'utf8');
   assert.match(html, /<h1[ >]/, `${route} must be prerendered`);
   assert.doesNotMatch(html, /https:\/\/app\.heytim\.com/, `${route} must not link to retired browser chat`);
@@ -24,6 +24,10 @@ for (const url of sitemapURLs) {
 }
 const sitemapPaths = new Set(sitemapURLs.map((url) => url.pathname));
 assert(sitemapPaths.has('/features/'));
+assert(sitemapPaths.has('/support/'));
+assert(sitemapPaths.has('/account-deletion/'));
+assert.match(await readFile(new URL('privacy/index.html', output), 'utf8'), /Apple Push Notification service \(APNs\)/);
+assert.match(await readFile(new URL('account-deletion/index.html', output), 'utf8'), /Settings/);
 for (const route of ['/invite/', '/app/', '/billing/', '/404/']) assert(!sitemapPaths.has(route));
 for (const route of ['invite', 'app', 'billing']) {
   assert.match(await readFile(new URL(`${route}/index.html`, output), 'utf8'), /name="robots" content="noindex, follow"/);

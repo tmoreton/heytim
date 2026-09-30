@@ -1,5 +1,7 @@
 import { Home } from './pages/home';
 import { Privacy } from './pages/privacy';
+import { Support } from './pages/support';
+import { AccountDeletion } from './pages/account-deletion';
 import { Terms } from './pages/terms';
 import { Sms } from './pages/sms';
 import { Contribute } from './pages/contribute';
@@ -15,6 +17,7 @@ export const pages: Record<string, string> = {
   '/features': 'What HeyTim can do — Features & connections',
   '/library': 'Ready-made bots — HeyTim', '/skills': 'Skills — HeyTim',
   '/privacy': 'Privacy Policy — HeyTim', '/terms': 'Terms of Use — HeyTim',
+  '/support': 'Support — HeyTim', '/account-deletion': 'Delete your account — HeyTim',
   '/sms': 'SMS program — HeyTim', '/contribute': 'Contribute — HeyTim',
   '/download': 'Get the Apple app — HeyTim', '/app': 'Open HeyTim',
   '/invite': 'You’re invited — HeyTim',
@@ -27,6 +30,7 @@ export function Website({ pathname }: { pathname: string }) {
     : route === '/features' ? <Features />
     : route === '/library' ? <Library kind="bots" /> : route === '/skills' ? <Library />
     : route === '/privacy' ? <Privacy /> : route === '/terms' ? <Terms />
+    : route === '/support' ? <Support /> : route === '/account-deletion' ? <AccountDeletion />
     : route === '/sms' ? <Sms /> : route === '/contribute' ? <Contribute />
     : route === '/invite' ? <OpenApp invite />
     : route === '/billing' ? <BillingReturn />

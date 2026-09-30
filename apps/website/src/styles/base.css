@@ -89,7 +89,7 @@ em { font-family: Georgia, 'Times New Roman', serif; font-weight: 400; }
 .footer-top nav a { color: var(--muted); font-size: .9rem; display: inline-flex; align-items: center; gap: 5px; }
 .site-footer a:hover { color: var(--accent); }
 .footer-bottom { border-top: 1px solid var(--line); padding: 24px 0 30px; display: flex; align-items: center; justify-content: space-between; gap: 24px; color: var(--faint); font-size: .75rem; }
-.footer-bottom nav { display: flex; gap: 26px; }
+.footer-bottom nav { display: flex; flex-wrap: wrap; gap: 12px 26px; }
 .doc-page { width: min(780px, calc(100% - 48px)); margin: 65px auto 110px; }
 .doc-page h1 { font-size: clamp(2.7rem, 5vw, 4rem); line-height: 1.1; letter-spacing: -.05em; margin: 18px 0 24px; }
 .doc-page h2 { margin: 38px 0 14px; padding-top: 28px; border-top: 1px solid var(--line); font-size: 1.45rem; letter-spacing: -.025em; }
