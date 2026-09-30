@@ -378,9 +378,8 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("addProviderConnectionAccess(apiFunction", self.backend)
         self.assertIn("DISABLED_CONNECTION_PROVIDER_IDS", self.provider_connections)
         self.assertIn(
-            "workerFunction.addEnvironment('DISABLED_CONNECTION_PROVIDER_IDS', disabledConnectionProviderIds)",
-            self.backend,
-        )
+            "workerFunction.addEnvironment('DISABLED_CONNECTION_PROVIDER_IDS', "
+            "disabledConnectionProviderIds)", self.backend)
         self.assertIn("GITHUB_OAUTH_REDIRECT_URI", self.provider_connections)
         self.assertIn("/public/oauth/github/callback", self.provider_connections)
         self.assertIn("/public/oauth/quickbooks/callback", self.provider_connections)
