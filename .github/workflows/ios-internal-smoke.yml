@@ -33,8 +33,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Add Homebrew build tools to PATH
-        run: echo /opt/homebrew/bin >> "$GITHUB_PATH"
+      - name: Add runner build tools and AWS CLI to PATH
+        run: printf '%s\n' /opt/homebrew/bin /usr/local/bin >> "$GITHUB_PATH"
 
       - name: Check fresh free launch and destination client
         env:
