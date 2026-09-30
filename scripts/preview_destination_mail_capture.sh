@@ -37,8 +37,7 @@ if [[ "${HEYTIM_ENVIRONMENT:-}" != production \
    || "${HEYTIM_BOT_EMAIL_CAPTURE_ONLY:-}" != true \
    || "${HEYTIM_BOT_EMAIL_KEEP_HELD_SUBSCRIBER:-}" != true \
    || "${HEYTIM_BOT_EMAIL_AVAILABLE:-}" != false \
-   || ( -n "${HEYTIM_SES_RULE_SET_NAME:-}" \
-        && "${HEYTIM_SES_RULE_SET_NAME}" != heytim-production-bot-mail ) ]]; then
+   || -n "${HEYTIM_SES_RULE_SET_NAME:-}" ]]; then
   echo 'Destination backend must be production receive-stage store-only mail capture.' >&2
   exit 1
 fi
@@ -123,7 +122,7 @@ guard_status=0
 python3 "$repo_root/scripts/_destination_mail_diff_guard.py" \
   "$preview_dir/diff.txt" "$preview_dir/guard.json" || guard_status=$?
 if [[ "$guard_status" -ne 0 ]]; then
-  printf 'NO-GO: removal, replacement, IAM changes, or unreadable diff. Review private guard.json and diff.txt.\n' >&2
+  printf 'NO-GO: review private guard.json and diff.txt for the exact blockers.\n' >&2
   exit "$guard_status"
 fi
 printf 'Review required before deployment; this command made no AWS changes.\n'

@@ -118,3 +118,14 @@ def test_unproven_hold_stops_before_synthesis(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert Path(env["PREVIEW_HOLD_CALLS"]).exists()
     assert not Path(env["PREVIEW_CDK_CALLS"]).exists()
+
+
+def test_external_rule_set_setting_stops_before_synthesis(tmp_path: Path) -> None:
+    env = _fixture(tmp_path, ACCOUNT)
+    env["HEYTIM_SES_RULE_SET_NAME"] = "heytim-production-bot-mail"
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "destination-profile"],
+        env=env, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 1
+    assert not Path(env["PREVIEW_CDK_CALLS"]).exists()
