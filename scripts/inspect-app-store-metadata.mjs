@@ -146,11 +146,13 @@ async function main() {
   }
   await appendFile(process.env.GITHUB_STEP_SUMMARY, renderMetadataSummary(inventory));
   const primaryInfoReady = inventory.appInfos.some(info => info.localizations.some(item =>
-    item.locale === inventory.primaryLocale && item.heytimName && item.privacyPolicy
-      && item.privacyChoices));
+    item.locale === inventory.primaryLocale && item.heytimName && item.privacyPolicy));
+  const privacyChoicesLinked = inventory.appInfos.some(info => info.localizations.some(item =>
+    item.locale === inventory.primaryLocale && item.privacyChoices));
   const iosSupportReady = inventory.iosVersions.some(version => version.localizations.some(item =>
     item.locale === inventory.primaryLocale && item.support));
-  console.log(`HeyTim listing: primary-locale name/privacy/deletion ${primaryInfoReady ? 'match' : 'need review'};`
+  console.log(`HeyTim listing: primary-locale name/privacy ${primaryInfoReady ? 'match' : 'need review'};`
+    + ` optional privacy choices URL ${privacyChoicesLinked ? 'matches' : 'not linked'};`
     + ` iOS support URL ${iosSupportReady ? 'matches' : 'needs review'}.`);
 }
 
