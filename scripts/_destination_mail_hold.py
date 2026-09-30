@@ -39,6 +39,17 @@ READ_CONFIG = Config(
 )
 MIN_HOLD = timedelta(minutes=15)
 LOOKBACK = timedelta(hours=24)
+PUT_CONCURRENCY_EVENTS = {
+    "PutFunctionConcurrency", "PutFunctionConcurrency20171031",
+}
+DELETE_CONCURRENCY_EVENTS = {
+    "DeleteFunctionConcurrency", "DeleteFunctionConcurrency20171031",
+}
+HOLD_EVENT_NAMES = {
+    "SetSubscriptionAttributes",
+    *PUT_CONCURRENCY_EVENTS,
+    *DELETE_CONCURRENCY_EVENTS,
+}
 
 
 class HoldError(Exception):
@@ -112,11 +123,7 @@ def evaluate_events(
     receiver_arn = f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{receiver}"
     for item in events:
         name = item.get("EventName")
-        if name not in {
-            "SetSubscriptionAttributes",
-            "PutFunctionConcurrency",
-            "DeleteFunctionConcurrency",
-        }:
+        if name not in HOLD_EVENT_NAMES:
             continue
         request = _event_request(item)
         when = _event_time(item)
@@ -136,7 +143,7 @@ def evaluate_events(
             concurrency_events.append(
                 (
                     when,
-                    name == "PutFunctionConcurrency"
+                    name in PUT_CONCURRENCY_EVENTS
                     and request.get("reservedConcurrentExecutions") == 0,
                 )
             )
@@ -256,11 +263,7 @@ def check(session: Any, *, now: datetime | None = None) -> None:
 
     cloudtrail = session.client("cloudtrail", config=READ_CONFIG)
     events: list[dict] = []
-    for name in (
-        "SetSubscriptionAttributes",
-        "PutFunctionConcurrency",
-        "DeleteFunctionConcurrency",
-    ):
+    for name in sorted(HOLD_EVENT_NAMES):
         events.extend(
             _pages(
                 cloudtrail,

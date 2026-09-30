@@ -50,7 +50,7 @@ def _events() -> list[dict]:
             },
         ),
         _event(
-            "PutFunctionConcurrency",
+            "PutFunctionConcurrency20171031",
             {"functionName": RECEIVER, "reservedConcurrentExecutions": 0},
         ),
     ]
@@ -208,7 +208,7 @@ def test_new_hold_event_has_not_settled() -> None:
 
 def test_released_concurrency_blocks_even_after_old_zero_write() -> None:
     events = _events() + [
-        _event("DeleteFunctionConcurrency", {"functionName": RECEIVER}, minutes_ago=5)
+        _event("DeleteFunctionConcurrency20171031", {"functionName": RECEIVER}, minutes_ago=5)
     ]
     with pytest.raises(HoldError, match="Lambda concurrency has not been stable"):
         evaluate_events(events, subscription_arn=SUB, receiver=RECEIVER, now=NOW)
