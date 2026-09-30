@@ -154,11 +154,36 @@ def apply_import(snapshot: dict, imported: dict, accounts: dict[str, Account]) -
     if not _same_mime(primary, raw):
         raise ReplayError("Already-imported source MIME changed before copy")
     _destination_mime(destination, primary["key"], primary, raw)
-    _primary_item, bot, _inbox, marker, outbox = _read_existing(snapshot, imported, accounts)
+    _primary_item, bot, inbox, marker, outbox = _read_existing(snapshot, imported, accounts)
     saved = destination.table.get_item(
         Key={"pk": marker["pk"], "sk": marker["sk"]}, ConsistentRead=True
     ).get("Item")
     if not saved:
+        inbox_condition = (
+            "entity = :entity AND botId = :bot AND recipient = :recipient "
+            "AND sesMessageId = :ses AND rawObjectKey = :key "
+            "AND disposition = :disposition"
+        )
+        inbox_values = {
+            ":entity": "BOT_EMAIL", ":bot": imported["botId"],
+            ":recipient": imported["recipient"], ":ses": primary["sesMessageId"],
+            ":key": primary["key"], ":disposition": imported["delivery"],
+        }
+        bot_condition = "id = :bot AND emailToken = :token"
+        bot_values = {":bot": imported["botId"], ":token": bot["emailToken"]}
+        if imported["delivery"] == "automatic":
+            inbox_condition += " AND authentication = :verified AND linkedTurnId = :turnId"
+            inbox_values.update({":verified": "verified", ":turnId": inbox["linkedTurnId"]})
+            bot_condition += " AND emailOwnerAddress = :owner"
+            bot_values[":owner"] = bot["emailOwnerAddress"]
+            if inbox.get("threadReply") is not True:
+                bot_condition += " AND emailInboundMode = :automatic"
+                bot_values[":automatic"] = "automatic"
+        if isinstance(bot.get("legacyEmailAddress"), str):
+            bot_condition += " AND legacyEmailAddress = :recipient"
+            bot_values[":recipient"] = imported["recipient"]
+        else:
+            bot_condition += " AND attribute_not_exists(legacyEmailAddress)"
         conditions = [
             {"ConditionCheck": {
                 "TableName": destination.table.name,
@@ -173,22 +198,14 @@ def apply_import(snapshot: dict, imported: dict, accounts: dict[str, Account]) -
             {"ConditionCheck": {
                 "TableName": destination.table.name,
                 "Key": {"pk": f"USER#{imported['userId']}", "sk": imported["inboxKey"]},
-                "ConditionExpression": (
-                    "entity = :entity AND botId = :bot AND recipient = :recipient "
-                    "AND sesMessageId = :ses AND rawObjectKey = :key "
-                    "AND disposition = :disposition"
-                ),
-                "ExpressionAttributeValues": {
-                    ":entity": "BOT_EMAIL", ":bot": imported["botId"],
-                    ":recipient": imported["recipient"], ":ses": primary["sesMessageId"],
-                    ":key": primary["key"], ":disposition": imported["delivery"],
-                },
+                "ConditionExpression": inbox_condition,
+                "ExpressionAttributeValues": inbox_values,
             }},
             {"ConditionCheck": {
                 "TableName": destination.table.name,
                 "Key": {"pk": f"USER#{imported['userId']}", "sk": f"BOT#{imported['botId']}"},
-                "ConditionExpression": "id = :bot AND emailToken = :token",
-                "ExpressionAttributeValues": {":bot": imported["botId"], ":token": bot["emailToken"]},
+                "ConditionExpression": bot_condition,
+                "ExpressionAttributeValues": bot_values,
             }},
         ]
         if isinstance(bot.get("legacyEmailAddress"), str):
