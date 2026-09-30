@@ -29,7 +29,11 @@ const request = async (method, path, body) => {
   const text = await response.text();
   const value = text ? JSON.parse(text) : {};
   if (!response.ok) {
-    throw new Error(`${method} ${path} failed (${response.status}): ${value.message ?? 'unknown error'}`);
+    const message = typeof value.message === 'string' ? value.message : 'unknown error';
+    const error = new Error(`${method} ${path} failed (${response.status}): ${message}`);
+    error.status = response.status;
+    error.apiMessage = message;
+    throw error;
   }
   return value;
 };
@@ -75,18 +79,30 @@ const rememberTurn = (botId, turn) => {
 
 const deleteBot = async (botId) => {
   const { messages } = await request('GET', `/bots/${encodeURIComponent(botId)}/messages`);
+  let cancelledInFlight = false;
   for (const turnId of startedTurnIds.get(botId) ?? []) {
     const reply = messages.find((message) => message.id === `${turnId}-assistant`);
     if (reply && !activeStatuses.has(reply.status)) continue;
     try {
       await request('POST', `/bots/${encodeURIComponent(botId)}/messages/${encodeURIComponent(turnId)}/cancel`);
+      cancelledInFlight = true;
     } catch (error) {
       const current = await request('GET', `/bots/${encodeURIComponent(botId)}/messages`);
       const settled = current.messages.find((message) => message.id === `${turnId}-assistant`);
       if (!settled || !terminalStatuses.has(settled.status)) throw error;
     }
   }
-  await request('DELETE', `/bots/${encodeURIComponent(botId)}`);
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      await request('DELETE', `/bots/${encodeURIComponent(botId)}`);
+      break;
+    } catch (error) {
+      if (!cancelledInFlight || error.status !== 409
+          || error.apiMessage !== 'Wait for this HeyTim to finish before deleting it'
+          || attempt === 3) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
+    }
+  }
   const index = createdBotIds.indexOf(botId);
   if (index >= 0) createdBotIds.splice(index, 1);
   startedTurnIds.delete(botId);
