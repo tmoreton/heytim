@@ -24,7 +24,7 @@ a stop condition. Keep snapshots outside the repository with access limited to t
 | Plaid webhook Lambda | Enqueues sync jobs | Function concurrency zero or signed webhook gate |
 | Cognito pre-sign-up Lambda | New Cognito users | Function concurrency zero for new sign-ups; existing sign-in remains independent |
 | SQS worker and email sender | Jobs, memory, outbound mail, files, account deletion | Stop producers, drain, disable their event source mappings, then concurrency zero |
-| SES receipt rule and email receiver | SES writes the raw message to S3 **before** invoking the receiver | Disable the exact source receipt rule and verify it; fence its bucket if pending mail must remain immutable |
+| SES receipt rule and email receiver | SES writes the raw message to S3 **before** invoking the receiver | Hold the receiver and keep the exact source bot rule enabled in verified store-only quarantine mode; leave its quarantine bucket writable and account for every notification before any later rule handoff |
 | EventBridge catalog rule, Scheduler group, CloudWatch autofix subscription | New jobs or repository dispatch | Disable schedules, snapshot subscriptions, stop the dispatcher, and account for log-delivery retries |
 | Existing upload POST forms | S3 write without another API call for up to **600 seconds** after issue | Object-write Deny on every source customer-file bucket; wait at least 600 seconds and test an existing form |
 | Direct AgentCore invocation and active runtime sessions | Runtime S3 objects in a separate source-owned bucket and AgentCore memory events | Deny new invocations on runtime **and** endpoint, drain/stop known sessions, fence its bucket, verify active-session metric and memory counts |
@@ -219,9 +219,10 @@ reconciler while the source is retained, and require AWS service assurance of a 
 reviewed bound before retiring it. Do not mark strict no-loss complete merely because a Kinesis stream has been
 configured.
 
-The bounded [source Memory capture stack and validator](../infrastructure/memory-capture/README.md) are prepared but
-not deployed. They archive the exact Kinesis payload before Lambda checkpoints it and compare all retained parent
-and child shard records to S3. Deploy and attach `FULL_CONTENT` streaming **before** the final source snapshot,
+The bounded [source Memory capture stack and validator](../infrastructure/memory-capture/README.md) are deployed in
+the source account, but the live Memory has **no stream attachment**. The stack archives the exact Kinesis payload
+before Lambda checkpoints it and can compare all retained parent and child shard records to S3. Attach and verify
+`FULL_CONTENT` streaming **before** the final source snapshot,
 then use overlapping scans before Kinesis retention expires. The existing initial Memory migration tool has no
 late-change reconciler; that component must map record identities and handle creates, updates, and deletes before a
 traffic cutover can be called reconciled. Moving public traffic is a separate decision from retiring source Memory:
@@ -280,16 +281,16 @@ A quiet interval is never a source-retirement criterion.
      --cli-input-json file://'<disabled-update-schedule.json>'
    ```
 
-4. Disable the **specific active** SES bot-inbox receipt rule by submitting the complete saved `Rule` with only
-   `Enabled=false`, then verify `describe-receipt-rule`. SES writes mail to S3 before the email receiver Lambda runs;
-   stopping that Lambda alone is insufficient. Record provider delivery and bounce/replay handling before this step.
-   [SES receipt rule API](https://docs.aws.amazon.com/cli/latest/reference/ses/update-receipt-rule.html).
-
-   ```bash
-   jq '.Rule | .Enabled = false' '<saved-describe-receipt-rule.json>' > '<disabled-receipt-rule.json>'
-   aws --profile "$SOURCE_PROFILE" --region "$SOURCE_REGION" ses update-receipt-rule \
-     --rule-set-name '<active-source-rule-set>' --rule file://'<disabled-receipt-rule.json>'
-   ```
+4. Establish the [source receiver hold and store-only mail capture](../scripts/migrate-bot-email.md) before this
+   freeze. Save the existing Lambda subscriber attributes and concurrency, set the receiver's reserved concurrency to
+   zero, apply the exact reviewed SNS filter to **only** that subscriber, and wait more than 15 minutes for filter
+   propagation. Prove a controlled notification reaches the unfiltered source capture queue without producing an
+   inbox row or bot turn. Then change only the exact source `HeyTimBotInbox` S3 action to the source quarantine bucket
+   and prove a second controlled notification and MIME object there. Keep the rule **enabled**, with its original
+   recipient, topic, role, prefix, and rule-set scope. Read back the complete active rule set and require an empty
+   capture failure queue. Stop if the hold or store-only capture cannot be proved; do not disable the rule to satisfy
+   the freeze. The freeze executor validates this rule but makes no SES rule change. The source mail hold has its own
+   private rollback snapshot and restoration gate.
 
 5. Stop new application admissions. Until a request-level gate is deployed and tested, the only known complete Lambda
    ingress shutoff is `put-function-concurrency --reserved-concurrent-executions 0` for authenticated API, public API,
@@ -335,8 +336,8 @@ A quiet interval is never a source-retirement criterion.
    then verify no object versions appeared. Exercise a valid presigned-form denial **only in a disposable copy**;
    a production `PutObject` test can create a version if its expected key disappears before the request is checked.
    On the source, read back the exact policy, verify ordinary reads still work, and compare repeated version
-   inventories. If the SES bucket contains retained mail, fence its object writes only after the receipt rule is
-   disabled and all accepted notifications have drained.
+   inventories. Fence the **old raw SES bucket** only after the bot rule writes exclusively to the quarantine bucket
+   and every pending old-raw notification is accounted for. Never deny writes to the active quarantine bucket.
 
 9. After application workers are drained, add reviewed, temporary **data-write Deny** statements to both DynamoDB
    table resource policies. Cover `PutItem`, `UpdateItem`, `DeleteItem`, `BatchWriteItem`, and the three
@@ -369,7 +370,8 @@ A quiet interval is never a source-retirement criterion.
     [managed extraction](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/memory-strategies.html).
 
 11. Capture the final source records and all current **and noncurrent** versions and delete markers from all three versioned
-    file buckets, plus the SES inbound bucket's current objects. Preserve object tags, sizes, content checksums, and a
+    file buckets, plus the old SES inbound bucket's current objects and the quarantined MIME/notification ledger.
+    Preserve object tags, sizes, content checksums, and a
     source-to-destination version map. Repeat strongly consistent DynamoDB base-table scans and canonical-record digests
     and `ListObjectVersions` inventory after a quiet interval and immediately before copying. Counts or hashes that
     move are NO-GO even if the preceding controls appear applied. Repeat the AgentCore actor/session/event/record
@@ -483,11 +485,18 @@ the temporary DynamoDB and S3 Deny statements (compare the current policies with
 freeze statement; abort on unrelated drift); restore existing policies exactly or remove policies that were absent;
 restore the AgentCore runtime, endpoint, and Memory policies; restore each original Lambda concurrency value or delete the
 temporary limit when none existed; reenable the two SQS mappings according to their saved `Enabled` states; restore
-the SES rule and EventBridge/Scheduler states; restore each saved lifecycle configuration; reenable TTL only on tables
+the EventBridge/Scheduler states; restore each saved lifecycle configuration; reenable TTL only on tables
 where it was originally enabled, after the prior one-hour TTL update window permits it. Verify each readback before
 opening the next ingress. Restore provider webhook routing/delivery only when the source can accept it, and replay
 missed deliveries by provider event ID with idempotency checks. Run authenticated read/write, webhook, queue, memory,
 and object-version smoke checks; record any duplicate or lost work.
+
+The store-only SES bot rule and its receiver hold are separate from the freeze executor. Keep the source quarantine
+and capture queue until every held message is reconciled. Restore the original source mail rule, SNS filter, and
+receiver concurrency only after the destination is no longer a processing owner, source is again selected to process
+mail, and queued/retried notifications are accounted for. Wait for SNS filter propagation before reopening
+processing. During a successful handoff, disable only the source bot rule after destination store-only capture and
+the union of both accounts' notifications are proven; the source active rule set also serves another recipient scope.
 
 ## Unresolved approval and proof items
 

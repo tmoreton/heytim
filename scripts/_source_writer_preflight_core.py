@@ -528,10 +528,18 @@ def inspect_email_and_logs(
         active = result.get("Rules", [])
         physical = rule.get("PhysicalResourceId", "") if rule else ""
         rule_set = result.get("Metadata", {}).get("Name", "")
+        # CloudFormation can report an SES receipt rule's physical ID as
+        # either its bare name or rule-set-qualified name. Require the active
+        # rule set and an exact name in either form; the mail-capture check
+        # separately verifies its store-only action, recipient, and topic.
         matches = [
             r
             for r in active
-            if physical == f"{rule_set}|{r.get('Name', '')}"
+            if rule_set
+            and isinstance(r, dict)
+            and isinstance(r.get("Name"), str)
+            and r["Name"]
+            and physical in {r["Name"], f"{rule_set}|{r['Name']}"}
         ]
         report.add(
             "receipt_rule",

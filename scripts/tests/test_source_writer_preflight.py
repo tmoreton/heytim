@@ -18,6 +18,7 @@ from _source_writer_preflight_core import (
     SOURCE_REGION,
     Report,
     has_freeze_deny,
+    inspect_email_and_logs,
     inspect_queues,
     read,
 )
@@ -76,6 +77,50 @@ def test_mail_capture_queue_may_hold_notifications_but_its_dlq_must_be_empty() -
     report = Report()
     inspect_queues(report, resources, Queues())
     assert "queue_inbound_capture_failures_not_drained" in report.blockers
+
+
+def test_active_ses_rule_accepts_both_cloudformation_physical_id_forms() -> None:
+    class SES:
+        def __init__(self, enabled: bool) -> None:
+            self.enabled = enabled
+
+        def describe_active_receipt_rule_set(self) -> dict:
+            return {
+                "Metadata": {"Name": "inboxai-inboxai-cc"},
+                "Rules": [{"Name": "HeyTimBotInbox", "Enabled": self.enabled}],
+            }
+
+    for physical_id in (
+        "HeyTimBotInbox",
+        "inboxai-inboxai-cc|HeyTimBotInbox",
+    ):
+        resources = [{
+            "ResourceType": "AWS::SES::ReceiptRule",
+            "LogicalResourceId": "BotEmailReceiptRule1234",
+            "PhysicalResourceId": physical_id,
+        }]
+        report = Report()
+        inspect_email_and_logs(report, resources, SES(True), object())
+        assert "receipt_rule_not_proven_enabled" not in report.blockers
+        assert any(
+            check.get("label") == "receipt_rule"
+            and check.get("matching_source_rules") == 1
+            and check.get("enabled") == 1
+            for check in report.checks
+        )
+
+        disabled_report = Report()
+        inspect_email_and_logs(disabled_report, resources, SES(False), object())
+        assert "receipt_rule_not_proven_enabled" in disabled_report.blockers
+
+    mismatched = [{
+        "ResourceType": "AWS::SES::ReceiptRule",
+        "LogicalResourceId": "BotEmailReceiptRule1234",
+        "PhysicalResourceId": "other-set|HeyTimBotInbox",
+    }]
+    report = Report()
+    inspect_email_and_logs(report, mismatched, SES(True), object())
+    assert "receipt_rule_not_proven_enabled" in report.blockers
 
 
 def test_freeze_deny_requires_exact_unconditional_coverage() -> None:
