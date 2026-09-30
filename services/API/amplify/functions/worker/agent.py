@@ -557,7 +557,6 @@ def _invoke(
     usage: dict | None = None
     pending_approval: dict | None = None
     pending_device_call: dict | None = None
-
     def capture_control(control: dict) -> None:
         nonlocal usage, pending_approval, pending_device_call
         raw_work = control.get("pendingWork")
