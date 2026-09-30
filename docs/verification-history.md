@@ -44,10 +44,18 @@ the current checkout or environment still has the same status.
   until branding verification is complete. The authorized destination callback is saved, but it is not Google approval.
   On September 29 the protected GitHub production flags for Google review, physical-device APNs smoke, and release
   compliance were corrected from `true` to `false` and read back as `false`. The account-cutover flag remains absent.
+- After explicit owner approval on September 29, the Plaid production application credential was copied in memory
+  from the source account to protected destination Secrets Manager and read back for exact value parity. Only
+  `clientId`, `secret`, and `environment=production` were transferred; no customer Plaid tokens moved. Destination
+  Plaid access and webhooks remain disabled until cutover verification.
 - A repository-wide hostname audit found no `froggybot.com` or `frogbot.com` URL in live app, website, API, catalog,
   AgentCore configuration, scripts, or workflows. Public web and in-app links use `heytim.ai`. The checked-in active
   API and Apple outputs still use the source AWS API endpoint; the destination endpoint is staged as a candidate,
-  not live. The GitHub App homepage and Google's obsolete authorized-domain entry remain external settings to resolve.
+  not live. The GitHub App homepage and Google's obsolete authorized-domain entry remained external settings to
+  resolve at this checkpoint. Later on September 29, the GitHub App homepage alone was changed to
+  `https://heytim.ai/` and verified on its public page. The destination GitHub OAuth callback was then added alongside
+  the source callback; the setup URL and webhook still point to the source API. After explicit owner approval, the
+  destination X OAuth callback was also added beside both existing X callback URLs. Neither provider webhook moved.
 - The latest published Apple release remains `v1.0.12`. Local `./scripts/apple-app.sh build` passed for iPhone and Mac,
   and `./scripts/apple-app.sh verify` completed successfully on both platforms on September 29 after the new workflow
   and release-script changes. Destination-configured iPhone and Mac candidate workflows are being prepared without
@@ -58,6 +66,22 @@ the current checkout or environment still has the same status.
   expose the empty destination account before migration. The revised pre-cutover workflow builds and checks a signed
   candidate without uploading it to TestFlight. The repository is public, so signed binaries are not retained as
   downloadable Actions artifacts.
+- Cutover-readiness and provider-gating code landed on `main` as `5adc721`, followed by the source-size correction
+  `520df09`. The iPhone and Mac destination-only version `1.0.13` candidates from `520df09` are
+  [run 36652160673](https://github.com/tmoreton/heytim/actions/runs/36652160673) and
+  [run 36652172869](https://github.com/tmoreton/heytim/actions/runs/36652172869); both were queued at this
+  checkpoint, with no TestFlight upload or Sparkle publication. The earlier iPhone candidate from `f4f24fb`
+  signed and exported an IPA locally but failed its portable receipt parser; its replacement has that fix.
+- Destination production flags for Google, Slack, Notion, and X connections and their review attestations were
+  read back as `false`. This hides unverified or unconfigured connections after the destination backend is deployed;
+  it does not change the live source service. The source remains writable and no customer-data copy has begun.
+  A third source file bucket used by AgentCore contained 208 versions and six delete markers at read-only inventory.
+  The main HeyTim source bucket continued gaining versions, so all file and table manifests need a frozen refresh.
+- The source write-freeze preflight returned 39 checks and 30 blockers. A guarded read-only capture stopped at
+  AgentCore Memory because its resource-policy response did not prove absence versus unsupported policy behavior.
+  No source settings were changed. A local Apple verification on the concurrently edited shared workspace compiled
+  both platforms and passed Mac tests, but its iPhone UI suite reached the 1,200-second timeout; the clean committed
+  candidate jobs are the release check for this revision.
 - The September 29 preparation checkout also passed 42 migration tests (plus three subtests), 66 focused runtime
   tests, the API verification gate (including 568 backend tests), all 10 AgentCore CDK tests, API typecheck, Python
   lint/format checks, and the Apple architecture/source-size gate. These local checks do not substitute for the
