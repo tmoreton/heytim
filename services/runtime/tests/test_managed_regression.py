@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -14,8 +15,15 @@ from run_managed_regression import (
     agent_invoker,
     completed_assistant_text,
     evaluation_payload,
+    load_fixture_consent,
+    RELEASE_TEST_ACTOR_ID,
     runtime_observability,
 )
+
+CONSENT = {"version": 1, "subjects": [{
+    "actorId": RELEASE_TEST_ACTOR_ID,
+    "epoch": "00000000-0000-4000-8000-000000000001",
+}]}
 
 
 class FakeStream:
@@ -71,9 +79,10 @@ def _line(event: dict) -> bytes:
 
 
 def test_evaluation_payload_resolves_empty_catalog_capabilities() -> None:
-    payload = evaluation_payload("Be accurate.")
+    payload = evaluation_payload("Be accurate.", CONSENT)
     assert payload == {
         "prompt": "Be accurate.",
+        "aiConsent": CONSENT,
         "bot": {
             "name": "HeyTim Evaluation",
             "prompt": "Be helpful, direct, and honest.",
@@ -82,7 +91,24 @@ def test_evaluation_payload_resolves_empty_catalog_capabilities() -> None:
         },
     }
     with pytest.raises(TypeError):
-        evaluation_payload({"prompt": "unreviewed"})
+        evaluation_payload({"prompt": "unreviewed"}, CONSENT)
+
+
+def test_fixture_consent_file_requires_private_exact_synthetic_grant(tmp_path) -> None:
+    path = tmp_path / "consent.json"
+    path.write_text(json.dumps(CONSENT))
+    os.chmod(path, 0o600)
+    assert load_fixture_consent(str(path)) == CONSENT
+    os.chmod(path, 0o644)
+    with pytest.raises(ValueError, match="private"):
+        load_fixture_consent(str(path))
+    os.chmod(path, 0o600)
+    path.write_text(json.dumps({"version": 1, "subjects": [{
+        "actorId": "a" * 64,
+        "epoch": CONSENT["subjects"][0]["epoch"],
+    }]}))
+    with pytest.raises(ValueError, match="identity"):
+        load_fixture_consent(str(path))
 
 
 def test_agent_invoker_sends_the_structured_contract_and_closes_the_stream() -> None:
@@ -99,6 +125,7 @@ def test_agent_invoker_sends_the_structured_contract_and_closes_the_stream() -> 
         client,
         "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/HeyTim_Test-1234567890",
         sink,
+        CONSENT,
     )
 
     result = invoke(type("Input", (), {"payload": "Verify this.", "session_id": "session-1"})())
@@ -108,6 +135,7 @@ def test_agent_invoker_sends_the_structured_contract_and_closes_the_stream() -> 
     request_payload = json.loads(client.request["payload"])
     assert request_payload["bot"]["tools"] == []
     assert request_payload["bot"]["skills"] == []
+    assert request_payload["aiConsent"] == CONSENT
     assert client.request["runtimeSessionId"] == "session-1"
     assert sink.recorded == [("session-1", "Verify this.", "Complete.")]
 

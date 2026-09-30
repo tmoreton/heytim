@@ -447,9 +447,16 @@ class InfrastructureContractTests(unittest.TestCase):
             "npm --prefix services/API run workflow:test",
         ):
             self.assertIn(value, self.production_workflow)
+        self.assertLess(
+            self.production_workflow.index("scripts/prepare_managed_regression_consent.py"),
+            self.production_workflow.index("scripts/run_managed_regression.py"),
+        )
+        self.assertIn('--consent-file "$RUNNER_TEMP/heytim-release-consent.json"', self.production_workflow)
+        self.assertIn('rm -f "$RUNNER_TEMP/heytim-release-consent.json"', self.production_workflow)
         self.assertIn("const deleteAccount =", self.authenticated_workflow)
         self.assertIn("if (deleteAccount)", self.authenticated_workflow)
         self.assertNotIn("HEYTIM_DISPOSABLE_ACCOUNT=1", self.production_workflow)
+
         for action in (
             "bedrock-agentcore:InvokeAgentRuntime",
             "bedrock-agentcore:StartBatchEvaluation",
@@ -467,6 +474,18 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("logsKmsKey: logsKey", self.backend)
         self.assertIn("bedrock-agentcore.amazonaws.com", self.deployment_role)
         self.assertIn("'aws:SourceAccount': stack.account", self.deployment_role)
+
+    def test_release_role_reads_only_the_synthetic_ai_permission_fence(self) -> None:
+        policy = self.deployment_role.split(
+            "The release runner reads only its synthetic user's current revoke fence.", 1
+        )[1].split("}));", 1)[0]
+        self.assertIn("actions: ['s3:GetObject']", policy)
+        self.assertIn(
+            "/users/3893a3ef3b21d5e84bd8a1117ce54afc4599424dc4c02cc5860ac572a921da56/ai-sharing-consent.json",
+            policy,
+        )
+        self.assertNotIn("PutObject", policy)
+        self.assertNotIn("/users/*", policy)
 
     def test_memory_clients_can_use_the_configured_encryption_key(self) -> None:
         self.assertIn(

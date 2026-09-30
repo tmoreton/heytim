@@ -439,6 +439,15 @@ export function addGithubDeploymentRole({
     actions: ['s3:GetObject', 's3:PutObject'],
     resources: [`${productionFilesBucketArn}/meme-templates/*`],
   }));
+  if (stack.account === '820323452649') {
+    // The release runner reads only its synthetic user's current revoke fence.
+    role.addToPolicy(new PolicyStatement({
+      actions: ['s3:GetObject'],
+      resources: [
+        `${productionFilesBucketArn}/users/3893a3ef3b21d5e84bd8a1117ce54afc4599424dc4c02cc5860ac572a921da56/ai-sharing-consent.json`,
+      ],
+    }));
+  }
   role.addToPolicy(new PolicyStatement({
     actions: ['kms:Decrypt', 'kms:DescribeKey', 'kms:Encrypt', 'kms:GenerateDataKey'],
     resources: [stack.formatArn({

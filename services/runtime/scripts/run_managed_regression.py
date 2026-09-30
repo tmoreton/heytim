@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import secrets
+import stat
 import sys
 import threading
 import time
+import uuid
 from collections.abc import Callable, Iterable
 from typing import Any
 
@@ -26,13 +29,38 @@ MAX_PROMPT_CHARS = 12_000
 MAX_STREAM_BYTES = 2_000_000
 EVALUATION_SERVICE_NAME = "HeyTimReleaseEvaluation"
 DEFAULT_EVALUATION_LOG_GROUP = "/aws/bedrock-agentcore/evaluations/heytim-release-fixtures"
+RELEASE_TEST_ACTOR_ID = "3893a3ef3b21d5e84bd8a1117ce54afc4599424dc4c02cc5860ac572a921da56"
 RUNTIME_ARN = re.compile(
     r"^arn:[a-z0-9-]+:bedrock-agentcore:(?P<region>[a-z0-9-]+):"
     r"[0-9]{12}:runtime/(?P<runtime_id>[A-Za-z][A-Za-z0-9_-]{0,99})$"
 )
 
 
-def evaluation_payload(value: Any) -> dict[str, Any]:
+def load_fixture_consent(path: str) -> dict[str, Any]:
+    """Load only the current, private grant for the dedicated synthetic user."""
+    with open(path, "rb") as source:
+        mode = os.fstat(source.fileno()).st_mode
+        if not stat.S_ISREG(mode) or mode & 0o077:
+            raise ValueError("evaluation permission file must be private")
+        raw = source.read(513)
+    if len(raw) > 512:
+        raise ValueError("evaluation permission file is too large")
+    consent = json.loads(raw)
+    if not isinstance(consent, dict) or consent.get("version") != 1:
+        raise ValueError("evaluation permission version is invalid")
+    subjects = consent.get("subjects")
+    if not isinstance(subjects, list) or len(subjects) != 1:
+        raise ValueError("evaluation permission needs one synthetic subject")
+    subject = subjects[0]
+    if not isinstance(subject, dict) or subject.get("actorId") != RELEASE_TEST_ACTOR_ID:
+        raise ValueError("evaluation permission identity is invalid")
+    epoch = subject.get("epoch")
+    if not isinstance(epoch, str) or str(uuid.UUID(epoch)) != epoch:
+        raise ValueError("evaluation permission epoch is invalid")
+    return {"version": 1, "subjects": [{"actorId": RELEASE_TEST_ACTOR_ID, "epoch": epoch}]}
+
+
+def evaluation_payload(value: Any, consent: dict[str, Any]) -> dict[str, Any]:
     """Wrap one managed fixture turn in the production runtime contract."""
     if not isinstance(value, str) or not value.strip():
         raise TypeError("managed regression turns must contain non-empty text")
@@ -40,6 +68,7 @@ def evaluation_payload(value: Any) -> dict[str, Any]:
         raise ValueError("managed regression turn exceeds the runtime prompt limit")
     return {
         "prompt": value,
+        "aiConsent": consent,
         "bot": {
             "name": "HeyTim Evaluation",
             "prompt": "Be helpful, direct, and honest.",
@@ -196,11 +225,12 @@ def agent_invoker(
     client: Any,
     runtime_arn: str,
     span_sink: CuratedEvaluationSpanSink,
+    consent: dict[str, Any],
 ) -> Callable[[AgentInvokerInput], AgentInvokerOutput]:
     def invoke(invoker_input: AgentInvokerInput) -> AgentInvokerOutput:
         if not isinstance(invoker_input.session_id, str) or not invoker_input.session_id:
             raise ValueError("AgentCore evaluation session ID is missing")
-        payload = evaluation_payload(invoker_input.payload)
+        payload = evaluation_payload(invoker_input.payload, consent)
         response = client.invoke_agent_runtime(
             agentRuntimeArn=runtime_arn,
             qualifier="DEFAULT",
@@ -242,6 +272,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--runtime-arn", required=True)
     parser.add_argument("--dataset-id", required=True)
     parser.add_argument("--dataset-version", default="DRAFT")
+    parser.add_argument("--consent-file", required=True)
     parser.add_argument("--region", required=True)
     parser.add_argument("--name", required=True)
     parser.add_argument("--evaluator", nargs="+", required=True)
@@ -260,6 +291,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if args.ingestion_delay_seconds < 0:
         raise ValueError("ingestion delay cannot be negative")
     runtime_observability(args.runtime_arn, args.region)
+    consent = load_fixture_consent(args.consent_file)
     if not args.evaluation_log_group.startswith(
         "/aws/bedrock-agentcore/evaluations/"
     ):
@@ -297,7 +329,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             tags={"agentcore:project-name": "HeyTim"},
         ),
         dataset,
-        agent_invoker(runtime_client, args.runtime_arn, span_sink),
+        agent_invoker(runtime_client, args.runtime_arn, span_sink, consent),
     )
     return result.model_dump(mode="json", by_alias=True)
 

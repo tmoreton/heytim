@@ -622,6 +622,20 @@ jobs:
           HEYTIM_APNS_SANDBOX_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_SANDBOX_APPLICATION_ARN }}
         run: ./scripts/verify-production-deployment.sh
 
+      - name: Prepare permission for the dedicated synthetic release user
+        working-directory: services/runtime
+        env:
+          HEYTIM_RELEASE_TEST_REFRESH_TOKEN: ${{ secrets.HEYTIM_RELEASE_TEST_REFRESH_TOKEN }}
+        run: |
+          client_id="$(jq -r '.auth.user_pool_client_id // empty' ../API/amplify_outputs.json)"
+          if [[ -z "$client_id" ]]; then
+            echo 'Destination Cognito client ID is missing.' >&2
+            exit 1
+          fi
+          uv run --frozen python scripts/prepare_managed_regression_consent.py \
+            --client-id "$client_id" \
+            --output "$RUNNER_TEMP/heytim-release-consent.json"
+
       - name: Gate release on the managed AgentCore regression dataset
         working-directory: services/runtime
         run: |
@@ -631,6 +645,7 @@ jobs:
             --runtime-arn "$HEYTIM_AGENT_RUNTIME_ARN" \
             --dataset-id "$HEYTIM_REGRESSION_DATASET_ID" \
             --dataset-version DRAFT \
+            --consent-file "$RUNNER_TEMP/heytim-release-consent.json" \
             --evaluator Builtin.GoalSuccessRate Builtin.ResponseRelevance \
             --name "HeyTimRelease_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" \
             --region "${{ steps.target.outputs.region }}" \
@@ -651,6 +666,10 @@ jobs:
             jq '{status, evaluationResults}' "$result" >&2
             exit 1
           fi
+
+      - name: Remove private synthetic evaluation grant
+        if: ${{ always() }}
+        run: rm -f "$RUNNER_TEMP/heytim-release-consent.json"
 
       - name: Preserve AgentCore release evaluation
         if: ${{ always() }}
