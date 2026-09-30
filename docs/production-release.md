@@ -6,10 +6,26 @@ deployment are external release inputs. The **Deploy HeyTim production release**
 they are present. Production uses dedicated member account `820323452649`; stacks, KMS keys, storage, credentials, and
 service quotas are isolated from development.
 
-## Production account isolation cutover
+## Production account launch scope
 
 Changing the configured account provisions independent resources; it does not move the production state previously
-hosted in management account `188757775631`. Before setting
+hosted in management account `188757775631`. Choose exactly one explicit launch path:
+
+- **Fresh content:** Set `HEYTIM_DATA_LAUNCH_MODE=fresh` and, after recording the owner's choice and the destination
+  checks below, `HEYTIM_FRESH_ACCOUNT_LAUNCH_APPROVED=true`. Set `HEYTIM_DESTINATION_ACCOUNT_ID=820323452649` and
+  verify `AWS_DEPLOY_ROLE_ARN` belongs to that account and `AMPLIFY_APP_ID` resolves through that role. New users and
+  content start in the destination; this path does not copy legacy users, memory, files, provider tokens, or billing
+  state. Record an empty destination baseline, client and sign-in behavior, and a rollback plan for the new client.
+  The source service is not frozen or retired by this launch. Keep its resources and records intact until a separately
+  reviewed retirement or data disposition decision. Leave `HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED` unset or `false`.
+  The fresh release passes destination AgentCore Identity KMS key
+  `arn:aws:kms:us-east-1:820323452649:key/4893a4c0-00e8-4381-823b-19c8bc8ed248` to the runtime and API;
+  it never passes the protected legacy source-account token-vault key.
+- **State migration:** Set `HEYTIM_DATA_LAUNCH_MODE=migrate` and use the preservation plan below. Set
+  `HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED=true` only after its pre-cutover checks pass. Leave
+  `HEYTIM_FRESH_ACCOUNT_LAUNCH_APPROVED` unset or `false`.
+
+For a migration launch, before setting
 `HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED=true`, approve and record a migration plan that:
 
 1. Inventories the legacy and destination AgentCore runtimes, memory, credentials, DynamoDB tables and recovery
@@ -27,7 +43,7 @@ hosted in management account `188757775631`. Before setting
 5. Deletes or disables legacy resources only in a separately reviewed cleanup after rollback expires and data-retention,
    audit, signing, and recovery obligations have been verified.
 
-This change does not perform that migration or authorize cleanup of the legacy account.
+Neither launch mode itself performs a migration or authorizes cleanup of the legacy account.
 
 ## One-time production bootstrap
 
@@ -54,14 +70,19 @@ Set these non-secret variables:
 - `HEYTIM_APNS_APPLICATION_ARN` and optional `HEYTIM_APNS_SANDBOX_APPLICATION_ARN`
 - `HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT` based on the verified Google project quota
 - `HEYTIM_MONTHLY_BUDGET_USD`
-- Optional Stripe launch variables: `HEYTIM_STRIPE_PLUS_PRICE_ID`, `HEYTIM_STRIPE_LIVE_MODE` (start with `false`),
-  `HEYTIM_STRIPE_AUTOMATIC_TAX` (start with `false`), `HEYTIM_FREE_MONTHLY_CREDITS`,
-  `HEYTIM_PLUS_MONTHLY_CREDITS`, and `HEYTIM_PLUS_PRICE_CENTS`
+- Explicit `HEYTIM_DATA_LAUNCH_MODE` (`fresh` or `migrate`), `HEYTIM_DESTINATION_ACCOUNT_ID` for a fresh launch,
+  and the matching `HEYTIM_FRESH_ACCOUNT_LAUNCH_APPROVED` or `HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED` flag
+- Explicit `HEYTIM_BILLING_MODE=free` for a free launch. The workflow passes empty Stripe API key, webhook secret,
+  Price ID, and secret ID to Amplify, with live mode and automatic tax disabled, even if protected Stripe values remain
+  stored for a later decision. `HEYTIM_BILLING_MODE=stripe` requires the API key, webhook secret, and Price ID together.
+  Related variables are `HEYTIM_STRIPE_PLUS_PRICE_ID`, `HEYTIM_STRIPE_LIVE_MODE`,
+  `HEYTIM_STRIPE_AUTOMATIC_TAX`, `HEYTIM_FREE_MONTHLY_CREDITS`, `HEYTIM_PLUS_MONTHLY_CREDITS`, and
+  `HEYTIM_PLUS_PRICE_CENTS`.
 - `HEYTIM_GOOGLE_REVIEW_APPROVED`, `HEYTIM_SLACK_REVIEW_APPROVED`,
   `HEYTIM_X_REVIEW_APPROVED`, and `HEYTIM_NOTION_REVIEW_APPROVED` set to `true` only after the provider's
   production verification/distribution requirements are complete
-- `HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED=true` only after the account-isolation plan above is approved and its
-  pre-cutover requirements are complete
+- `HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED=true` only for the reviewed state-migration path; use the fresh-launch
+  flag for an empty destination instead
 - `HEYTIM_RELEASE_COMPLIANCE_APPROVED=true` only after privacy policy, terms, support and deletion disclosures,
   data-retention statements, and store metadata match the deployed behavior
 - `HEYTIM_APNS_DEVICE_SMOKE_APPROVED=true` only after a production-signed build receives and opens a notification
@@ -79,14 +100,20 @@ Set these environment secrets:
 - Optional: `HEYTIM_MICROSOFT_OAUTH_SECRET_ARN`, `HEYTIM_HUBSPOT_OAUTH_SECRET_ARN`,
   `HEYTIM_JIRA_OAUTH_SECRET_ARN`, `HEYTIM_ZOOM_OAUTH_SECRET_ARN`,
   `HEYTIM_QUICKBOOKS_OAUTH_SECRET_ARN`, `HEYTIM_PLAID_SECRET_ARN`
-- Optional until subscriptions are enabled: `HEYTIM_STRIPE_SECRET_KEY` and
-  `HEYTIM_STRIPE_WEBHOOK_SECRET`. Set both only with the Stripe Price variable. The release workflow stores them in
-  the production account's `heytim/stripe/production` Secrets Manager secret and passes only its ARN to Lambda.
+- `HEYTIM_STRIPE_SECRET_KEY` and `HEYTIM_STRIPE_WEBHOOK_SECRET` remain protected for a future billing decision. In
+  `free` mode, the release workflow passes neither secret nor a Price ID to the deployment and does not provision a
+  new Stripe billing secret. In `stripe` mode, set both with the Price variable; the workflow stores them in the
+  production account's `heytim/stripe/production` Secrets Manager secret and passes only its ARN to Lambda.
 - `FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY`, containing the App Store Connect `.p8` key
 - `FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_BASE64`, containing a base64-encoded Apple Distribution `.p12`, and
   `FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD`
 - `FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_BASE64`, containing a base64-encoded Apple Development `.p12`, and
   `FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD`
+- `HEYTIM_INTERNAL_TESTER_EMAIL`, containing the intended owner's exact App Store Connect/TestFlight email. The
+  first internal upload compares it privately against Apple's internal tester groups and never prints the email.
+  The read-only inventory can instead compare Apple's unique Account Holder without an email secret. Set the secret
+  only after the owner identifies the intended Apple account; Account Holder membership alone does not prove that
+  the intended device tester is ready.
 
 The three `AGENTCORE_CREDENTIAL_FROGBOT_*` keys and the currently configured
 `FROGBOT_APP_*` Apple signing secret keys are compatibility names for protected
@@ -131,9 +158,33 @@ any retained connection tools from bot selection and execution. Independent publ
 The release gate requires a provider's review attestation only while its connections are enabled. Keep an unapproved
 provider's review attestation `false`; enable its connections and redeploy only after its external review is verified.
 
+### Fresh-launch protected variable reconciliation (2026-09-30)
+
+Before a fresh release or internal device-smoke upload, read back these **production environment** variables by name
+and target. The workflow rejects source-account APNs values and a source-account deployment role. The physical APNs
+application names remain `FrogBot` for compatibility; the account number identifies the destination.
+
+| Variable | Required fresh/free target |
+| --- | --- |
+| `HEYTIM_DATA_LAUNCH_MODE` | `fresh` |
+| `HEYTIM_FRESH_ACCOUNT_LAUNCH_APPROVED` | `true` only after the recorded fresh-content decision and destination checks |
+| `HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED` | unset or `false` |
+| `HEYTIM_DESTINATION_ACCOUNT_ID` | `820323452649` |
+| `AWS_DEPLOY_ROLE_ARN` | role ARN in account `820323452649` |
+| `AMPLIFY_APP_ID` | `d17sj7dvhx07c`, confirmed by `amplify get-app` under that role |
+| `HEYTIM_APNS_APPLICATION_ARN` | `arn:aws:sns:us-east-1:820323452649:app/APNS/FrogBot` |
+| `HEYTIM_APNS_SANDBOX_APPLICATION_ARN` | `arn:aws:sns:us-east-1:820323452649:app/APNS_SANDBOX/FrogBot` |
+| `HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT` | `100`, matching the destination worker's current limit and protected environment inventory |
+| `HEYTIM_BILLING_MODE` | `free`; the workflow passes no Stripe triad and disables live mode |
+
+At the 2026-09-30 checkpoint, the protected APNs variables still contained source-account ARNs; correct and read
+back those variables before release. The protected
+`HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN` may still name the source key, but fresh mode overrides it with the verified
+destination AgentCore Identity key above. Do not copy the source key ARN into the destination deployment.
+
 ## Release and evidence
 
-Before the destination account cutover, dispatch **Build destination iOS candidate without upload** from the current
+Before publishing a destination client, dispatch **Build destination iOS candidate without upload** from the current
 `main` commit with the next marketing version (for example `1.0.13` after `v1.0.12`). The workflow pins the committed
 destination candidate to account `820323452649`, stages it only on the Apple runner, runs the iPhone and Mac verification
 gate, and exports a signed iPhone IPA locally. It verifies the destination configuration inside that IPA, records its
@@ -145,40 +196,40 @@ platforms, signs and notarizes the Mac app and disk image, checks the Sparkle ZI
 checksums, and deletes the signed files and isolated build directory from the runner. Its Actions artifact contains
 only the receipt; the live Sparkle feed and GitHub Release remain unchanged.
 [Apple says](https://developer.apple.com/help/app-store-connect/test-a-beta-version/add-testers-to-builds/)
-that eligible builds can be made available automatically to the **App Store Connect Users** internal group. Therefore,
-even an internal-only upload is deferred until the write-frozen customer-state migration has been verified; signing in
-before migration would create destination records and invalidate the empty-table migration gate. The receipt is
-preflight evidence, not a TestFlight build. After migration, an operator-controlled internal TestFlight upload creates a
-new iOS build with a later build number for the same version. Confirm processing and physical-device APNs delivery
-before recording the release's device-smoke approval.
+that eligible builds can be made available automatically to the **App Store Connect Users** internal group. The
+preflight receipt is therefore evidence of a local signed build, not a TestFlight build. An operator must review that
+group before the first internal-only upload. A migration launch waits for the write-frozen customer-state transfer;
+a fresh-content launch instead verifies the destination's empty baseline and new-user path without freezing the
+independent source service.
 
-### Post-migration internal TestFlight handoff
+### First destination internal TestFlight handoff
 
-There is no unattended upload workflow for the first destination TestFlight build. While the source write freeze is
-active, the migration operator must inspect the **private** final DynamoDB, versioned-S3, and AgentCore-memory
-manifests and their apply/verification output. Check that the source snapshot digests remained stable, destination
-counts and content digests match the reviewed plan, all identity-remapping and preservation exceptions are recorded,
-and live destination reads show the migrated records, files, and memory. Record those results, the freeze operator,
-rollback owner, and current `main` commit in `docs/verification-history.md`. A dry-run plan, nonempty destination, or
-caller-entered approval string alone is insufficient evidence. Keep the source frozen and rollback available.
+For `migrate`, the migration operator inspects the **private** final DynamoDB, versioned-S3, and AgentCore-memory
+manifests and apply/verification output while the source write freeze is active. The source snapshot digests must
+remain stable; destination counts and content digests must match the plan; identity remapping and preservation
+exceptions must be recorded; and live destination reads must show the migrated records, files, and memory. Keep the
+source frozen and rollback available through this handoff.
 
-After that evidence is complete, the Apple release operator reviews the **App Store Connect Users** group membership,
-uses a clean checkout of the recorded commit, stages the verified destination candidate outputs, runs
-`./scripts/apple-app.sh verify` for both platforms, and runs the following command from the checked-out repository:
+For `fresh`, record the approved no-transfer choice, empty destination baseline, destination app/role/APNs identifiers,
+current `main` commit, expected new sign-in behavior, and rollback owner in `docs/verification-history.md`. This
+handoff does not freeze, retire, or clean up the source account. Confirm free billing is selected and the destination
+backend is ready before installing a new client.
 
-```bash
-APPLE_TEAM_ID=GVXC5FQ2RP \
-  HEYTIM_MARKETING_VERSION=1.0.13 \
-  HEYTIM_RELEASE_SCOPE=ios-post-migration \
-  ./scripts/apple-app.sh testflight ios
-```
-
-`ios-post-migration` selects an Xcode export option that uploads to App Store Connect and marks the build internal-only.
-The operator must first place the validated candidate file at `services/API/amplify_outputs.json` and regenerate
-`apps/iOS/Resources/amplify_outputs.json` using `npm --prefix services/API run outputs:apple`; the script checks the
-production outputs again. Capture the resulting build number and processing status. Install through TestFlight on a
-physical device, prove destination APNs delivery and sign-in, then set `HEYTIM_APNS_DEVICE_SMOKE_APPROVED=true` only
-after that evidence is recorded. A later full release uses a new build number and publishes the Mac/Sparkle artifacts.
+After the mode-specific evidence is complete, review the **App Store Connect Users** group membership. For `fresh`,
+manually dispatch **Upload destination iOS build for internal device smoke** from current `main` with version `1.0.13` and
+`internal_testers_reviewed=true`. This protected workflow requires the approved fresh/free destination, checks the
+destination app and committed client configuration, and queries App Store Connect to prove the protected expected
+owner email is accepted in an internal group with access to all builds before signing or uploading. It verifies both
+Apple platforms and calls the existing
+`ios-post-migration` export scope. Despite its historical name, that scope selects an App Store Connect upload with
+`testFlightInternalTestingOnly=true`; the workflow retains only a nonsecret submission receipt. It does not publish
+the Mac app or Sparkle feed. For `migrate`, retain the documented operator-controlled upload from a clean checkout
+of the recorded commit with verified destination outputs using
+`HEYTIM_RELEASE_SCOPE=ios-post-migration ./scripts/apple-app.sh testflight ios` while the source freeze remains active.
+Capture the submitted build number and confirm App Store Connect processing. Install it
+through TestFlight on a physical device, prove destination sign-in and APNs delivery, and set
+`HEYTIM_APNS_DEVICE_SMOKE_APPROVED=true` only after recording that evidence. The later full release generates a new
+build number and publishes the Mac/Sparkle artifacts.
 
 The full production release workflow installs the checked-in `agentcore/cdk/package-lock.json` and disables the AgentCore CLI's automatic CDK
 dependency rewriting. This keeps the audited repository lockfile authoritative during deployment. Because the CLI

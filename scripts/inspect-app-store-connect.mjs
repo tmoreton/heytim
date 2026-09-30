@@ -83,6 +83,29 @@ function safeField(value, label, pattern) {
 
 export async function inspectAppStoreConnect(credentials, fetchImpl = fetch) {
   const token = makeAppStoreConnectToken(credentials);
+  let expectedTesterEmail;
+  let identitySource;
+  if (credentials.expectedTesterEmail?.trim()) {
+    expectedTesterEmail = credentials.expectedTesterEmail.trim().toLowerCase();
+    identitySource = 'Expected owner';
+  } else {
+    const users = await getJson(
+      '/v1/users?filter%5Broles%5D=ACCOUNT_HOLDER&fields%5Busers%5D=username,roles&limit=2',
+      token,
+      fetchImpl,
+    );
+    if (!Array.isArray(users.data) || users.data.length !== 1
+      || users.data[0]?.type !== 'users'
+      || !users.data[0]?.attributes?.roles?.includes('ACCOUNT_HOLDER')) {
+      throw new InventoryError('Apple must identify exactly one Account Holder for private membership inspection.');
+    }
+    expectedTesterEmail = users.data[0].attributes.username?.trim().toLowerCase();
+    identitySource = 'Apple Account Holder';
+  }
+  if (typeof expectedTesterEmail !== 'string' || expectedTesterEmail.length > 320
+    || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(expectedTesterEmail)) {
+    throw new InventoryError('The private internal tester identity is invalid.');
+  }
   const apps = await getJson(
     `/v1/apps?filter%5BbundleId%5D=${encodeURIComponent(BUNDLE_ID)}`
       + '&fields%5Bapps%5D=bundleId&limit=2',
@@ -141,6 +164,9 @@ export async function inspectAppStoreConnect(credentials, fetchImpl = fetch) {
     + '?fields%5BbetaGroups%5D=isInternalGroup,hasAccessToAllBuilds&limit=200';
   let internalGroupCount = 0;
   let allBuildsInternalGroupCount = 0;
+  let ownerInInternalGroup = false;
+  let ownerInAllBuildsInternalGroup = false;
+  let ownerAcceptedOrInstalled = false;
   for (let page = 0; next && page < 20; page += 1) {
     const groups = await getJson(next, token, fetchImpl);
     if (!Array.isArray(groups.data)) {
@@ -154,6 +180,42 @@ export async function inspectAppStoreConnect(credentials, fetchImpl = fetch) {
         internalGroupCount += 1;
         if (group.attributes.hasAccessToAllBuilds === true) {
           allBuildsInternalGroupCount += 1;
+        }
+        const groupId = safeField(group.id, 'internal group ID', /^[A-Za-z0-9-]{1,128}$/);
+        let testersNext = `/v1/betaGroups/${groupId}/betaTesters`
+          + '?fields%5BbetaTesters%5D=email,state&limit=200';
+        for (let testerPage = 0; testersNext && testerPage < 20; testerPage += 1) {
+          const testers = await getJson(testersNext, token, fetchImpl);
+          if (!Array.isArray(testers.data)) {
+            throw new InventoryError('Apple returned an invalid internal tester list.');
+          }
+          for (const tester of testers.data) {
+            if (tester.type !== 'betaTesters') {
+              throw new InventoryError('Apple returned an unexpected internal tester resource.');
+            }
+            const email = tester.attributes?.email;
+            const state = tester.attributes?.state;
+            if (typeof email === 'string' && email.trim().toLowerCase() === expectedTesterEmail
+              && ['INVITED', 'ACCEPTED', 'INSTALLED'].includes(state)) {
+              ownerInInternalGroup = true;
+              ownerInAllBuildsInternalGroup ||= group.attributes.hasAccessToAllBuilds === true;
+              ownerAcceptedOrInstalled ||= ['ACCEPTED', 'INSTALLED'].includes(state);
+            }
+          }
+          const testerLink = testers.links?.next;
+          if (testerLink) {
+            const nextUrl = new URL(testerLink, API_ORIGIN);
+            if (nextUrl.origin !== API_ORIGIN
+              || nextUrl.pathname !== `/v1/betaGroups/${groupId}/betaTesters`) {
+              throw new InventoryError('Apple returned an unexpected internal tester page.');
+            }
+            testersNext = `${nextUrl.pathname}${nextUrl.search}`;
+          } else {
+            testersNext = null;
+          }
+        }
+        if (testersNext) {
+          throw new InventoryError('Apple returned too many internal tester pages to verify safely.');
         }
       }
     }
@@ -173,7 +235,10 @@ export async function inspectAppStoreConnect(credentials, fetchImpl = fetch) {
     throw new InventoryError('Apple returned too many beta group pages to verify safely.');
   }
 
-  return { bundleId: BUNDLE_ID, recentBuilds, internalGroupCount, allBuildsInternalGroupCount };
+  return {
+    bundleId: BUNDLE_ID, identitySource, recentBuilds, internalGroupCount, allBuildsInternalGroupCount,
+    ownerInInternalGroup, ownerInAllBuildsInternalGroup, ownerAcceptedOrInstalled,
+  };
 }
 
 export function renderSummary(inventory) {
@@ -183,6 +248,9 @@ export function renderSummary(inventory) {
     `Bundle ID: \`${inventory.bundleId}\``,
     `Internal tester group available: **${inventory.internalGroupCount > 0 ? 'yes' : 'no'}**`,
     `Internal group with access to all builds: **${inventory.allBuildsInternalGroupCount > 0 ? 'yes' : 'no'}**`,
+    `${inventory.identitySource ?? 'Expected owner'} in an internal group: **${inventory.ownerInInternalGroup ? 'yes' : 'no'}**`,
+    `${inventory.identitySource ?? 'Expected owner'} in an all-builds internal group: **${inventory.ownerInAllBuildsInternalGroup ? 'yes' : 'no'}**`,
+    `${inventory.identitySource ?? 'Expected owner'} accepted or installed: **${inventory.ownerAcceptedOrInstalled ? 'yes' : 'no'}**`,
     '',
     '| iOS version | Build | Processing | Audience | Uploaded (UTC) |',
     '| --- | --- | --- | --- | --- |',
@@ -194,20 +262,38 @@ export function renderSummary(inventory) {
   if (inventory.recentBuilds.length === 0) {
     lines.push('| No iOS builds | — | — | — | — |');
   }
-  lines.push('', 'This read-only inventory does not upload a build, verify tester membership, or prove device delivery.', '');
+  lines.push('', 'This read-only inventory does not upload a build or prove physical-device delivery.', '');
   return lines.join('\n');
 }
 
+export function assertInternalOwnerReady(inventory) {
+  if (!inventory.ownerInAllBuildsInternalGroup || !inventory.ownerAcceptedOrInstalled) {
+    throw new InventoryError('The expected owner is not accepted in an internal tester group with access to all builds.');
+  }
+}
+
 async function main() {
+  if (process.argv.length > 3
+    || (process.argv.length === 3 && process.argv[2] !== '--require-owner-ready')) {
+    throw new InventoryError('The inventory accepts only --require-owner-ready.');
+  }
+  if (process.argv[2] === '--require-owner-ready') {
+    required(process.env.APP_STORE_CONNECT_EXPECTED_INTERNAL_TESTER_EMAIL,
+      'APP_STORE_CONNECT_EXPECTED_INTERNAL_TESTER_EMAIL');
+  }
   const inventory = await inspectAppStoreConnect({
     keyId: process.env.APP_STORE_CONNECT_KEY_ID,
     issuerId: process.env.APP_STORE_CONNECT_ISSUER_ID,
     privateKey: process.env.APP_STORE_CONNECT_PRIVATE_KEY,
+    expectedTesterEmail: process.env.APP_STORE_CONNECT_EXPECTED_INTERNAL_TESTER_EMAIL,
   });
   const summaryPath = required(process.env.GITHUB_STEP_SUMMARY, 'GITHUB_STEP_SUMMARY');
   await appendFile(summaryPath, renderSummary(inventory));
+  if (process.argv[2] === '--require-owner-ready') {
+    assertInternalOwnerReady(inventory);
+  }
   console.log(`HeyTim iOS inventory: ${inventory.recentBuilds.length} recent build(s);`
-    + ` internal tester group available: ${inventory.internalGroupCount > 0 ? 'yes' : 'no'}.`);
+    + ` expected owner in all-builds internal group: ${inventory.ownerInAllBuildsInternalGroup ? 'yes' : 'no'}.`);
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {

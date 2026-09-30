@@ -104,7 +104,7 @@ jobs:
           AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           AMPLIFY_APP_ID: ${{ vars.AMPLIFY_APP_ID }}
           HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN }}
-          HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN: ${{ vars.HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN }}
+          HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN: ${{ vars.HEYTIM_DATA_LAUNCH_MODE == 'fresh' && 'arn:aws:kms:us-east-1:820323452649:key/4893a4c0-00e8-4381-823b-19c8bc8ed248' || vars.HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN }}
           HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT: ${{ vars.HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT }}
           HEYTIM_MONTHLY_BUDGET_USD: ${{ vars.HEYTIM_MONTHLY_BUDGET_USD }}
           AGENTCORE_CREDENTIAL_HEYTIM_OPENROUTER: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
@@ -116,11 +116,13 @@ jobs:
           X_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_X_OAUTH_SECRET_ARN }}
           SLACK_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_SLACK_OAUTH_SECRET_ARN }}
           NOTION_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_NOTION_OAUTH_SECRET_ARN }}
-          STRIPE_SECRET_KEY: ${{ secrets.HEYTIM_STRIPE_SECRET_KEY }}
-          STRIPE_WEBHOOK_SECRET: ${{ secrets.HEYTIM_STRIPE_WEBHOOK_SECRET }}
-          STRIPE_PLUS_PRICE_ID: ${{ vars.HEYTIM_STRIPE_PLUS_PRICE_ID }}
-          STRIPE_LIVE_MODE: ${{ vars.HEYTIM_STRIPE_LIVE_MODE || 'false' }}
+          STRIPE_SECRET_KEY: ${{ vars.HEYTIM_BILLING_MODE == 'stripe' && secrets.HEYTIM_STRIPE_SECRET_KEY || '' }}
+          STRIPE_WEBHOOK_SECRET: ${{ vars.HEYTIM_BILLING_MODE == 'stripe' && secrets.HEYTIM_STRIPE_WEBHOOK_SECRET || '' }}
+          STRIPE_PLUS_PRICE_ID: ${{ vars.HEYTIM_BILLING_MODE == 'stripe' && vars.HEYTIM_STRIPE_PLUS_PRICE_ID || '' }}
+          STRIPE_LIVE_MODE: ${{ vars.HEYTIM_BILLING_MODE == 'stripe' && vars.HEYTIM_STRIPE_LIVE_MODE || 'false' }}
+          BILLING_MODE: ${{ vars.HEYTIM_BILLING_MODE }}
           APNS_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_APPLICATION_ARN }}
+          APNS_SANDBOX_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_SANDBOX_APPLICATION_ARN }}
           GOOGLE_REVIEW_APPROVED: ${{ vars.HEYTIM_GOOGLE_REVIEW_APPROVED }}
           GOOGLE_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_GOOGLE_CONNECTIONS_ENABLED || 'true' }}
           SLACK_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_SLACK_CONNECTIONS_ENABLED || 'true' }}
@@ -130,6 +132,9 @@ jobs:
           X_REVIEW_APPROVED: ${{ vars.HEYTIM_X_REVIEW_APPROVED }}
           NOTION_REVIEW_APPROVED: ${{ vars.HEYTIM_NOTION_REVIEW_APPROVED }}
           ACCOUNT_ISOLATION_CUTOVER_APPROVED: ${{ vars.HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED }}
+          DATA_LAUNCH_MODE: ${{ vars.HEYTIM_DATA_LAUNCH_MODE }}
+          FRESH_ACCOUNT_LAUNCH_APPROVED: ${{ vars.HEYTIM_FRESH_ACCOUNT_LAUNCH_APPROVED }}
+          DESTINATION_ACCOUNT_ID: ${{ vars.HEYTIM_DESTINATION_ACCOUNT_ID }}
           RELEASE_COMPLIANCE_APPROVED: ${{ vars.HEYTIM_RELEASE_COMPLIANCE_APPROVED }}
           APNS_DEVICE_SMOKE_APPROVED: ${{ vars.HEYTIM_APNS_DEVICE_SMOKE_APPROVED }}
           APPLE_TEAM_ID: ${{ vars.HEYTIM_APPLE_TEAM_ID }}
@@ -149,6 +154,14 @@ jobs:
           if [[ "$RELEASE_SCOPE" != full && "$RELEASE_SCOPE" != backend-only \
             && "$RELEASE_SCOPE" != backend-macos ]]; then
             echo 'release_scope must be full, backend-only, or backend-macos.' >&2
+            exit 1
+          fi
+          if [[ "$DATA_LAUNCH_MODE" != fresh && "$DATA_LAUNCH_MODE" != migrate ]]; then
+            echo 'HEYTIM_DATA_LAUNCH_MODE must be fresh or migrate.' >&2
+            exit 1
+          fi
+          if [[ "$BILLING_MODE" != free && "$BILLING_MODE" != stripe ]]; then
+            echo 'HEYTIM_BILLING_MODE must be free or stripe.' >&2
             exit 1
           fi
           required_values=(
@@ -175,7 +188,8 @@ jobs:
           elif [[ "$RELEASE_SCOPE" == backend-macos ]]; then
             required_values+=(
               APPLE_TEAM_ID APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID
-              APP_STORE_CONNECT_PRIVATE_KEY DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64
+              APP_STORE_CONNECT_PRIVATE_KEY APPLE_DEVELOPMENT_CERTIFICATE_BASE64
+              APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64
               DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD
               HEYTIM_SPARKLE_PUBLIC_KEY SPARKLE_PRIVATE_KEY
             )
@@ -196,13 +210,46 @@ jobs:
               exit 1
             fi
           fi
+          if [[ "$DATA_LAUNCH_MODE" == fresh ]]; then
+            configured_account="$(jq -r '.[] | select(.name == "production") | .account' agentcore/aws-targets.json)"
+            if [[ "$FRESH_ACCOUNT_LAUNCH_APPROVED" != true \
+              || "$ACCOUNT_ISOLATION_CUTOVER_APPROVED" == true \
+              || "$DESTINATION_ACCOUNT_ID" != 820323452649 \
+              || "$configured_account" != "$DESTINATION_ACCOUNT_ID" \
+              || "$AWS_DEPLOY_ROLE_ARN" != "arn:aws:iam::$DESTINATION_ACCOUNT_ID:role/"* \
+              || "$AMPLIFY_APP_ID" != d17sj7dvhx07c \
+              || "$APNS_APPLICATION_ARN" != 'arn:aws:sns:us-east-1:820323452649:app/APNS/FrogBot' \
+              || "$APNS_SANDBOX_APPLICATION_ARN" != 'arn:aws:sns:us-east-1:820323452649:app/APNS_SANDBOX/FrogBot' ]]; then
+              echo 'Fresh launch needs its own approval, destination account/role/app, and destination APNS applications. It must not reuse migration approval or source resources.' >&2
+              exit 1
+            fi
+            if [[ "$HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN" \
+              != 'arn:aws:kms:us-east-1:820323452649:key/4893a4c0-00e8-4381-823b-19c8bc8ed248' ]]; then
+              echo 'Fresh launch must use the destination AgentCore Identity KMS key.' >&2
+              exit 1
+            fi
+          elif [[ "$ACCOUNT_ISOLATION_CUTOVER_APPROVED" != true \
+            || "$FRESH_ACCOUNT_LAUNCH_APPROVED" == true ]]; then
+            echo 'Migration launch needs the account-isolation cutover approval and must not reuse the fresh-launch approval.' >&2
+            exit 1
+          fi
           stripe_values=(STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PLUS_PRICE_ID)
           stripe_value_count=0
           for name in "${stripe_values[@]}"; do
             [[ -n "${!name}" ]] && ((stripe_value_count += 1))
           done
-          if (( stripe_value_count != 0 && stripe_value_count != ${#stripe_values[@]} )); then
-            echo 'Stripe API key, webhook secret, and Plus Price ID must be configured together.' >&2
+          if [[ "$BILLING_MODE" == free ]]; then
+            if (( stripe_value_count != 0 )) || [[ "$STRIPE_LIVE_MODE" != false ]]; then
+              echo 'Free launch must pass no Stripe key, webhook secret, or Price ID and must disable live mode.' >&2
+              exit 1
+            fi
+          elif [[ "$STRIPE_LIVE_MODE" != true && "$STRIPE_LIVE_MODE" != false ]]; then
+            echo 'HEYTIM_STRIPE_LIVE_MODE must be true or false.' >&2
+            exit 1
+          fi
+          if [[ "$BILLING_MODE" == stripe \
+            && "$stripe_value_count" != "${#stripe_values[@]}" ]]; then
+            echo 'Stripe billing requires its API key, webhook secret, and Plus Price ID together.' >&2
             exit 1
           fi
           if (( stripe_value_count == ${#stripe_values[@]} )); then
@@ -234,10 +281,10 @@ jobs:
               exit 1
             fi
           done
-          attestations=(
-            ACCOUNT_ISOLATION_CUTOVER_APPROVED
-            RELEASE_COMPLIANCE_APPROVED APNS_DEVICE_SMOKE_APPROVED
-          )
+          attestations=()
+          if [[ "$DATA_LAUNCH_MODE" != fresh || "$RELEASE_SCOPE" != backend-only ]]; then
+            attestations+=(RELEASE_COMPLIANCE_APPROVED APNS_DEVICE_SMOKE_APPROVED)
+          fi
           for name in "${attestations[@]}"; do
             if [[ "${!name}" != true ]]; then
               echo "$name must be set to true after its release checklist item is complete." >&2
@@ -316,6 +363,9 @@ jobs:
           aws-region: ${{ steps.target.outputs.region }}
 
       - name: Verify immutable non-root release source and account
+        env:
+          AMPLIFY_APP_ID: ${{ vars.AMPLIFY_APP_ID }}
+          DATA_LAUNCH_MODE: ${{ vars.HEYTIM_DATA_LAUNCH_MODE }}
         run: |
           ./scripts/assert-release-ready.sh --aws
           actual_account="$(aws sts get-caller-identity --query Account --output text)"
@@ -323,10 +373,35 @@ jobs:
             echo "Deployment role resolved to AWS account $actual_account instead of the configured production account." >&2
             exit 1
           fi
+          if [[ "$DATA_LAUNCH_MODE" == fresh ]]; then
+            actual_app="$(aws amplify get-app --app-id "$AMPLIFY_APP_ID" --query 'app.appId' --output text)"
+            if [[ "$actual_app" != "$AMPLIFY_APP_ID" ]]; then
+              echo 'The destination Amplify app was not found in the dedicated production account.' >&2
+              exit 1
+            fi
+          fi
 
-      - name: Block full release while standalone mail capture owns the destination
+      - name: Preserve standalone destination mail capture ownership
+        env:
+          DATA_LAUNCH_MODE: ${{ vars.HEYTIM_DATA_LAUNCH_MODE }}
         run: |
           error_file="$RUNNER_TEMP/heytim-mail-capture-stack-check.err"
+          if [[ "$DATA_LAUNCH_MODE" == fresh ]]; then
+            stack_status="$(aws cloudformation describe-stacks \
+              --stack-name HeyTimDestinationMailCapture \
+              --query 'Stacks[0].StackStatus' --output text)"
+            capture_bucket="$(aws cloudformation describe-stacks \
+              --stack-name HeyTimDestinationMailCapture \
+              --query 'Stacks[0].Outputs[?OutputKey==`BotEmailQuarantineBucketName`].OutputValue | [0]' \
+              --output text)"
+            if [[ "$stack_status" != CREATE_COMPLETE && "$stack_status" != UPDATE_COMPLETE ]] \
+              || [[ ! "$capture_bucket" =~ ^heytimdestinationmailcapt-botemailquarantine[a-z0-9-]+$ ]]; then
+              echo 'The destination standalone mail capture stack or quarantine bucket is not ready.' >&2
+              exit 1
+            fi
+            echo "HEYTIM_BOT_EMAIL_STANDALONE_CAPTURE_BUCKET=$capture_bucket" >> "$GITHUB_ENV"
+            exit 0
+          fi
           if aws cloudformation describe-stacks \
             --stack-name HeyTimDestinationMailCapture \
             --query 'Stacks[0].StackStatus' --output text 2>"$error_file" >/dev/null; then
@@ -374,7 +449,7 @@ jobs:
         env:
           HEYTIM_ENVIRONMENT: production
           HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN }}
-          HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN: ${{ vars.HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN }}
+          HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN: ${{ vars.HEYTIM_DATA_LAUNCH_MODE == 'fresh' && 'arn:aws:kms:us-east-1:820323452649:key/4893a4c0-00e8-4381-823b-19c8bc8ed248' || vars.HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN }}
           AGENTCORE_CREDENTIAL_HEYTIM_OPENROUTER: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER }}
           AGENTCORE_CREDENTIAL_HEYTIMXAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTXAPI }}
           AGENTCORE_CREDENTIAL_HEYTIMYOUTUBEAPI: ${{ secrets.AGENTCORE_CREDENTIAL_FROGBOTYOUTUBEAPI }}
@@ -420,9 +495,11 @@ jobs:
           HEYTIM_ENVIRONMENT: production
           HEYTIM_AUTH_EMAIL_PROVIDER: ses
           HEYTIM_BOT_EMAIL_STAGE: receive
-          HEYTIM_BOT_EMAIL_AVAILABLE: 'true'
+          HEYTIM_BOT_EMAIL_CAPTURE_ONLY: ${{ vars.HEYTIM_DATA_LAUNCH_MODE == 'fresh' && 'true' || 'false' }}
+          HEYTIM_BOT_EMAIL_KEEP_HELD_SUBSCRIBER: ${{ vars.HEYTIM_DATA_LAUNCH_MODE == 'fresh' && 'true' || 'false' }}
+          HEYTIM_BOT_EMAIL_AVAILABLE: ${{ vars.HEYTIM_DATA_LAUNCH_MODE == 'fresh' && 'false' || 'true' }}
           HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN }}
-          HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN: ${{ vars.HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN }}
+          HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN: ${{ vars.HEYTIM_DATA_LAUNCH_MODE == 'fresh' && 'arn:aws:kms:us-east-1:820323452649:key/4893a4c0-00e8-4381-823b-19c8bc8ed248' || vars.HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN }}
           HEYTIM_GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_GOOGLE_OAUTH_SECRET_ARN }}
           HEYTIM_GOOGLE_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_GOOGLE_CONNECTIONS_ENABLED || 'true' }}
           HEYTIM_SLACK_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_SLACK_CONNECTIONS_ENABLED || 'true' }}
@@ -437,11 +514,13 @@ jobs:
           HEYTIM_JIRA_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_JIRA_OAUTH_SECRET_ARN }}
           HEYTIM_ZOOM_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_ZOOM_OAUTH_SECRET_ARN }}
           HEYTIM_QUICKBOOKS_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_QUICKBOOKS_OAUTH_SECRET_ARN }}
-          HEYTIM_PLAID_SECRET_ARN: ${{ secrets.HEYTIM_PLAID_SECRET_ARN }}
-          HEYTIM_STRIPE_SECRET_ID: ${{ vars.HEYTIM_STRIPE_PLUS_PRICE_ID != '' && 'heytim/stripe/production' || '' }}
-          HEYTIM_STRIPE_PLUS_PRICE_ID: ${{ vars.HEYTIM_STRIPE_PLUS_PRICE_ID }}
-          HEYTIM_STRIPE_LIVE_MODE: ${{ vars.HEYTIM_STRIPE_LIVE_MODE || 'false' }}
-          HEYTIM_STRIPE_AUTOMATIC_TAX: ${{ vars.HEYTIM_STRIPE_AUTOMATIC_TAX || 'false' }}
+          HEYTIM_PLAID_SECRET_ARN: ${{ vars.HEYTIM_DATA_LAUNCH_MODE == 'migrate' && secrets.HEYTIM_PLAID_SECRET_ARN || '' }}
+          HEYTIM_BILLING_MODE: ${{ vars.HEYTIM_BILLING_MODE }}
+          HEYTIM_FREE_ONLY_MODE: ${{ vars.HEYTIM_DATA_LAUNCH_MODE == 'fresh' && vars.HEYTIM_BILLING_MODE == 'free' && 'true' || 'false' }}
+          HEYTIM_STRIPE_SECRET_ID: ${{ vars.HEYTIM_BILLING_MODE == 'stripe' && vars.HEYTIM_STRIPE_PLUS_PRICE_ID != '' && 'heytim/stripe/production' || '' }}
+          HEYTIM_STRIPE_PLUS_PRICE_ID: ${{ vars.HEYTIM_BILLING_MODE == 'stripe' && vars.HEYTIM_STRIPE_PLUS_PRICE_ID || '' }}
+          HEYTIM_STRIPE_LIVE_MODE: ${{ vars.HEYTIM_BILLING_MODE == 'stripe' && vars.HEYTIM_STRIPE_LIVE_MODE || 'false' }}
+          HEYTIM_STRIPE_AUTOMATIC_TAX: ${{ vars.HEYTIM_BILLING_MODE == 'stripe' && vars.HEYTIM_STRIPE_AUTOMATIC_TAX || 'false' }}
           HEYTIM_FREE_MONTHLY_CREDITS: ${{ vars.HEYTIM_FREE_MONTHLY_CREDITS || '30' }}
           HEYTIM_PLUS_MONTHLY_CREDITS: ${{ vars.HEYTIM_PLUS_MONTHLY_CREDITS || '300' }}
           HEYTIM_PLUS_PRICE_CENTS: ${{ vars.HEYTIM_PLUS_PRICE_CENTS || '2000' }}
@@ -453,9 +532,9 @@ jobs:
 
       - name: Provision Stripe billing secret
         env:
-          STRIPE_SECRET_KEY: ${{ secrets.HEYTIM_STRIPE_SECRET_KEY }}
-          STRIPE_WEBHOOK_SECRET: ${{ secrets.HEYTIM_STRIPE_WEBHOOK_SECRET }}
-          STRIPE_PLUS_PRICE_ID: ${{ vars.HEYTIM_STRIPE_PLUS_PRICE_ID }}
+          STRIPE_SECRET_KEY: ${{ vars.HEYTIM_BILLING_MODE == 'stripe' && secrets.HEYTIM_STRIPE_SECRET_KEY || '' }}
+          STRIPE_WEBHOOK_SECRET: ${{ vars.HEYTIM_BILLING_MODE == 'stripe' && secrets.HEYTIM_STRIPE_WEBHOOK_SECRET || '' }}
+          STRIPE_PLUS_PRICE_ID: ${{ vars.HEYTIM_BILLING_MODE == 'stripe' && vars.HEYTIM_STRIPE_PLUS_PRICE_ID || '' }}
         run: |
           if [[ -z "$STRIPE_SECRET_KEY" && -z "$STRIPE_WEBHOOK_SECRET" && -z "$STRIPE_PLUS_PRICE_ID" ]]; then
             exit 0

@@ -1,4 +1,4 @@
-name: Build destination iOS candidate without upload
+name: Upload destination iOS build for internal device smoke
 
 on:
   workflow_dispatch:
@@ -7,17 +7,23 @@ on:
         description: Next iOS version (MAJOR.MINOR.PATCH, for example 1.0.13)
         required: true
         type: string
+      internal_testers_reviewed:
+        description: Confirm App Store Connect Users group membership was reviewed before upload
+        required: true
+        default: false
+        type: boolean
 
-# Share the release lock so two jobs never sign Apple builds at once.
+# Keep this upload separate from the production release and other Apple signing jobs.
 concurrency:
   group: heytim-production-release
   cancel-in-progress: false
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
-  ios-candidate:
+  ios-internal-smoke:
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, macOS, ARM64, heytim-apple]
     timeout-minutes: 120
@@ -30,18 +36,40 @@ jobs:
       - name: Add Homebrew build tools to PATH
         run: echo /opt/homebrew/bin >> "$GITHUB_PATH"
 
-      - name: Check main and destination candidate
+      - name: Check fresh free launch and destination client
         env:
           GH_TOKEN: ${{ github.token }}
           MARKETING_VERSION: ${{ inputs.marketing_version }}
+          INTERNAL_TESTERS_REVIEWED: ${{ inputs.internal_testers_reviewed }}
+          DATA_LAUNCH_MODE: ${{ vars.HEYTIM_DATA_LAUNCH_MODE }}
+          FRESH_ACCOUNT_LAUNCH_APPROVED: ${{ vars.HEYTIM_FRESH_ACCOUNT_LAUNCH_APPROVED }}
+          DESTINATION_ACCOUNT_ID: ${{ vars.HEYTIM_DESTINATION_ACCOUNT_ID }}
+          BILLING_MODE: ${{ vars.HEYTIM_BILLING_MODE }}
+          AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          AMPLIFY_APP_ID: ${{ vars.AMPLIFY_APP_ID }}
+          APNS_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_APPLICATION_ARN }}
+          APNS_SANDBOX_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_SANDBOX_APPLICATION_ARN }}
         run: |
+          if [[ "$INTERNAL_TESTERS_REVIEWED" != true ]]; then
+            echo 'Review App Store Connect Users group membership before this internal-only upload.' >&2
+            exit 1
+          fi
+          if [[ "$DATA_LAUNCH_MODE" != fresh || "$FRESH_ACCOUNT_LAUNCH_APPROVED" != true \
+            || "$DESTINATION_ACCOUNT_ID" != 820323452649 || "$BILLING_MODE" != free \
+            || "$AWS_DEPLOY_ROLE_ARN" != "arn:aws:iam::$DESTINATION_ACCOUNT_ID:role/"* \
+            || -z "$AMPLIFY_APP_ID" \
+            || "$APNS_APPLICATION_ARN" != 'arn:aws:sns:us-east-1:820323452649:app/APNS/FrogBot' \
+            || "$APNS_SANDBOX_APPLICATION_ARN" != 'arn:aws:sns:us-east-1:820323452649:app/APNS_SANDBOX/FrogBot' ]]; then
+            echo 'Internal device smoke requires the approved fresh, free launch in the dedicated destination account.' >&2
+            exit 1
+          fi
           if [[ ! "$MARKETING_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo 'marketing_version must be MAJOR.MINOR.PATCH.' >&2
             exit 1
           fi
           git fetch origin main
           if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
-            echo 'The iOS candidate must use the current main commit.' >&2
+            echo 'Internal device smoke must use the current main commit.' >&2
             exit 1
           fi
           latest_tag="$(gh release view --json tagName --jq .tagName)"
@@ -55,7 +83,7 @@ jobs:
           const proposed = parse(process.env.MARKETING_VERSION);
           const comparison = proposed.findIndex((part, index) => part !== latest[index]);
           if (comparison < 0 || proposed[comparison] < latest[comparison]) {
-            throw new Error('The candidate version must be newer than the latest published release.');
+            throw new Error('The internal build version must be newer than the latest published release.');
           }
           NODE
           node --input-type=module <<'NODE'
@@ -80,9 +108,27 @@ jobs:
               `arn:aws:iam::${expected.account}:role/`)
             || output.custom?.filesBucketName !==
               `heytim-production-user-files-${expected.account}-${expected.region}`) {
-            throw new Error('The committed candidate does not identify the approved destination account.');
+            throw new Error('The committed client candidate does not identify the approved destination account.');
           }
           NODE
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Verify destination account and Amplify app
+        env:
+          DESTINATION_ACCOUNT_ID: ${{ vars.HEYTIM_DESTINATION_ACCOUNT_ID }}
+          AMPLIFY_APP_ID: ${{ vars.AMPLIFY_APP_ID }}
+        run: |
+          actual_account="$(aws sts get-caller-identity --query Account --output text)"
+          actual_app="$(aws amplify get-app --app-id "$AMPLIFY_APP_ID" --query 'app.appId' --output text)"
+          if [[ "$actual_account" != "$DESTINATION_ACCOUNT_ID" \
+            || "$actual_app" != "$AMPLIFY_APP_ID" ]]; then
+            echo 'The internal build must use the approved destination account and Amplify app.' >&2
+            exit 1
+          fi
 
       - name: Stage destination client configuration in this runner
         run: |
@@ -101,7 +147,15 @@ jobs:
         id: build
         run: echo "number=$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
 
-      - name: Verify iPhone and Mac, then export signed iPhone IPA locally
+      - name: Verify expected owner is an accepted internal tester
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY }}
+          APP_STORE_CONNECT_EXPECTED_INTERNAL_TESTER_EMAIL: ${{ secrets.HEYTIM_INTERNAL_TESTER_EMAIL }}
+        run: node scripts/inspect-app-store-connect.mjs --require-owner-ready
+
+      - name: Verify both platforms and upload internal-only iOS build
         env:
           APPLE_TEAM_ID: ${{ vars.HEYTIM_APPLE_TEAM_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_KEY_ID }}
@@ -111,40 +165,19 @@ jobs:
           APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
           APPLE_DEVELOPMENT_CERTIFICATE_BASE64: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_BASE64 }}
           APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD }}
-          HEYTIM_RELEASE_SCOPE: ios-preflight
+          HEYTIM_RELEASE_SCOPE: ios-post-migration
           HEYTIM_BUILD_NUMBER: ${{ steps.build.outputs.number }}
           HEYTIM_MARKETING_VERSION: ${{ inputs.marketing_version }}
-          HEYTIM_DERIVED_DATA_PATH: ${{ runner.temp }}/heytim-ios-candidate-derived-${{ steps.build.outputs.number }}
+          HEYTIM_DERIVED_DATA_PATH: ${{ runner.temp }}/heytim-ios-internal-derived-${{ steps.build.outputs.number }}
         run: ./apps/iOS/scripts/testflight-ci.sh
 
-      - name: Verify embedded destination and record ephemeral candidate
+      - name: Record submitted internal TestFlight build
         env:
           BUILD_NUMBER: ${{ steps.build.outputs.number }}
           MARKETING_VERSION: ${{ inputs.marketing_version }}
         run: |
-          shopt -s nullglob
-          ipas=(apps/iOS/Archives/Preflight-iOS-"$BUILD_NUMBER"/*.ipa)
-          if (( ${#ipas[@]} != 1 )); then
-            echo "Expected exactly one locally exported IPA, found ${#ipas[@]}." >&2
-            exit 1
-          fi
-          source_ipa="${ipas[0]}"
-          config_entry="$(unzip -Z1 "$source_ipa" \
-            | awk -F/ '$1 == "Payload" && $2 ~ /[.]app$/ && $3 == "amplify_outputs.json" && NF == 3 { print; count++ } END { if (count != 1) exit 1 }')"
-          unzip -p "$source_ipa" "$config_entry" | node --input-type=module -e '
-            import { readFileSync } from "node:fs";
-            const output = JSON.parse(readFileSync(0, "utf8"));
-            if (output.auth?.user_pool_id !== "us-east-1_biJejrNQF"
-              || output.custom?.apiUrl !== "https://srrkqsqrqd.execute-api.us-east-1.amazonaws.com"
-              || output.custom?.environment !== "production") {
-              throw new Error("The signed IPA does not contain destination production configuration.");
-            }
-          '
-          candidate_dir="$RUNNER_TEMP/heytim-ios-candidate"
-          mkdir -p "$candidate_dir"
-          export IPA_SHA256="$(shasum -a 256 "$source_ipa" | awk '{print $1}')"
-          export IPA_BYTES="$(stat -f '%z' "$source_ipa")"
-          receipt="$candidate_dir/receipt.json"
+          receipt_dir="$RUNNER_TEMP/heytim-ios-internal-smoke"
+          mkdir -p "$receipt_dir"
           node --input-type=module -e '
             import { writeFileSync } from "node:fs";
             writeFileSync(process.argv[1], JSON.stringify({
@@ -154,44 +187,40 @@ jobs:
               destinationAccount: "820323452649",
               destinationApi: "https://srrkqsqrqd.execute-api.us-east-1.amazonaws.com",
               destinationUserPool: "us-east-1_biJejrNQF",
-              ipaSha256: process.env.IPA_SHA256,
-              ipaBytes: Number(process.env.IPA_BYTES),
-              result: "signed-ipa-exported-locally-not-uploaded",
+              result: "submitted-to-app-store-connect-internal-only-awaiting-processing",
             }, null, 2) + "\n");
-          ' "$receipt"
-          chmod 600 "$receipt"
+          ' "$receipt_dir/receipt.json"
+          chmod 600 "$receipt_dir/receipt.json"
           {
-            echo "iOS $MARKETING_VERSION ($BUILD_NUMBER) was exported as a signed IPA for destination verification."
-            echo "IPA SHA-256: $IPA_SHA256"
-            echo 'The signed IPA stayed on this runner for inspection and was deleted after the job. Nothing was uploaded to App Store Connect or made available in TestFlight.'
-            echo 'The full release uploads a new iOS build only after the selected launch-mode and device-smoke gates pass.'
+            echo "iOS $MARKETING_VERSION ($BUILD_NUMBER) was submitted for internal-only TestFlight processing."
+            echo 'Confirm processing and install on a physical device before recording APNS smoke approval.'
             echo 'This workflow did not publish a Mac build, Sparkle feed, or GitHub Release.'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Preserve nonsecret verification receipt
+      - name: Preserve nonsecret submission receipt
         uses: actions/upload-artifact@v7
         with:
-          name: heytim-ios-destination-candidate-${{ steps.build.outputs.number }}
+          name: heytim-ios-internal-smoke-${{ steps.build.outputs.number }}
           if-no-files-found: error
           retention-days: 30
-          path: ${{ runner.temp }}/heytim-ios-candidate/receipt.json
+          path: ${{ runner.temp }}/heytim-ios-internal-smoke/receipt.json
 
-      - name: Remove ephemeral signed candidate and archive
+      - name: Remove local signed archive and export
         if: ${{ always() }}
         env:
           BUILD_NUMBER: ${{ steps.build.outputs.number }}
         run: |
           if [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
             for path in \
-              "apps/iOS/Archives/Preflight-iOS-$BUILD_NUMBER" \
+              "apps/iOS/Archives/TestFlight-iOS-$BUILD_NUMBER" \
               "apps/iOS/Archives/HeyTim-iOS-$BUILD_NUMBER.xcarchive" \
-              "$RUNNER_TEMP/heytim-ios-candidate-derived-$BUILD_NUMBER"; do
+              "$RUNNER_TEMP/heytim-ios-internal-derived-$BUILD_NUMBER"; do
               if [[ -e "$path" ]]; then
                 find "$path" -depth -delete
               fi
             done
           fi
-          receipt_dir="$RUNNER_TEMP/heytim-ios-candidate"
+          receipt_dir="$RUNNER_TEMP/heytim-ios-internal-smoke"
           if [[ -d "$receipt_dir" ]]; then
             find "$receipt_dir" -depth -delete
           fi

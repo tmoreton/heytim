@@ -3,8 +3,8 @@ set -euo pipefail
 
 release_scope="${HEYTIM_RELEASE_SCOPE:-full}"
 if [[ "$release_scope" != full && "$release_scope" != backend-macos \
-  && "$release_scope" != ios-preflight ]]; then
-  echo 'HEYTIM_RELEASE_SCOPE must be full, backend-macos, or ios-preflight.' >&2
+  && "$release_scope" != ios-preflight && "$release_scope" != ios-post-migration ]]; then
+  echo 'HEYTIM_RELEASE_SCOPE must be full, backend-macos, ios-preflight, or ios-post-migration.' >&2
   exit 2
 fi
 required_values=(
@@ -16,10 +16,12 @@ if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
   required_values+=(
     DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64
     DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD
+    APPLE_DEVELOPMENT_CERTIFICATE_BASE64 APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD
     HEYTIM_SPARKLE_PUBLIC_KEY SPARKLE_PRIVATE_KEY
   )
 fi
-if [[ "$release_scope" == full || "$release_scope" == ios-preflight ]]; then
+if [[ "$release_scope" == full || "$release_scope" == ios-preflight \
+  || "$release_scope" == ios-post-migration ]]; then
   required_values+=(
     APPLE_DISTRIBUTION_CERTIFICATE_BASE64 APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD
     APPLE_DEVELOPMENT_CERTIFICATE_BASE64 APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD
@@ -63,10 +65,14 @@ if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
   developer_id_certificate="$temporary_root/developer-id-application.p12"
   printf '%s' "$DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64" | base64 -D > "$developer_id_certificate"
 fi
-if [[ "$release_scope" == full || "$release_scope" == ios-preflight ]]; then
+if [[ "$release_scope" == full || "$release_scope" == ios-preflight \
+  || "$release_scope" == ios-post-migration ]]; then
   certificate="$temporary_root/distribution.p12"
-  development_certificate="$temporary_root/development.p12"
   printf '%s' "$APPLE_DISTRIBUTION_CERTIFICATE_BASE64" | base64 -D > "$certificate"
+fi
+if [[ "$release_scope" == full || "$release_scope" == backend-macos \
+  || "$release_scope" == ios-preflight || "$release_scope" == ios-post-migration ]]; then
+  development_certificate="$temporary_root/development.p12"
   printf '%s' "$APPLE_DEVELOPMENT_CERTIFICATE_BASE64" | base64 -D > "$development_certificate"
 fi
 printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$api_key"
@@ -83,9 +89,13 @@ security create-keychain -p "$keychain_password" "$keychain"
 security set-keychain-settings -lut 7200 "$keychain"
 security unlock-keychain -p "$keychain_password" "$keychain"
 security add-certificates -k "$keychain" "$signing_intermediate"
-if [[ "$release_scope" == full || "$release_scope" == ios-preflight ]]; then
+if [[ "$release_scope" == full || "$release_scope" == ios-preflight \
+  || "$release_scope" == ios-post-migration ]]; then
   security import "$certificate" -k "$keychain" -P "$APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD" \
     -T /usr/bin/codesign -T /usr/bin/security
+fi
+if [[ "$release_scope" == full || "$release_scope" == backend-macos \
+  || "$release_scope" == ios-preflight || "$release_scope" == ios-post-migration ]]; then
   security import "$development_certificate" -k "$keychain" \
     -P "$APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD" \
     -T /usr/bin/codesign -T /usr/bin/security
@@ -97,20 +107,30 @@ if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
 fi
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
   -k "$keychain_password" "$keychain" >/dev/null
-security list-keychains -d user -s "$keychain" "${original_keychains[@]}"
+# Keep Xcode from silently choosing a stale identity in the runner's login
+# keychain. Every identity needed for this release must be imported and probed.
+security list-keychains -d user -s "$keychain"
 cp /usr/bin/true "$temporary_root/signing-probe"
-if [[ "$release_scope" == full || "$release_scope" == ios-preflight ]]; then
+if [[ "$release_scope" == full || "$release_scope" == ios-preflight \
+  || "$release_scope" == ios-post-migration ]]; then
   signing_identity="$(security find-identity -v -p codesigning "$keychain" \
     | awk '/"Apple Distribution:/ { print $2; exit }')"
+  if [[ -z "$signing_identity" ]]; then
+    echo 'The CI distribution identity is not valid.' >&2
+    exit 1
+  fi
+  codesign --force --sign "$signing_identity" --keychain "$keychain" \
+    "$temporary_root/signing-probe"
+fi
+if [[ "$release_scope" == full || "$release_scope" == backend-macos \
+  || "$release_scope" == ios-preflight || "$release_scope" == ios-post-migration ]]; then
   development_identity="$(security find-identity -v -p codesigning "$keychain" \
     | awk '/"Apple Development:/ { print $2; exit }')"
-  if [[ -z "$signing_identity" || -z "$development_identity" ]]; then
-    echo 'The CI development or distribution identity is not valid.' >&2
+  if [[ -z "$development_identity" ]]; then
+    echo 'The CI development identity is not valid.' >&2
     exit 1
   fi
   codesign --force --sign "$development_identity" --keychain "$keychain" \
-    "$temporary_root/signing-probe"
-  codesign --force --sign "$signing_identity" --keychain "$keychain" \
     "$temporary_root/signing-probe"
 fi
 if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
@@ -128,7 +148,8 @@ fi
 # remain readable by the non-root user who installs and runs the Mac app.
 umask 022
 
-if [[ "$release_scope" == full || "$release_scope" == ios-preflight ]]; then
+if [[ "$release_scope" == full || "$release_scope" == ios-preflight \
+  || "$release_scope" == ios-post-migration ]]; then
   APP_STORE_CONNECT_KEY_PATH="$api_key" \
     HEYTIM_SIGNING_KEYCHAIN="$keychain" \
     HEYTIM_ALLOW_GENERIC_IOS_BUILD=true \
