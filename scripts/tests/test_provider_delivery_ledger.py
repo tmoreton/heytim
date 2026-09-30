@@ -110,11 +110,11 @@ def test_complete_synthetic_evidence_still_requires_independent_review() -> None
         _boundary(path, "destination-started", DEST)
         _boundary(path, "ended", END)
         for provider, event_id in identities.items():
-            for scope in ("provider", "source-ingress", "destination-ingress"):
+            for scope in ("provider", "provider-attempts", "source-ingress", "destination-ingress"):
                 append(path, {
                     "kind": "coverage", "provider": provider, "scope": scope,
                     "from": START, "through": END, "completeness": "complete",
-                    "method": "operator-reconciliation" if provider == "plaid" and scope == "provider" else ("provider-api" if scope == "provider" else "aws-ingress"),
+                    "method": "operator-reconciliation" if provider == "plaid" and scope in {"provider", "provider-attempts"} else ("provider-api" if scope in {"provider", "provider-attempts"} else "aws-ingress"),
                     "reference": "EV-COVERAGE",
                 })
             _delivery(path, provider, event_id)

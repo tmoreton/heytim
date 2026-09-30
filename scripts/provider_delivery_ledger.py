@@ -21,7 +21,7 @@ from typing import Any
 SOURCE_ACCOUNT = "188757775631"
 DESTINATION_ACCOUNT = "820323452649"
 PROVIDERS = ("stripe", "github", "plaid")
-SCOPES = ("provider", "source-ingress", "destination-ingress")
+SCOPES = ("provider", "provider-attempts", "source-ingress", "destination-ingress")
 EFFECTS = {
     "stripe": ("owner-mapping", "stripe-marker", "billing-row"),
     "github": ("owner-mapping", "subscription-index", "queue-job", "group-message"),
@@ -107,11 +107,11 @@ def validate_record(record: dict, prior: list[dict]) -> None:
             raise ValueError("Invalid coverage conclusion")
         if record["method"] not in {"provider-api", "provider-dashboard", "aws-ingress", "operator-reconciliation"}:
             raise ValueError("Invalid coverage method")
-        if record["scope"] == "provider" and record["method"] == "aws-ingress":
-            raise ValueError("AWS ingress cannot prove a provider-side event inventory")
-        if record["scope"] != "provider" and record["method"] in {"provider-api", "provider-dashboard"}:
+        if record["scope"] in {"provider", "provider-attempts"} and record["method"] == "aws-ingress":
+            raise ValueError("AWS ingress cannot prove a provider-side event or attempt inventory")
+        if record["scope"] not in {"provider", "provider-attempts"} and record["method"] in {"provider-api", "provider-dashboard"}:
             raise ValueError("Provider history cannot prove AWS ingress coverage")
-        if record["provider"] == "plaid" and record["scope"] == "provider" and record["method"] == "provider-api" and record["completeness"] == "complete":
+        if record["provider"] == "plaid" and record["scope"] in {"provider", "provider-attempts"} and record["method"] == "provider-api" and record["completeness"] == "complete":
             raise ValueError("Plaid has no complete provider delivery listing")
         if _utc(record["through"]) <= _utc(record["from"]):
             raise ValueError("Coverage interval is empty")

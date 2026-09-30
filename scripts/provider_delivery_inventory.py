@@ -138,11 +138,16 @@ def inventory(session: Any, account: str, table_name: str,
     if not description.get("TableArn", "").startswith(expected_prefix) or description.get("TableName") != table_name:
         raise ValueError("DynamoDB table does not belong to the reviewed account")
     counts: Counter[str] = Counter({name: 0 for name in COUNTS})
+    plaid_connection_ids: set[str] = set()
+    dependency_candidates: list[dict] = []
     paginator = table.get_paginator("scan")
     for page in paginator.paginate(
         TableName=table_name, ConsistentRead=True,
-        ProjectionExpression="#entity,#provider,eventType",
-        ExpressionAttributeNames={"#entity": "entity", "#provider": "provider"},
+        ProjectionExpression="#entity,#provider,eventType,#id,toolIds,requiredToolIds,#trigger.#connectionId",
+        ExpressionAttributeNames={
+            "#entity": "entity", "#provider": "provider", "#id": "id",
+            "#trigger": "trigger", "#connectionId": "connectionId",
+        },
     ):
         for item in page.get("Items", []):
             entity = item.get("entity", {}).get("S")
@@ -161,6 +166,25 @@ def inventory(session: Any, account: str, table_name: str,
                 counts["plaid_sync_rows"] += 1
             elif entity == "CONNECTION" and provider == "plaid":
                 counts["plaid_connections"] += 1
+                connection_id = item.get("id", {}).get("S")
+                if isinstance(connection_id, str):
+                    plaid_connection_ids.add(connection_id)
+            if "toolIds" in item or "requiredToolIds" in item or "trigger" in item:
+                dependency_candidates.append(item)
+    referencing_items = 0
+    routine_trigger_items = 0
+    references_by_entity: Counter[str] = Counter()
+    for item in dependency_candidates:
+        linked = {
+            entry.get("S") for field in ("toolIds", "requiredToolIds")
+            for entry in item.get(field, {}).get("L", []) if isinstance(entry, dict)
+        }
+        trigger_id = item.get("trigger", {}).get("M", {}).get("connectionId", {}).get("S")
+        if plaid_connection_ids.intersection(linked) or trigger_id in plaid_connection_ids:
+            referencing_items += 1
+            references_by_entity[item.get("entity", {}).get("S", "UNKNOWN")] += 1
+            if trigger_id in plaid_connection_ids:
+                routine_trigger_items += 1
     checks: dict[str, list[dict[str, Any]]] = {name: [] for name in IDENTITY_FIELDS}
     for value in identities["stripeEvents"]:
         item = _get(table, table_name, "SYSTEM#STRIPE_EVENT", f"EVENT#{value['id']}",
@@ -208,7 +232,13 @@ def inventory(session: Any, account: str, table_name: str,
     return {
         "status": "INVENTORY_ONLY", "observedAtUTC": datetime.now(UTC).isoformat(),
         "account": account, "region": REGION, "tableItemCountApproximate": description.get("ItemCount", -1),
-        "projectedCounts": dict(counts), "exactChecks": checks, "jobsQueue": queue,
+        "projectedCounts": dict(counts),
+        "plaidConnectionReferences": {
+            "referencingItems": referencing_items,
+            "routineTriggerItems": routine_trigger_items,
+            "byEntity": dict(references_by_entity),
+        },
+        "exactChecks": checks, "jobsQueue": queue,
         "note": "Read-only metadata projection. Scan is not a point-in-time snapshot; queue counts are approximate. No provider delivery listing or job identity is proved.",
     }
 

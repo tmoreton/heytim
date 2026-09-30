@@ -28,7 +28,12 @@ class FakePaginator:
             return [{"Items": [
                 {"entity": {"S": "STRIPE_EVENT"}},
                 {"entity": {"S": "BILLING"}, "provider": {"S": "stripe"}},
-                {"entity": {"S": "CONNECTION"}, "provider": {"S": "plaid"}},
+                {"entity": {"S": "CONNECTION"}, "provider": {"S": "plaid"},
+                 "id": {"S": "connection_1234567890abcdef1234"}},
+                {"entity": {"S": "BOT"},
+                 "toolIds": {"L": [{"S": "connection_1234567890abcdef1234"}]}},
+                {"entity": {"S": "ROUTINE"},
+                 "trigger": {"M": {"connectionId": {"S": "connection_1234567890abcdef1234"}}}},
                 {"entity": {"S": "PLAID_ITEM_MAPPING"}},
                 {"entity": {"S": "GITHUB_ROUTINE_SUBSCRIPTION"}},
             ]}]
@@ -126,6 +131,10 @@ def test_inventory_projects_metadata_and_reports_exact_checks_without_ids() -> N
     result = inventory(session, DESTINATION_ACCOUNT, "Data", ids, "https://sqs.example.invalid/jobs")
     assert result["status"] == "INVENTORY_ONLY"
     assert result["projectedCounts"]["plaid_connections"] == 1
+    assert result["plaidConnectionReferences"] == {
+        "referencingItems": 2, "routineTriggerItems": 1,
+        "byEntity": {"BOT": 1, "ROUTINE": 1},
+    }
     assert result["exactChecks"]["stripeEvents"] == [{"markerPresent": True}]
     assert result["exactChecks"]["githubMessages"] == [{"matchingMessageCount": 1}]
     assert result["exactChecks"]["plaidSync"][0]["revision"] == 3

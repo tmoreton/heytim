@@ -41,6 +41,31 @@ markers must be matched to a destination owner and imported state in the
 protected migration evidence. The zero GitHub indexes are a current-state
 observation, not proof that the App receives no webhooks.
 
+At **2026-09-30 02:56 UTC**, a second read-only provider-side inventory
+covered **2026-09-27 03:00 through 2026-09-30 02:56 UTC**. The protected
+mode-`0600` evidence file is
+`/private/tmp/heytim-provider-inventory-20260930T0256Z.json` on the operator
+host. The Stripe endpoint remained enabled and source-bound with the exact
+four subscribed event types; its Events API listed **zero new relevant events**
+created in that interval. Both existing source DDB event markers resolve to
+Stripe events with matching event types; the one billing row points to a
+present marker. The GitHub App hook remained source-bound and its App delivery
+API listed **zero attempts** in the interval. These observations predate the
+maintenance window. They do not inventory future deliveries or Stripe's
+endpoint-specific attempts, and Stripe's creation-time filter can miss an
+older event retried during the interval.
+
+The read-only [provider-side collector](../scripts/provider_side_delivery_inventory.py)
+obtains protected application credentials through process memory and calls
+only Stripe/GitHub GET endpoints. It writes only event IDs, timestamps, event
+types, status codes, source marker matches, and endpoint ownership to a new
+mode-`0600` file. It never writes a token or webhook body. The collector
+requires a UTC interval no longer than GitHub's three-day history. Rerun it
+at the end of the actual window with a three-day lookback and a new output
+path, then compare its IDs with the ledger. It reports Stripe endpoint-attempt
+coverage and Plaid Transactions coverage as incomplete even if no new events
+are returned.
+
 ## Private ledger and read-only inventory
 
 Use [provider_delivery_ledger.py](../scripts/provider_delivery_ledger.py)
@@ -66,7 +91,9 @@ webhook bodies and arbitrary fields.
    independently observed. Boundaries are immutable; an incorrect boundary
    requires a fresh ledger and review. Record complete or partial coverage
    for each provider and each of `provider`, `source-ingress`, and
-   `destination-ingress` over the exact window. Coverage gaps remain blockers.
+   `destination-ingress`, and `provider-attempts` over the exact window.
+   Coverage gaps remain blockers. Stripe's Events listing covers creation
+   time, but does not itself establish endpoint-attempt coverage.
 
 3. For each Stripe event use the immutable `evt_...` ID. For each GitHub
    delivery use its `guid` / `X-GitHub-Delivery`; keep its numeric App delivery
@@ -141,7 +168,25 @@ and [redelivery limits](https://docs.github.com/en/webhooks/testing-and-troubles
 
 **Plaid.** The user approved copying the application credential only;
 end-user Item access tokens must not be moved. The existing source connection
-must be classified before enabling destination Plaid ingress. Plaid retries
+is an intentional reconnect exclusion **only if** the private migration
+manifest records it, no end-user token or old Item binding is imported,
+destination Plaid ingress/sync stays disabled until an owner reconnects, and
+any bots or routines that reference the old connection are identified for
+user-facing repair. The metadata-only
+`provider_delivery_inventory.py` projection now counts references in
+`toolIds`, `requiredToolIds`, and routine `trigger.connectionId` without
+reading names or content. A source read at **2026-09-30 03:18 UTC** found
+**one referring item and zero routine trigger references**. The referring
+item must be identified from protected metadata and repaired or disabled
+before excluding the old connection; the inventory never prints its name
+or content.
+The source has no Item mapping or sync row, so there is
+no local Plaid cursor or transaction snapshot to migrate. This approved
+reconnect path does not prove old Item webhook history was processed, and
+must be described as a deliberate service gap until reconnect rather than
+a successful replay. The new Item must pass connection, mapping,
+`/transactions/sync`, and signed webhook checks before finance is enabled.
+Plaid retries
 failed webhooks for up to 24 hours, but the current handler's unknown-mapping
 HTTP 200 suppresses those retries. Plaid's
 [`/beta/webhook_events/list`](https://plaid.com/docs/api/webhooks/webhook-events/)
@@ -159,8 +204,10 @@ and [Item webhook update](https://plaid.com/docs/api/items/).
   count proves zero missing deliveries.
 - Destination state has not been imported, so Stripe billing/markers and
   Plaid connection ownership cannot be reconciled there.
-- The source has one Plaid connection and no Item mapping or sync row. Its
-  active/disconnected status and required reconnect are unresolved.
+- The source has one Plaid connection and no Item mapping or sync row. The
+  approved reconnect exclusion still needs a protected manifest and a
+  metadata-only dependency check before it is accepted; old webhook history
+  remains unproved and must not be called replayed.
 - GitHub App delivery listing requires the protected App JWT; no three-day
   delivery inventory or signed destination routine outcome has been recorded.
 - The source/destination job queue, in-flight messages, and DLQ need a
