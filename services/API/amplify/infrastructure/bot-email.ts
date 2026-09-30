@@ -1,4 +1,4 @@
-import { CfnOutput, Duration, Fn, RemovalPolicy, Stack } from 'aws-cdk-lib';
+import { CfnOutput, Duration, Fn, RemovalPolicy, Stack, Token } from 'aws-cdk-lib';
 import { Table } from 'aws-cdk-lib/aws-dynamodb';
 import { PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { Function as LambdaFunction, Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
@@ -7,7 +7,7 @@ import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket, BucketEncryption } from 'aws-cdk-lib/aws-s3';
 import { CfnHostedZone, CfnRecordSet } from 'aws-cdk-lib/aws-route53';
 import { CfnEmailIdentity, CfnReceiptRule, CfnReceiptRuleSet } from 'aws-cdk-lib/aws-ses';
-import { Topic } from 'aws-cdk-lib/aws-sns';
+import { SubscriptionFilter, Topic } from 'aws-cdk-lib/aws-sns';
 import { LambdaSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
 
@@ -38,6 +38,16 @@ export function addBotEmailReceiving(
     throw new Error('HEYTIM_BOT_EMAIL_CAPTURE_ONLY must be true or false.');
   }
   const captureOnly = captureOnlySetting === 'true';
+  const keepHeldSubscriberSetting = process.env.HEYTIM_BOT_EMAIL_KEEP_HELD_SUBSCRIBER;
+  if (keepHeldSubscriberSetting && !['true', 'false'].includes(keepHeldSubscriberSetting)) {
+    throw new Error('HEYTIM_BOT_EMAIL_KEEP_HELD_SUBSCRIBER must be true or false.');
+  }
+  const keepHeldSubscriber = keepHeldSubscriberSetting === 'true';
+  if (keepHeldSubscriber && (
+    !captureOnly || (!Token.isUnresolved(stack.account) && stack.account !== '820323452649')
+  )) {
+    throw new Error('A held mail subscriber requires destination-account store-only capture.');
+  }
   if (stage !== 'identity' && stage !== 'receive') {
     throw new Error('Set HEYTIM_BOT_EMAIL_STAGE to identity or receive for production.');
   }
@@ -147,6 +157,7 @@ export function addBotEmailReceiving(
     code: applicationPythonCode(),
     memorySize: 512,
     timeout: Duration.seconds(60),
+    reservedConcurrentExecutions: keepHeldSubscriber ? 0 : undefined,
     tracing: Tracing.ACTIVE,
     deadLetterQueue: deliveryFailures,
     logGroup: new LogGroup(stack, 'BotEmailReceiverLogs', {
@@ -168,8 +179,15 @@ export function addBotEmailReceiving(
   }));
   bucket.grantRead(receiver, 'received/*');
   jobs.grantSendMessages(receiver);
-  if (!captureOnly) {
-    topic.addSubscription(new LambdaSubscription(receiver, { deadLetterQueue: deliveryFailures }));
+  if (!captureOnly || keepHeldSubscriber) {
+    topic.addSubscription(new LambdaSubscription(receiver, {
+      deadLetterQueue: deliveryFailures,
+      ...(keepHeldSubscriber ? { filterPolicy: {
+        heytim_cutover_capture_hold: SubscriptionFilter.stringFilter({
+          allowlist: ['destination-820323452649-20260930'],
+        }),
+      } } : {}),
+    }));
   }
 
   const outboundFailures = new Queue(stack, 'BotEmailOutboxFailures', {

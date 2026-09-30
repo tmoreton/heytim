@@ -265,12 +265,15 @@ snapshot only if an authorized change to that account was made.
 
 ### Destination capture owner handoff remains NO-GO
 
-The destination standalone stack can be deployed while its SES rule set is
-inactive. Before reactivating the destination set, change its retained
+The destination standalone stack `HeyTimDestinationMailCapture` reached
+`CREATE_COMPLETE` in account `820323452649` on September 30. A non-mail
+SNS-to-SQS smoke message arrived in its capture queue and was removed after
+verification. Destination SES remains inactive. Before reactivating the
+destination set, change its retained
 `HeyTimBotInbox` rule to store-only S3+SNS capture using the standalone
 quarantine bucket and exact destination topic/role. Hold the existing
 destination receiver at zero concurrency and an exact reviewed SNS filter,
-or prove that its Lambda subscription is absent; the old destination raw
+while keeping its CloudFormation-owned Lambda subscription; the old destination raw
 object still needs private classification. Reactivate only after readback of
 the full rule set proves no overlapping bounce and a controlled delivery is
 stored and queued. Keep source active until that test passes. When source is
@@ -291,16 +294,56 @@ The no-gap handoff requires a separate, private destination Amplify
 CloudFormation diff and exact destination account configuration. That
 deployment must first create its *own* queue/subscription/quarantine and
 switch the SES S3 action to its new bucket while the standalone subscription
-still captures SNS. Prove both queues, the new MIME location, and a
+still captures SNS. The private preview requires
+`HEYTIM_BOT_EMAIL_KEEP_HELD_SUBSCRIBER=true`: synthesis retains the same
+CloudFormation SNS-to-Lambda subscription logical ID, applies the exact
+`heytim_cutover_capture_hold` MessageAttributes filter, sets receiver reserved
+concurrency to zero, and keeps `MAIL_PROCESSING_ENABLED=false`. Prove both queues, the new MIME location, and a
 reconciliation watermark, then remove the standalone stack and account for
 its retained queue/bucket. Only after that may the normal full release
 workflow run, switching SES to the seven-day raw bucket and enabling normal
-destination processing. A guarded private Amplify deployment path and its
-destination-bound configuration have **not** been implemented or verified;
-this handoff remains NO-GO. The standalone capture stack must stay deployed
-until that path is ready. On rollback, preserve both destination and source
-quarantines and capture subscriptions until one processing owner and every
-held notification are accounted for.
+destination processing. A **read-only** private preview now exists at
+`scripts/preview_destination_mail_capture.sh`. It requires a named AWS
+profile that STS resolves to destination account `820323452649`, verifies
+Amplify app `d17sj7dvhx07c` and its `main` branch/root stack, requires
+`HEYTIM_BOT_EMAIL_CAPTURE_ONLY=true` and
+`HEYTIM_BOT_EMAIL_KEEP_HELD_SUBSCRIBER=true` with
+`HEYTIM_BOT_EMAIL_AVAILABLE=false`, and rejects account-mismatched ARNs.
+Supply destination production configuration through the process environment;
+do not copy source account secret values or GitHub release variables. From the
+repository root, run `bash scripts/preview_destination_mail_capture.sh
+<destination-profile>`. Before synthesis, a read-only preflight checks the
+CloudFormation-bound SNS topic/subscription and Lambda, the exact live filter,
+zero reserved concurrency, inactive destination SES rule set, and CloudTrail
+evidence that both holds have been stable for at least 15 minutes. Once the
+destination rule set is active, the preflight instead requires its exact
+store-only rule to point at the standalone quarantine bucket and topic.
+Missing or recent hold events fail closed. It then bundles the full backend
+locally, runs **only**
+`cdk synth` and `cdk diff --method template`, and stores the assembly, diff,
+and template hashes in a private `/private/tmp` directory. The template
+method reads the live stack without creating a CloudFormation change set.
+The preview returns `NO_GO` for resource removal, replacement, unrelated
+resource changes, unreviewed IAM statement changes, or an unreadable diff; it
+has **no deploy mode**. A
+reviewed, destination-bound private deployment path is still missing.
+
+A read-only September 30 preview using destination Lambda ARN/ID metadata and
+the destination AgentCore memory key returned `NO_GO`: nine resource
+additions, sixteen modifications, two removals (the current mail Lambda SNS
+subscription and invoke permission), IAM changes, and zero replacements.
+The held-subscriber mode retains the existing subscription and invoke
+permission. A second read-only representative diff with destination ARN/ID
+metadata showed nine additions, sixteen in-place changes, **zero removals and
+zero replacements**. The live held preflight currently fails because the
+destination filter has not been set. The unrelated UserFiles lifecycle,
+deploy-role IAM, Lambda code, and API route changes remain `NO_GO` until
+reviewed before any full backend deployment.
+The preview's private diff is not an approval to deploy. The standalone
+capture stack must stay deployed until a reviewed transition exists. On
+rollback, preserve both destination and source quarantines and capture
+subscriptions until one processing owner and every held notification are
+accounted for.
 
 ### Replay contract before any queue is drained
 
