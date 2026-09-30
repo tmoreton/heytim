@@ -113,7 +113,9 @@ def baseline_hashes(manifest: dict, destination: dict, actors: dict,
 
     # Older verified manifests have only an aggregate digest. Bootstrap solely
     # while destination still equals that *entire* initial snapshot.
-    require({record["memoryRecordId"] for record in destination["records"]} == set(record_map.values()) and
+    require(destination["actors"] == set(actors.values()) and
+            destination["sessions"] == {(actors[a], target) for (a, _), target in sessions.items()} and
+            {record["memoryRecordId"] for record in destination["records"]} == set(record_map.values()) and
             {event["eventId"] for event in destination["events"]} == set(manifest["eventIds"].values()),
             "Legacy manifest cannot establish a per-record baseline after destination changes")
     record_by_id = {record["memoryRecordId"]: record for record in destination["records"]}
