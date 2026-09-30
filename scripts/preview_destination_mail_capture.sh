@@ -79,6 +79,11 @@ if [[ "${HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN}" != arn:aws:kms:"$region":"$accoun
   echo 'The memory encryption key is not a destination KMS key.' >&2
   exit 1
 fi
+legacy_vault_key='arn:aws:kms:us-east-1:820323452649:key/4893a4c0-00e8-4381-823b-19c8bc8ed248'
+if [[ "${HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN}" != "$legacy_vault_key" ]]; then
+  echo 'The legacy token-vault key must match the existing destination grant.' >&2
+  exit 1
+fi
 if [[ -n "${HEYTIM_STRIPE_SECRET_ID:-}" \
    || -n "${HEYTIM_STRIPE_PLUS_PRICE_ID:-}" \
    || "${HEYTIM_STRIPE_LIVE_MODE:-false}" != false ]]; then

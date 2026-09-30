@@ -74,7 +74,9 @@ def _fixture(tmp_path: Path, account: str) -> dict[str, str]:
         "HEYTIM_AGENT_RUNTIME_ARN": f"arn:aws:bedrock-agentcore:us-east-1:{ACCOUNT}:runtime/example",
         "HEYTIM_MEMORY_ID": "example",
         "HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN": f"arn:aws:kms:us-east-1:{ACCOUNT}:key/example",
-        "HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN": f"arn:aws:kms:us-east-1:{ACCOUNT}:key/legacy",
+        "HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN": (
+            f"arn:aws:kms:us-east-1:{ACCOUNT}:key/4893a4c0-00e8-4381-823b-19c8bc8ed248"
+        ),
         "HEYTIM_GOOGLE_OAUTH_SECRET_ARN": f"arn:aws:secretsmanager:us-east-1:{ACCOUNT}:secret:google",
         "HEYTIM_GITHUB_APP_SECRET_ARN": f"arn:aws:secretsmanager:us-east-1:{ACCOUNT}:secret:github",
         "HEYTIM_X_OAUTH_SECRET_ARN": f"arn:aws:secretsmanager:us-east-1:{ACCOUNT}:secret:x",
@@ -172,4 +174,18 @@ def test_missing_free_only_mode_stops_before_synthesis(tmp_path: Path) -> None:
     )
     assert result.returncode == 1
     assert "30-credit Free plan" in result.stderr
+    assert not Path(env["PREVIEW_CDK_CALLS"]).exists()
+
+
+def test_other_destination_vault_key_stops_before_synthesis(tmp_path: Path) -> None:
+    env = _fixture(tmp_path, ACCOUNT)
+    env["HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN"] = (
+        f"arn:aws:kms:us-east-1:{ACCOUNT}:key/00000000-0000-0000-0000-000000000000"
+    )
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "destination-profile"],
+        env=env, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 1
+    assert "existing destination grant" in result.stderr
     assert not Path(env["PREVIEW_CDK_CALLS"]).exists()
