@@ -46,6 +46,7 @@ def _fixture(tmp_path: Path, account: str) -> dict[str, str]:
     python = bin_dir / "python3"
     python.write_text(
         "#!/usr/bin/env bash\n"
+        "if [[ \"$1\" == -c && \"$2\" == 'import boto3' ]]; then exit 0; fi\n"
         "if [[ \"$1\" == */_destination_mail_hold.py ]]; then\n"
         "  echo \"$*\" >> \"$PREVIEW_HOLD_CALLS\"\n"
         "  exit \"${PREVIEW_HOLD_STATUS:-0}\"\n"

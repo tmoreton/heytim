@@ -82,6 +82,10 @@ fi
 
 # The current CloudFormation-owned subscriber remains present in the private
 # deployment. Require exact live SNS/Lambda hold proof before any synthesis.
+if ! python3 -c 'import boto3' >/dev/null 2>&1; then
+  echo 'Python boto3 is required; run this preview with uv run --with boto3.' >&2
+  exit 2
+fi
 python3 "$repo_root/scripts/_destination_mail_hold.py" --profile "$profile"
 
 umask 077

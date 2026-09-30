@@ -311,8 +311,10 @@ Amplify app `d17sj7dvhx07c` and its `main` branch/root stack, requires
 `HEYTIM_BOT_EMAIL_AVAILABLE=false`, and rejects account-mismatched ARNs.
 Supply destination production configuration through the process environment;
 do not copy source account secret values or GitHub release variables. From the
-repository root, run `bash scripts/preview_destination_mail_capture.sh
-<destination-profile>`. Before synthesis, a read-only preflight checks the
+repository root, run `uv run --with boto3 bash
+scripts/preview_destination_mail_capture.sh <destination-profile>` (or use a
+Python environment with boto3 already installed). Before synthesis, a
+read-only preflight checks the
 CloudFormation-bound SNS topic/subscription and Lambda, the exact live filter,
 zero reserved concurrency, inactive destination SES rule set, and CloudTrail
 evidence that both holds have been stable for at least 15 minutes. Once the
