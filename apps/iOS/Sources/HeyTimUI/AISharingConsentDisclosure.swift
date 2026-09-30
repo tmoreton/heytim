@@ -14,7 +14,7 @@ struct AISharingConsentDisclosure: View {
           .accessibilityHidden(true)
         Text("Allow third-party AI processing?")
           .font(.title2.weight(.semibold))
-        Text("To answer you, Hey Tim sends your message, attachments, selected files, relevant conversation history and memory, bot instructions, and connected tool results to OpenRouter and the AI model provider it routes to. Image requests can also include prompts and reference images.")
+        Text("To answer you, Hey Tim sends your message, attachments, selected files, relevant conversation history and memory, bot instructions, and connected tool results to OpenRouter, which routes text requests to DeepSeek or Z.AI (GLM). Image prompts and reference images may be routed through OpenRouter to OpenAI's image model.")
         Text("In a room, relevant messages, memory, decisions, and member names can be included. A room run requires permission from everyone whose content it uses.")
         Text("You can turn this off in Settings. New AI work will stop, and a running task will stop before its next provider request.")
         Link("Read the Privacy Policy", destination: URL(string: "https://heytim.ai/privacy")!)

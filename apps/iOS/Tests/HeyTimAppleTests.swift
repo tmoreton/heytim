@@ -850,6 +850,66 @@ import UniformTypeIdentifiers
     XCTAssertEqual(model.pendingAttachments.map(\.id), ["risks"])
   }
 
+  func testFirstSendRequiresExplicitAISharingPermissionAndKeepsDraft() async throws {
+    var bootstrap = DemoData.bootstrap
+    bootstrap.aiSharingConsent = AISharingConsent(version: 1, granted: false)
+    var requests: [String] = []
+    MockURLProtocol.handler = { request in
+      requests.append(request.url?.path ?? "")
+      return Self.response(for: request, body: #"{}"#)
+    }
+    let api = HeyTimAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let model = AppModel(api: api)
+    model.bootstrap = bootstrap
+    model.selection = .init(kind: .bot, id: "chief")
+    model.composerText = "A private plan"
+    model.pendingAttachments = [Self.attachment("brief")]
+
+    await model.send()
+
+    XCTAssertTrue(model.showAISharingConsent)
+    XCTAssertEqual(model.composerText, "A private plan")
+    XCTAssertEqual(model.pendingAttachments.map(\.id), ["brief"])
+    XCTAssertTrue(requests.isEmpty)
+    model.showAISharingConsent = false
+    XCTAssertEqual(model.composerText, "A private plan")
+  }
+
+  func testAllowingAISharingSendsThePendingDraftOnce() async throws {
+    var bootstrap = DemoData.bootstrap
+    bootstrap.aiSharingConsent = AISharingConsent(version: 1, granted: false)
+    var requests: [String] = []
+    MockURLProtocol.handler = { request in
+      requests.append("\(request.httpMethod ?? "") \(request.url?.path ?? "")")
+      if request.httpMethod == "PUT" {
+        return Self.response(for: request, body: #"{"version":1,"granted":true}"#)
+      }
+      if request.httpMethod == "GET" {
+        return Self.response(for: request, body: #"{"messages":[]}"#)
+      }
+      return Self.response(for: request, body: #"{}"#)
+    }
+    let api = HeyTimAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let model = AppModel(api: api)
+    model.bootstrap = bootstrap
+    model.selection = .init(kind: .bot, id: "chief")
+    model.composerText = "Send this after I agree"
+
+    await model.send()
+    await model.allowAISharing(sendPendingMessage: true)
+
+    XCTAssertEqual(
+      requests,
+      ["PUT /account/ai-sharing", "POST /bots/chief/messages", "GET /bots/chief/messages"])
+    XCTAssertEqual(model.bootstrap?.aiSharingConsent, AISharingConsent(version: 1, granted: true))
+    XCTAssertFalse(model.showAISharingConsent)
+    XCTAssertTrue(model.composerText.isEmpty)
+  }
+
   func testQueuedGroupMessageCanSteerTheActiveRun() async throws {
     var bootstrap = DemoData.bootstrap
     bootstrap.groups = [Self.demoGroup()]

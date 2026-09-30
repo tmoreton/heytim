@@ -1294,7 +1294,8 @@ public enum DemoData {
     ],
     botTemplates: botTemplates, connectionProviders: demoConnectionProviders,
     needsBotOnboarding: false, groups: [], tools: tools,
-    retiredToolIds: [], skills: skills, constraints: constraints
+    retiredToolIds: [], skills: skills, constraints: constraints,
+    aiSharingConsent: AISharingConsent(version: 1, granted: true)
   )
   public static var multipleConnectionsBootstrap: Bootstrap {
     var value = bootstrap
