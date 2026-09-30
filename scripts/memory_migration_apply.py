@@ -78,6 +78,21 @@ def deterministic_token(kind: str, destination_id: str, source_ids: list[str]) -
     return f"heytim-{kind}-{digest([destination_id, source_ids])[:56]}"
 
 
+def record_content_hashes(
+    records: list[dict],
+    actors: dict[str, str],
+    sessions: dict[tuple[str, str], str],
+    strategies: dict[str, str],
+) -> dict[str, str]:
+    """Private-manifest baseline for conflict detection after migration."""
+    return {
+        record["memoryRecordId"]: digest(
+            expected_record(record, actors, sessions, strategies)
+        )
+        for record in records
+    }
+
+
 def validate_payload_shapes(
     destination: Any, destination_id: str, original: dict, strategies: dict[str, str]
 ) -> None:

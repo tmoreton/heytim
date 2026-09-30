@@ -28,6 +28,7 @@ from memory_migration_apply import (
     migration_manifest,
     ordered_events,
     read_manifest,
+    record_content_hashes,
     reconcile_existing,
     replace_manifest,
     validate_payload_shapes,
@@ -70,6 +71,7 @@ __all__ = [
     "paged",
     "read_identity_map",
     "read_manifest",
+    "record_content_hashes",
     "reconcile_existing",
     "record_fields",
     "replace_manifest",
@@ -319,7 +321,7 @@ def main() -> int:
             if args.resume:
                 manifest = read_manifest(args.manifest)
                 for key, value in expected_manifest.items():
-                    if key in {"status", "eventIds", "recordIds"}:
+                    if key in {"status", "eventIds", "recordIds", "recordHashes"}:
                         continue
                     if manifest.get(key) != value:
                         raise ValueError(
@@ -380,6 +382,9 @@ def main() -> int:
             }
             progress(mappings["events"], mappings["records"])
             manifest["verifiedContentSha256"] = mappings["verifiedContentSha256"]
+            manifest["recordHashes"] = record_content_hashes(
+                original["records"], actors, sessions, strategies
+            )
             manifest["status"] = "verified"
             replace_manifest(args.manifest, manifest)
         elif args.manifest:

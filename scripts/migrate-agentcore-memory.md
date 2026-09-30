@@ -157,3 +157,52 @@ stop condition; inspect the manifest and destination state first.
 The source memory has a 30-day event expiry. Preserving historical timestamps
 does not extend that retention period. Run and verify the migration within the
 approved maintenance window.
+
+## 4. Plan late managed-record changes without writing
+
+The verified manifest now stores a SHA-256 baseline for each copied record, keyed
+by its source record ID. It contains no record text. If a verified manifest was
+created before this field existed, the read-only planner can derive that baseline
+only while the destination still matches the manifest's **entire** original
+aggregate digest and contains no destination-only records. If that exact match is
+gone, the baseline cannot be recovered safely from the aggregate hash: NO-GO.
+
+Run the read-only planner with the same private identity map and verified
+manifest. Keep its optional ID-and-hash plan outside Git with mode `0600`:
+
+```sh
+services/runtime/.venv/bin/python scripts/plan-agentcore-memory-reconciliation.py \
+  --source-profile frogbot-release \
+  --destination-profile frogbot-production-org \
+  --identity-map /private/path/map.json \
+  --manifest /private/path/memory-id-map.json \
+  --plan-out /private/path/memory-late-plan.json
+```
+
+The planner binds exact source/destination accounts and Memory ARNs, verifies the
+strategy map and every mapped raw event, and reads full record sets twice. It
+compares each mapped destination record with its initial hash and the current
+source state. It reports source creates, updates, and deletions, flags destination
+edits or ambiguous unmapped copies, and fails if either Memory changes during
+planning. It uses full-state comparison so no order across Kinesis shards is
+assumed. Its stdout contains counts only; the private plan contains IDs and
+hashes, never customer content. Re-running the same unchanged state gives the
+same plan and makes no AWS changes.
+
+**The planner has no apply mode.** AgentCore `BatchUpdateMemoryRecords` and
+`BatchDeleteMemoryRecords` have no conditional version or compare-and-swap input.
+`BatchCreateMemoryRecords` has a client token, but AWS does not publish a
+durability window for that token or a bound for list visibility after an
+uncertain response. A destination user edit or managed consolidation can occur
+between the pre-write read and update/delete, so a live replay could overwrite
+or remove newer destination data. An interrupted create can also be ambiguous
+if the record is not yet visible. The current manifest stores per-record hashes
+for planning, but cannot solve those service-level atomicity gaps. Consequently
+**late-change apply and live traffic cutover remain NO-GO** until an independently
+verified destination write fence and a tested write-ahead, resumable apply path
+exist, or AWS supplies conditional record writes. Repeated quiet windows or
+the stream alone do not remove this constraint.
+
+API references: [update](https://docs.aws.amazon.com/bedrock-agentcore/latest/APIReference/API_BatchUpdateMemoryRecords.html),
+[delete](https://docs.aws.amazon.com/bedrock-agentcore/latest/APIReference/API_BatchDeleteMemoryRecords.html),
+[create](https://docs.aws.amazon.com/bedrock-agentcore/latest/APIReference/API_BatchCreateMemoryRecords.html).

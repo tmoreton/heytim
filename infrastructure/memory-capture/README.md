@@ -72,7 +72,12 @@ within a shard; there is no documented cross-shard or Memory-to-Kinesis total or
 events on top of a later snapshot can resurrect a deleted or superseded record. The current
 `scripts/migrate-agentcore-memory.py` handles an initial empty-destination migration and does **not** implement this
 late-change reconciler. Until that consumer and its failure/restart tests exist, observed stream health does not clear
-the traffic cutover gate.
+the traffic cutover gate. `scripts/plan-agentcore-memory-reconciliation.py` now detects late create/update/delete
+candidates from full source and destination inventories, using record hashes saved in the verified initial migration
+manifest. It is read-only. AgentCore offers no conditional version on record update/delete, so applying candidates
+while destination users or managed processing may write is unsafe. There is no automatic late-change apply or
+restart-safe write checkpoint yet; the [migration utility runbook](../../scripts/migrate-agentcore-memory.md) records
+the exact NO-GO.
 
 After each reshard, the read-only validator must cover retained closed parent shards and open child shards before
 the retention horizon passes. The checkpoint hash and source/destination full-state digests should be recorded for
