@@ -20,11 +20,17 @@ public struct PendingInvitation: Codable, Equatable, Sendable {
   }
 }
 
-private struct TokenSet: Codable, Sendable {
+struct TokenSet: Codable, Sendable {
   var idToken: String
   var accessToken: String
   var refreshToken: String
   var expiresAt: Date
+}
+
+protocol AuthTokenStore {
+  func save(_ value: TokenSet) throws
+  func load() -> TokenSet?
+  func delete()
 }
 
 private struct PendingCode: Sendable {
@@ -83,8 +89,7 @@ public final class AuthSession {
   @ObservationIgnored private let network: URLSession
   @ObservationIgnored private var tokens: TokenSet?
   @ObservationIgnored private var pending: PendingCode?
-  @ObservationIgnored private let keychain = TokenKeychain(
-    service: AuthSession.keychainServiceForCurrentProcess)
+  @ObservationIgnored private let tokenStore: any AuthTokenStore
   @ObservationIgnored private var sessionGeneration: UInt = 0
 
   private static var uiTestingEnabled: Bool {
@@ -116,6 +121,13 @@ public final class AuthSession {
   public init(configuration: AppConfiguration, network: URLSession = .shared) {
     self.configuration = configuration
     self.network = network
+    self.tokenStore = TokenKeychain(service: Self.keychainServiceForCurrentProcess)
+  }
+
+  init(configuration: AppConfiguration, network: URLSession, tokenStore: any AuthTokenStore) {
+    self.configuration = configuration
+    self.network = network
+    self.tokenStore = tokenStore
   }
 
   public var sessionIdentifier: UInt { sessionGeneration }
@@ -129,7 +141,7 @@ public final class AuthSession {
       phase = .signedIn
       return
     }
-    tokens = keychain.load()
+    tokens = tokenStore.load()
     if tokens != nil {
       sessionGeneration &+= 1
       do {
@@ -359,7 +371,7 @@ public final class AuthSession {
     let value = TokenSet(
       idToken: id, accessToken: access, refreshToken: refresh,
       expiresAt: Date().addingTimeInterval(TimeInterval(result.expiresIn ?? 3600)))
-    try keychain.save(value)
+    try tokenStore.save(value)
     tokens = value
     if preservingRefreshToken == nil { sessionGeneration &+= 1 }
   }
@@ -368,7 +380,7 @@ public final class AuthSession {
     sessionGeneration &+= 1
     tokens = nil
     pending = nil
-    keychain.delete()
+    tokenStore.delete()
   }
 
   private func sessionMatches(_ generation: UInt, refreshToken: String) -> Bool {
@@ -407,7 +419,7 @@ public final class AuthSession {
   }
 }
 
-private final class TokenKeychain: @unchecked Sendable {
+private final class TokenKeychain: AuthTokenStore, @unchecked Sendable {
   private static let logger = Logger(subsystem: "ai.heytim.app", category: "SecureSession")
 
   private let service: String

@@ -13,6 +13,14 @@ import UniformTypeIdentifiers
 
 @testable import HeyTimApple
 
+private final class InMemoryAuthTokenStore: AuthTokenStore {
+  private var value: TokenSet?
+
+  func save(_ value: TokenSet) throws { self.value = value }
+  func load() -> TokenSet? { value }
+  func delete() { value = nil }
+}
+
 @MainActor final class HeyTimAppleTests: XCTestCase {
   override func tearDown() {
     MockURLProtocol.handler = nil
@@ -1422,7 +1430,9 @@ import UniformTypeIdentifiers
           {"AuthenticationResult":{"AccessToken":"access-\(suffix)","ExpiresIn":3600,"IdToken":"id-\(suffix)","RefreshToken":"refresh-\(suffix)"}}
           """)
     }
-    let auth = AuthSession(configuration: configuration, network: mockSession)
+    let auth = AuthSession(
+      configuration: configuration, network: mockSession,
+      tokenStore: InMemoryAuthTokenStore())
 
     await auth.begin(email: "old@example.com", invitation: nil)
     let oldSession = auth.sessionIdentifier
@@ -1478,7 +1488,8 @@ import UniformTypeIdentifiers
     let networkConfiguration = URLSessionConfiguration.ephemeral
     networkConfiguration.protocolClasses = [ConcurrentMockURLProtocol.self]
     let auth = AuthSession(
-      configuration: configuration, network: URLSession(configuration: networkConfiguration))
+      configuration: configuration, network: URLSession(configuration: networkConfiguration),
+      tokenStore: InMemoryAuthTokenStore())
     await auth.begin(email: "old@example.com", invitation: nil)
     let oldSession = auth.sessionIdentifier
 
@@ -1520,7 +1531,9 @@ import UniformTypeIdentifiers
         body:
           #"{"AuthenticationResult":{"AccessToken":"access","ExpiresIn":0,"IdToken":"id","RefreshToken":"refresh"}}"#)
     }
-    let auth = AuthSession(configuration: configuration, network: mockSession)
+    let auth = AuthSession(
+      configuration: configuration, network: mockSession,
+      tokenStore: InMemoryAuthTokenStore())
     await auth.begin(email: "expired@example.com", invitation: nil)
     let session = auth.sessionIdentifier
 
