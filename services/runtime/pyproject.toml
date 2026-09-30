@@ -20,6 +20,9 @@ dependencies = [
     # AgentCore CodeZip resolves async file I/O transitives afresh. Pin caio to
     # the version exercised by the lockfile instead of accepting same-day PyPI drift.
     "caio == 0.12.5",
+    # CodeZip resolves Requests' charset transitive independently of uv.lock.
+    # Keep the packaged version identical to the tested runtime lock.
+    "charset-normalizer == 3.5.1",
     # Direct dependency: GitHub App JWTs use audited PEM parsing and RSA signing.
     "cryptography == 50.0.1",
     "cyclopts == 4.25.2",
