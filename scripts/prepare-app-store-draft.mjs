@@ -37,12 +37,21 @@ function validLocale(value) {
   return value;
 }
 
+function visibleVersion(value) {
+  if (typeof value !== 'string' || value.length > 32
+    || !/^\d+(?:\.\d+){0,7}$/.test(value)) {
+    throw new Error('Apple returned an invalid editable iOS version number. No draft changed.');
+  }
+  return value;
+}
+
 function versionInventory(versions) {
   return versions.map(version => ({
     id: version.id,
     platform: version.attributes?.platform,
     version: version.attributes?.versionString,
     state: version.attributes?.appStoreState,
+    releaseType: version.attributes?.releaseType,
   })).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
 }
 
@@ -91,7 +100,7 @@ export async function planAppStoreDraft(credentials, marketingVersion, fetchImpl
 
   const versions = list(await getJson(
     `/v1/apps/${app.id}/appStoreVersions`
-      + '?fields%5BappStoreVersions%5D=platform,versionString,appStoreState&limit=200',
+      + '?fields%5BappStoreVersions%5D=platform,versionString,appStoreState,releaseType&limit=200',
     token, fetchImpl,
   ), 'appStoreVersions');
   const iosVersions = versions.filter(item => item.attributes?.platform === 'IOS');
@@ -103,12 +112,23 @@ export async function planAppStoreDraft(credentials, marketingVersion, fetchImpl
     throw new Error(`iOS ${marketingVersion} already exists outside the editable draft state.`);
   }
   const targetVersion = target[0] ?? null;
-  if (iosVersions.some(item => item.id !== targetVersion?.id
-    && item.attributes?.appStoreState === DRAFT_STATE)) {
-    throw new Error('Another editable iOS App Store version exists. No draft created.');
+  const otherDrafts = iosVersions.filter(item => item.id !== targetVersion?.id
+    && item.attributes?.appStoreState === DRAFT_STATE);
+  if (otherDrafts.length > 1 || (targetVersion && otherDrafts.length)) {
+    const versionsText = otherDrafts.map(item => visibleVersion(item.attributes?.versionString)).join(', ');
+    throw new Error(`Multiple editable iOS App Store versions exist (${versionsText}; state ${DRAFT_STATE}). No draft changed.`);
   }
-  const versionLocalizations = targetVersion
-    ? await localizations(targetVersion.id, token, fetchImpl) : [];
+  const retargetDraft = otherDrafts[0] ?? null;
+  const existingVersionString = retargetDraft
+    ? visibleVersion(retargetDraft.attributes?.versionString) : null;
+  const selectedVersion = targetVersion ?? retargetDraft;
+  const releaseType = selectedVersion?.attributes?.releaseType;
+  const existingReleaseType = selectedVersion
+    ? (['MANUAL', 'AFTER_APPROVAL', 'SCHEDULED'].includes(releaseType)
+      ? releaseType : 'UNKNOWN')
+    : null;
+  const versionLocalizations = selectedVersion
+    ? await localizations(selectedVersion.id, token, fetchImpl) : [];
   const primaryMatches = versionLocalizations
     .filter(item => item.attributes?.locale === primaryLocale);
   if (primaryMatches.length > 1) {
@@ -123,10 +143,13 @@ export async function planAppStoreDraft(credentials, marketingVersion, fetchImpl
   })).digest('hex');
   return {
     token, appId: app.id, bundleId: BUNDLE_ID, primaryLocale, marketingVersion,
-    versionId: targetVersion?.id ?? null,
-    versionState: targetVersion?.attributes?.appStoreState ?? null,
+    versionId: selectedVersion?.id ?? null,
+    versionState: selectedVersion?.attributes?.appStoreState ?? null,
+    existingVersionString,
+    existingReleaseType,
     primaryLocalizationId: primaryMatches[0]?.id ?? null,
-    createVersion: !targetVersion,
+    createVersion: !selectedVersion,
+    retargetExistingVersion: Boolean(retargetDraft),
     createPrimaryLocalization: !primaryMatches.length,
     fingerprint,
   };
@@ -169,7 +192,45 @@ async function postResource(path, type, body, token, fetchImpl) {
   return result.data;
 }
 
-async function verifyVersion(versionId, marketingVersion, token, fetchImpl) {
+async function retargetVersion(versionId, marketingVersion, token, fetchImpl) {
+  if (!ID.test(versionId)) {
+    throw new Error('Refusing an invalid App Store version update destination.');
+  }
+  const url = new URL(`/v1/appStoreVersions/${versionId}`, ORIGIN);
+  let response;
+  try {
+    response = await fetchImpl(url, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ data: {
+        type: 'appStoreVersions', id: versionId,
+        attributes: { versionString: marketingVersion },
+      } }),
+      redirect: 'error',
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    throw new Error('Apple did not confirm the draft version update. Re-plan before retrying.');
+  }
+  if (response.status !== 200) {
+    throw new Error(`Apple rejected the draft version update (HTTP ${response.status}). Re-plan before retrying.`);
+  }
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error('Apple returned invalid JSON for the draft version update. Re-plan before retrying.');
+  }
+  if (result.data?.type !== 'appStoreVersions' || result.data?.id !== versionId) {
+    throw new Error('Apple returned a different App Store version after update. Inspect the draft.');
+  }
+}
+
+async function verifyVersion(versionId, marketingVersion, token, fetchImpl, expectedReleaseType) {
   const response = await getJson(
     `/v1/appStoreVersions/${versionId}`
       + '?fields%5BappStoreVersions%5D=platform,versionString,appStoreState,releaseType',
@@ -179,7 +240,8 @@ async function verifyVersion(versionId, marketingVersion, token, fetchImpl) {
   if (version?.type !== 'appStoreVersions' || version.id !== versionId
     || version.attributes?.platform !== 'IOS'
     || version.attributes?.versionString !== marketingVersion
-    || version.attributes?.appStoreState !== DRAFT_STATE) {
+    || version.attributes?.appStoreState !== DRAFT_STATE
+    || version.attributes?.releaseType !== expectedReleaseType) {
     throw new Error('Apple did not confirm the editable iOS draft. Inspect it before retrying.');
   }
   return version;
@@ -187,14 +249,24 @@ async function verifyVersion(versionId, marketingVersion, token, fetchImpl) {
 
 export async function prepareAppStoreDraft(credentials, marketingVersion, options = {}, fetchImpl = fetch) {
   const plan = await planAppStoreDraft(credentials, marketingVersion, fetchImpl);
-  if (!options.apply) return { ...plan, applied: false, versionCreated: false, localizationCreated: false };
+  if (!options.apply) return { ...plan, applied: false, versionCreated: false,
+    versionRetargeted: false, localizationCreated: false };
   if (!/^[a-f0-9]{64}$/.test(options.expectedPlanHash ?? '')
     || options.expectedPlanHash !== plan.fingerprint) {
-    throw new Error('The live Apple draft inventory differs from the reviewed plan. No draft created.');
+    throw new Error('The live Apple draft inventory differs from the reviewed plan. No draft changed.');
+  }
+  if (plan.retargetExistingVersion
+    ? options.expectedExistingVersion !== plan.existingVersionString
+    : Boolean(options.expectedExistingVersion)) {
+    throw new Error('Specify the exact existing draft version from the plan for a retarget, and omit it otherwise. No draft changed.');
+  }
+  if (plan.versionId && plan.existingReleaseType !== 'MANUAL') {
+    throw new Error('The existing draft release setting is not MANUAL. Inspect it before changing the draft.');
   }
 
   let versionId = plan.versionId;
   let versionCreated = false;
+  let versionRetargeted = false;
   let localizationCreated = false;
   if (plan.createVersion) {
     // Apple's create-version endpoint creates a PREPARE_FOR_SUBMISSION draft.
@@ -209,7 +281,14 @@ export async function prepareAppStoreDraft(credentials, marketingVersion, option
     versionId = version.id;
     versionCreated = true;
   }
-  await verifyVersion(versionId, marketingVersion, plan.token, fetchImpl);
+  if (plan.retargetExistingVersion) {
+    await verifyVersion(versionId, plan.existingVersionString, plan.token, fetchImpl,
+      plan.existingReleaseType);
+    await retargetVersion(versionId, marketingVersion, plan.token, fetchImpl);
+    versionRetargeted = true;
+  }
+  await verifyVersion(versionId, marketingVersion, plan.token, fetchImpl,
+    versionCreated ? 'MANUAL' : plan.existingReleaseType);
 
   // Apple may copy localizations from the preceding version. Create only the
   // primary locale when absent, leaving all existing locale text untouched.
@@ -238,15 +317,19 @@ export async function prepareAppStoreDraft(credentials, marketingVersion, option
       throw new Error('Apple did not confirm the primary iOS localization. Inspect the draft.');
     }
   }
-  await verifyVersion(versionId, marketingVersion, plan.token, fetchImpl);
+  await verifyVersion(versionId, marketingVersion, plan.token, fetchImpl,
+    versionCreated ? 'MANUAL' : plan.existingReleaseType);
   return { ...plan, applied: true, versionId, primaryLocalizationId: primary[0].id,
-    versionCreated, localizationCreated };
+    versionCreated, versionRetargeted, localizationCreated };
 }
 
 export function renderDraftSummary(result) {
-  const action = result.applied
-    ? (result.versionCreated ? 'created' : 'already existed')
-    : (result.createVersion ? 'would create' : 'already exists');
+  const action = result.retargetExistingVersion
+    ? `${result.applied ? 'changed' : 'would change'} existing editable iOS draft`
+      + ` from ${result.existingVersionString} (${DRAFT_STATE}) to ${result.marketingVersion}`
+    : (result.applied
+      ? (result.versionCreated ? 'created' : 'already existed')
+      : (result.createVersion ? 'would create' : 'already exists'));
   const localeAction = result.applied
     ? (result.localizationCreated ? 'created' : 'already existed')
     : (result.createPrimaryLocalization ? 'would create if Apple does not copy it' : 'already exists');
@@ -254,10 +337,12 @@ export function renderDraftSummary(result) {
     '## HeyTim iOS App Store version draft', '',
     `Bundle ID: \`${result.bundleId}\`; version: \`${result.marketingVersion}\`; locale: \`${result.primaryLocale}\``,
     `Editable iOS draft: ${action}; primary version localization: ${localeAction}`,
+    `Release setting: ${result.createVersion ? 'MANUAL for a new draft'
+      : `${result.existingReleaseType} (unchanged; apply requires MANUAL)`}`,
     `Dry-run fingerprint: \`${result.fingerprint}\``, '',
-    'This operation creates only an iOS PREPARE_FOR_SUBMISSION version and, if absent,'
-      + ' its primary localization. It does not submit for review, upload a build,'
-      + ' publish to the App Store, or change existing locale text.',
+    'This operation creates or renumbers only an iOS PREPARE_FOR_SUBMISSION version and,'
+      + ' if absent, its primary localization. It does not submit for review, upload a build,'
+      + ' publish to the App Store, or change existing locale text or release settings.',
     'Run the separate listing metadata repair plan after the draft exists.', '',
   ].join('\n');
 }
@@ -268,12 +353,16 @@ function parseArgs(argv) {
     if (argv[i] === '--version' && !args.version) args.version = argv[++i];
     else if (argv[i] === '--expected-plan-hash' && !args.expectedPlanHash) {
       args.expectedPlanHash = argv[++i];
+    } else if (argv[i] === '--expected-existing-version' && !args.expectedExistingVersion) {
+      args.expectedExistingVersion = argv[++i];
     } else if (argv[i] === '--apply' && !args.apply) args.apply = true;
     else throw new Error('Invalid App Store draft arguments.');
   }
   if (!VERSION.test(args.version ?? '') || (args.apply && !args.expectedPlanHash)
-    || (!args.apply && args.expectedPlanHash)) {
-    throw new Error('Use --version MAJOR.MINOR.PATCH; --apply also requires --expected-plan-hash.');
+    || (!args.apply && (args.expectedPlanHash || args.expectedExistingVersion))
+    || (args.expectedExistingVersion && (args.expectedExistingVersion.length > 32
+      || !/^\d+(?:\.\d+){0,7}$/.test(args.expectedExistingVersion)))) {
+    throw new Error('Use --version MAJOR.MINOR.PATCH; --apply also requires --expected-plan-hash and a source version when retargeting.');
   }
   return args;
 }

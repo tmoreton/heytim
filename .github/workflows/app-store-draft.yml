@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Preview first; creation requires the matching fingerprint
+        description: Preview first; creation or renumbering requires the matching fingerprint
         required: true
         default: plan
         type: choice
@@ -18,6 +18,10 @@ on:
         type: string
       expected_plan_hash:
         description: Dry-run fingerprint, required only for apply
+        required: false
+        type: string
+      expected_existing_version:
+        description: Current draft version shown in plan, required for renumbering only
         required: false
         type: string
 
@@ -49,18 +53,20 @@ jobs:
           MODE: ${{ inputs.mode }}
           MARKETING_VERSION: ${{ inputs.marketing_version }}
           EXPECTED_PLAN_HASH: ${{ inputs.expected_plan_hash }}
+          EXPECTED_EXISTING_VERSION: ${{ inputs.expected_existing_version }}
         run: |
           if [[ ! "$MARKETING_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo 'marketing_version must be MAJOR.MINOR.PATCH.' >&2
             exit 1
           fi
-          if [[ "$MODE" == plan && -z "$EXPECTED_PLAN_HASH" ]]; then
+          if [[ "$MODE" == plan && -z "$EXPECTED_PLAN_HASH" && -z "$EXPECTED_EXISTING_VERSION" ]]; then
             exit 0
           fi
-          if [[ "$MODE" == apply && "$EXPECTED_PLAN_HASH" =~ ^[a-f0-9]{64}$ ]]; then
+          if [[ "$MODE" == apply && "$EXPECTED_PLAN_HASH" =~ ^[a-f0-9]{64}$ &&
+                ( -z "$EXPECTED_EXISTING_VERSION" || "$EXPECTED_EXISTING_VERSION" =~ ^[0-9]+(\.[0-9]+){0,7}$ ) ]]; then
             exit 0
           fi
-          echo 'Select plan without a fingerprint, or apply with its 64-character fingerprint.' >&2
+          echo 'Select plan without a fingerprint, or apply with its 64-character fingerprint and reviewed existing version when renumbering.' >&2
           exit 1
 
       - name: Preview iOS version draft
@@ -72,7 +78,7 @@ jobs:
           MARKETING_VERSION: ${{ inputs.marketing_version }}
         run: node scripts/prepare-app-store-draft.mjs --version "$MARKETING_VERSION"
 
-      - name: Create reviewed iOS version draft
+      - name: Prepare reviewed iOS version draft
         if: ${{ inputs.mode == 'apply' }}
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_KEY_ID }}
@@ -80,6 +86,10 @@ jobs:
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY }}
           MARKETING_VERSION: ${{ inputs.marketing_version }}
           EXPECTED_PLAN_HASH: ${{ inputs.expected_plan_hash }}
+          EXPECTED_EXISTING_VERSION: ${{ inputs.expected_existing_version }}
         run: |
-          node scripts/prepare-app-store-draft.mjs --version "$MARKETING_VERSION" \
-            --apply --expected-plan-hash "$EXPECTED_PLAN_HASH"
+          args=(--version "$MARKETING_VERSION" --apply --expected-plan-hash "$EXPECTED_PLAN_HASH")
+          if [[ -n "$EXPECTED_EXISTING_VERSION" ]]; then
+            args+=(--expected-existing-version "$EXPECTED_EXISTING_VERSION")
+          fi
+          node scripts/prepare-app-store-draft.mjs "${args[@]}"
