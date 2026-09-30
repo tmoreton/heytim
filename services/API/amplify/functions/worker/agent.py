@@ -44,6 +44,7 @@ from .youtube_quota import (
     _uses_youtube_search,
     reserve_youtube_search_calls,
 )
+
 RECENT_DIRECT_TURNS = 50
 
 
