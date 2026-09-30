@@ -22,12 +22,12 @@ struct BrowserHandoffView: View {
             .disabled(isBusy)
             .onSubmit { open() }
           Button("Open") { open() }
-            .froggyGlassButton(prominent: true, tint: FrogTheme.accent)
+            .froggyGlassButton(prominent: true)
             .disabled(isBusy)
         }
         if state?.status == "human_control" {
           Button("Return Control", systemImage: "arrow.uturn.backward") { resume() }
-            .froggyGlassButton(tint: FrogTheme.accent)
+            .froggyGlassButton()
             .disabled(isBusy)
         }
       }

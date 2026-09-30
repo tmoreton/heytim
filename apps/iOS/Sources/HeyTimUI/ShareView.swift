@@ -17,7 +17,7 @@ struct ShareView: View {
       if let url {
         Text(url.absoluteString).textSelection(.enabled).froggyFont(.caption)
         ShareLink(item: url) { Label("Share invitation", systemImage: "square.and.arrow.up") }
-          .froggyGlassButton(prominent: true, tint: FrogTheme.accent)
+          .froggyGlassButton(prominent: true)
       } else {
         Button { createLink() } label: {
           if creatingLink {
@@ -29,7 +29,7 @@ struct ShareView: View {
             Label("Create Invitation Link", systemImage: "link.badge.plus")
           }
         }
-        .froggyGlassButton(prominent: true, tint: FrogTheme.accent)
+        .froggyGlassButton(prominent: true)
         .controlSize(.large)
         .disabled(creatingLink)
         Text("The link becomes active only after you create it, and you can revoke it from Settings.")

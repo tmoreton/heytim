@@ -16,6 +16,7 @@
 		F20000000000000000000007 /* AppModel+AISharingConsent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000007 /* AppModel+AISharingConsent.swift */; };
 		F20000000000000000000008 /* InvitationParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000008 /* InvitationParser.swift */; };
 		F2000000000000000000000B /* AppModel+SidebarActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3000000000000000000000B /* AppModel+SidebarActivity.swift */; };
+		F2000000000000000000000C /* ButtonStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3000000000000000000000C /* ButtonStyles.swift */; };
 		F20000000000000000000009 /* ShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000009 /* ShareView.swift */; };
 		F2000000000000000000000A /* AISharingConsentDisclosure.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3000000000000000000000A /* AISharingConsentDisclosure.swift */; };
 		0A87C1D4CB05978494CB610A /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6215600B1AD6C11F22092AEB /* Models.swift */; };
@@ -84,6 +85,7 @@
 		F30000000000000000000007 /* AppModel+AISharingConsent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AppModel+AISharingConsent.swift"; path = "Sources/HeyTimCore/AppModel+AISharingConsent.swift"; sourceTree = "<group>"; };
 		F30000000000000000000008 /* InvitationParser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InvitationParser.swift; path = Sources/HeyTimCore/InvitationParser.swift; sourceTree = "<group>"; };
 		F3000000000000000000000B /* AppModel+SidebarActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AppModel+SidebarActivity.swift"; path = "Sources/HeyTimCore/AppModel+SidebarActivity.swift"; sourceTree = "<group>"; };
+		F3000000000000000000000C /* ButtonStyles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ButtonStyles.swift; path = Sources/HeyTimUI/ButtonStyles.swift; sourceTree = "<group>"; };
 		F30000000000000000000009 /* ShareView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareView.swift; path = Sources/HeyTimUI/ShareView.swift; sourceTree = "<group>"; };
 		F3000000000000000000000A /* AISharingConsentDisclosure.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AISharingConsentDisclosure.swift; path = Sources/HeyTimUI/AISharingConsentDisclosure.swift; sourceTree = "<group>"; };
 		023CEBD733F786082B5D08D4 /* Theme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Theme.swift; path = Sources/HeyTimUI/Theme.swift; sourceTree = "<group>"; };
@@ -222,6 +224,7 @@
 				F3000000000000000000000A /* AISharingConsentDisclosure.swift */,
 				A5E8990A0000000000000002 /* GitHubConnectionRepositoriesView.swift */,
 				023CEBD733F786082B5D08D4 /* Theme.swift */,
+				F3000000000000000000000C /* ButtonStyles.swift */,
 				DF6DC85847D1E63C3F66E5AE /* amplify_outputs.json */,
 				6F25A4E6E1346DB162542258 /* PrivacyInfo.xcprivacy */,
 				5EEAFB13611E1267A3DB575D /* Assets.xcassets */,
@@ -461,6 +464,7 @@
 				F2000000000000000000000A /* AISharingConsentDisclosure.swift in Sources */,
 				A5E8990A0000000000000001 /* GitHubConnectionRepositoriesView.swift in Sources */,
 				71657CB25210E15EB004C3B3 /* Theme.swift in Sources */,
+				F2000000000000000000000C /* ButtonStyles.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -7,6 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[1] / "migrate_dynamodb_state.py"
+sys.path.insert(0, str(SOURCE.parent))
 SPEC = importlib.util.spec_from_file_location("migrate_dynamodb_state", SOURCE)
 assert SPEC and SPEC.loader
 migration = importlib.util.module_from_spec(SPEC)

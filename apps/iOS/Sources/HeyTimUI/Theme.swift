@@ -530,16 +530,6 @@ extension View {
     environment(\.froggyUsesSheetNavigation, true)
   }
 
-  @ViewBuilder func froggyGlassButton(prominent: Bool = false, tint: Color? = nil) -> some View {
-    if prominent {
-      buttonStyle(.borderedProminent)
-        .tint(tint ?? FrogTheme.accent)
-        .foregroundStyle(FrogTheme.brandInk)
-    } else {
-      buttonStyle(.bordered).tint(tint ?? FrogTheme.accent)
-    }
-  }
-
   @ViewBuilder func froggyComposerSurface(
     tint: Color? = nil, backgroundTint: Color? = nil
   ) -> some View {

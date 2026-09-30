@@ -1637,7 +1637,7 @@ struct SchedulesView: View {
               Label("Run Now", systemImage: "play.fill")
             }
           }
-            .froggyGlassButton(tint: FrogTheme.accent)
+            .froggyGlassButton()
             .controlSize(.large)
             .frame(minWidth: 104, minHeight: 44)
             .disabled(runningID != nil)
