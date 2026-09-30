@@ -715,6 +715,8 @@ jobs:
           fi
           echo "::add-mask::$id_token"
           HEYTIM_API_URL="$api_url" HEYTIM_ID_TOKEN="$id_token" \
+            node services/API/scripts/cleanup-orphan-workflow-bot.mjs
+          HEYTIM_API_URL="$api_url" HEYTIM_ID_TOKEN="$id_token" \
             npm --prefix services/API run workflow:test
 
       - name: Stage production client configuration
