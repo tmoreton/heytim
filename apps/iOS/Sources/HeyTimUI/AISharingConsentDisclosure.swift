@@ -20,6 +20,7 @@ struct AISharingConsentDisclosure: View {
         Link("Read the Privacy Policy", destination: URL(string: "https://heytim.ai/privacy")!)
         HStack {
           Button("Not Now", action: onCancel)
+            .disabled(isWorking)
           Spacer()
           Button(action: onAllow) {
             if isWorking {
