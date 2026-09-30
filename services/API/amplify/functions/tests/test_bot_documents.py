@@ -7,6 +7,13 @@ from api_test_case import ApiTestCase
 
 class BotDocumentTests(ApiTestCase):
     def test_bot_deletion_purges_documents_before_removing_the_bot(self) -> None:
+        account_state = {
+            "pk": "USER#user-1",
+            "sk": "STATE",
+            "entity": "USER_STATE",
+            "aiSharingConsent": {"version": 1, "granted": True, "epoch": "existing"},
+        }
+        self.data_table.put_item(Item=account_state)
         turns = [
             {
                 "pk": "CHAT#user-1#bot-1",
@@ -33,6 +40,10 @@ class BotDocumentTests(ApiTestCase):
         delete_documents.assert_called_once_with("user-1", "bot-1", turns)
         self.assertEqual(result["deletedDocuments"], 2)
         self.assertIn({"pk": "USER#user-1", "sk": "BOT#bot-1"}, self.data_table.deleted)
+        self.assertEqual(
+            self.data_table.get_item(Key={"pk": "USER#user-1", "sk": "STATE"})["Item"],
+            account_state,
+        )
 
     def test_listing_associates_legacy_turn_artifacts_with_the_bot(self) -> None:
         current = {

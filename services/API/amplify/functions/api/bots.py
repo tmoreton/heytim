@@ -539,13 +539,15 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
             batch.put_item(Item=meta)
         batch.delete_item(Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot_id)})
         batch.delete_item(Key=context_key(user_id, bot_id))
-        batch.put_item(
-            Item={
-                **_user_state_key(user_id),
-                "entity": "USER_STATE",
-                "initializedAt": _now(),
-            }
-        )
+    # Keep account-level state, including AI permission, when a bot is removed.
+    table.update_item(
+        Key=_user_state_key(user_id),
+        UpdateExpression=(
+            "SET entity = if_not_exists(entity, :entity), "
+            "initializedAt = if_not_exists(initializedAt, :now)"
+        ),
+        ExpressionAttributeValues={":entity": "USER_STATE", ":now": _now()},
+    )
     return {
         "deleted": True,
         "deletedTurns": len(turns),
