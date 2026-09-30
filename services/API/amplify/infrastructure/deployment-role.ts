@@ -1,5 +1,6 @@
-import { ArnFormat, Duration, RemovalPolicy, type Stack } from 'aws-cdk-lib';
+import { ArnFormat, Aws, CfnCondition, Duration, Fn, RemovalPolicy, type Stack } from 'aws-cdk-lib';
 import {
+  CfnPolicy,
   Effect,
   FederatedPrincipal,
   PolicyStatement,
@@ -17,6 +18,7 @@ import {
 type DeploymentRoleResources = {
   stack: Stack;
   enabled: boolean;
+  releaseConsentFenceRead?: boolean;
   logsKmsKey: Key;
   legacyTokenVaultKmsKeyArn?: string;
   nativePushApplicationArns?: string[];
@@ -26,6 +28,7 @@ type DeploymentRoleResources = {
 export function addGithubDeploymentRole({
   stack,
   enabled,
+  releaseConsentFenceRead = false,
   logsKmsKey,
   legacyTokenVaultKmsKeyArn,
   nativePushApplicationArns = [],
@@ -439,14 +442,25 @@ export function addGithubDeploymentRole({
     actions: ['s3:GetObject', 's3:PutObject'],
     resources: [`${productionFilesBucketArn}/meme-templates/*`],
   }));
-  if (stack.account === '820323452649') {
-    // The release runner reads only its synthetic user's current revoke fence.
-    role.addToPolicy(new PolicyStatement({
-      actions: ['s3:GetObject'],
-      resources: [
-        `${productionFilesBucketArn}/users/3893a3ef3b21d5e84bd8a1117ce54afc4599424dc4c02cc5860ac572a921da56/ai-sharing-consent.json`,
-      ],
-    }));
+  if (releaseConsentFenceRead) {
+    // The release workflow opts in after checking its destination account and
+    // Amplify app. CloudFormation enforces the destination account again.
+    const destinationOnly = new CfnCondition(stack, 'SyntheticConsentDestinationAccount', {
+      expression: Fn.conditionEquals(Aws.ACCOUNT_ID, '820323452649'),
+    });
+    const policy = new CfnPolicy(stack, 'SyntheticConsentFenceReadPolicy', {
+      policyName: 'HeyTimSyntheticReleaseConsentRead',
+      roles: [role.roleName],
+      policyDocument: {
+        Version: '2012-10-17',
+        Statement: [{
+          Effect: 'Allow',
+          Action: 's3:GetObject',
+          Resource: 'arn:aws:s3:::heytim-production-user-files-820323452649-us-east-1/users/3893a3ef3b21d5e84bd8a1117ce54afc4599424dc4c02cc5860ac572a921da56/ai-sharing-consent.json',
+        }],
+      },
+    });
+    policy.cfnOptions.condition = destinationOnly;
   }
   role.addToPolicy(new PolicyStatement({
     actions: ['kms:Decrypt', 'kms:DescribeKey', 'kms:Encrypt', 'kms:GenerateDataKey'],

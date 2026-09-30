@@ -493,6 +493,7 @@ jobs:
         working-directory: services/API
         env:
           HEYTIM_ENVIRONMENT: production
+          HEYTIM_RELEASE_SYNTHETIC_CONSENT_READ: ${{ vars.HEYTIM_DATA_LAUNCH_MODE == 'fresh' && 'true' || 'false' }}
           HEYTIM_AUTH_EMAIL_PROVIDER: ses
           HEYTIM_BOT_EMAIL_STAGE: receive
           HEYTIM_BOT_EMAIL_CAPTURE_ONLY: ${{ vars.HEYTIM_DATA_LAUNCH_MODE == 'fresh' && 'true' || 'false' }}

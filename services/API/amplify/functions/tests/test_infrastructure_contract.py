@@ -477,15 +477,22 @@ class InfrastructureContractTests(unittest.TestCase):
 
     def test_release_role_reads_only_the_synthetic_ai_permission_fence(self) -> None:
         policy = self.deployment_role.split(
-            "The release runner reads only its synthetic user's current revoke fence.", 1
-        )[1].split("}));", 1)[0]
-        self.assertIn("actions: ['s3:GetObject']", policy)
+            "The release workflow opts in after checking its destination account and", 1
+        )[1].split("policy.cfnOptions.condition = destinationOnly", 1)[0]
+        self.assertIn("if (releaseConsentFenceRead)", self.deployment_role)
+        self.assertIn("Fn.conditionEquals(Aws.ACCOUNT_ID, '820323452649')", policy)
+        self.assertIn("Action: 's3:GetObject'", policy)
         self.assertIn(
             "/users/3893a3ef3b21d5e84bd8a1117ce54afc4599424dc4c02cc5860ac572a921da56/ai-sharing-consent.json",
             policy,
         )
         self.assertNotIn("PutObject", policy)
         self.assertNotIn("/users/*", policy)
+        self.assertIn("HEYTIM_RELEASE_SYNTHETIC_CONSENT_READ === 'true'", self.backend)
+        self.assertIn(
+            "HEYTIM_RELEASE_SYNTHETIC_CONSENT_READ: ${{ vars.HEYTIM_DATA_LAUNCH_MODE == 'fresh' && 'true' || 'false' }}",
+            self.production_workflow,
+        )
 
     def test_memory_clients_can_use_the_configured_encryption_key(self) -> None:
         self.assertIn(

@@ -266,6 +266,8 @@ const nativePushFeedbackRole = addNativePushFeedbackRole(
 const githubDeployRole = addGithubDeploymentRole({
   stack,
   enabled: true,
+  releaseConsentFenceRead: deploymentEnvironment === 'production'
+    && process.env.HEYTIM_RELEASE_SYNTHETIC_CONSENT_READ === 'true',
   logsKmsKey: logsKey,
   legacyTokenVaultKmsKeyArn,
   nativePushApplicationArns: [
