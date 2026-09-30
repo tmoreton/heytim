@@ -63,7 +63,7 @@ dependencies = [
     # CodeZip resolves FastMCP transitives afresh; keep this on the locked version.
     "py-key-value-aio == 0.4.5",
     # AgentCore CodeZip resolves transitives afresh; retain the tested JWT version.
-    "pyjwt == 2.14.0",
+    "pyjwt == 2.15.0",
     # Keep fresh CodeZip resolution on the already-tested lockfile versions.
     "propcache == 0.5.2",
     "python-docx >= 1.2.0, < 2.0.0",
@@ -86,7 +86,7 @@ dependencies = [
     # AgentCore's package builder otherwise takes the newest Uvicorn release,
     # which can drift from the dependency-complete archive verified in uv.lock.
     "uvicorn == 0.52.4",
-    "urllib3 == 2.7.0",
+    "urllib3 == 2.8.0",
     # CodeZip resolves Uvicorn's optional file watcher afresh. Keep it aligned
     # with the version exercised by the locked runtime environment.
     "watchfiles == 1.2.0",
