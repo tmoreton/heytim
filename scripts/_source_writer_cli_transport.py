@@ -50,6 +50,11 @@ READ_OPERATIONS = {
     },
     "bedrock-agentcore": {"list_memory_extraction_jobs"},
 }
+EMPTY_OBJECT_OPERATIONS = {
+    ("s3", "get_bucket_versioning"),
+    ("lambda", "get_function_concurrency"),
+    ("bedrock-agentcore-control", "get_resource_policy"),
+}
 
 
 class CliError(Exception):
@@ -111,10 +116,17 @@ class CliClient:
         if result.returncode:
             match = ERROR_CODE.search(result.stderr)
             raise CliError(match.group(1) if match else "AwsCliError")
+        empty_object_allowed = (self.boto_service, operation) in EMPTY_OBJECT_OPERATIONS
+        if not result.stdout.strip():
+            if empty_object_allowed:
+                return {}
+            raise CliError("InvalidAwsCliOutput")
         try:
             data = json.loads(result.stdout)
         except json.JSONDecodeError as error:
             raise CliError("InvalidAwsCliOutput") from error
+        if data is None and empty_object_allowed:
+            return {}
         if not isinstance(data, dict):
             raise CliError("InvalidAwsCliOutput")
         return data
