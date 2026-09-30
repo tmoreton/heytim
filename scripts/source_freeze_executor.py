@@ -29,11 +29,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 GATES = {
     "ingress": set(),
     "consumers": {"queues_drained", "runtime_sessions_drained"},
-    "retention": {"ingress_closed", "consumers_stopped"},
+    "retention": {"application_ingress_closed_mail_capture_open", "consumers_stopped"},
     "storage": {
         "ttl_settled",
         "lifecycle_settled",
-        "ses_drained",
+        "store_only_mail_capture_rechecked",
         "presigned_600s_elapsed",
         "memory_extraction_settled",
     },
@@ -45,6 +45,7 @@ PERMANENT_NO_GO = (
     "provider_retry_and_webhook_routing_external",
     "auxiliary_and_unmanaged_writers_require_review",
     "production_denial_probes_not_run",
+    "idempotent_mail_replay_not_verified",
 )
 
 
@@ -176,6 +177,9 @@ def execute_stage(
     if stage not in STAGES:
         raise FreezePlanError("unknown stage")
     controls = _controls(snapshot)
+    mail_rule = next(c for c in controls if c.ref.key == "ses_receipt")
+    if adapter.read(mail_rule.ref) != mail_rule.before:
+        raise FreezePlanError("store-only SES receipt rule drifted after capture")
     journal = _journal(journal_path, snapshot)
     applied = set(journal["applied"])
     preceding = STAGES[: STAGES.index(stage)]

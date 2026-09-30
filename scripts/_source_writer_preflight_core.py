@@ -26,6 +26,7 @@ EXPECTED = {
         "legacy_files": "UserFiles",
         "files": "HeyTimUserFiles",
         "inbound_mail": "IncomingBotMail",
+        "inbound_quarantine": "BotEmailQuarantine",
     },
     "queue": {
         "jobs": "AgentJobs",
@@ -377,6 +378,12 @@ def inspect_buckets(report: Report, resources: list[dict], s3: Any) -> dict[str,
         if not ref:
             continue
         name = ref["PhysicalResourceId"]
+        if label == "inbound_quarantine":
+            # The dedicated capture audit checks encryption, policy, retention,
+            # and SES write access. It must stay writable while other buckets
+            # receive freeze denials.
+            names[label] = name
+            continue
         owner = {"Bucket": name, "ExpectedBucketOwner": SOURCE_ACCOUNT}
         location = read(
             report,
@@ -492,6 +499,8 @@ def inspect_queues(report: Report, resources: list[dict], sqs: Any) -> dict[str,
         # This unconsumed queue deliberately holds inbound SES notifications
         # while application writers are stopped. Its subscription DLQ must
         # remain empty; failures there need investigation before a cutover.
+        if any(value < 0 for value in counts.values()):
+            report.block(f"queue_{label}_counts_unavailable")
         if label != "inbound_capture" and any(value != 0 for value in counts.values()):
             report.block(f"queue_{label}_not_drained")
         arns[label] = arn
@@ -518,11 +527,11 @@ def inspect_email_and_logs(
     if result is not None:
         active = result.get("Rules", [])
         physical = rule.get("PhysicalResourceId", "") if rule else ""
+        rule_set = result.get("Metadata", {}).get("Name", "")
         matches = [
             r
             for r in active
-            if r.get("Name") == physical
-            or (physical and physical.endswith("|" + r.get("Name", "")))
+            if physical == f"{rule_set}|{r.get('Name', '')}"
         ]
         report.add(
             "receipt_rule",
@@ -531,8 +540,8 @@ def inspect_email_and_logs(
             matching_source_rules=len(matches),
             enabled=sum(r.get("Enabled") is True for r in matches),
         )
-        if len(matches) != 1 or matches[0].get("Enabled") is not False:
-            report.block("receipt_rule_not_proven_disabled")
+        if len(matches) != 1 or matches[0].get("Enabled") is not True:
+            report.block("receipt_rule_not_proven_enabled")
     if dispatcher_env is None:
         report.block("autofix_subscription_sources_unknown")
         return

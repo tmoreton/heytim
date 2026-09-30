@@ -1,6 +1,7 @@
 import { CfnOutput, Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Effect, PolicyStatement, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
-import { CfnSubscription, ITopic } from 'aws-cdk-lib/aws-sns';
+import { CfnSubscription } from 'aws-cdk-lib/aws-sns';
+import type { ITopic } from 'aws-cdk-lib/aws-sns';
 import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
 
 /** Store SES S3-action notifications independently of the app mail receiver. */

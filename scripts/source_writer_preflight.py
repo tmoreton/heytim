@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import boto3
+from _source_mail_capture_preflight import inspect_mail_capture
 from _source_writer_bucket_probe import inspect_runtime_bucket
 from _source_writer_cli_transport import CliError, CliSession, GuardedSession
 from _source_writer_preflight_core import (
@@ -109,6 +110,7 @@ def inspect_functions(
             continue
         reserved = concurrency.get("ReservedConcurrentExecutions")
         env = config.get("Environment", {}).get("Variables", {})
+        concurrency_safe = reserved == 0
         env_matches = {
             "TABLE_NAME": table_names.get("application"),
             "INVITE_TABLE_NAME": table_names.get("invite"),
@@ -127,7 +129,7 @@ def inspect_functions(
             mappings=len(mappings),
             environment_mismatches=mismatches,
         )
-        if reserved != 0 or mismatches:
+        if not concurrency_safe or mismatches:
             report.block(f"lambda_{label}_not_frozen_or_mismatched")
         for mapping in mappings:
             source = mapping.get("EventSourceArn", "")
@@ -403,8 +405,7 @@ def inspect_agentcore(
     report.block("agentcore_managed_extraction_and_expiry_unpausable")
     report.block("agentcore_ingest_data_policy_coverage_unverified")
 
-
-def inventory(session: Any, stack_name: str) -> Report:
+def inventory(session: Any, stack_name: str, mail_stack_name: str | None = None) -> Report:
     report = Report()
     config = Config(
         retries={"total_max_attempts": 2, "mode": "standard"},
@@ -427,6 +428,14 @@ def inventory(session: Any, stack_name: str) -> Report:
     resources = discover_stack(report, cfn, stack_name)
     if resources is None:
         return report
+    if mail_stack_name:
+        if mail_stack_name == stack_name:
+            report.block("mail_capture_stack_not_distinct")
+            return report
+        mail_resources = discover_stack(report, cfn, mail_stack_name)
+        if mail_resources is None:
+            return report
+        resources.extend(mail_resources)
     note_unclassified_resources(report, resources)
     dynamodb = session.client("dynamodb", config=config)
     s3 = session.client("s3", config=config)
@@ -435,6 +444,11 @@ def inventory(session: Any, stack_name: str) -> Report:
     table_names = inspect_tables(report, resources, dynamodb)
     bucket_names = inspect_buckets(report, resources, s3)
     queue_arns = inspect_queues(report, resources, sqs)
+    inspect_mail_capture(
+        report, resources, session.client("ses", config=config),
+        session.client("sns", config=config), sqs, s3,
+        session.client("iam", config=config), bucket_names, queue_arns,
+    )
     inspect_functions(report, resources, lambdas, table_names, bucket_names, queue_arns)
     inspect_schedules(
         report,
@@ -519,6 +533,7 @@ def main() -> int:
     parser.add_argument(
         "--stack-name", required=True, help="Exact deployed source Amplify stack name"
     )
+    parser.add_argument("--mail-stack-name", help="Exact addition-only source mail capture stack")
     parser.add_argument("--profile", help="AWS profile for the source account")
     parser.add_argument(
         "--transport",
@@ -538,7 +553,7 @@ def main() -> int:
                 boto3.Session(profile_name=args.profile, region_name=SOURCE_REGION)
             )
         )
-        report = inventory(session, args.stack_name)
+        report = inventory(session, args.stack_name, args.mail_stack_name)
         if (
             args.transport == "auto"
             and report.blockers == ["identity_unreadable"]
@@ -547,7 +562,10 @@ def main() -> int:
                 for check in report.checks
             )
         ):
-            report = inventory(CliSession(args.profile, SOURCE_REGION), args.stack_name)
+            report = inventory(
+                CliSession(args.profile, SOURCE_REGION), args.stack_name,
+                args.mail_stack_name,
+            )
     except (
         BotoCoreError,
         ClientError,

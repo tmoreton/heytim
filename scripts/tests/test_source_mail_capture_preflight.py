@@ -11,7 +11,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _source_mail_capture_preflight import inspect_mail_capture
+from _source_mail_capture_preflight import (
+    SOURCE_LAMBDA_HOLD_FILTER,
+    inspect_mail_capture,
+)
 from _source_writer_preflight_core import (
     SOURCE_ACCOUNT,
     SOURCE_REGION,
@@ -22,6 +25,7 @@ from _source_writer_preflight_core import (
 BUCKET = "source-quarantine-raw-mail"
 TOPIC = f"arn:aws:sns:{SOURCE_REGION}:{SOURCE_ACCOUNT}:source-mail"
 SUBSCRIPTION = f"{TOPIC}:capture-subscription"
+LAMBDA_SUBSCRIPTION = f"{TOPIC}:receiver-subscription"
 CAPTURE = f"arn:aws:sqs:{SOURCE_REGION}:{SOURCE_ACCOUNT}:source-capture"
 FAILURES = f"arn:aws:sqs:{SOURCE_REGION}:{SOURCE_ACCOUNT}:source-failures"
 CAPTURE_URL = (
@@ -144,11 +148,22 @@ class Fixture:
             "Protocol": "sqs",
             "Endpoint": CAPTURE,
         }
-        self.subscriptions = [self.subscription]
+        self.lambda_subscription = {
+            "SubscriptionArn": LAMBDA_SUBSCRIPTION,
+            "TopicArn": TOPIC,
+            "Protocol": "lambda",
+            "Endpoint": RECEIVER,
+        }
+        self.subscriptions = [self.subscription, self.lambda_subscription]
         self.subscription_attributes = {
             **self.subscription,
             "RawMessageDelivery": "false",
             "RedrivePolicy": json.dumps({"deadLetterTargetArn": FAILURES}),
+        }
+        self.lambda_subscription_attributes = {
+            **self.lambda_subscription,
+            "FilterPolicyScope": "MessageAttributes",
+            "FilterPolicy": json.dumps(SOURCE_LAMBDA_HOLD_FILTER),
         }
         self.queues = {
             CAPTURE_URL: _queue_attributes(CAPTURE),
@@ -216,8 +231,10 @@ class Fixture:
         return [{"Subscriptions": self.subscriptions}]
 
     def get_subscription_attributes(self, *, SubscriptionArn: str) -> dict:
-        assert SubscriptionArn == SUBSCRIPTION
-        return {"Attributes": self.subscription_attributes}
+        if SubscriptionArn == SUBSCRIPTION:
+            return {"Attributes": self.subscription_attributes}
+        assert SubscriptionArn == LAMBDA_SUBSCRIPTION
+        return {"Attributes": self.lambda_subscription_attributes}
 
     def get_queue_attributes(self, *, QueueUrl: str, AttributeNames: list[str]) -> dict:
         assert AttributeNames == ["All"]
@@ -286,18 +303,26 @@ def test_exact_store_only_capture_is_ready_and_sanitized() -> None:
     assert BUCKET not in encoded and TOPIC not in encoded and ROLE not in encoded
 
 
-def test_capture_queue_may_hold_mail_and_known_noop_lambda_may_subscribe() -> None:
+def test_capture_queue_may_hold_mail_while_lambda_subscriber_is_held() -> None:
     fixture = Fixture()
     fixture.queues[CAPTURE_URL]["ApproximateNumberOfMessages"] = "8"
-    fixture.subscriptions.append(
-        {
-            "SubscriptionArn": f"{TOPIC}:receiver-subscription",
-            "TopicArn": TOPIC,
-            "Protocol": "lambda",
-            "Endpoint": RECEIVER,
-        }
-    )
     assert not fixture.inspect().blockers
+
+
+@pytest.mark.parametrize("value", [None, "{}", "{\"wrong\":[\"value\"]}"])
+def test_unheld_lambda_subscriber_blocks(value: str | None) -> None:
+    fixture = Fixture()
+    if value is None:
+        fixture.lambda_subscription_attributes.pop("FilterPolicy")
+    else:
+        fixture.lambda_subscription_attributes["FilterPolicy"] = value
+    assert "mail_capture_not_ready" in fixture.inspect().blockers
+
+
+def test_wrong_lambda_filter_scope_blocks() -> None:
+    fixture = Fixture()
+    fixture.lambda_subscription_attributes["FilterPolicyScope"] = "MessageBody"
+    assert "mail_capture_not_ready" in fixture.inspect().blockers
 
 
 @pytest.mark.parametrize("kind", ["other_lambda", "extra_sqs", "pending_lambda"])

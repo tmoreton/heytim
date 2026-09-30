@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _source_freeze_plan import FreezePlanError, Ref, refs
+from _source_freeze_plan import BUCKET_LABELS, FreezePlanError, Ref, refs
 from _source_writer_preflight_core import SOURCE_REGION, fingerprint
 from source_freeze_executor import capture, execute_stage, restore, save_snapshot
 
@@ -27,6 +27,7 @@ def manifest(account: str = FIXTURE_ACCOUNT) -> dict:
             "files": "fixture-files",
             "runtime_files": "fixture-runtime",
             "inbound_mail": "fixture-mail",
+            "inbound_quarantine": "fixture-quarantine",
         },
         "tables": {
             label: {
@@ -58,6 +59,13 @@ def manifest(account: str = FIXTURE_ACCOUNT) -> dict:
         },
         "schedules": [{"group": "fixture-group", "name": "fixture-schedule"}],
         "ses": {"rule_set": "fixture-rule-set", "rule_name": "fixture-receipt"},
+        "mail_capture": {
+            "topic_arn": f"arn:aws:sns:{SOURCE_REGION}:{account}:fixture-mail-topic",
+            "subscription_arn": f"arn:aws:sns:{SOURCE_REGION}:{account}:fixture-mail-topic:sub",
+            "queue_arn": f"arn:aws:sqs:{SOURCE_REGION}:{account}:fixture-capture",
+            "failure_queue_arn": f"arn:aws:sqs:{SOURCE_REGION}:{account}:fixture-capture-dlq",
+            "role_arn": f"arn:aws:iam::{account}:role/fixture-ses",
+        },
         "agentcore": {
             label: f"arn:aws:bedrock-agentcore:{SOURCE_REGION}:{account}:{label}/fixture"
             for label in ("runtime", "endpoint", "memory")
@@ -97,7 +105,16 @@ def evidence(target: dict) -> dict:
     checks.extend(
         [
             {"label": "task_schedules", "count": len(target["schedules"])},
-            {"label": "receipt_rule", "matching_source_rules": 1},
+            {"label": "receipt_rule", "matching_source_rules": 1, "enabled": 1},
+            {
+                "label": "mail_capture",
+                "state": "READY",
+                "bucket_sha256_12": fingerprint(target["buckets"]["inbound_quarantine"]),
+                **{
+                    f"{key}_sha256_12": fingerprint(value)
+                    for key, value in target["mail_capture"].items()
+                },
+            },
         ]
     )
     return {
@@ -126,7 +143,7 @@ def initial(ref: Ref) -> object:
         return (
             10
             if ref.identity["name"] in {"fixture-worker", "fixture-email_sender"}
-            else None
+            else 0 if ref.identity["name"] == "fixture-email_receiver" else None
         )
     if ref.kind == "queue_mapping":
         return True
@@ -145,8 +162,14 @@ def initial(ref: Ref) -> object:
         return {
             "Name": ref.identity["rule_name"],
             "Enabled": True,
-            "Recipients": ["fixture@example.invalid"],
-            "Actions": [{"S3Action": {"BucketName": "fixture-mail"}}],
+            "ScanEnabled": True,
+            "Recipients": ["bots.heytim.ai"],
+            "Actions": [{"S3Action": {
+                "BucketName": "fixture-quarantine",
+                "ObjectKeyPrefix": "received/",
+                "TopicArn": ref.identity["topic_arn"],
+                "IamRoleArn": ref.identity["role_arn"],
+            }}],
         }
     raise AssertionError(ref.kind)
 
@@ -206,7 +229,7 @@ def test_all_stages_restore_original_settings_and_remain_no_go(tmp_path: Path) -
         journal_path,
         "retention",
         {
-            "ingress_closed",
+            "application_ingress_closed_mail_capture_open",
             "consumers_stopped",
         },
     )
@@ -219,15 +242,17 @@ def test_all_stages_restore_original_settings_and_remain_no_go(tmp_path: Path) -
         {
             "ttl_settled",
             "lifecycle_settled",
-            "ses_drained",
+            "store_only_mail_capture_rechecked",
             "presigned_600s_elapsed",
             "memory_extraction_settled",
         },
     )
     assert all(
         adapter.state[f"policy_bucket_{label}"] is not None
-        for label in target["buckets"]
+        for label in BUCKET_LABELS
     )
+    assert "policy_bucket_inbound_quarantine" not in adapter.state
+    assert adapter.state["lifecycle_inbound_quarantine"]["Rules"][0]["Status"] == "Disabled"
     assert all(
         adapter.state[f"policy_table_{label}"] is not None for label in target["tables"]
     )
@@ -238,14 +263,18 @@ def test_all_stages_restore_original_settings_and_remain_no_go(tmp_path: Path) -
     assert all(
         adapter.state[f"mapping_{label}"] is False for label in target["mappings"]
     )
-    assert all(adapter.state[f"lambda_{label}"] == 0 for label in target["lambdas"])
+    assert all(
+        adapter.state[f"lambda_{label}"] == 0
+        for label in target["lambdas"]
+    )
     assert all(
         adapter.state[f"event_{label}"] == "DISABLED" for label in target["event_rules"]
     )
     assert (
         adapter.state["schedule_fixture-group_fixture-schedule"]["State"] == "DISABLED"
     )
-    assert adapter.state["ses_receipt"]["Enabled"] is False
+    assert adapter.state["ses_receipt"]["Enabled"] is True
+    assert "ses_receipt" not in adapter.writes
     assert adapter.state["agentcore_runtime"] is not None
     assert adapter.state["agentcore_endpoint"] is not None
     assert adapter.state["agentcore_memory"] is not None
@@ -278,6 +307,46 @@ def test_preflight_mismatch_and_source_account_block_mutation(tmp_path: Path) ->
         execute_stage(adapter, snapshot, snapshot_path, journal_path, "ingress")
     assert adapter.writes == []
 
+
+def test_capture_requires_bound_evidence_and_exact_store_only_rule() -> None:
+    target = manifest()
+    adapter = FakeAdapter(target)
+    missing = evidence(target)
+    missing["checks"] = [
+        check for check in missing["checks"] if check["label"] != "mail_capture"
+    ]
+    with pytest.raises(FreezePlanError, match="mail capture not bound"):
+        capture(adapter, target, missing)
+    assert adapter.writes == []
+
+    for change in (
+        lambda rule: rule.update(Enabled=False),
+        lambda rule: rule["Actions"][0]["S3Action"].update(BucketName="fixture-mail"),
+        lambda rule: rule["Actions"].append({"BounceAction": {}}),
+    ):
+        adapter = FakeAdapter(target)
+        change(adapter.state["ses_receipt"])
+        with pytest.raises(FreezePlanError, match="not verified store-only"):
+            capture(adapter, target, evidence(target))
+        assert adapter.writes == []
+
+    adapter = FakeAdapter(target)
+    adapter.state["lambda_email_receiver"] = None
+    with pytest.raises(FreezePlanError, match="already be held at zero"):
+        capture(adapter, target, evidence(target))
+    assert adapter.writes == []
+
+
+def test_ses_rule_drift_stops_stage_before_any_write(tmp_path: Path) -> None:
+    target = manifest()
+    adapter = FakeAdapter(target)
+    snapshot = capture(adapter, target, evidence(target))
+    snapshot_path, journal_path = paths(tmp_path)
+    save_snapshot(snapshot_path, snapshot)
+    adapter.state["ses_receipt"]["Enabled"] = False
+    with pytest.raises(FreezePlanError, match="store-only SES receipt rule drifted"):
+        execute_stage(adapter, snapshot, snapshot_path, journal_path, "ingress")
+    assert adapter.writes == []
 
 def test_uncertain_fixture_write_can_restore_without_overwriting_drift(
     tmp_path: Path,
@@ -342,7 +411,7 @@ def test_policy_merge_preserves_existing_statement_and_restore_absence(
         journal_path,
         "retention",
         {
-            "ingress_closed",
+            "application_ingress_closed_mail_capture_open",
             "consumers_stopped",
         },
     )
@@ -355,7 +424,7 @@ def test_policy_merge_preserves_existing_statement_and_restore_absence(
         {
             "ttl_settled",
             "lifecycle_settled",
-            "ses_drained",
+            "store_only_mail_capture_rechecked",
             "presigned_600s_elapsed",
             "memory_extraction_settled",
         },

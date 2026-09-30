@@ -25,6 +25,9 @@ _BUCKET_PUBLIC_BLOCK = (
     "BlockPublicPolicy",
     "RestrictPublicBuckets",
 )
+SOURCE_LAMBDA_HOLD_FILTER = {
+    "heytim_cutover_capture_hold": ["source-188757775631-20260930"]
+}
 
 
 def _statements(value: Any) -> list[dict] | None:
@@ -245,6 +248,7 @@ def _role_trust_ok(role: Any, rule_set: str, rule_name: str) -> bool:
 def _subscription_ready(
     subscriptions: Any,
     attributes: Any,
+    lambda_attributes: Any,
     *,
     subscription_arn: str,
     topic_arn: str,
@@ -252,11 +256,11 @@ def _subscription_ready(
     failure_queue_arn: str,
     receiver_arn: str,
 ) -> bool:
-    if not isinstance(subscriptions, list) or len(subscriptions) not in (1, 2):
+    if not isinstance(subscriptions, list) or len(subscriptions) != 2:
         return False
     if not all(isinstance(item, dict) for item in subscriptions) or not isinstance(
         attributes, dict
-    ):
+    ) or not isinstance(lambda_attributes, dict):
         return False
     expected = {
         "SubscriptionArn": subscription_arn,
@@ -274,9 +278,8 @@ def _subscription_ready(
     ):
         return False
     others = [item for item in subscriptions if item is not capture[0]]
-    if others and not (
-        len(others) == 1
-        and others[0].get("TopicArn") == topic_arn
+    if len(others) != 1 or not (
+        others[0].get("TopicArn") == topic_arn
         and others[0].get("Protocol") == "lambda"
         and others[0].get("Endpoint") == receiver_arn
         and isinstance(others[0].get("SubscriptionArn"), str)
@@ -284,6 +287,22 @@ def _subscription_ready(
             f"arn:aws:sns:{SOURCE_REGION}:{SOURCE_ACCOUNT}:"
         )
     ):
+        return False
+    expected_lambda = {
+        "SubscriptionArn": others[0]["SubscriptionArn"],
+        "TopicArn": topic_arn,
+        "Protocol": "lambda",
+        "Endpoint": receiver_arn,
+    }
+    if any(lambda_attributes.get(key) != value for key, value in expected_lambda.items()):
+        return False
+    if lambda_attributes.get("FilterPolicyScope") != "MessageAttributes":
+        return False
+    try:
+        held_filter = json.loads(lambda_attributes.get("FilterPolicy", ""))
+    except (TypeError, ValueError):
+        return False
+    if held_filter != SOURCE_LAMBDA_HOLD_FILTER:
         return False
     if any(attributes.get(key) != value for key, value in expected.items()):
         return False
@@ -411,6 +430,30 @@ def inspect_mail_capture(
     sub_attrs = (
         sub_response.get("Attributes", {}) if isinstance(sub_response, dict) else {}
     )
+    lambda_subscriptions = [
+        item for item in subscriptions or []
+        if isinstance(item, dict) and item.get("Protocol") == "lambda"
+    ]
+    lambda_sub_response = (
+        read(
+            report,
+            "mail_capture_lambda_subscription_attributes",
+            lambda: sns.get_subscription_attributes(
+                SubscriptionArn=lambda_subscriptions[0]["SubscriptionArn"]
+            ),
+        )
+        if len(lambda_subscriptions) == 1
+        and isinstance(lambda_subscriptions[0].get("SubscriptionArn"), str)
+        and lambda_subscriptions[0]["SubscriptionArn"].startswith(
+            f"arn:aws:sns:{SOURCE_REGION}:{SOURCE_ACCOUNT}:"
+        )
+        else None
+    )
+    lambda_sub_attrs = (
+        lambda_sub_response.get("Attributes", {})
+        if isinstance(lambda_sub_response, dict)
+        else {}
+    )
     capture_response = read(
         report,
         "mail_capture_queue_attributes",
@@ -499,6 +542,7 @@ def inspect_mail_capture(
     subscription_ok = _subscription_ready(
         subscriptions,
         sub_attrs,
+        lambda_sub_attrs,
         subscription_arn=subscription_arn,
         topic_arn=topic_arn,
         queue_arn=queue_arn,

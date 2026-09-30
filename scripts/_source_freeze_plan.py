@@ -12,6 +12,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from _source_mail_capture import validate_store_only_rule
 from _source_writer_preflight_core import (
     BUCKET_DENY,
     FREEZE_SID,
@@ -22,6 +23,7 @@ from _source_writer_preflight_core import (
 )
 
 BUCKET_LABELS = {"legacy_files", "files", "runtime_files", "inbound_mail"}
+QUARANTINE_BUCKET = "inbound_quarantine"
 TABLE_LABELS = {"application", "invite"}
 INGRESS_LAMBDAS = {
     "api",
@@ -72,7 +74,7 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
     if not isinstance(account, str) or len(account) != 12 or not account.isdigit():
         raise FreezePlanError("invalid account")
     for key, required in (
-        ("buckets", BUCKET_LABELS),
+        ("buckets", BUCKET_LABELS | {QUARANTINE_BUCKET}),
         ("tables", TABLE_LABELS),
         ("lambdas", INGRESS_LAMBDAS | CONSUMER_LAMBDAS),
         ("mappings", CONSUMER_LAMBDAS),
@@ -83,7 +85,7 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         if not isinstance(value, dict):
             raise FreezePlanError(f"{key} missing")
         _exact_keys(value, required, key)
-    if len(set(manifest["buckets"].values())) != 4:
+    if len(set(manifest["buckets"].values())) != 5:
         raise FreezePlanError("bucket identities overlap")
     if len(set(manifest["lambdas"].values())) != 8:
         raise FreezePlanError("Lambda identities overlap")
@@ -105,6 +107,20 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
     receipt = manifest.get("ses")
     if not isinstance(receipt, dict) or set(receipt) != {"rule_set", "rule_name"}:
         raise FreezePlanError("SES identity incomplete")
+    capture = manifest.get("mail_capture")
+    required = {"topic_arn", "subscription_arn", "queue_arn", "failure_queue_arn", "role_arn"}
+    if not isinstance(capture, dict) or set(capture) != required:
+        raise FreezePlanError("store-only mail capture identity incomplete")
+    if any(not isinstance(capture[label], str) or not capture[label] for label in required):
+        raise FreezePlanError("store-only mail capture ARN malformed")
+    for label in ("topic_arn", "subscription_arn"):
+        if not capture[label].startswith(f"arn:aws:sns:{SOURCE_REGION}:{account}:"):
+            raise FreezePlanError(f"mail capture {label} account or region mismatch")
+    for label in ("queue_arn", "failure_queue_arn"):
+        if not capture[label].startswith(f"arn:aws:sqs:{SOURCE_REGION}:{account}:"):
+            raise FreezePlanError(f"mail capture {label} account or region mismatch")
+    if not capture["role_arn"].startswith(f"arn:aws:iam::{account}:role/"):
+        raise FreezePlanError("mail capture SES role account mismatch")
 
 
 def validate_preflight(manifest: dict[str, Any], evidence: dict[str, Any]) -> str:
@@ -156,10 +172,24 @@ def validate_preflight(manifest: dict[str, Any], evidence: dict[str, Any]) -> st
     ):
         raise FreezePlanError("schedule count differs from preflight")
     if not any(
-        c.get("label") == "receipt_rule" and c.get("matching_source_rules") == 1
+        c.get("label") == "receipt_rule"
+        and c.get("matching_source_rules") == 1
+        and c.get("enabled") == 1
         for c in checks
     ):
-        raise FreezePlanError("SES rule not uniquely observed")
+        raise FreezePlanError("store-only SES rule not uniquely observed")
+    capture = manifest["mail_capture"]
+    expected_hashes = {
+        "bucket_sha256_12": fingerprint(manifest["buckets"][QUARANTINE_BUCKET]),
+        **{f"{key}_sha256_12": fingerprint(value) for key, value in capture.items()},
+    }
+    if not any(
+        c.get("label") == "mail_capture"
+        and c.get("state") == "READY"
+        and all(c.get(key) == value for key, value in expected_hashes.items())
+        for c in checks
+    ):
+        raise FreezePlanError("store-only mail capture not bound to preflight")
     return hashlib.sha256(canonical(evidence).encode()).hexdigest()
 
 
@@ -184,7 +214,12 @@ def refs(manifest: dict[str, Any]) -> list[Ref]:
                 schedule,
             )
         )
-    items.append(Ref("ses_receipt", "ses_rule", "ingress", manifest["ses"]))
+    items.append(Ref("ses_receipt", "ses_rule", "ingress", {
+        **manifest["ses"],
+        "capture_bucket": manifest["buckets"][QUARANTINE_BUCKET],
+        "topic_arn": manifest["mail_capture"]["topic_arn"],
+        "role_arn": manifest["mail_capture"]["role_arn"],
+    }))
     for label in sorted(INGRESS_LAMBDAS):
         items.append(
             Ref(
@@ -233,6 +268,10 @@ def refs(manifest: dict[str, Any]) -> list[Ref]:
                 {"name": manifest["buckets"][label]},
             )
         )
+    items.append(Ref(
+        "lifecycle_inbound_quarantine", "bucket_lifecycle", "retention",
+        {"name": manifest["buckets"][QUARANTINE_BUCKET]},
+    ))
     for label in sorted(BUCKET_LABELS):
         items.append(
             Ref(
@@ -325,6 +364,8 @@ def desired(ref: Ref, before: Any) -> Any:
     if kind == "lambda_concurrency":
         if before is not None and (not isinstance(before, int) or before < 0):
             raise FreezePlanError(f"{ref.key} concurrency malformed")
+        if ref.key == "lambda_email_receiver" and before != 0:
+            raise FreezePlanError("mail receiver must already be held at zero")
         return 0
     if kind == "queue_mapping":
         if not isinstance(before, bool):
@@ -344,11 +385,14 @@ def desired(ref: Ref, before: Any) -> Any:
         after["State"] = "DISABLED"
         return after
     if kind == "ses_rule":
-        if not isinstance(before, dict) or not isinstance(before.get("Enabled"), bool):
-            raise FreezePlanError("SES rule malformed")
-        after = copy.deepcopy(before)
-        after["Enabled"] = False
-        return after
+        if not validate_store_only_rule(
+            before,
+            bucket=ref.identity["capture_bucket"],
+            topic_arn=ref.identity["topic_arn"],
+            role_arn=ref.identity["role_arn"],
+        ):
+            raise FreezePlanError("SES rule is not verified store-only capture")
+        return copy.deepcopy(before)
     if kind == "agentcore_policy":
         actions = (
             MEMORY_DENY

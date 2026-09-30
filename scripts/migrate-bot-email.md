@@ -3,8 +3,9 @@
 **Status: NO-GO for live mail handoff.** This document and
 `migrate_bot_email_objects.py` cover the unversioned SES raw-message bucket.
 The [versioned S3 migration](migrate-versioned-s3.md) does not cover it.
-The CDK now defines a durable notification capture queue, but it is not
-deployed and does not by itself provide a store-only S3 destination or replay.
+The CDK now defines durable notification capture and a separate quarantine
+bucket, but neither account's capture stack has been deployed. The guarded
+replay path is not yet verified in either account.
 Do not run `--apply` or change an SES receipt rule until the source write
 freeze, account/data migration, store-only capture, and replay are ready.
 
@@ -132,16 +133,90 @@ queue; a nonempty subscription DLQ blocks the preflight. Deploy only after
 reviewing the source and destination stack diffs for replacement of existing
 mail resources, and prove the topic publishes to SQS with a controlled test.
 
-The SQS notification is not the MIME body. The current SES S3 action still
-writes to the seven-day `IncomingBotMail` bucket. A safe source freeze needs a
-**separate private source quarantine bucket** for SES writes while the old
-raw bucket is frozen, and a reviewed receipt-rule S3-action switch to it.
-That quarantine bucket needs encryption, blocked public access, TLS-only
-access, retained objects during the maintenance window, exact-account SES
-put permission, and a later cleanup policy. The destination needs an
-equivalent store-only setting during overlap. The app receivers must remain
-off; an SNS-to-Lambda retry window alone cannot retain the backlog. SQS
-retention does not extend the existing raw MIME bucket's seven-day expiry.
+The SQS notification is not the MIME body. By default the current SES S3
+action still writes to the seven-day `IncomingBotMail` bucket. The CDK now
+defines a private `BotEmailQuarantine` bucket with SSE-S3, blocked public
+access, TLS enforcement, 14-day lifecycle, and retention on stack deletion.
+The **addition-only** source and destination stacks each import the existing
+SNS topic and SES delivery role, then add the capture queue/subscription,
+failure queue, quarantine bucket, and a narrow `received/*` SES role grant.
+They do not change the existing receipt rule or Lambda subscriber. No full
+source Amplify deployment is part of this path. The existing source Lambda
+must therefore be held separately before the SES action changes. A normal
+Amplify deployment with `HEYTIM_BOT_EMAIL_CAPTURE_ONLY=true` and
+`HEYTIM_BOT_EMAIL_AVAILABLE=false` creates a *different* capture queue and
+bucket and omits its Lambda subscriber; it cannot be deployed concurrently
+without reconciling both capture subscriptions and MIME stores.
+
+For each addition-only deployment, first use STS to prove the exact account
+and `us-east-1`, resolve the existing SNS topic and SES role from that
+account's CloudFormation stack, and record their physical ARNs privately.
+From `services/API`, set only the corresponding
+`HEYTIM_SOURCE_MAIL_TOPIC_ARN`/`HEYTIM_SOURCE_SES_ROLE_ARN` or
+`HEYTIM_DESTINATION_MAIL_TOPIC_ARN`/`HEYTIM_DESTINATION_SES_ROLE_ARN`. Run an
+account-guarded CDK **diff** for `HeyTimSourceMailCapture` with
+`node --import tsx amplify/source-mail-capture-app.ts`, or
+`HeyTimDestinationMailCapture` with the destination app path. The acceptable
+change is only two encrypted retained queues, one SNS subscription, one
+private retained quarantine bucket/policy, and one inline grant on the
+existing SES role. Reject any replacement/deletion or different-account
+ARN; only then run the same CDK app as a separately reviewed deploy. Never
+run both the standalone source stack and a full source Amplify deploy that
+creates the same capture resources. Both standalone stacks use termination
+protection. Their CloudFormation outputs and the active receipt-rule JSON
+must be read back before any SES change.
+
+**Source receiver hold:** after the source SQS subscription is deployed,
+send a controlled mail through the still-normal source rule and prove its
+SNS notification reached the queue and its MIME reached the old raw bucket.
+Record the existing SNS-to-Lambda subscription ARN and attributes. Reserve
+the existing receiver Lambda at concurrency **zero**, then set only that
+Lambda subscription's `FilterPolicyScope=MessageAttributes` and
+`FilterPolicy={"heytim_cutover_capture_hold":["source-188757775631-20260930"]}`.
+Leave the SQS subscription unfiltered. [SNS filter changes can take up to
+15 minutes](https://docs.aws.amazon.com/sns/latest/dg/sns-subscription-filter-policies.html)
+to propagate; wait longer than 15 minutes and prove a second controlled
+notification reaches SQS while the Lambda produces no inbox row or turn.
+The zero-concurrency hold covers the propagation interval. Investigate and
+account for any SNS delivery retries and Lambda DLQ records; never restore
+concurrency while the source subscriber could replay stale work. Then change
+only the source `HeyTimBotInbox` S3 action to the new quarantine bucket,
+keeping its exact topic, role, prefix, recipient scope, and enabled state.
+Prove a third controlled notification and MIME object in quarantine. The
+source writer preflight and freeze capture now require that exact held
+subscription, zero Lambda concurrency, enabled store-only SES rule, empty
+capture DLQ, and writable protected quarantine. Pass the standalone stack
+as `--mail-stack-name HeyTimSourceMailCapture`; omitting it fails closed.
+This filter is a temporary CloudFormation drift on the existing subscription.
+Keep its original attributes and exact ARN in the private rollback snapshot;
+restore them only after the source is again the selected processing owner,
+the destination owner is stopped, and queued/retried notifications are
+reconciled. Wait for filter propagation on restoration as well.
+
+The revised freeze plan requires this store-only rule, leaves SES enabled,
+does not deny writes to the quarantine bucket, and pauses its lifecycle while
+the normal raw bucket is frozen. It binds exact source account rule, topic,
+subscription, queue, SES role, and bucket identities to a recent read-only
+preflight. The source freeze executor still unconditionally rejects live
+source AWS mutations; a separate safety review is required before executing
+that plan. The source Lambda filter/concurrency hold is a separately
+snapshotted operator control and is not automatically restored by that freeze
+executor. The destination needs equivalent store-only mode during overlap.
+SQS retention does not extend the old raw MIME bucket's seven-day expiry.
+
+**Temporary retention exception:** the quarantine bucket's 14-day lifecycle
+is longer than the normal seven-day raw MIME policy, and the freeze pauses
+that lifecycle during the approved maintenance window. Record this exception,
+its start and end times, and per-object original receipt times in a private
+manifest. Keep the bucket private and its queue unconsumed until every
+notification is classified. Before declaring cutover complete, verify each
+selected MIME exists in the destination and that replay is durable; retain
+only what is needed for the recorded rollback interval. Then delete
+quarantine copies whose normal seven-day retention has elapsed, restore the
+quarantine lifecycle, and verify no unclassified or held message is being
+discarded. On rollback, preserve both quarantines until the source is the
+sole processing owner and the same queue/object accounting passes. Never
+allow the 14-day SQS expiry to act as a cleanup mechanism for unresolved mail.
 Record the exact receipt-rule JSON, bucket policies, topic subscriptions,
 queue redrive/retention, encryption, lifecycle, and restore inputs before any
 rule change. Test a normal mail, a large mail, a disabled route, and an SNS
@@ -188,6 +263,45 @@ destination set contains only the reviewed bot-mail rule. On rollback,
 deactivate destination again and read back `none`; restore source from its
 snapshot only if an authorized change to that account was made.
 
+### Destination capture owner handoff remains NO-GO
+
+The destination standalone stack can be deployed while its SES rule set is
+inactive. Before reactivating the destination set, change its retained
+`HeyTimBotInbox` rule to store-only S3+SNS capture using the standalone
+quarantine bucket and exact destination topic/role. Hold the existing
+destination receiver at zero concurrency and an exact reviewed SNS filter,
+or prove that its Lambda subscription is absent; the old destination raw
+object still needs private classification. Reactivate only after readback of
+the full rule set proves no overlapping bounce and a controlled delivery is
+stored and queued. Keep source active until that test passes. When source is
+disabled, disable only its bot rule; the source active set also serves another
+recipient scope.
+
+The standalone destination stack is a temporary capture owner. Its queues
+and bucket have `RETAIN`, but **deleting the stack removes the SNS
+subscription**. Deleting it before another verified capture subscription
+exists creates a notification gap even though retained objects remain.
+Likewise, the production release workflow hardcodes normal mail processing
+and requires release attestations and configuration that may still be bound
+to the source account. It now fails closed while
+`HeyTimDestinationMailCapture` exists; do not use it to switch capture owners.
+
+The no-gap handoff requires a separate, private destination Amplify
+`CAPTURE_ONLY=true`, `AVAILABLE=false` deployment with a reviewed full
+CloudFormation diff and exact destination account configuration. That
+deployment must first create its *own* queue/subscription/quarantine and
+switch the SES S3 action to its new bucket while the standalone subscription
+still captures SNS. Prove both queues, the new MIME location, and a
+reconciliation watermark, then remove the standalone stack and account for
+its retained queue/bucket. Only after that may the normal full release
+workflow run, switching SES to the seven-day raw bucket and enabling normal
+destination processing. A guarded private Amplify deployment path and its
+destination-bound configuration have **not** been implemented or verified;
+this handoff remains NO-GO. The standalone capture stack must stay deployed
+until that path is ready. On rollback, preserve both destination and source
+quarantines and capture subscriptions until one processing owner and every
+held notification are accounted for.
+
 ### Replay contract before any queue is drained
 
 Capture the SNS envelope and SES notification exactly, then parse the receipt
@@ -211,9 +325,9 @@ acknowledge/delete an SQS notification after the destination MIME and this
 transaction are verified. Keep both capture queues and their DLQs until every
 notification has a disposition and a final zero-backlog check.
 
-This is an **implemented queue definition, not a deployed quarantine/replay
-path**. The existing source freeze draft disables the source SES rule and
-denies writes to its current raw bucket; it must be revised before execution.
-The separate store-only bucket/rule setting and the idempotent replay worker
-remain blockers for live cutover. The source currently remains the sole active
-matching receiver; destination's active rule set remains deactivated.
+This is **implemented capture infrastructure and a fail-closed freeze plan,
+not a deployed or replayed mail handoff**. Deploy and smoke-test both account
+queues and store-only rules, classify the destination's existing unique raw
+object, then implement the reviewed idempotent replay path. The source
+currently remains the sole active matching receiver; destination's active
+rule set remains deactivated. Live source freeze writes remain disabled.

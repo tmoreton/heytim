@@ -17,6 +17,8 @@ from typing import Any
 import boto3
 from _source_freeze_boto import BotoFreezeAdapter
 from _source_freeze_plan import FreezePlanError, validate_preflight
+from _source_mail_capture import active_store_only_match
+from _source_mail_capture_preflight import _subscription_ready
 from _source_writer_cli_transport import GuardedSession
 from _source_writer_preflight_core import (
     EXPECTED,
@@ -78,7 +80,9 @@ def _deployed_agentcore() -> tuple[dict, dict]:
     return next(iter(data["runtimes"].values())), next(iter(data["memories"].values()))
 
 
-def discover_manifest(session: Any, stack_name: str) -> dict[str, Any]:
+def discover_manifest(
+    session: Any, stack_name: str, mail_stack_name: str | None = None
+) -> dict[str, Any]:
     """Discover private physical IDs using a read-only allowlisted session."""
     if session.region_name != SOURCE_REGION:
         raise FreezePlanError("source region mismatch")
@@ -93,6 +97,15 @@ def discover_manifest(session: Any, stack_name: str) -> dict[str, Any]:
     )
     if resources is None or report.blockers:
         raise FreezePlanError("source stack discovery incomplete")
+    if mail_stack_name:
+        if mail_stack_name == stack_name:
+            raise FreezePlanError("mail capture stack must be distinct")
+        mail_resources = discover_stack(
+            report, guarded.client("cloudformation", config=READ_CONFIG), mail_stack_name
+        )
+        if mail_resources is None or report.blockers:
+            raise FreezePlanError("mail capture stack discovery incomplete")
+        resources.extend(mail_resources)
 
     dynamodb = guarded.client("dynamodb", config=READ_CONFIG)
     tables = {}
@@ -121,9 +134,15 @@ def discover_manifest(session: Any, stack_name: str) -> dict[str, Any]:
             raise FreezePlanError("Lambda inventory unclassified or ambiguous")
         function_names[label] = name
 
+    receiver_concurrency = lambdas.get_function_concurrency(
+        FunctionName=function_names["email_receiver"]
+    )
+    if receiver_concurrency.get("ReservedConcurrentExecutions") != 0:
+        raise FreezePlanError("source mail receiver concurrency is not held at zero")
+
     sqs = guarded.client("sqs", config=READ_CONFIG)
     queue_arns = {}
-    for label in ("jobs", "outbound_mail"):
+    for label in ("jobs", "outbound_mail", "inbound_capture", "inbound_capture_failures"):
         url = _exact(resources, "AWS::SQS::Queue", EXPECTED["queue"][label])
         queue_arns[label] = sqs.get_queue_attributes(
             QueueUrl=url, AttributeNames=["QueueArn"]
@@ -154,17 +173,67 @@ def discover_manifest(session: Any, stack_name: str) -> dict[str, Any]:
     ]
 
     receipt_physical = _exact(resources, "AWS::SES::ReceiptRule", "BotEmailReceiptRule")
+    topic_arn = _exact(resources, "AWS::SNS::Topic", "IncomingBotMailTopic")
+    subscription_arn = _exact(
+        resources, "AWS::SNS::Subscription", "BotEmailInboundCaptureSubscription"
+    )
+    role_name = _exact(resources, "AWS::IAM::Role", "BotEmailSesDeliveryRole")
+    role_arn = guarded.client("iam", config=READ_CONFIG).get_role(RoleName=role_name)[
+        "Role"
+    ]["Arn"]
+    mail_capture = {
+        "topic_arn": topic_arn,
+        "subscription_arn": subscription_arn,
+        "queue_arn": queue_arns["inbound_capture"],
+        "failure_queue_arn": queue_arns["inbound_capture_failures"],
+        "role_arn": role_arn,
+    }
+    sns = guarded.client("sns", config=READ_CONFIG)
+    subscriptions = _pages(
+        sns, "list_subscriptions_by_topic", "Subscriptions", TopicArn=topic_arn
+    )
+    receiver_arn = (
+        f"arn:aws:lambda:{SOURCE_REGION}:{SOURCE_ACCOUNT}:function:"
+        f"{function_names['email_receiver']}"
+    )
+    lambda_subscribers = [
+        item for item in subscriptions
+        if item.get("Protocol") == "lambda" and item.get("Endpoint") == receiver_arn
+    ]
+    if len(lambda_subscribers) != 1:
+        raise FreezePlanError("source mail receiver subscription missing or ambiguous")
+    subscription = sns.get_subscription_attributes(
+        SubscriptionArn=subscription_arn
+    )["Attributes"]
+    lambda_subscription = sns.get_subscription_attributes(
+        SubscriptionArn=lambda_subscribers[0]["SubscriptionArn"]
+    )["Attributes"]
+    if not _subscription_ready(
+        subscriptions,
+        subscription,
+        lambda_subscription,
+        subscription_arn=subscription_arn,
+        topic_arn=topic_arn,
+        queue_arn=mail_capture["queue_arn"],
+        failure_queue_arn=mail_capture["failure_queue_arn"],
+        receiver_arn=receiver_arn,
+    ):
+        raise FreezePlanError("mail capture subscription differs from held route")
     ses = guarded.client("ses", config=READ_CONFIG)
     active = ses.describe_active_receipt_rule_set()
     rule_set = active.get("Metadata", {}).get("Name")
-    matching = [
-        rule["Name"]
-        for rule in active.get("Rules", [])
-        if rule.get("Name") == receipt_physical
-        or receipt_physical.endswith("|" + rule.get("Name", ""))
-    ]
-    if not rule_set or len(matching) != 1:
-        raise FreezePlanError("active SES source receipt rule ambiguous")
+    rule_name = receipt_physical.rsplit("|", 1)[-1]
+    if receipt_physical != f"{rule_set}|{rule_name}":
+        raise FreezePlanError("source SES rule physical identity is not exact")
+    if not active_store_only_match(
+        active,
+        rule_set=rule_set,
+        rule_name=rule_name,
+        bucket=buckets["inbound_quarantine"],
+        topic_arn=topic_arn,
+        role_arn=role_arn,
+    ):
+        raise FreezePlanError("active SES source rule is not store-only capture")
 
     deployed_runtime, deployed_memory = _deployed_agentcore()
     core = guarded.client("bedrock-agentcore-control", config=READ_CONFIG)
@@ -205,7 +274,8 @@ def discover_manifest(session: Any, stack_name: str) -> dict[str, Any]:
         "mappings": mappings,
         "event_rules": rules,
         "schedules": schedules,
-        "ses": {"rule_set": rule_set, "rule_name": matching[0]},
+        "ses": {"rule_set": rule_set, "rule_name": rule_name},
+        "mail_capture": mail_capture,
         "agentcore": {
             "runtime": deployed_runtime["runtimeArn"],
             "endpoint": endpoints[0]["agentRuntimeEndpointArn"],
@@ -228,6 +298,7 @@ def _recent_evidence(path: Path) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stack-name", required=True)
+    parser.add_argument("--mail-stack-name")
     parser.add_argument("--profile")
     parser.add_argument("--preflight", required=True, type=Path)
     parser.add_argument("--snapshot", required=True, type=Path)
@@ -235,7 +306,7 @@ def main() -> int:
     try:
         session = boto3.Session(profile_name=args.profile, region_name=SOURCE_REGION)
         adapter = BotoFreezeAdapter(session, SOURCE_ACCOUNT)
-        manifest = discover_manifest(session, args.stack_name)
+        manifest = discover_manifest(session, args.stack_name, args.mail_stack_name)
         evidence = _recent_evidence(args.preflight)
         validate_preflight(manifest, evidence)
         snapshot = capture(adapter, manifest, evidence)
