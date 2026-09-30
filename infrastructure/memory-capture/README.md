@@ -89,8 +89,9 @@ assigned to continue them after traffic moves. Keep source Memory and capture ru
 expiry margin and beyond if managed processing remains possible. AWS documents neither a maximum delay nor a
 terminal marker for built-in extraction/consolidation, and does not promise end-to-end completeness or ordering for
 Memory-to-Kinesis publication. Thus these checks establish **observed parity**, not strict no-loss. If strict no-loss
-is a requirement, traffic cutover remains NO-GO absent an AWS-backed completion/delivery assurance or explicit
-acceptance of that residual risk. Retiring source Memory after a quiet interval is NO-GO.
+remains a requirement, traffic cutover is **NO-GO** without AWS-backed delivery and completion assurance. An explicit
+owner decision may accept residual risk for a traffic cutover under an observed-parity standard; that decision does
+not establish strict no-loss. Retiring source Memory after a quiet interval is NO-GO.
 
 AWS references: [Memory record streaming](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/memory-record-streaming.html),
 [Kinesis shard listing](https://docs.aws.amazon.com/kinesis/latest/APIReference/API_ShardFilter.html),

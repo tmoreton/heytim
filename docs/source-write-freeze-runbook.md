@@ -216,9 +216,10 @@ late-change reconciler; that component must map record identities and handle cre
 traffic cutover can be called reconciled. Moving public traffic is a separate decision from retiring source Memory:
 traffic may move only with a tested ongoing reconciler, fully copied frozen snapshot, repeated observed parity,
 live capture and alerts, and an assigned operator continuing checks after the move. The source Memory and archive
-must remain available beyond the 30-day raw-event horizon while late processing remains possible. If the cutover
-requires a strict no-loss guarantee, it remains **NO-GO** without AWS-backed delivery/completion assurance or an
-explicit acceptance of the documented residual risk. A quiet interval is never a source-retirement criterion.
+must remain available beyond the 30-day raw-event horizon while late processing remains possible. If strict no-loss
+remains a requirement, traffic cutover is **NO-GO** without AWS-backed delivery and completion assurance. An explicit
+owner decision may accept the residual risk under an observed-parity standard, but does not establish strict no-loss.
+A quiet interval is never a source-retirement criterion.
 
 ## 2. Prepare the source before the final snapshot
 
