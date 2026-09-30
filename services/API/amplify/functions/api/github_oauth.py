@@ -454,6 +454,7 @@ def _github_callback(query: dict) -> dict:
             repositories,
             permissions,
             app_secret_arn,
+            account.get("type", "User"),
         )
         return _redirect(_result_url(return_url, "connected"))
     except (ApiError, CatalogError, KeyError, TypeError, ValueError):

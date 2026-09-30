@@ -4,6 +4,7 @@ import json
 import uuid
 from typing import Any
 
+from shared.bot_inbox import validated_email_recipient
 from shared.catalog import CatalogError
 from shared.catalog_rules import MAX_SKILLS_PER_BOT
 
@@ -16,6 +17,8 @@ UPDATE_FIELDS = CREATE_FIELDS
 SELF_UPDATE_FIELDS = {"name", "tagline", "prompt", "color", "skillIds"}
 CREATE_SKILL_FIELDS = {"name", "description", "instructions", "requiredToolIds"}
 CREATE_MEMORY_FIELDS = {"kind", "content"}
+SEND_EMAIL_FIELDS = {"to", "subject", "body"}
+EMAIL_SCHEDULE_FIELDS = {"name", "prompt", "time", "timezone", "frequency", "deliveryMode", "enabled"}
 
 
 def _bot_api():
@@ -51,6 +54,8 @@ def _mutation(value: Any) -> tuple[str, str, dict]:
         "create_skill",
         "update_self",
         "create_memory",
+        "send_email",
+        "create_email_schedule",
     }:
         raise ValueError("Bot mutation action is unsupported")
     if not isinstance(body, dict):
@@ -228,6 +233,98 @@ def _create_memory(user_id: str, mutation_id: str, value: dict) -> None:
     _memory_api()._create_user_memory(user_id, value, request_identifier=mutation_id)
 
 
+def _approved_email_action(turn: dict, tool_name: str, value: dict) -> None:
+    proposal = turn.get("approvalRequest")
+    decision = turn.get("approvalDecision")
+    if (
+        not isinstance(proposal, dict)
+        or not isinstance(decision, dict)
+        or proposal.get("toolName") != tool_name
+        or any(decision.get(key) != proposal.get(key) for key in ("id", "digest", "toolUseId"))
+    ):
+        raise ValueError("Email action requires exact approval")
+    inputs = proposal.get("input")
+    if not isinstance(inputs, dict):
+        raise TypeError("Email approval arguments are invalid")
+    if tool_name == "send_bot_email":
+        keys = SEND_EMAIL_FIELDS
+        if set(inputs) != keys or any(not isinstance(inputs[key], str) for key in keys):
+            raise ValueError("Email approval arguments are invalid")
+        expected = {key: inputs[key].strip() for key in keys}
+    else:
+        keys = {"name", "prompt", "time", "timezone"}
+        if not keys.issubset(inputs) or set(inputs) - keys - {"recipient", "frequency", "day_of_week", "day_of_month"}:
+            raise ValueError("Email approval arguments are invalid")
+        if any(not isinstance(inputs[key], str) for key in keys):
+            raise ValueError("Email approval arguments are invalid")
+        expected = {
+            "name": inputs["name"].strip(), "prompt": inputs["prompt"].strip(),
+            "time": inputs["time"].strip(), "timezone": inputs["timezone"].strip(),
+            "frequency": str(inputs.get("frequency", "daily")).strip(),
+            "deliveryMode": "email", "enabled": True,
+        }
+        if inputs.get("recipient"):
+            if not isinstance(inputs["recipient"], str):
+                raise ValueError("Email approval arguments are invalid")
+            expected["recipientEmail"] = inputs["recipient"].strip()
+        if inputs.get("day_of_week"):
+            expected["dayOfWeek"] = str(inputs["day_of_week"]).strip()
+        if inputs.get("day_of_month"):
+            expected["dayOfMonth"] = inputs["day_of_month"]
+    if value != expected:
+        raise ValueError("Email action changed after approval")
+
+
+def _email_bot(user_id: str, invoking_bot: dict, turn: dict) -> dict:
+    if turn.get("source") == "schedule" or turn.get("groupId"):
+        raise ValueError("Email actions require a direct bot chat")
+    bot = _bot_api()._get_bot(user_id, invoking_bot["id"])
+    if not bot.get("emailToken") or not bot.get("emailOwnerAddress"):
+        raise ValueError("Turn on this bot's inbox before sending email")
+    return bot
+
+
+def _send_email(user_id: str, invoking_bot: dict, turn: dict, value: dict) -> None:
+    _approved_email_action(turn, "send_bot_email", value)
+    _email_bot(user_id, invoking_bot, turn)
+    if set(value) != SEND_EMAIL_FIELDS:
+        raise ValueError("Send email fields are invalid")
+    to = validated_email_recipient(value.get("to"))
+    subject = value.get("subject")
+    body = value.get("body")
+    if not isinstance(subject, str) or not subject.strip() or len(subject) > 180:
+        raise ValueError("Email subject is invalid")
+    if not isinstance(body, str) or not body.strip() or len(body) > 5_000:
+        raise ValueError("Email body is invalid")
+    outbound = {"to": to, "subject": subject.strip(), "body": body.strip()}
+    table.update_item(
+        Key={"pk": turn["pk"], "sk": turn["sk"]},
+        UpdateExpression="SET outboundEmail = :email",
+        ConditionExpression="#status = :running AND #id = :id",
+        ExpressionAttributeNames={"#status": "status", "#id": "id"},
+        ExpressionAttributeValues={":email": outbound, ":running": "RUNNING", ":id": turn["id"]},
+    )
+    turn["outboundEmail"] = outbound
+
+
+def _create_email_schedule(user_id: str, invoking_bot: dict, turn: dict, mutation_id: str, value: dict) -> None:
+    _approved_email_action(turn, "create_email_schedule", value)
+    _email_bot(user_id, invoking_bot, turn)
+    allowed = EMAIL_SCHEDULE_FIELDS | {"recipientEmail", "dayOfWeek", "dayOfMonth"}
+    if not EMAIL_SCHEDULE_FIELDS.issubset(value) or set(value) - allowed:
+        raise ValueError("Email schedule fields are invalid")
+    if value.get("deliveryMode") != "email" or value.get("enabled") is not True:
+        raise ValueError("Email schedule delivery is invalid")
+    if ("dayOfWeek" in value and value.get("frequency") != "weekly") or (
+        "dayOfMonth" in value and value.get("frequency") != "monthly"
+    ):
+        raise ValueError("Email schedule day is invalid")
+    if "recipientEmail" in value:
+        validated_email_recipient(value["recipientEmail"])
+    from api import schedules
+    schedules._create_schedule(user_id, invoking_bot["id"], value, request_id=mutation_id)
+
+
 def apply_bot_mutations(
     user_id: str,
     invoking_bot: dict,
@@ -260,6 +357,12 @@ def apply_bot_mutations(
         return
     if action == "create_memory":
         _create_memory(user_id, mutation_id, value)
+        return
+    if action == "send_email":
+        _send_email(user_id, invoking_bot, turn, value)
+        return
+    if action == "create_email_schedule":
+        _create_email_schedule(user_id, invoking_bot, turn, mutation_id, value)
         return
     if invoking_bot.get("systemRole") != "chief":
         raise ValueError("Bot changes are allowed only from a direct Chief chat")

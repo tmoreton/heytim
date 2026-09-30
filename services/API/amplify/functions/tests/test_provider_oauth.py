@@ -129,6 +129,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             [{"id": 101, "name": "frog-owner/heytim"}],
             {"metadata": "read", "contents": "write"},
             app_secret_arn,
+            "User",
         )
         self.assertNotIn("transient-user-token", repr(save.call_args))
         exchange.assert_called_once_with(

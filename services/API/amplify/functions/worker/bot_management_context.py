@@ -111,9 +111,10 @@ def _bot_management_context(user_id: str, current_bot: dict) -> dict:
                 "toolIds",
                 "skillIds",
                 "systemRole",
+                "emailOwnerAddress",
             )
             if key in current_bot
-        },
+        } | {"emailEnabled": bool(current_bot.get("emailToken") and current_bot.get("emailOwnerAddress"))},
         "canManageBots": can_manage_bots,
         "bots": bots,
         "templates": (

@@ -25,9 +25,11 @@ MAX_RESULT_BYTES = 8_000_000
 PAGE_CHARS = 3_200
 RESULT_RETENTION_TAG = ("heytim-retention", "transient-tool-result")
 RESULT_INSTRUCTIONS = (
-    "Large tool results are saved in full. Use retrieve_offloaded_content with its "
-    "nextOffset to read further; never refetch provider data just to work around a "
-    "preview. For requested CSV/JSON exports, call export_tool_result with the saved "
+    "Large tool results are saved in full. Read the preview first. Retrieve a saved "
+    "result only when the preview lacks a fact needed for the task, and select a "
+    "specific pattern or line_range when possible. Follow nextOffset only when more "
+    "of that selected passage is needed; never refetch provider data just to work "
+    "around a preview. For requested CSV/JSON exports, call export_tool_result with the saved "
     "references and a records_path such as /transactions. This exports the actual "
     "records directly without copying them into tool arguments. Include all provider "
     "pages exactly once; an offloaded reference contains only the page fetched. Use "
@@ -191,7 +193,7 @@ class ToolResultOffloader(ContextOffloader):
                     "pattern: regex or keyword", "pattern: literal text"
                 ).replace(
                     "Retrieve full content (omit pattern/line_range) as a last resort.",
-                    "Follow nextOffset to read subsequent pages without refetching provider data.",
+                    "Read the preview first; retrieve only a needed passage, following nextOffset when necessary.",
                 )
                 block["text"] = (
                     text
@@ -213,9 +215,10 @@ class ToolResultOffloader(ContextOffloader):
     ) -> str | dict:
         """Read a bounded page of a saved result, including single-line JSON.
 
-        Follow nextOffset until null, keeping any filters unchanged. JSON is formatted
-        into lines first. Optional line_range has 1-based start/end; pattern is literal
-        text (not regex), with context_lines surrounding each match. offset is a character
+        Follow nextOffset only when more of the selected passage is needed, keeping
+        any filters unchanged. JSON is formatted into lines first. Optional line_range
+        has 1-based start/end; pattern is literal text (not regex), with context_lines
+        surrounding each match. offset is a character
         offset within the selected text. For CSV/JSON exports use export_tool_result.
         """
         if (

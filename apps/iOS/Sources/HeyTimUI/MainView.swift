@@ -123,6 +123,10 @@ public struct MainView: View {
       #endif
     }
     .navigationSplitViewStyle(.balanced)
+    #if os(macOS)
+      .toolbarBackground(FrogTheme.appBackground, for: .windowToolbar)
+      .toolbarBackground(.visible, for: .windowToolbar)
+    #endif
   }
 
   private var conversationDetail: some View {
@@ -199,14 +203,10 @@ private struct ConversationSidebar: View {
 
   private var conversations: [ConversationListItem] {
     guard let bootstrap = model.bootstrap else { return [] }
-    return ConversationListItem.recentFirst(bots: bootstrap.bots, groups: bootstrap.groups)
+    return ConversationListItem.recentFirst(
+      bots: bootstrap.bots, groups: bootstrap.groups,
+      activeSelections: model.sidebarActiveSelections)
       .filter { searchMatch($0.name, $0.lastMessage) }
-      .sorted {
-        let left = latestActivityDate(for: $0)
-        let right = latestActivityDate(for: $1)
-        if left != right { return left > right }
-        return $0.name.localizedStandardCompare($1.name) == .orderedAscending
-      }
   }
 
   var body: some View {
@@ -295,7 +295,7 @@ private struct ConversationSidebar: View {
   private func sidebarRow(_ item: ConversationListItem) -> some View {
     conversationRow(
       selection: item.selection, name: item.name,
-      preview: latestPreview(for: item), date: latestActivityDate(for: item),
+      preview: latestPreview(for: item), date: item.lastMessageAt.froggyDate ?? .distantPast,
       processing: isProcessing(item), processingName: processingName(for: item)
     ) {
       switch item {
@@ -408,11 +408,7 @@ private struct ConversationSidebar: View {
   }
 
   private func isProcessing(_ item: ConversationListItem) -> Bool {
-    if model.sendingSelection == item.selection { return true }
-    if model.selection == item.selection && model.loadedMessagesSelection == item.selection {
-      return model.messages.contains(where: \.isActive)
-    }
-    return item.processing
+    model.sidebarActiveSelections.contains(item.selection)
   }
 
   private func processingName(for item: ConversationListItem) -> String? {
@@ -432,16 +428,6 @@ private struct ConversationSidebar: View {
       let message = model.messages.last(where: { !$0.text.isEmpty })
     else { return item.lastMessage }
     return message.text
-  }
-
-  private func latestActivityDate(for item: ConversationListItem) -> Date {
-    let sidebarDate = item.lastMessageAt.froggyDate ?? .distantPast
-    guard model.selection == item.selection else { return sidebarDate }
-    let visibleDate = model.messages.flatMap { message in
-      [message.createdAt, message.startedAt, message.completedAt, message.activityUpdatedAt]
-        .compactMap { $0?.froggyDate }
-    }.max() ?? .distantPast
-    return max(sidebarDate, visibleDate)
   }
 
   private var sidebarToolbarButtonColor: Color {

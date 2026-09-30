@@ -57,6 +57,12 @@ def _process_scheduled_agent_reply(record: dict, request: dict) -> None:
         "scheduleId": schedule_id,
         "scheduleName": schedule_item["name"],
         "scheduleDeliveryMode": schedule_item.get("deliveryMode", "app"),
+        **(
+            {"scheduleRecipientEmail": schedule_item["recipientEmail"]}
+            if schedule_item.get("deliveryMode") == "email"
+            and isinstance(schedule_item.get("recipientEmail"), str)
+            else {}
+        ),
         "scheduleTimezone": schedule_item.get("timezone", "UTC"),
         "schedulerExecutionId": execution_id,
     }

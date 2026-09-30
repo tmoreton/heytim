@@ -709,6 +709,7 @@ class ConnectionMixin(MCPServerConnectionMixin, FinanceConnectionMixin, Connecti
         repositories: list[dict],
         permissions: dict[str, str],
         app_secret_arn: str,
+        installation_account_type: str = "User",
     ) -> dict:
         if not re.fullmatch(r"[0-9]{1,20}", installation_id):
             raise CatalogError("GitHub installation id is invalid")
@@ -755,6 +756,7 @@ class ConnectionMixin(MCPServerConnectionMixin, FinanceConnectionMixin, Connecti
                 "appSecretArn": app_secret_arn,
             },
             provider_account_id=installation_id,
+            metadata={"installationAccountType": installation_account_type},
             repository_count=len(repository_ids),
             repositories=[
                 {"id": value["id"], "name": value["name"]} for value in repositories

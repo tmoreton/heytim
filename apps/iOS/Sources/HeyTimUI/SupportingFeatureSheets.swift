@@ -240,6 +240,7 @@ struct SkillEditor: View {
               Text("Save")
             }
           }
+          .froggyGlassButton(prominent: true)
           .disabled(!canSave)
         }
       }
@@ -379,7 +380,9 @@ struct ConnectionsView: View {
           if let callback = await model.handleConnectionCallback(url),
             callback.status == .connected
           {
-            successMessage = "\(providerName(callback.providerID)) sign-in completed. Check the account name below before assigning it to a bot."
+            successMessage = callback.providerID == "github"
+              ? "Repositories updated. Check the list below before assigning them to a bot."
+              : "\(providerName(callback.providerID)) sign-in completed. Check the account name below before assigning it to a bot."
             await load()
           }
           connectingProviderID = nil
@@ -501,6 +504,7 @@ struct ConnectionsView: View {
         }
         ToolbarItem(placement: .confirmationAction) {
             Button(updatingMCPServer ? "Save server" : "Add server") { saveMCPServer() }
+            .froggyGlassButton(prominent: true)
             .disabled(savingMCPServer || mcpServerName.isEmpty || mcpServerURL.isEmpty || (!updatingMCPServer && mcpServerToken.isEmpty))
         }
       }
@@ -577,7 +581,7 @@ struct ConnectionsView: View {
               connection: connection, provider: provider,
               reconnect: {
                 if provider.id == "mcp_server" { updateMCPServer(connection) }
-                else { connect(provider.id, chooseAnotherAccount: true) }
+                else { connect(provider.id, chooseAnotherAccount: provider.id != "github") }
               },
               disconnect: { disconnectCandidate = connection },
               refreshPlaid: provider.id == "plaid" ? { refreshPlaid(connection) } : nil)
@@ -674,12 +678,8 @@ private struct ConnectionDetailView: View {
           }
         }
       }
-      if connection.provider == "github", let repositories = connection.repositories {
-        Section("Connected repositories") {
-          ForEach(repositories) { repository in
-            Text(repository.name)
-          }
-        }
+      if connection.provider == "github" {
+        RepositorySelectionView(connection: connection, refresh: reconnect)
       }
       if connection.provider == "plaid" {
         Section("Transactions") {
@@ -700,7 +700,7 @@ private struct ConnectionDetailView: View {
         }
       }
       Section {
-        if let reconnect {
+        if let reconnect, connection.provider != "github" {
           Button(
             connection.provider == "mcp_server" ? "Update Server" : "Sign in again…",
             systemImage: "arrow.clockwise", action: reconnect)
@@ -1065,6 +1065,7 @@ private struct GroupRoutineEditor: View {
         }
         ToolbarItem(placement: .confirmationAction) {
           Button("Save") { Task { await save() } }
+            .froggyGlassButton(prominent: true)
             .disabled(!canSave)
         }
       }

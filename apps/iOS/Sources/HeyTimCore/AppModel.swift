@@ -95,13 +95,14 @@ public final class AppModel {
 
   @ObservationIgnored var api: HeyTimAPI?
   @ObservationIgnored private var pollTask: Task<Void, Never>?
-  @ObservationIgnored private var demoMode: Bool
+  @ObservationIgnored var sidebarPollTask: Task<Void, Never>?
+  @ObservationIgnored var demoMode: Bool
   @ObservationIgnored private var demoDelayedBotSwitch = false
   @ObservationIgnored private var demoHistorySwitch = false
   @ObservationIgnored private var pushToken: Data?
   @ObservationIgnored private var composerDrafts: [ConversationSelection: ComposerDraft] = [:]
   @ObservationIgnored private var selectionGeneration: UInt = 0
-  @ObservationIgnored private var sessionGeneration: UInt = 0
+  @ObservationIgnored var sessionGeneration: UInt = 0
   @ObservationIgnored private var refreshedConfigurationMessageIDs: Set<String> = []
 
   public init(api: HeyTimAPI? = nil, demoMode: Bool = false) {
@@ -199,12 +200,17 @@ public final class AppModel {
     }
   #endif
 
-  deinit { pollTask?.cancel() }
+  deinit {
+    pollTask?.cancel()
+    sidebarPollTask?.cancel()
+  }
 
   public func connect(_ api: HeyTimAPI) {
     sessionGeneration &+= 1
     pollTask?.cancel()
     pollTask = nil
+    sidebarPollTask?.cancel()
+    sidebarPollTask = nil
     self.api = api
   }
 
@@ -212,6 +218,8 @@ public final class AppModel {
     sessionGeneration &+= 1
     pollTask?.cancel()
     pollTask = nil
+    sidebarPollTask?.cancel()
+    sidebarPollTask = nil
     api = nil
     bootstrap = nil
     selection = nil
@@ -304,6 +312,7 @@ public final class AppModel {
       guard sessionIsCurrent(requestedSession, api: api) else { return }
       bootstrap = value
       chooseAvailableSelection()
+      configureSidebarPolling()
       try await loadMessages()
       guard sessionIsCurrent(requestedSession, api: api) else { return }
       if value.needsBotOnboarding { sheet = .botLibrary }
@@ -319,6 +328,7 @@ public final class AppModel {
       let value = try await api.bootstrap()
       guard sessionIsCurrent(requestedSession, api: api) else { return false }
       bootstrap = value
+      configureSidebarPolling()
       if chooseAvailableSelection() { try await loadMessages() }
       return true
     } catch {
@@ -441,6 +451,7 @@ public final class AppModel {
       else { return false }
     }
     configurePolling()
+    configureSidebarPolling()
     let changedMessageIDs = Set(
       page.messages.lazy.filter { $0.configurationChanged == true }.map(\.id)
     )
@@ -608,6 +619,10 @@ public final class AppModel {
       return
     }
 
+    guard sessionIsCurrent(requestedSession, api: api) else { return }
+    markListedProcessing(selection, active: true)
+    if self.selection == selection { loadedMessagesSelection = nil }
+    configureSidebarPolling()
     guard self.selection == selection, sessionIsCurrent(requestedSession, api: api) else { return }
     do {
       try await loadMessages(drainQueuedMessages: false)
@@ -919,17 +934,6 @@ public final class AppModel {
 
   public func present(_ error: Error) { errorMessage = error.localizedDescription }
 
-  private func sessionIsCurrent(_ generation: UInt, api: HeyTimAPI) -> Bool {
-    sessionGeneration == generation && self.api === api
-  }
-
-  private func conversationExists(_ value: ConversationSelection) -> Bool {
-    switch value.kind {
-    case .bot: bootstrap?.bots.contains(where: { $0.id == value.id }) == true
-    case .group: bootstrap?.groups.contains(where: { $0.id == value.id }) == true
-    }
-  }
-
   private func saveVisibleDraft() {
     guard let selection else { return }
     let draft = ComposerDraft(
@@ -959,6 +963,11 @@ public final class AppModel {
     to value: ConversationSelection?
   ) -> Bool {
     guard value != selection else { return false }
+    if let selection, loadedMessagesSelection == selection,
+      let activeMessage = messages.last(where: { !$0.isUser && $0.isActive })
+    {
+      markListedProcessing(selection, name: activeMessage.authorName, active: true)
+    }
     saveVisibleDraft()
     setSelection(value)
     messages = []
@@ -967,6 +976,7 @@ public final class AppModel {
     isLoadingMessages = value != nil && (!demoMode || demoDelayedBotSwitch || demoHistorySwitch)
     pollTask?.cancel()
     pollTask = nil
+    configureSidebarPolling()
     return true
   }
 

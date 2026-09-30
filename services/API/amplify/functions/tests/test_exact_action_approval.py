@@ -75,3 +75,33 @@ class GroupActionApprovalTests(ApiTestCase):
         self.assertEqual(result["status"], "denied")
         self.assertIn("#status = :error", self.data_table.updated[-1]["UpdateExpression"])
         self.s3.delete_object.assert_called_once()
+
+
+class BotEmailApprovalTests(ApiTestCase):
+    def test_email_send_can_be_approved_once_without_other_connected_tools(self) -> None:
+        proposal = {
+            "id": "interrupt-1", "digest": "a" * 64, "toolUseId": "call-1",
+            "toolName": "send_bot_email", "input": {
+                "to": "friend@example.com", "subject": "Hello", "body": "Hi"},
+            "expiresAt": (datetime.now(UTC) + timedelta(minutes=10)).isoformat(),
+        }
+        bot = {"id": "bot-1", "toolIds": [], "emailToken": "abcdefghijklmnop",
+               "emailOwnerAddress": "owner@example.com"}
+        turn = {"pk": "CHAT#owner#bot-1", "sk": "TURN#one", "id": "one",
+                "status": "AWAITING_APPROVAL", "approvalRequest": proposal,
+                "approvalGrantDigest": "grant-1"}
+        with (
+            patch.object(self.direct_chat, "_get_bot", return_value=bot),
+            patch.object(self.direct_chat, "_get_turn", return_value=turn),
+            patch.object(self.direct_chat.catalog, "approval_tool_names", return_value=[]),
+            patch.object(self.direct_chat, "approval_grant_digest", return_value="grant-1"),
+            patch.object(self.direct_chat, "_queue_bot_turn") as queued,
+        ):
+            with self.assertRaises(self.support.ApiError) as raised:
+                self.direct_chat._approve_bot_turn("owner", "bot-1", "one", always=True)
+            self.assertEqual(raised.exception.status_code, 400)
+            result = self.direct_chat._approve_bot_turn("owner", "bot-1", "one")
+
+        self.assertEqual(result["status"], "pending")
+        queued.assert_called_once()
+        self.assertEqual(self.data_table.updated[-1]["ExpressionAttributeValues"][":decision"]["digest"], proposal["digest"])

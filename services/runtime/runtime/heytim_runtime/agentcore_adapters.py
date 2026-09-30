@@ -33,7 +33,10 @@ MANAGED_BROWSER_GUIDANCE = (
     "site requires sign-in or human control, ask the user to open the bot browser, "
     "complete it there, and resume the bot. Never request passwords, cookies, or "
     "session tokens in chat or bypass the block. A saved login does not authorize a "
-    "new external action."
+    "new external action. For reading a page, select the smallest relevant "
+    "element with get_text instead of extracting the whole body. For repository "
+    "research, open the relevant file or directory and select the pertinent section. "
+    "If a result is offloaded, use its preview first and retrieve only the needed passage."
 )
 class PersistentAgentCoreBrowser(AgentCoreBrowser):
     """Reconnect a conversation to its active AgentCore browser session."""

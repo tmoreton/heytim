@@ -99,10 +99,13 @@ struct MessageBubble: View {
         if hasBubbleContent {
           VStack(alignment: .leading, spacing: 8) {
             if awaitingApproval {
-              Label("Allow This Bot’s Tools", systemImage: "checkmark.shield")
+              Label(message.allowedActions?.contains("approveAlways") == true
+                ? "Allow This Bot’s Tools" : "Approve This Action", systemImage: "checkmark.shield")
                 .froggyFont(.headline)
               Text(
-                "This bot is set to Ask before acting. Always Allow will cover: \(message.approvalTools?.joined(separator: ", ") ?? "this tool"). The action below will run now; later actions won’t ask again."
+                message.allowedActions?.contains("approveAlways") == true
+                  ? "This bot is set to Ask before acting. Always Allow will cover: \(message.approvalTools?.joined(separator: ", ") ?? "this tool"). The action below will run now; later actions won’t ask again."
+                  : "Review the exact action below. Each new email or schedule needs approval; an active schedule sends future results automatically."
               )
               .froggyFont(.callout).foregroundStyle(.secondary)
               if let input = message.approvalInput {
@@ -114,10 +117,11 @@ struct MessageBubble: View {
                 .frame(maxHeight: 180)
                 .accessibilityLabel("Proposed tool arguments")
               }
-              Button("Review Tool Access", systemImage: "checkmark.shield") {
+              Button(message.allowedActions?.contains("approveAlways") == true
+                ? "Review Tool Access" : "Review Action", systemImage: "checkmark.shield") {
                 reviewingApproval = true
               }
-              .buttonStyle(.borderedProminent)
+              .froggyGlassButton(prominent: true)
             } else if !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
               MarkdownMessageView(
                 message.text, expandsToFill: !mine,
@@ -198,7 +202,9 @@ struct MessageBubble: View {
       }
     }
     .confirmationDialog(
-      "Always allow these tools?", isPresented: $reviewingApproval, titleVisibility: .visible
+      message.allowedActions?.contains("approveAlways") == true
+        ? "Always allow these tools?" : "Approve this action?",
+      isPresented: $reviewingApproval, titleVisibility: .visible
     ) {
       if message.allowedActions?.contains("approveAlways") == true {
         Button("Always Allow") {

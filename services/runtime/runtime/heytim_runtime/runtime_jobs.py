@@ -129,7 +129,11 @@ class RunState:
         if reason == "tool_use":
             step = " ".join(self.chunks.split())[:600]
             if not step and self.tool:
-                step = f"Using {self.tool.replace('_', ' ').replace('-', ' ')}"[:600]
+                step = (
+                    "Reading saved content"
+                    if self.tool == "retrieve_offloaded_content"
+                    else f"Using {self.tool.replace('_', ' ').replace('-', ' ')}"[:600]
+                )
             progress = self.value["progress"]
             if step and (not progress or progress[-1] != step):
                 self.value["progress"] = (progress + [step])[-12:]

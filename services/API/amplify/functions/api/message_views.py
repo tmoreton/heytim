@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import json
 
+from shared.action_grants import BOT_EMAIL_APPROVAL_TOOLS
+
 from .attachments import _public_file
+
+
+def _is_email_approval(turn: dict) -> bool:
+    proposal = turn.get("approvalRequest")
+    return isinstance(proposal, dict) and proposal.get("toolName") in BOT_EMAIL_APPROVAL_TOOLS
 
 
 def messages_from_turns(turns: list[dict]) -> list[dict]:
@@ -66,7 +73,8 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
                     ),
                     **({"source": "desktop_action"} if turn.get("source") == "desktop_action" else {}),
                     "allowedActions": (
-                        ["reject", "approveOnce", "approveAlways"]
+                        (["reject", "approveOnce"] if _is_email_approval(turn)
+                         else ["reject", "approveOnce", "approveAlways"])
                         if status == "awaiting_approval"
                         else ["cancel"]
                         if status in {"pending", "running", "awaiting_device"}
@@ -117,7 +125,8 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
                     "startedAt": turn.get("startedAt", turn["createdAt"]),
                     "status": str(turn.get("status", "PENDING")).lower(),
                     "allowedActions": (
-                        ["reject", "approveOnce", "approveAlways"]
+                        (["reject", "approveOnce"] if _is_email_approval(turn)
+                         else ["reject", "approveOnce", "approveAlways"])
                         if turn.get("status") == "AWAITING_APPROVAL"
                         else ["cancel"]
                         if turn.get("status") in {"PENDING", "RUNNING", "AWAITING_DEVICE"}

@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from boto3.dynamodb.conditions import Attr
 from shared.action_grants import effective_allowed_interactive_tool_ids
+from shared.bot_inbox import validated_email_recipient
 from shared.client_contract import (
     SCHEDULE_DAY_OF_MONTH_MAX,
     SCHEDULE_DAY_OF_MONTH_MIN,
@@ -103,6 +104,13 @@ def _schedule_values(value: dict, previous: dict | None = None) -> dict:
         "deliveryMode": delivery_mode,
         "enabled": enabled,
     }
+    if delivery_mode == "email":
+        recipient = value.get("recipientEmail", prior.get("recipientEmail"))
+        if recipient is not None and recipient != "":
+            try:
+                values["recipientEmail"] = validated_email_recipient(recipient)
+            except (TypeError, ValueError) as exc:
+                raise ApiError(400, str(exc)) from exc
     if frequency == "weekly":
         day_of_week = value.get("dayOfWeek", prior.get("dayOfWeek", "MON"))
         if day_of_week not in DAYS_OF_WEEK:
@@ -230,7 +238,9 @@ def _list_schedule_runs(user_id: str, bot_id: str) -> list[dict]:
     return runs
 
 
-def _create_schedule(user_id: str, bot_id: str, value: dict) -> dict:
+def _create_schedule(
+    user_id: str, bot_id: str, value: dict, *, request_id: str | None = None
+) -> dict:
     bot = _get_bot(user_id, bot_id)
     schedule_values = _schedule_values(value)
     if schedule_values["deliveryMode"] == "email" and not _bot_email_ready(bot):
@@ -244,9 +254,19 @@ def _create_schedule(user_id: str, bot_id: str, value: dict) -> dict:
         effective_allowed_interactive_tool_ids(bot),
     ):
         raise ApiError(409, "Allow this bot's tools in a direct chat before scheduling it")
+    schedule_id = request_id or str(uuid.uuid4())
+    if request_id:
+        existing = table.get_item(
+            Key=_schedule_key(user_id, schedule_id), ConsistentRead=True
+        ).get("Item")
+        if existing:
+            if existing.get("botId") != bot_id or any(
+                existing.get(key) != item for key, item in schedule_values.items()
+            ):
+                raise ApiError(409, "This schedule request was already used")
+            return _public_schedule(existing)
     if len(_schedule_items(user_id)) >= SCHEDULE_LIMIT:
         raise ApiError(400, f"You can create up to {SCHEDULE_LIMIT} scheduled tasks")
-    schedule_id = str(uuid.uuid4())
     current = _now()
     item = {
         **_schedule_key(user_id, schedule_id),
@@ -288,6 +308,8 @@ def _update_schedule(user_id: str, bot_id: str, schedule_id: str, value: dict) -
         **schedule_values,
         "updatedAt": _now(),
     }
+    if item["deliveryMode"] != "email":
+        item.pop("recipientEmail", None)
     if item["frequency"] != "weekly":
         item.pop("dayOfWeek", None)
     if item["frequency"] != "monthly":

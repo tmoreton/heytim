@@ -141,6 +141,8 @@ def bot_management_from_payload(payload: dict) -> dict | None:
         "skills": _option_list(raw.get("skills"), "skills"),
         "selfToolIds": self_tool_ids,
     }
+    if "emailEnabled" in current_bot:
+        context["emailEnabled"] = current_bot["emailEnabled"] is True
     memory_max_length = raw.get("memoryMaxLength")
     if memory_max_length is not None:
         if (
@@ -519,6 +521,8 @@ def bot_management_tools(context: dict, tracker: BotMutationTracker) -> list[Any
         update_self,
         remember_for_user,
     ]
+    if context.get("emailEnabled") is True:
+        tools.extend(bot_email_tools(tracker))
     if context["canManageBots"]:
         tools.extend([
             list_bot_options,
@@ -528,6 +532,64 @@ def bot_management_tools(context: dict, tracker: BotMutationTracker) -> list[Any
             create_skill_for_bot,
         ])
     return tools
+
+
+def bot_email_tools(tracker: BotMutationTracker) -> list[Any]:
+    """Stage approved outbound mail using the bot's built-in inbox."""
+
+    @tool
+    def send_bot_email(to: str, subject: str, body: str) -> str:
+        """Send one email after the user approves its exact recipient and text.
+
+        Call only for an explicit request to send. No Gmail connection is needed.
+        Finish the response after this call without claiming confirmed delivery.
+        """
+        tracker.stage("send_email", {
+            "to": _text(to, "to", 320),
+            "subject": _text(subject, "subject", 180),
+            "body": _text(body, "body", 5_000),
+        })
+        return "The approved email is queued for delivery. Finish this response now."
+
+    @tool
+    def create_email_schedule(
+        name: str,
+        prompt: str,
+        time: str,
+        timezone: str,
+        recipient: str = "",
+        frequency: str = "daily",
+        day_of_week: str = "",
+        day_of_month: int = 0,
+    ) -> str:
+        """Create a recurring bot result emailed to an approved recipient.
+
+        Confirm the task, local time, timezone, and recipient before calling.
+        Leave recipient empty to use the user's current verified sign-in address.
+        The exact request is shown for approval. No Gmail connection is needed.
+        Finish the response after this call.
+        """
+        value = {
+            "name": _text(name, "name", 64),
+            "prompt": _text(prompt, "prompt", 5_000),
+            "time": _text(time, "time", 5),
+            "timezone": _text(timezone, "timezone", 64),
+            "frequency": _text(frequency, "frequency", 12),
+            "deliveryMode": "email",
+            "enabled": True,
+        }
+        if (day_of_week and frequency != "weekly") or (day_of_month and frequency != "monthly"):
+            raise ValueError("Choose a day only for a weekly or monthly schedule")
+        if recipient:
+            value["recipientEmail"] = _text(recipient, "recipient", 320)
+        if day_of_week:
+            value["dayOfWeek"] = _text(day_of_week, "day_of_week", 3)
+        if day_of_month:
+            value["dayOfMonth"] = day_of_month
+        tracker.stage("create_email_schedule", value)
+        return "The approved email schedule is being created. Finish this response now."
+
+    return [send_bot_email, create_email_schedule]
 
 
 __all__ = [

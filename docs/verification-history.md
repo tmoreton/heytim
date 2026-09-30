@@ -66,6 +66,22 @@ the current checkout or environment still has the same status.
   expose the empty destination account before migration. The revised pre-cutover workflow builds and checks a signed
   candidate without uploading it to TestFlight. The repository is public, so signed binaries are not retained as
   downloadable Actions artifacts.
+- Cutover-readiness and provider-gating code landed on `main` as `5adc721`, followed by the source-size correction
+  `520df09`. The iPhone and Mac destination-only version `1.0.13` candidates from `520df09` are
+  [run 36652160673](https://github.com/tmoreton/heytim/actions/runs/36652160673) and
+  [run 36652172869](https://github.com/tmoreton/heytim/actions/runs/36652172869); both were queued at this
+  checkpoint, with no TestFlight upload or Sparkle publication. The earlier iPhone candidate from `f4f24fb`
+  signed and exported an IPA locally but failed its portable receipt parser; its replacement has that fix.
+- Destination production flags for Google, Slack, Notion, and X connections and their review attestations were
+  read back as `false`. This hides unverified or unconfigured connections after the destination backend is deployed;
+  it does not change the live source service. The source remains writable and no customer-data copy has begun.
+  A third source file bucket used by AgentCore contained 208 versions and six delete markers at read-only inventory.
+  The main HeyTim source bucket continued gaining versions, so all file and table manifests need a frozen refresh.
+- The source write-freeze preflight returned 39 checks and 30 blockers. A guarded read-only capture stopped at
+  AgentCore Memory because its resource-policy response did not prove absence versus unsupported policy behavior.
+  No source settings were changed. A local Apple verification on the concurrently edited shared workspace compiled
+  both platforms and passed Mac tests, but its iPhone UI suite reached the 1,200-second timeout; the clean committed
+  candidate jobs are the release check for this revision.
 - The September 29 preparation checkout also passed 42 migration tests (plus three subtests), 66 focused runtime
   tests, the API verification gate (including 568 backend tests), all 10 AgentCore CDK tests, API typecheck, Python
   lint/format checks, and the Apple architecture/source-size gate. These local checks do not substitute for the

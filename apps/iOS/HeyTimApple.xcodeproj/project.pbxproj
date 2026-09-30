@@ -15,6 +15,7 @@
 		F20000000000000000000006 /* ConversationMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000006 /* ConversationMessageView.swift */; };
 		F20000000000000000000007 /* AppModel+AISharingConsent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000007 /* AppModel+AISharingConsent.swift */; };
 		F20000000000000000000008 /* InvitationParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000008 /* InvitationParser.swift */; };
+		F2000000000000000000000B /* AppModel+SidebarActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3000000000000000000000B /* AppModel+SidebarActivity.swift */; };
 		F20000000000000000000009 /* ShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000009 /* ShareView.swift */; };
 		F2000000000000000000000A /* AISharingConsentDisclosure.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3000000000000000000000A /* AISharingConsentDisclosure.swift */; };
 		0A87C1D4CB05978494CB610A /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6215600B1AD6C11F22092AEB /* Models.swift */; };
@@ -22,6 +23,7 @@
 		AA0000000000000000000001 /* AppleDeviceToolCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000001 /* AppleDeviceToolCoordinator.swift */; };
 		AA0000000000000000000002 /* AppleHealthCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000002 /* AppleHealthCoordinator.swift */; };
 		115CF026C6D962CAEDF7D3DE /* SupportingFeatureSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E8F50345C6F715CCAD7D4AA /* SupportingFeatureSheets.swift */; };
+		A5E8990A0000000000000001 /* GitHubConnectionRepositoriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E8990A0000000000000002 /* GitHubConnectionRepositoriesView.swift */; };
 		1267B165AF70AFB92CAD09C9 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 642770B43219595507412311 /* Foundation.framework */; };
 		173187A9F62136A680BF6106 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 642770B43219595507412311 /* Foundation.framework */; };
 		1AC2B001290CB87EBD5377C9 /* BotInboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 389D7153611901EA6F5911BF /* BotInboxView.swift */; };
@@ -81,6 +83,7 @@
 		F30000000000000000000006 /* ConversationMessageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConversationMessageView.swift; path = Sources/HeyTimUI/ConversationMessageView.swift; sourceTree = "<group>"; };
 		F30000000000000000000007 /* AppModel+AISharingConsent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AppModel+AISharingConsent.swift"; path = "Sources/HeyTimCore/AppModel+AISharingConsent.swift"; sourceTree = "<group>"; };
 		F30000000000000000000008 /* InvitationParser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InvitationParser.swift; path = Sources/HeyTimCore/InvitationParser.swift; sourceTree = "<group>"; };
+		F3000000000000000000000B /* AppModel+SidebarActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AppModel+SidebarActivity.swift"; path = "Sources/HeyTimCore/AppModel+SidebarActivity.swift"; sourceTree = "<group>"; };
 		F30000000000000000000009 /* ShareView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareView.swift; path = Sources/HeyTimUI/ShareView.swift; sourceTree = "<group>"; };
 		F3000000000000000000000A /* AISharingConsentDisclosure.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AISharingConsentDisclosure.swift; path = Sources/HeyTimUI/AISharingConsentDisclosure.swift; sourceTree = "<group>"; };
 		023CEBD733F786082B5D08D4 /* Theme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Theme.swift; path = Sources/HeyTimUI/Theme.swift; sourceTree = "<group>"; };
@@ -93,6 +96,7 @@
 		1699D193B8D3D576EFFA1341 /* HeyTimAppleUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HeyTimAppleUITests.swift; path = UITests/HeyTimAppleUITests.swift; sourceTree = "<group>"; };
 		17C3A6AC39F485405F85856B /* AuthSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthSession.swift; path = Sources/HeyTimPlatform/AuthSession.swift; sourceTree = "<group>"; };
 		1E8F50345C6F715CCAD7D4AA /* SupportingFeatureSheets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SupportingFeatureSheets.swift; path = Sources/HeyTimUI/SupportingFeatureSheets.swift; sourceTree = "<group>"; };
+		A5E8990A0000000000000002 /* GitHubConnectionRepositoriesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GitHubConnectionRepositoriesView.swift; path = Sources/HeyTimUI/GitHubConnectionRepositoriesView.swift; sourceTree = "<group>"; };
 		1F8780D2250DDA248BFC13CD /* HeyTim-iOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "HeyTim-iOS.entitlements"; path = "Resources/HeyTim-iOS.entitlements"; sourceTree = "<group>"; };
 		2AF4C4F234301D2BBDF33497 /* DictationModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DictationModel.swift; path = Sources/HeyTimPlatform/DictationModel.swift; sourceTree = "<group>"; };
 		305EF1F2657C9AC0A9FA9D98 /* HeyTim-macOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "HeyTim-macOS.entitlements"; path = "Resources/HeyTim-macOS.entitlements"; sourceTree = "<group>"; };
@@ -188,6 +192,7 @@
 				F30000000000000000000001 /* AppModel+Fork.swift */,
 				F30000000000000000000007 /* AppModel+AISharingConsent.swift */,
 				F30000000000000000000008 /* InvitationParser.swift */,
+				F3000000000000000000000B /* AppModel+SidebarActivity.swift */,
 				F30000000000000000000002 /* BotSettingsModels.swift */,
 				F30000000000000000000003 /* ChatUsageSummary.swift */,
 				6215600B1AD6C11F22092AEB /* Models.swift */,
@@ -215,6 +220,7 @@
 				1E8F50345C6F715CCAD7D4AA /* SupportingFeatureSheets.swift */,
 				F30000000000000000000009 /* ShareView.swift */,
 				F3000000000000000000000A /* AISharingConsentDisclosure.swift */,
+				A5E8990A0000000000000002 /* GitHubConnectionRepositoriesView.swift */,
 				023CEBD733F786082B5D08D4 /* Theme.swift */,
 				DF6DC85847D1E63C3F66E5AE /* amplify_outputs.json */,
 				6F25A4E6E1346DB162542258 /* PrivacyInfo.xcprivacy */,
@@ -425,6 +431,7 @@
 				F20000000000000000000001 /* AppModel+Fork.swift in Sources */,
 				F20000000000000000000007 /* AppModel+AISharingConsent.swift in Sources */,
 				F20000000000000000000008 /* InvitationParser.swift in Sources */,
+				F2000000000000000000000B /* AppModel+SidebarActivity.swift in Sources */,
 				F20000000000000000000002 /* BotSettingsModels.swift in Sources */,
 				F20000000000000000000003 /* ChatUsageSummary.swift in Sources */,
 				0A87C1D4CB05978494CB610A /* Models.swift in Sources */,
@@ -452,6 +459,7 @@
 				115CF026C6D962CAEDF7D3DE /* SupportingFeatureSheets.swift in Sources */,
 				F20000000000000000000009 /* ShareView.swift in Sources */,
 				F2000000000000000000000A /* AISharingConsentDisclosure.swift in Sources */,
+				A5E8990A0000000000000001 /* GitHubConnectionRepositoriesView.swift in Sources */,
 				71657CB25210E15EB004C3B3 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

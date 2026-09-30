@@ -465,6 +465,7 @@ private struct BotTemplateDetailView: View {
               installing = false
             }
           }
+          .froggyGlassButton(prominent: true)
           .disabled(installing)
         }
       }
@@ -520,6 +521,7 @@ struct BotPromptEditor: View {
     .toolbar {
       ToolbarItem(placement: .confirmationAction) {
         Button("Done") { dismiss() }
+          .froggyGlassButton(prominent: true)
       }
     }
   }
@@ -1336,6 +1338,7 @@ struct BotToolsAndSkillsEditor: View {
         }
         ToolbarItem(placement: .confirmationAction) {
           Button("Add server") { saveMCPServer() }
+            .froggyGlassButton(prominent: true)
             .disabled(
               savingMCPServer || mcpServerName.isEmpty || mcpServerURL.isEmpty
                 || mcpServerToken.isEmpty)
@@ -1527,7 +1530,9 @@ struct GroupEditor: View {
       }
       if editable {
         ToolbarItem(placement: .confirmationAction) {
-          Button("Save") { save() }.disabled(!canSave)
+          Button("Save") { save() }
+            .froggyGlassButton(prominent: true)
+            .disabled(!canSave)
         }
       }
     }
@@ -1764,6 +1769,7 @@ private struct ScheduleEditor: View {
   @State private var saving = false
   @State private var deleting = false
   @State private var confirmingDeletion = false
+  @State private var confirmingRecipient = false
   @Environment(\.dismiss) private var dismiss
 
   private var weekdays: [ScheduleWeekday] {
@@ -1803,6 +1809,14 @@ private struct ScheduleEditor: View {
     }
     if draft.prompt.count > model.constraints.schedulePromptMaxLength {
       return "Task instructions are longer than the supported limit."
+    }
+    let recipient = draft.recipientEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+    let addressParts = recipient.split(separator: "@", omittingEmptySubsequences: false)
+    if draft.deliveryMode == "email" && !recipient.isEmpty
+      && (recipient.rangeOfCharacter(from: .whitespacesAndNewlines) != nil
+        || addressParts.count != 2 || addressParts[0].isEmpty
+        || !addressParts[1].contains(".")) {
+      return "Enter a valid email recipient."
     }
     return nil
   }
@@ -1880,11 +1894,20 @@ private struct ScheduleEditor: View {
       if selection.kind == .bot {
         Section {
           Toggle("Email result", isOn: emailDelivery)
+          if draft.deliveryMode == "email" {
+            TextField("Recipient email", text: $draft.recipientEmail)
+              .textContentType(.emailAddress)
+              #if os(iOS)
+              .keyboardType(.emailAddress)
+              .textInputAutocapitalization(.never)
+              #endif
+              .autocorrectionDisabled()
+          }
         } header: {
           Text("Delivery")
         } footer: {
           Text(
-            "The result always appears in chat and run history. Email goes to your verified sign-in address. If needed, Hey Tim creates a private bot inbox so you can reply."
+            "The result also appears in chat and run history. Leave the recipient blank to use your verified sign-in address. Hey Tim uses the bot inbox to send and receive email; no Gmail connection is needed."
           )
         }
       }
@@ -1906,7 +1929,15 @@ private struct ScheduleEditor: View {
     .toolbarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .confirmationAction) {
-        Button("Save") { save() }
+        Button("Save") {
+          if draft.deliveryMode == "email"
+            && !draft.recipientEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            confirmingRecipient = true
+          } else {
+            save()
+          }
+        }
+          .froggyGlassButton(prominent: true)
           .disabled(!canSave)
       }
     }
@@ -1915,6 +1946,16 @@ private struct ScheduleEditor: View {
       normalizeConditionalFields()
     }
     .onChange(of: draft.frequency) { _, _ in normalizeConditionalFields() }
+    .confirmationDialog(
+      "Email each result to \(draft.recipientEmail.trimmingCharacters(in: .whitespacesAndNewlines))?",
+      isPresented: $confirmingRecipient,
+      titleVisibility: .visible
+    ) {
+      Button("Approve and save schedule") { save() }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text("This recipient will receive every result while the schedule is active.")
+    }
     .confirmationDialog(
       "Delete this scheduled task?",
       isPresented: $confirmingDeletion,

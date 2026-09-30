@@ -254,7 +254,7 @@ public enum FrogTheme {
   }
 
   // Opaque neutral layers make the sidebar, reading canvas, and composer distinct.
-  public static let accent = adaptive(light: RGB(28, 28, 28), dark: RGB(245, 245, 245))
+  public static let accent = Color.primary
   public static let conversationChrome = accent
   public static let activity = adaptive(light: RGB(89, 89, 89), dark: RGB(189, 189, 189))
   public static let canvas = adaptive(light: RGB(255, 255, 255), dark: RGB(23, 23, 23))
@@ -278,7 +278,7 @@ public enum FrogTheme {
   public static let approvalBorder = border
   public static let danger = Color.red
 
-  // Keep exact bot color for avatar and send fill. Small text and thin strokes
+  // Keep exact bot color for avatars. Small text and thin strokes
   // need a contrast-adjusted shade, particularly for Chief yellow in light mode.
   public static func botReadableColor(_ hex: String, scheme: ColorScheme) -> Color {
     guard let base = RGB(hex: hex) else { return accent }

@@ -49,6 +49,33 @@ class WorkerBotManagementStateTests(WorkerTestCase):
                 "user-1", {"systemRole": "chief"}, {"source": "schedule"}, raw
             )
 
+    def test_direct_email_requires_exact_approval_and_enabled_inbox(self) -> None:
+        raw = [{
+            "mutationId": str(uuid.uuid4()), "action": "send_email",
+            "value": {"to": "Friend@Example.com", "subject": "Hello", "body": "Report attached."},
+        }]
+        turn = {"pk": "CHAT#user-1#writer", "sk": "TURN#one", "id": "one", "source": "app"}
+        with self.assertRaisesRegex(ValueError, "exact approval"):
+            self.apply_bot_mutations("user-1", {"id": "writer"}, turn, raw)
+
+        proposal = {"id": "interrupt", "digest": "digest", "toolUseId": "call",
+                    "toolName": "send_bot_email", "input": {
+                        "to": "Friend@Example.com", "subject": "Hello", "body": "Report attached."}}
+        turn.update(approvalRequest=proposal, approvalDecision={
+            "id": "interrupt", "digest": "digest", "toolUseId": "call"})
+        bot_api = SimpleNamespace(_get_bot=MagicMock(return_value={
+            "id": "writer", "emailToken": "abcdefghijklmnop",
+            "emailOwnerAddress": "owner@example.com",
+        }))
+        with patch.dict(self.bot_mutation_globals, {"_bot_api": lambda: bot_api}):
+            self.apply_bot_mutations("user-1", {"id": "writer"}, turn, raw)
+            raw[0]["value"]["body"] = "Changed after approval"
+            with self.assertRaisesRegex(ValueError, "changed after approval"):
+                self.apply_bot_mutations("user-1", {"id": "writer"}, turn, raw)
+
+        self.assertEqual(turn["outboundEmail"]["to"], "friend@example.com")
+        self.assertIn("outboundEmail = :email", self.table.updates[-1]["UpdateExpression"])
+
 
 if __name__ == "__main__":
     import unittest

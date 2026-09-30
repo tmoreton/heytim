@@ -55,6 +55,22 @@ def _tools():
     return tracker, tools
 
 
+def test_enabled_inbox_exposes_approved_send_and_schedule_tools() -> None:
+    context = _context()
+    context["emailEnabled"] = True
+    tracker = BotMutationTracker()
+    tools = {item.tool_name: item for item in bot_management_tools(context, tracker)}
+    assert {"send_bot_email", "create_email_schedule"}.issubset(tools)
+
+    tools["create_email_schedule"](
+        "Morning brief", "Summarize yesterday's updates", "08:00",
+        "America/New_York", "friend@example.com",
+    )
+    assert tracker.pending[0]["action"] == "create_email_schedule"
+    assert tracker.pending[0]["value"]["recipientEmail"] == "friend@example.com"
+    assert tracker.pending[0]["value"]["deliveryMode"] == "email"
+
+
 def test_chief_can_stage_an_official_template_install() -> None:
     tracker, tools = _tools()
 

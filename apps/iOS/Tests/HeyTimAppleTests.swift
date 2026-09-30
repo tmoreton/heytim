@@ -761,6 +761,29 @@ import UniformTypeIdentifiers
       ])
   }
 
+  func testActiveBotStaysWorkingAndFirstWhenAnotherBotIsSelected() {
+    let model = AppModel(demoMode: true)
+    var bootstrap = DemoData.twoBotsBootstrap
+    bootstrap.bots[0].lastMessageAt = "2026-09-12T12:00:00.000Z"
+    bootstrap.bots[1].lastMessageAt = "2026-09-13T12:00:00.000Z"
+    model.bootstrap = bootstrap
+    var running = DemoData.messages[1]
+    running.status = "running"
+    model.messages = [running]
+
+    let chief = ConversationSelection(kind: .bot, id: "chief")
+    let researcher = ConversationSelection(kind: .bot, id: "researcher")
+    XCTAssertTrue(model.sidebarActiveSelections.contains(chief))
+    model.select(researcher)
+
+    XCTAssertTrue(model.sidebarActiveSelections.contains(chief))
+    XCTAssertEqual(model.bootstrap?.bots.first?.processing, true)
+    let items = ConversationListItem.recentFirst(
+      bots: model.bootstrap?.bots ?? [], groups: [],
+      activeSelections: model.sidebarActiveSelections)
+    XCTAssertEqual(items.map(\.selection), [chief, researcher])
+  }
+
   func testGroupReplyTargetDefaultsAndExplicitPeopleOnlySelection() {
     let model = AppModel(demoMode: true)
     var bootstrap = DemoData.bootstrap
@@ -904,7 +927,10 @@ import UniformTypeIdentifiers
 
     XCTAssertEqual(
       requests,
-      ["PUT /account/ai-sharing", "POST /bots/chief/messages", "GET /bots/chief/messages"])
+      [
+        "PUT /account/ai-sharing", "POST /bots/chief/messages",
+        "GET /bots/chief/messages", "GET /bootstrap",
+      ])
     XCTAssertEqual(model.bootstrap?.aiSharingConsent, AISharingConsent(version: 1, granted: true))
     XCTAssertFalse(model.showAISharingConsent)
     XCTAssertTrue(model.composerText.isEmpty)
