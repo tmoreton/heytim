@@ -442,7 +442,9 @@ class InfrastructureContractTests(unittest.TestCase):
             "scripts/run_managed_regression.py",
             "HEYTIM_REGRESSION_DATASET_ID",
             "Builtin.GoalSuccessRate Builtin.ResponseRelevance",
-            '.statistics.averageScore >= 0.8',
+            '.evaluation_results.numberOfSessionsCompleted == 5',
+            '.evaluation_results.numberOfSessionsFailed == 0',
+            'and (.statistics.averageScore | type == "number" and . >= 0.8)',
             "REFRESH_TOKEN_AUTH",
             "npm --prefix services/API run workflow:test",
         ):
