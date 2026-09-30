@@ -142,5 +142,16 @@ for application_arn in "${HEYTIM_APNS_APPLICATION_ARN:-}" "${HEYTIM_APNS_SANDBOX
   }
 done
 
-curl --fail --silent --show-error --max-time 20 "${api_url%/}/public/catalog" >/dev/null
+public_catalog="$(curl --fail --silent --show-error --max-time 20 \
+  --header 'Cache-Control: no-cache' "${api_url%/}/public/catalog")"
+chief_version="$(jq -er '.bots[] | select(.id == "chief") | .version' \
+  "$repository_root/catalog/catalog.json")"
+if ! jq -e --argjson chief_version "$chief_version" '
+  any(.bots[]?; .id == "chief" and .version == $chief_version)
+  and (.skills | length > 0)
+  and (.tools | length > 0)
+' <<<"$public_catalog" >/dev/null; then
+  echo 'Production capability catalog has not loaded the reviewed Chief bot template.' >&2
+  exit 1
+fi
 echo "Production deployment verified for $runtime_arn and $gateway_arn."
