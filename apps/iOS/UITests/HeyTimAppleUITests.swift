@@ -201,10 +201,12 @@ import XCTest
     #if os(iOS)
       XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 2))
       app.scrollViews["chat.transcript"].tap()
-      XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 1))
+      XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
       composer.tap()
     #endif
-    app.buttons["chat.send"].tap()
+    let sendButton = app.buttons["chat.send"]
+    XCTAssertTrue(sendButton.waitForExistence(timeout: 5))
+    sendButton.tap()
     XCTAssertTrue(
       app.staticTexts["This is the native app’s offline test reply."].waitForExistence(timeout: 5))
     XCTAssertFalse(app.buttons["Jump to Latest"].exists)
