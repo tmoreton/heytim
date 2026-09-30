@@ -48,7 +48,7 @@ export function makeAppStoreConnectToken({ keyId, issuerId, privateKey }, now = 
   return `${unsigned}.${signature.toString('base64url')}`;
 }
 
-async function getJson(path, token, fetchImpl) {
+export async function getJson(path, token, fetchImpl) {
   const url = new URL(path, API_ORIGIN);
   if (url.origin !== API_ORIGIN || !url.pathname.startsWith('/v1/')) {
     throw new InventoryError('The inventory requested an unexpected API destination.');

@@ -20,7 +20,7 @@ jobs:
           node-version: 22.23.2
 
       - name: Verify read-only inventory client
-        run: node --test scripts/tests/inspect-app-store-connect.test.mjs
+        run: node --test scripts/tests/inspect-app-store-connect.test.mjs scripts/tests/inspect-app-store-metadata.test.mjs
 
       - name: Inspect HeyTim iOS builds and internal group
         env:
@@ -29,3 +29,10 @@ jobs:
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY }}
           APP_STORE_CONNECT_EXPECTED_INTERNAL_TESTER_EMAIL: ${{ secrets.HEYTIM_INTERNAL_TESTER_EMAIL }}
         run: node scripts/inspect-app-store-connect.mjs
+
+      - name: Inspect App Store support and privacy links
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: node scripts/inspect-app-store-metadata.mjs
