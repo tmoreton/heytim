@@ -11,12 +11,12 @@ sys.path.insert(0, str(Path(__file__).parents[1] / "scripts"))
 import run_managed_regression as managed_regression
 from run_managed_regression import (
     EVALUATION_SERVICE_NAME,
+    RELEASE_TEST_ACTOR_ID,
     CuratedEvaluationSpanSink,
     agent_invoker,
     completed_assistant_text,
     evaluation_payload,
     load_fixture_consent,
-    RELEASE_TEST_ACTOR_ID,
     runtime_observability,
 )
 

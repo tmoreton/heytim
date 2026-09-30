@@ -13,7 +13,6 @@ from typing import Any
 
 import boto3
 import httpx
-
 from run_managed_regression import RELEASE_TEST_ACTOR_ID
 
 ACCOUNT_ID = "820323452649"
@@ -61,7 +60,7 @@ def _api_json(http: Any, method: str, path: str, token: str, body: dict | None =
         raise RuntimeError("synthetic AI permission API request failed")
     value = response.json()
     if not isinstance(value, dict):
-        raise ValueError("synthetic AI permission API response is invalid")
+        raise TypeError("synthetic AI permission API response is invalid")
     return value
 
 
@@ -87,7 +86,7 @@ def prepare_consent(
     )
     id_token = auth.get("AuthenticationResult", {}).get("IdToken")
     if not isinstance(id_token, str):
-        raise ValueError("release fixture ID token is missing")
+        raise TypeError("release fixture ID token is missing")
     _claims_from_cognito_token(id_token, client_id)
 
     bootstrap = _api_json(http, "GET", "/bootstrap", id_token)
