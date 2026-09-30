@@ -16,7 +16,7 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 from shared.catalog import CatalogError
-from shared.connection_providers import connection_specs
+from shared.connection_providers import connection_provider, connection_specs
 
 from .external_oauth_accounts import (
     _hubspot_connection,
@@ -171,7 +171,7 @@ def _authorization_query(
 def _begin_external_authorization(
     user_id: str, value: dict, provider: str
 ) -> dict:
-    if provider not in EXTERNAL_PROVIDER_SPECS:
+    if provider not in EXTERNAL_PROVIDER_SPECS or connection_provider(provider) is None:
         raise ApiError(404, "Connection provider not found")
     return_url = _return_url(value.get("returnUrl"))
     client_id, _, client_secret_arn = _oauth_client(provider)
@@ -385,6 +385,9 @@ def _external_callback(query: dict) -> dict:
         state = _consume_state(query.get("state"))
         provider = state["provider"]
         return_url = _return_url(state.get("returnUrl"))
+        if connection_provider(provider) is None:
+            logger.info("External OAuth callback rejected for disabled provider %s", provider)
+            return _redirect(_result_url(return_url, "error", provider))
         _ensure_account_active(state["userId"])
         if query.get("error"):
             raise ApiError(400, f"{provider.title()} access was not approved")

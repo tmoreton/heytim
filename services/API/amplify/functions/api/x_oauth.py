@@ -16,6 +16,7 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 from shared.catalog import CatalogError
+from shared.connection_providers import connection_provider
 
 from .google_oauth import _pkce_challenge, _redirect, _return_url, _state_key
 from .support import ApiError, _ensure_account_active, catalog, table
@@ -77,6 +78,8 @@ def _remaining_timeout(deadline: float) -> float:
 
 
 def _begin_x_authorization(user_id: str, value: dict) -> dict:
+    if connection_provider("x") is None:
+        raise ApiError(404, "X connection provider not found")
     return_url = _return_url(value.get("returnUrl"))
     client_id, _, client_secret_arn = _oauth_client()
     redirect_uri = os.environ.get("X_OAUTH_REDIRECT_URI")
@@ -197,6 +200,9 @@ def _x_callback(query: dict) -> dict:
     try:
         state = _consume_state(query.get("state"))
         return_url = _return_url(state.get("returnUrl"))
+        if connection_provider("x") is None:
+            logger.info("X OAuth callback rejected while X connections are disabled")
+            return _redirect(_result_url(return_url, "error"))
         _ensure_account_active(state["userId"])
         if query.get("error"):
             raise ApiError(400, "X access was not approved")

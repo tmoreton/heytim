@@ -103,6 +103,10 @@ jobs:
           STRIPE_LIVE_MODE: ${{ vars.HEYTIM_STRIPE_LIVE_MODE || 'false' }}
           APNS_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_APPLICATION_ARN }}
           GOOGLE_REVIEW_APPROVED: ${{ vars.HEYTIM_GOOGLE_REVIEW_APPROVED }}
+          GOOGLE_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_GOOGLE_CONNECTIONS_ENABLED || 'true' }}
+          SLACK_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_SLACK_CONNECTIONS_ENABLED || 'true' }}
+          NOTION_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_NOTION_CONNECTIONS_ENABLED || 'true' }}
+          X_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_X_CONNECTIONS_ENABLED || 'true' }}
           SLACK_REVIEW_APPROVED: ${{ vars.HEYTIM_SLACK_REVIEW_APPROVED }}
           X_REVIEW_APPROVED: ${{ vars.HEYTIM_X_REVIEW_APPROVED }}
           NOTION_REVIEW_APPROVED: ${{ vars.HEYTIM_NOTION_REVIEW_APPROVED }}
@@ -199,9 +203,20 @@ jobs:
               exit 1
             fi
           fi
+          for provider in GOOGLE SLACK NOTION X; do
+            enabled_name="${provider}_CONNECTIONS_ENABLED"
+            approved_name="${provider}_REVIEW_APPROVED"
+            if [[ "${!enabled_name}" != true && "${!enabled_name}" != false ]]; then
+              echo "HEYTIM_$enabled_name must be true or false." >&2
+              exit 1
+            fi
+            if [[ "${!enabled_name}" == true && "${!approved_name}" != true ]]; then
+              echo "$provider review must be approved while its connections are enabled." >&2
+              exit 1
+            fi
+          done
           attestations=(
-            GOOGLE_REVIEW_APPROVED SLACK_REVIEW_APPROVED X_REVIEW_APPROVED
-            NOTION_REVIEW_APPROVED ACCOUNT_ISOLATION_CUTOVER_APPROVED
+            ACCOUNT_ISOLATION_CUTOVER_APPROVED
             RELEASE_COMPLIANCE_APPROVED APNS_DEVICE_SMOKE_APPROVED
           )
           for name in "${attestations[@]}"; do
@@ -376,6 +391,10 @@ jobs:
           HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN: ${{ vars.HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN }}
           HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN: ${{ vars.HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN }}
           HEYTIM_GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_GOOGLE_OAUTH_SECRET_ARN }}
+          HEYTIM_GOOGLE_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_GOOGLE_CONNECTIONS_ENABLED || 'true' }}
+          HEYTIM_SLACK_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_SLACK_CONNECTIONS_ENABLED || 'true' }}
+          HEYTIM_NOTION_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_NOTION_CONNECTIONS_ENABLED || 'true' }}
+          HEYTIM_X_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_X_CONNECTIONS_ENABLED || 'true' }}
           HEYTIM_GITHUB_APP_SECRET_ARN: ${{ secrets.HEYTIM_GITHUB_APP_SECRET_ARN }}
           HEYTIM_X_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_X_OAUTH_SECRET_ARN }}
           HEYTIM_SLACK_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_SLACK_OAUTH_SECRET_ARN }}

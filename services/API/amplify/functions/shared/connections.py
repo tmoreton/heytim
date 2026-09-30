@@ -29,7 +29,7 @@ from .catalog_rules import (
 from .connection_identity import _connection_id, _matching_connection, _secret_name
 from .connection_lifecycle import ConnectionLifecycleMixin
 from .connection_providers import (
-    SUPPORTED_CONNECTION_PROVIDER_IDS,
+    connection_provider,
     connection_specs,
 )
 from .connection_revocation import revoke_google_token
@@ -103,7 +103,7 @@ class ConnectionMixin(MCPServerConnectionMixin, FinanceConnectionMixin, Connecti
         return [
             item
             for item in self._connection_items(user_id)
-            if item.get("provider") in SUPPORTED_CONNECTION_PROVIDER_IDS
+            if connection_provider(item.get("provider")) is not None
             and item.get("authType") == CONNECTION_SPECS[item["provider"]]["authType"]
         ]
 

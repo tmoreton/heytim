@@ -135,6 +135,36 @@ class GoogleOAuthTests(unittest.TestCase):
             any(sk.startswith("BOT#") for pk, sk in self.data_table.items if pk == "USER#user-1")
         )
 
+    def test_disabled_google_callback_rejects_pending_state_before_token_exchange(self) -> None:
+        for provider in ("gmail", "youtube", "google_workspace"):
+            with self.subTest(provider=provider):
+                state = "state-token-with-enough-entropy"
+                item = {
+                    **self.google_oauth._state_key(state),
+                    "userId": "user-1",
+                    "provider": provider,
+                    "verifier": "verifier",
+                    "returnUrl": "heytim://app?connection=" + provider,
+                    "clientSecretArn": GOOGLE_ENV["GOOGLE_OAUTH_SECRET_ARN"],
+                    "expiresAt": 2_000,
+                }
+                self.data_table.put_item(Item=item)
+                with (
+                    patch.dict(os.environ, {
+                        **GOOGLE_ENV,
+                        "DISABLED_CONNECTION_PROVIDER_IDS": "gmail,youtube,google_workspace",
+                    }),
+                    patch.object(self.google_oauth.time, "time", return_value=1_000),
+                    patch.object(self.google_oauth, "_exchange_code") as exchange,
+                ):
+                    response = self.google_oauth._google_callback(
+                        {"state": state, "code": "authorization-code"}
+                    )
+                self.assertEqual(response["statusCode"], 302)
+                self.assertIn("status=error", response["headers"]["location"])
+                self.assertNotIn((item["pk"], "STATE"), self.data_table.items)
+                exchange.assert_not_called()
+
     def test_callback_http_budget_fails_before_lambda_timeout(self) -> None:
         with (
             patch.object(self.google_oauth.time, "monotonic", return_value=20.0),

@@ -155,6 +155,17 @@ export const memoryKmsKeyArn = requiredSetting('HEYTIM_AGENTCORE_MEMORY_KMS_KEY_
 export const legacyTokenVaultKmsKeyArn = optionalKmsKeyArn(
   'HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN',
 );
+function connectionEnabledSetting(name: string): boolean {
+  const value = process.env[name] ?? 'true';
+  if (value !== 'true' && value !== 'false') {
+    throw new Error(`${name} must be true or false.`);
+  }
+  return value === 'true';
+}
+export const googleConnectionsEnabled = connectionEnabledSetting('HEYTIM_GOOGLE_CONNECTIONS_ENABLED');
+export const slackConnectionsEnabled = connectionEnabledSetting('HEYTIM_SLACK_CONNECTIONS_ENABLED');
+export const notionConnectionsEnabled = connectionEnabledSetting('HEYTIM_NOTION_CONNECTIONS_ENABLED');
+export const xConnectionsEnabled = connectionEnabledSetting('HEYTIM_X_CONNECTIONS_ENABLED');
 export const googleOAuthSecretArn = requiredSetting('HEYTIM_GOOGLE_OAUTH_SECRET_ARN');
 export const githubAppSecretArn = requiredSetting('HEYTIM_GITHUB_APP_SECRET_ARN');
 export const xOAuthSecretArn = requiredSetting('HEYTIM_X_OAUTH_SECRET_ARN');

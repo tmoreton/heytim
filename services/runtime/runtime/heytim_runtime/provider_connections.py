@@ -48,46 +48,31 @@ CONNECTION_SECRET_ARN_PATTERN = re.compile(
     r"secret:heytim/connections/[a-f0-9]{24}/"
     r"connection_[a-f0-9]{20}-[a-f0-9]{12}-[A-Za-z0-9]+$"
 )
-GOOGLE_CLIENT_SECRET_ARN_PATTERN = re.compile(
-    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/google-[A-Za-z0-9-]+$"
-)
-X_CLIENT_SECRET_ARN_PATTERN = re.compile(
-    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/x-[A-Za-z0-9-]+$"
-)
-SLACK_CLIENT_SECRET_ARN_PATTERN = re.compile(
-    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/slack-[A-Za-z0-9-]+$"
-)
-MICROSOFT_CLIENT_SECRET_ARN_PATTERN = re.compile(
-    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/microsoft-[A-Za-z0-9-]+$"
-)
-NOTION_CLIENT_SECRET_ARN_PATTERN = re.compile(
-    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/notion-[A-Za-z0-9-]+$"
-)
-HUBSPOT_CLIENT_SECRET_ARN_PATTERN = re.compile(
-    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/hubspot-[A-Za-z0-9-]+$"
-)
-JIRA_CLIENT_SECRET_ARN_PATTERN = re.compile(
-    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/jira-[A-Za-z0-9-]+$"
-)
-ZOOM_CLIENT_SECRET_ARN_PATTERN = re.compile(
-    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/zoom-[A-Za-z0-9-]+$"
-)
-QUICKBOOKS_CLIENT_SECRET_ARN_PATTERN = re.compile(
-    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/quickbooks-[A-Za-z0-9-]+$"
-)
-PLAID_APP_SECRET_ARN_PATTERN = re.compile(
-    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/plaid-[A-Za-z0-9-]+$"
-)
+
+
+def _oauth_app_secret_pattern(provider: str) -> re.Pattern[str]:
+    name = re.escape(provider)
+    legacy_name = (
+        rf"|frogbot/oauth/{name}-production-[A-Za-z0-9]{{6}}"
+        if provider in {"google", "x", "slack", "notion"}
+        else ""
+    )
+    return re.compile(
+        r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
+        rf"secret:(?:heytim/oauth/{name}-[A-Za-z0-9-]+{legacy_name})$"
+    )
+
+
+GOOGLE_CLIENT_SECRET_ARN_PATTERN = _oauth_app_secret_pattern("google")
+X_CLIENT_SECRET_ARN_PATTERN = _oauth_app_secret_pattern("x")
+SLACK_CLIENT_SECRET_ARN_PATTERN = _oauth_app_secret_pattern("slack")
+MICROSOFT_CLIENT_SECRET_ARN_PATTERN = _oauth_app_secret_pattern("microsoft")
+NOTION_CLIENT_SECRET_ARN_PATTERN = _oauth_app_secret_pattern("notion")
+HUBSPOT_CLIENT_SECRET_ARN_PATTERN = _oauth_app_secret_pattern("hubspot")
+JIRA_CLIENT_SECRET_ARN_PATTERN = _oauth_app_secret_pattern("jira")
+ZOOM_CLIENT_SECRET_ARN_PATTERN = _oauth_app_secret_pattern("zoom")
+QUICKBOOKS_CLIENT_SECRET_ARN_PATTERN = _oauth_app_secret_pattern("quickbooks")
+PLAID_APP_SECRET_ARN_PATTERN = _oauth_app_secret_pattern("plaid")
 JIRA_SITE_ID_PATTERN = re.compile(
     r"^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
 )

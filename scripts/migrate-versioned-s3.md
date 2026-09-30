@@ -67,10 +67,10 @@ inventory is checked again at the end.
 
 ## Stop conditions and limitations
 
-- One invocation handles **one source bucket**. The legacy and HeyTim source
-  buckets overlap. Running them into the same application-visible keys would
-  produce conflicts; the utility stops on a preexisting destination version.
-  Preserve both histories using the three-pass sequence below.
+- One invocation handles **one source bucket**. The legacy, HeyTim, and live
+  AgentCore runtime source buckets overlap. Running their full histories into
+  the same application-visible keys would produce conflicts; the utility stops
+  on a preexisting destination version. Use the four-pass sequence below.
 - Object versions and delete markers with the same S3 timestamp on one key
   have ambiguous order and stop planning. Same-type ties use S3's listing
   order. Review ambiguous histories manually; do not guess their order.
@@ -87,14 +87,26 @@ inventory is checked again at the end.
   object bodies. Data migration must update application records and any
   content references as required by the identity remap.
 
-## Reviewed three-pass sequence
+## Reviewed four-pass sequence
 
-The 2026-09-29 read-only inventory found 150 shared user/group keys, six
-legacy-only keys, and 44 HeyTim-only keys. SHA-256 of all 150 shared **latest
-object bodies** matched. Historical version counts differed on 62 of those
-keys, so both full histories must survive. Re-run this equality check after
-the source write freeze; the result above is a planning checkpoint, not the
-final migration checksum.
+An initial 2026-09-29 read-only inventory found 150 shared user/group keys,
+six legacy-only keys, and 44 HeyTim-only keys. SHA-256 of all 150 shared
+**latest object bodies** matched. Historical version counts differed on 62 of
+those keys, so both full histories must survive. The HeyTim bucket gained
+more user keys and versions while source traffic remained live; the initial
+counts and manifest are stale. Re-inventory and rehash after the source write
+freeze. No live-traffic snapshot is a final migration checksum.
+
+The live source AgentCore runtime reports `HEYTIM_FILES_BUCKET` as
+`frogbot-user-files-188757775631-us-east-1`, a third versioned source file
+bucket. Its 99 keys shared with each earlier source bucket are all templates.
+Latest-body SHA-256 matches on only 3 of those 99 shared keys and differs on
+96, so its template history needs a separate archive. Its other eight keys
+are two templates and six deleted user/group keys. The five user keys belong
+to an actor absent from the verified current source Cognito identities and
+private actor map. The group key's UUID is absent from current source DynamoDB
+group records. Keep all six historical user/group paths in the archive; a
+canonical replay needs a separate historical identity review.
 
 1. Select `--prefix users/ --prefix groups/` from the HeyTim source bucket.
    Also select `--prefix meme-templates/` and add a mapping from that source
@@ -102,27 +114,35 @@ final migration checksum.
    The user actor mapping creates the canonical application-visible user/group
    history; the template mapping preserves HeyTim's prior template versions
    separately because the destination templates are already staged and have
-   different total bytes. All 455 HeyTim object versions must appear in this
-   pass's dry-run manifest.
+   different total bytes. Every version and marker in the frozen HeyTim source
+   inventory must appear in a fresh dry-run manifest.
 2. Select `--all-keys` from the legacy source bucket with
    `--archive-prefix migration-archive/legacy/`. This preserves **every**
    legacy version and delete marker, including template history, away from
    application-visible paths. This pass needs no Cognito key map.
 3. Put the six legacy-only user/group keys in a private `0600` JSON array and
    select it with `--exact-key-file`. Reuse the user actor mapping from pass 1;
-   the template mapping is unnecessary. The exact-key selector excludes prefix neighbors, and destination
-   collision checks stop a key already created by pass 1.
+   the template mapping is unnecessary. The exact-key selector excludes prefix
+   neighbors, and destination collision checks stop a key already created by
+   pass 1.
+4. Select `--all-keys` from the live AgentCore runtime file bucket with
+   `--archive-prefix migration-archive/agentcore-runtime/`. Preserve its entire
+   version and marker history away from application-visible paths. This pass
+   needs no Cognito key map and must include the six historical user/group
+   tombstones. Do not replay them at canonical paths while their identities
+   remain unverified.
 
 Use a separate owner-only manifest and version-map path for each pass. Dry-run
-all three before any apply. Check that the chosen source totals equal the
+all four before any apply. Check that the chosen source totals equal the
 manifest totals for each pass, and that every pass has no destination collision.
 After applying, the union of pass 1's user/group keys and pass 3 is the
-application-visible user/group key set; both source template histories and the
-full legacy bucket history are archived. Validate every version/marker count,
-total bytes, source-to-destination SHA-256, metadata, and tags from all three
-manifests. Recheck current object bodies and referenced keys against the
-migrated DynamoDB records before client or traffic cutover. Archive paths
-must remain excluded from normal application reads and cleanup jobs.
+application-visible user/group key set; all three source template histories and
+the full legacy and runtime bucket histories are archived. Validate every
+version/marker count, total bytes, source-to-destination SHA-256, metadata,
+and tags from all four manifests. Recheck current object bodies and referenced
+keys against the migrated DynamoDB records before client or traffic cutover.
+Archive paths must remain excluded from normal application reads and cleanup
+jobs.
 
 ### Reproducible dry-run commands and observed counts
 
@@ -131,7 +151,10 @@ account `188757775631` and destination account `820323452649`. The private
 files under `/private/tmp` contain only hashed actor prefixes or an exact
 object-key allowlist; they are `0600`, outside the repository, and may need to
 be regenerated from the two verified Cognito pools if the local machine is
-reset. Never substitute a raw Cognito `sub` or email address.
+reset. Never substitute a raw Cognito `sub` or email address. The first three
+commands document the earlier reviewed plans. Pass 1's manifest no longer
+matches the live source and cannot be used for apply. After the source freeze,
+rerun it with a new owner-only manifest path and use that path for apply.
 
 **Pass 1: full HeyTim source, canonical user/group keys and archived HeyTim templates**
 
@@ -151,7 +174,13 @@ services/runtime/.venv/bin/python scripts/migrate_versioned_s3.py \
 
 Observed: **295 keys, 455 object versions, 1 delete marker, 65,754,287
 version bytes**. All 101 HeyTim source template versions are mapped under
-`migration-archive/heytim/meme-templates/`.
+`migration-archive/heytim/meme-templates/`. A later read-only refresh produced
+**349 keys, 644 versions, 1 marker, 70,238,744 version bytes** with verified
+Cognito mapping and no destination collision at that checkpoint; its private
+manifest is `/private/tmp/heytim-s3-heytim-full-plan-refresh-20260929.json`.
+Source traffic was still adding versions, so create another manifest after the
+freeze and do not apply either September 29 snapshot without matching it to a
+fresh frozen inventory.
 
 **Pass 2: complete legacy bucket history under an archival prefix**
 
@@ -191,13 +220,33 @@ Observed: **6 keys, 0 object versions, 6 delete markers, 0 version bytes**.
 The exact-key allowlist excludes prefix neighbors. None of the 30 currently
 referenced DynamoDB `objectKey` rows points exclusively to the legacy bucket.
 
-Together, these plans replay **1,012 object versions, 13 delete markers, and
-131,006,884 version bytes**, exactly the sum of both source buckets' object
-version bytes. The destination's 101 staged template versions remain
-untouched. All 150 shared user/group keys had equal latest-body SHA-256 at
-this checkpoint. Re-inventory and rehash after the write freeze before
-adding `--apply` to each command, in order; never treat these dry-run counts
-as final cutover evidence.
+**Pass 4: complete live AgentCore runtime bucket history under its own archive**
+
+```bash
+services/runtime/.venv/bin/python scripts/migrate_versioned_s3.py \
+  --source-profile frogbot-release --source-account 188757775631 \
+  --source-bucket frogbot-user-files-188757775631-us-east-1 \
+  --destination-profile frogbot-production-org --destination-account 820323452649 \
+  --destination-bucket heytim-production-user-files-820323452649-us-east-1 \
+  --destination-kms-key arn:aws:kms:us-east-1:820323452649:key/d90ef69b-ed9c-44a4-9230-744c3fdf8701 \
+  --region us-east-1 --all-keys \
+  --archive-prefix migration-archive/agentcore-runtime/ \
+  --manifest /private/tmp/heytim-s3-runtime-archive-plan-20260929.json
+```
+
+Observed read-only: **107 keys, 208 object versions, 6 delete markers, and
+85,341,900 version bytes**. The utility checked ownership, versioning, KMS,
+source metadata and tags, and destination collisions before writing its
+owner-only dry-run manifest. The destination's 101 staged template versions
+remain untouched. Refresh this plan after the write freeze, even if its
+September 29 inventory still appears stable.
+
+At the latest read-only checkpoints, the four passes would replay **1,409
+object versions, 19 delete markers, and 220,833,241 version bytes**. That
+includes six legacy-only tombstones replayed canonically in pass 3, in
+addition to their archived copies in pass 2. The source HeyTim bucket was
+actively changing, so recompute these totals from four matching frozen
+manifests before adding `--apply` to each command, in order.
 
 ## Interrupted-write recovery
 

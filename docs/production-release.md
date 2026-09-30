@@ -122,6 +122,15 @@ the U.S.-only external web purchase flow. Do not set `HEYTIM_STRIPE_LIVE_MODE=tr
 - GitHub: the App uses selected repositories, documented permissions, a signed Issues webhook, and the temporary user token is
   revoked after installation ownership is verified. Confirm a delivery and replay against the production endpoint.
 
+For a launch that omits a provider while its external review is pending, set that provider's protected production
+environment variable to `false` before deploying: `HEYTIM_GOOGLE_CONNECTIONS_ENABLED`,
+`HEYTIM_SLACK_CONNECTIONS_ENABLED`, `HEYTIM_NOTION_CONNECTIONS_ENABLED`, or `HEYTIM_X_CONNECTIONS_ENABLED`.
+All default to `true`. Disabling Google covers Gmail, YouTube account access, and Google Workspace together. The
+destination backend then omits those connection cards, rejects new authorization and pending callbacks, and excludes
+any retained connection tools from bot selection and execution. Independent public catalog tools remain available.
+The release gate requires a provider's review attestation only while its connections are enabled. Keep an unapproved
+provider's review attestation `false`; enable its connections and redeploy only after its external review is verified.
+
 ## Release and evidence
 
 Before the destination account cutover, dispatch **Build destination iOS candidate without upload** from the current

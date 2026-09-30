@@ -29,6 +29,7 @@ from .catalog_rules import (
     _version_key,
 )
 from .catalog_sync import CatalogSyncMixin
+from .catalog_visibility import available_catalog_tool_items
 from .connections import ConnectionMixin
 from .time import utc_now_iso as _now
 
@@ -75,17 +76,7 @@ class CatalogService(CatalogAccessMixin, CatalogSyncMixin, ConnectionMixin):
         items = self._official_tool_items()
         if user_id:
             items.extend(self._active_connection_items(user_id))
-        return [
-            item
-            for item in items
-            if item.get("enabled", True) is True
-            and item.get("id") not in RETIRED_TOOL_IDS
-            and not (
-                item.get("entity") == "CONNECTION"
-                and item.get("authType") in {"oauth", "github_app"}
-                and item.get("connectionStatus") != "connected"
-            )
-        ]
+        return available_catalog_tool_items(items, RETIRED_TOOL_IDS)
 
     def list_tools(self, user_id: str | None = None) -> list[dict]:
         if user_id:

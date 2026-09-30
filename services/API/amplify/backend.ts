@@ -19,14 +19,15 @@ import {
   PUBLIC_WEB_BASE_URL,
   WORKER_CONCURRENCY, deploymentEnvironment,
   apnsApplicationArn, apnsSandboxApplicationArn, authEmailProvider,
-  githubAppSecretArn, globalWindowRunUnitLimit, googleOAuthSecretArn,
+  githubAppSecretArn, globalWindowRunUnitLimit, googleConnectionsEnabled,
+  googleOAuthSecretArn,
   hubspotOAuthSecretArn, legacyTokenVaultKmsKeyArn,
   jiraOAuthSecretArn,
   zoomOAuthSecretArn,
   memoryId, memoryKmsKeyArn, microsoftOAuthSecretArn, monthlyBudgetUsd, monthlyRunUnitLimit,
-  notionOAuthSecretArn, plaidSecretArn, quickBooksOAuthSecretArn,
+  notionConnectionsEnabled, notionOAuthSecretArn, plaidSecretArn, quickBooksOAuthSecretArn,
   runtimeArn, runtimeQualifier, usageWindowSeconds, userWindowRunUnitLimit,
-  slackOAuthSecretArn, xOAuthSecretArn, youtubeSearchDailyLimit,
+  slackConnectionsEnabled, slackOAuthSecretArn, xConnectionsEnabled, xOAuthSecretArn, youtubeSearchDailyLimit,
   stripeAvailable,
 } from './infrastructure/app-settings';
 import { createApplicationFunctions } from './infrastructure/application-functions';
@@ -550,14 +551,15 @@ const availabilityProbe = addPublicAvailabilityProbe({
   logsKey,
   enabled: deploymentEnvironment === 'production',
 });
-addProviderConnectionAccess(apiFunction, httpApi.apiEndpoint, {
+const disabledConnectionProviderIds = addProviderConnectionAccess(apiFunction, httpApi.apiEndpoint, {
   github: githubAppSecretArn, google: googleOAuthSecretArn,
   hubspot: hubspotOAuthSecretArn,
   jira: jiraOAuthSecretArn,
   zoom: zoomOAuthSecretArn,
   microsoft: microsoftOAuthSecretArn, notion: notionOAuthSecretArn, plaid: plaidSecretArn, quickbooks: quickBooksOAuthSecretArn,
   slack: slackOAuthSecretArn, x: xOAuthSecretArn,
-});
+}, googleConnectionsEnabled, slackConnectionsEnabled, notionConnectionsEnabled, xConnectionsEnabled);
+workerFunction.addEnvironment('DISABLED_CONNECTION_PROVIDER_IDS', disabledConnectionProviderIds);
 addProviderConnectionAccess(publicApiFunction, httpApi.apiEndpoint, {
   github: githubAppSecretArn, google: googleOAuthSecretArn,
   hubspot: hubspotOAuthSecretArn,
@@ -565,7 +567,7 @@ addProviderConnectionAccess(publicApiFunction, httpApi.apiEndpoint, {
   zoom: zoomOAuthSecretArn,
   microsoft: microsoftOAuthSecretArn, notion: notionOAuthSecretArn, plaid: plaidSecretArn, quickbooks: quickBooksOAuthSecretArn,
   slack: slackOAuthSecretArn, x: xOAuthSecretArn,
-});
+}, googleConnectionsEnabled, slackConnectionsEnabled, notionConnectionsEnabled, xConnectionsEnabled);
 
 const autofix = addProductionAutofix({
   stack, table, workerLogGroup, logsKey, githubAppSecretArn, runtimeArn, runtimeQualifier,

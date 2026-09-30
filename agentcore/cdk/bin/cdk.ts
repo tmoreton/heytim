@@ -210,6 +210,7 @@ async function main() {
       paymentSpec,
       filesBucketName: filesBucketName(target),
       filesKeyAlias: filesKeyAlias(target),
+      allowLegacyProviderSecrets: target.name === 'production',
       env,
       description: `AgentCore stack for ${spec.name} deployed to ${target.name} (${target.region})`,
       tags: {
