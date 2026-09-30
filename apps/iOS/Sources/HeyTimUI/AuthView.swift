@@ -94,7 +94,7 @@ public struct AuthView: View {
         .froggyFont(size: 16, weight: .semibold, relativeTo: .body)
         .frame(maxWidth: .infinity, minHeight: 44)
       }
-      .froggyGlassButton(prominent: true)
+      .froggyGlassButton(prominent: true, cornerRadius: 16)
       .buttonBorderShape(.roundedRectangle(radius: 16))
       .disabled(auth.isBusy)
       .padding(.top, 16)
