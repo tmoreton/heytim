@@ -65,6 +65,10 @@ at the end of the actual window with a three-day lookback and a new output
 path, then compare its IDs with the ledger. It reports Stripe endpoint-attempt
 coverage and Plaid Transactions coverage as incomplete even if no new events
 are returned.
+An additional read-only Stripe Events query at **2026-09-30 04:22 UTC** found
+zero relevant events with `delivery_success=false` in the preceding 29 days.
+That filter spans all endpoints and still does not prove this endpoint's
+individual delivery attempts or any future cutover-window delivery.
 
 ## Private ledger and read-only inventory
 
