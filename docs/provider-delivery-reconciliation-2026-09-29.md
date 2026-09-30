@@ -186,6 +186,15 @@ reconnect path does not prove old Item webhook history was processed, and
 must be described as a deliberate service gap until reconnect rather than
 a successful replay. The new Item must pass connection, mapping,
 `/transactions/sync`, and signed webhook checks before finance is enabled.
+At **2026-09-30 04:20 UTC**, a fresh read-only DynamoDB migration plan saw
+eight source provider connections excluded as designed. Six bots referenced
+those connections in 14 optional tool or resource-access fields. The planner
+now strips those bindings from the destination bot rows and reports the repair
+count; it refuses a required-tool or routine-trigger dependency that cannot
+be safely stripped. The source had 661 records and the destination remained
+empty at this live checkpoint. Repeat the plan after the freeze and explicitly
+review the affected bots for reconnection; these counts can change while the
+source is live.
 Plaid retries
 failed webhooks for up to 24 hours, but the current handler's unknown-mapping
 HTTP 200 suppresses those retries. Plaid's

@@ -21,27 +21,18 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+import _connection_reconnect_plan as reconnect
 from _mail_alias_plan import legacy_mail_address, mail_alias_key
 
 SOURCE_ACCOUNT = "188757775631"
 DESTINATION_ACCOUNT = "820323452649"
-SOURCE_OUTPUTS = (
-    Path(__file__).resolve().parents[1] / "services/API/amplify_outputs.json"
-)
-DESTINATION_OUTPUTS = (
-    Path(__file__).resolve().parents[1]
-    / "services/API/amplify_outputs.production-candidate.json"
+SOURCE_OUTPUTS = Path(__file__).resolve().parents[1] / "services/API/amplify_outputs.json"
+DESTINATION_OUTPUTS = Path(__file__).resolve().parents[1] / (
+    "services/API/amplify_outputs.production-candidate.json"
 )
 ACCOUNT_PATTERN = re.compile(r"^[0-9]{12}$")
-UUID_PATTERN = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-)
-BOT_EMAIL_FIELDS = (
-    "emailToken",
-    "emailInboundMode",
-    "emailDeliveryMode",
-    "emailOwnerAddress",
-)
+UUID_PATTERN = re.compile(r"^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
+BOT_EMAIL_FIELDS = ("emailToken", "emailInboundMode", "emailDeliveryMode", "emailOwnerAddress")
 MAIL_TOKEN_PATTERN = re.compile(r"^[a-z2-7]{16}$")
 
 
@@ -207,8 +198,10 @@ def contains_old_identity(value: Any, identity: Identity) -> bool:
 
 def make_plan(source_items: list[dict], identity: Identity) -> tuple[list[dict], dict]:
     assert_owned_user_partitions(source_items, identity.old_sub)
+    excluded_connections = reconnect.excluded_connection_ids(source_items)
     planned: list[dict] = []
     exclusions: Counter[str] = Counter()
+    reconnect_repairs: Counter[str] = Counter()
     stripped_email = 0
     preserved_email = 0
     aliases: list[dict] = []
@@ -224,6 +217,11 @@ def make_plan(source_items: list[dict], identity: Identity) -> tuple[list[dict],
             exclusions[reason] += 1
             continue
         item = replace_identity(original, identity)
+        removed = reconnect.remove_excluded_connection_references(
+            item, category, excluded_connections
+        )
+        if removed:
+            reconnect_repairs.update({"bots": 1, "bindings": removed})
         if category == "USER/BOT":
             token = item.get("emailToken")
             if token:
@@ -301,6 +299,7 @@ def make_plan(source_items: list[dict], identity: Identity) -> tuple[list[dict],
         "sourceItems": len(source_items),
         "plannedItems": len(planned),
         "excluded": dict(sorted(exclusions.items())),
+        "connectionReconnectRepairs": dict(sorted(reconnect_repairs.items())),
         "botEmailTokensRemoved": stripped_email,
         "botEmailTokensPreserved": preserved_email,
         "mailAliasesCreated": len(aliases),

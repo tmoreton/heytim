@@ -142,6 +142,51 @@ class MigrationPlanningTests(unittest.TestCase):
             {"bot-2"},
         )
 
+    def test_excluded_connection_is_removed_from_bot_bindings(self) -> None:
+        connection_id = "connection_0123456789abcdef0123"
+        originals = [
+            {
+                "pk": f"USER#{OLD_SUB}", "sk": "BOT#bot-1", "id": "bot-1",
+                "entity": "BOT", "toolIds": [connection_id, "web_search"],
+                "extraToolIds": [connection_id],
+                "resourceAccess": {connection_id: ["account123"], "other": ["file123"]},
+            },
+            {
+                "pk": f"USER#{OLD_SUB}", "sk": f"CONNECTION#{connection_id}",
+                "entity": "CONNECTION", "provider": "plaid", "secretArn": "arn:secret",
+            },
+        ]
+        planned, summary = migration.make_plan(originals, IDENTITY)
+        self.assertEqual(len(planned), 1)
+        self.assertEqual(planned[0]["toolIds"], ["web_search"])
+        self.assertEqual(planned[0]["extraToolIds"], [])
+        self.assertEqual(planned[0]["resourceAccess"], {"other": ["file123"]})
+        self.assertEqual(
+            summary["connectionReconnectRepairs"], {"bindings": 3, "bots": 1}
+        )
+
+    def test_excluded_connection_in_required_or_routine_trigger_stops_plan(self) -> None:
+        connection_id = "connection_0123456789abcdef0123"
+        connection = {
+            "pk": f"USER#{OLD_SUB}", "sk": f"CONNECTION#{connection_id}",
+            "entity": "CONNECTION",
+        }
+        for dependent in (
+            {
+                "pk": f"USER#{OLD_SUB}", "sk": "BOT#bot-1", "id": "bot-1",
+                "requiredToolIds": [connection_id],
+            },
+            {
+                "pk": "GROUP#group-1", "sk": "ROUTINE#routine-1",
+                "trigger": {"connectionId": connection_id},
+            },
+        ):
+            with (
+                self.subTest(dependent=dependent["sk"]),
+                self.assertRaisesRegex(ValueError, "excluded connection"),
+            ):
+                migration.make_plan([connection, dependent], IDENTITY)
+
     def test_plan_rejects_unmapped_user_chat_and_group_member(self) -> None:
         base = {"pk": f"USER#{OLD_SUB}", "sk": "BOT#bot-1"}
         for unexpected in (
