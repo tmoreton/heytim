@@ -76,6 +76,13 @@ public struct MainView: View {
     } message: {
       Text("Add this shared \(model.deepLinkInvite?.kind ?? "item") to your account?")
     }
+    .sheet(isPresented: $model.showAISharingConsent) {
+      AISharingConsentDisclosure(
+        isWorking: model.isUpdatingAISharingConsent,
+        allowTitle: "Allow and Send",
+        onAllow: { Task { await model.allowAISharing(sendPendingMessage: true) } },
+        onCancel: { model.showAISharingConsent = false })
+    }
     .onDisappear { dictation.shutDown() }
   }
 

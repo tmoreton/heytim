@@ -10,6 +10,7 @@ from heytim_runtime.action_approval import (
     interrupt_session_manager,
     pending_approval,
 )
+from heytim_runtime.ai_consent import check_ai_consent
 from heytim_runtime.configuration import bot_configuration
 from heytim_runtime.device_tools import (
     has_device_tools,
@@ -89,6 +90,8 @@ def _provider_call_limit_in_chain(error: BaseException) -> bool:
 
 
 async def run_agent(payload, context):
+    await check_ai_consent(payload)
+    consent_check = lambda: check_ai_consent(payload)
     memory_context = memory_context_from_payload(payload)
     actor_id = memory_context.actor_id if memory_context else None
     messages = messages_from_payload(payload, actor_id)
@@ -103,7 +106,9 @@ async def run_agent(payload, context):
         else PROVIDER_CALL_LIMITS,
         youtube_search_quota=(provider_quota or {}).get("youtubeSearch"),
     )
-    config = bot_configuration(payload, session_id, actor_id, messages, usage)
+    config = bot_configuration(
+        payload, session_id, actor_id, messages, usage, consent_check=consent_check
+    )
     approval = approval_configuration(payload, actor_id)
     device_resume = validated_device_resume(payload.get("deviceResult"))
     if device_resume is not None and payload.get("actionApproval") is not None:
@@ -132,6 +137,7 @@ async def run_agent(payload, context):
             session_id=memory_context.session_id if memory_context else None,
             model_preference=payload.get("bot", {}).get("modelPreference", "deepseek"),
             reasoning_effort=payload.get("bot", {}).get("reasoningEffort"),
+            before_dispatch=consent_check,
         )
         agent = create_harness(
             model=model,

@@ -17,6 +17,7 @@ from shared.group_chat import (
 from shared.memory_identity import direct_session_id, memory_actor_id, scoped_session_id
 from shared.plaid_ledger import ledger_prefix, sync_key
 
+from .ai_consent import grants_for_job
 from .artifacts import (
     _attachment_blocks,
     _generated_artifact_prefix,
@@ -304,6 +305,7 @@ def _invoke(
     action_approval: dict | None = None,
     device_result: dict | None = None,
     allow_device_tools: bool = False,
+    consent_subject_ids: set[str] | None = None,
 ) -> AgentInvocationResult:
     if runtime_result is not None:
         error = runtime_result.get("terminalError", {}).get("message")
@@ -317,12 +319,9 @@ def _invoke(
             pending_device_call=runtime_result.get("pendingDeviceCall"),
         )
     runtime_billing_user_id = billing_user_id if billing_user_id is not None else user_id
-    if (
-        not isinstance(runtime_billing_user_id, str)
-        or not runtime_billing_user_id.strip()
-        or runtime_billing_user_id != runtime_billing_user_id.strip()
-    ):
-        raise ValueError("A valid billing user is required for runtime invocation")
+    consent_grants = grants_for_job(
+        user_id, runtime_billing_user_id, group_context, consent_subject_ids
+    )
     runtime_user_id = memory_actor_id(runtime_billing_user_id)
     session_id = (
         scoped_session_id(session_scope)
@@ -408,6 +407,7 @@ def _invoke(
     # On resume, keep the interrupted device tool registered; later calls are re-authorized.
     uses_youtube_search = _uses_youtube_search(resolved_tools)
     payload = {
+        "aiConsent": {"version": 1, "subjects": consent_grants},
         "messages": (
             history
             if history is not None

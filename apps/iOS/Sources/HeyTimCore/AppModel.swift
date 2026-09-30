@@ -80,6 +80,8 @@ public final class AppModel {
   public private(set) var sendingSelection: ConversationSelection?
   public private(set) var messageQueues: [ConversationSelection: [QueuedChatMessage]] = [:]
   public var errorMessage: String?
+  public var showAISharingConsent = false
+  public internal(set) var isUpdatingAISharingConsent = false
   public var sheet: AppSheet?
   public var pendingAttachments: [Attachment] = []
   public var pendingWorkspaceFiles: [Attachment] = []
@@ -222,6 +224,8 @@ public final class AppModel {
     sendingSelection = nil
     messageQueues = [:]
     errorMessage = nil
+    showAISharingConsent = false
+    isUpdatingAISharingConsent = false
     sheet = nil
     pendingAttachments = []
     pendingWorkspaceFiles = []
@@ -483,6 +487,10 @@ public final class AppModel {
     guard let selection, !text.isEmpty || !submitted.attachments.isEmpty
       || !submitted.workspaceFiles.isEmpty, !isUploading
     else { return }
+    if !demoMode && bootstrap?.aiSharingConsent.granted != true {
+      showAISharingConsent = true
+      return
+    }
     let replyBotId = selection.kind == .group ? activeGroupReplyBotId : nil
     composerText = ""
     composerInboxMessageId = nil
@@ -1482,26 +1490,3 @@ public enum DemoData {
   ]
 }
 #endif
-
-public enum InvitationParser {
-  public static func parse(_ url: URL) -> PendingInvitation? {
-    let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-    let queryKind = query.first { $0.name == "kind" }?.value
-    let queryToken = query.first { $0.name == "token" }?.value
-    if let kind = queryKind, let token = queryToken, validKinds.contains(kind), !token.isEmpty {
-      return PendingInvitation(kind: kind, token: token)
-    }
-    let path = url.pathComponents.filter { $0 != "/" }
-    if let index = path.firstIndex(where: { ["share", "group", "skill"].contains($0) }),
-      path.count > index + 1
-    {
-      let segment = path[index]
-      return PendingInvitation(kind: segment == "share" ? "bot" : segment, token: path[index + 1])
-    }
-    if let host = url.host, ["share", "group", "skill"].contains(host), let token = path.first {
-      return PendingInvitation(kind: host == "share" ? "bot" : host, token: token)
-    }
-    return nil
-  }
-  private static let validKinds: Set<String> = ["bot", "chat", "group", "skill"]
-}

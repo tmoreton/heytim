@@ -41,7 +41,10 @@ class BrowserWorkerContractTests(WorkerTestCase):
             self.assertNotIn("liveViewUrl", payload["browser"])
 
             browser.reset_mock()
-            self.agent._invoke("owner", "bot", bot, history=[], event_id="turn", group_context={"id": "work"})
+            self.agent._invoke(
+                "owner", "bot", bot, history=[], event_id="turn",
+                group_context={"id": "work"}, consent_subject_ids={"owner"},
+            )
             browser.assert_not_called()
             payload = json.loads(self.agentcore.invoke_agent_runtime.call_args.kwargs["payload"])
             self.assertNotIn("browser", payload)

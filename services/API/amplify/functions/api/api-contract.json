@@ -14,6 +14,8 @@
     { "id": "plaidCallback", "method": "GET", "path": "/public/plaid/callback", "access": "public", "handler": "public" },
 
     { "id": "bootstrap", "method": "GET", "path": "/bootstrap", "access": "authenticated", "handler": "bot" },
+    { "id": "aiSharingConsentGrant", "method": "PUT", "path": "/account/ai-sharing", "access": "authenticated", "handler": "bot" },
+    { "id": "aiSharingConsentRevoke", "method": "DELETE", "path": "/account/ai-sharing", "access": "authenticated", "handler": "bot" },
     { "id": "billingSummary", "method": "GET", "path": "/billing", "access": "authenticated", "handler": "billing" },
     { "id": "billingCheckout", "method": "POST", "path": "/billing/checkout", "access": "authenticated", "handler": "billing" },
     { "id": "billingPortal", "method": "POST", "path": "/billing/portal", "access": "authenticated", "handler": "billing" },

@@ -278,6 +278,12 @@ class ApiTestCase(unittest.TestCase):
             cls.account = importlib.import_module("api.account")
 
     def setUp(self) -> None:
+        # Existing API cases exercise their own route behavior with an already
+        # authorized account. Consent-specific cases use the real gate.
+        for module in (self.direct_chat, self.group_messages):
+            consent_patch = patch.object(module, "require_request_consent")
+            consent_patch.start()
+            self.addCleanup(consent_patch.stop)
         self.data_table.items.clear()
         self.data_table.deleted.clear()
         self.data_table.put.clear()

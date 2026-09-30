@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -62,6 +63,7 @@ def resolve_capabilities(
     bot_management: dict | None = None,
     image_references: list[dict] | None = None,
     usage: Any = None,
+    consent_check: Callable[[], Awaitable[None]] | None = None,
     workspace_files: list[dict] | None = None,
     workspace_assets: list[dict] | None = None,
 ) -> CapabilityConfiguration:
@@ -114,6 +116,7 @@ def resolve_capabilities(
                     artifact_prefix,
                     image_references or [],
                     usage=usage,
+                    consent_check=consent_check,
                 )
             )
     managed_tools, interpreter, browser = agentcore_tools(

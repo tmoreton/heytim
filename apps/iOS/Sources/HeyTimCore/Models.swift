@@ -890,6 +890,16 @@ public struct AppConstraints: Codable, Equatable, Sendable {
     maxPhotoDimension: GeneratedAppConstraints.maxPhotoDimension)
 }
 
+public struct AISharingConsent: Codable, Equatable, Sendable {
+  public var version: Int
+  public var granted: Bool
+
+  public init(version: Int = 1, granted: Bool = false) {
+    self.version = version
+    self.granted = granted
+  }
+}
+
 public struct Bootstrap: Codable, Sendable {
   public var bots: [Bot]
   public var botTemplates: [BotTemplate]
@@ -900,6 +910,7 @@ public struct Bootstrap: Codable, Sendable {
   public var retiredToolIds: [String]
   public var skills: [Skill]
   public var constraints: AppConstraints
+  public var aiSharingConsent: AISharingConsent
 
   public init(
     bots: [Bot],
@@ -910,7 +921,8 @@ public struct Bootstrap: Codable, Sendable {
     tools: [Capability],
     retiredToolIds: [String],
     skills: [Skill],
-    constraints: AppConstraints
+    constraints: AppConstraints,
+    aiSharingConsent: AISharingConsent = AISharingConsent()
   ) {
     self.bots = bots
     self.botTemplates = botTemplates
@@ -921,11 +933,12 @@ public struct Bootstrap: Codable, Sendable {
     self.retiredToolIds = retiredToolIds
     self.skills = skills
     self.constraints = constraints
+    self.aiSharingConsent = aiSharingConsent
   }
 
   private enum CodingKeys: String, CodingKey {
     case bots, botTemplates, connectionProviders, needsBotOnboarding, groups, tools
-    case retiredToolIds, skills, constraints
+    case retiredToolIds, skills, constraints, aiSharingConsent
   }
 
   public init(from decoder: Decoder) throws {
@@ -941,6 +954,9 @@ public struct Bootstrap: Codable, Sendable {
     skills = try container.decode([Skill].self, forKey: .skills)
     constraints =
       try container.decodeIfPresent(AppConstraints.self, forKey: .constraints) ?? .serviceDefaults
+    aiSharingConsent =
+      try container.decodeIfPresent(AISharingConsent.self, forKey: .aiSharingConsent)
+      ?? AISharingConsent()
   }
 }
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from . import device_calls
+from .ai_consent import grant_consent, revoke_consent
 from .api_contract import authenticated_route_keys, authenticated_routes
 from .attachments import (
     _complete_upload,
@@ -114,7 +115,6 @@ unregister_device_capabilities = device_calls.unregister_device_capabilities
 list_device_calls = device_calls.list_device_calls
 submit_device_call_result = device_calls.submit_device_call_result
 
-
 def _group_routine_route(
     user_id: str, _display_name: str, method: str, path: str, params: dict, event: dict
 ) -> dict | None:
@@ -133,7 +133,6 @@ def _group_routine_route(
     if method == "DELETE":
         return _response(200, _delete_group_routine(user_id, group_id, routine_id))
     return None
-
 
 def _group_run_route(
     user_id: str, _display_name: str, method: str, path: str, params: dict, event: dict
@@ -370,6 +369,8 @@ def _bot_route(
     bot_id = params.get("botId", "")
     if method == "GET" and path == "/bootstrap":
         return _response(200, _bootstrap(user_id))
+    if method == "PUT" and path == "/account/ai-sharing": return _response(200, grant_consent(user_id, _body(event)))
+    if method == "DELETE" and path == "/account/ai-sharing": return _response(200, revoke_consent(user_id))
     if method == "POST" and path.startswith("/bot-templates/"):
         return _response(
             201, _install_bot_template(user_id, params.get("templateId", ""))

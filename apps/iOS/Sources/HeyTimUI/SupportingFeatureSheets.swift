@@ -1327,72 +1327,6 @@ struct WorkspaceFilesView: View {
   }
 }
 
-struct ShareView: View {
-  @Bindable var model: AppModel
-  let selection: ConversationSelection
-  var showsDismissButton = true
-  @State private var url: URL?
-  @State private var creatingLink = false
-  var body: some View {
-    VStack(spacing: 22) {
-      Image(systemName: "person.2.badge.plus").froggyFont(size: 48, relativeTo: .title).foregroundStyle(
-        FrogTheme.green)
-      Text("Share \(title)").froggyFont(.title2, weight: .bold)
-      Text("Anyone with this link can accept the invitation before it expires.").foregroundStyle(
-        .secondary
-      ).multilineTextAlignment(.center)
-      if let url {
-        Text(url.absoluteString).textSelection(.enabled).froggyFont(.caption)
-        ShareLink(item: url) { Label("Share invitation", systemImage: "square.and.arrow.up") }
-          .froggyGlassButton(prominent: true, tint: FrogTheme.accent)
-      } else {
-        Button { createLink() } label: {
-          if creatingLink {
-            HStack(spacing: 8) {
-              ProgressView()
-              Text("Creating Link…")
-            }
-          } else {
-            Label("Create Invitation Link", systemImage: "link.badge.plus")
-          }
-        }
-        .froggyGlassButton(prominent: true, tint: FrogTheme.accent)
-        .controlSize(.large)
-        .disabled(creatingLink)
-        Text("The link becomes active only after you create it, and you can revoke it from Settings.")
-          .froggyFont(.footnote)
-          .foregroundStyle(.secondary)
-          .multilineTextAlignment(.center)
-      }
-    }.padding(32).frame(maxWidth: .infinity, maxHeight: .infinity)
-      .background(FrogTheme.pageBackground)
-      .froggyNavigationTitle("Share")
-      .toolbarTitleDisplayMode(.inline)
-      .toolbar {
-        if showsDismissButton {
-          CloseButton { model.sheet = nil }
-        }
-      }
-  }
-
-  private var title: String {
-    switch selection.kind {
-    case .bot:
-      model.bootstrap?.bots.first(where: { $0.id == selection.id })?.name ?? "Hey Tim"
-    case .group:
-      model.bootstrap?.groups.first(where: { $0.id == selection.id })?.name ?? "Group"
-    }
-  }
-
-  private func createLink() {
-    creatingLink = true
-    Task {
-      url = await model.share(selection)
-      creatingLink = false
-    }
-  }
-}
-
 private struct MemoryExportDocument: FileDocument {
   static var readableContentTypes: [UTType] { [.json] }
   let data: Data
@@ -1452,6 +1386,7 @@ struct AccountView: View {
   @State private var revokeCandidate: SharedLink?
   @State private var notificationAuthorization = UNAuthorizationStatus.notDetermined
   @State private var confirmDelete = false
+  @State private var showAISharingDisclosure = false
   @State private var deletingAccount = false
   @State private var exportingMemory = false
   @State private var memoryExportDocument: MemoryExportDocument?
@@ -1600,6 +1535,20 @@ struct AccountView: View {
       }
 
       Section("Data & Privacy") {
+        LabeledContent("Third-party AI processing") {
+          Text(model.bootstrap?.aiSharingConsent.granted == true ? "Allowed" : "Off")
+        }
+        if model.bootstrap?.aiSharingConsent.granted == true {
+          Button("Turn Off AI Processing", role: .destructive) {
+            Task { await model.revokeAISharing() }
+          }
+          .disabled(model.isUpdatingAISharingConsent)
+        } else {
+          Button("Review AI Processing", systemImage: "hand.raised") {
+            showAISharingDisclosure = true
+          }
+          .disabled(model.isUpdatingAISharingConsent)
+        }
         Button { exportMemory() } label: {
           if exportingMemory {
             Label { Text("Preparing Memory Export…") } icon: { ProgressView() }
@@ -1637,6 +1586,20 @@ struct AccountView: View {
     }
     .task { await load() }
     .refreshable { await load() }
+    .sheet(isPresented: $showAISharingDisclosure) {
+      AISharingConsentDisclosure(
+        isWorking: model.isUpdatingAISharingConsent,
+        allowTitle: "Allow AI Processing",
+        onAllow: {
+          Task {
+            await model.allowAISharing()
+            if model.bootstrap?.aiSharingConsent.granted == true {
+              showAISharingDisclosure = false
+            }
+          }
+        },
+        onCancel: { showAISharingDisclosure = false })
+    }
     .onReceive(NotificationCenter.default.publisher(for: .heyTimBillingDidReturn)) { _ in
       Task { await loadBilling() }
     }

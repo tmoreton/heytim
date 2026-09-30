@@ -51,6 +51,7 @@ class MemoryScopeWorkerTests(WorkerTestCase):
                 history=[],
                 session_scope="group:group-1:bot:bot-1",
                 group_context={"name": "Launch"},
+                consent_subject_ids={"bot-owner", "billing-user"},
                 memory=memory,
                 billing_user_id="billing-user",
             )

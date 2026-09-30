@@ -13,6 +13,7 @@ from shared.job_envelope import send_job
 from shared.memory_identity import direct_session_id
 from shared.work_state import is_in_flight
 
+from .ai_consent import require_request_consent
 from .attachments import _resolve_attachments
 from .bot_inbox import inbox_message
 from .bots import _get_bot
@@ -323,6 +324,7 @@ def _steer_active_turns(user_id: str, bot_id: str, turns: list[dict]) -> list[st
 
 
 def _send_message(user_id: str, bot_id: str, value: dict) -> dict:
+    require_request_consent(user_id)
     _get_bot(user_id, bot_id)
     email_context = (
         inbox_message(user_id, bot_id, value.get("inboxMessageId"))

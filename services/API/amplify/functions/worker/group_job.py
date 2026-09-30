@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from botocore.exceptions import BotoCoreError, ClientError
 from shared.action_grants import approval_grant_digest
+from shared.ai_consent import group_subject_ids
 from shared.group_chat import group_round_step
 from shared.job_envelope import send_job
 from shared.keys import group_message_sk
@@ -274,6 +275,7 @@ def _process_group_agent_reply(
                 round_role,
                 coordinator_bot_id,
             ),
+            consent_subject_ids=group_subject_ids(table, group_id),
             memory=(
                 {
                     "actorId": group_memory_actor_id(group_id),

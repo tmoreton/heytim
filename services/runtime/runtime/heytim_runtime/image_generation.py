@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
+import inspect
 import io
 import os
 import re
@@ -258,7 +259,7 @@ async def _invoke_image(
     aspect_ratio: str,
     *,
     input_references: list[str] | None = None,
-    before_dispatch: Callable[[], None] | None = None,
+    before_dispatch: Callable[[], Awaitable[None] | None] | None = None,
 ) -> bytes:
     request: dict[str, Any] = {
         "model": IMAGE_MODEL_ID,
@@ -275,7 +276,9 @@ async def _invoke_image(
     response = None
     for attempt in range(1, IMAGE_MAX_ATTEMPTS + 1):
         if before_dispatch is not None:
-            before_dispatch()
+            result = before_dispatch()
+            if inspect.isawaitable(result):
+                await result
         try:
             response = await client.post(
                 f"{OPENROUTER_BASE_URL.rstrip('/')}/images",
@@ -318,6 +321,7 @@ def image_generation_tools(
     http_client: httpx.AsyncClient | None = None,
     api_key_loader: Callable[[], Awaitable[str]] | None = None,
     usage: Any = None,
+    consent_check: Callable[[], Awaitable[None]] | None = None,
 ):
     if not artifacts.FILES_BUCKET_NAME or not artifacts._valid_prefix(prefix):
         raise ValueError("Artifact storage is not configured")
@@ -343,6 +347,11 @@ def image_generation_tools(
         client = http_client or httpx.AsyncClient(
             timeout=httpx.Timeout(IMAGE_REQUEST_TIMEOUT_SECONDS, connect=5)
         )
+        async def before_dispatch() -> None:
+            if consent_check is not None:
+                await consent_check()
+            if usage is not None:
+                usage.observe_tool("openrouter", operation)
         try:
             return await _invoke_image(
                 client,
@@ -350,11 +359,7 @@ def image_generation_tools(
                 prompt,
                 aspect_ratio,
                 input_references=input_references,
-                before_dispatch=(
-                    (lambda: usage.observe_tool("openrouter", operation))
-                    if usage is not None
-                    else None
-                ),
+                before_dispatch=before_dispatch,
             )
         finally:
             if owns_client:

@@ -12,6 +12,7 @@ from shared.group_chat import (
 from shared.job_envelope import send_job
 from shared.workflows import group_run_record, task_metadata
 
+from .ai_consent import require_request_consent
 from .attachments import _public_file, _resolve_group_attachments
 from .bots import _get_bot
 from .groups import _require_group_member
@@ -135,6 +136,7 @@ def _send_group_message(
     user_id: str, display_name: str, group_id: str, value: dict
 ) -> dict:
     meta, items = _require_group_member(user_id, group_id)
+    require_request_consent(user_id, group_id)
     reply_bot_id = value.get("replyBotId")
     if reply_bot_id is not None and (
         not isinstance(reply_bot_id, str) or not reply_bot_id

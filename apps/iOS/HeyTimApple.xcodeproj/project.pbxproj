@@ -13,6 +13,10 @@
 		F20000000000000000000004 /* BotEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000004 /* BotEditorView.swift */; };
 		F20000000000000000000005 /* InlineFlowDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000005 /* InlineFlowDisplay.swift */; };
 		F20000000000000000000006 /* ConversationMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000006 /* ConversationMessageView.swift */; };
+		F20000000000000000000007 /* AppModel+AISharingConsent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000007 /* AppModel+AISharingConsent.swift */; };
+		F20000000000000000000008 /* InvitationParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000008 /* InvitationParser.swift */; };
+		F20000000000000000000009 /* ShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000009 /* ShareView.swift */; };
+		F2000000000000000000000A /* AISharingConsentDisclosure.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3000000000000000000000A /* AISharingConsentDisclosure.swift */; };
 		0A87C1D4CB05978494CB610A /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6215600B1AD6C11F22092AEB /* Models.swift */; };
 		AC0000000000000000000001 /* DeviceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0000000000000000000001 /* DeviceModels.swift */; };
 		AA0000000000000000000001 /* AppleDeviceToolCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000001 /* AppleDeviceToolCoordinator.swift */; };
@@ -75,6 +79,10 @@
 		F30000000000000000000004 /* BotEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BotEditorView.swift; path = Sources/HeyTimUI/BotEditorView.swift; sourceTree = "<group>"; };
 		F30000000000000000000005 /* InlineFlowDisplay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InlineFlowDisplay.swift; path = Sources/HeyTimUI/InlineFlowDisplay.swift; sourceTree = "<group>"; };
 		F30000000000000000000006 /* ConversationMessageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConversationMessageView.swift; path = Sources/HeyTimUI/ConversationMessageView.swift; sourceTree = "<group>"; };
+		F30000000000000000000007 /* AppModel+AISharingConsent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AppModel+AISharingConsent.swift"; path = "Sources/HeyTimCore/AppModel+AISharingConsent.swift"; sourceTree = "<group>"; };
+		F30000000000000000000008 /* InvitationParser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InvitationParser.swift; path = Sources/HeyTimCore/InvitationParser.swift; sourceTree = "<group>"; };
+		F30000000000000000000009 /* ShareView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareView.swift; path = Sources/HeyTimUI/ShareView.swift; sourceTree = "<group>"; };
+		F3000000000000000000000A /* AISharingConsentDisclosure.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AISharingConsentDisclosure.swift; path = Sources/HeyTimUI/AISharingConsentDisclosure.swift; sourceTree = "<group>"; };
 		023CEBD733F786082B5D08D4 /* Theme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Theme.swift; path = Sources/HeyTimUI/Theme.swift; sourceTree = "<group>"; };
 		0827082CADD0435A0DB5D202 /* HeyTimAppleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HeyTimAppleTests.swift; path = Tests/HeyTimAppleTests.swift; sourceTree = "<group>"; };
 		0941498FBD04101B8F9E6E1B /* GitHubSkillImportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GitHubSkillImportView.swift; path = Sources/HeyTimUI/GitHubSkillImportView.swift; sourceTree = "<group>"; };
@@ -178,6 +186,8 @@
 				A80000000000000000000001 /* PlatformContract.generated.swift */,
 				3A8BD71384316330EFB50046 /* AppModel.swift */,
 				F30000000000000000000001 /* AppModel+Fork.swift */,
+				F30000000000000000000007 /* AppModel+AISharingConsent.swift */,
+				F30000000000000000000008 /* InvitationParser.swift */,
 				F30000000000000000000002 /* BotSettingsModels.swift */,
 				F30000000000000000000003 /* ChatUsageSummary.swift */,
 				6215600B1AD6C11F22092AEB /* Models.swift */,
@@ -203,6 +213,8 @@
 				F30000000000000000000005 /* InlineFlowDisplay.swift */,
 				9EDB7CD6380F2E79F6618CA2 /* ProviderLogoView.swift */,
 				1E8F50345C6F715CCAD7D4AA /* SupportingFeatureSheets.swift */,
+				F30000000000000000000009 /* ShareView.swift */,
+				F3000000000000000000000A /* AISharingConsentDisclosure.swift */,
 				023CEBD733F786082B5D08D4 /* Theme.swift */,
 				DF6DC85847D1E63C3F66E5AE /* amplify_outputs.json */,
 				6F25A4E6E1346DB162542258 /* PrivacyInfo.xcprivacy */,
@@ -411,6 +423,8 @@
 				A90000000000000000000001 /* PlatformContract.generated.swift in Sources */,
 				703716656630AB43ACDA3F0D /* AppModel.swift in Sources */,
 				F20000000000000000000001 /* AppModel+Fork.swift in Sources */,
+				F20000000000000000000007 /* AppModel+AISharingConsent.swift in Sources */,
+				F20000000000000000000008 /* InvitationParser.swift in Sources */,
 				F20000000000000000000002 /* BotSettingsModels.swift in Sources */,
 				F20000000000000000000003 /* ChatUsageSummary.swift in Sources */,
 				0A87C1D4CB05978494CB610A /* Models.swift in Sources */,
@@ -436,6 +450,8 @@
 				F20000000000000000000005 /* InlineFlowDisplay.swift in Sources */,
 				CB46C889E20746FC5BBFEC49 /* ProviderLogoView.swift in Sources */,
 				115CF026C6D962CAEDF7D3DE /* SupportingFeatureSheets.swift in Sources */,
+				F20000000000000000000009 /* ShareView.swift in Sources */,
+				F2000000000000000000000A /* AISharingConsentDisclosure.swift in Sources */,
 				71657CB25210E15EB004C3B3 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

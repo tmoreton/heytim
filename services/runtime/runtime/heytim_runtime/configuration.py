@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -46,6 +47,8 @@ def bot_configuration(
     actor_id: str | None = None,
     messages: list[dict] | None = None,
     usage: Any = None,
+    *,
+    consent_check: Callable[[], Awaitable[None]] | None = None,
 ) -> BotConfiguration:
     bot = payload.get("bot", {})
     if not isinstance(bot, dict):
@@ -92,6 +95,7 @@ def bot_configuration(
         bot_management=bot_management_from_payload(payload),
         image_references=image_references,
         usage=usage,
+        consent_check=consent_check,
         workspace_files=workspace_files,
         workspace_assets=workspace_assets,
     )

@@ -4,7 +4,7 @@ import asyncio
 import logging
 import os
 import threading
-from collections.abc import AsyncGenerator, AsyncIterable
+from collections.abc import AsyncGenerator, AsyncIterable, Awaitable, Callable
 from typing import Any, TypeVar
 
 from bedrock_agentcore.identity.auth import requires_api_key
@@ -171,8 +171,11 @@ class PreResponseFallbackModel(Model):
 class ResilientOpenRouterModel(Model):
     """Retry an OpenRouter response only before any model output is committed."""
 
-    def __init__(self, model: Model) -> None:
+    def __init__(
+        self, model: Model, *, before_dispatch: Callable[[], Awaitable[None]] | None = None
+    ) -> None:
         self.model = model
+        self.before_dispatch = before_dispatch
 
     @property
     def stateful(self) -> bool:
@@ -192,6 +195,8 @@ class ResilientOpenRouterModel(Model):
         **kwargs: Any,
     ) -> AsyncGenerator[dict[str, T | Any]]:
         for attempt in range(1, OPENROUTER_MAX_ATTEMPTS + 1):
+            if self.before_dispatch is not None:
+                await self.before_dispatch()
             emitted = False
             try:
                 async with asyncio.timeout(PRIMARY_RESPONSE_TIMEOUT_SECONDS):
@@ -231,6 +236,8 @@ class ResilientOpenRouterModel(Model):
             **kwargs,
         }
         for attempt in range(1, OPENROUTER_MAX_ATTEMPTS + 1):
+            if self.before_dispatch is not None:
+                await self.before_dispatch()
             buffered: list[StreamEvent] = []
             committed = False
             try:
@@ -331,7 +338,7 @@ def _retry_after_seconds(error: Exception) -> float | None:
             )
         try:
             seconds = float(raw)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             continue
         return min(MAX_RETRY_AFTER_SECONDS, max(0.0, seconds))
     return None
@@ -478,6 +485,7 @@ async def load_model(
     session_id: str | None = None,
     model_preference: str = "deepseek",
     reasoning_effort: str | None = None,
+    before_dispatch: Callable[[], Awaitable[None]] | None = None,
 ) -> Model:
     """Load a supported OpenRouter model with the other route as fallback."""
     if not isinstance(model_preference, str) or model_preference not in {
@@ -523,7 +531,8 @@ async def load_model(
             usage,
             provider="openrouter",
             model_id=primary_id,
-        )
+        ),
+        before_dispatch=before_dispatch,
     )
     fallback = ResilientOpenRouterModel(
         _tracked(
@@ -536,7 +545,8 @@ async def load_model(
             usage,
             provider="openrouter",
             model_id=fallback_id,
-        )
+        ),
+        before_dispatch=before_dispatch,
     )
     return PreResponseFallbackModel(
         primary,

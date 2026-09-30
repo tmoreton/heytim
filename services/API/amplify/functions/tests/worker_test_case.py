@@ -292,6 +292,23 @@ class WorkerTestCase(unittest.TestCase):
             cls.event_routine_job = importlib.import_module("worker.event_routine_job")
 
     def setUp(self) -> None:
+        self.real_grants_for_job = self.agent.grants_for_job
+        # Worker unit cases below focus on job behavior after admission.
+        # Permission denial is exercised by dedicated consent tests.
+        grant_patch = patch.object(
+            self.agent, "grants_for_job",
+            side_effect=lambda user_id, billing_user_id, _group, subjects: [
+                {"actorId": f"actor-{subject}", "epoch": "test-epoch"}
+                for subject in sorted({user_id, billing_user_id} | (subjects or set()))
+            ],
+        )
+        grant_patch.start()
+        self.addCleanup(grant_patch.stop)
+        group_patch = patch.object(
+            self.group_job, "group_subject_ids", return_value={"user-1"}
+        )
+        group_patch.start()
+        self.addCleanup(group_patch.stop)
         self.table.fail_condition = False
         self.table.items.clear()
         self.table.updates.clear()

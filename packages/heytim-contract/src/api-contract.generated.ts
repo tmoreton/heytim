@@ -12,6 +12,8 @@ export const apiContractPaths = {
   "quickBooksOAuthCallback": "/public/oauth/quickbooks/callback",
   "plaidCallback": "/public/plaid/callback",
   "bootstrap": "/bootstrap",
+  "aiSharingConsentGrant": "/account/ai-sharing",
+  "aiSharingConsentRevoke": "/account/ai-sharing",
   "billingSummary": "/billing",
   "billingCheckout": "/billing/checkout",
   "billingPortal": "/billing/portal",

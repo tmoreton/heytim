@@ -27,6 +27,8 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case quickBooksOAuthCallback
     case plaidCallback
     case bootstrap
+    case aiSharingConsentGrant
+    case aiSharingConsentRevoke
     case billingSummary
     case billingCheckout
     case billingPortal
@@ -253,6 +255,18 @@ public enum GeneratedAPIContract {
             id: .bootstrap,
             method: .get,
             pathTemplate: "/bootstrap",
+            access: .authenticated
+        ),
+        .aiSharingConsentGrant: APIContractRoute(
+            id: .aiSharingConsentGrant,
+            method: .put,
+            pathTemplate: "/account/ai-sharing",
+            access: .authenticated
+        ),
+        .aiSharingConsentRevoke: APIContractRoute(
+            id: .aiSharingConsentRevoke,
+            method: .delete,
+            pathTemplate: "/account/ai-sharing",
             access: .authenticated
         ),
         .billingSummary: APIContractRoute(

@@ -19,6 +19,14 @@ from model.load import _load_openrouter_model
 from model.usage import ProviderCallLimitExceeded
 
 
+@pytest.fixture(autouse=True)
+def authorized_runtime_for_cleanup_tests(monkeypatch):
+    async def authorized(_payload):
+        return None
+
+    monkeypatch.setattr(runtime_main, "check_ai_consent", authorized)
+
+
 def test_live_harness_accepts_production_overrides():
     model = _load_openrouter_model(
         "test-key-12345678901234567890",
@@ -66,7 +74,7 @@ def test_run_agent_releases_capabilities_when_setup_fails(monkeypatch):
     monkeypatch.setattr(
         runtime_main,
         "bot_configuration",
-        lambda _payload, _session_id, _actor_id, _messages, _usage: config,
+        lambda _payload, _session_id, _actor_id, _messages, _usage, **_kwargs: config,
     )
     monkeypatch.setattr(
         runtime_main,
@@ -106,7 +114,7 @@ def test_home_assistant_request_uses_normal_agent(monkeypatch):
         ],
     )
     monkeypatch.setattr(runtime_main, "memory_stores", lambda _context: [])
-    monkeypatch.setattr(runtime_main, "bot_configuration", lambda *_args: config)
+    monkeypatch.setattr(runtime_main, "bot_configuration", lambda *_args, **_kwargs: config)
     model = AsyncMock(side_effect=RuntimeError("normal model resumed"))
     monkeypatch.setattr(runtime_main, "load_model", model)
 
@@ -157,7 +165,7 @@ def test_known_limit_becomes_terminal_result_without_retry(monkeypatch, error, c
     monkeypatch.setattr(
         runtime_main,
         "bot_configuration",
-        lambda _payload, _session_id, _actor_id, _messages, _usage: config,
+        lambda _payload, _session_id, _actor_id, _messages, _usage, **_kwargs: config,
     )
     monkeypatch.setattr(runtime_main, "load_model", AsyncMock(return_value=object()))
     agent = SimpleNamespace(messages=[], memory_manager=None)
@@ -219,7 +227,7 @@ def test_wrapped_provider_call_limit_becomes_terminal_result(monkeypatch):
         lambda _payload, _actor_id: [{"role": "user", "content": [{"text": "hello"}]}],
     )
     monkeypatch.setattr(runtime_main, "memory_stores", lambda _context: [])
-    monkeypatch.setattr(runtime_main, "bot_configuration", lambda *_args: config)
+    monkeypatch.setattr(runtime_main, "bot_configuration", lambda *_args, **_kwargs: config)
     monkeypatch.setattr(runtime_main, "load_model", AsyncMock(return_value=object()))
     monkeypatch.setattr(
         runtime_main,
@@ -278,7 +286,7 @@ def test_public_result_event_saves_and_exposes_pending_interrupt(monkeypatch, ki
         "messages_from_payload",
         lambda *_: [{"role": "user", "content": [{"text": "Complete the task"}]}],
     )
-    monkeypatch.setattr(runtime_main, "bot_configuration", lambda *_: config)
+    monkeypatch.setattr(runtime_main, "bot_configuration", lambda *_, **_kwargs: config)
     monkeypatch.setattr(runtime_main, "load_model", AsyncMock(return_value=object()))
     harness = MagicMock(return_value=agent)
     monkeypatch.setattr(runtime_main, "create_harness", harness)
