@@ -1,0 +1,85 @@
+name: Prepare or repair HeyTim App Store metadata
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Preview changes first; apply requires its matching fingerprint
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
+      marketing_version:
+        description: Existing editable iOS App Store version (MAJOR.MINOR.PATCH)
+        required: true
+        default: 1.0.13
+        type: string
+      expected_plan_hash:
+        description: Dry-run fingerprint, required only for apply
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: heytim-app-store-metadata-production
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.23.2
+
+      - name: Verify guarded metadata client
+        run: node --test scripts/tests/repair-app-store-metadata.test.mjs
+
+      - name: Check requested operation
+        env:
+          MODE: ${{ inputs.mode }}
+          MARKETING_VERSION: ${{ inputs.marketing_version }}
+          EXPECTED_PLAN_HASH: ${{ inputs.expected_plan_hash }}
+        run: |
+          if [[ ! "$MARKETING_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'marketing_version must be MAJOR.MINOR.PATCH.' >&2
+            exit 1
+          fi
+          if [[ "$MODE" == plan && -z "$EXPECTED_PLAN_HASH" ]]; then
+            exit 0
+          fi
+          if [[ "$MODE" == apply && "$EXPECTED_PLAN_HASH" =~ ^[a-f0-9]{64}$ ]]; then
+            exit 0
+          fi
+          echo 'Select plan without a fingerprint, or apply with its 64-character fingerprint.' >&2
+          exit 1
+
+      - name: Preview primary-locale repair
+        if: ${{ inputs.mode == 'plan' }}
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY }}
+          MARKETING_VERSION: ${{ inputs.marketing_version }}
+        run: node scripts/repair-app-store-metadata.mjs --version "$MARKETING_VERSION"
+
+      - name: Apply reviewed primary-locale repair
+        if: ${{ inputs.mode == 'apply' }}
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ vars.HEYTIM_APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.FROGBOT_APP_STORE_CONNECT_PRIVATE_KEY }}
+          MARKETING_VERSION: ${{ inputs.marketing_version }}
+          EXPECTED_PLAN_HASH: ${{ inputs.expected_plan_hash }}
+        run: |
+          node scripts/repair-app-store-metadata.mjs --version "$MARKETING_VERSION" \
+            --apply --expected-plan-hash "$EXPECTED_PLAN_HASH"
