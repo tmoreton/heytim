@@ -15,6 +15,7 @@ from typing import Any
 import boto3
 from botocore.config import Config
 from shared.catalog import CatalogError
+from shared.connection_providers import connection_provider
 from shared.provider_contract import (
     GMAIL_OAUTH_SCOPES,
     GOOGLE_WORKSPACE_OAUTH_SCOPES,
@@ -122,7 +123,7 @@ def _pkce_challenge(verifier: str) -> str:
 
 def _begin_google_authorization(user_id: str, value: dict, provider_id: str) -> dict:
     scopes = GOOGLE_PROVIDER_SCOPES.get(provider_id)
-    if not scopes:
+    if not scopes or connection_provider(provider_id) is None:
         raise ApiError(404, "Google connection provider not found")
     return_url = _return_url(value.get("returnUrl"))
     client_id, _ = _oauth_client()
@@ -361,6 +362,9 @@ def _google_callback(query: dict) -> dict:
         state = _consume_state(query.get("state"))
         provider = state["provider"]
         return_url = _return_url(state.get("returnUrl"))
+        if connection_provider(provider) is None:
+            logger.info("Google OAuth callback rejected for disabled provider %s", provider)
+            return _redirect(_result_url(return_url, "error", provider))
         _ensure_account_active(state["userId"])
         if query.get("error"):
             raise ApiError(400, "Google access was not approved")

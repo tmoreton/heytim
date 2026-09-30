@@ -3,7 +3,11 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 
-from shared.action_grants import approval_grant_digest
+from shared.action_grants import (
+    BOT_EMAIL_APPROVAL_TOOLS,
+    approval_grant_digest,
+    valid_bot_email_approval,
+)
 from shared.job_envelope import send_job
 from shared.time import utc_now_iso
 from shared.work_state import is_claimable
@@ -66,6 +70,8 @@ def _process_agent_reply(record: dict, request: dict) -> None:
         and not turn.get("notificationQueued")
         and turn.get("assistantText")
     ):
+        if turn.get("status") == "COMPLETE" and turn.get("outboundEmail"):
+            _queue_email_delivery(user_id, bot_id, turn, bot, event="outbound")
         _update_schedule_result(
             turn,
             turn["status"].lower(),
@@ -130,7 +136,10 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             if (
                 not isinstance(proposal, dict)
                 or any(decision.get(key) != proposal.get(key) for key in ("id", "digest", "toolUseId"))
-                or not catalog.approval_tool_names(user_id, bot.get("toolIds", []))
+                or (proposal.get("toolName") in BOT_EMAIL_APPROVAL_TOOLS
+                    and not valid_bot_email_approval(bot, proposal))
+                or (not catalog.approval_tool_names(user_id, bot.get("toolIds", []))
+                    and not valid_bot_email_approval(bot, proposal))
                 or turn.get("approvalGrantDigest") != approval_grant_digest(catalog, user_id, bot)
                 or datetime.fromisoformat(proposal["expiresAt"].replace("Z", "+00:00")) <= datetime.now(UTC)
                 or turn.get("approvalConsumedAt")
@@ -302,7 +311,8 @@ def _process_agent_reply(record: dict, request: dict) -> None:
                     ":awaiting": "AWAITING_APPROVAL", ":running": "RUNNING",
                     ":owner": lease_owner, ":proposal": proposal,
                     ":grant": approval_grant_digest(catalog, user_id, bot),
-                    ":tools": catalog.approval_tool_names(user_id, bot.get("toolIds", [])),
+                    ":tools": ([proposal["toolName"]] if valid_bot_email_approval(bot, proposal)
+                               else catalog.approval_tool_names(user_id, bot.get("toolIds", []))),
                     ":activity": ["Approval needed for " + proposal["toolName"]],
                     ":now": utc_now_iso(),
                 },
@@ -338,7 +348,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
         if result.bot_mutations:
             apply_bot_mutations(user_id, bot, turn, result.bot_mutations)
             configuration_changed = any(
-                mutation.get("action") != "create_memory"
+                mutation.get("action") not in {"create_memory", "send_email"}
                 for mutation in result.bot_mutations
                 if isinstance(mutation, dict)
             )
@@ -392,4 +402,6 @@ def _process_agent_reply(record: dict, request: dict) -> None:
     except Exception:
         logger.exception("Could not update the bot preview for turn %s", turn.get("id"))
     _update_schedule_result(turn, "complete", completed_at)
+    if turn.get("outboundEmail"):
+        _queue_email_delivery(user_id, bot_id, turn, bot, event="outbound")
     _queue_reply_notification(user_id, bot_id, turn_key, turn, bot, answer)

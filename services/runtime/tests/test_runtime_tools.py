@@ -126,6 +126,9 @@ def test_catalog_bindings_select_stan_features_and_local_tools(monkeypatch) -> N
     assert "open tabs instead of another session" in (
         agentcore_adapters.MANAGED_BROWSER_GUIDANCE
     )
+    assert "smallest relevant" in agentcore_adapters.MANAGED_BROWSER_GUIDANCE
+    assert "retrieve only the needed passage" in agentcore_adapters.MANAGED_BROWSER_GUIDANCE
+    assert "Read the preview first" in config.instructions
     assert "background_command" not in config.instructions
     assert "private browser" not in config.instructions
 

@@ -48,14 +48,19 @@ SECRET_ARN_PATTERN = re.compile(
     r"secret:heytim/connections/[a-f0-9]{24}/"
     r"connection_[a-f0-9]{20}-[a-f0-9]{12}-[A-Za-z0-9]+$"
 )
-OAUTH_CLIENT_SECRET_ARN_PATTERN = re.compile(
-    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/google-[A-Za-z0-9-]+$"
-)
-GITHUB_APP_SECRET_ARN_PATTERN = re.compile(
-    r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
-    r"secret:heytim/oauth/github-[A-Za-z0-9-]+$"
-)
+
+
+def _oauth_app_secret_pattern(provider: str) -> re.Pattern[str]:
+    name = re.escape(provider)
+    return re.compile(
+        r"^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:"
+        rf"secret:(?:heytim/oauth/{name}-[A-Za-z0-9-]+"
+        rf"|frogbot/oauth/{name}-production-[A-Za-z0-9]{{6}})$"
+    )
+
+
+OAUTH_CLIENT_SECRET_ARN_PATTERN = _oauth_app_secret_pattern("google")
+GITHUB_APP_SECRET_ARN_PATTERN = _oauth_app_secret_pattern("github")
 GOOGLE_OAUTH_ENDPOINT = "https://oauth2.googleapis.com/token"
 _secrets_manager = None
 

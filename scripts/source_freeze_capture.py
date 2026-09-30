@@ -1,0 +1,277 @@
+"""Capture private source freeze settings from exact-account read-only inventory.
+
+This command has no apply or restore mode. It binds each discovered physical
+resource to a recent sanitized preflight and saves settings outside the repo.
+An incomplete capture fails without creating a snapshot.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+import boto3
+from _source_freeze_boto import BotoFreezeAdapter
+from _source_freeze_plan import FreezePlanError, validate_preflight
+from _source_writer_cli_transport import GuardedSession
+from _source_writer_preflight_core import (
+    EXPECTED,
+    SOURCE_ACCOUNT,
+    SOURCE_REGION,
+    Report,
+    discover_stack,
+)
+from botocore.config import Config
+from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
+from source_freeze_executor import capture, save_snapshot
+from source_writer_preflight import _function_label
+
+STATE = Path(__file__).resolve().parents[1] / "agentcore/.cli/deployed-state.json"
+READ_CONFIG = Config(
+    retries={"total_max_attempts": 2, "mode": "standard"},
+    connect_timeout=5,
+    read_timeout=15,
+)
+
+
+def _exact(resources: list[dict], kind: str, prefix: str) -> str:
+    longer_queue_prefixes = (
+        tuple(
+            value
+            for value in EXPECTED["queue"].values()
+            if value.startswith(prefix) and value != prefix
+        )
+        if kind == "AWS::SQS::Queue"
+        else ()
+    )
+    matches = [
+        item["PhysicalResourceId"]
+        for item in resources
+        if item["ResourceType"] == kind
+        and item["LogicalResourceId"].startswith(prefix)
+        and not item["LogicalResourceId"].startswith(longer_queue_prefixes)
+        and item.get("PhysicalResourceId")
+    ]
+    if len(matches) != 1:
+        raise FreezePlanError(f"source {kind}/{prefix} missing or ambiguous")
+    return matches[0]
+
+
+def _pages(client: Any, operation: str, key: str, **params: Any) -> list[dict]:
+    if not client.can_paginate(operation):
+        raise FreezePlanError("source inventory paginator unavailable")
+    return [
+        item
+        for page in client.get_paginator(operation).paginate(**params)
+        for item in page.get(key, [])
+    ]
+
+
+def _deployed_agentcore() -> tuple[dict, dict]:
+    data = json.loads(STATE.read_text())["targets"]["development"]["resources"]
+    if len(data["runtimes"]) != 1 or len(data["memories"]) != 1:
+        raise FreezePlanError("deployed AgentCore state is ambiguous")
+    return next(iter(data["runtimes"].values())), next(iter(data["memories"].values()))
+
+
+def discover_manifest(session: Any, stack_name: str) -> dict[str, Any]:
+    """Discover private physical IDs using a read-only allowlisted session."""
+    if session.region_name != SOURCE_REGION:
+        raise FreezePlanError("source region mismatch")
+    if session.client("sts", config=READ_CONFIG).get_caller_identity().get(
+        "Account"
+    ) != SOURCE_ACCOUNT:
+        raise FreezePlanError("source account mismatch")
+    guarded = GuardedSession(session)
+    report = Report()
+    resources = discover_stack(
+        report, guarded.client("cloudformation", config=READ_CONFIG), stack_name
+    )
+    if resources is None or report.blockers:
+        raise FreezePlanError("source stack discovery incomplete")
+
+    dynamodb = guarded.client("dynamodb", config=READ_CONFIG)
+    tables = {}
+    for label, prefix in EXPECTED["table"].items():
+        name = _exact(resources, "AWS::DynamoDB::Table", prefix)
+        table = dynamodb.describe_table(TableName=name)["Table"]
+        if table.get("TableName") != name:
+            raise FreezePlanError("table identity mismatch")
+        tables[label] = {"name": name, "arn": table["TableArn"]}
+
+    buckets = {
+        label: _exact(resources, "AWS::S3::Bucket", prefix)
+        for label, prefix in EXPECTED["bucket"].items()
+    }
+    lambdas = guarded.client("lambda", config=READ_CONFIG)
+    function_names: dict[str, str] = {}
+    for item in resources:
+        if item["ResourceType"] != "AWS::Lambda::Function":
+            continue
+        name = item["PhysicalResourceId"]
+        config = lambdas.get_function_configuration(FunctionName=name)
+        label = _function_label(item["LogicalResourceId"], config.get("Handler", ""))
+        if label in {"availability_probe", "deployment_custom_resource"}:
+            continue
+        if label is None or label in function_names:
+            raise FreezePlanError("Lambda inventory unclassified or ambiguous")
+        function_names[label] = name
+
+    sqs = guarded.client("sqs", config=READ_CONFIG)
+    queue_arns = {}
+    for label in ("jobs", "outbound_mail"):
+        url = _exact(resources, "AWS::SQS::Queue", EXPECTED["queue"][label])
+        queue_arns[label] = sqs.get_queue_attributes(
+            QueueUrl=url, AttributeNames=["QueueArn"]
+        )["Attributes"]["QueueArn"]
+    mappings = {}
+    for label, queue_label in (("worker", "jobs"), ("email_sender", "outbound_mail")):
+        found = _pages(
+            lambdas,
+            "list_event_source_mappings",
+            "EventSourceMappings",
+            FunctionName=function_names[label],
+        )
+        if len(found) != 1 or found[0].get("EventSourceArn") != queue_arns[queue_label]:
+            raise FreezePlanError("queue mapping inventory changed")
+        mappings[label] = found[0]["UUID"]
+
+    rules = {
+        "catalog_rule": _exact(resources, "AWS::Events::Rule", "CatalogRefresh"),
+        "public_availability_rule": _exact(
+            resources, "AWS::Events::Rule", "PublicAvailabilitySchedule"
+        ),
+    }
+    group = _exact(resources, "AWS::Scheduler::ScheduleGroup", "TaskSchedules")
+    scheduler = guarded.client("scheduler", config=READ_CONFIG)
+    schedules = [
+        {"group": group, "name": item["Name"]}
+        for item in _pages(scheduler, "list_schedules", "Schedules", GroupName=group)
+    ]
+
+    receipt_physical = _exact(resources, "AWS::SES::ReceiptRule", "BotEmailReceiptRule")
+    ses = guarded.client("ses", config=READ_CONFIG)
+    active = ses.describe_active_receipt_rule_set()
+    rule_set = active.get("Metadata", {}).get("Name")
+    matching = [
+        rule["Name"]
+        for rule in active.get("Rules", [])
+        if rule.get("Name") == receipt_physical
+        or receipt_physical.endswith("|" + rule.get("Name", ""))
+    ]
+    if not rule_set or len(matching) != 1:
+        raise FreezePlanError("active SES source receipt rule ambiguous")
+
+    deployed_runtime, deployed_memory = _deployed_agentcore()
+    core = guarded.client("bedrock-agentcore-control", config=READ_CONFIG)
+    runtime = core.get_agent_runtime(agentRuntimeId=deployed_runtime["runtimeId"])
+    memory = core.get_memory(memoryId=deployed_memory["memoryId"], view="full")[
+        "memory"
+    ]
+    if (
+        runtime.get("agentRuntimeArn") != deployed_runtime["runtimeArn"]
+        or memory.get("arn") != deployed_memory["memoryArn"]
+    ):
+        raise FreezePlanError("AgentCore deployed identity differs from source")
+    bucket = runtime.get("environmentVariables", {}).get("HEYTIM_FILES_BUCKET")
+    if not bucket or bucket in buckets.values():
+        raise FreezePlanError("AgentCore runtime bucket is missing or overlaps")
+    s3 = guarded.client("s3", config=READ_CONFIG)
+    s3.head_bucket(Bucket=bucket, ExpectedBucketOwner=SOURCE_ACCOUNT)
+    region = s3.get_bucket_location(
+        Bucket=bucket, ExpectedBucketOwner=SOURCE_ACCOUNT
+    ).get("LocationConstraint") or "us-east-1"
+    if region != SOURCE_REGION:
+        raise FreezePlanError("AgentCore runtime bucket region mismatch")
+    buckets["runtime_files"] = bucket
+    endpoints = _pages(
+        core,
+        "list_agent_runtime_endpoints",
+        "runtimeEndpoints",
+        agentRuntimeId=deployed_runtime["runtimeId"],
+    )
+    if len(endpoints) != 1:
+        raise FreezePlanError("AgentCore endpoint inventory is not singular")
+    manifest = {
+        "account": SOURCE_ACCOUNT,
+        "region": SOURCE_REGION,
+        "buckets": buckets,
+        "tables": tables,
+        "lambdas": function_names,
+        "mappings": mappings,
+        "event_rules": rules,
+        "schedules": schedules,
+        "ses": {"rule_set": rule_set, "rule_name": matching[0]},
+        "agentcore": {
+            "runtime": deployed_runtime["runtimeArn"],
+            "endpoint": endpoints[0]["agentRuntimeEndpointArn"],
+            "memory": deployed_memory["memoryArn"],
+        },
+    }
+    return manifest
+
+
+def _recent_evidence(path: Path) -> dict[str, Any]:
+    evidence = json.loads(path.read_text())
+    observed = datetime.fromisoformat(evidence["observed_at_utc"])
+    if observed.tzinfo is None or not (
+        timedelta(seconds=-60) <= datetime.now(UTC) - observed <= timedelta(minutes=15)
+    ):
+        raise FreezePlanError("source preflight is stale or has an invalid timestamp")
+    return evidence
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--stack-name", required=True)
+    parser.add_argument("--profile")
+    parser.add_argument("--preflight", required=True, type=Path)
+    parser.add_argument("--snapshot", required=True, type=Path)
+    args = parser.parse_args()
+    try:
+        session = boto3.Session(profile_name=args.profile, region_name=SOURCE_REGION)
+        adapter = BotoFreezeAdapter(session, SOURCE_ACCOUNT)
+        manifest = discover_manifest(session, args.stack_name)
+        evidence = _recent_evidence(args.preflight)
+        validate_preflight(manifest, evidence)
+        snapshot = capture(adapter, manifest, evidence)
+        save_snapshot(args.snapshot, snapshot)
+    except (
+        FreezePlanError,
+        BotoCoreError,
+        ClientError,
+        NoCredentialsError,
+        OSError,
+        KeyError,
+        ValueError,
+    ) as error:
+        code = type(error).__name__
+        if isinstance(error, ClientError):
+            code = error.response.get("Error", {}).get("Code", "ClientError")
+        detail = f": {error}" if isinstance(error, FreezePlanError) else ""
+        print(
+            f"NO-GO: source read-only capture incomplete ({code}){detail}",
+            file=sys.stderr,
+        )
+        return 2
+    print(
+        json.dumps(
+            {
+                "status": "NO_GO",
+                "source_account_match": True,
+                "source_region_match": True,
+                "captured_controls": len(snapshot.observed),
+                "snapshot_sha256": snapshot.digest(),
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

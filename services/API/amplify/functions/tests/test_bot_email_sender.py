@@ -134,3 +134,44 @@ class BotMailSenderTests(ApiTestCase):
         self.assertIn('href="https://example.com/news"', rich)
         self.assertNotIn("<script>", rich)
         self.assertIn("&lt;script&gt;", rich)
+
+    def test_approved_outbound_uses_its_recipient_and_content(self) -> None:
+        user_id = str(uuid.uuid4())
+        bot = {
+            "pk": f"USER#{user_id}", "sk": "BOT#bot-1", "id": "bot-1",
+            "name": "Scout", "emailToken": "abcdefghijklmnop",
+            "emailOwnerAddress": "owner@example.com", "emailDeliveryMode": "appOnly",
+        }
+        turn = {
+            "pk": f"CHAT#{user_id}#bot-1", "sk": "TURN#2026-09-18T01:00:00Z#turn-2",
+            "id": "turn-2", "status": "COMPLETE", "source": "app",
+            "outboundEmail": {"to": "friend@example.com", "subject": "Hello", "body": "Here is the report."},
+        }
+        self.data_table.put_item(Item=bot)
+        self.data_table.put_item(Item=turn)
+        self.ses.reset_mock()
+        self.ses.send_email.return_value = {"MessageId": "ses-outbound-2"}
+
+        self.sender._process({
+            "userId": user_id, "botId": "bot-1", "turnId": "turn-2",
+            "turnKey": turn["sk"], "event": "outbound",
+        })
+
+        request = self.ses.send_email.call_args.kwargs
+        self.assertEqual(request["Destination"], {"ToAddresses": ["friend@example.com"]})
+        message = BytesParser(policy=policy.default).parsebytes(request["Content"]["Raw"]["Data"])
+        self.assertEqual(message["To"].addresses[0].addr_spec, "friend@example.com")
+        self.assertEqual(message["Subject"], "Hello")
+        self.assertIn("Here is the report.", message.get_body(preferencelist=("plain",)).get_content())
+        self.assertFalse(self.sender._eligible(
+            {**bot, "emailDeliveryMode": "allResponses"}, turn, "reply"
+        ))
+
+    def test_scheduled_email_can_target_an_approved_recipient(self) -> None:
+        message = self.sender._message(
+            {"name": "Scout", "emailOwnerAddress": "owner@example.com"},
+            {"source": "schedule", "scheduleDeliveryMode": "email",
+             "scheduleRecipientEmail": "friend@example.com", "assistantText": "Your brief."},
+            "private-route@bots.heytim.ai", "reply",
+        )
+        self.assertEqual(message["To"].addresses[0].addr_spec, "friend@example.com")

@@ -477,6 +477,7 @@ def _public_schedule(item: dict) -> dict:
             "dayOfMonth",
             "time",
             "timezone",
+            "recipientEmail",
             "enabled",
             "createdAt",
             "updatedAt",

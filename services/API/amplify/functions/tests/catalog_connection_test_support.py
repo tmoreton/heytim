@@ -205,6 +205,21 @@ class ConnectionCatalogCases:
             "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
             "heytim/oauth/github-ABC123",
         )
+        self.assertEqual(
+            github["managementUrl"],
+            "https://github.com/settings/installations/12345",
+        )
+        organization = self.catalog.save_github_connection(
+            "owner", "example-org", "67890",
+            [{"id": 303, "name": "example-org/three"}],
+            {"metadata": "read", "contents": "write"},
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+            "heytim/oauth/github-ABC123", "Organization",
+        )
+        self.assertEqual(
+            organization["managementUrl"],
+            "https://github.com/organizations/example-org/settings/installations/67890",
+        )
         access = self.catalog.validate_github_repository_access(
             "owner", [github["id"]], {github["id"]: [101]}
         )

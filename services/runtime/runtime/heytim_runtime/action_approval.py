@@ -92,12 +92,19 @@ class ActionApproval(HookProvider):
 
 def approval_configuration(payload: dict, actor_id: str | None) -> tuple[ActionApproval, SnapshotSessionManager] | None:
     selected = payload.get("bot", {}).get("tools", [])
+    management = payload.get("botManagement")
+    email_enabled = (
+        isinstance(management, dict)
+        and isinstance(management.get("currentBot"), dict)
+        and management["currentBot"].get("emailEnabled") is True
+        and payload.get("group") is None
+    )
     interactive_ids = {
         item["id"] for item in selected
         if isinstance(item, dict) and item.get("risk") == "interactive"
         and isinstance(item.get("id"), str)
     }
-    if not interactive_ids:
+    if not interactive_ids and not email_enabled:
         return None
     if any(isinstance(item, dict) and item.get("runtime", {}).get("kind") == "stan_subagent"
            for item in selected):
@@ -107,6 +114,8 @@ def approval_configuration(payload: dict, actor_id: str | None) -> tuple[ActionA
         isinstance(item, str) for item in allowed
     ) else set()
     unapproved_ids = interactive_ids - allowed_ids
+    if email_enabled:
+        unapproved_ids.add("bot_email")
     resume = payload.get("actionApproval")
     if not unapproved_ids and resume is None:
         return None
@@ -148,6 +157,8 @@ def approval_configuration(payload: dict, actor_id: str | None) -> tuple[ActionA
             interactive_names.clear()
             interactive_prefixes.clear()
             break
+    if email_enabled:
+        interactive_names.update({"send_bot_email", "create_email_schedule"})
     return ActionApproval(
         resume, read_only_home_tools,
         allow_after_resume=not unapproved_ids,

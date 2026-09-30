@@ -401,8 +401,13 @@ public enum ConversationListItem: Identifiable, Hashable, Sendable {
     }
   }
 
-  public static func recentFirst(bots: [Bot], groups: [BotGroup]) -> [ConversationListItem] {
+  public static func recentFirst(
+    bots: [Bot], groups: [BotGroup], activeSelections: Set<ConversationSelection> = []
+  ) -> [ConversationListItem] {
     (bots.map(ConversationListItem.bot) + groups.map(ConversationListItem.group)).sorted {
+      let leftActive = activeSelections.contains($0.selection)
+      let rightActive = activeSelections.contains($1.selection)
+      if leftActive != rightActive { return leftActive }
       let left = $0.lastMessageAt.froggyDate ?? .distantPast
       let right = $1.lastMessageAt.froggyDate ?? .distantPast
       if left != right { return left > right }
@@ -435,6 +440,7 @@ public struct ScheduledTask: Codable, Identifiable, Hashable, Sendable {
   public var time: String
   public var timezone: String
   public var deliveryMode: String?
+  public var recipientEmail: String?
   public var enabled: Bool
   public var createdAt: String
   public var updatedAt: String
@@ -451,6 +457,7 @@ public struct ScheduledTaskDraft: Codable, Equatable, Sendable {
   public var time = "09:00"
   public var timezone = TimeZone.current.identifier
   public var deliveryMode = "app"
+  public var recipientEmail = ""
   public var enabled = true
   public init() {}
   public init(task: ScheduledTask) {
@@ -462,6 +469,7 @@ public struct ScheduledTaskDraft: Codable, Equatable, Sendable {
     time = task.time
     timezone = task.timezone
     deliveryMode = task.deliveryMode == "email" ? "email" : "app"
+    recipientEmail = task.recipientEmail ?? ""
     enabled = task.enabled
   }
 }
@@ -542,6 +550,7 @@ public struct Capability: Codable, Identifiable, Hashable, Sendable {
   public var editable: Bool?
   public var connectedAccount: String?
   public var endpoint: String? = nil
+  public var managementUrl: String?
   public var repositories: [ConnectedRepository]?
   public var plaidAccounts: [ConnectedPlaidAccount]?
   public var plaidSync: PlaidSyncStatus?

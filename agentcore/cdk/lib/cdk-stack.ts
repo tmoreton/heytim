@@ -79,6 +79,8 @@ export interface AgentCoreStackProps extends StackProps {
   filesBucketName?: string;
   /** KMS alias used to encrypt this target's user-file bucket. */
   filesKeyAlias?: string;
+  /** Allow the destination's retained legacy application OAuth secret names. */
+  allowLegacyProviderSecrets?: boolean;
 }
 
 function toCdkId(name: string): string {
@@ -150,6 +152,7 @@ export class AgentCoreStack extends Stack {
       paymentSpec,
       filesBucketName,
       filesKeyAlias,
+      allowLegacyProviderSecrets,
     } = props;
 
     // Create AgentCoreApplication with all agents and harness roles
@@ -218,6 +221,18 @@ export class AgentCoreStack extends Stack {
           arnFormat: ArnFormat.COLON_RESOURCE_NAME,
         })
       );
+      if (allowLegacyProviderSecrets) {
+        for (const provider of ['google', 'github', 'x', 'slack', 'notion']) {
+          providerConfigurationArns.push(
+            this.formatArn({
+              service: 'secretsmanager',
+              resource: 'secret',
+              resourceName: `frogbot/oauth/${provider}-production-*`,
+              arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+            })
+          );
+        }
+      }
       for (const environment of this.application.environments.values()) {
         environment.runtime.role.addToPrincipalPolicy(
           new iam.PolicyStatement({

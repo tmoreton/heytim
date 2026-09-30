@@ -172,6 +172,23 @@ class BotEmailConversationTests(WorkerTestCase):
         self.assertEqual(request["turnId"], "turn-daily")
         self.assertEqual(request["event"], "reply")
 
+    def test_direct_outbound_queues_only_the_approved_email(self) -> None:
+        turn = {
+            "id": "turn-send", "sk": "TURN#2026-09-24T12:00:00Z#turn-send",
+            "source": "app", "outboundEmail": {
+                "to": "friend@example.com", "subject": "Hello", "body": "Hi"},
+        }
+        bot = {
+            "emailDeliveryMode": "allResponses", "emailToken": "abcdefghijklmnop",
+            "emailOwnerAddress": "owner@example.com",
+        }
+        with patch.object(self.notifications, "EMAIL_QUEUE_URL", "https://sqs.example/email"):
+            self.notifications._queue_email_delivery("owner", "brief", turn, bot, event="outbound")
+            self.notifications._queue_email_delivery("owner", "brief", turn, bot, event="reply")
+        self.assertEqual(self.sqs.send_message.call_count, 1)
+        request = json.loads(self.sqs.send_message.call_args.kwargs["MessageBody"])
+        self.assertEqual(request["event"], "outbound")
+
     def test_scheduled_turn_carries_delivery_and_timezone(self) -> None:
         self.table.put_item(
             Item={

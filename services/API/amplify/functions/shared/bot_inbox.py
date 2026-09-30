@@ -11,6 +11,18 @@ from shared.keys import user_pk
 
 MAIL_DOMAIN = "bots.heytim.ai"
 _ADDRESS_PATTERN = re.compile(r"^b-([a-z2-7]{26})\.([a-z2-7]{16})\.([a-z2-7]{16})$")
+_RECIPIENT_PATTERN = re.compile(
+    r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$"
+)
+
+
+def validated_email_recipient(value: object) -> str:
+    if not isinstance(value, str):
+        raise TypeError("Email recipient must be an address")
+    address = value.strip().lower()
+    if len(address) > 320 or not _RECIPIENT_PATTERN.fullmatch(address):
+        raise ValueError("Email recipient must be a valid address")
+    return address
 
 
 def new_mail_token() -> str:

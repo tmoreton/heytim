@@ -525,10 +525,12 @@ def _queue_email_delivery(
         turn.get("source") == "schedule"
         and turn.get("scheduleDeliveryMode") == "email"
     )
+    direct_outbound = event == "outbound" and isinstance(turn.get("outboundEmail"), dict)
     if (
         not EMAIL_QUEUE_URL
+        or (event == "reply" and isinstance(turn.get("outboundEmail"), dict))
         or (
-            not schedule_email
+            not schedule_email and not direct_outbound
             and (
                 mode == "appOnly"
                 or (mode == "emailReplies" and turn.get("source") != "email")

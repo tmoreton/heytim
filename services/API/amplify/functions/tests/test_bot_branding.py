@@ -348,6 +348,20 @@ class BotBrandingTests(unittest.TestCase):
         self.assertNotIn("microsoft", [provider["id"] for provider in providers])
         self.assertIn("slack", [provider["id"] for provider in providers])
 
+    def test_review_gated_provider_cards_follow_the_disable_setting(self) -> None:
+        gated = {"gmail", "youtube", "google_workspace", "slack", "notion", "x"}
+        with patch.dict("os.environ", {"DISABLED_CONNECTION_PROVIDER_IDS": ""}):
+            enabled = {provider["id"] for provider in self.bots.connection_providers()}
+        with patch.dict(
+            "os.environ",
+            {"DISABLED_CONNECTION_PROVIDER_IDS": ",".join(sorted(gated))},
+        ):
+            disabled = {provider["id"] for provider in self.bots.connection_providers()}
+
+        self.assertTrue(gated <= enabled)
+        self.assertTrue(gated.isdisjoint(disabled))
+        self.assertIn("github", disabled)
+
 
 if __name__ == "__main__":
     unittest.main()

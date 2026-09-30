@@ -20,6 +20,29 @@ GITHUB_APP_PERMISSIONS = {
     "metadata": "read",
     "pull_requests": "write",
 }
+
+
+def github_management_metadata(item: dict) -> dict[str, str]:
+    if item.get("provider") != "github":
+        return {}
+    installation_id = item.get("providerAccountId")
+    if not isinstance(installation_id, str) or not re.fullmatch(
+        r"[0-9]{1,20}", installation_id
+    ):
+        return {}
+    account = item.get("connectedAccount")
+    if item.get("installationAccountType") == "Organization" and isinstance(
+        account, str
+    ) and re.fullmatch(r"[A-Za-z0-9-]{1,100}", account):
+        return {
+            "managementUrl": (
+                f"https://github.com/organizations/{account}/settings/"
+                f"installations/{installation_id}"
+            )
+        }
+    return {"managementUrl": f"https://github.com/settings/installations/{installation_id}"}
+
+
 def _rsa_private_key(private_key: str) -> rsa.RSAPrivateKey:
     if not isinstance(private_key, str) or len(private_key) > 32_000:
         raise ValueError("GitHub App private key is invalid")

@@ -130,7 +130,7 @@ jobs:
           fi
           source_ipa="${ipas[0]}"
           config_entry="$(unzip -Z1 "$source_ipa" \
-            | awk '/^Payload\/[^/]+\.app\/amplify_outputs\.json$/ { print; count++ } END { if (count != 1) exit 1 }')"
+            | awk -F/ '$1 == "Payload" && $2 ~ /[.]app$/ && $3 == "amplify_outputs.json" && NF == 3 { print; count++ } END { if (count != 1) exit 1 }')"
           unzip -p "$source_ipa" "$config_entry" | node --input-type=module -e '
             import { readFileSync } from "node:fs";
             const output = JSON.parse(readFileSync(0, "utf8"));

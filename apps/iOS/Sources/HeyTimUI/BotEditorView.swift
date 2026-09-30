@@ -190,7 +190,9 @@ struct BotEditor: View {
         CloseButton { model.sheet = nil }
       }
       ToolbarItem(placement: .confirmationAction) {
-        Button("Save") { save() }.disabled(!canSave)
+        Button("Save") { save() }
+          .froggyGlassButton(prominent: true)
+          .disabled(!canSave)
       }
     }
     .onAppear {

@@ -90,6 +90,35 @@ class ApiRoutingTests(unittest.TestCase):
             "user-1", "gmail", {"returnUrl": "heytim://app"}
         )
 
+    def test_authorization_is_blocked_when_provider_cards_are_disabled(self) -> None:
+        gated = ("gmail", "youtube", "google_workspace", "slack", "notion", "x")
+        with patch.dict(
+            "os.environ",
+            {"DISABLED_CONNECTION_PROVIDER_IDS": ",".join(gated)},
+        ):
+            for provider_id in gated:
+                with self.subTest(provider_id=provider_id):
+                    with self.assertRaises(self.support.ApiError) as raised:
+                        self.routes._begin_connection_authorization(
+                            "user-1", provider_id, {"returnUrl": "heytim://app"}
+                        )
+                    self.assertEqual(raised.exception.status_code, 404)
+                    self.assertEqual(raised.exception.code, "connection_provider_not_found")
+
+    def test_google_authorization_remains_available_by_default(self) -> None:
+        authorization = {"authorizationUrl": "https://accounts.example/authorize"}
+        handlers = self.routes._begin_connection_authorization.__globals__[
+            "_AUTHORIZATION_HANDLERS"
+        ]
+        with (
+            patch.dict("os.environ", {"DISABLED_CONNECTION_PROVIDER_IDS": ""}),
+            patch.dict(handlers, {"gmail": lambda _user, _value: authorization}),
+        ):
+            result = self.routes._begin_connection_authorization(
+                "user-1", "gmail", {"returnUrl": "heytim://app"}
+            )
+        self.assertEqual(result, authorization)
+
     def test_home_assistant_connect_uses_authenticated_connection_route(self) -> None:
         connected = {"id": "connection_home", "name": "Home Assistant"}
         payload = {"instanceUrl": "https://home.example.com", "accessToken": "a" * 48}

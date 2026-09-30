@@ -144,9 +144,7 @@ test('runtime roles can use the configured memory encryption key', async () => {
       Resource: memoryKeyArn,
     })
   );
-  const taggingGrant = statements.find(statement =>
-    [statement.Action].flat().includes('s3:PutObjectTagging')
-  );
+  const taggingGrant = statements.find(statement => [statement.Action].flat().includes('s3:PutObjectTagging'));
   expect(taggingGrant).toEqual(expect.objectContaining({ Effect: 'Allow' }));
   const taggingResources = JSON.stringify(taggingGrant?.Resource);
   expect(taggingResources).toContain('heytim-production-user-files-123456789012-us-east-1/users/*');
@@ -169,6 +167,34 @@ test('runtime roles can use the configured memory encryption key', async () => {
     expect(serializedStatements).toContain(`secret:heytim/oauth/${provider}-*`);
   }
   expect(serializedStatements).not.toContain('secret:frogbot/');
+
+  const legacyApp = new cdk.App();
+  const destination = new AgentCoreStack(legacyApp, 'LegacySecretStack', {
+    env: { account: '123456789012', region: 'us-east-1' },
+    spec,
+    filesBucketName: 'heytim-production-user-files-123456789012-us-east-1',
+    filesKeyAlias: 'alias/heytim-production-user-files',
+    allowLegacyProviderSecrets: true,
+  });
+  const destinationTemplate = Template.fromStack(destination).toJSON();
+  const destinationPolicies = Object.values(
+    destinationTemplate.Resources as Record<
+      string,
+      { Type: string; Properties?: { PolicyDocument?: { Statement?: Array<Record<string, unknown>> } } }
+    >
+  )
+    .filter(resource => resource.Type === 'AWS::IAM::Policy')
+    .flatMap(resource => resource.Properties?.PolicyDocument?.Statement ?? []);
+  const destinationGrants = JSON.stringify(destinationPolicies);
+  for (const provider of ['google', 'github', 'x', 'slack', 'notion']) {
+    expect(destinationGrants).toContain(
+      `:secretsmanager:us-east-1:123456789012:secret:frogbot/oauth/${provider}-production-*`
+    );
+  }
+  for (const provider of ['microsoft', 'hubspot', 'jira', 'zoom', 'quickbooks', 'plaid']) {
+    expect(destinationGrants).not.toContain(`secret:frogbot/oauth/${provider}-`);
+  }
+  expect(destinationGrants).not.toContain(':secretsmanager:us-east-1:188757775631:');
 });
 
 test('target bindings isolate production storage and memory encryption', () => {

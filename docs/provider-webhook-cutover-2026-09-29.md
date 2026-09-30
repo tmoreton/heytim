@@ -13,9 +13,12 @@ rollback period.
 | Stripe | Endpoint `we_1UHW7fA7YzCs1pRZGFtVDD4J` is enabled at `https://twrxzanvwg.execute-api.us-east-1.amazonaws.com/public/webhooks/stripe`. It is live, uses API version `2026-08-26.dahlia`, and subscribes to `checkout.session.completed` and `customer.subscription.{created,updated,deleted}`. Source secret `heytim/stripe/production` exists in account `188757775631`. | The same endpoint must point to `https://srrkqsqrqd.execute-api.us-east-1.amazonaws.com/public/webhooks/stripe` after destination billing is ready. Secret `heytim/stripe/production` has now been copied through process memory into account `820323452649` and verified by readback without exposing values. Destination Lambda wiring and live-mode behavior still need validation. |
 | GitHub App | App ID `4931494`, displayed as **FroggyBot by tmoreton**, slug `froggybot-by-tmoreton`, has one JSON webhook at `https://twrxzanvwg.execute-api.us-east-1.amazonaws.com/public/webhooks/github`; TLS verification is on. | Keep the existing App and signing secret. Move only its webhook URL to `https://srrkqsqrqd.execute-api.us-east-1.amazonaws.com/public/webhooks/github` once destination connections and routines have been validated. The destination `frogbot/oauth/github-production` secret's App ID, client ID/secret, private key, and webhook secret have been compared in memory and match the source; this legacy secret name is an existing physical identifier. |
 
-The GitHub App's public homepage is still `https://froggybot.com/`; its display
-name and slug are also still FroggyBot branded. Treat those as separate
-user-facing branding changes. Changing the slug can affect installation URLs;
+The GitHub App's public homepage now points to `https://heytim.ai/`; it was
+changed independently of the webhook on 2026-09-29 and verified on the public
+App page. The destination OAuth callback was added alongside the source
+callback; the setup URL and webhook are unchanged. Its display name and slug are still FroggyBot
+branded. Treat those as separate user-facing branding changes. Changing the
+slug can affect installation URLs;
 review existing installations and redirects before doing so. GitHub's `GET
 /app` response does not expose the OAuth callback or post-installation setup
 URL, so inspect both in the App settings UI before enabling destination

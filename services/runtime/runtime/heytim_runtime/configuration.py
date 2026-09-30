@@ -81,6 +81,7 @@ def bot_configuration(
                 image_attachments_from_messages(messages or []), start=1
             )
         ]
+    bot_management = bot_management_from_payload(payload)
     capabilities = resolve_capabilities(
         bot,
         session_id,
@@ -89,7 +90,7 @@ def bot_configuration(
         managed_browser=managed_browser_from_payload(
             payload, actor_id, artifact_prefix
         ),
-        bot_management=bot_management_from_payload(payload),
+        bot_management=bot_management,
         image_references=image_references,
         usage=usage,
         workspace_files=workspace_files,
@@ -102,6 +103,20 @@ def bot_configuration(
         f"{INLINE_DELIVERY_INSTRUCTIONS}\n\n"
         f"{RESULT_INSTRUCTIONS}"
     )
+    if bot_management is not None:
+        instructions += (
+            "\n\nBot Inbox is Hey Tim's own email service; it does not require Gmail. "
+            "A scheduled run can email its result from the bot's address. "
+            + (
+                "This bot's inbox is enabled. Use send_bot_email for one requested "
+                "message or create_email_schedule for a requested recurring email. "
+                "Both require approval for the exact recipient and content. "
+                f"The user's verified sign-in address is {bot_management['currentBot'].get('emailOwnerAddress', 'unavailable')}."
+                if bot_management["currentBot"].get("emailEnabled") is True
+                else "This bot's inbox is off. Ask the user to turn it on in Bot Inbox "
+                "before sending or scheduling email; do not suggest Gmail as a requirement."
+            )
+        )
     if workspace_files and any(
         getattr(candidate, "tool_name", None) == "load_workspace_files"
         for candidate in capabilities.tools

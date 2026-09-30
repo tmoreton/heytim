@@ -127,6 +127,22 @@ def test_previously_granted_bot_skips_runtime_approval_setup() -> None:
     assert approval_configuration(payload, None) is None
 
 
+def test_bot_email_always_requires_exact_action_approval(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(action_approval_module, "interrupt_session_manager", lambda *_: "snapshot-manager")
+    payload = {"bot": {"tools": [], "alwaysAllowedToolIds": []},
+               "botManagement": {"currentBot": {"emailEnabled": True}}}
+    approval, manager = approval_configuration(payload, "owner")
+    assert manager == "snapshot-manager"
+    read = SimpleNamespace(tool_use={"toolUseId": "read-1", "name": "list_bot_options", "input": {}}, interrupt=Mock())
+    approval.before_tool(read)
+    read.interrupt.assert_not_called()
+    send = SimpleNamespace(tool_use={"toolUseId": "send-1", "name": "send_bot_email",
+                                     "input": {"to": "friend@example.com", "subject": "Hi", "body": "Hello"}},
+                           interrupt=Mock(return_value=None), cancel_tool=None)
+    approval.before_tool(send)
+    send.interrupt.assert_called_once()
+
+
 def test_device_binding_approves_only_declared_interactive_operations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

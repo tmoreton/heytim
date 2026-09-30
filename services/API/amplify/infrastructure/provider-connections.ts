@@ -33,7 +33,11 @@ export function addProviderConnectionAccess(
   apiFunction: LambdaFunction,
   apiEndpoint: string,
   secrets: ProviderSecrets,
-): void {
+  googleConnectionsEnabled = true,
+  slackConnectionsEnabled = true,
+  notionConnectionsEnabled = true,
+  xConnectionsEnabled = true,
+): string {
   apiFunction.addEnvironment('GOOGLE_OAUTH_SECRET_ARN', secrets.google);
   apiFunction.addEnvironment('HUBSPOT_OAUTH_SECRET_ARN', secrets.hubspot);
   apiFunction.addEnvironment('JIRA_OAUTH_SECRET_ARN', secrets.jira);
@@ -45,13 +49,17 @@ export function addProviderConnectionAccess(
   apiFunction.addEnvironment('ZOOM_OAUTH_SECRET_ARN', secrets.zoom);
   apiFunction.addEnvironment('QUICKBOOKS_OAUTH_SECRET_ARN', secrets.quickbooks);
   apiFunction.addEnvironment('PLAID_SECRET_ARN', secrets.plaid);
-  const disabledProviders = (Object.keys(providerIdsBySecret) as Array<keyof ProviderSecrets>)
+  const disabledProviders = new Set((Object.keys(providerIdsBySecret) as Array<keyof ProviderSecrets>)
     .filter((provider) => secrets[provider].length === 0)
-    .flatMap((provider) => providerIdsBySecret[provider]);
-  apiFunction.addEnvironment(
-    'DISABLED_CONNECTION_PROVIDER_IDS',
-    disabledProviders.join(','),
-  );
+    .flatMap((provider) => providerIdsBySecret[provider]));
+  if (!googleConnectionsEnabled) {
+    providerIdsBySecret.google.forEach((providerId) => disabledProviders.add(providerId));
+  }
+  if (!slackConnectionsEnabled) disabledProviders.add('slack');
+  if (!notionConnectionsEnabled) disabledProviders.add('notion');
+  if (!xConnectionsEnabled) disabledProviders.add('x');
+  const disabledProviderIds = [...disabledProviders].join(',');
+  apiFunction.addEnvironment('DISABLED_CONNECTION_PROVIDER_IDS', disabledProviderIds);
   apiFunction.addEnvironment(
     'GOOGLE_OAUTH_REDIRECT_URI',
     `${apiEndpoint}/public/oauth/google/callback`,
@@ -85,4 +93,5 @@ export function addProviderConnectionAccess(
       resources: configuredSecrets,
     }));
   }
+  return disabledProviderIds;
 }

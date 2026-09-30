@@ -111,6 +111,45 @@ class ScheduleDeletionTests(ApiTestCase):
             )
 
         self.assertEqual(result["deliveryMode"], "email")
+        self.assertNotIn("recipientEmail", result)
+        create_remote.assert_called_once()
+
+    def test_email_schedule_accepts_an_explicit_recipient(self) -> None:
+        with (
+            patch.object(self.schedules, "_get_bot", return_value={
+                "id": "brief", "toolIds": [], "emailToken": "abcdefghijklmnop",
+                "emailOwnerAddress": "owner@example.com",
+            }),
+            patch.object(self.schedules, "_schedule_items", return_value=[]),
+            patch.object(self.schedules.catalog, "unapproved_tools", return_value=[]),
+            patch.object(self.schedules, "_create_remote_schedule"),
+        ):
+            result = self.schedules._create_schedule(
+                "owner", "brief", self.schedule_value(
+                    deliveryMode="email", recipientEmail="Friend@Example.com"
+                ),
+            )
+        self.assertEqual(result["recipientEmail"], "friend@example.com")
+
+    def test_email_schedule_request_is_safe_to_retry(self) -> None:
+        with (
+            patch.object(self.schedules, "_get_bot", return_value={
+                "id": "brief", "toolIds": [], "emailToken": "abcdefghijklmnop",
+                "emailOwnerAddress": "owner@example.com",
+            }),
+            patch.object(self.schedules, "_schedule_items", return_value=[]),
+            patch.object(self.schedules.catalog, "unapproved_tools", return_value=[]),
+            patch.object(self.schedules, "_create_remote_schedule") as create_remote,
+        ):
+            first = self.schedules._create_schedule(
+                "owner", "brief", self.schedule_value(deliveryMode="email"),
+                request_id="same-approved-request",
+            )
+            repeated = self.schedules._create_schedule(
+                "owner", "brief", self.schedule_value(deliveryMode="email"),
+                request_id="same-approved-request",
+            )
+        self.assertEqual(first, repeated)
         create_remote.assert_called_once()
 
     def test_run_history_reports_schedule_email_delivery(self) -> None:

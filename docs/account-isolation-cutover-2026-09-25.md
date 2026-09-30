@@ -91,10 +91,16 @@ destination-account resource identifiers, and CDK synthesis rejects any future f
   Google OAuth is therefore **not approved for a warning-free public sign-in** at this checkpoint.
 - The existing live Stripe credential bundle was copied through process memory into destination Secrets Manager as
   `heytim/stripe/production` and read back without printing values. The Stripe webhook and subscription metadata still
-  point to the source. The GitHub App still exposes a legacy homepage and source webhook URL. Neither provider's live
-  traffic has moved. The obsolete `froggybot.com` Google authorized-domain entry could not be removed safely: Google's
+  point to the source. The GitHub App homepage was changed to `https://heytim.ai/` on September 29; its webhook and
+  setup URL still points to the source, while the destination OAuth callback was added beside the source callback.
+  Neither provider's live traffic has moved. The obsolete `froggybot.com`
+  Google authorized-domain entry could not be removed safely: Google's
   console warned that a client still uses it, and automatic approval review rejected the save. Resolve the client
   dependency before removing the domain.
+- After explicit owner approval on September 29, the Plaid **application** credential was copied through process
+  memory to destination Secrets Manager as `heytim/oauth/plaid-production`. Exact field and value parity was verified
+  in memory; no end-user Plaid tokens were copied or printed. Destination `PLAID_SECRET_ARN` and webhook traffic remain
+  disabled pending migrated state and provider smoke checks.
 
 ## Decisions requiring approval
 
@@ -139,9 +145,11 @@ Record an owner and decision for every row before the maintenance window is sche
 
 ### 3. Cut over in a bounded maintenance window
 
-The [source write-freeze runbook](source-write-freeze-runbook.md) is a **NO-GO draft** until its read-path,
-live-inventory, policy-probe, and AgentCore memory/drain gaps are resolved. A stable source digest requires disabling
-and settling DynamoDB TTL and S3 Lifecycle as well as stopping application ingress.
+The [source write-freeze runbook](source-write-freeze-runbook.md) remains **NO-GO** until its live-inventory,
+policy-probe, AgentCore memory/drain, and provider-replay gaps are resolved. The owner approved a full-service
+maintenance outage of at least 90 minutes plus copying and checks, with the source retained for rollback.
+A stable source digest requires disabling and settling DynamoDB TTL and S3 Lifecycle as well as stopping
+application ingress.
 
 1. Announce the write freeze and named rollback owner.
 2. Stop new schedules and paid-work admission, drain queues, and verify no in-flight job remains.

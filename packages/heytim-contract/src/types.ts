@@ -277,6 +277,7 @@ export type Connection = Capability & {
   provider: string;
   connectionStatus: 'connected';
   repositoryCount?: number;
+  managementUrl?: string;
 };
 
 export type Skill = Capability & {

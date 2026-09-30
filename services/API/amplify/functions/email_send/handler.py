@@ -16,7 +16,7 @@ import boto3
 from boto3.dynamodb.conditions import Attr
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
-from shared.bot_inbox import MAIL_DOMAIN, mail_address
+from shared.bot_inbox import MAIL_DOMAIN, mail_address, validated_email_recipient
 from shared.keys import bot_key, turn_pk, user_state_key
 
 logger = logging.getLogger(__name__)
@@ -98,7 +98,11 @@ def _finish_delivery(key: dict, status: str, **values: str) -> None:
     )
 
 
-def _eligible(bot: dict, turn: dict) -> bool:
+def _eligible(bot: dict, turn: dict, event: str = "reply") -> bool:
+    if event == "outbound":
+        return isinstance(turn.get("outboundEmail"), dict)
+    if event == "reply" and isinstance(turn.get("outboundEmail"), dict):
+        return False
     mode = bot.get("emailDeliveryMode", "appOnly")
     return (
         turn.get("source") == "schedule"
@@ -209,7 +213,11 @@ def _message(bot: dict, turn: dict, route: str, event: str) -> EmailMessage:
     original_subject = _clean_header(turn.get("emailSubject"), 180)
     in_reply_to = _thread_header(turn.get("emailMessageIdHeader"))
     references = _thread_header(turn.get("emailReferences"))
-    if event == "approval":
+    if event == "outbound":
+        outbound = turn["outboundEmail"]
+        subject = _clean_header(outbound.get("subject"), 180)
+        answer = str(outbound.get("body", "")).strip()
+    elif event == "approval":
         subject = f"Action needed: {bot_name} is waiting for approval"
         answer = (
             f"{bot_name} needs your approval before continuing. "
@@ -229,7 +237,10 @@ def _message(bot: dict, turn: dict, route: str, event: str) -> EmailMessage:
             subject = original_subject or f"{bot_name} replied in Hey Tim"
         answer = str(turn.get("assistantText", "")).strip()
     answer = answer[:MAX_EMAIL_ANSWER_CHARS]
-    if event == "approval":
+    if event == "outbound":
+        footer = f"This email was sent by {bot_name} in Hey Tim after approval."
+        link_label = "Open Hey Tim"
+    elif event == "approval":
         footer = f"Email notifications are enabled for {bot_name} in Hey Tim."
         link_label = "Open Hey Tim to review this action and manage email preferences"
     elif turn.get("source") == "schedule":
@@ -244,7 +255,7 @@ def _message(bot: dict, turn: dict, route: str, event: str) -> EmailMessage:
     message = EmailMessage()
     sender = _sender_address(bot_name)
     message["From"] = Address(display_name=f"{bot_name} via Hey Tim", addr_spec=sender)
-    message["To"] = bot["emailOwnerAddress"]
+    message["To"] = _recipient(bot, turn, event)
     message["Reply-To"] = Address(display_name=bot_name, addr_spec=route)
     message["Subject"] = subject
     message["Auto-Submitted"] = "auto-generated"
@@ -277,6 +288,14 @@ def _message(bot: dict, turn: dict, route: str, event: str) -> EmailMessage:
     return message
 
 
+def _recipient(bot: dict, turn: dict, event: str) -> str:
+    if event == "outbound":
+        return validated_email_recipient(turn["outboundEmail"].get("to"))
+    if event == "reply" and turn.get("source") == "schedule" and turn.get("scheduleDeliveryMode") == "email":
+        return validated_email_recipient(turn.get("scheduleRecipientEmail") or bot.get("emailOwnerAddress"))
+    return validated_email_recipient(bot.get("emailOwnerAddress"))
+
+
 def _process(request: dict) -> None:
     user_id = request.get("userId")
     bot_id = request.get("botId")
@@ -288,7 +307,7 @@ def _process(request: dict) -> None:
         for value in (user_id, bot_id, turn_id, turn_key)
     ):
         raise ValueError("Email delivery request is incomplete")
-    if event not in {"reply", "approval"} or not turn_key.startswith("TURN#"):
+    if event not in {"reply", "approval", "outbound"} or not turn_key.startswith("TURN#"):
         raise ValueError("Email delivery request is invalid")
     if not _account_is_active(user_id):
         return
@@ -296,7 +315,7 @@ def _process(request: dict) -> None:
     turn = table.get_item(
         Key={"pk": turn_pk(user_id, bot_id), "sk": turn_key}, ConsistentRead=True
     ).get("Item")
-    if not bot or not turn or turn.get("id") != turn_id or not _eligible(bot, turn):
+    if not bot or not turn or turn.get("id") != turn_id or not _eligible(bot, turn, event):
         return
     owner = bot.get("emailOwnerAddress")
     token = bot.get("emailToken")
@@ -312,6 +331,9 @@ def _process(request: dict) -> None:
         return
     if event == "approval" and turn.get("status") != "AWAITING_APPROVAL":
         return
+    if event == "outbound" and turn.get("status") != "COMPLETE":
+        return
+    recipient = _recipient(bot, turn, event)
     delivery_key = _claim_delivery(request)
     if delivery_key is None:
         return
@@ -321,7 +343,7 @@ def _process(request: dict) -> None:
         sender = _sender_address(_clean_header(bot.get("name"), 80) or "Your bot")
         response = ses.send_email(
             FromEmailAddress=sender,
-            Destination={"ToAddresses": [owner]},
+            Destination={"ToAddresses": [recipient]},
             ReplyToAddresses=[route],
             Content={"Raw": {"Data": message.as_bytes()}},
         )

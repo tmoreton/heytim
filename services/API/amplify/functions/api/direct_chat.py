@@ -6,7 +6,12 @@ import uuid
 from datetime import UTC, datetime
 
 from boto3.dynamodb.conditions import Attr
-from shared.action_grants import approval_grant_digest, grant_enabled_interactive_tools
+from shared.action_grants import (
+    BOT_EMAIL_APPROVAL_TOOLS,
+    approval_grant_digest,
+    grant_enabled_interactive_tools,
+    valid_bot_email_approval,
+)
 from shared.approval_storage import approval_snapshot_key
 from shared.client_contract import MESSAGE_MAX_LENGTH
 from shared.job_envelope import send_job
@@ -453,8 +458,12 @@ def _approve_bot_turn(
             raise ApiError(409, "This approval request is invalid") from exc
         if expires.tzinfo is None or expires <= datetime.now(UTC):
             raise ApiError(409, "This approval request expired")
-        if not catalog.approval_tool_names(user_id, bot.get("toolIds", [])):
+        if proposal.get("toolName") in BOT_EMAIL_APPROVAL_TOOLS and not valid_bot_email_approval(bot, proposal):
+            raise ApiError(409, "This bot's inbox is no longer enabled")
+        if not catalog.approval_tool_names(user_id, bot.get("toolIds", [])) and not valid_bot_email_approval(bot, proposal):
             raise ApiError(409, "The bot no longer has interactive tools")
+        if always and valid_bot_email_approval(bot, proposal):
+            raise ApiError(400, "Email sends and schedules require approval each time")
         if turn.get("approvalGrantDigest") != approval_grant_digest(catalog, user_id, bot):
             raise ApiError(409, "The bot's tool grants changed after this proposal")
         decision = {key: proposal[key] for key in ("id", "digest", "toolUseId")}

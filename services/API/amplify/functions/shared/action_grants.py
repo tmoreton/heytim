@@ -7,6 +7,17 @@ import re
 
 AUTOMATIC_APPROVAL_MODE = "automatic"
 ASK_APPROVAL_MODE = "ask"
+BOT_EMAIL_APPROVAL_TOOLS = frozenset({"send_bot_email", "create_email_schedule"})
+
+
+def valid_bot_email_approval(bot: dict, proposal: dict) -> bool:
+    return (
+        proposal.get("toolName") in BOT_EMAIL_APPROVAL_TOOLS
+        and isinstance(bot.get("emailToken"), str)
+        and bool(bot["emailToken"])
+        and isinstance(bot.get("emailOwnerAddress"), str)
+        and bool(bot["emailOwnerAddress"])
+    )
 
 
 def action_approval_mode(bot: dict) -> str:
@@ -61,6 +72,8 @@ def approval_grant_digest(catalog, owner_id: str, bot: dict) -> str:
         "jiraProjectAccess": bot.get("jiraProjectAccess"),
         "teamsChannelAccess": bot.get("teamsChannelAccess"),
         "resourceAccess": bot.get("resourceAccess"),
+        "emailToken": bot.get("emailToken"),
+        "emailOwnerAddress": bot.get("emailOwnerAddress"),
         "connections": connections,
     }
     return hashlib.sha256(json.dumps(scope, sort_keys=True, default=str).encode()).hexdigest()

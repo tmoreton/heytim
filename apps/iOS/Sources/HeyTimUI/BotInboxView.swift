@@ -31,6 +31,15 @@ struct BotInboxView: View {
         if let page, page.available, page.enabled, let address = page.address {
           Text(address).textSelection(.enabled).froggyFont(.body)
           Button("Copy address", systemImage: "doc.on.doc") { copy(address) }
+          Button("Ask bot to send email", systemImage: "paperplane") {
+            openChat()
+            if model.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+              model.composerText = "Send an email to "
+            }
+          }
+          Button("Schedule an email", systemImage: "calendar.badge.clock") {
+            model.sheet = .schedules(.init(kind: .bot, id: botId))
+          }
           Button("Replace address", systemImage: "arrow.triangle.2.circlepath") {
             showsRotateConfirmation = true
           }
@@ -49,7 +58,7 @@ struct BotInboxView: View {
       } header: {
         Text("Address")
       } footer: {
-        Text("Incoming email is saved here. Choose below whether your bot uses verified messages automatically. Replacing the address stops delivery to the old address.")
+        Text("Your bot receives email here and can send email after approval. Scheduled results can go to the recipient you choose. Replacing the inbox address stops delivery to the old address.")
       }
 
       if page?.enabled == true {
@@ -80,10 +89,14 @@ struct BotInboxView: View {
       if page != nil {
         Section {
           if pendingMessages.isEmpty {
-            ContentUnavailableView(
-              "All Caught Up", systemImage: "checkmark.circle",
-              description: Text("No email needs review. Processed conversations appear in chat history."))
-              .frame(maxWidth: .infinity, minHeight: 220)
+            VStack(alignment: .leading, spacing: 6) {
+              Label("No email needs review", systemImage: "checkmark.circle")
+                .froggyFont(.headline)
+              Text("Processed conversations appear in chat history.")
+                .froggyFont(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 12)
           } else {
             ForEach(pendingMessages) { message in
               inboxMessageRow(message)
@@ -121,10 +134,14 @@ struct BotInboxView: View {
         }
       } else if !loading {
         Section("Needs review") {
-          ContentUnavailableView(
-            "Inbox Unavailable", systemImage: "tray",
-            description: Text("Refresh to load this bot’s email inbox."))
-            .frame(maxWidth: .infinity, minHeight: 260)
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Inbox unavailable", systemImage: "tray")
+              .froggyFont(.headline)
+            Text("Refresh to load this bot’s email inbox.")
+              .froggyFont(.subheadline)
+              .foregroundStyle(.secondary)
+          }
+          .padding(.vertical, 12)
         }
       }
     }

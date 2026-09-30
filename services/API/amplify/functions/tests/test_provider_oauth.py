@@ -28,6 +28,32 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
         self.data_table.deleted.clear()
         self.data_table.put.clear()
 
+    def test_disabled_callbacks_consume_state_without_exchanging_tokens(self) -> None:
+        for provider in ("slack", "notion", "x"):
+            with self.subTest(provider=provider):
+                module = self.x if provider == "x" else self.external
+                state = f"{provider}-callback-state-with-enough-entropy"
+                key = module._state_key(state)
+                self.data_table.put_item(Item={
+                    **key, "userId": "user-1", "provider": provider,
+                    "verifier": "verifier-token",
+                    "returnUrl": f"heytim://app?connection={provider}",
+                    "clientSecretArn": "arn:aws:secretsmanager:us-east-1:123:secret:test",
+                    "expiresAt": 2_000,
+                })
+                with (
+                    patch.dict(os.environ, {"DISABLED_CONNECTION_PROVIDER_IDS": provider}),
+                    patch.object(module.time, "time", return_value=1_000),
+                    patch.object(module, "_exchange_code") as exchange,
+                ):
+                    response = (module._x_callback if provider == "x" else
+                                module._external_callback)({
+                                    "state": state, "code": "authorization-code"
+                                })
+                self.assertIn("status=error", response["headers"]["location"])
+                self.assertNotIn((key["pk"], "STATE"), self.data_table.items)
+                exchange.assert_not_called()
+
     def test_github_installation_is_verified_and_saved_without_user_token(self) -> None:
         state = "github-state-token-with-enough-entropy"
         app_secret_arn = (
@@ -103,6 +129,7 @@ class ProviderOAuthTests(ExternalProviderOAuthCases, unittest.TestCase):
             [{"id": 101, "name": "frog-owner/heytim"}],
             {"metadata": "read", "contents": "write"},
             app_secret_arn,
+            "User",
         )
         self.assertNotIn("transient-user-token", repr(save.call_args))
         exchange.assert_called_once_with(

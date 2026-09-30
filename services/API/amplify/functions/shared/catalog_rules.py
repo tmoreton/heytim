@@ -13,7 +13,7 @@ from shared.client_contract import (
 )
 from shared.connection_providers import connection_specs
 from shared.device_tools import validate_device_binding
-from shared.github_app import GITHUB_MCP_ENDPOINT
+from shared.github_app import GITHUB_MCP_ENDPOINT, github_management_metadata
 from shared.provider_contract import (
     GMAIL_MCP_ENDPOINT,
     GMAIL_MCP_TOOLS,
@@ -557,6 +557,7 @@ def _public_tool(item: dict) -> dict:
         "updatedAt",
     )
     public = {key: item[key] for key in keys if key in item}
+    public.update(github_management_metadata(item))
     # Existing Home Assistant grants retain their connection IDs and credentials,
     # but are presented as ordinary MCP servers to all current clients.
     if public.get("provider") == "home_assistant":

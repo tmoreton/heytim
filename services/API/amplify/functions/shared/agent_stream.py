@@ -17,6 +17,8 @@ def _clean_step(value: str) -> str:
 
 
 def _tool_step(tool_name: str) -> str:
+    if tool_name == "retrieve_offloaded_content":
+        return "Reading saved content"
     friendly_name = tool_name.replace("_", " ").replace("-", " ").strip()
     return f"Using {friendly_name}" if friendly_name else "Using a tool"
 

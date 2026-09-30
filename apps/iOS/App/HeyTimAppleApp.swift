@@ -129,6 +129,7 @@ private struct AppRoot: View {
       case .signedIn: MainView(model: model, auth: auth)
       }
     }
+    .tint(FrogTheme.accent)
     .froggyTextSize(textSize, systemSize: systemTextSize)
     .preferredColorScheme(appearance.colorScheme)
     .task {
