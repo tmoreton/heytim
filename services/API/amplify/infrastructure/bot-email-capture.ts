@@ -1,10 +1,10 @@
 import { CfnOutput, Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Effect, PolicyStatement, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
-import { CfnSubscription, Topic } from 'aws-cdk-lib/aws-sns';
+import { CfnSubscription, ITopic } from 'aws-cdk-lib/aws-sns';
 import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
 
 /** Store SES S3-action notifications independently of the app mail receiver. */
-export function addBotEmailCapture(stack: Stack, topic: Topic): void {
+export function addBotEmailCapture(stack: Stack, topic: ITopic): void {
   const captureFailures = new Queue(stack, 'BotEmailInboundCaptureFailures', {
     encryption: QueueEncryption.SQS_MANAGED,
     enforceSSL: true,

@@ -13,6 +13,7 @@ import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
 
 import { PUBLIC_WEB_BASE_URL } from './app-settings';
 import { addBotEmailCapture } from './bot-email-capture';
+import { addBotEmailQuarantine } from './bot-email-quarantine';
 import { applicationPythonCode } from './python-code';
 
 type BotEmailProps = {
@@ -32,11 +33,19 @@ export function addBotEmailReceiving(
   const domain = 'bots.heytim.ai';
   const mailFromDomain = `mail.${domain}`;
   const stage = process.env.HEYTIM_BOT_EMAIL_STAGE;
+  const captureOnlySetting = process.env.HEYTIM_BOT_EMAIL_CAPTURE_ONLY;
+  if (captureOnlySetting && !['true', 'false'].includes(captureOnlySetting)) {
+    throw new Error('HEYTIM_BOT_EMAIL_CAPTURE_ONLY must be true or false.');
+  }
+  const captureOnly = captureOnlySetting === 'true';
   if (stage !== 'identity' && stage !== 'receive') {
     throw new Error('Set HEYTIM_BOT_EMAIL_STAGE to identity or receive for production.');
   }
   if (process.env.HEYTIM_BOT_EMAIL_AVAILABLE === 'true' && stage !== 'receive') {
     throw new Error('Bot email cannot be available before its receiver is deployed.');
+  }
+  if (captureOnly && process.env.HEYTIM_BOT_EMAIL_AVAILABLE === 'true') {
+    throw new Error('Bot email cannot process mail while store-only capture is enabled.');
   }
   const configuredRuleSet = process.env.HEYTIM_SES_RULE_SET_NAME?.trim();
   const ruleSetName = configuredRuleSet || 'heytim-production-bot-mail';
@@ -122,6 +131,7 @@ export function addBotEmailReceiving(
     lifecycleRules: [{ expiration: Duration.days(7) }],
     removalPolicy: RemovalPolicy.RETAIN,
   });
+  const quarantine = addBotEmailQuarantine(stack);
   const topic = new Topic(stack, 'IncomingBotMailTopic', { enforceSSL: true });
   // SES stores MIME in S3 first; this separate queue retains the notification
   // while application processing is suspended. It has no automatic consumer.
@@ -158,7 +168,9 @@ export function addBotEmailReceiving(
   }));
   bucket.grantRead(receiver, 'received/*');
   jobs.grantSendMessages(receiver);
-  topic.addSubscription(new LambdaSubscription(receiver, { deadLetterQueue: deliveryFailures }));
+  if (!captureOnly) {
+    topic.addSubscription(new LambdaSubscription(receiver, { deadLetterQueue: deliveryFailures }));
+  }
 
   const outboundFailures = new Queue(stack, 'BotEmailOutboxFailures', {
     encryption: QueueEncryption.SQS_MANAGED,
@@ -214,7 +226,8 @@ export function addBotEmailReceiving(
       } },
     }),
   });
-  const bucketGrant = bucket.grantPut(receiveRole, 'received/*');
+  const receiptBucket = captureOnly ? quarantine : bucket;
+  const bucketGrant = receiptBucket.grantPut(receiveRole, 'received/*');
   const topicGrant = topic.grantPublish(receiveRole);
 
   const ruleSet = configuredRuleSet
@@ -231,7 +244,7 @@ export function addBotEmailReceiving(
       recipients: [domain],
       actions: [{
         s3Action: {
-          bucketName: bucket.bucketName,
+          bucketName: receiptBucket.bucketName,
           objectKeyPrefix: 'received/',
           topicArn: topic.topicArn,
           iamRoleArn: receiveRole.roleArn,
