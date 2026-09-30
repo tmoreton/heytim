@@ -102,6 +102,10 @@ jobs:
         run: echo "number=$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
 
       - name: Verify iPhone and Mac against destination configuration
+        env:
+          # The signing runner has Xcode but no iOS simulator runtime. Keep
+          # verifying macOS tests and compile the iOS app for a generic device.
+          HEYTIM_ALLOW_GENERIC_IOS_BUILD: 'true'
         run: ./scripts/apple-app.sh verify
 
       - name: Sign, notarize, verify, and remove Mac candidate
