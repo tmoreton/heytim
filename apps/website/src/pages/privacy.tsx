@@ -1,12 +1,42 @@
 export function Privacy() {
-  return (<main className="doc-page" id="main">
-    <p className="eyebrow">HeyTim</p><h1>Privacy Policy</h1><p className="effective">Effective September 19, 2026</p>
-    <p>This policy explains what HeyTim collects, why we use it, and the choices available to you.</p>
-    <h2>Information we collect</h2><p>We collect the email address used for passwordless authentication, bot configurations, conversation messages, and basic service records needed to operate and secure HeyTim.</p><p>If you turn on a bot inbox, we collect email sent to that bot’s address, including the sender and recipient addresses, subject, message text, and attachment names. We briefly store the original email, including any attachments, while processing it. Messages in the bot inbox are available for you to review and delete; the bot does not act on them automatically.</p><p>If you choose phone-number sign-in, we collect the mobile number you provide and a record of your SMS consent. Providing a phone number and consenting to SMS are optional because email sign-in remains available.</p><p>If you allow reply notifications, we store a device push token. On supported Apple devices, dictation is requested as on-device speech recognition; HeyTim does not intentionally upload or retain the audio recording.</p>
-    <h2>How we use information</h2><p>We use this information to authenticate you, save bots and conversations, run requested agents, deliver notifications, prevent abuse, and maintain the service. Mobile numbers are used only to send user-requested one-time passcodes and related verification messages.</p><p>We do not sell personal information. Mobile numbers and SMS opt-in or consent data are not shared with third parties or affiliates for their own marketing or promotional purposes.</p>
-    <h2>Service providers and sharing</h2><p>HeyTim uses service providers, including Amazon Web Services, Expo, and Stripe, for authentication, agent processing, data storage, app updates, notifications, and subscription billing. They process information only as needed to provide those services.</p><p>When you use paid billing, HeyTim stores your Stripe customer and subscription identifiers, subscription status and renewal period, and work-credit usage. Stripe processes payment details; HeyTim does not receive or store your full card number.</p><p>A bot or conversation is shared only when you intentionally create a share link. Anyone with a valid link may be able to import the shared content, so treat share links as private.</p>
-    <h2>SMS choices</h2><p>HeyTim sends one transactional verification code only after you request one. Message frequency varies, and message and data rates may apply. Reply <strong>STOP</strong> to opt out or <strong>HELP</strong> for help. For US toll-free messages, text <strong>START</strong> or <strong>UNSTOP</strong> to the sending number to re-enable messages after opting out. See the <a href="/sms/">HeyTim SMS program</a> and <a href="/terms/">Terms of Use</a> for details.</p>
-    <h2>Retention and choices</h2><p>We retain account content and consent records while needed to provide HeyTim, comply with legal obligations, resolve disputes, or protect the service. Bot inbox previews remain until you delete them or your account; original received email is stored temporarily for processing. You can turn off or replace a bot’s email address from its inbox. You can stop notifications in device settings and sign out at any time.</p><p>You can permanently delete your account and associated content from Account settings. Operational backups expire according to their limited retention schedule.</p>
-    <h2>Security, children, and changes</h2><p>We use administrative and technical safeguards designed to protect information, but no online service can guarantee absolute security. HeyTim is not directed to children under 13.</p><p>We may update this policy as the service changes. The effective date identifies the current version.</p>
-  </main>);
+  return (
+    <main className="doc-page" id="main">
+      <p className="eyebrow">HeyTim</p>
+      <h1>Privacy Policy</h1>
+      <p className="effective">Effective September 29, 2026</p>
+      <p>This policy explains what HeyTim collects, why we use it, and the choices available to you.</p>
+
+      <h2>Information we collect</h2>
+      <p>We collect the email address used for passwordless authentication, bot configurations, conversation messages, and basic service records needed to operate and secure HeyTim.</p>
+      <p>If you turn on a bot inbox, we collect email sent to that bot’s address, including the sender and recipient addresses, subject, message text, and attachment names. We briefly store the original email, including any attachments, while processing it. Messages in the bot inbox are available for you to review and delete; the bot does not act on them automatically.</p>
+      <p>If you choose phone-number sign-in, we collect the mobile number you provide and a record of your SMS consent. Providing a phone number and consenting to SMS are optional because email sign-in remains available.</p>
+      <p>If you allow reply notifications, we store a device push token. On supported Apple devices, dictation is requested as on-device speech recognition; HeyTim does not intentionally upload or retain the audio recording.</p>
+
+      <h2>How we use information</h2>
+      <p>We use this information to authenticate you, save bots and conversations, run requested agents, deliver notifications, prevent abuse, and maintain the service. Mobile numbers are used only to send user-requested one-time passcodes and related verification messages.</p>
+      <p>HeyTim does not sell personal information. Mobile numbers and SMS opt-in or consent data are not shared with third parties or affiliates for their own marketing or promotional purposes.</p>
+
+      <h2>AI processing and connected accounts</h2>
+      <p>When you ask a bot to work, your message and relevant conversation history, files, and connected-service results may be processed by HeyTim’s agent service on Amazon Web Services and sent through OpenRouter to AI model providers for an answer, draft, or generated content. The model provider can vary by request or fallback. This processing can include personal information.</p>
+      <p>When Google connections are available, you can connect Gmail, YouTube, or Google Workspace and assign each connection to bots you choose. HeyTim stores the connection record and refresh credential in AWS Secrets Manager. An assigned bot may read information permitted by the grant to respond to your request; Gmail bots may also create drafts for your review.</p>
+      <p>Information returned by a connected service can appear in saved conversations, generated files, bot memory, and stored tool results. If you use a connected bot in a group, its answers or shared files can make some of that information visible to other group members.</p>
+      <p>Disconnecting an account prevents new bot requests from using that connection. HeyTim attempts to revoke the provider grant and schedules its stored credential for deletion. Disconnecting does not erase information already included in conversations, files, stored tool results, or memories.</p>
+
+      <h2>Service providers and sharing</h2>
+      <p>HeyTim uses Amazon Web Services for account services, agent processing, and data storage; OpenRouter and AI model providers for requested bot output; Expo for notifications; and Stripe for subscription billing. Relevant user text and connected-service content can be included in requests routed through OpenRouter.</p>
+      <p>When you use paid billing, HeyTim stores your Stripe customer and subscription identifiers, subscription status and renewal period, and work-credit usage. Stripe processes payment details; HeyTim does not receive or store your full card number.</p>
+      <p>If you create a share link, anyone with a valid link may be able to import its content, so treat share links as private. Group members can see messages and files shared in their group, including information in a bot’s response even though the underlying account connection belongs to you.</p>
+
+      <h2>SMS choices</h2>
+      <p>HeyTim sends one transactional verification code only after you request one. Message frequency varies, and message and data rates may apply. Reply <strong>STOP</strong> to opt out or <strong>HELP</strong> for help. For US toll-free messages, text <strong>START</strong> or <strong>UNSTOP</strong> to the sending number to re-enable messages after opting out. See the <a href="/sms/">HeyTim SMS program</a> and <a href="/terms/">Terms of Use</a> for details.</p>
+
+      <h2>Retention and choices</h2>
+      <p>We retain account content and consent records while needed to provide HeyTim, comply with legal obligations, resolve disputes, or protect the service. Bot inbox previews remain until you delete them or your account; original received email is stored temporarily for processing. You can turn off or replace a bot’s email address from its inbox. You can stop notifications in device settings and sign out at any time.</p>
+      <p>You can request permanent account deletion from Account settings. This starts cleanup of your account and the content it owns. Content shared into a group owned by someone else may remain available to that group. Operational backups expire according to their limited retention schedule.</p>
+
+      <h2>Security, children, and changes</h2>
+      <p>We use administrative and technical safeguards designed to protect information, but no online service can guarantee absolute security. HeyTim is not directed to children under 13.</p>
+      <p>Questions about this policy or your account can be sent to <a href="mailto:support@heytim.ai">support@heytim.ai</a>. We may update this policy as the service changes. The effective date identifies the current version.</p>
+    </main>
+  );
 }
