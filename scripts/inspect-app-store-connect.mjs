@@ -277,10 +277,6 @@ async function main() {
     || (process.argv.length === 3 && process.argv[2] !== '--require-owner-ready')) {
     throw new InventoryError('The inventory accepts only --require-owner-ready.');
   }
-  if (process.argv[2] === '--require-owner-ready') {
-    required(process.env.APP_STORE_CONNECT_EXPECTED_INTERNAL_TESTER_EMAIL,
-      'APP_STORE_CONNECT_EXPECTED_INTERNAL_TESTER_EMAIL');
-  }
   const inventory = await inspectAppStoreConnect({
     keyId: process.env.APP_STORE_CONNECT_KEY_ID,
     issuerId: process.env.APP_STORE_CONNECT_ISSUER_ID,
@@ -293,7 +289,7 @@ async function main() {
     assertInternalOwnerReady(inventory);
   }
   console.log(`HeyTim iOS inventory: ${inventory.recentBuilds.length} recent build(s);`
-    + ` expected owner in all-builds internal group: ${inventory.ownerInAllBuildsInternalGroup ? 'yes' : 'no'};`
+    + ` ${inventory.identitySource} in all-builds internal group: ${inventory.ownerInAllBuildsInternalGroup ? 'yes' : 'no'};`
     + ` accepted or installed: ${inventory.ownerAcceptedOrInstalled ? 'yes' : 'no'}.`);
 }
 
