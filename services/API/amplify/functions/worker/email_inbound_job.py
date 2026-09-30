@@ -8,7 +8,7 @@ from shared.account_state import (
     UserItemGuardFailedError,
     put_user_item_while_account_active,
 )
-from shared.bot_inbox import mail_address
+from shared.bot_inbox import current_mail_address
 from shared.browser_session_store import BrowserSessionError
 from shared.browser_sessions import ensure_browser_send_allowed
 from shared.job_envelope import send_job
@@ -119,7 +119,7 @@ def _process_email_inbound(record: dict, request: dict) -> None:
     owner = bot.get("emailOwnerAddress")
     token = bot.get("emailToken")
     try:
-        current_address = mail_address(user_id, bot_id, token)
+        current_address = current_mail_address(user_id, bot)
     except (TypeError, ValueError):
         current_address = ""
     thread_reply = inbox.get("threadReply") is True
@@ -185,7 +185,9 @@ def _process_email_inbound(record: dict, request: dict) -> None:
             "emailReferences": inbox.get("references", ""),
         }
         try:
-            bot_guard = "emailToken = :expectedEmailToken AND emailOwnerAddress = :owner"
+            bot_guard = (
+                "emailToken = :expectedEmailToken AND emailOwnerAddress = :owner"
+            )
             bot_guard_values = {
                 ":expectedEmailToken": token,
                 ":owner": owner,

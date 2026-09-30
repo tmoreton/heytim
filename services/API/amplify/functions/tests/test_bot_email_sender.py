@@ -47,6 +47,9 @@ class BotMailSenderTests(ApiTestCase):
             "id": "bot-1",
             "name": "Scout",
             "emailToken": "abcdefghijklmnop",
+            "legacyEmailAddress": mail_address(
+                str(uuid.uuid4()), "bot-1", "abcdefghijklmnop"
+            ),
             "emailOwnerAddress": "owner@example.com",
             "emailDeliveryMode": "emailReplies",
         }
@@ -75,7 +78,7 @@ class BotMailSenderTests(ApiTestCase):
         )
 
         request = self.ses.send_email.call_args.kwargs
-        address = mail_address(user_id, "bot-1", bot["emailToken"])
+        address = bot["legacyEmailAddress"]
         self.assertEqual(request["FromEmailAddress"], "scout@bots.heytim.ai")
         self.assertEqual(request["Destination"], {"ToAddresses": ["owner@example.com"]})
         raw_bytes = request["Content"]["Raw"]["Data"]

@@ -8,6 +8,7 @@ from typing import Any
 from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
 
+from shared.bot_inbox import mail_alias_key
 from shared.browser_sessions import delete_browser_context
 from shared.cleanup import delete_share_record, purge_group
 from shared.keys import group_pk, push_owner_key, user_pk, user_state_key
@@ -165,8 +166,11 @@ class AccountCleanupService:
                 or item.get("billingUserId") == user_id
             )
         return [
-            work for item in items for work in item.get("pendingWork", [])
-            if isinstance(work, dict) and work.get("provider") == "agentcore_runtime"
+            work
+            for item in items
+            for work in item.get("pendingWork", [])
+            if isinstance(work, dict)
+            and work.get("provider") == "agentcore_runtime"
             and isinstance(work.get("sessionId"), str)
         ]
 
@@ -180,7 +184,8 @@ class AccountCleanupService:
             if item.get("entity") == "BOT" and isinstance(item.get("id"), str)
         }
         session_ids.update(
-            work["sessionId"] for work in AccountCleanupService.owned_runtime_work(
+            work["sessionId"]
+            for work in AccountCleanupService.owned_runtime_work(
                 user_id, user_items, group_items
             )
         )
@@ -192,9 +197,7 @@ class AccountCleanupService:
                     and item.get("botOwnerId") == user_id
                     and isinstance(bot_id, str)
                 ):
-                    session_ids.add(
-                        scoped_session_id(f"group:{group_id}:bot:{bot_id}")
-                    )
+                    session_ids.add(scoped_session_id(f"group:{group_id}:bot:{bot_id}"))
                 billed_bot_id = item.get("authorId")
                 if (
                     item.get("entity") == "GROUP_MESSAGE"
@@ -203,9 +206,7 @@ class AccountCleanupService:
                     and isinstance(billed_bot_id, str)
                 ):
                     session_ids.add(
-                        scoped_session_id(
-                            f"group:{group_id}:bot:{billed_bot_id}"
-                        )
+                        scoped_session_id(f"group:{group_id}:bot:{billed_bot_id}")
                     )
         return session_ids
 
@@ -242,12 +243,12 @@ class AccountCleanupService:
                             ":now": self.now(),
                         },
                     )
-                except self.table.meta.client.exceptions.ConditionalCheckFailedException:
+                except (
+                    self.table.meta.client.exceptions.ConditionalCheckFailedException
+                ):
                     continue
 
-    def cancel_billed_direct_turns(
-        self, user_id: str, chat_items: list[dict]
-    ) -> None:
+    def cancel_billed_direct_turns(self, user_id: str, chat_items: list[dict]) -> None:
         """Fence direct work before discovering its runtime and tool sessions."""
         statuses = tuple(sorted(IN_FLIGHT_STATUSES))
         placeholders = tuple(f":status{index}" for index in range(len(statuses)))
@@ -269,8 +270,7 @@ class AccountCleanupService:
                     Key={"pk": item["pk"], "sk": item["sk"]},
                     UpdateExpression="SET #status = :cancelled, cancelledAt = :now",
                     ConditionExpression=(
-                        "userId = :user AND #status IN "
-                        f"({', '.join(placeholders)})"
+                        f"userId = :user AND #status IN ({', '.join(placeholders)})"
                     ),
                     ExpressionAttributeNames={"#status": "status"},
                     ExpressionAttributeValues=values,
@@ -445,8 +445,7 @@ class AccountCleanupService:
         # pointer. Rediscover group messages charged to this account so their
         # running sessions and durable work cannot survive a restarted deletion.
         billed_group_items = self.scan_items(
-            Attr("entity").eq("GROUP_MESSAGE")
-            & Attr("billingUserId").eq(user_id),
+            Attr("entity").eq("GROUP_MESSAGE") & Attr("billingUserId").eq(user_id),
             consistent_read=True,
         )
         group_ids.update(
@@ -457,33 +456,41 @@ class AccountCleanupService:
             and len(pk) > len("GROUP#")
         )
         group_items_by_id = {
-            group_id: self.partition_items(group_pk(group_id))
-            for group_id in group_ids
+            group_id: self.partition_items(group_pk(group_id)) for group_id in group_ids
         }
         self.cancel_billed_group_replies(user_id, group_items_by_id)
         # Refresh after the cancellation fence. A worker that had already paused
         # now exposes its pending runtime identity, while a RUNNING worker can no
         # longer persist or dispatch new background work from this reply.
         group_items_by_id = {
-            group_id: self.partition_items(group_pk(group_id))
-            for group_id in group_ids
+            group_id: self.partition_items(group_pk(group_id)) for group_id in group_ids
         }
         chat_items = self.fence_billed_direct_turns(user_id)
         session_items = user_items + chat_items
-        session_ids = self.owned_agent_session_ids(user_id, session_items, group_items_by_id)
+        session_ids = self.owned_agent_session_ids(
+            user_id, session_items, group_items_by_id
+        )
 
         self.record_phase(user_id, "SESSIONS")
         if self.config.files_bucket_name:
-            for work in self.owned_runtime_work(user_id, session_items, group_items_by_id):
+            for work in self.owned_runtime_work(
+                user_id, session_items, group_items_by_id
+            ):
                 self.s3.put_object(
-                    Bucket=self.config.files_bucket_name, Key=f"{work['taskId']}.cancel",
-                    Body=b'{"cancelled":true}', ContentType="application/json",
+                    Bucket=self.config.files_bucket_name,
+                    Key=f"{work['taskId']}.cancel",
+                    Body=b'{"cancelled":true}',
+                    ContentType="application/json",
                 )
         self.stop_runtime_sessions(session_ids)
         self.stop_tool_sessions(session_ids)
         for item in user_items:
-            if item.get("entity") == "BROWSER_SESSION" and isinstance(item.get("botId"), str):
-                delete_browser_context(self.table, user_id, item["botId"], agentcore=self.agentcore)
+            if item.get("entity") == "BROWSER_SESSION" and isinstance(
+                item.get("botId"), str
+            ):
+                delete_browser_context(
+                    self.table, user_id, item["botId"], agentcore=self.agentcore
+                )
         self.record_phase(user_id, "SCHEDULES")
         for item in user_items:
             if item.get("entity") == "SCHEDULE":
@@ -496,14 +503,15 @@ class AccountCleanupService:
 
         self.record_phase(user_id, "SHARES_AND_LIBRARY")
         for share in self.owned_share_records(user_id):
-            delete_share_record(
-                self.table, self.invite_access_table, user_id, share
-            )
+            delete_share_record(self.table, self.invite_access_table, user_id, share)
         self.remove_invite_access_for_user(user_id)
         deleted_skills = self.remove_owned_skills(user_id, user_items)
         deleted_connections = self.catalog.delete_connection_secrets(user_items)
         for connection in user_items:
-            if connection.get("entity") != "CONNECTION" or connection.get("provider") != "plaid":
+            if (
+                connection.get("entity") != "CONNECTION"
+                or connection.get("provider") != "plaid"
+            ):
                 continue
             runtime = connection.get("runtime") or {}
             try:
@@ -519,9 +527,7 @@ class AccountCleanupService:
         deleted_files = self.delete_user_files(user_id)
 
         self.record_phase(user_id, "USER_DATA")
-        push_items = [
-            item for item in user_items if item.get("entity") == "PUSH_TOKEN"
-        ]
+        push_items = [item for item in user_items if item.get("entity") == "PUSH_TOKEN"]
         # Keep registrations until every provider resource is gone. A transient
         # SNS failure must leave enough durable state for the SQS retry to finish.
         self.delete_push_endpoints(push_items)
@@ -535,6 +541,10 @@ class AccountCleanupService:
             for item in user_items:
                 if item.get("sk") != "STATE":
                     batch.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
+                if item.get("entity") == "BOT" and isinstance(
+                    item.get("legacyEmailAddress"), str
+                ):
+                    batch.delete_item(Key=mail_alias_key(item["legacyEmailAddress"]))
 
         self.record_phase(user_id, "IDENTITY")
         try:

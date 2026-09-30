@@ -4,7 +4,7 @@ import base64
 import binascii
 import os
 
-from shared.bot_inbox import mail_address, new_mail_token
+from shared.bot_inbox import current_mail_address, mail_alias_key, new_mail_token
 
 from .bots import _get_bot
 from .support import (
@@ -31,7 +31,7 @@ def _inbox_state(user_id: str, bot: dict) -> dict:
     return {
         "available": INBOX_AVAILABLE,
         "enabled": isinstance(token, str) and bool(token),
-        "address": mail_address(user_id, bot["id"], token) if token else None,
+        "address": current_mail_address(user_id, bot) if token else None,
         "incomingMode": bot.get("emailInboundMode", "review"),
         "responseMode": bot.get("emailDeliveryMode", "appOnly"),
         "allowedSender": bot.get("emailOwnerAddress"),
@@ -55,31 +55,38 @@ def list_bot_inbox(user_id: str, bot_id: str, cursor: object = None) -> dict:
     result = table.query(**request)
     messages = []
     for item in result.get("Items", []):
-        messages.append({
-            "id": base64.urlsafe_b64encode(item["sk"].encode("utf-8")).decode("ascii").rstrip("="),
-            "from": item.get("from", "Unknown sender"),
-            "subject": item.get("subject", "(No subject)"),
-            "body": item.get("body", ""),
-            "receivedAt": item["receivedAt"],
-            "attachmentNames": item.get("attachmentNames", []),
-            "authentication": item.get("authentication", "unknown"),
-            "disposition": item.get("disposition", "review"),
-            **(
-                {"reviewReason": item["reviewReason"]}
-                if item.get("reviewReason") in PUBLIC_REVIEW_REASONS
-                else {}
-            ),
-            **(
-                {"linkedTurnId": item["linkedTurnId"]}
-                if isinstance(item.get("linkedTurnId"), str)
-                else {}
-            ),
-        })
+        messages.append(
+            {
+                "id": base64.urlsafe_b64encode(item["sk"].encode("utf-8"))
+                .decode("ascii")
+                .rstrip("="),
+                "from": item.get("from", "Unknown sender"),
+                "subject": item.get("subject", "(No subject)"),
+                "body": item.get("body", ""),
+                "receivedAt": item["receivedAt"],
+                "attachmentNames": item.get("attachmentNames", []),
+                "authentication": item.get("authentication", "unknown"),
+                "disposition": item.get("disposition", "review"),
+                **(
+                    {"reviewReason": item["reviewReason"]}
+                    if item.get("reviewReason") in PUBLIC_REVIEW_REASONS
+                    else {}
+                ),
+                **(
+                    {"linkedTurnId": item["linkedTurnId"]}
+                    if isinstance(item.get("linkedTurnId"), str)
+                    else {}
+                ),
+            }
+        )
     return {
         **_inbox_state(user_id, bot),
         "messages": messages,
-        **({"nextToken": _encode_page_cursor(result.get("LastEvaluatedKey"))}
-           if result.get("LastEvaluatedKey") else {}),
+        **(
+            {"nextToken": _encode_page_cursor(result.get("LastEvaluatedKey"))}
+            if result.get("LastEvaluatedKey")
+            else {}
+        ),
     }
 
 
@@ -99,7 +106,7 @@ def enable_bot_inbox(
                     "SET emailToken = if_not_exists(emailToken, :token), "
                     "emailInboundMode = if_not_exists(emailInboundMode, :incoming), "
                     "emailDeliveryMode = if_not_exists(emailDeliveryMode, :response), "
-                    "emailOwnerAddress = :email"
+                    "emailOwnerAddress = :email REMOVE legacyEmailAddress"
                 ),
                 ConditionExpression="attribute_exists(pk) AND attribute_not_exists(emailInboxClosing)",
                 ExpressionAttributeValues={
@@ -163,23 +170,27 @@ def update_bot_email_preferences(
             ReturnValues="ALL_NEW",
         )
     except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
-        raise ApiError(409, "Turn on this inbox before changing email preferences") from exc
+        raise ApiError(
+            409, "Turn on this inbox before changing email preferences"
+        ) from exc
     return _inbox_state(user_id, result["Attributes"])
 
 
 def disable_bot_inbox(user_id: str, bot_id: str) -> dict:
-    _get_bot(user_id, bot_id)
+    bot = _get_bot(user_id, bot_id)
     try:
         table.update_item(
             Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot_id)},
             UpdateExpression=(
                 "REMOVE emailToken, emailInboundMode, emailDeliveryMode, "
-                "emailOwnerAddress"
+                "emailOwnerAddress, legacyEmailAddress"
             ),
             ConditionExpression="attribute_exists(pk)",
         )
     except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
         raise ApiError(404, "Bot not found") from exc
+    if isinstance(bot.get("legacyEmailAddress"), str):
+        table.delete_item(Key=mail_alias_key(bot["legacyEmailAddress"]))
     return {
         "available": INBOX_AVAILABLE,
         "enabled": False,
@@ -193,11 +204,11 @@ def disable_bot_inbox(user_id: str, bot_id: str) -> dict:
 def rotate_bot_inbox(user_id: str, bot_id: str) -> dict:
     if not INBOX_AVAILABLE:
         raise ApiError(503, "Bot email is not available yet")
-    _get_bot(user_id, bot_id)
+    bot = _get_bot(user_id, bot_id)
     try:
         result = table.update_item(
             Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot_id)},
-            UpdateExpression="SET emailToken = :token",
+            UpdateExpression="SET emailToken = :token REMOVE legacyEmailAddress",
             ConditionExpression=(
                 "attribute_exists(pk) AND attribute_exists(emailToken) "
                 "AND attribute_not_exists(emailInboxClosing)"
@@ -207,6 +218,8 @@ def rotate_bot_inbox(user_id: str, bot_id: str) -> dict:
         )
     except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
         raise ApiError(409, "Turn on this inbox before replacing its address") from exc
+    if isinstance(bot.get("legacyEmailAddress"), str):
+        table.delete_item(Key=mail_alias_key(bot["legacyEmailAddress"]))
     return _inbox_state(user_id, result["Attributes"])
 
 

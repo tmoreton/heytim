@@ -16,7 +16,7 @@ import boto3
 from boto3.dynamodb.conditions import Attr
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
-from shared.bot_inbox import MAIL_DOMAIN, mail_address, validated_email_recipient
+from shared.bot_inbox import MAIL_DOMAIN, current_mail_address, validated_email_recipient
 from shared.keys import bot_key, turn_pk, user_state_key
 
 logger = logging.getLogger(__name__)
@@ -105,10 +105,12 @@ def _eligible(bot: dict, turn: dict, event: str = "reply") -> bool:
         return False
     mode = bot.get("emailDeliveryMode", "appOnly")
     return (
-        turn.get("source") == "schedule"
-        and turn.get("scheduleDeliveryMode") == "email"
-    ) or mode == "allResponses" or (
-        mode == "emailReplies" and turn.get("source") == "email"
+        (
+            turn.get("source") == "schedule"
+            and turn.get("scheduleDeliveryMode") == "email"
+        )
+        or mode == "allResponses"
+        or (mode == "emailReplies" and turn.get("source") == "email")
     )
 
 
@@ -121,7 +123,9 @@ def _thread_header(value: object) -> str | None:
 
 def _sender_address(bot_name: str) -> str:
     ascii_name = (
-        unicodedata.normalize("NFKD", bot_name).encode("ascii", "ignore").decode("ascii")
+        unicodedata.normalize("NFKD", bot_name)
+        .encode("ascii", "ignore")
+        .decode("ascii")
     )
     local_part = re.sub(r"[^a-z0-9]+", "-", ascii_name.lower()).strip("-")
     local_part = local_part[:48].rstrip("-") or "assistant"
@@ -183,11 +187,13 @@ def _answer_html(answer: str) -> str:
                 close_list()
                 list_kind = desired
                 blocks.append(f'<{desired} style="padding-left:24px">')
-            blocks.append(f'<li style="margin:0 0 14px">{_inline_html((numbered or bulleted).group(1))}</li>')
+            blocks.append(
+                f'<li style="margin:0 0 14px">{_inline_html((numbered or bulleted).group(1))}</li>'
+            )
             continue
         close_list()
         heading = re.match(r"^#{1,3}\s+(.+)$", line)
-        content = (heading.group(1) if heading else line)
+        content = heading.group(1) if heading else line
         style = "font-weight:700;font-size:18px" if heading else "margin:0 0 14px"
         blocks.append(f'<p style="{style}">{_inline_html(content)}</p>')
     close_list()
@@ -275,12 +281,12 @@ def _message(bot: dict, turn: dict, route: str, event: str) -> EmailMessage:
             'line-height:1.55;color:#171714;max-width:640px;margin:0 auto">'
             f'<p style="font-size:14px;font-weight:600;color:#376b4b;margin:0 0 20px">'
             f'{html.escape(bot_name)} <span style="font-weight:400;color:#77736b">'
-            'via Hey Tim</span></p>'
-            f'<div>{_answer_html(answer)}</div>'
+            "via Hey Tim</span></p>"
+            f"<div>{_answer_html(answer)}</div>"
             '<hr style="border:0;border-top:1px solid #e7e3da;margin:24px 0">'
             f'<p style="color:#77736b;font-size:13px">{html.escape(footer)} '
             f'<a style="color:#376b4b" href="{html.escape(PUBLIC_WEB_BASE_URL, quote=True)}">'
-            f'{html.escape(link_label)}</a>.</p>'
+            f"{html.escape(link_label)}</a>.</p>"
             "</div>"
         ),
         subtype="html",
@@ -338,7 +344,7 @@ def _process(request: dict) -> None:
     if delivery_key is None:
         return
     try:
-        route = mail_address(user_id, bot_id, token)
+        route = current_mail_address(user_id, bot)
         message = _message(bot, turn, route, event)
         sender = _sender_address(_clean_header(bot.get("name"), 80) or "Your bot")
         response = ses.send_email(

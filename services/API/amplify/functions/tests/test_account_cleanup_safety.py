@@ -4,6 +4,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 from api_test_case import ApiTestCase
+from shared.bot_inbox import mail_alias_key
 
 
 class AccountCleanupSafetyTests(ApiTestCase):
@@ -71,6 +72,7 @@ class AccountCleanupSafetyTests(ApiTestCase):
                 "sk": "BOT#bot-1",
                 "entity": "BOT",
                 "id": "bot-1",
+                "legacyEmailAddress": "b-old.bot.token@bots.heytim.ai",
             },
             {
                 "pk": "USER#user-1",
@@ -156,6 +158,10 @@ class AccountCleanupSafetyTests(ApiTestCase):
         )
         self.assertIn(
             {"pk": "USER#user-1", "sk": "USAGE_ADMISSION#direct:turn-1"},
+            self.data_table.deleted,
+        )
+        self.assertIn(
+            mail_alias_key("b-old.bot.token@bots.heytim.ai"),
             self.data_table.deleted,
         )
         self.assertIn(

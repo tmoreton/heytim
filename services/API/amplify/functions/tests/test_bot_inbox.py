@@ -9,7 +9,12 @@ import uuid
 from unittest.mock import MagicMock, patch
 
 from api_test_case import ApiTestCase
-from shared.bot_inbox import mail_address, resolve_mail_address
+from shared.bot_inbox import (
+    current_mail_address,
+    mail_address,
+    mail_alias_key,
+    resolve_mail_address,
+)
 
 
 class BotInboxTests(ApiTestCase):
@@ -27,9 +32,47 @@ class BotInboxTests(ApiTestCase):
             def query(self, **_kwargs):
                 return {"Items": [bot]}
 
+            def get_item(self, **_kwargs):
+                return {}
+
         self.assertEqual(resolve_mail_address(Lookup(), address), (user_id, bot))
         self.assertIsNone(resolve_mail_address(Lookup(), address.replace("abcdefghijklmnop", "qrstuvwxyzabcdef")))
         self.assertIsNone(resolve_mail_address(Lookup(), address.replace("bots.heytim.ai", "example.com")))
+
+    def test_legacy_address_maps_to_new_owner_and_revokes_with_token(self) -> None:
+        old_owner = str(uuid.uuid4())
+        new_owner = str(uuid.uuid4())
+        bot = {"id": "catalog-chief", "emailToken": "abcdefghijklmnop"}
+        address = mail_address(old_owner, bot["id"], bot["emailToken"])
+        bot["legacyEmailAddress"] = address
+        alias = {
+            **mail_alias_key(address), "entity": "MAIL_ALIAS", "address": address,
+            "targetUserId": new_owner, "targetBotId": bot["id"],
+        }
+
+        class Lookup:
+            def query(self, **_kwargs):
+                return {"Items": []}
+
+            def get_item(self, **kwargs):
+                key = kwargs["Key"]
+                if key == mail_alias_key(address):
+                    return {"Item": alias}
+                if key == {"pk": f"USER#{new_owner}", "sk": "BOT#catalog-chief"}:
+                    return {"Item": bot}
+                return {}
+
+        self.assertEqual(resolve_mail_address(Lookup(), address), (new_owner, bot))
+        self.assertEqual(self.inbox._inbox_state(new_owner, bot)["address"], address)
+        bot["emailToken"] = "qrstuvwxyzabcdef"
+        self.assertIsNone(resolve_mail_address(Lookup(), address))
+        self.assertEqual(
+            current_mail_address(new_owner, bot),
+            mail_address(new_owner, bot["id"], bot["emailToken"]),
+        )
+        bot["emailToken"] = "abcdefghijklmnop"
+        bot.pop("legacyEmailAddress")
+        self.assertIsNone(resolve_mail_address(Lookup(), address))
 
     def test_inbox_list_keeps_one_bot_scoped_and_hides_internal_mail_fields(self) -> None:
         user_id = str(uuid.uuid4())

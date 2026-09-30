@@ -49,7 +49,8 @@ class MigrationPlanningTests(unittest.TestCase):
             {
                 "pk": f"USER#{OLD_SUB}",
                 "sk": "BOT#bot-1",
-                "emailToken": "secret",
+                "id": "bot-1",
+                "emailToken": "abcdefghijklmnop",
                 "emailOwnerAddress": "owner@example.test",
             },
             {
@@ -96,7 +97,7 @@ class MigrationPlanningTests(unittest.TestCase):
         ]
         planned, summary = migration.make_plan(originals, IDENTITY)
         self.assertEqual(summary["sourceItems"], 10)
-        self.assertEqual(summary["plannedItems"], 4)
+        self.assertEqual(summary["plannedItems"], 5)
         self.assertEqual(
             summary["excluded"],
             {
@@ -107,13 +108,23 @@ class MigrationPlanningTests(unittest.TestCase):
                 "push-token-or-endpoint": 2,
             },
         )
-        self.assertEqual(summary["botEmailTokensRemoved"], 1)
+        self.assertEqual(summary["botEmailTokensRemoved"], 0)
+        self.assertEqual(summary["botEmailTokensPreserved"], 1)
+        self.assertEqual(summary["mailAliasesCreated"], 1)
         self.assertEqual(summary["schedulesPaused"], 1)
         self.assertEqual(summary["billingRowsRequiringReconciliation"], 1)
         self.assertEqual(summary["cancelledTurnPendingWorkRemoved"], 1)
         self.assertEqual(summary["historicalTurnRowsWithSourceAccountReferences"], 0)
         bot = next(item for item in planned if item["sk"] == "BOT#bot-1")
-        self.assertNotIn("emailToken", bot)
+        self.assertEqual(bot["emailToken"], "abcdefghijklmnop")
+        self.assertEqual(
+            bot["legacyEmailAddress"],
+            migration.legacy_mail_address(OLD_SUB, "bot-1", "abcdefghijklmnop"),
+        )
+        alias = next(item for item in planned if item.get("entity") == "MAIL_ALIAS")
+        self.assertEqual(alias["address"], bot["legacyEmailAddress"])
+        self.assertEqual(alias["targetUserId"], NEW_SUB)
+        self.assertEqual(alias["targetBotId"], "bot-1")
         schedule = next(item for item in planned if item["sk"] == "SCHEDULE#schedule-1")
         self.assertFalse(schedule["enabled"])
         self.assertEqual(
@@ -159,6 +170,26 @@ class MigrationPlanningTests(unittest.TestCase):
             migration.table_digest([first, second]),
             migration.table_digest([second, first]),
         )
+
+    def test_consent_state_fields_survive_mail_alias_planning(self) -> None:
+        state = {
+            "pk": f"USER#{OLD_SUB}",
+            "sk": "STATE",
+            "entity": "USER_STATE",
+            "aiSharingConsentVersion": "v1",
+            "aiSharingConsentGrantedAt": "2026-09-29T00:00:00Z",
+        }
+        bot = {
+            "pk": f"USER#{OLD_SUB}",
+            "sk": "BOT#bot-1",
+            "id": "bot-1",
+            "emailToken": "abcdefghijklmnop",
+        }
+        planned, _ = migration.make_plan([state, bot], IDENTITY)
+        migrated = next(item for item in planned if item.get("sk") == "STATE")
+        self.assertEqual(migrated["pk"], f"USER#{NEW_SUB}")
+        self.assertEqual(migrated["aiSharingConsentVersion"], "v1")
+        self.assertEqual(migrated["aiSharingConsentGrantedAt"], "2026-09-29T00:00:00Z")
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ from shared.account_state import (
     UserItemConflictError,
     put_user_item_while_account_active,
 )
+from shared.bot_inbox import mail_alias_key
 from shared.browser_session_store import BrowserSessionError, context_key
 from shared.browser_sessions import delete_browser_context
 from shared.cleanup import has_pending_work
@@ -130,6 +131,7 @@ def _put_bot(
         "emailInboundMode",
         "emailDeliveryMode",
         "emailOwnerAddress",
+        "legacyEmailAddress",
     ):
         if key in values:
             item[key] = values[key]
@@ -155,7 +157,9 @@ def _put_bot(
             raise
     else:
         if check_email_token:
-            condition = "attribute_exists(pk) AND attribute_not_exists(emailInboxClosing) AND "
+            condition = (
+                "attribute_exists(pk) AND attribute_not_exists(emailInboxClosing) AND "
+            )
             values = {}
             if expected_email_token is None:
                 condition += "attribute_not_exists(emailToken)"
@@ -169,7 +173,9 @@ def _put_bot(
                     **({"ExpressionAttributeValues": values} if values else {}),
                 )
             except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
-                raise ApiError(409, "This bot changed. Please try saving again.") from exc
+                raise ApiError(
+                    409, "This bot changed. Please try saving again."
+                ) from exc
         else:
             table.put_item(Item=item)
     return _public_bot(item)
@@ -185,9 +191,7 @@ def _list_bots(user_id: str) -> list[dict]:
             {
                 **_public_bot(item),
                 **processing_summary(
-                    _recent_partition_items(
-                        _turn_pk(user_id, item["id"]), "TURN#", 1
-                    )
+                    _recent_partition_items(_turn_pk(user_id, item["id"]), "TURN#", 1)
                 ),
             }
             for item in items
@@ -203,9 +207,7 @@ def _ensure_chief(user_id: str, bots: list[dict]) -> list[dict]:
 
 
 def _install_bot_template(user_id: str, template_id: str) -> dict:
-    return install_bot_template(
-        user_id, template_id, _list_bots, _bot_values, _put_bot
-    )
+    return install_bot_template(user_id, template_id, _list_bots, _bot_values, _put_bot)
 
 
 def _list_turns(user_id: str, bot_id: str, limit: int = 100) -> list[dict]:
@@ -321,7 +323,8 @@ def _create_bot(
             raise ApiError(409, "Wait for the current reply before forking")
     values = _bot_values(user_id, value)
     completed_turns = [
-        turn for turn in source_turns
+        turn
+        for turn in source_turns
         if turn.get("status") == "COMPLETE"
         and isinstance(turn.get("userText"), str)
         and isinstance(turn.get("assistantText"), str)
@@ -372,13 +375,18 @@ def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:
             "createdAt": previous["createdAt"],
             "lastMessage": previous.get("lastMessage", "Ready when you are."),
             "lastMessageAt": previous.get("lastMessageAt", previous["createdAt"]),
-            **({"emailToken": previous["emailToken"]} if "emailToken" in previous else {}),
+            **(
+                {"emailToken": previous["emailToken"]}
+                if "emailToken" in previous
+                else {}
+            ),
             **{
                 key: previous[key]
                 for key in (
                     "emailInboundMode",
                     "emailDeliveryMode",
                     "emailOwnerAddress",
+                    "legacyEmailAddress",
                 )
                 if key in previous
             },
@@ -395,8 +403,12 @@ def _update_bot(user_id: str, bot_id: str, value: dict) -> dict:
         }
     )
     return _put_bot(
-        user_id, values, bot_id, previous.get("systemRole"),
-        expected_email_token=previous.get("emailToken"), check_email_token=True,
+        user_id,
+        values,
+        bot_id,
+        previous.get("systemRole"),
+        expected_email_token=previous.get("emailToken"),
+        check_email_token=True,
     )
 
 
@@ -417,9 +429,7 @@ def _clear_bot_chat(user_id: str, bot_id: str, *, forget_memory: bool = False) -
     _get_bot(user_id, bot_id)
     turns = _partition_items(_turn_pk(user_id, bot_id))
     if has_pending_work(turns):
-        raise ApiError(
-            409, "Wait for this HeyTim to finish before clearing the chat"
-        )
+        raise ApiError(409, "Wait for this HeyTim to finish before clearing the chat")
     forgotten_memory = (
         _forget_bot_conversation(user_id, bot_id)
         if forget_memory
@@ -530,14 +540,22 @@ def _delete_bot(user_id: str, bot_id: str) -> dict:
                 Key={"pk": schedule_item["pk"], "sk": schedule_item["sk"]}
             )
         for workspace_file in workspace_files:
-            batch.delete_item(Key={"pk": workspace_file["pk"], "sk": workspace_file["sk"]})
-            batch.delete_item(Key={"pk": workspace_file["pk"], "sk": f"FILE#{workspace_file['id']}"})
-        batch.delete_item(Key={"pk": _user_pk(user_id), "sk": f"WORKSPACE#BOT#{bot_id}"})
+            batch.delete_item(
+                Key={"pk": workspace_file["pk"], "sk": workspace_file["sk"]}
+            )
+            batch.delete_item(
+                Key={"pk": workspace_file["pk"], "sk": f"FILE#{workspace_file['id']}"}
+            )
+        batch.delete_item(
+            Key={"pk": _user_pk(user_id), "sk": f"WORKSPACE#BOT#{bot_id}"}
+        )
         for key in group_bot_keys:
             batch.delete_item(Key=key)
         for meta in group_meta_updates:
             batch.put_item(Item=meta)
         batch.delete_item(Key={"pk": _user_pk(user_id), "sk": _bot_sk(bot_id)})
+        if isinstance(bot.get("legacyEmailAddress"), str):
+            batch.delete_item(Key=mail_alias_key(bot["legacyEmailAddress"]))
         batch.delete_item(Key=context_key(user_id, bot_id))
     # Keep account-level state, including AI permission, when a bot is removed.
     table.update_item(

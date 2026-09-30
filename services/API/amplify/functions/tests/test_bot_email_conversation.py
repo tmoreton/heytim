@@ -11,13 +11,14 @@ from worker_test_case import WorkerTestCase
 class BotEmailConversationTests(WorkerTestCase):
     def test_email_inbound_creates_a_normal_direct_turn(self) -> None:
         user_id = str(uuid.uuid4())
-        address = mail_address(user_id, "bot-1", "abcdefghijklmnop")
+        address = mail_address(str(uuid.uuid4()), "bot-1", "abcdefghijklmnop")
         bot = {
             "pk": f"USER#{user_id}",
             "sk": "BOT#bot-1",
             "entity": "BOT",
             "id": "bot-1",
             "emailToken": "abcdefghijklmnop",
+            "legacyEmailAddress": address,
             "emailInboundMode": "automatic",
             "emailOwnerAddress": "owner@example.com",
         }

@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sys
+import uuid
 from collections import Counter
 from dataclasses import dataclass
 from decimal import Decimal
@@ -40,6 +41,7 @@ BOT_EMAIL_FIELDS = (
     "emailDeliveryMode",
     "emailOwnerAddress",
 )
+MAIL_TOKEN_PATTERN = re.compile(r"^[a-z2-7]{16}$")
 
 
 class MigrationError(RuntimeError):
@@ -86,6 +88,23 @@ def schedule_name(user_id: str, schedule_id: str) -> str:
     return (
         "heytim-" + hashlib.sha256(f"{user_id}:{schedule_id}".encode()).hexdigest()[:40]
     )
+
+
+def legacy_mail_address(user_id: str, bot_id: str, token: str) -> str:
+    owner = (
+        base64.b32encode(uuid.UUID(user_id).bytes).decode("ascii").rstrip("=").lower()
+    )
+    bot = base64.b32encode(hashlib.sha256(bot_id.encode()).digest()[:10]).decode(
+        "ascii"
+    )
+    return f"b-{owner}.{bot.rstrip('=').lower()}.{token}@bots.heytim.ai"
+
+
+def mail_alias_key(address: str) -> dict[str, str]:
+    return {
+        "pk": f"MAIL_ALIAS#{hashlib.sha256(address.encode()).hexdigest()}",
+        "sk": "ROUTE",
+    }
 
 
 def record_class(item: dict) -> str:
@@ -207,6 +226,8 @@ def make_plan(source_items: list[dict], identity: Identity) -> tuple[list[dict],
     planned: list[dict] = []
     exclusions: Counter[str] = Counter()
     stripped_email = 0
+    preserved_email = 0
+    aliases: list[dict] = []
     paused_schedules = 0
     billing_rows = 0
     old_account_references = 0
@@ -220,10 +241,33 @@ def make_plan(source_items: list[dict], identity: Identity) -> tuple[list[dict],
             continue
         item = replace_identity(original, identity)
         if category == "USER/BOT":
-            if any(field in item for field in BOT_EMAIL_FIELDS):
+            token = item.get("emailToken")
+            if token:
+                bot_id = item.get("id")
+                if (
+                    not isinstance(token, str)
+                    or not MAIL_TOKEN_PATTERN.fullmatch(token)
+                    or not isinstance(bot_id, str)
+                    or not bot_id
+                    or item.get("sk") != f"BOT#{bot_id}"
+                ):
+                    raise MigrationError("An active bot email route is malformed")
+                address = legacy_mail_address(identity.old_sub, bot_id, token)
+                item["legacyEmailAddress"] = address
+                aliases.append(
+                    {
+                        **mail_alias_key(address),
+                        "entity": "MAIL_ALIAS",
+                        "address": address,
+                        "targetUserId": identity.new_sub,
+                        "targetBotId": bot_id,
+                    }
+                )
+                preserved_email += 1
+            elif any(field in item for field in BOT_EMAIL_FIELDS):
                 stripped_email += 1
-            for field in BOT_EMAIL_FIELDS:
-                item.pop(field, None)
+                for field in BOT_EMAIL_FIELDS:
+                    item.pop(field, None)
         if category == "USER/SCHEDULE":
             schedule_id = item.get("id")
             if not isinstance(schedule_id, str) or not schedule_id:
@@ -263,11 +307,19 @@ def make_plan(source_items: list[dict], identity: Identity) -> tuple[list[dict],
         raise MigrationError(
             "The migration plan does not account for every source item"
         )
+    for alias in aliases:
+        key = (alias["pk"], alias["sk"])
+        if key in keys:
+            raise MigrationError("A bot mail alias collides with existing state")
+        keys.add(key)
+        planned.append(alias)
     return planned, {
         "sourceItems": len(source_items),
         "plannedItems": len(planned),
         "excluded": dict(sorted(exclusions.items())),
         "botEmailTokensRemoved": stripped_email,
+        "botEmailTokensPreserved": preserved_email,
+        "mailAliasesCreated": len(aliases),
         "schedulesPaused": paused_schedules,
         "billingRowsRequiringReconciliation": billing_rows,
         "cancelledTurnPendingWorkRemoved": cancelled_pending_work_removed,
