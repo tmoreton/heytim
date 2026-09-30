@@ -17,7 +17,7 @@ from shared.group_chat import (
 from shared.memory_identity import direct_session_id, memory_actor_id, scoped_session_id
 from shared.plaid_ledger import ledger_prefix, sync_key
 
-from .ai_consent import grants_for_job
+from .ai_consent import ConsentRequired, grants_for_job
 from .artifacts import (
     _attachment_blocks,
     _generated_artifact_prefix,
@@ -44,7 +44,6 @@ from .youtube_quota import (
     _uses_youtube_search,
     reserve_youtube_search_calls,
 )
-
 RECENT_DIRECT_TURNS = 50
 
 
@@ -71,13 +70,14 @@ def _reserve_youtube_capacity(
 
 
 def agent_failure_message(error: Exception) -> str:
+    if isinstance(error, ConsentRequired):
+        return "AI processing is off for you or another room member. Allow it in Settings to resume bot work."
     if "Runtime initialization time exceeded" in str(error):
         return (
             "HeyTim could not start its worker after repeated attempts. No agent "
             "work began and no external actions were taken. Please try again."
         )
     return "I could not finish that request. Please try again."
-
 
 @dataclass(frozen=True)
 class AgentInvocationResult:

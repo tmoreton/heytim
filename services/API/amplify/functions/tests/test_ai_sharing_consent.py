@@ -146,6 +146,10 @@ class AIConsentAPIGateTests(ApiTestCase):
 
 
 class AIConsentWorkerGateTests(WorkerTestCase):
+    def test_denied_background_work_explains_how_to_resume(self) -> None:
+        message = self.agent.agent_failure_message(ConsentRequired("Permission required"))
+        self.assertIn("Allow it in Settings", message)
+
     def test_every_worker_invocation_requires_an_active_grant_before_dispatch(self) -> None:
         with patch.object(
             self.agent, "grants_for_job", side_effect=ConsentRequired("Permission required")
