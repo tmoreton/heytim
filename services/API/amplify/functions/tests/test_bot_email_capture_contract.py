@@ -15,4 +15,6 @@ class BotEmailCaptureContractTests(TestCase):
         self.assertIn("bucketName: receiptBucket.bucketName", receiving)
         self.assertIn("receiptBucket.grantPut(receiveRole, 'received/*')", receiving)
         self.assertIn("Bot email cannot process mail while store-only capture", receiving)
-        self.assertIn("if (!captureOnly) {\n    topic.addSubscription(", receiving)
+        self.assertIn("if (!captureOnly || keepHeldSubscriber) {\n    topic.addSubscription(", receiving)
+        self.assertIn("reservedConcurrentExecutions: keepHeldSubscriber ? 0 : undefined", receiving)
+        self.assertIn("heytim_cutover_capture_hold: SubscriptionFilter.stringFilter", receiving)
