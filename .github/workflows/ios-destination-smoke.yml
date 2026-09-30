@@ -95,7 +95,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: packages/heytim-transcription/ios/Generated
-          key: heytim-nemotron-apple-v3
+          key: heytim-parakeet-tdt-0.6b-v3-apple-v1
 
       - name: Select unique iOS build number
         id: build
