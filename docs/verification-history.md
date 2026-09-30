@@ -10,8 +10,10 @@ the current checkout or environment still has the same status.
 
 - The source account `188757775631` still serves customers and accepts mail. No source write freeze, customer-state
   copy, API/provider traffic switch, TestFlight upload, or Sparkle publication occurred. The source preflight, after
-  correcting AWS CLI empty-response handling, performed 45 checks and reported 31 actual blockers, including the
-  receiver hold, writer fences, Memory settlement, and external webhook inventory.
+  correcting AWS CLI empty-response handling, performed 45 checks and reported 31 NO-GO findings. A later fix for
+  CloudFormation's bare SES receipt-rule physical ID cleared one false finding on live read-only rerun; 30 remain,
+  including the receiver hold, writer fences, Memory settlement, and external webhook inventory. Some are
+  intentional evidence gates rather than independently clearable settings.
 - Separate, termination-protected `HeyTimSourceMailCapture` and `HeyTimDestinationMailCapture` stacks reached
   `CREATE_COMPLETE` in their exact accounts. Their reviewed diffs added encrypted 14-day SQS capture/failure queues,
   private retained quarantine buckets, SNS subscriptions, and narrow SES role grants without replacing or deleting
