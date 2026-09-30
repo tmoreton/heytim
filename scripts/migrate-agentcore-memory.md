@@ -186,8 +186,9 @@ source state. It reports source creates, updates, and deletions, flags destinati
 edits or ambiguous unmapped copies, and fails if either Memory changes during
 planning. It uses full-state comparison so no order across Kinesis shards is
 assumed. Its stdout contains counts only; the private plan contains IDs and
-hashes, never customer content. Re-running the same unchanged state gives the
-same plan and makes no AWS changes.
+hashes, never customer content. Re-running the same unchanged state verifies
+an existing identical private plan; a changed plan requires a new path. It makes
+no AWS changes.
 
 **The planner has no apply mode.** AgentCore `BatchUpdateMemoryRecords` and
 `BatchDeleteMemoryRecords` have no conditional version or compare-and-swap input.

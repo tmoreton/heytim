@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -130,6 +131,20 @@ class ReconciliationPlanTests(MemoryMigrationFixture, unittest.TestCase):
         with patch.object(planner.boto3, "Session", Session):
             with self.assertRaisesRegex(ValueError, "unexpected account"):
                 planner.verified_clients("source", "destination")
+
+    def test_completed_private_plan_retries_idempotently(self):
+        source, destination = self.snapshots()
+        plan = planner.plan_reconciliation(source, destination, self.manifest)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "plan.json"
+            planner.write_or_verify_plan(path, plan)
+            planner.write_or_verify_plan(path, plan)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertNotIn("private fact", path.read_text())
+            changed = dict(plan)
+            changed["alreadyConverged"] = -1
+            with self.assertRaisesRegex(ValueError, "Existing private plan differs"):
+                planner.write_or_verify_plan(path, changed)
 
 
 if __name__ == "__main__":

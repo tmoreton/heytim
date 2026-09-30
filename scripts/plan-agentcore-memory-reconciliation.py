@@ -215,6 +215,14 @@ def verify_stable_snapshots(source_before: dict, destination_before: dict,
             "Destination changed during planning; retry")
 
 
+def write_or_verify_plan(path: Path, plan: dict) -> None:
+    """A completed private plan is safe to reuse after an interrupted run."""
+    if path.exists():
+        require(private_file(path) == plan, "Existing private plan differs; use a new path")
+    else:
+        write_manifest(path, plan)
+
+
 def verified_clients(source_profile: str, destination_profile: str) -> tuple[Any, Any, dict]:
     require(source_profile != destination_profile, "Profiles must differ")
     config = Config(retries={"total_max_attempts": 8, "mode": "adaptive"},
@@ -259,7 +267,7 @@ def main() -> int:
         destination_after = inventory(destination, DESTINATION_MEMORY_ID, list(live_strategies.values()))
         verify_stable_snapshots(source_before, destination_before, source_after, destination_after)
         if args.plan_out:
-            write_manifest(args.plan_out, result)
+            write_or_verify_plan(args.plan_out, result)
         print(json.dumps({
             "status": result["status"],
             "create": len(result["actions"]["create"]),
