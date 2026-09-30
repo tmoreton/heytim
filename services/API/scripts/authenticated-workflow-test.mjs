@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { assertBootstrapReady } from './bootstrap-release-contract.mjs';
+
 const apiUrl = process.env.HEYTIM_API_URL;
 const idToken = process.env.HEYTIM_ID_TOKEN;
 if (!apiUrl || !idToken) {
@@ -58,7 +60,7 @@ const deleteBot = async (botId) => {
 
 try {
   const bootstrap = await request('GET', '/bootstrap');
-  requireValue(Array.isArray(bootstrap.bots) && bootstrap.bots.length >= 3, 'Bootstrap did not return the default bots.');
+  assertBootstrapReady(bootstrap);
   completed.push('bootstrap');
 
   const botSuffix = new Date().toISOString().replaceAll(/[^0-9]/g, '').slice(0, 14);

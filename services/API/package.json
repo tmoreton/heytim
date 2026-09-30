@@ -14,7 +14,8 @@
     "test:plaid-webhook": "node scripts/test-plaid-webhook.mjs",
     "test:bot-email-capture": "node --import tsx --test scripts/test-bot-email-capture.mjs",
     "test:release-consent-policy": "node --import tsx --test scripts/test-release-consent-policy.mjs",
-    "verify": "npm run contract:check && npm run outputs:apple:check && npm --prefix ../../packages/heytim-contract test && npm run typecheck && npm run test:plaid-webhook && npm run test:bot-email-capture && npm run test:release-consent-policy && npm test",
+    "test:bootstrap-release": "node --test scripts/test-bootstrap-release-contract.mjs",
+    "verify": "npm run contract:check && npm run outputs:apple:check && npm --prefix ../../packages/heytim-contract test && npm run typecheck && npm run test:plaid-webhook && npm run test:bot-email-capture && npm run test:release-consent-policy && npm run test:bootstrap-release && npm test",
     "load:test": "node scripts/authenticated-load-test.mjs",
     "workflow:test": "node scripts/authenticated-workflow-test.mjs",
     "sandbox": "ampx sandbox --outputs-out-dir ."
