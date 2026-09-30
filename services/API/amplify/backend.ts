@@ -63,6 +63,9 @@ cfnIdentityPool.allowUnauthenticatedIdentities = false;
 // These IDs intentionally replace the immutable phone-only pool with email-only.
 cfnUserPool.overrideLogicalId('FrogBotEmailUserPool');
 cfnUserPoolClient.overrideLogicalId('FrogBotEmailUserPoolClient');
+// Friendly names can change in place while the deployed logical IDs stay stable.
+cfnUserPool.userPoolName = 'HeyTim';
+cfnUserPoolClient.clientName = 'HeyTim';
 cfnUserPool.userPoolTier = 'ESSENTIALS';
 cfnUserPool.deletionProtection = 'ACTIVE';
 cfnUserPool.emailConfiguration = authEmailProvider === 'ses'
