@@ -7,23 +7,27 @@ one explicit UpdateMemory call and must be run only after an operator decision.
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
-from datetime import datetime, timezone
 import fcntl
 import json
 import os
-from pathlib import Path
 import sys
 import tempfile
 import time
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 import boto3
 from botocore.config import Config
-
-from source_memory_attachment import load_config, memory_contract, read_live, require, sha256
-
+from source_memory_attachment import (
+    load_config,
+    memory_contract,
+    read_live,
+    require,
+    sha256,
+)
 
 POLL_SECONDS = 5
 POLL_TIMEOUT_SECONDS = 180
@@ -273,7 +277,7 @@ def main() -> int:
     except (ValueError, KeyError, IndexError) as exc:
         print(f"NO-GO: {exc}", file=sys.stderr)
         return 1
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - any post-request failure must remain an uncertain write
         # A transport failure after a write attempt is ambiguous. The journal
         # remains REQUESTED; never automatically retry the UpdateMemory call.
         print(f"UNCERTAIN: {type(exc).__name__}; inspect the private journal and live Memory. "

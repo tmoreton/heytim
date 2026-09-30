@@ -268,22 +268,40 @@ snapshot only if an authorized change to that account was made.
 The destination standalone stack `HeyTimDestinationMailCapture` reached
 `CREATE_COMPLETE` in account `820323452649` on September 30. A non-mail
 SNS-to-SQS smoke message arrived in its capture queue and was removed after
-verification. Destination SES remains inactive. Before reactivating the
-destination set, change its retained
-`HeyTimBotInbox` rule to store-only S3+SNS capture using the standalone
-quarantine bucket and exact destination topic/role. Hold the existing
-destination receiver at zero concurrency and an exact reviewed SNS filter,
-while keeping its CloudFormation-owned Lambda subscription; the old destination raw
-object still needs private classification. Reactivate only after readback of
-the full rule set proves no overlapping bounce and a controlled delivery is
-stored and queued. Keep source active until that test passes. When source is
-disabled, disable only its bot rule; the source active set also serves another
-recipient scope.
+verification. The destination receiver was then held at zero reserved
+concurrency with the reviewed `MessageAttributes` filter, retaining its
+CloudFormation-owned Lambda subscription. The inactive `HeyTimBotInbox` rule
+was changed only to the standalone quarantine bucket, with its exact topic,
+role, and recipient scope preserved. Private rollback inputs are
+`/private/tmp/heytim-dest-mail-subscriber-before-hold-20260930.json`,
+`/private/tmp/heytim-dest-mail-receiver-concurrency-before-hold-20260930.json`,
+and `/private/tmp/heytim-dest-ses-bot-rule-rollback-20260930.json` (mode
+`0600`). Destination SES remains inactive, and the old destination raw object
+still needs private classification. Reactivate only after the 15-minute hold
+proof, a full rule-set readback confirms there is no overlapping bounce, and
+a controlled delivery is stored and queued. Keep source active until that
+test passes. When source is disabled, disable only its bot rule; the source
+active set also serves another recipient scope.
+
+If this preparatory destination hold is abandoned while destination SES is
+still inactive, use the private rollback rule to restore its original raw
+bucket, verify the readback and inactive active-set state, then clear only the
+recorded SNS filter and Lambda concurrency hold. Wait through SNS filter
+propagation before any later destination activation. Keep the standalone
+capture subscription and retained queue/bucket until a separate reviewed
+cleanup proves they contain no unresolved mail.
 
 The standalone destination stack is a temporary capture owner. Its queues
 and bucket have `RETAIN`, but **deleting the stack removes the SNS
 subscription**. Deleting it before another verified capture subscription
 exists creates a notification gap even though retained objects remain.
+The September 30 full-backend preview was `+9/~16/-0` with no replacements,
+but remains **NO-GO**: it would create seven duplicate mail capture resources
+and two unrelated AI sharing routes, update seven Lambda packages, change
+file retention and IAM statements, and retarget the SES rule to a different
+bucket. Keep the standalone stack and its bucket as the capture owner until
+a separate review reconciles those resources; an ordinary Amplify deployment
+could silently split mail capture between two owners.
 Likewise, the production release workflow hardcodes normal mail processing
 and requires release attestations and configuration that may still be bound
 to the source account. It now fails closed while

@@ -45,7 +45,9 @@ an attachment path without proving those indirect changes safe.
 ## Create and guard a change set
 
 The following `create-change-set` command changes CloudFormation metadata but does **not** attach the stream.
-It has not been run. Replace the candidate path with the private path printed by `plan`:
+It was run on September 30, rejected by the reviewer, and deleted without execution. Keep it as a reference for
+investigating the dependency problem; do not repeat it as an attachment path while that problem remains.
+Replace the candidate path with the private path printed by `plan` only during a new reviewed investigation:
 
 ```bash
 SOURCE_STACK_ARN='arn:aws:cloudformation:us-east-1:188757775631:stack/AgentCore-HeyTim-production/95b9cdb0-b881-11f1-a9d7-12d6c1c28e71'

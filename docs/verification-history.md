@@ -6,6 +6,44 @@ was recorded, including legacy repository, cloud-resource, secret, and bundle ID
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-09-30 — capture infrastructure staged; traffic cutover NO-GO
+
+- The source account `188757775631` still serves customers and accepts mail. No source write freeze, customer-state
+  copy, API/provider traffic switch, TestFlight upload, or Sparkle publication occurred. The source preflight, after
+  correcting AWS CLI empty-response handling, performed 45 checks and reported 31 actual blockers, including the
+  receiver hold, writer fences, Memory settlement, and external webhook inventory.
+- Separate, termination-protected `HeyTimSourceMailCapture` and `HeyTimDestinationMailCapture` stacks reached
+  `CREATE_COMPLETE` in their exact accounts. Their reviewed diffs added encrypted 14-day SQS capture/failure queues,
+  private retained quarantine buckets, SNS subscriptions, and narrow SES role grants without replacing or deleting
+  an existing resource. Controlled non-mail SNS messages reached each capture queue and were removed by exact ID;
+  both capture and failure queues then read empty. The temporary retention exception and cleanup gate are recorded
+  privately at `/private/tmp/heytim-mail-capture-retention-exception-20260930.json`.
+- Destination SES still has no active receipt rule set. The destination mail receiver was set to zero reserved
+  concurrency and its existing SNS subscription received the reviewed `MessageAttributes` hold filter; the separate
+  SQS capture subscription remains unfiltered. The 15-minute read-only CloudTrail hold proof passed. The inactive
+  destination `HeyTimBotInbox` rule was pointed at the standalone quarantine bucket with its recipient, topic,
+  and role preserved. The source SES rule and source mail receiver were not held or changed. The live destination
+  full-backend capture preview was addition-only for resource identity (`+9/~16/-0`, zero replacements), but remains
+  NO-GO because it contains unrelated resource modifications and IAM statement changes that need review.
+- `HeyTimMemoryCapture` reached `CREATE_COMPLETE` in the source account with a seven-day encrypted Kinesis stream,
+  retained encrypted archive, and enabled consumer. Source Memory remains `ACTIVE` with **no stream attached**.
+  A source-specific candidate template added only FULL_CONTENT stream delivery, but the live CloudFormation change
+  set also proposed four indirect dynamic modifications to the runtime and online evaluation resources. The
+  fail-closed reviewer rejected it; the change set was deleted without execution. AgentCore still has no proven
+  terminal extraction marker or conditional late-record update path, so strict no-loss migration remains NO-GO.
+  A narrowly scoped direct `UpdateMemory` tool passed read-only preparation against the live source, but no
+  `UpdateMemory` call was made. It would create deliberate CloudFormation drift and cannot prove uninterrupted
+  data-plane service or complete delivery; its mutation remains a separate decision.
+- The read-only [App Store Connect inventory](https://github.com/tmoreton/heytim/actions/runs/36672428588)
+  succeeded using protected credentials. It found five recent iOS builds and an internal tester group; it did not
+  upload a build or verify device delivery. The prior Apple verification run was still actively compiling both
+  apps, and obsolete queued private candidates were canceled for replacement from final main. Sparkle
+  remained at `v1.0.12`. Google branding and data-access reviews were still unverified; all four unapproved
+  provider connections remained disabled.
+- The integrated migration branch passed 175 script tests plus 13 subtests, 590 API tests plus 43 subtests,
+  focused Memory and App Store Connect tests, Python lint, TypeScript type checking, and the source-size check.
+  These checks verify staging code; they do not clear the live cutover or publication gates.
+
 ## 2026-09-29 — isolated-account cutover preparation
 
 - The source account `188757775631` remains live; no customer traffic, Apple clients, provider webhooks, or production
