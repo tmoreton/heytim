@@ -50,6 +50,15 @@ def load_config(path: Path = CONFIG_PATH) -> dict[str, Any]:
     require(config["streamArn"] ==
             "arn:aws:kinesis:us-east-1:188757775631:stream/heytim-memory-record-capture",
             "Unexpected stream ARN")
+    require(config.get("dependentResources") == {
+        "runtimeId": "HeyTimProduction_HeyTim-so5Mx1Cy33",
+        "runtimeRoleName": "AgentCore-HeyTim-producti-ApplicationAgentHeyTimRun-chD7B6tbgMyp",
+        "runtimePolicyName": "ApplicationAgentHeyTimRuntimeExecutionRoleDefaultPolicyE72CDDE0",
+        "evaluationId": "HeyTimProduction_HeyTimContinuousQuality-j5dDtj9jfi",
+        "evaluationArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:online-evaluation-config/HeyTimProduction_HeyTimContinuousQuality-j5dDtj9jfi",
+        "evaluationRoleName": "AgentCore-HeyTim-producti-ApplicationOnlineEvalHeyT-kRGTAThIq7eL",
+        "evaluationPolicyName": "ApplicationOnlineEvalHeyTimContinuousQualityExecutionRoleDefaultPolicy87DD51FE",
+    }, "Dependent source resource identities changed")
     require(config["streamDeliveryResources"] == {
         "Resources": [{"Kinesis": {"DataStreamArn": config["streamArn"],
                                   "ContentConfigurations": [{"Type": "MEMORY_RECORDS", "Level": "FULL_CONTENT"}]}}]},
@@ -139,7 +148,8 @@ def validate_change_set(change_set: dict[str, Any], config: dict[str, Any], stac
             "Change set does not isolate an in-place StreamDeliveryResources addition")
 
 
-def read_live(session: boto3.Session, config: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+def read_live(session: boto3.Session, config: dict[str, Any],
+              expected_stream: dict[str, Any] | None = None) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     require(session.client("sts").get_caller_identity()["Account"] == config["sourceAccount"],
             "AWS identity is not the source account")
     cfn = session.client("cloudformation")
@@ -157,7 +167,7 @@ def read_live(session: boto3.Session, config: dict[str, Any]) -> tuple[dict[str,
     require(memory.get("id") == config["memoryId"] and memory.get("arn") == config["memoryArn"] and
             memory.get("name") == config["memoryName"] and memory.get("status") == "ACTIVE",
             "Live Memory identity or status changed")
-    require(memory.get("streamDeliveryResources") is None, "Memory already has stream delivery")
+    require(memory.get("streamDeliveryResources") == expected_stream, "Memory stream delivery differs from expected")
     require(memory.get("memoryExecutionRoleArn") == config["memoryRoleArn"] and
             memory.get("encryptionKeyArn") == config["memoryEncryptionKeyArn"] and
             memory.get("eventExpiryDuration") == config["memoryEventExpiryDays"],

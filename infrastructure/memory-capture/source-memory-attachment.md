@@ -88,38 +88,61 @@ so ordinary drift detection may not reveal this attachment. A later source stack
 alternative requires an operator-owned freeze on updates to `AgentCore-HeyTim-production` and custom `GetMemory`
 checks for the entire capture period. The stack currently has no protective stack policy.
 
-If that residual risk is accepted for **capture preparation only**, rerun the read-only planner guards immediately
-before the approved source maintenance window. Snapshot the full private `GetMemory` configuration and the runtime,
-runtime role policy, online evaluation configuration and role policy. Use one newly generated client token, stored
-privately and reused only to retry the same request. The API request should contain no expiry, strategy, namespace,
-or execution-role fields:
+The [guarded direct tool](direct_memory_stream.py) prepares a private `0700` directory and `0600` journal under an
+operator-chosen, existing `0700` **durable encrypted directory outside the Git checkout**. Back up that journal
+securely for the entire source capture and rollback period; it contains the stable request tokens. The
+journal contains one stable attach token, a different rollback token, the pinned source baseline, SHA-256 hashes of
+the four dependent fields, and the CloudFormation drift warning. `prepare` and `inspect` make read-only AWS calls;
+`attach` and `rollback` each make exactly one `UpdateMemory` call when explicitly invoked. The mutation client has
+automatic retries disabled, and the journal is marked `*_REQUESTED` **before** the call so a crash or uncertain
+transport result cannot silently issue a second update. The tool never changes expiry, strategies, namespaces,
+execution role, runtime, or online evaluation configuration.
+
+While the residual-risk decision is pending, only these commands are appropriate:
 
 ```bash
-aws --profile frogbot-release --region us-east-1 bedrock-agentcore-control update-memory \
-  --memory-id HeyTimProduction_HeyTimMemory-xeQPMmBQGC \
-  --client-token '<stable-unique-attach-token>' \
-  --stream-delivery-resources '{"resources":[{"kinesis":{"dataStreamArn":"arn:aws:kinesis:us-east-1:188757775631:stream/heytim-memory-record-capture","contentConfigurations":[{"type":"MEMORY_RECORDS","level":"FULL_CONTENT"}]}}]}'
+cd infrastructure/memory-capture
+../../services/runtime/.venv/bin/python direct_memory_stream.py --profile frogbot-release prepare \
+  --output-dir '<existing-private-durable-directory-outside-repo>'
+../../services/runtime/.venv/bin/python direct_memory_stream.py --profile frogbot-release inspect \
+  --plan '<private-journal-path-from-prepare>'
 ```
 
-This command has **not** been run. If the service rejects the request, stop and review the rejection; do not add
-other fields automatically. Poll `GetMemory(view=full)` until `ACTIVE`; stop if it remains `UPDATING`, enters `FAILED`,
-or changes its ARN, key, role, 30-day expiry, three strategies, or full non-stream configuration hash. Confirm that
-the runtime, both role policies, and online evaluation configuration are unchanged; monitor source read probes,
-application errors, stream publishing failures, consumer lag, and the private archive. CloudTrail should show only
-the targeted Memory update for this step. Do not claim capture ready until actual record delivery and archive
-parity are observed; `StreamingEnabled` is documented for create, not explicitly for update. The strict Memory
-no-loss cutover gate remains NO-GO.
+If the source maintenance decision authorizes an attachment, record the private journal path and rerun `inspect`
+immediately beforehand. The explicitly gated mutation command is:
+
+```bash
+../../services/runtime/.venv/bin/python direct_memory_stream.py --profile frogbot-release attach \
+  --plan '<private-journal-path-from-prepare>' --acknowledge-cloudformation-drift
+```
+
+The tool has **not** run this mutation. It polls `GetMemory(view=full)` for up to three minutes and requires `ACTIVE`,
+the same physical ARN, key, role, 30-day expiry, three strategies, and full non-stream configuration hash. It also
+requires the four dependent hashes and source stack template to remain unchanged. If status remains `UPDATING`, the
+API rejects the request, or the transport result is uncertain, the journal remains `ATTACH_REQUESTED`; run only
+`inspect` and investigate. Do not automatically retry with another token or add optional update fields. Monitor
+source read probes, application errors, stream publishing failures, consumer lag, and the private archive. CloudTrail
+should show only the targeted Memory update for this step. Do not claim capture ready until actual record delivery
+and archive parity are observed; `StreamingEnabled` is documented for create, not explicitly for update. The strict
+Memory no-loss cutover gate remains NO-GO.
 
 Run `preflight.py` once record events have been archived. Its current requirement for a `StreamingEnabled` event
 may remain unmet after an update; in that case it correctly leaves capture at NO-GO until an approved isolated
 probe and reviewed evidence establish delivery. A healthy capture still does not backfill prior records or prove
 every future publication.
 
-If the Memory returns to `ACTIVE` but the attachment degrades source service, the narrow rollback is a new
-`UpdateMemory` request with a **distinct** client token and `--stream-delivery-resources '{"resources":[]}'`.
-Poll to `ACTIVE` and verify the full original Memory configuration and absent stream. A rollback creates a capture
-gap and therefore cannot clear migration continuity. If Memory is stuck `UPDATING` or `FAILED`, do not race another
-update; retain the source and escalate to AWS service support.
+If the Memory returns to `ACTIVE` but the attachment degrades source service, the narrow rollback uses the
+journal's distinct token and `streamDeliveryResources={"resources":[]}`:
+
+```bash
+../../services/runtime/.venv/bin/python direct_memory_stream.py --profile frogbot-release rollback \
+  --plan '<private-journal-path-from-prepare>' --acknowledge-capture-gap
+```
+
+Rollback requires the exact attached stream and unchanged baseline before its one update call. It polls to `ACTIVE`
+and verifies the original configuration and absent stream. A rollback creates a capture gap and therefore cannot
+clear migration continuity. If Memory is stuck `UPDATING` or `FAILED`, do not race another update; retain the
+source and escalate to AWS service support.
 
 The legacy source stack must remain frozen while a direct attachment is active. A normal `development` deployment
 targets a different stack name in the source account, and a normal `production` deployment targets the destination

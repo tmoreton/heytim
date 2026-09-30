@@ -18,6 +18,15 @@
   "captureStackName": "HeyTimMemoryCapture",
   "streamArn": "arn:aws:kinesis:us-east-1:188757775631:stream/heytim-memory-record-capture",
   "streamKeyArn": "arn:aws:kms:us-east-1:188757775631:key/891a74a3-128b-43ca-81cc-4ff06da00a6d",
+  "dependentResources": {
+    "runtimeId": "HeyTimProduction_HeyTim-so5Mx1Cy33",
+    "runtimeRoleName": "AgentCore-HeyTim-producti-ApplicationAgentHeyTimRun-chD7B6tbgMyp",
+    "runtimePolicyName": "ApplicationAgentHeyTimRuntimeExecutionRoleDefaultPolicyE72CDDE0",
+    "evaluationId": "HeyTimProduction_HeyTimContinuousQuality-j5dDtj9jfi",
+    "evaluationArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:online-evaluation-config/HeyTimProduction_HeyTimContinuousQuality-j5dDtj9jfi",
+    "evaluationRoleName": "AgentCore-HeyTim-producti-ApplicationOnlineEvalHeyT-kRGTAThIq7eL",
+    "evaluationPolicyName": "ApplicationOnlineEvalHeyTimContinuousQualityExecutionRoleDefaultPolicy87DD51FE"
+  },
   "expectedTemplateSha256": "a7f31d3dbc9b7dc05eb69ff2512a3dddb5635a0698e16d85d9fae2dc6dcf308e",
   "expectedMemoryContractSha256": "cc90af37d0607a9b81ae7a938b8373ebe96dfc7bd728bc70017bc48b7004de19",
   "streamDeliveryResources": {
