@@ -16,7 +16,11 @@ import boto3
 from boto3.dynamodb.conditions import Attr
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
-from shared.bot_inbox import MAIL_DOMAIN, current_mail_address, validated_email_recipient
+from shared.bot_inbox import (
+    MAIL_DOMAIN,
+    current_mail_address,
+    validated_email_recipient,
+)
 from shared.keys import bot_key, turn_pk, user_state_key
 
 logger = logging.getLogger(__name__)
