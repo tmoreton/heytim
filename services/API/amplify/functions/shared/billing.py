@@ -26,6 +26,10 @@ def billing_available() -> bool:
     return os.environ.get("HEYTIM_STRIPE_AVAILABLE", "false").lower() == "true"
 
 
+def free_only_mode() -> bool:
+    return os.environ.get("HEYTIM_FREE_ONLY_MODE", "false").lower() == "true"
+
+
 def free_monthly_credits() -> int:
     return _bounded_integer("HEYTIM_FREE_MONTHLY_CREDITS", 30, 1, 1_000_000)
 
@@ -113,7 +117,7 @@ def entitlement_for_user(
             cancel_at_period_end=item.get("cancelAtPeriodEnd") is True,
         )
 
-    if not billing_available():
+    if not billing_available() and not free_only_mode():
         return BillingEntitlement(
             plan="preview",
             status="preview",

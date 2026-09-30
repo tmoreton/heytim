@@ -45,6 +45,7 @@ fi
 required=(
   HEYTIM_AGENT_RUNTIME_ARN HEYTIM_MEMORY_ID
   HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN
+  HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN
   HEYTIM_GOOGLE_OAUTH_SECRET_ARN HEYTIM_GITHUB_APP_SECRET_ARN
   HEYTIM_X_OAUTH_SECRET_ARN HEYTIM_SLACK_OAUTH_SECRET_ARN
   HEYTIM_NOTION_OAUTH_SECRET_ARN HEYTIM_APNS_APPLICATION_ARN
@@ -78,6 +79,38 @@ if [[ "${HEYTIM_AGENTCORE_MEMORY_KMS_KEY_ARN}" != arn:aws:kms:"$region":"$accoun
   echo 'The memory encryption key is not a destination KMS key.' >&2
   exit 1
 fi
+if [[ -n "${HEYTIM_STRIPE_SECRET_ID:-}" \
+   || -n "${HEYTIM_STRIPE_PLUS_PRICE_ID:-}" \
+   || "${HEYTIM_STRIPE_LIVE_MODE:-false}" != false ]]; then
+  echo 'The fresh destination preview must leave billing disabled.' >&2
+  exit 1
+fi
+if [[ "${HEYTIM_FREE_ONLY_MODE:-}" != true ]]; then
+  echo 'The fresh destination preview requires the 30-credit Free plan.' >&2
+  exit 1
+fi
+
+# The separate, already-deployed stack owns both the mail notification queue
+# and MIME quarantine bucket. Resolve the exact bucket from that stack so the
+# full backend cannot silently create a second capture path.
+capture_stack='HeyTimDestinationMailCapture'
+capture_status="$(aws --profile "$profile" --region "$region" cloudformation describe-stacks \
+  --stack-name "$capture_stack" --query 'Stacks[0].StackStatus' --output text)"
+capture_bucket="$(aws --profile "$profile" --region "$region" cloudformation describe-stacks \
+  --stack-name "$capture_stack" \
+  --query 'Stacks[0].Outputs[?OutputKey==`BotEmailQuarantineBucketName`].OutputValue | [0]' \
+  --output text)"
+if [[ "$capture_status" != CREATE_COMPLETE && "$capture_status" != UPDATE_COMPLETE ]] \
+  || [[ ! "$capture_bucket" =~ ^heytimdestinationmailcapt-botemailquarantine[a-z0-9-]+$ ]]; then
+  echo 'The exact destination standalone mail capture stack is not ready.' >&2
+  exit 1
+fi
+if [[ -n "${HEYTIM_BOT_EMAIL_STANDALONE_CAPTURE_BUCKET:-}" \
+   && "${HEYTIM_BOT_EMAIL_STANDALONE_CAPTURE_BUCKET}" != "$capture_bucket" ]]; then
+  echo 'The supplied standalone mail bucket differs from CloudFormation.' >&2
+  exit 1
+fi
+export HEYTIM_BOT_EMAIL_STANDALONE_CAPTURE_BUCKET="$capture_bucket"
 
 # The current CloudFormation-owned subscriber remains present in the private
 # deployment. Require exact live SNS/Lambda hold proof before any synthesis.

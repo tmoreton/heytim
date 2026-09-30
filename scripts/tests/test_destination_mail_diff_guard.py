@@ -28,7 +28,17 @@ Resources
 [+] AWS::SQS::Queue FrogBotApp/BotEmailInboundCapture ABC123
 """
     result = summarize(diff)
-    assert result["blockers"] == ["iam_statement_change_requires_review"]
+    assert "iam_statement_change_requires_review" in result["blockers"]
+    assert "duplicate_standalone_mail_capture" in result["blockers"]
+
+
+def test_second_quarantine_bucket_blocks_even_without_iam_changes() -> None:
+    diff = """Resources
+[+] AWS::S3::Bucket FrogBotApp/BotEmailQuarantine Bucket123
+"""
+    result = summarize(diff)
+    assert result["status"] == "NO_GO"
+    assert "duplicate_standalone_mail_capture" in result["blockers"]
 
 
 def test_template_url_value_change_is_not_resource_removal() -> None:

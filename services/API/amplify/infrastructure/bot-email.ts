@@ -12,8 +12,7 @@ import { LambdaSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
 
 import { PUBLIC_WEB_BASE_URL } from './app-settings';
-import { addBotEmailCapture } from './bot-email-capture';
-import { addBotEmailQuarantine } from './bot-email-quarantine';
+import { botEmailCaptureOwner, validatedStandaloneCaptureBucket } from './bot-email-capture-owner';
 import { applicationPythonCode } from './python-code';
 
 type BotEmailProps = {
@@ -43,6 +42,9 @@ export function addBotEmailReceiving(
     throw new Error('HEYTIM_BOT_EMAIL_KEEP_HELD_SUBSCRIBER must be true or false.');
   }
   const keepHeldSubscriber = keepHeldSubscriberSetting === 'true';
+  const standaloneCaptureBucket = validatedStandaloneCaptureBucket(
+    stack, stage, process.env.HEYTIM_BOT_EMAIL_STANDALONE_CAPTURE_BUCKET,
+  );
   if (keepHeldSubscriber && (
     !captureOnly || (!Token.isUnresolved(stack.account) && stack.account !== '820323452649')
   )) {
@@ -141,11 +143,12 @@ export function addBotEmailReceiving(
     lifecycleRules: [{ expiration: Duration.days(7) }],
     removalPolicy: RemovalPolicy.RETAIN,
   });
-  const quarantine = addBotEmailQuarantine(stack);
   const topic = new Topic(stack, 'IncomingBotMailTopic', { enforceSSL: true });
   // SES stores MIME in S3 first; this separate queue retains the notification
   // while application processing is suspended. It has no automatic consumer.
-  addBotEmailCapture(stack, topic);
+  const { quarantine, standalone } = botEmailCaptureOwner(
+    stack, topic, standaloneCaptureBucket,
+  );
   const deliveryFailures = new Queue(stack, 'BotEmailDeliveryFailures', {
     encryption: QueueEncryption.SQS_MANAGED,
     enforceSSL: true,
@@ -245,7 +248,10 @@ export function addBotEmailReceiving(
     }),
   });
   const receiptBucket = captureOnly ? quarantine : bucket;
-  const bucketGrant = receiptBucket.grantPut(receiveRole, 'received/*');
+  // The standalone stack already grants its quarantine bucket to this role.
+  const bucketGrant = standalone && captureOnly
+    ? undefined
+    : receiptBucket.grantPut(receiveRole, 'received/*');
   const topicGrant = topic.grantPublish(receiveRole);
 
   const ruleSet = configuredRuleSet
@@ -272,7 +278,7 @@ export function addBotEmailReceiving(
   });
   if (ruleSet) rule.node.addDependency(ruleSet);
   rule.node.addDependency(identity);
-  bucketGrant.applyBefore(rule);
+  bucketGrant?.applyBefore(rule);
   topicGrant.applyBefore(rule);
   new CfnOutput(stack, 'BotEmailRuleSetName', {
     value: ruleSetName,

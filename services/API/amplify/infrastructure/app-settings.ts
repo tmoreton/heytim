@@ -144,6 +144,14 @@ export const stripeAvailable = Boolean(stripeSecretId && stripePlusPriceId);
 if (stripeLiveMode && !stripeAvailable) {
   throw new Error('Stripe must be configured before enabling live mode.');
 }
+const freeOnlyModeValue = process.env.HEYTIM_FREE_ONLY_MODE ?? 'false';
+if (!['true', 'false'].includes(freeOnlyModeValue)) {
+  throw new Error('HEYTIM_FREE_ONLY_MODE must be true or false.');
+}
+export const freeOnlyMode = freeOnlyModeValue === 'true';
+if (freeOnlyMode && stripeAvailable) {
+  throw new Error('Free-only mode cannot have Stripe billing configured.');
+}
 
 export const runtimeArn = requiredSetting('HEYTIM_AGENT_RUNTIME_ARN');
 export const runtimeQualifier = process.env.HEYTIM_AGENT_RUNTIME_QUALIFIER ?? 'DEFAULT';

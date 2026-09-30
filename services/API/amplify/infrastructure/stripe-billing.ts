@@ -4,6 +4,7 @@ import { Function as LambdaFunction } from 'aws-cdk-lib/aws-lambda';
 
 import {
   freeMonthlyCredits,
+  freeOnlyMode,
   plusMonthlyCredits,
   plusPriceCents,
   stripeAutomaticTax,
@@ -22,6 +23,7 @@ export function addStripeBilling(
     HEYTIM_FREE_MONTHLY_CREDITS: String(freeMonthlyCredits),
     HEYTIM_PLUS_MONTHLY_CREDITS: String(plusMonthlyCredits),
     HEYTIM_STRIPE_AVAILABLE: String(stripeAvailable),
+    HEYTIM_FREE_ONLY_MODE: String(freeOnlyMode),
   };
   for (const [name, value] of Object.entries(sharedEnvironment)) {
     for (const fn of [apiFunction, publicApiFunction]) fn.addEnvironment(name, value);

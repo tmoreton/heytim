@@ -38,6 +38,39 @@ class BillingTests(ApiTestCase):
         self.assertTrue(result["checkoutAvailable"])
         self.assertEqual(result["price"]["unitAmount"], 2000)
 
+    def test_fresh_free_account_has_30_credits_without_checkout(self) -> None:
+        with patch.dict(
+            self.billing.os.environ,
+            {
+                "HEYTIM_STRIPE_AVAILABLE": "false",
+                "HEYTIM_FREE_ONLY_MODE": "true",
+                "HEYTIM_FREE_MONTHLY_CREDITS": "30",
+                "HEYTIM_MONTHLY_RUN_UNIT_LIMIT": "1000",
+            },
+        ):
+            result = self.billing.billing_summary("user-1")
+
+        self.assertEqual(result["plan"], "free")
+        self.assertEqual(result["creditLimit"], 30)
+        self.assertEqual(result["creditsRemaining"], 30)
+        self.assertFalse(result["billingAvailable"])
+        self.assertFalse(result["checkoutAvailable"])
+        self.assertFalse(result["managementAvailable"])
+
+    def test_existing_no_stripe_preview_keeps_its_1000_credit_limit(self) -> None:
+        with patch.dict(
+            self.billing.os.environ,
+            {
+                "HEYTIM_STRIPE_AVAILABLE": "false",
+                "HEYTIM_FREE_ONLY_MODE": "false",
+                "HEYTIM_MONTHLY_RUN_UNIT_LIMIT": "1000",
+            },
+        ):
+            result = self.billing.billing_summary("user-1")
+
+        self.assertEqual(result["plan"], "preview")
+        self.assertEqual(result["creditLimit"], 1000)
+
     def test_stripe_configuration_accepts_live_restricted_key(self) -> None:
         secrets = MagicMock()
         secrets.get_secret_value.return_value = {

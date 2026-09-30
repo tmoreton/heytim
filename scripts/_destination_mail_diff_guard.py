@@ -41,6 +41,7 @@ def summarize(value: str) -> dict[str, object]:
     changed_types: Counter[str] = Counter()
     unrelated = False
     replacement = False
+    duplicate_capture = False
     for line in value.splitlines():
         match = RESOURCE.match(line)
         if match:
@@ -48,6 +49,10 @@ def summarize(value: str) -> dict[str, object]:
             changed_types[f"{match.group(1)}:{match.group(2)}"] += 1
             if not _reviewed_mail_change(*match.groups()):
                 unrelated = True
+            if match.group(1) == "+" and match.group(3).startswith(
+                ("FrogBotApp/BotEmailInboundCapture", "FrogBotApp/BotEmailQuarantine")
+            ):
+                duplicate_capture = True
             if match.group(1) == "~" and line.rstrip().endswith(" replace"):
                 replacement = True
         if "(requires replacement)" in line:
@@ -58,6 +63,8 @@ def summarize(value: str) -> dict[str, object]:
         blockers.append("cloudformation_resource_removal")
     if replacement:
         blockers.append("cloudformation_resource_replacement")
+    if duplicate_capture:
+        blockers.append("duplicate_standalone_mail_capture")
     if iam_changes:
         # A reviewer must classify any policy change; the preview never
         # labels a widening safe based on a text rendering alone.

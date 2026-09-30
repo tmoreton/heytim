@@ -6,6 +6,10 @@ import { Template } from 'aws-cdk-lib/assertions';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 
 import { addBotEmailCapture } from '../amplify/infrastructure/bot-email-capture.ts';
+import {
+  botEmailCaptureOwner,
+  validatedStandaloneCaptureBucket,
+} from '../amplify/infrastructure/bot-email-capture-owner.ts';
 
 test('SES notifications have a retained, unconsumed, account-scoped capture path', () => {
   const app = new App();
@@ -44,4 +48,41 @@ test('SES notifications have a retained, unconsumed, account-scoped capture path
     assert.equal(grants[0].Condition.StringEquals['aws:SourceAccount'], '188757775631');
     assert.ok(grants[0].Condition.ArnEquals['aws:SourceArn']);
   }
+});
+
+test('standalone destination capture is imported without a second queue or bucket', () => {
+  const app = new App();
+  const stack = new Stack(app, 'StandaloneCaptureTest', {
+    env: { account: '820323452649', region: 'us-east-1' },
+  });
+  const bucketName = 'heytimdestinationmailcapt-botemailquarantinef3eb96-zuptorklfzuw';
+  const result = botEmailCaptureOwner(
+    stack, new Topic(stack, 'IncomingBotMailTopic'), bucketName,
+  );
+  assert.equal(result.standalone, true);
+  assert.equal(result.quarantine.bucketName, bucketName);
+  const resources = Object.values(Template.fromStack(stack).toJSON().Resources);
+  for (const type of [
+    'AWS::S3::Bucket', 'AWS::S3::BucketPolicy', 'AWS::SQS::Queue',
+    'AWS::SQS::QueuePolicy', 'AWS::SNS::Subscription',
+  ]) {
+    assert.equal(resources.filter((resource) => resource.Type === type).length, 0);
+  }
+});
+
+test('destination receipt stage requires the exact standalone capture owner', () => {
+  const app = new App();
+  const destination = new Stack(app, 'Destination', {
+    env: { account: '820323452649', region: 'us-east-1' },
+  });
+  const source = new Stack(app, 'Source', {
+    env: { account: '188757775631', region: 'us-east-1' },
+  });
+  const bucketName = 'heytimdestinationmailcapt-botemailquarantinef3eb96-zuptorklfzuw';
+  assert.throws(() => validatedStandaloneCaptureBucket(destination, 'receive', undefined));
+  assert.throws(() => validatedStandaloneCaptureBucket(destination, 'receive', 'wrong-bucket'));
+  assert.throws(() => validatedStandaloneCaptureBucket(source, 'receive', bucketName));
+  assert.throws(() => validatedStandaloneCaptureBucket(destination, 'identity', bucketName));
+  assert.equal(validatedStandaloneCaptureBucket(destination, 'receive', bucketName), bucketName);
+  assert.equal(validatedStandaloneCaptureBucket(source, 'receive', undefined), undefined);
 });
