@@ -26,7 +26,10 @@ const sitemapPaths = new Set(sitemapURLs.map((url) => url.pathname));
 assert(sitemapPaths.has('/features/'));
 assert(sitemapPaths.has('/support/'));
 assert(sitemapPaths.has('/account-deletion/'));
-assert.match(await readFile(new URL('privacy/index.html', output), 'utf8'), /Apple Push Notification service \(APNs\)/);
+const privacyPage = await readFile(new URL('privacy/index.html', output), 'utf8');
+assert.match(privacyPage, /Apple Push Notification service \(APNs\)/);
+assert.match(privacyPage, /Apple Health access/);
+assert.match(privacyPage, /Turn Off AI Processing/);
 assert.match(await readFile(new URL('account-deletion/index.html', output), 'utf8'), /Settings/);
 for (const route of ['/invite/', '/app/', '/billing/', '/404/']) assert(!sitemapPaths.has(route));
 for (const route of ['invite', 'app', 'billing']) {
