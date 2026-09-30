@@ -74,8 +74,8 @@ class FakeAttr(FakeCondition):
 
 
 class FakeConfig:
-    def __init__(self, **_kwargs):
-        pass
+    def __init__(self, **kwargs):
+        self.signature_version = kwargs.get("signature_version")
 
 
 class FakeBatch:
@@ -180,6 +180,7 @@ class ApiTestCase(unittest.TestCase):
         )
         cls.s3 = MagicMock()
         cls.sns = MagicMock()
+        cls.s3_client_configs = []
 
         def resource(_service: str):
             return SimpleNamespace(
@@ -188,7 +189,9 @@ class ApiTestCase(unittest.TestCase):
                 )
             )
 
-        def client(service: str, **_kwargs):
+        def client(service: str, **kwargs):
+            if service == "s3":
+                cls.s3_client_configs.append(kwargs.get("config"))
             return {
                 "sqs": cls.sqs,
                 "scheduler": cls.scheduler,

@@ -69,7 +69,7 @@ dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)
 invite_access_table = dynamodb.Table(INVITE_TABLE_NAME)
 sqs = boto3.client("sqs")
-s3 = boto3.client("s3")
+s3 = boto3.client("s3", config=Config(signature_version="s3v4"))
 agentcore = boto3.client(
     "bedrock-agentcore",
     config=Config(

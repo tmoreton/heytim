@@ -2,10 +2,38 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import boto3
 from api_test_case import ApiTestCase
+from botocore.config import Config
 
 
 class AttachmentSafetyTests(ApiTestCase):
+    def test_upload_signer_uses_sigv4_form_fields(self) -> None:
+        versions = [getattr(config, "signature_version", None) for config in self.s3_client_configs]
+        self.assertIn("s3v4", versions)
+        signer = boto3.client(
+            "s3",
+            region_name="us-east-1",
+            aws_access_key_id="DUMMY",
+            aws_secret_access_key="DUMMY",
+            config=Config(signature_version="s3v4"),
+        )
+        post = signer.generate_presigned_post(
+            Bucket="example-uploads",
+            Key="users/example/upload.txt",
+            Fields={"Content-Type": "text/plain", "success_action_status": "204"},
+            Conditions=[
+                {"Content-Type": "text/plain"},
+                {"success_action_status": "204"},
+                ["content-length-range", 1, 4_500_000],
+            ],
+            ExpiresIn=600,
+        )
+        self.assertEqual(post["fields"]["x-amz-algorithm"], "AWS4-HMAC-SHA256")
+        self.assertIn("x-amz-credential", post["fields"])
+        self.assertIn("x-amz-signature", post["fields"])
+        self.assertNotIn("AWSAccessKeyId", post["fields"])
+
     def test_upload_ticket_is_scoped_and_size_limited(self) -> None:
         self.s3.generate_presigned_post.return_value = {
             "url": "https://uploads.example",
