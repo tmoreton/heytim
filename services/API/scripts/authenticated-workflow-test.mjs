@@ -11,6 +11,9 @@ const deleteAccount = process.env.HEYTIM_DISPOSABLE_ACCOUNT === '1'
   || process.env.HEYTIM_DELETE_ACCOUNT === '1';
 
 const terminalStatuses = new Set(['complete', 'cancelled', 'error']);
+const activeStatuses = new Set([
+  'pending', 'running', 'waiting', 'needs_input', 'awaiting_approval', 'awaiting_device',
+]);
 const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
 
 const request = async (method, path, body) => {
@@ -31,16 +34,26 @@ const request = async (method, path, body) => {
   return value;
 };
 
-const waitForTurn = async (botId, turnId, timeoutMs = 240_000) => {
+const waitForTurnStatus = async (botId, turnId, statuses, timeoutMs = 240_000) => {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const { messages } = await request('GET', `/bots/${encodeURIComponent(botId)}/messages`);
     const reply = messages.find((message) => message.id === `${turnId}-assistant`);
-    if (reply && terminalStatuses.has(reply.status)) return reply;
+    if (reply && statuses.has(reply.status)) return reply;
+    if (reply && terminalStatuses.has(reply.status)) {
+      throw new Error(`Turn ${turnId} ended as ${reply.status} before the expected state.`);
+    }
+    if (reply && ['awaiting_approval', 'awaiting_device', 'needs_input'].includes(reply.status)) {
+      throw new Error(`Turn ${turnId} paused as ${reply.status} before the expected state.`);
+    }
     await new Promise((resolve) => setTimeout(resolve, 1_500));
   }
-  throw new Error(`Turn ${turnId} did not finish within ${timeoutMs}ms.`);
+  throw new Error(`Turn ${turnId} did not reach the expected state within ${timeoutMs}ms.`);
 };
+const waitForTurn = (botId, turnId) => waitForTurnStatus(botId, turnId, terminalStatuses);
+const waitForApproval = (botId, turnId) => waitForTurnStatus(
+  botId, turnId, new Set(['awaiting_approval']),
+);
 
 const requireValue = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -50,12 +63,33 @@ let accountDeletionQueued = false;
 let cleanupSucceeded = true;
 let workflowError;
 const createdBotIds = [];
+const startedTurnIds = new Map();
 const completed = [];
 
+const rememberTurn = (botId, turn) => {
+  requireValue(typeof turn.turnId === 'string' && turn.turnId, 'The queued turn has no ID.');
+  if (!startedTurnIds.has(botId)) startedTurnIds.set(botId, new Set());
+  startedTurnIds.get(botId).add(turn.turnId);
+  return turn;
+};
+
 const deleteBot = async (botId) => {
+  const { messages } = await request('GET', `/bots/${encodeURIComponent(botId)}/messages`);
+  for (const turnId of startedTurnIds.get(botId) ?? []) {
+    const reply = messages.find((message) => message.id === `${turnId}-assistant`);
+    if (reply && !activeStatuses.has(reply.status)) continue;
+    try {
+      await request('POST', `/bots/${encodeURIComponent(botId)}/messages/${encodeURIComponent(turnId)}/cancel`);
+    } catch (error) {
+      const current = await request('GET', `/bots/${encodeURIComponent(botId)}/messages`);
+      const settled = current.messages.find((message) => message.id === `${turnId}-assistant`);
+      if (!settled || !terminalStatuses.has(settled.status)) throw error;
+    }
+  }
   await request('DELETE', `/bots/${encodeURIComponent(botId)}`);
   const index = createdBotIds.indexOf(botId);
   if (index >= 0) createdBotIds.splice(index, 1);
+  startedTurnIds.delete(botId);
 };
 
 try {
@@ -91,10 +125,13 @@ try {
   requireValue(upload.ok, `The S3 upload failed (${upload.status}).`);
   const attachment = await request('POST', `/uploads/${encodeURIComponent(ticket.file.id)}/complete`);
   requireValue(attachment.id === ticket.file.id, 'The completed attachment ID did not match the upload ticket.');
-  const attachmentTurn = await request('POST', `/bots/${encodeURIComponent(standardBot.id)}/messages`, {
-    text: 'Read the attached file and reply with a short confirmation.',
-    attachmentIds: [attachment.id],
-  });
+  const attachmentTurn = rememberTurn(
+    standardBot.id,
+    await request('POST', `/bots/${encodeURIComponent(standardBot.id)}/messages`, {
+      text: 'Read the attached file and reply with a short confirmation.',
+      attachmentIds: [attachment.id],
+    }),
+  );
   const attachmentReply = await waitForTurn(standardBot.id, attachmentTurn.turnId);
   requireValue(attachmentReply.status === 'complete', `Attachment turn ended as ${attachmentReply.status}.`);
   completed.push('attachment upload and agent read');
@@ -107,9 +144,12 @@ try {
     timezone: 'UTC',
     enabled: false,
   });
-  const scheduledTurn = await request(
-    'POST',
-    `/bots/${encodeURIComponent(standardBot.id)}/schedules/${encodeURIComponent(schedule.id)}/run`,
+  const scheduledTurn = rememberTurn(
+    standardBot.id,
+    await request(
+      'POST',
+      `/bots/${encodeURIComponent(standardBot.id)}/schedules/${encodeURIComponent(schedule.id)}/run`,
+    ),
   );
   const scheduledReply = await waitForTurn(standardBot.id, scheduledTurn.turnId);
   requireValue(scheduledReply.status === 'complete', `Scheduled turn ended as ${scheduledReply.status}.`);
@@ -131,15 +171,30 @@ try {
     name: `Approval Check ${botSuffix}`,
     tagline: 'Temporary approval workflow verification bot.',
     color: '#F46A27',
-    prompt: 'Reply concisely. Use the browser only when explicitly requested.',
+    prompt: 'Reply concisely. Use the browser when explicitly requested.',
     toolIds: ['browser'],
     skillIds: [],
+    actionApprovalMode: 'ask',
   });
   createdBotIds.push(approvalBot.id);
-  const deniedTurn = await request('POST', `/bots/${encodeURIComponent(approvalBot.id)}/messages`, {
-    text: 'Open example.com and report the page title.',
-  });
-  requireValue(deniedTurn.status === 'awaiting_approval', 'The interactive turn did not wait for approval.');
+  requireValue(
+    approvalBot.actionApprovalMode === 'ask'
+      && !approvalBot.alwaysAllowedToolIds?.includes('browser'),
+    'The approval bot was not created in ask mode.',
+  );
+  const deniedTurn = rememberTurn(
+    approvalBot.id,
+    await request('POST', `/bots/${encodeURIComponent(approvalBot.id)}/messages`, {
+      text: 'Use the browser to open example.com. Do not answer without using the browser.',
+    }),
+  );
+  requireValue(deniedTurn.status === 'pending', 'The interactive turn was not queued.');
+  const deniedProposal = await waitForApproval(approvalBot.id, deniedTurn.turnId);
+  requireValue(
+    deniedProposal.allowedActions?.includes('approveOnce')
+      && deniedProposal.approvalTools?.includes('Interactive browser'),
+    'The browser action did not request one-time approval.',
+  );
   await request(
     'POST',
     `/bots/${encodeURIComponent(approvalBot.id)}/messages/${encodeURIComponent(deniedTurn.turnId)}/cancel`,
@@ -147,10 +202,19 @@ try {
   const deniedReply = await waitForTurn(approvalBot.id, deniedTurn.turnId);
   requireValue(deniedReply.status === 'cancelled', 'The denied interactive turn was not cancelled.');
 
-  const approvedTurn = await request('POST', `/bots/${encodeURIComponent(approvalBot.id)}/messages`, {
-    text: 'Reply only with: one-time approval passed. Do not use a tool.',
-  });
-  requireValue(approvedTurn.status === 'awaiting_approval', 'The second interactive turn did not wait for approval.');
+  const approvedTurn = rememberTurn(
+    approvalBot.id,
+    await request('POST', `/bots/${encodeURIComponent(approvalBot.id)}/messages`, {
+      text: 'Use the browser once to open example.com. After that one action, reply only with: one-time approval passed.',
+    }),
+  );
+  requireValue(approvedTurn.status === 'pending', 'The second interactive turn was not queued.');
+  const approvedProposal = await waitForApproval(approvalBot.id, approvedTurn.turnId);
+  requireValue(
+    approvedProposal.allowedActions?.includes('approveOnce')
+      && approvedProposal.approvalTools?.includes('Interactive browser'),
+    'The second browser action did not request one-time approval.',
+  );
   await request(
     'POST',
     `/bots/${encodeURIComponent(approvalBot.id)}/messages/${encodeURIComponent(approvedTurn.turnId)}/approve`,
