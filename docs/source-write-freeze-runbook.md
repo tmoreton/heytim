@@ -208,6 +208,18 @@ reconciler while the source is retained, and require AWS service assurance of a 
 reviewed bound before retiring it. Do not mark strict no-loss complete merely because a Kinesis stream has been
 configured.
 
+The bounded [source Memory capture stack and validator](../infrastructure/memory-capture/README.md) are prepared but
+not deployed. They archive the exact Kinesis payload before Lambda checkpoints it and compare all retained parent
+and child shard records to S3. Deploy and attach `FULL_CONTENT` streaming **before** the final source snapshot,
+then use overlapping scans before Kinesis retention expires. The existing initial Memory migration tool has no
+late-change reconciler; that component must map record identities and handle creates, updates, and deletes before a
+traffic cutover can be called reconciled. Moving public traffic is a separate decision from retiring source Memory:
+traffic may move only with a tested ongoing reconciler, fully copied frozen snapshot, repeated observed parity,
+live capture and alerts, and an assigned operator continuing checks after the move. The source Memory and archive
+must remain available beyond the 30-day raw-event horizon while late processing remains possible. If the cutover
+requires a strict no-loss guarantee, it remains **NO-GO** without AWS-backed delivery/completion assurance or an
+explicit acceptance of the documented residual risk. A quiet interval is never a source-retirement criterion.
+
 ## 2. Prepare the source before the final snapshot
 
 1. Disable TTL on **both** physical source tables using their captured attribute names (currently `expiresAt`), then
