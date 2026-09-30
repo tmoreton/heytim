@@ -28,6 +28,7 @@ fi
 
 if [ -n "$release_changes" ]; then
   printf 'Refusing to deploy: the repository has uncommitted or untracked changes.\n' >&2
+  printf 'Changed paths (status only):\n%s\n' "$release_changes" >&2
   exit 1
 fi
 
