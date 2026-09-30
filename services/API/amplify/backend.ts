@@ -52,10 +52,11 @@ const backend = defineBackend({ auth, preSignUp });
 // Keep the original identity so this updates rather than replaces live resources.
 const stack = backend.createStack('FrogBotApp');
 const nativePushApplications = resolveNativePushApplicationArns(
-  stack,
-  apnsApplicationArn,
-  apnsSandboxApplicationArn,
+  stack, apnsApplicationArn, apnsSandboxApplicationArn,
 );
+const nativePushApplicationArns = [
+  nativePushApplications.production, nativePushApplications.sandbox,
+];
 
 const { cfnIdentityPool, cfnUserPool, cfnUserPoolClient } = backend.auth.resources.cfnResources;
 // Public routes use API Gateway; keep signed-out AWS credentials deny-by-default.
@@ -258,11 +259,7 @@ logsKey.addToResourcePolicy(
 const {
   apiLogGroup, publicApiLogGroup, workerLogGroup, plaidWebhookLogGroup, apiAccessLogGroup,
 } = createApplicationLogGroups(stack, logsKey);
-const nativePushFeedbackRole = addNativePushFeedbackRole(
-  stack,
-  [nativePushApplications.production, nativePushApplications.sandbox],
-  logsKey,
-);
+const nativePushFeedbackRole = addNativePushFeedbackRole(stack, nativePushApplicationArns, logsKey);
 const githubDeployRole = addGithubDeploymentRole({
   stack,
   enabled: true,
@@ -270,10 +267,7 @@ const githubDeployRole = addGithubDeploymentRole({
     && process.env.HEYTIM_RELEASE_SYNTHETIC_CONSENT_READ === 'true',
   logsKmsKey: logsKey,
   legacyTokenVaultKmsKeyArn,
-  nativePushApplicationArns: [
-    nativePushApplications.production,
-    nativePushApplications.sandbox,
-  ],
+  nativePushApplicationArns,
   nativePushFeedbackRoleArn: nativePushFeedbackRole?.roleArn,
 });
 
@@ -405,10 +399,7 @@ inviteAccess.grantReadData(publicApiFunction);
 inviteAccess.grantReadWriteData(workerFunction);
 table.grantReadWriteData(workerFunction);
 addStripeBilling(apiFunction, workerFunction, publicApiFunction);
-addNativePushAccess(apiFunction, workerFunction, [
-  nativePushApplications.production,
-  nativePushApplications.sandbox,
-]);
+addNativePushAccess(apiFunction, workerFunction, nativePushApplicationArns);
 apiFunction.addToRolePolicy(
   new PolicyStatement({
     actions: ['dynamodb:TransactWriteItems'],
