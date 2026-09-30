@@ -14,7 +14,7 @@ from botocore.exceptions import ClientError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _bot_email_replay_apply import apply_group
-from _bot_email_replay_aws import read_private, write_private
+from _bot_email_replay_aws import _capture_contract, read_private, write_private
 from _bot_email_replay_dispatch import (
     acknowledge_message,
     dispatch_group,
@@ -205,6 +205,7 @@ class ReplayTests(unittest.TestCase):
                 "quarantineBucket": f"quarantine-{account}",
                 "topicArn": self.topic[account], "queueArn": f"arn:aws:sqs:us-east-1:{account}:capture",
                 "queueUrl": f"queue-{account}", "jobQueueUrl": f"jobs-{account}",
+                "failureQueueArn": f"arn:aws:sqs:us-east-1:{account}:capture-failures",
             } for account in (SOURCE_ACCOUNT, DESTINATION_ACCOUNT)
         }
         snapshot = {"schemaVersion": 1, "accounts": accounts, "messages": entries,
@@ -250,6 +251,47 @@ class ReplayTests(unittest.TestCase):
         with self.assertRaises(ReplayError):
             parse_capture(entry["body"], SOURCE_ACCOUNT, "q-1", self.topic[SOURCE_ACCOUNT],
                           {"wrong-bucket"})
+
+    def test_capture_contract_requires_exact_subscription_policy_and_empty_failure_queue(self) -> None:
+        account = SOURCE_ACCOUNT
+        topic = self.topic[account]
+        queue_arn = f"arn:aws:sqs:us-east-1:{account}:capture"
+        failure_arn = f"arn:aws:sqs:us-east-1:{account}:failures"
+        queue = {
+            "QueueArn": queue_arn, "MessageRetentionPeriod": "1209600",
+            "SqsManagedSseEnabled": "true",
+            "Policy": json.dumps({"Statement": [{
+                "Effect": "Allow", "Principal": {"Service": "sns.amazonaws.com"},
+                "Action": "sqs:SendMessage", "Resource": queue_arn,
+                "Condition": {"ArnEquals": {"aws:SourceArn": topic},
+                              "StringEquals": {"aws:SourceAccount": account}},
+            }]}),
+        }
+        failures = {"QueueArn": failure_arn, "MessageRetentionPeriod": "1209600",
+                    "SqsManagedSseEnabled": "true", "ApproximateNumberOfMessages": "0",
+                    "ApproximateNumberOfMessagesNotVisible": "0"}
+        subscriptions = [{"Protocol": "sqs", "Endpoint": queue_arn,
+                          "SubscriptionArn": f"arn:aws:sns:us-east-1:{account}:sub"}]
+        subscription = {"TopicArn": topic, "Endpoint": queue_arn,
+                        "RawMessageDelivery": "false",
+                        "RedrivePolicy": json.dumps({"deadLetterTargetArn": failure_arn})}
+        _capture_contract(queue, failures, subscriptions, subscription,
+                          topic_arn=topic, queue_arn=queue_arn,
+                          failure_arn=failure_arn, account=account)
+        for change in (
+            {"failures": {**failures, "ApproximateNumberOfMessages": "1"}},
+            {"subscriptions": []},
+            {"subscription": {**subscription, "RawMessageDelivery": "true"}},
+            {"queue": {**queue, "Policy": "{}"}},
+        ):
+            with self.subTest(change=change), self.assertRaises(ReplayError):
+                _capture_contract(
+                    change.get("queue", queue), change.get("failures", failures),
+                    change.get("subscriptions", subscriptions),
+                    change.get("subscription", subscription),
+                    topic_arn=topic, queue_arn=queue_arn,
+                    failure_arn=failure_arn, account=account,
+                )
 
     def test_cross_account_match_requires_explicit_mapping_and_matching_evidence(self) -> None:
         entries = [self._entry(SOURCE_ACCOUNT, "src-1", "q-1", 10),

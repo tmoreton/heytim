@@ -154,7 +154,7 @@ def validate_snapshot(snapshot: dict) -> list[dict]:
         if resources.get("account") != account or resources.get("region") != REGION:
             raise ReplayError("Capture snapshot account or region changed")
         for field in ("appStack", "captureStack", "topicArn", "queueArn", "queueUrl",
-                      "jobQueueUrl", "table", "rawBucket", "quarantineBucket"):
+                      "jobQueueUrl", "failureQueueArn", "table", "rawBucket", "quarantineBucket"):
             _string(resources.get(field), field, 500)
     for entry in messages:
         if not isinstance(entry, dict):

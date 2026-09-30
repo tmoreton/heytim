@@ -98,6 +98,62 @@ def _physical(resources: list[dict], kind: str, logical: str) -> str:
     return found[0]
 
 
+def _capture_contract(queue: dict, failures: dict, subscriptions: list[dict],
+                      subscription: dict, *, topic_arn: str, queue_arn: str,
+                      failure_arn: str, account: str) -> None:
+    for label, attributes, expected_arn in (
+        ("capture", queue, queue_arn), ("capture failure", failures, failure_arn)
+    ):
+        if (
+            attributes.get("QueueArn") != expected_arn
+            or attributes.get("MessageRetentionPeriod") != "1209600"
+            or attributes.get("SqsManagedSseEnabled") != "true"
+        ):
+            raise ReplayError(f"{label} queue identity, retention, or encryption changed")
+    if any(int(failures.get(name, "0")) != 0 for name in (
+        "ApproximateNumberOfMessages", "ApproximateNumberOfMessagesNotVisible"
+    )):
+        raise ReplayError("SNS capture delivery failure queue is nonempty")
+    matches = [item for item in subscriptions
+               if item.get("Protocol") == "sqs" and item.get("Endpoint") == queue_arn]
+    if len(matches) != 1 or matches[0].get("SubscriptionArn") in {None, "PendingConfirmation"}:
+        raise ReplayError("Exact SNS-to-capture-queue subscription is absent")
+    try:
+        redrive = json.loads(subscription.get("RedrivePolicy", "{}"))
+    except (TypeError, ValueError) as exc:
+        raise ReplayError("SNS capture subscription redrive policy is invalid") from exc
+    if (
+        subscription.get("TopicArn") != topic_arn
+        or subscription.get("Endpoint") != queue_arn
+        or subscription.get("RawMessageDelivery") != "false"
+        or redrive.get("deadLetterTargetArn") != failure_arn
+    ):
+        raise ReplayError("SNS capture subscription delivery contract changed")
+    try:
+        policy = json.loads(queue.get("Policy", "{}"))
+    except (TypeError, ValueError) as exc:
+        raise ReplayError("Capture queue policy is invalid") from exc
+    statements = policy.get("Statement", [])
+    if isinstance(statements, dict):
+        statements = [statements]
+    if not any(
+        item.get("Effect") == "Allow"
+        and item.get("Principal") == {"Service": "sns.amazonaws.com"}
+        and "sqs:SendMessage" in (
+            [item.get("Action")] if isinstance(item.get("Action"), str)
+            else item.get("Action", [])
+        )
+        and queue_arn in (
+            [item.get("Resource")] if isinstance(item.get("Resource"), str)
+            else item.get("Resource", [])
+        )
+        and item.get("Condition", {}).get("ArnEquals", {}).get("aws:SourceArn") == topic_arn
+        and item.get("Condition", {}).get("StringEquals", {}).get("aws:SourceAccount") == account
+        for item in statements if isinstance(item, dict)
+    ):
+        raise ReplayError("Capture queue lacks the exact account/topic SNS grant")
+
+
 class Account:
     """One profile with physical resources proven against CloudFormation."""
 
@@ -114,6 +170,7 @@ class Account:
         self.cfn = self.session.client("cloudformation")
         self.s3 = self.session.client("s3")
         self.sqs = self.session.client("sqs")
+        self.sns = self.session.client("sns")
         self.ddb = self.session.resource("dynamodb")
         app = _stack_resources(self.cfn, app_stack, expected_account)
         capture = _stack_resources(self.cfn, capture_stack, expected_account)
@@ -123,6 +180,7 @@ class Account:
         self.job_queue_name = _physical(app, "AWS::SQS::Queue", "AgentJobs")
         self.quarantine_bucket = _physical(capture, "AWS::S3::Bucket", "BotEmailQuarantine")
         self.queue_name = _physical(capture, "AWS::SQS::Queue", "BotEmailInboundCapture")
+        self.failure_queue_name = _physical(capture, "AWS::SQS::Queue", "BotEmailInboundCaptureFailures")
         self.queue_url = self.sqs.get_queue_url(
             QueueName=self.queue_name,
             QueueOwnerAWSAccountId=expected_account,
@@ -131,15 +189,42 @@ class Account:
             QueueName=self.job_queue_name,
             QueueOwnerAWSAccountId=expected_account,
         )["QueueUrl"]
+        self.failure_queue_url = self.sqs.get_queue_url(
+            QueueName=self.failure_queue_name,
+            QueueOwnerAWSAccountId=expected_account,
+        )["QueueUrl"]
         attributes = self.sqs.get_queue_attributes(
             QueueUrl=self.queue_url,
-            AttributeNames=["QueueArn", "ApproximateNumberOfMessages", "ApproximateNumberOfMessagesNotVisible"],
+            AttributeNames=["All"],
         )["Attributes"]
         self.queue_arn = attributes["QueueArn"]
+        failure_attributes = self.sqs.get_queue_attributes(
+            QueueUrl=self.failure_queue_url, AttributeNames=["All"]
+        )["Attributes"]
+        self.failure_queue_arn = failure_attributes["QueueArn"]
         if not self.queue_arn.startswith(f"arn:aws:sqs:{REGION}:{expected_account}:"):
             raise ReplayError("Capture queue ARN is in the wrong account or region")
         if self.topic_arn.startswith(f"arn:aws:sns:{REGION}:{expected_account}:") is False:
             raise ReplayError("Incoming mail SNS topic is in the wrong account or region")
+        subscriptions = [
+            item
+            for page in self.sns.get_paginator("list_subscriptions_by_topic").paginate(
+                TopicArn=self.topic_arn
+            )
+            for item in page.get("Subscriptions", [])
+        ]
+        matching = [item for item in subscriptions
+                    if item.get("Protocol") == "sqs" and item.get("Endpoint") == self.queue_arn]
+        if len(matching) != 1:
+            raise ReplayError("Exact SNS capture subscription is missing")
+        subscription = self.sns.get_subscription_attributes(
+            SubscriptionArn=matching[0]["SubscriptionArn"]
+        )["Attributes"]
+        _capture_contract(
+            attributes, failure_attributes, subscriptions, subscription,
+            topic_arn=self.topic_arn, queue_arn=self.queue_arn,
+            failure_arn=self.failure_queue_arn, account=expected_account,
+        )
         detail = self.ddb.meta.client.describe_table(TableName=self.table_name)["Table"]
         if (
             detail["TableStatus"] != "ACTIVE"
@@ -164,6 +249,7 @@ class Account:
             "topicArn": self.topic_arn,
             "queueArn": self.queue_arn,
             "queueUrl": self.queue_url,
+            "failureQueueArn": self.failure_queue_arn,
             "jobQueueUrl": self.job_queue_url,
         }
 

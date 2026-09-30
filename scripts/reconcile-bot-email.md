@@ -11,7 +11,10 @@ policy. The source currently remains live.
 
 1. Deploy the capture queue and separate `BotEmailQuarantine` bucket in both
    exact accounts. Confirm both S3/SNS/SQS deliveries with controlled mail.
-   Complete the reviewed source writer freeze and data migration separately.
+   The snapshot tool checks each queue's 14-day encrypted retention, exact
+   account/topic SNS grant, wrapped subscription, redrive target, and empty
+   subscription failure queue. Complete the reviewed source writer freeze
+   and data migration separately.
 2. Stop application mail processing in both accounts during the overlap.
    Keep store-only receipt rules accepting and queueing mail. Do not run
    `dispatch` while any source or destination mail receiver can process the
