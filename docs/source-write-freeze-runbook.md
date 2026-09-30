@@ -154,6 +154,29 @@ aws --profile "$SOURCE_PROFILE" --region "$SOURCE_REGION" bedrock-agentcore list
 a documented not-found error when no setting exists. Record that specific absence and restore **absence** on thaw. Save complete
 responses, not only a status field. [Scheduler updates replace omitted optional fields](https://docs.aws.amazon.com/scheduler/latest/UserGuide/managing-schedule-state.html), so a schedule must be restored from its full saved `get-schedule` response after converting it to valid update input.
 
+### Source Memory retention and extraction evidence (read-only)
+
+On 2026-09-30, exact-account checks found the source Memory `ACTIVE` with three active strategies and
+`eventExpiryDuration=30`. Its `createdAt` is 2026-09-25 01:37:26 UTC, and its `updatedAt` is one second later.
+The 90-day CloudTrail management-event history
+contained one successful `CreateMemory` for that exact Memory ID with a 30-day expiry request and no `UpdateMemory`
+since creation. [AWS applies expiry at each event's write time](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/memory-create-a-memory-store.html).
+An event in this Memory could not have been written before the resource existed, so **2026-10-25 01:37:26 UTC is a
+conservative lower bound on its first possible raw-event expiry** at this observed configuration. Recheck the exact
+creation event, all subsequent `UpdateMemory` events, live `GetMemory` configuration, and the remaining margin before
+the maintenance window. If the creation history is absent, any update shortened retention, or the margin cannot cover
+capture, retry, and verification, treat raw-event preservation as NO-GO. Do not estimate expiry from
+`eventTimestamp`: some source events have timestamps earlier than this Memory's creation and were therefore backdated.
+
+The same read-only inventory found 4 actors, 16 sessions, 192 events, and 417 long-term records; destination Memory
+was empty. The Cognito/DynamoDB-backed identity generator mapped all 4 actors and 16 sessions, including the reviewed
+one orphan actor and two historical sessions. These are point-in-time counts, not the final frozen inventory. Source
+`ListMemoryExtractionJobs` returned zero jobs, but that API lists jobs eligible for re-drive, chiefly failed jobs; it
+does **not** enumerate in-progress built-in extraction or prove that record consolidation has finished.
+[AWS describes built-in extraction as automatic](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/memory-strategies.html),
+and [the extraction-job API's scope](https://docs.aws.amazon.com/bedrock-agentcore/latest/APIReference/API_ListMemoryExtractionJobs.html)
+is narrower than a completion barrier.
+
 ## 2. Prepare the source before the final snapshot
 
 1. Disable TTL on **both** physical source tables using their captured attribute names (currently `expiresAt`), then
@@ -296,12 +319,21 @@ responses, not only a status field. [Scheduler updates replace omitted optional 
     and `ListObjectVersions` inventory after a quiet interval and immediately before copying. Counts or hashes that
     move are NO-GO even if the preceding controls appear applied. Repeat the AgentCore actor/session/event/record
     inventory, and check its `ActiveSessionCount` (an account-level, one-minute gauge), invocation logs, and memory
-    events for activity. `SessionCount` is cumulative and cannot prove no active sessions. Check failed Memory
-    extraction jobs and repeat record IDs and content digests after processing settles. `ListMemoryExtractionJobs`
-    reports failed/re-drive jobs and does not certify that built-in processing has finished. Existing raw events have a
-    fixed expiry applied when written; changing `eventExpiryDuration` cannot extend them. If an event may expire
-    during capture/transfer or managed extraction may still create a record, there is no stable memory snapshot and
-    this cutover remains NO-GO. [Memory event expiry](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/memory-create-a-memory-store.html),
+    events for activity. `SessionCount` is cumulative and cannot prove no active sessions. After the direct-write
+    fence is effective and runtime sessions have drained, take at least three full Memory inventories at least 30
+    minutes apart over a 60-minute quiet interval. Compare actor/session sets, event IDs and canonical payload hashes,
+    record IDs and canonical content/system-metadata hashes, not only counts. Any change resets the interval. Check
+    failed Memory extraction jobs at each sample. Apply the migration against the final digest, verify destination
+    content parity, and immediately repeat the source inventory after transfer. A mismatch is NO-GO.
+    `ListMemoryExtractionJobs` reports failed/re-drive jobs and does not certify that built-in processing has finished.
+    The quiet interval and parity are a **practical observation of the copied state**, not a guaranteed completion
+    signal for future managed extraction or consolidation. For a strict promise to preserve every eventual source
+    record, retain NO-GO until there is a demonstrated completion signal from AWS or a deployed, tested durable source
+    record-change stream with replay/reconciliation of late creates, updates, and deletes. The source currently has no
+    `streamDeliveryResources`; [AgentCore Memory can stream record changes to Kinesis](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/memory-record-streaming.html),
+    but that path has not been built or verified. Existing raw events have a fixed expiry applied when written;
+    changing `eventExpiryDuration` cannot extend them. If an event may expire during capture/transfer, there is no
+    stable raw-event snapshot and this cutover remains NO-GO. [Memory event expiry](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/memory-create-a-memory-store.html),
     [AgentCore metrics](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability-runtime-metrics.html).
 
 ### Policy statements to review before the window
@@ -417,11 +449,12 @@ and object-version smoke checks; record any duplicate or lost work.
 - No CLI list of active AgentCore **runtime** sessions was found. Use runtime-specific invocation traces plus
   `ActiveSessionCount`, known session IDs, and a long enough quiet window; if that cannot prove no in-flight or
   background task, do not take the final memory snapshot.
-- Existing Memory events expire on their original schedule, and managed strategy extraction/consolidation can change
-  long-term records after the last `CreateEvent`. The temporary Memory policy does not pause either service process.
-  Confirm every event expiry timestamp and extraction job state against the transfer interval, and obtain stable
-  repeated event/record inventories. If AWS offers no reliable settled signal for built-in processing, treat that as
-  an unresolved source snapshot boundary rather than assuming a quiet interval guarantees completion.
+- Existing Memory events expire on their original write-time schedule, and managed strategy extraction/consolidation
+  can change long-term records after the last `CreateEvent`. The temporary Memory policy does not pause either service
+  process. The CloudTrail-backed resource-creation lower bound above currently clears the approved transfer window;
+  recheck it before the freeze. Obtain stable repeated event/record inventories, but do not assume their quiet interval
+  guarantees all eventual built-in output is present. A verified completion signal or durable record-change stream
+  with replay remains necessary for a strict no-loss cutover.
 - AgentCore's `IngestData` submits content directly for long-term record generation. Although the current
   resource-policy supported-action list omits it, the destination drill accepted a Deny containing `IngestData`,
   read it back, and rejected a valid call that succeeded before the Deny. The source is the organization's management

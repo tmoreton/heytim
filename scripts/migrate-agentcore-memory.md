@@ -22,10 +22,21 @@ services/runtime/.venv/bin/python scripts/migrate-agentcore-memory.py \
   --destination-memory-id HeyTim_HeyTimMemory-6ltsOWEt5B
 ```
 
-Record the `source.snapshotSha256` value. The observed 2026-09-29 source had 4
-actors, 16 sessions, 187 events, and 404 records; the destination had zero.
+Record the `source.snapshotSha256` value. A fresh read-only 2026-09-30 source
+inventory had 4 actors, 16 sessions, 192 events, and 417 records; the destination
+had zero. The source remains live, so these counts can change.
 Rerun immediately before apply after the write freeze. If the digest changes,
 stop and investigate before moving traffic.
+
+The source Memory was created 2026-09-25 01:37:26 UTC with 30-day event expiry.
+CloudTrail Event History showed its exact successful creation request and no
+`UpdateMemory` at the time of the 2026-09-30 audit. Because expiry is applied at write
+time and the resource did not exist earlier, 2026-10-25 01:37:26 UTC is the
+earliest possible raw-event expiry under that observed history. Recheck the
+history and margin before apply. Do not infer expiry from `eventTimestamp`:
+some source events were backdated before the resource existed. This retention
+proof does not establish that built-in long-term extraction has settled; use
+the [source freeze runbook](../docs/source-write-freeze-runbook.md) for that gate.
 
 ## 2. Generate an exhaustive identifier map
 
