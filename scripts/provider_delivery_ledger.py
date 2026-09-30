@@ -36,7 +36,7 @@ SHA256_PATTERN = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
 def _utc(value: str) -> datetime:
     if not isinstance(value, str):
-        raise ValueError("A UTC timestamp is required")
+        raise ValueError("A UTC timestamp is required")  # noqa: TRY004 - ledger input error
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
@@ -71,7 +71,7 @@ def _identity(provider: str, delivery_id: str, identity_kind: str) -> None:
 
 def validate_record(record: dict, prior: list[dict]) -> None:
     if not isinstance(record, dict) or not isinstance(record.get("kind"), str):
-        raise ValueError("Record must be a JSON object with kind")
+        raise ValueError("Record must be a JSON object with kind")  # noqa: TRY004 - ledger input error
     kind = record["kind"]
     window = next((r for r in prior if r["kind"] == "window"), None)
     if kind == "window":

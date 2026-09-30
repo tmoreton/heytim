@@ -15,16 +15,17 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services" / "API" / "amplify" / "functions"))
-from shared.github_app import github_app_jwt  # noqa: E402
+from shared.github_app import github_app_jwt
 
 SOURCE_ACCOUNT = "188757775631"
 REGION = "us-east-1"
@@ -116,7 +117,7 @@ def _secret(session: Any, name: str) -> dict[str, Any]:
     value = client.get_secret_value(SecretId=name)
     document = json.loads(value.get("SecretString", "{}"))
     if not isinstance(document, dict):
-        raise ValueError("Application credential is invalid")
+        raise ValueError("Application credential is invalid")  # noqa: TRY004 - malformed provider response
     return document
 
 
@@ -269,7 +270,7 @@ def _github_deliveries(start: datetime, end: datetime, jwt_token: str,
         seen_urls.add(url)
         value, link = fetch(url, jwt_token, "github")
         if not isinstance(value, list):
-            raise ValueError("GitHub delivery listing is malformed")
+            raise ValueError("GitHub delivery listing is malformed")  # noqa: TRY004 - malformed provider response
         for item in value:
             if not isinstance(item, dict) or type(item.get("id")) is not int or not isinstance(item.get("guid"), str) or not GITHUB_GUID.fullmatch(item["guid"]):
                 raise ValueError("GitHub delivery ID is invalid")
@@ -299,7 +300,7 @@ def _github_endpoint_owners(deliveries: list[dict], jwt_token: str, fetch: Calla
         # process memory and retain only the destination URL classification.
         value, _ = fetch(f"https://api.github.com/app/hook/deliveries/{item['id']}", jwt_token, "github")
         if not isinstance(value, dict):
-            raise ValueError("GitHub delivery detail is malformed")
+            raise ValueError("GitHub delivery detail is malformed")  # noqa: TRY004 - malformed provider response
         item["endpointOwner"] = _owner(value.get("url", ""), "github")
 
 
@@ -324,7 +325,7 @@ def inventory(session: Any, start: datetime, end: datetime, table_name: str,
         item["undeliveredToSomeEndpoint"] = item["id"] in undelivered_ids
     github_config, _ = fetch("https://api.github.com/app/hook/config", github_token, "github")
     if not isinstance(github_config, dict):
-        raise ValueError("GitHub App hook config is malformed")
+        raise ValueError("GitHub App hook config is malformed")  # noqa: TRY004 - malformed provider response
     github_deliveries = _github_deliveries(start, end, github_token, fetch)
     _github_endpoint_owners(github_deliveries, github_token, fetch)
     return {
