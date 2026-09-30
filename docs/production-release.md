@@ -50,14 +50,22 @@ Neither launch mode itself performs a migration or authorizes cleanup of the leg
 1. Use dedicated production AWS account `820323452649` in `us-east-1` and do not rename either target.
 2. Bootstrap CDK and the AgentCore token vault with a reviewed IAM Identity Center or administrator role. Create a
    rotating customer-managed KMS key for AgentCore memory and retain its ARN.
-3. Perform the first AgentCore and Amplify bootstrap with that reviewed principal. The Amplify stack creates the
+3. Create the account-wide GitHub Actions OIDC provider in destination IAM before using the recurring deploy role.
+   The provider ARN is `arn:aws:iam::820323452649:oidc-provider/token.actions.githubusercontent.com`, its URL is
+   `https://token.actions.githubusercontent.com`, and its only audience is `sts.amazonaws.com`. The provider was
+   created on 2026-09-30 as a one-time account bootstrap resource outside the Amplify stack; IAM resolved its TLS
+   thumbprint. Verify the provider and the deploy role trust with
+   `AWS_PROFILE=frogbot-production-org ./scripts/check-production-oidc.sh` before dispatching production. A new
+   account needs its own provider. The provider grants no AWS permissions by itself; the deploy role below restricts
+   access to the production environment of the immutable HeyTim repository identity.
+4. Perform the first AgentCore and Amplify bootstrap with that reviewed principal. The Amplify stack creates the
    recurring least-privilege GitHub OIDC deployment role; its trust subject is
    `repo:tmoreton@5090418/heytim@1356546597:environment:production`, using GitHub's immutable owner and repository
    IDs. Save the `githubDeployRoleArn` output as
    `AWS_DEPLOY_ROLE_ARN`, then use the workflow for every later release. Never use account-root access.
-4. Create a production Amplify app and production/sandbox SNS APNs platform applications. Subscribe an accountable
+5. Create a production Amplify app and production/sandbox SNS APNs platform applications. Subscribe an accountable
    team or incident system to the generated service-alarm topic and confirm the subscription.
-5. Configure the production environment to accept deployments only from `main` and require a reviewer if the GitHub
+6. Configure the production environment to accept deployments only from `main` and require a reviewer if the GitHub
    plan supports environment reviewers.
 
 ## GitHub production environment
