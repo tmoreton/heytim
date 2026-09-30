@@ -13,10 +13,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _source_writer_bucket_probe import inspect_runtime_bucket
 from _source_writer_cli_transport import CliError, CliSession, GuardedSession
 from _source_writer_preflight_core import (
+    EXPECTED,
     SOURCE_ACCOUNT,
     SOURCE_REGION,
     Report,
     has_freeze_deny,
+    inspect_queues,
     read,
 )
 from source_writer_preflight import inventory
@@ -44,6 +46,36 @@ def test_wrong_account_stops_before_any_service_inventory() -> None:
     assert session.clients == ["sts"]
     assert "source_account_or_region_mismatch" in report.blockers
     assert SOURCE_ACCOUNT == "188757775631"
+
+
+def test_mail_capture_queue_may_hold_notifications_but_its_dlq_must_be_empty() -> None:
+    class Queues:
+        def get_queue_attributes(self, *, QueueUrl: str, AttributeNames: list[str]) -> dict:
+            assert len(AttributeNames) == 4
+            count = "3" if QueueUrl.endswith("BotEmailInboundCapture") else "0"
+            return {"Attributes": {
+                "QueueArn": f"arn:aws:sqs:{SOURCE_REGION}:{SOURCE_ACCOUNT}:{QueueUrl}",
+                "ApproximateNumberOfMessages": count,
+                "ApproximateNumberOfMessagesNotVisible": "0",
+                "ApproximateNumberOfMessagesDelayed": "0",
+            }}
+
+    resources = [
+        {
+            "ResourceType": "AWS::SQS::Queue",
+            "LogicalResourceId": f"{logical}1234",
+            "PhysicalResourceId": logical,
+        }
+        for logical in EXPECTED["queue"].values()
+    ]
+    report = Report()
+    inspect_queues(report, resources, Queues())
+    assert not report.blockers
+
+    resources[-1]["PhysicalResourceId"] = "BotEmailInboundCapture"
+    report = Report()
+    inspect_queues(report, resources, Queues())
+    assert "queue_inbound_capture_failures_not_drained" in report.blockers
 
 
 def test_freeze_deny_requires_exact_unconditional_coverage() -> None:

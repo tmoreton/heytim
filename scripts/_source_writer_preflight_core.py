@@ -33,6 +33,8 @@ EXPECTED = {
         "outbound_mail": "BotEmailOutbox",
         "outbound_mail_dlq": "BotEmailOutboxFailures",
         "inbound_mail_dlq": "BotEmailDeliveryFailures",
+        "inbound_capture": "BotEmailInboundCapture",
+        "inbound_capture_failures": "BotEmailInboundCaptureFailures",
     },
     "event_rule": {
         "catalog_refresh": "CatalogRefresh",
@@ -487,7 +489,10 @@ def inspect_queues(report: Report, resources: list[dict], sqs: Any) -> dict[str,
             in_flight=counts["ApproximateNumberOfMessagesNotVisible"],
             delayed=counts["ApproximateNumberOfMessagesDelayed"],
         )
-        if any(value != 0 for value in counts.values()):
+        # This unconsumed queue deliberately holds inbound SES notifications
+        # while application writers are stopped. Its subscription DLQ must
+        # remain empty; failures there need investigation before a cutover.
+        if label != "inbound_capture" and any(value != 0 for value in counts.values()):
             report.block(f"queue_{label}_not_drained")
         arns[label] = arn
     return arns

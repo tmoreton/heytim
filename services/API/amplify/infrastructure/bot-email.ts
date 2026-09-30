@@ -12,6 +12,7 @@ import { LambdaSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
 
 import { PUBLIC_WEB_BASE_URL } from './app-settings';
+import { addBotEmailCapture } from './bot-email-capture';
 import { applicationPythonCode } from './python-code';
 
 type BotEmailProps = {
@@ -122,6 +123,9 @@ export function addBotEmailReceiving(
     removalPolicy: RemovalPolicy.RETAIN,
   });
   const topic = new Topic(stack, 'IncomingBotMailTopic', { enforceSSL: true });
+  // SES stores MIME in S3 first; this separate queue retains the notification
+  // while application processing is suspended. It has no automatic consumer.
+  addBotEmailCapture(stack, topic);
   const deliveryFailures = new Queue(stack, 'BotEmailDeliveryFailures', {
     encryption: QueueEncryption.SQS_MANAGED,
     enforceSSL: true,

@@ -3,8 +3,10 @@
 **Status: NO-GO for live mail handoff.** This document and
 `migrate_bot_email_objects.py` cover the unversioned SES raw-message bucket.
 The [versioned S3 migration](migrate-versioned-s3.md) does not cover it.
+The CDK now defines a durable notification capture queue, but it is not
+deployed and does not by itself provide a store-only S3 destination or replay.
 Do not run `--apply` or change an SES receipt rule until the source write
-freeze, account/data migration, durable mail capture, and replay are ready.
+freeze, account/data migration, store-only capture, and replay are ready.
 
 ## Read-only checkpoint, September 30, 2026 UTC
 
@@ -51,10 +53,10 @@ digest. `--apply` writes only missing destination objects, with an explicit
 SSE-S3 setting and checksum, then reads them back. Any unexpected or divergent
 destination object stops the copy without deletion or overwrite.
 
-1. Build and test the durable reception path below. Complete the source
-   freeze, including disabling its raw-bucket lifecycle and preserving a
-   separate inbound quarantine path. Keep both app mail receivers from
-   processing live mail during the overlap.
+1. Deploy and test the durable reception path below in each exact account.
+   Complete a revised source freeze that disables its raw-bucket lifecycle
+   and leaves a separate store-only inbound quarantine path accepting mail.
+   Keep both app mail receivers from processing during the overlap.
 2. Run the read-only inventory. Resolve every blocker and repeat it after the
    frozen DynamoDB source snapshot. The expected plan digest must come from
    that final private manifest, not this document's live checkpoint.
@@ -119,15 +121,34 @@ each old address, a rotated address rejection, and outbound Reply-To continuity.
 
 **A disabled source receipt rule is not a retry plan.** SES's documented S3
 action stores the message and can publish an SNS notification with the SMTP
-envelope recipient and SES receipt verdicts. Use a separate, private source
-quarantine bucket, not the frozen source raw bucket, and subscribe a durable
-SQS queue to its SNS topic. Configure an analogous durable destination
-notification queue. The app receivers must remain off during the handoff;
-an SNS-to-Lambda retry window alone cannot retain the notification backlog.
+envelope recipient and SES receipt verdicts. The CDK now attaches an
+unconsumed `BotEmailInboundCapture` SQS queue to the existing
+`IncomingBotMailTopic`, with a separate SNS delivery DLQ. Both queues use
+SSE-SQS, TLS-only transport, 14-day retention, and `RETAIN` on stack deletion.
+Their policies allow `sns.amazonaws.com` only for the exact topic ARN and
+account. CloudFormation outputs identify the queue and DLQ in each account.
+The source writer preflight recognizes them and permits a nonempty capture
+queue; a nonempty subscription DLQ blocks the preflight. Deploy only after
+reviewing the source and destination stack diffs for replacement of existing
+mail resources, and prove the topic publishes to SQS with a controlled test.
+
+The SQS notification is not the MIME body. The current SES S3 action still
+writes to the seven-day `IncomingBotMail` bucket. A safe source freeze needs a
+**separate private source quarantine bucket** for SES writes while the old
+raw bucket is frozen, and a reviewed receipt-rule S3-action switch to it.
+That quarantine bucket needs encryption, blocked public access, TLS-only
+access, retained objects during the maintenance window, exact-account SES
+put permission, and a later cleanup policy. The destination needs an
+equivalent store-only setting during overlap. The app receivers must remain
+off; an SNS-to-Lambda retry window alone cannot retain the backlog. SQS
+retention does not extend the existing raw MIME bucket's seven-day expiry.
 Record the exact receipt-rule JSON, bucket policies, topic subscriptions,
 queue redrive/retention, encryption, lifecycle, and restore inputs before any
 rule change. Test a normal mail, a large mail, a disabled route, and an SNS
-delivery failure while both copies are held without processing.
+delivery failure while both copies are held without processing. Guard every
+read and write by STS account (`188757775631` source, `820323452649`
+destination), region `us-east-1`, CloudFormation-discovered bucket/table,
+and expected queue/topic ARNs.
 
 [AWS says](https://docs.aws.amazon.com/ses/latest/dg/receiving-email-receipt-rules-console-walkthrough.html)
 that when multiple SES accounts receive a common domain, **all matching
@@ -167,7 +188,32 @@ destination set contains only the reviewed bot-mail rule. On rollback,
 deactivate destination again and read back `none`; restore source from its
 snapshot only if an authorized change to that account was made.
 
-This quarantine/replay mechanism is a **design requirement, not deployed
-infrastructure**. The existing source freeze draft disables the source rule;
-it must be revised before execution. Both the separate capture path and
-idempotent replay implementation remain blockers for live cutover.
+### Replay contract before any queue is drained
+
+Capture the SNS envelope and SES notification exactly, then parse the receipt
+recipient, SES message ID, timestamp, and verdicts. Resolve the corresponding
+S3 object in the **same account**, verify its SHA-256, and copy missing MIME
+to the destination with account and bucket guards. Do not rely on SES message
+IDs or raw MIME hashes alone to deduplicate across accounts: two accounts can
+assign different IDs to one delivery, and two legitimate deliveries can have
+identical MIME. A private reviewed reconciliation manifest must map every
+source and destination notification to one canonical delivery or an explicit
+hold. Use recipient, headers, timestamps, and hashes as evidence; ambiguous
+matches stay held without bot processing.
+
+For each selected canonical delivery, write a destination `MAIL_REPLAY` marker
+and the `BOT_EMAIL` row conditionally in one DynamoDB transaction. Include a
+durable outbox item for an automatic bot turn in that transaction; a separate
+dispatcher sends it and marks it complete so a crash cannot silently lose or
+duplicate a turn. Replay retries must verify the same canonical ID, recipient,
+MIME hash, and bot route before treating a prior marker as success. Only
+acknowledge/delete an SQS notification after the destination MIME and this
+transaction are verified. Keep both capture queues and their DLQs until every
+notification has a disposition and a final zero-backlog check.
+
+This is an **implemented queue definition, not a deployed quarantine/replay
+path**. The existing source freeze draft disables the source SES rule and
+denies writes to its current raw bucket; it must be revised before execution.
+The separate store-only bucket/rule setting and the idempotent replay worker
+remain blockers for live cutover. The source currently remains the sole active
+matching receiver; destination's active rule set remains deactivated.

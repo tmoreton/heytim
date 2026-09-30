@@ -177,8 +177,11 @@ class MigrationPlanningTests(unittest.TestCase):
             "pk": f"USER#{OLD_SUB}",
             "sk": "STATE",
             "entity": "USER_STATE",
-            "aiSharingConsentVersion": "v1",
-            "aiSharingConsentGrantedAt": "2026-09-29T00:00:00Z",
+            "aiSharingConsent": {
+                "version": 1,
+                "granted": True,
+                "epoch": "account-cutover",
+            },
         }
         bot = {
             "pk": f"USER#{OLD_SUB}",
@@ -189,8 +192,7 @@ class MigrationPlanningTests(unittest.TestCase):
         planned, _ = migration.make_plan([state, bot], IDENTITY)
         migrated = next(item for item in planned if item.get("sk") == "STATE")
         self.assertEqual(migrated["pk"], f"USER#{NEW_SUB}")
-        self.assertEqual(migrated["aiSharingConsentVersion"], "v1")
-        self.assertEqual(migrated["aiSharingConsentGrantedAt"], "2026-09-29T00:00:00Z")
+        self.assertEqual(migrated["aiSharingConsent"], state["aiSharingConsent"])
 
 
 if __name__ == "__main__":
