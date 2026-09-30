@@ -144,12 +144,24 @@ test('runtime roles can use the configured memory encryption key', async () => {
       Resource: memoryKeyArn,
     })
   );
-  const taggingGrant = statements.find(statement => [statement.Action].flat().includes('s3:PutObjectTagging'));
+  const taggingGrant = statements.find(statement =>
+    statement.Effect === 'Allow' && [statement.Action].flat().includes('s3:PutObjectTagging')
+  );
   expect(taggingGrant).toEqual(expect.objectContaining({ Effect: 'Allow' }));
   const taggingResources = JSON.stringify(taggingGrant?.Resource);
   expect(taggingResources).toContain('heytim-production-user-files-123456789012-us-east-1/users/*');
   expect(taggingResources).toContain('heytim-production-user-files-123456789012-us-east-1/groups/*');
   expect(JSON.stringify(taggingGrant)).not.toContain('meme-templates');
+  const consentFenceDeny = statements.find(statement =>
+    statement.Effect === 'Deny' && [statement.Action].flat().includes('s3:PutObject')
+  );
+  expect(consentFenceDeny).toEqual(expect.objectContaining({
+    Effect: 'Deny',
+    Action: expect.arrayContaining(['s3:PutObject', 's3:DeleteObject', 's3:PutObjectTagging']),
+  }));
+  expect(JSON.stringify(consentFenceDeny?.Resource)).toContain(
+    'heytim-production-user-files-123456789012-us-east-1/users/*/ai-sharing-consent.json'
+  );
   const serializedStatements = JSON.stringify(statements);
   for (const provider of [
     'google',

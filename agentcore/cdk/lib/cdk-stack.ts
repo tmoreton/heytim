@@ -249,6 +249,15 @@ export class AgentCoreStack extends Stack {
             resources: [`${bucketArn}/users/*`, `${bucketArn}/groups/*`, `${bucketArn}/meme-templates/*`],
           })
         );
+        // The API owns account consent. A runtime may read its fence but must
+        // never create, replace, or remove it through its artifact permissions.
+        environment.runtime.role.addToPrincipalPolicy(
+          new iam.PolicyStatement({
+            effect: iam.Effect.DENY,
+            actions: ['s3:PutObject', 's3:DeleteObject', 's3:PutObjectTagging', 's3:DeleteObjectTagging'],
+            resources: [`${bucketArn}/users/*/ai-sharing-consent.json`],
+          })
+        );
         environment.runtime.role.addToPrincipalPolicy(
           new iam.PolicyStatement({
             actions: ['s3:PutObjectTagging'],
