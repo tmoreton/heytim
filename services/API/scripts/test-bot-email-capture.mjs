@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { App, Stack } from 'aws-cdk-lib';
+import { App, Stack, Token } from 'aws-cdk-lib';
 import { Template } from 'aws-cdk-lib/assertions';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 
@@ -85,4 +85,25 @@ test('destination receipt stage requires the exact standalone capture owner', ()
   assert.throws(() => validatedStandaloneCaptureBucket(destination, 'identity', bucketName));
   assert.equal(validatedStandaloneCaptureBucket(destination, 'receive', bucketName), bucketName);
   assert.equal(validatedStandaloneCaptureBucket(source, 'receive', undefined), undefined);
+});
+
+test('unresolved Amplify account uses the checked CDK account and fails closed without it', () => {
+  const app = new App();
+  const stack = new Stack(app, 'UnresolvedAccount');
+  const bucketName = 'heytimdestinationmailcapt-botemailquarantinef3eb96-zuptorklfzuw';
+  assert.equal(Token.isUnresolved(stack.account), true);
+  const previous = process.env.CDK_DEFAULT_ACCOUNT;
+  try {
+    delete process.env.CDK_DEFAULT_ACCOUNT;
+    assert.throws(() => validatedStandaloneCaptureBucket(stack, 'receive', bucketName));
+    process.env.CDK_DEFAULT_ACCOUNT = '188757775631';
+    assert.throws(() => validatedStandaloneCaptureBucket(stack, 'receive', bucketName));
+    assert.equal(validatedStandaloneCaptureBucket(stack, 'receive', undefined), undefined);
+    process.env.CDK_DEFAULT_ACCOUNT = '820323452649';
+    assert.throws(() => validatedStandaloneCaptureBucket(stack, 'receive', undefined));
+    assert.equal(validatedStandaloneCaptureBucket(stack, 'receive', bucketName), bucketName);
+  } finally {
+    if (previous === undefined) delete process.env.CDK_DEFAULT_ACCOUNT;
+    else process.env.CDK_DEFAULT_ACCOUNT = previous;
+  }
 });
