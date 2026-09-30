@@ -12,11 +12,11 @@
     "test": "node --experimental-strip-types --test 'src/**/*.test.mjs'",
     "verify": "../../scripts/check-source-size.sh && npm test && npm run typecheck"
   },
-  "dependencies": { "react": "19.2.3", "react-dom": "19.2.3" },
+  "dependencies": { "react": "19.3.0", "react-dom": "19.3.0" },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "@types/react": "~19.2.2",
-    "@types/react-dom": "19.2.3",
+    "@types/react": "~19.3.0",
+    "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
     "tsx": "^4.21.0",
     "typescript": "~6.0.3",
