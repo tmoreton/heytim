@@ -249,6 +249,12 @@ def test_all_stages_restore_original_settings_and_remain_no_go(tmp_path: Path) -
     assert adapter.state["agentcore_runtime"] is not None
     assert adapter.state["agentcore_endpoint"] is not None
     assert adapter.state["agentcore_memory"] is not None
+    memory_statements = adapter.state["agentcore_memory"]["Statement"]
+    assert any(
+        statement.get("Effect") == "Deny"
+        and "bedrock-agentcore:IngestData" in statement.get("Action", [])
+        for statement in memory_statements
+    )
     assert restore(adapter, snapshot, snapshot_path, journal_path)["restored"]
     assert adapter.state == before
     assert json.loads(journal_path.read_text())["applied"] == []

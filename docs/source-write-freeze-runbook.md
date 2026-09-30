@@ -4,8 +4,9 @@
 least 90 minutes plus migration checks, with the source retained for rollback. Setting the shared API Lambdas'
 reserved concurrency to zero will remove authenticated reads and `/public/catalog` during that outage.
 `/public/catalog` itself can refresh the catalog and update the application table on a `GET`, so leaving it available
-would not provide a read-only health path. The remaining NO-GO reasons are unproven direct and managed AgentCore Memory
-write boundaries, missing disposable denial probes and provider/in-flight evidence, the additional runtime file
+would not provide a read-only health path. The remaining NO-GO reasons are the unproven managed AgentCore Memory
+snapshot boundary, source installation of the tested direct-write fence, missing other disposable denial probes and
+provider/in-flight evidence, the additional runtime file
 bucket, and incomplete executor coverage. No control in this document is currently active.
 
 This runbook covers source account `188757775631` in `us-east-1` only. It does not rename any physical resources. Run
@@ -86,6 +87,22 @@ Run `services/runtime/.venv/bin/python scripts/source_writer_preflight.py --prof
 root. It verifies the exact source account before inventorying, uses only allowlisted read operations, records
 sanitized hashes/counts, and exits `2` for NO-GO. Treat its report as a checklist of observed blockers, never as
 cutover approval; preserve the full private configuration snapshots separately.
+
+For an exact-account read-only settings capture, run this within 15 minutes of that preflight:
+
+```bash
+services/runtime/.venv/bin/python scripts/source_freeze_capture.py \
+  --profile "$SOURCE_PROFILE" --stack-name "$SOURCE_STACK" \
+  --preflight "$FREEZE_SNAPSHOT_DIR/source-writer-preflight.json" \
+  --snapshot "$FREEZE_SNAPSHOT_DIR/source-freeze-snapshot.json"
+```
+
+It discovers physical IDs,
+checks them against the sanitized evidence, and writes a mode-0600 snapshot only after every setting is readable.
+The current source AgentCore Memory `GetResourcePolicy` returns HTTP 200 without a `policy` field. A disposable
+destination drill proved that the same response after deleting a Memory policy means no policy is attached. The
+capture accepts it as absence only when `GetMemory` independently returns the exact expected ID and ARN in `ACTIVE`
+state; a 404 or identity/status mismatch remains NO-GO.
 
 Save these responses **before** changing anything. A missing resource or error must be explained, not silently
 treated as an empty setting:
@@ -261,12 +278,14 @@ responses, not only a status field. [Scheduler updates replace omitted optional 
    ```
 
 10. Add a reviewed **Memory mutation Deny** to the exact source AgentCore Memory resource after the runtime and
-    workers are drained. It must cover `CreateEvent`, `DeleteEvent`, single and batch record mutations,
+    workers are drained. It must cover `CreateEvent`, `IngestData`, `DeleteEvent`, single and batch record mutations,
     `StartMemoryExtractionJob`, and resource updates/deletion without removing existing policy statements. The API and worker have direct Memory
     permissions; a Runtime-only Deny does not stop those callers. Preserve read and list actions for migration.
-    This Deny does **not** stop built-in strategy extraction, expiration of existing events, or the newer
-    `IngestData` API until its resource-policy enforcement has been verified. Test the policy and
-    a denied direct Memory write in a disposable environment before source use. Snapshot the live `GetMemory`
+    A disposable destination Memory drill on September 29 verified that valid `CreateEvent` and `IngestData` calls
+    succeeded before an exact-resource, wildcard-principal Deny and both returned `AccessDeniedException` afterward.
+    This Deny does **not** stop built-in strategy extraction or expiration of existing events. If
+    `GetResourcePolicy` returns HTTP 200 without a `policy` field, interpret that as policy absence only after
+    `GetMemory` confirms the same exact ID and ARN in `ACTIVE` state; a 404 remains fatal. Snapshot the live `GetMemory`
     response, its strategies and event expiry; the checked-in configuration uses semantic, summarization, and user
     preference strategies with 30-day event expiry. [AgentCore Memory policy actions](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/resource-based-policies.html),
     [managed extraction](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/memory-strategies.html).
@@ -277,9 +296,9 @@ responses, not only a status field. [Scheduler updates replace omitted optional 
     and `ListObjectVersions` inventory after a quiet interval and immediately before copying. Counts or hashes that
     move are NO-GO even if the preceding controls appear applied. Repeat the AgentCore actor/session/event/record
     inventory, and check its `ActiveSessionCount` (an account-level, one-minute gauge), invocation logs, and memory
-    events for activity. `SessionCount` is cumulative and cannot prove no active sessions. Check pending Memory
-    extraction jobs and repeat record IDs and content digests after processing settles. Job listings alone may not
-    expose all built-in processing. Existing raw events have a
+    events for activity. `SessionCount` is cumulative and cannot prove no active sessions. Check failed Memory
+    extraction jobs and repeat record IDs and content digests after processing settles. `ListMemoryExtractionJobs`
+    reports failed/re-drive jobs and does not certify that built-in processing has finished. Existing raw events have a
     fixed expiry applied when written; changing `eventExpiryDuration` cannot extend them. If an event may expire
     during capture/transfer or managed extraction may still create a record, there is no stable memory snapshot and
     this cutover remains NO-GO. [Memory event expiry](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/memory-create-a-memory-store.html),
@@ -333,7 +352,8 @@ original state was absent. A policy change is not a substitute for the drain and
   "Principal": "*",
   "Action": [
     "bedrock-agentcore:UpdateMemory", "bedrock-agentcore:DeleteMemory",
-    "bedrock-agentcore:CreateEvent", "bedrock-agentcore:DeleteEvent",
+    "bedrock-agentcore:CreateEvent", "bedrock-agentcore:IngestData",
+    "bedrock-agentcore:DeleteEvent",
     "bedrock-agentcore:DeleteMemoryRecord",
     "bedrock-agentcore:BatchCreateMemoryRecords",
     "bedrock-agentcore:BatchUpdateMemoryRecords",
@@ -391,8 +411,9 @@ and object-version smoke checks; record any duplicate or lost work.
   changing, the AgentCore runtime bucket sits outside the Amplify stack, and provider delivery/retry state and active
   runtime sessions still need independent evidence.
 - The policy Deny templates, policy revision handling, preexisting presigned-form denial, provider retry windows,
-  AgentCore direct-invocation denial, and direct Memory mutation denial have not been exercised in a disposable copy.
-  A failed denial probe is NO-GO.
+  and AgentCore direct-invocation denial still need disposable proof. The Memory `CreateEvent` and `IngestData`
+  resource-policy denial was proven in a disposable destination Memory; source policy installation and readback remain
+  pending. A failed denial probe is NO-GO.
 - No CLI list of active AgentCore **runtime** sessions was found. Use runtime-specific invocation traces plus
   `ActiveSessionCount`, known session IDs, and a long enough quiet window; if that cannot prove no in-flight or
   background task, do not take the final memory snapshot.
@@ -401,21 +422,24 @@ and object-version smoke checks; record any duplicate or lost work.
   Confirm every event expiry timestamp and extraction job state against the transfer interval, and obtain stable
   repeated event/record inventories. If AWS offers no reliable settled signal for built-in processing, treat that as
   an unresolved source snapshot boundary rather than assuming a quiet interval guarantees completion.
-- AgentCore's `IngestData` can submit content directly for long-term record generation. Its action is absent from the
-  current resource-policy supported-action list, so the Memory Deny template cannot be claimed to fence it. Prove no
-  source principal can call `IngestData` through IAM or a tested resource policy before treating Memory as frozen.
-  A possible fallback is a complete effective-principal inventory and a tested temporary identity/SCP-level explicit
-  Deny, combined with drained runtime/API/worker work, CloudTrail evidence of no new admissions, zero active
-  extraction jobs, and repeated stable event/record digests. This is not approved or proven. Verify every existing
-  event's expiry against the full transfer window; a reported next expiry more than four days away is not by itself a
+- AgentCore's `IngestData` submits content directly for long-term record generation. Although the current
+  resource-policy supported-action list omits it, the destination drill accepted a Deny containing `IngestData`,
+  read it back, and rejected a valid call that succeeded before the Deny. The source is the organization's management
+  account, so SCPs cannot protect it; the live source policy must be installed and repeatedly verified during the
+  freeze. The production CloudTrail trail currently selects S3 object data events but not AgentCore Memory data
+  events, so Event History cannot prove the absence of direct Memory data calls. Built-in extraction and event expiry
+  remain outside the policy. Verify every existing event's expiry against the full transfer window and obtain stable
+  repeated record digests after draining; a reported next expiry more than four days away is not by itself a
   settled-memory signal.
   [IngestData API](https://docs.aws.amazon.com/cli/latest/reference/bedrock-agentcore/ingest-data.html),
-  [Memory resource-policy actions](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/resource-based-policies.html).
+  [Memory resource-policy actions](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/resource-based-policies.html),
+  [CloudTrail data event scope](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-events.html).
 - The live source inventory must show whether DynamoDB replicas, S3 replication, S3 Batch jobs, or any other
   autonomous writer are active. The current commands do not fence those paths; any present path is NO-GO until a
   resource-specific drain, snapshot, and denial procedure has been reviewed.
 - Confirm that source table backups/exports, all three versioned bucket histories, the SES inbound bucket's pending mail,
   and every TTL/lifecycle exclusion match the approved migration scope before treating a stable digest as complete.
-- `scripts/source_freeze_executor.py` currently rehearses staged controls and reverse-order restore with fixtures only;
-  it refuses source-account mutation and has no production AWS mutation adapter. A reviewed adapter, private snapshots,
-  readback/propagation handling, denial probes, and the independent Memory fallback are required before source use.
+- `scripts/source_freeze_executor.py` rehearses staged controls and reverse-order restore with fixtures or exact-ID
+  allowlisted disposable AWS resources. The boto3 adapter can read source settings, and its source-account mutation
+  guard is unconditional. The Memory resource-policy denial has a disposable-account proof; other disposable-account
+  write payloads, propagation/readback handling, and denial probes require review before any production freeze.

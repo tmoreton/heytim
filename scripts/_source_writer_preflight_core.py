@@ -68,6 +68,7 @@ MEMORY_DENY = {
     "bedrock-agentcore:UpdateMemory",
     "bedrock-agentcore:DeleteMemory",
     "bedrock-agentcore:CreateEvent",
+    "bedrock-agentcore:IngestData",
     "bedrock-agentcore:DeleteEvent",
     "bedrock-agentcore:DeleteMemoryRecord",
     "bedrock-agentcore:BatchCreateMemoryRecords",
