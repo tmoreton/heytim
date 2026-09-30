@@ -40,6 +40,8 @@ apple_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 temporary_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/HeyTimSigning.XXXXXX")"
 keychain="$temporary_root/heytim-signing.keychain-db"
 signing_intermediate="$temporary_root/AppleWWDRCAG3.cer"
+developer_id_intermediate_g1="$temporary_root/DeveloperIDCA.cer"
+developer_id_intermediate_g2="$temporary_root/DeveloperIDG2CA.cer"
 api_key="$temporary_root/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
 keychain_password="$(uuidgen | tr -d '-')"
 original_keychains=()
@@ -84,11 +86,33 @@ if [[ "$(shasum -a 256 "$signing_intermediate" | awk '{print $1}')" \
   echo 'Apple signing intermediate did not match the expected certificate.' >&2
   exit 1
 fi
+if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
+  # Developer ID identities chain through a different Apple intermediate than
+  # Apple Development and Apple Distribution identities. Import both generations
+  # so an existing G1 or G2 signing certificate remains valid in an empty CI keychain.
+  curl --fail --location --silent --show-error \
+    https://www.apple.com/certificateauthority/DeveloperIDCA.cer \
+    --output "$developer_id_intermediate_g1"
+  curl --fail --location --silent --show-error \
+    https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer \
+    --output "$developer_id_intermediate_g2"
+  if [[ "$(shasum -a 256 "$developer_id_intermediate_g1" | awk '{print $1}')" \
+    != 7afc9d01a62f03a2de9637936d4afe68090d2de18d03f29c88cfb0b1ba63587f \
+    || "$(shasum -a 256 "$developer_id_intermediate_g2" | awk '{print $1}')" \
+    != f16cd3c54c7f83cea4bf1a3e6a0819c8aaa8e4a1528fd144715f350643d2df3a ]]; then
+    echo 'Apple Developer ID intermediates did not match the expected certificates.' >&2
+    exit 1
+  fi
+fi
 
 security create-keychain -p "$keychain_password" "$keychain"
 security set-keychain-settings -lut 7200 "$keychain"
 security unlock-keychain -p "$keychain_password" "$keychain"
 security add-certificates -k "$keychain" "$signing_intermediate"
+if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
+  security add-certificates -k "$keychain" \
+    "$developer_id_intermediate_g1" "$developer_id_intermediate_g2"
+fi
 if [[ "$release_scope" == full || "$release_scope" == ios-preflight \
   || "$release_scope" == ios-post-migration ]]; then
   security import "$certificate" -k "$keychain" -P "$APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD" \
