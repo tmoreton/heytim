@@ -1,6 +1,7 @@
 # Source AgentCore Memory record capture
 
-**Prepared, not deployed. This does not clear the cutover NO-GO.** This temporary source-account stack captures
+**Capture stack deployed; source Memory stream not attached. This does not clear the cutover NO-GO.** This
+source-account stack is prepared to capture
 `FULL_CONTENT` AgentCore Memory record lifecycle events. The stack uses account `188757775631`, region `us-east-1`,
 and the existing Memory `HeyTimProduction_HeyTimMemory-xeQPMmBQGC`. It does not create or replace the Memory.
 Never deploy it in destination account `820323452649`.
@@ -20,24 +21,29 @@ Never deploy it in destination account `820323452649`.
    the Memory resource. The stack and its data resources use RETAIN and termination protection.
 3. Only inside the approved source maintenance/change window, deploy that reviewed stack. Save its outputs. The
    alarms have **no notification destination**; an operator must monitor them until an alert target is attached.
-4. Attach its exact `StreamArn` to the existing Memory with `UpdateMemory`, preserving the role and leaving
-   `eventExpiryDuration` and strategies omitted from the update. The required payload is:
+4. Attach its exact `StreamArn` to the existing Memory through the
+   [legacy source Memory attachment runbook](source-memory-attachment.md). The source Memory belongs to
+   `AgentCore-HeyTim-production` in account `188757775631`, while the current shared CDK production target is
+   account `820323452649`. Do not use the normal `agentcore deploy` or CDK target to update this legacy source
+   stack. The reviewed change must add only `StreamDeliveryResources` to the existing Memory resource. Its
+   CloudFormation representation is:
 
    ```json
    {
-     "resources": [
+     "Resources": [
        {
-         "kinesis": {
-           "dataStreamArn": "arn:aws:kinesis:us-east-1:188757775631:stream/heytim-memory-record-capture",
-           "contentConfigurations": [{"type": "MEMORY_RECORDS", "level": "FULL_CONTENT"}]
+         "Kinesis": {
+           "DataStreamArn": "arn:aws:kinesis:us-east-1:188757775631:stream/heytim-memory-record-capture",
+           "ContentConfigurations": [{"Type": "MEMORY_RECORDS", "Level": "FULL_CONTENT"}]
          }
        }
      ]
    }
    ```
 
-   AWS publishes a `StreamingEnabled` event after validation. Verify it is present in the archive before taking
-   the migration source snapshot. Recheck `GetMemory` and CloudTrail afterward: exact Memory ARN, active strategies,
+   AWS explicitly documents `StreamingEnabled` for a Memory *created* with streaming. Whether the same event is
+   emitted on update is not stated. Confirm an archived validation or organic record event and monitor publishing
+   failures before relying on the capture. Recheck `GetMemory` and CloudTrail afterward: exact Memory ARN, active strategies,
    execution role, 30-day event expiry, and the one FULL_CONTENT stream must match. Do not attach a stream only after
    the direct-write freeze: a late attachment leaves a gap for managed changes already in progress.
 5. Run the read-only validation with
@@ -58,9 +64,10 @@ managed Lambda event-source mapping advances its checkpoint only after S3 accept
 Lambda errors, `IteratorAge`, and AgentCore `StreamPublishingFailure`/`StreamUserError` before seven days elapse.
 The archive has no Lifecycle expiry rule. Keep it, its KMS key, the Memory, and the source identity mapping for the
 entire rollback and late-processing period; 30-day Object Lock prevents early removal, while retained objects remain
-after the lock period. Do not remove the stack or disable the stream when public traffic moves. The source
-`agentcore/agentcore.json` does not declare this temporary source-only stream. Avoid an AgentCore Memory redeploy
-while capture is active unless its synthesized change is reviewed to preserve the exact attachment; rerun
+after the lock period. Do not remove the stack or disable the stream when public traffic moves. The source-only
+stream declaration is in `source-memory-attachment.json`; the current shared `agentcore/agentcore.json` must not
+embed this account's stream ARN. Avoid an AgentCore Memory redeploy while capture is active unless its change set
+is reviewed to preserve the exact attachment and physical Memory ID; rerun
 `GetMemory` and the read-only validator after any configuration change.
 
 The initial source snapshot must include **all** raw events and current long-term records. The stream begins before

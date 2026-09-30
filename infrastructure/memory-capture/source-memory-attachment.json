@@ -1,0 +1,35 @@
+{
+  "sourceAccount": "188757775631",
+  "region": "us-east-1",
+  "sourceStackName": "AgentCore-HeyTim-production",
+  "sourceStackId": "arn:aws:cloudformation:us-east-1:188757775631:stack/AgentCore-HeyTim-production/95b9cdb0-b881-11f1-a9d7-12d6c1c28e71",
+  "memoryLogicalId": "ApplicationMemoryHeyTimMemory78AB17BC",
+  "memoryId": "HeyTimProduction_HeyTimMemory-xeQPMmBQGC",
+  "memoryArn": "arn:aws:bedrock-agentcore:us-east-1:188757775631:memory/HeyTimProduction_HeyTimMemory-xeQPMmBQGC",
+  "memoryName": "HeyTimProduction_HeyTimMemory",
+  "memoryRoleArn": "arn:aws:iam::188757775631:role/AgentCore-HeyTim-producti-ApplicationMemoryHeyTimMe-0wareaDBexF4",
+  "memoryEncryptionKeyArn": "arn:aws:kms:us-east-1:188757775631:key/2dd110d7-e822-44c6-adeb-352151a88bb4",
+  "memoryEventExpiryDays": 30,
+  "memoryStrategyIds": [
+    "HeyTimFacts-L6O935H3il",
+    "HeyTimPreferences-U1nVXsHx6P",
+    "HeyTimSummaries-c9PE8eAs3p"
+  ],
+  "captureStackName": "HeyTimMemoryCapture",
+  "streamArn": "arn:aws:kinesis:us-east-1:188757775631:stream/heytim-memory-record-capture",
+  "streamKeyArn": "arn:aws:kms:us-east-1:188757775631:key/891a74a3-128b-43ca-81cc-4ff06da00a6d",
+  "expectedTemplateSha256": "a7f31d3dbc9b7dc05eb69ff2512a3dddb5635a0698e16d85d9fae2dc6dcf308e",
+  "expectedMemoryContractSha256": "cc90af37d0607a9b81ae7a938b8373ebe96dfc7bd728bc70017bc48b7004de19",
+  "streamDeliveryResources": {
+    "Resources": [
+      {
+        "Kinesis": {
+          "DataStreamArn": "arn:aws:kinesis:us-east-1:188757775631:stream/heytim-memory-record-capture",
+          "ContentConfigurations": [
+            { "Type": "MEMORY_RECORDS", "Level": "FULL_CONTENT" }
+          ]
+        }
+      }
+    ]
+  }
+}
