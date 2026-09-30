@@ -10,14 +10,12 @@ import copy
 import hashlib
 import json
 import os
-from pathlib import Path
 import sys
 import tempfile
+from pathlib import Path
 from typing import Any
 
 import boto3
-from botocore.config import Config
-
 
 CONFIG_PATH = Path(__file__).with_name("source-memory-attachment.json")
 MEMORY_TYPE = "AWS::BedrockAgentCore::Memory"

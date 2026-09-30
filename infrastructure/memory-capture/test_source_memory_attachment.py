@@ -1,9 +1,9 @@
 """Fail-closed checks for the legacy source Memory change-set planner."""
 
 import copy
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 
 import source_memory_attachment as attach
 

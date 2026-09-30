@@ -13,6 +13,14 @@ supports changing stream delivery on an existing Memory. Neither document guaran
 remains available during the asynchronous update. Use a supervised, low-traffic window and watch source Memory
 reads and application errors. This attachment does not authorize traffic cutover or source retirement.
 
+**September 30 live preview: NO-GO.** The candidate template changed only
+`StreamDeliveryResources`, but CloudFormation's change set also proposed four
+indirect dynamic modifications: runtime environment variables, runtime role
+policy, online evaluation data source, and evaluation role policy. The reviewer
+rejected the change set, and it was deleted without execution. Source Memory
+remains unstreamed. Do not bypass the reviewer or rerun the same change set as
+an attachment path without proving those indirect changes safe.
+
 ## Prepare locally and review
 
 1. Verify the source profile resolves to account `188757775631`, the capture stack is healthy, and the Memory is
