@@ -177,6 +177,37 @@ does **not** enumerate in-progress built-in extraction or prove that record cons
 and [the extraction-job API's scope](https://docs.aws.amazon.com/bedrock-agentcore/latest/APIReference/API_ListMemoryExtractionJobs.html)
 is narrower than a completion barrier.
 
+### Strict no-loss path for delayed managed records (not deployed)
+
+An [existing Memory can be updated with a stream delivery resource](https://docs.aws.amazon.com/bedrock-agentcore-control/latest/APIReference/API_UpdateMemory.html),
+and the exact source Memory already has an execution role and is not managed by another AgentCore resource. Its
+`streamDeliveryResources` is currently absent. The supported destination is **Kinesis Data Streams only**, with at most
+one stream configuration; S3 is not a direct Memory record-stream destination. `FULL_CONTENT` sends record creation
+and update content, while deletion events carry the record ID. Built-in extraction and consolidation can cause those
+events after direct client writes are fenced.
+[Memory record streaming](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/memory-record-streaming.html).
+
+Before this path can clear the gate, deploy an encrypted source Kinesis stream and least-privilege Memory execution-role
+permission, attach it to the exact source Memory **before** the write freeze, and verify activation and delivery in a
+disposable drill. A consumer must durably archive the full-content change stream in an encrypted, versioned store and
+checkpoint each Kinesis shard. Build and test idempotent create/update/delete reconciliation into destination Memory
+using the migration's source-to-destination record map, including changes while destination begins creating its own
+records. Cross-check stream delivery metrics and terminal-failure logs; any publication failure, missing checkpoint,
+unreconciled change, or source/destination full-state mismatch is NO-GO. Keep the source Memory and archive for the
+rollback period and continue reconciliation after traffic moves, because managed extraction may finish late. Attaching
+the stream changes source Memory configuration: redo the CloudTrail retention-history check afterward and ensure the
+update did not change `eventExpiryDuration`.
+
+This is a design for the missing capture/replay path, **not current cutover evidence**. AWS's published streaming guide
+does not state an upper bound on built-in extraction delay or an end-of-processing marker, and does not specify
+end-to-end ordering or at-least-once delivery for Memory-to-Kinesis publication. Source Memory has no configured
+application-log delivery either; [those logs can report extraction/consolidation start and completion](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability-memory-metrics.html)
+only after they are enabled. A bounded quiet interval, stream metrics, and parity together can verify observed state;
+they cannot by themselves certify that no future managed write exists. Operate the tested source-to-destination
+reconciler while the source is retained, and require AWS service assurance of a completion condition or a separately
+reviewed bound before retiring it. Do not mark strict no-loss complete merely because a Kinesis stream has been
+configured.
+
 ## 2. Prepare the source before the final snapshot
 
 1. Disable TTL on **both** physical source tables using their captured attribute names (currently `expiresAt`), then
