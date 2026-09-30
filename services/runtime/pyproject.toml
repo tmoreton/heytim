@@ -86,7 +86,7 @@ dependencies = [
     # AgentCore's package builder otherwise takes the newest Uvicorn release,
     # which can drift from the dependency-complete archive verified in uv.lock.
     "uvicorn == 0.52.4",
-    "urllib3 == 2.7.0",
+    "urllib3==2.8.0",
     # CodeZip resolves Uvicorn's optional file watcher afresh. Keep it aligned
     # with the version exercised by the locked runtime environment.
     "watchfiles == 1.2.0",
