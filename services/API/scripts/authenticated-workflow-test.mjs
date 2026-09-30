@@ -58,6 +58,28 @@ const waitForTurn = (botId, turnId) => waitForTurnStatus(botId, turnId, terminal
 const waitForApproval = (botId, turnId) => waitForTurnStatus(
   botId, turnId, new Set(['awaiting_approval']),
 );
+const waitForApprovedTurnOutcome = async (botId, turnId, previousApproval, timeoutMs = 240_000) => {
+  const previousUpdatedAt = Date.parse(previousApproval.activityUpdatedAt);
+  if (!Number.isFinite(previousUpdatedAt)) {
+    throw new Error(`Turn ${turnId} did not expose an approval activity timestamp.`);
+  }
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const { messages } = await request('GET', `/bots/${encodeURIComponent(botId)}/messages`);
+    const reply = messages.find((message) => message.id === `${turnId}-assistant`);
+    if (reply?.status === 'complete') return reply;
+    if (reply?.status === 'awaiting_approval'
+        && Date.parse(reply.activityUpdatedAt) > previousUpdatedAt) return reply;
+    if (reply && terminalStatuses.has(reply.status)) {
+      throw new Error(`Turn ${turnId} ended as ${reply.status} after one-time approval.`);
+    }
+    if (reply && ['awaiting_device', 'needs_input'].includes(reply.status)) {
+      throw new Error(`Turn ${turnId} paused as ${reply.status} after one-time approval.`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+  }
+  throw new Error(`Turn ${turnId} did not finish or request a new approval within ${timeoutMs}ms.`);
+};
 
 const requireValue = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -235,9 +257,23 @@ try {
     'POST',
     `/bots/${encodeURIComponent(approvalBot.id)}/messages/${encodeURIComponent(approvedTurn.turnId)}/approve`,
   );
-  const approvedReply = await waitForTurn(approvalBot.id, approvedTurn.turnId);
-  requireValue(approvedReply.status === 'complete', `Approved turn ended as ${approvedReply.status}.`);
-  completed.push('approval deny, allow-once, and cancellation');
+  const approvedReply = await waitForApprovedTurnOutcome(
+    approvalBot.id, approvedTurn.turnId, approvedProposal,
+  );
+  if (approvedReply.status === 'awaiting_approval') {
+    requireValue(
+      approvedReply.allowedActions?.includes('approveOnce')
+        && approvedReply.approvalTools?.includes('Interactive browser'),
+      'The next browser action did not request its own approval.',
+    );
+    await request(
+      'POST',
+      `/bots/${encodeURIComponent(approvalBot.id)}/messages/${encodeURIComponent(approvedTurn.turnId)}/cancel`,
+    );
+    const cancelledReply = await waitForTurn(approvalBot.id, approvedTurn.turnId);
+    requireValue(cancelledReply.status === 'cancelled', 'The next unapproved browser action was not cancelled.');
+  }
+  completed.push('approval deny, one-time allowance, and cancellation');
 
   await deleteBot(approvalBot.id);
   await deleteBot(standardBot.id);
