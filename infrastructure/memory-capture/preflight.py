@@ -12,9 +12,7 @@ import time
 
 import boto3
 from botocore.exceptions import ClientError
-
 from consumer.handler import archive_key
-
 
 ACCOUNT = "188757775631"
 REGION = "us-east-1"
@@ -244,6 +242,6 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - every failure must report NO_GO
         print(json.dumps({"status": "NO_GO", "reason": str(error)}), file=sys.stderr)
         sys.exit(2)

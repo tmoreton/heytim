@@ -12,13 +12,12 @@ import re
 import boto3
 from botocore.exceptions import ClientError
 
-
 SHARD_ID = re.compile(r"^shardId-\d{12}$")
 RECORD_TYPES = {"MemoryRecordCreated", "MemoryRecordUpdated", "MemoryRecordDeleted"}
 
 
 def archive_key(stream_arn, shard_id, sequence_number):
-    value = f"{stream_arn}:{shard_id}:{sequence_number}".encode("utf-8")
+    value = f"{stream_arn}:{shard_id}:{sequence_number}".encode()
     return f"records/{hashlib.sha256(value).hexdigest()}.json"
 
 
@@ -32,14 +31,14 @@ def validate_record(record, account, region, memory_id, stream_arn):
         raise ValueError("Invalid Kinesis identity")
     encoded = envelope.get("data")
     if not isinstance(encoded, str):
-        raise ValueError("Missing Kinesis data")
+        raise TypeError("Missing Kinesis data")
     try:
         raw = base64.b64decode(encoded, validate=True)
         body = json.loads(raw)
     except (ValueError, UnicodeDecodeError, TypeError) as error:
         raise ValueError("Invalid Kinesis payload") from error
     if not isinstance(body, dict) or not isinstance(body.get("memoryStreamEvent"), dict):
-        raise ValueError("Invalid Memory stream envelope")
+        raise TypeError("Invalid Memory stream envelope")
     event = body["memoryStreamEvent"]
     if event.get("memoryId") != memory_id:
         raise ValueError("Wrong Memory identity")

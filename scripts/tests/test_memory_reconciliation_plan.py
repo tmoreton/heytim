@@ -7,8 +7,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts.tests.memory_migration_test_support import MemoryMigrationFixture, migration
-
+from scripts.tests.memory_migration_test_support import (
+    MemoryMigrationFixture,
+    migration,
+)
 
 SCRIPT = Path(__file__).resolve().parents[1] / "plan-agentcore-memory-reconciliation.py"
 spec = importlib.util.spec_from_file_location("memory_reconciliation_plan", SCRIPT)
@@ -128,9 +130,11 @@ class ReconciliationPlanTests(MemoryMigrationFixture, unittest.TestCase):
                     raise AssertionError("Memory must not be read from wrong account")
                 return type("Sts", (), {"get_caller_identity": lambda self: {"Account": "820323452649"}})()
 
-        with patch.object(planner.boto3, "Session", Session):
-            with self.assertRaisesRegex(ValueError, "unexpected account"):
-                planner.verified_clients("source", "destination")
+        with (
+            patch.object(planner.boto3, "Session", Session),
+            self.assertRaisesRegex(ValueError, "unexpected account"),
+        ):
+            planner.verified_clients("source", "destination")
 
     def test_completed_private_plan_retries_idempotently(self):
         source, destination = self.snapshots()

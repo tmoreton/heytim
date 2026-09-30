@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Read-only late AgentCore Memory reconciliation plan; never modifies AWS.
 
 The Memory update/delete APIs have no conditional version. This script flags
@@ -18,7 +17,6 @@ from typing import Any
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
-
 from memory_migration_apply import (
     expected_event,
     expected_record,
@@ -34,7 +32,6 @@ from memory_migration_inventory import (
     source_snapshot_digest,
     strategy_map,
 )
-
 
 SOURCE_ACCOUNT = "188757775631"
 DESTINATION_ACCOUNT = "820323452649"

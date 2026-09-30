@@ -5,10 +5,8 @@ import os
 import unittest
 from unittest.mock import patch
 
-from botocore.exceptions import ClientError
-
 import handler
-
+from botocore.exceptions import ClientError
 
 ACCOUNT = "188757775631"
 REGION = "us-east-1"
