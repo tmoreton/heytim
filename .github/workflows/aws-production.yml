@@ -50,6 +50,7 @@ jobs:
           RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
           RELEASE_SCOPE: ${{ inputs.release_scope }}
           MANUAL_RELEASE_TAG: ${{ inputs.release_tag }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [[ "$GITHUB_EVENT_NAME" == release ]]; then
             if [[ "$RELEASE_DRAFT" == true || "$RELEASE_PRERELEASE" == true ]]; then
@@ -77,7 +78,25 @@ jobs:
               echo 'backend-macos requires release_tag vMAJOR.MINOR.PATCH.' >&2
               exit 1
             fi
-            echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+            version="${BASH_REMATCH[1]}"
+            git fetch origin main --tags
+            if [[ "$GITHUB_SHA" != "$(git rev-parse origin/main)" ]]; then
+              echo 'backend-macos must use the current main commit.' >&2
+              exit 1
+            fi
+            tag_commit="$(git rev-parse -q --verify "refs/tags/$MANUAL_RELEASE_TAG^{commit}" || true)"
+            if [[ "$tag_commit" != "$GITHUB_SHA" ]]; then
+              echo 'The draft release tag must point to the current main commit.' >&2
+              exit 1
+            fi
+            if ! gh api "repos/$GITHUB_REPOSITORY/releases/tags/$MANUAL_RELEASE_TAG" \
+              | jq -e '.draft == true and .prerelease == false
+                and ((.body // "") | contains("<!-- heytim-backend-macos-predeployed -->"))' \
+                >/dev/null; then
+              echo 'backend-macos requires an unpublished stable draft with the predeployed marker.' >&2
+              exit 1
+            fi
+            echo "version=$version" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Check release branch and production configuration
@@ -668,6 +687,12 @@ jobs:
           HEYTIM_BUILD_NUMBER: ${{ steps.apple-build.outputs.number }}
           HEYTIM_MARKETING_VERSION: ${{ steps.apple-build.outputs.version }}
         run: |
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            if [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" != true ]]; then
+              echo 'The Mac release must remain a draft until its artifacts are attached.' >&2
+              exit 1
+            fi
+          fi
           output="apps/iOS/Archives/Direct-macOS-$HEYTIM_BUILD_NUMBER"
           gh release upload "$RELEASE_TAG" \
             "$output/HeyTim-$HEYTIM_MARKETING_VERSION-macOS.dmg" \
