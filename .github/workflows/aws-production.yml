@@ -653,18 +653,24 @@ jobs:
             --kms-key-arn "$HEYTIM_LOGS_KMS_KEY_ARN" > "$result"
           if ! jq -e '
             .status == "COMPLETED"
-            and .evaluationResults.totalNumberOfSessions >= 5
-            and .evaluationResults.numberOfSessionsFailed == 0
-            and (.evaluationResults.evaluatorSummaries | length == 2)
+            and (.agent_invocation_failures | type == "array" and length == 0)
+            and (.evaluation_results | type == "object")
+            and .evaluation_results.totalNumberOfSessions == 5
+            and .evaluation_results.numberOfSessionsCompleted == 5
+            and .evaluation_results.numberOfSessionsInProgress == 0
+            and .evaluation_results.numberOfSessionsFailed == 0
+            and .evaluation_results.numberOfSessionsIgnored == 0
+            and (.evaluation_results.evaluatorSummaries | type == "array" and length == 2)
+            and ([.evaluation_results.evaluatorSummaries[].evaluatorId] | sort == ["Builtin.GoalSuccessRate", "Builtin.ResponseRelevance"])
             and all(
-              .evaluationResults.evaluatorSummaries[];
-              .totalEvaluated >= 5
+              .evaluation_results.evaluatorSummaries[];
+              .totalEvaluated == 5
               and .totalFailed == 0
-              and .statistics.averageScore >= 0.8
+              and (.statistics.averageScore | type == "number" and . >= 0.8)
             )
           ' "$result" >/dev/null; then
             echo 'The managed AgentCore regression dataset did not meet the 0.80 release threshold.' >&2
-            jq '{status, evaluationResults}' "$result" >&2
+            jq '{status, evaluation_results}' "$result" >&2
             exit 1
           fi
 
