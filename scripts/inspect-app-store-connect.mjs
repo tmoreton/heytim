@@ -293,7 +293,8 @@ async function main() {
     assertInternalOwnerReady(inventory);
   }
   console.log(`HeyTim iOS inventory: ${inventory.recentBuilds.length} recent build(s);`
-    + ` expected owner in all-builds internal group: ${inventory.ownerInAllBuildsInternalGroup ? 'yes' : 'no'}.`);
+    + ` expected owner in all-builds internal group: ${inventory.ownerInAllBuildsInternalGroup ? 'yes' : 'no'};`
+    + ` accepted or installed: ${inventory.ownerAcceptedOrInstalled ? 'yes' : 'no'}.`);
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
