@@ -19,8 +19,9 @@ the current checkout or environment still has the same status.
   The signed-in Notion developer page remained stuck on loading placeholders, so its callback and distribution status
   could not be verified. App Store Connect requested a fresh Apple sign-in on refresh; the signed-in GitHub run summary
   separately showed iOS build `20261001055358` as `VALID` and `INTERNAL_ONLY`, with the Account Holder accepted in an
-  all-builds internal group. The same summary found that the App Store listing lacked an account-deletion URL. The
-  installed Mac app also reported an expired session.
+  all-builds internal group. The same summary found that the optional App Store account-deletion URL was blank;
+  `https://heytim.ai/account-deletion/` is already live, and account deletion is initiated in the app's Settings.
+  The installed Mac app also reported an expired session.
 - The owner chose a fresh, free launch in destination AWS account `820323452649`, retaining source account
   `188757775631` for rollback without transferring customer records or tokens. The destination public API at
   `https://srrkqsqrqd.execute-api.us-east-1.amazonaws.com` returned the HeyTim catalog on October 1. Production
