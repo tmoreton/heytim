@@ -26,10 +26,16 @@ the current checkout or environment still has the same status.
 - The first internal iPhone upload [run 36808752688](https://github.com/tmoreton/heytim/actions/runs/36808752688)
   failed before upload when its temporary signing keychain locked after two hours of native compilation. Main commit
   `620c2b9` extends that timeout to six hours. The corrected internal-only
-  [retry 36821645378](https://github.com/tmoreton/heytim/actions/runs/36821645378) was still compiling at
-  07:19 UTC; the private [Mac candidate 36821899708](https://github.com/tmoreton/heytim/actions/runs/36821899708)
-  was pending behind it. No `1.0.13` TestFlight processing result, physical push proof, or new Sparkle publication
-  was claimed at this checkpoint.
+  [retry 36821645378](https://github.com/tmoreton/heytim/actions/runs/36821645378) succeeded on October 1 and
+  submitted iOS `1.0.13` build `20261001055358` to App Store Connect. Its private receipt pins the source to
+  `620c2b9`, destination account `820323452649`, and destination API. The upload log says Apple's package is
+  processing; this is submission evidence, not processing completion or availability on a device. A later
+  [read-only inventory 36839073340](https://github.com/tmoreton/heytim/actions/runs/36839073340) again verified
+  the Account Holder's accepted membership in the all-builds internal group, but its accessible log did not show
+  the new build's exact processing row. The private
+  [Mac candidate 36821899708](https://github.com/tmoreton/heytim/actions/runs/36821899708) remained in its
+  two-platform verification at 08:52 UTC. No physical push proof or new Sparkle publication was claimed at this
+  checkpoint.
 
 ## 2026-09-30 — capture infrastructure staged; traffic cutover NO-GO
 
