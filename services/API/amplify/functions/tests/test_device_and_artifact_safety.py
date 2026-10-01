@@ -140,7 +140,7 @@ class DeviceAndArtifactSafetyTests(WorkerTestCase):
         queued = json.loads(self.sqs.send_message.call_args.kwargs["MessageBody"])
         self.assertEqual(queued["type"], "AGENT_REPLY")
 
-    def test_device_result_accepted_before_expiry_can_resume_after_expiry(
+    def test_legacy_health_result_is_discarded_before_model_resume(
         self,
     ) -> None:
         now = datetime.now(UTC)
@@ -196,15 +196,14 @@ class DeviceAndArtifactSafetyTests(WorkerTestCase):
                 },
             )
 
-        self.assertEqual(invoke.call_args.kwargs["device_result"], result)
-        consumed = next(
+        invoke.assert_not_called()
+        finished = next(
             update
             for update in self.table.updates
-            if "deviceResultConsumedAt" in update["UpdateExpression"]
+            if "deviceResultReceivedAt" in update["UpdateExpression"]
+            and "REMOVE" in update["UpdateExpression"]
         )
-        self.assertEqual(
-            consumed["ExpressionAttributeValues"][":result"], result
-        )
+        self.assertEqual(finished["ExpressionAttributeValues"][":status"], "ERROR")
 
     def test_generated_artifacts_become_owned_downloadable_file_records(self) -> None:
         file_id = "12345678-1234-1234-1234-123456789012"

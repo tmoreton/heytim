@@ -12,6 +12,7 @@ from shared.device_tools import (
     DEVICE_LEASE_SECONDS,
     DEVICE_OPERATION_PLATFORMS,
     DEVICE_TOOL_OPERATIONS,
+    LOCAL_ONLY_DEVICE_TOOL_IDS,
 )
 from shared.job_envelope import send_job
 
@@ -117,8 +118,21 @@ def register_device_capabilities(
     app_version = value.get("appVersion")
     if not isinstance(app_version, str) or not app_version.strip() or len(app_version) > 40:
         raise ApiError(400, "Device app version is invalid")
-    tools = _validated_tools(value.get("tools"), platform)
-    grants = _validated_grants(value.get("botGrants"), {item["id"] for item in tools})
+    submitted_tools = _validated_tools(value.get("tools"), platform)
+    submitted_grants = _validated_grants(
+        value.get("botGrants"), {item["id"] for item in submitted_tools}
+    )
+    # Old iPhone builds still advertise Apple Health. A lease must never make
+    # that capability available to the worker after Health moved on-device.
+    tools = [item for item in submitted_tools if item["id"] not in LOCAL_ONLY_DEVICE_TOOL_IDS]
+    grants = [
+        {"botId": grant["botId"], "toolIds": allowed}
+        for grant in submitted_grants
+        if (allowed := [
+            tool_id for tool_id in grant["toolIds"]
+            if tool_id not in LOCAL_ONLY_DEVICE_TOOL_IDS
+        ])
+    ]
     current = int(datetime.now(UTC).timestamp())
     item = {
         **_device_key(user_id, device_id),
@@ -179,6 +193,7 @@ def list_device_calls(user_id: str, device_id: str) -> dict:
             or item.get("deviceId") != device_id
             or int(item.get("expiresAt", 0)) <= now
             or not isinstance(proposal, dict)
+            or proposal.get("toolId") in LOCAL_ONLY_DEVICE_TOOL_IDS
         ):
             continue
         calls.append(
@@ -260,6 +275,8 @@ def submit_device_call_result(
     proposal = call.get("proposal")
     if not isinstance(proposal, dict):
         raise ApiError(409, "Device call is invalid")
+    if proposal.get("toolId") in LOCAL_ONLY_DEVICE_TOOL_IDS:
+        raise ApiError(409, "Apple Health summaries are available only on this iPhone")
     response = _result_response(proposal, value)
     turn_key = {"pk": call["turnPk"], "sk": call["turnKey"]}
     turn = table.get_item(Key=turn_key, ConsistentRead=True).get("Item")

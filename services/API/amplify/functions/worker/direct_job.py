@@ -9,6 +9,7 @@ from shared.action_grants import (
     valid_bot_email_approval,
 )
 from shared.job_envelope import send_job
+from shared.device_tools import LOCAL_ONLY_DEVICE_TOOL_IDS
 from shared.time import utc_now_iso
 from shared.work_state import is_claimable
 
@@ -92,6 +93,18 @@ def _process_agent_reply(record: dict, request: dict) -> None:
 
     lease_owner = _claim_work(turn_key, record)
     if not lease_owner:
+        return
+
+    # A result accepted just before deployment can still be present on a
+    # resumable turn. Finish it without invoking the model; _finish_work also
+    # removes the stored device payload from the turn.
+    device_request = turn.get("deviceRequest")
+    if isinstance(device_request, dict) and device_request.get("toolId") in LOCAL_ONLY_DEVICE_TOOL_IDS:
+        message = "Apple Health summaries now stay on your iPhone. Open Settings → Apple Health to view them locally."
+        completed_at = _finish_work(turn_key, lease_owner, "ERROR", "assistantText", message)
+        if completed_at:
+            _update_schedule_result(turn, "error", completed_at)
+            _queue_reply_notification(user_id, bot_id, turn_key, turn, bot, message)
         return
 
     def cleanup_artifacts() -> None:

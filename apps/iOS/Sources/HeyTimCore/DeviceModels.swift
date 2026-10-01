@@ -39,6 +39,16 @@ public indirect enum JSONValue: Codable, Hashable, Sendable {
     return value
   }
 
+  public var arrayValue: [JSONValue]? {
+    guard case .array(let value) = self else { return nil }
+    return value
+  }
+
+  public var numberValue: Double? {
+    guard case .number(let value) = self, value.isFinite else { return nil }
+    return value
+  }
+
   public var stringValue: String? {
     guard case .string(let value) = self else { return nil }
     return value

@@ -36,9 +36,9 @@ OPTIONAL_PUBLIC_PROVIDER_FIELDS = (
 GOOGLE_FAMILY = {
     "familyId": "google",
     "familyName": "Google",
-    "familyDescription": "Connect the Google accounts each bot needs for Gmail and Workspace.",
+    "familyDescription": "Connect the Google account each bot needs for Gmail.",
     "familyIconText": "G",
-    "familyLogoProviderId": "google_workspace",
+    "familyLogoProviderId": "gmail",
 }
 
 # This is the single backend registry for connection identity, client presentation,

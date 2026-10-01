@@ -286,11 +286,10 @@ private struct AppRoot: View {
       await model.load()
       guard auth.phase == .signedIn, auth.sessionIdentifier == authSession else { return }
       #if os(iOS)
-        let health = appleHealth
         deviceTools.connect(
           api: api,
-          registration: { Self.healthRegistration(health) },
-          execute: { call in await health.execute(call) })
+          registration: { Self.healthRegistration() },
+          execute: { _ in .failure("Apple Health summaries stay on this iPhone.") })
       #elseif os(macOS)
         let desktop = desktopControl
         deviceTools.connect(
@@ -324,19 +323,9 @@ private struct AppRoot: View {
   }
 
   #if os(iOS)
-    @MainActor private static func healthRegistration(
-      _ health: AppleHealthCoordinator
-    ) -> DeviceCapabilityRegistration {
-      let tools = health.isAvailable
-        ? [DeviceToolCapability(
-          id: "apple_health",
-          operations: GeneratedDeviceCapabilities.operationsByTool["apple_health"] ?? [])]
-        : []
+    @MainActor private static func healthRegistration() -> DeviceCapabilityRegistration {
       return DeviceCapabilityRegistration(
-        platform: "ios", appVersion: appVersion, tools: tools,
-        botGrants: health.enabledBotIDs.sorted().map {
-          DeviceBotGrant(botId: $0, toolIds: ["apple_health"])
-        })
+        platform: "ios", appVersion: appVersion, tools: [], botGrants: [])
     }
   #elseif os(macOS)
     @MainActor private static func macRegistration(

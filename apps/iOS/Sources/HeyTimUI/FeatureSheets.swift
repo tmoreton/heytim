@@ -579,9 +579,6 @@ struct BotToolsAndSkillsEditor: View {
   let tools: [Capability]
   let providers: [ConnectionProvider]
   @Environment(AppleDeviceToolCoordinator.self) private var deviceTools
-  #if os(iOS)
-    @Environment(AppleHealthCoordinator.self) private var appleHealth
-  #endif
   #if os(macOS)
     @Environment(DesktopControlCoordinator.self) private var desktopControl
     @Environment(\.scenePhase) private var scenePhase
@@ -773,45 +770,6 @@ struct BotToolsAndSkillsEditor: View {
           }
         #endif
 
-        #if os(iOS)
-          Section {
-            Toggle(isOn: Binding(
-              get: { botID.map { appleHealth.isEnabled(for: $0) } ?? false },
-              set: { enabled in
-                guard let botID else { return }
-                Task {
-                  if await appleHealth.setEnabled(enabled, for: botID) {
-                    deviceTools.refreshNow()
-                  }
-                }
-              })) {
-                VStack(alignment: .leading, spacing: 3) {
-                  Text("Apple Health on this iPhone")
-                  Text("Share activity, workout, running, and step summaries with this bot.")
-                    .froggyFont(.caption).foregroundStyle(.secondary)
-                }
-              }
-              .disabled(
-                botID == nil || !appleHealth.isAvailable
-                  || !effectiveToolIDs.contains("apple_health"))
-              .accessibilityIdentifier("bot.tool.apple-health-device")
-            if botID == nil {
-              Text("Save this bot first to grant access on this iPhone.")
-                .froggyFont(.caption).foregroundStyle(.secondary)
-            } else if !effectiveToolIDs.contains("apple_health") {
-              Text("Enable the Apple Health tool or its Health Coach skill above first.")
-                .froggyFont(.caption).foregroundStyle(.secondary)
-            } else if let error = appleHealth.errorMessage {
-              Label(error, systemImage: "exclamationmark.triangle")
-                .froggyFont(.caption).foregroundStyle(FrogTheme.danger)
-            }
-          } header: {
-            Text("On this iPhone")
-          } footer: {
-            Text("Health stays off for this bot until you grant it here. Hey Tim reads bounded aggregates on demand; it does not upload routes, clinical records, or raw sensor streams.")
-          }
-        #endif
-
         Section {
           Picker("Tool actions", selection: $draft.actionApprovalMode) {
             Text("Run automatically").tag("automatic")
@@ -911,13 +869,6 @@ struct BotToolsAndSkillsEditor: View {
       if !effectiveToolIDs.contains("mac_computer") {
         desktopControl.setEnabled(false, for: botID)
         deviceTools.refreshNow()
-      }
-    #elseif os(iOS)
-      if !effectiveToolIDs.contains("apple_health"), appleHealth.isEnabled(for: botID) {
-        Task {
-          _ = await appleHealth.setEnabled(false, for: botID)
-          deviceTools.refreshNow()
-        }
       }
     #endif
   }

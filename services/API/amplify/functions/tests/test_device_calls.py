@@ -41,7 +41,8 @@ class DeviceCallTests(ApiTestCase):
         self.assertTrue(receipt["registered"])
         item = self.data_table.items[("USER#user-1", f"DEVICE#{self.device_id}")]
         self.assertEqual(item["platform"], "ios")
-        self.assertEqual(item["tools"][0]["operations"], ["apple_health_steps"])
+        self.assertEqual(item["tools"], [])
+        self.assertEqual(item["botGrants"], [])
         self.assertGreater(item["leaseExpiresAt"], int(datetime.now(UTC).timestamp()))
 
         invalid = self._registration()
@@ -87,7 +88,7 @@ class DeviceCallTests(ApiTestCase):
             )
         self.assertEqual(error.exception.status_code, 400)
 
-    def test_only_live_per_bot_grants_make_a_device_tool_available(self) -> None:
+    def test_old_health_lease_cannot_expose_a_device_tool(self) -> None:
         live = {
             "entity": "DEVICE_CAPABILITIES",
             "deviceId": self.device_id,
@@ -122,10 +123,8 @@ class DeviceCallTests(ApiTestCase):
         filtered = available_device_tools(
             self.data_table, "user-1", self.bot_id, resolved
         )
-        self.assertEqual(
-            filtered[0]["runtime"]["operations"], ["apple_health_steps"]
-        )
-        self.assertEqual(
+        self.assertEqual(filtered, [])
+        self.assertIsNone(
             select_device(
                 self.data_table,
                 "user-1",
@@ -133,8 +132,7 @@ class DeviceCallTests(ApiTestCase):
                 tool_id="apple_health",
                 operation="apple_health_steps",
                 platform="ios",
-            )["deviceId"],
-            self.device_id,
+            ),
         )
         self.assertEqual(
             available_device_tools(
@@ -143,7 +141,7 @@ class DeviceCallTests(ApiTestCase):
             [],
         )
 
-    def test_exact_result_resumes_only_the_assigned_waiting_turn(self) -> None:
+    def test_old_health_result_is_rejected_without_resuming_the_turn(self) -> None:
         digest = "a" * 64
         call_id = "b" * 64
         proposal = {
@@ -182,49 +180,20 @@ class DeviceCallTests(ApiTestCase):
         self.data_table.put_item(Item=call)
         self.data_table.put_item(Item=turn)
 
-        result = self.device_calls.submit_device_call_result(
-            "user-1",
-            self.device_id,
-            call_id,
-            {
-                "requestDigest": digest,
-                "status": "success",
-                "result": {"days": [{"date": "2026-09-25", "steps": 8_000}]},
-            },
-        )
-        self.assertTrue(result["accepted"])
-        turn_update = self.data_table.updated[-2]
-        self.assertEqual(
-            turn_update["ExpressionAttributeValues"][":request"], request
-        )
-        self.assertEqual(
-            turn_update["ExpressionAttributeValues"][":result"]["digest"], digest
-        )
-        self.assertIsInstance(
-            turn_update["ExpressionAttributeValues"][":now"], str
-        )
-        queued = json.loads(self.sqs.send_message.call_args.kwargs["MessageBody"])
-        expected = {
-            "type": "AGENT_REPLY",
-            "userId": "user-1",
-            "botId": self.bot_id,
-            "turnKey": "TURN#turn-1",
-        }
-        self.assertEqual({key: queued[key] for key in expected}, expected)
-        self.assertEqual(queued["schemaVersion"], 1)
-
         with self.assertRaises(self.support.ApiError) as error:
             self.device_calls.submit_device_call_result(
                 "user-1",
                 self.device_id,
                 call_id,
                 {
-                    "requestDigest": "0" * 64,
+                    "requestDigest": digest,
                     "status": "success",
-                    "result": {},
+                    "result": {"days": [{"steps": 8_000}]},
                 },
             )
         self.assertEqual(error.exception.status_code, 409)
+        self.assertEqual(self.data_table.updated, [])
+        self.sqs.send_message.assert_not_called()
 
 
 if __name__ == "__main__":

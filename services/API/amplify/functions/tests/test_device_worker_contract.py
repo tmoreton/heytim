@@ -79,11 +79,19 @@ class DeviceWorkerContractTests(WorkerTestCase):
             "botGrants": [{"botId": "bot-1", "toolIds": ["apple_health"]}],
         }
         payload = self._invoke(allow_device_tools=True)
-        self.assertEqual(payload["bot"]["tools"][0]["id"], "apple_health")
+        self.assertEqual(payload["bot"]["tools"], [])
+        self.assertNotIn("apple_health", payload["bot"]["toolIds"])
 
     def test_resume_keeps_interrupted_tool_registered_and_normalizes_decimals(
         self,
     ) -> None:
+        self.tool = {
+            "id": "mac_computer", "name": "Mac Computer", "risk": "read",
+            "runtime": {"kind": "device", "platform": "macos",
+                        "operations": ["mac_computer_observe"],
+                        "interactiveOperations": []},
+        }
+        self.bot["toolIds"] = ["mac_computer"]
         response = {
             "id": "interrupt-1",
             "digest": "a" * 64,
@@ -93,7 +101,7 @@ class DeviceWorkerContractTests(WorkerTestCase):
         }
         payload = self._invoke(device_result=response, allow_device_tools=True)
 
-        self.assertEqual(payload["bot"]["tools"][0]["id"], "apple_health")
+        self.assertEqual(payload["bot"]["tools"][0]["id"], "mac_computer")
         self.assertEqual(payload["deviceResult"]["result"], {
             "days": 7,
             "distance": 12.5,

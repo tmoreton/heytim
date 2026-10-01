@@ -214,13 +214,13 @@
     {
       "id": "apple_health",
       "name": "Apple Health",
-      "description": "Read explicitly authorized activity and workout summaries from Apple Health on your iPhone.",
+      "description": "Legacy bot tool. Apple Health summaries are now displayed only on the iPhone.",
       "provider": "apple",
       "risk": "read",
       "category": "Health & fitness",
       "author": "HeyTim",
       "tags": ["health", "fitness", "running", "ios"],
-      "featured": true,
+      "featured": false,
       "actions": ["Review activity summaries", "List recent workouts", "Analyze running totals", "Summarize daily steps"],
       "runtime": {
         "kind": "device",
@@ -228,7 +228,7 @@
         "operations": ["apple_health_activity_summary", "apple_health_workouts", "apple_health_running_totals", "apple_health_steps"],
         "interactiveOperations": []
       },
-      "enabled": true
+      "enabled": false
     }
   ],
   "bots": [
@@ -446,16 +446,16 @@
     },
     {
       "id": "health-coach",
-      "version": 1,
+      "version": 2,
       "name": "Health Coach",
-      "tagline": "Turns your Apple Health activity into practical, privacy-conscious training reflections.",
-      "prompt": "Help the user understand their own recent activity and running patterns using only Apple Health summaries that they explicitly authorize on their iPhone. Ask for the goal, relevant timeframe, current training context, and any constraints that materially change the analysis. Prefer trends and comparisons over single-day judgments. Distinguish recorded data from inference, call out missing coverage, and never imply continuous monitoring. Do not diagnose, prescribe treatment, interpret clinical records, or replace a qualified clinician. Do not request or expose routes, medications, reproductive data, clinical records, raw heart-rate samples, or unrelated health details. Keep the result practical and concise, and suggest professional care when symptoms, injury, or urgent health concerns are involved.",
+      "tagline": "Helps you plan practical training around the goals you describe.",
+      "prompt": "Help the user plan training and reflect on goals they describe. Apple Health summaries are available only in iPhone Settings and cannot be read by this bot. Do not ask the user to paste Apple Health data into chat. Ask for relevant goals, training context, and constraints. Distinguish the user's statements from inference. Do not diagnose, prescribe treatment, or replace a clinician. Keep advice practical and concise and suggest professional care for symptoms, injury, or urgent health concerns.",
       "color": "#007A3D",
       "category": "Health & fitness",
       "author": "HeyTim",
       "tags": ["health", "running", "fitness", "activity", "privacy"],
       "featured": true,
-      "skillIds": ["health-coach"]
+      "skillIds": []
     }
   ],
   "skills": [
@@ -665,15 +665,15 @@
     },
     {
       "id": "health-coach",
-      "version": 1,
+      "version": 2,
       "name": "Apple Health Coach",
-      "description": "Analyze explicitly authorized Apple Health activity and running summaries without exposing raw sensor or route data.",
+      "description": "Legacy skill retained for existing bots; Apple Health summaries stay on the iPhone.",
       "category": "Health & fitness",
       "author": "HeyTim",
       "tags": ["health", "fitness", "running", "privacy"],
-      "featured": true,
+      "featured": false,
       "path": "skills/health-coach/SKILL.md",
-      "requiredToolIds": ["apple_health"]
+      "requiredToolIds": []
     }
   ]
 }

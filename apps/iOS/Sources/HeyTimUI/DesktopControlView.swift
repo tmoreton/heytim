@@ -101,6 +101,8 @@
 
   struct AppleHealthSettingsSection: View {
     @Bindable var coordinator: AppleHealthCoordinator
+    @State private var overview: AppleHealthCoordinator.LocalOverview?
+    @State private var loading = false
 
     var body: some View {
       Section {
@@ -110,11 +112,34 @@
         } label: {
           Label("Health access", systemImage: "heart.text.square")
         }
-        if !coordinator.permissionRequested {
-          Button("Review Health Permissions") {
-            Task { _ = await coordinator.requestReadAccess() }
+        Button {
+          Task {
+            loading = true
+            overview = await coordinator.localOverview()
+            loading = false
           }
-          .disabled(!coordinator.isAvailable)
+        } label: {
+          if loading {
+            Label("Reading Apple Health…", systemImage: "heart.text.square")
+          } else {
+            Label("View Health Summary", systemImage: "heart.text.square")
+          }
+        }
+        .disabled(!coordinator.isAvailable || loading)
+        .accessibilityIdentifier("settings.apple-health.local-summary")
+        if loading { ProgressView() }
+        if let overview {
+          LabeledContent("Steps · last 7 days") {
+            Text(overview.stepCount.map(String.init) ?? "No data")
+          }
+          LabeledContent("Days with step data", value: String(overview.stepDays))
+          LabeledContent("Workouts · last 30 days", value: String(overview.workoutCount))
+          LabeledContent("Runs · last 90 days", value: String(overview.runningCount))
+          LabeledContent("Running distance · last 90 days") {
+            Text(String(format: "%.1f km", overview.runningKilometers))
+          }
+          Text("These summaries are calculated and displayed on this iPhone. They are not sent to HeyTim or an AI provider.")
+            .froggyFont(.footnote).foregroundStyle(.secondary)
         }
         if let error = coordinator.errorMessage {
           Text(error).foregroundStyle(FrogTheme.danger)
@@ -122,7 +147,7 @@
       } header: {
         Text("Apple Health")
       } footer: {
-        Text("Choose which bots can use Health in each bot’s Tools & Skills screen. Apple’s permission sheet controls the data categories; Hey Tim requests read-only summaries on demand.")
+        Text("Apple’s permission sheet controls which read-only data this iPhone can use. Health summaries stay on this device; bots cannot access them.")
       }
     }
   }
