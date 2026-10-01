@@ -55,6 +55,16 @@ the current checkout or environment still has the same status.
   passed. The runner removed the signed binaries and left the GitHub release as a draft with zero assets. This
   private run's Apple verification used Mac unit tests plus a generic iPhone build, since its runner has no iOS
   Simulator runtime. It did not prove physical push delivery or publish a Sparkle update.
+- Later on October 1, App Store Connect showed the iOS `1.0.13` build in **Testing** for the internal group. With the
+  owner's specific approval, the App Privacy label was published; App Store Connect displayed “Published a few seconds
+  ago by Timothy Moreton.” It lists 13 data types linked to the user for app functionality, tracking off, and
+  `https://heytim.ai/privacy/` as the privacy URL. Namecheap's `heytim.ai` panel showed the `support` redirect-email
+  alias forwarding to the owner's Gmail and Mail Settings set to **Email Forwarding**. An end-to-end support email
+  delivery check remains outstanding.
+- The owner installed the internal iPhone build and reported that notifications worked. A read-only destination AWS
+  check found one production iOS APNs token updated at `2026-10-01T14:08:50Z`, one endpoint under the HeyTim APNs
+  application, and none under the legacy application. SNS recorded a delivery at `14:12:58Z` with
+  `ACCEPTED/PROVIDER_ACCEPTED`. Tapping the notification to open the intended conversation was not yet confirmed.
 
 ## 2026-09-30 — capture infrastructure staged; traffic cutover NO-GO
 
