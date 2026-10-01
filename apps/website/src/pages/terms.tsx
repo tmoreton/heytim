@@ -3,7 +3,7 @@ export function Terms() {
     <main className="doc-page" id="main">
       <p className="eyebrow">HeyTim</p>
       <h1>Terms of Use</h1>
-      <p className="effective">Effective September 29, 2026</p>
+      <p className="effective">Effective October 1, 2026</p>
       <p>These terms set the basic rules for using HeyTim and its AI teammates.</p>
 
       <h2>Using HeyTim</h2>
@@ -14,8 +14,8 @@ export function Terms() {
       <p>You are responsible for access to the email account and devices used to sign in. If you believe your account was accessed without permission, contact <a href="mailto:support@heytim.ai">support@heytim.ai</a>. The iPhone and Mac apps also provide a Support link in Settings.</p>
 
       <h2>SMS verification program</h2>
-      <p>HeyTim may offer optional passwordless sign-in by SMS. When you affirmatively opt in and request a code, HeyTim sends a transactional one-time passcode to the mobile number you provide. One message is sent per login attempt; message frequency varies. Message and data rates may apply. SMS consent is not a condition of purchase, and email sign-in remains available.</p>
-      <p>Reply <strong>STOP</strong> to opt out and <strong>HELP</strong> for help. For messages from a US toll-free number, carriers manage STOP requests at the network level. After opting out, text <strong>START</strong> or <strong>UNSTOP</strong> to the sending number to receive future verification codes. Mobile carriers are not liable for delayed or undelivered messages.</p>
+      <p>SMS sign-in is not available in the current beta; account creation and sign-in use email verification. HeyTim may offer optional passwordless sign-in by SMS later. If offered, an affirmative opt-in and code request would send a transactional one-time passcode to the mobile number provided. One message would be sent per login attempt; message frequency varies. Message and data rates may apply. SMS consent is not a condition of purchase.</p>
+      <p>If the SMS program launches, reply <strong>STOP</strong> to opt out and <strong>HELP</strong> for help. For messages from a US toll-free number, carriers manage STOP requests at the network level. After opting out, text <strong>START</strong> or <strong>UNSTOP</strong> to the sending number to receive future verification codes. Mobile carriers are not liable for delayed or undelivered messages.</p>
       <p>For SMS program information and customer care, visit <a href="/sms/">heytim.ai/sms</a>. Our handling of mobile numbers and consent records is described in the <a href="/privacy/">Privacy Policy</a>.</p>
 
       <h2>Your content and shared links</h2>
@@ -26,8 +26,8 @@ export function Terms() {
       <p>AI systems can make mistakes or produce incomplete results. Review important output before relying on it, especially for legal, medical, financial, safety, or other high-impact decisions.</p>
 
       <h2>Plans, credits, and billing</h2>
-      <p>The Free plan includes 30 work credits per monthly period. Where Plus checkout is offered, the plan includes 300 work credits for $20 per month. One work credit covers one bot reply or one planned group reply. Availability, current prices, and allowances are shown before checkout and may change for future billing periods with notice where required.</p>
-      <p>An existing Plus subscription may continue to renew through Stripe until canceled, even when new checkout is temporarily unavailable. You can manage or cancel it from Usage &amp; Plan in HeyTim settings when that control is available; contact <a href="mailto:support@heytim.ai">support@heytim.ai</a> if you cannot access it. Cancellation takes effect at the end of the current paid period unless otherwise stated; fees already charged are nonrefundable except where the law requires otherwise. If payment fails or a plan ends, the account returns to the Free allowance.</p>
+      <p>The current fresh beta offers a Free plan with 30 work credits per calendar month. One work credit covers one bot reply or one planned group reply. New Plus checkout and paid plans are unavailable in this launch. If paid plans become available, the current allowance and price will be shown before checkout and may change for future billing periods with notice where required.</p>
+      <p>A Plus subscription from an earlier service period, if any, is separate from this fresh Free account and does not grant it paid access. Contact <a href="mailto:support@heytim.ai">support@heytim.ai</a> about the status, cancellation, or charges of an earlier subscription; the current app does not offer subscription management. Cancellation of an earlier subscription takes effect at the end of its current paid period unless otherwise stated. Fees already charged are nonrefundable except where the law requires otherwise.</p>
 
       <h2>Availability and changes</h2>
       <p>We may modify, suspend, or discontinue features and may restrict access needed to protect users or the service. HeyTim is provided on an as-available basis to the extent permitted by law.</p>
