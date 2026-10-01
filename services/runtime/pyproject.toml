@@ -67,6 +67,9 @@ dependencies = [
     # Keep fresh CodeZip resolution on the already-tested lockfile versions.
     "propcache == 0.5.2",
     "python-docx >= 1.2.0, < 2.0.0",
+    # AgentCore CodeZip resolves dotenv independently; pin the tested lockfile
+    # version instead of packaging the newest release.
+    "python-dotenv == 1.2.3",
     "python-pptx >= 1.0.2, < 2.0.0",
     "reportlab>=4.4.4,<6.0.0",
     # CodeZip resolves transitive formatting packages independently of uv.lock.
