@@ -105,6 +105,9 @@ Set these environment secrets:
   retains the account so the refresh token can be reused and rotated independently.
 - `HEYTIM_GOOGLE_OAUTH_SECRET_ARN`, `HEYTIM_GITHUB_APP_SECRET_ARN`, `HEYTIM_X_OAUTH_SECRET_ARN`,
   `HEYTIM_SLACK_OAUTH_SECRET_ARN`, `HEYTIM_NOTION_OAUTH_SECRET_ARN`
+- `HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64` for direct Mac distribution. This is the Apple-issued Developer ID
+  provisioning profile for `ai.heytim.app`, signed for the same Developer ID Application certificate imported by CI.
+  The release script checks the team, bundle ID, profile signature, and certificate before exporting the Mac app.
 - Optional: `HEYTIM_MICROSOFT_OAUTH_SECRET_ARN`, `HEYTIM_HUBSPOT_OAUTH_SECRET_ARN`,
   `HEYTIM_JIRA_OAUTH_SECRET_ARN`, `HEYTIM_ZOOM_OAUTH_SECRET_ARN`,
   `HEYTIM_QUICKBOOKS_OAUTH_SECRET_ARN`, `HEYTIM_PLAID_SECRET_ARN`
@@ -169,8 +172,9 @@ provider's review attestation `false`; enable its connections and redeploy only 
 ### Fresh-launch protected variable reconciliation (2026-09-30)
 
 Before a fresh release or internal device-smoke upload, read back these **production environment** variables by name
-and target. The workflow rejects source-account APNs values and a source-account deployment role. The physical APNs
-application names remain `FrogBot` for compatibility; the account number identifies the destination.
+and target. The workflow rejects source-account APNs values and a source-account deployment role. The destination APNs
+applications are named `HeyTim` and use the `ai.heytim.app` bundle ID. Keep the legacy `FrogBot` applications for
+rollback; do not use them for new device registrations.
 
 | Variable | Required fresh/free target |
 | --- | --- |
@@ -180,13 +184,15 @@ application names remain `FrogBot` for compatibility; the account number identif
 | `HEYTIM_DESTINATION_ACCOUNT_ID` | `820323452649` |
 | `AWS_DEPLOY_ROLE_ARN` | role ARN in account `820323452649` |
 | `AMPLIFY_APP_ID` | `d17sj7dvhx07c`, confirmed by `amplify get-app` under that role |
-| `HEYTIM_APNS_APPLICATION_ARN` | `arn:aws:sns:us-east-1:820323452649:app/APNS/FrogBot` |
-| `HEYTIM_APNS_SANDBOX_APPLICATION_ARN` | `arn:aws:sns:us-east-1:820323452649:app/APNS_SANDBOX/FrogBot` |
+| `HEYTIM_APNS_APPLICATION_ARN` | `arn:aws:sns:us-east-1:820323452649:app/APNS/HeyTim` |
+| `HEYTIM_APNS_SANDBOX_APPLICATION_ARN` | `arn:aws:sns:us-east-1:820323452649:app/APNS_SANDBOX/HeyTim` |
 | `HEYTIM_YOUTUBE_SEARCH_DAILY_LIMIT` | `100`, matching the destination worker's current limit and protected environment inventory |
 | `HEYTIM_BILLING_MODE` | `free`; the workflow passes no Stripe triad and disables live mode |
 
-At the 2026-09-30 checkpoint, the protected APNs variables still contained source-account ARNs; correct and read
-back those variables before release. The protected
+At the 2026-09-30 checkpoint, the protected APNs variables still contained source-account ARNs. On 2026-10-01,
+the destination production and sandbox applications were created with Apple token authentication for team
+`GVXC5FQ2RP` and bundle `ai.heytim.app`; the protected variables were updated and read back. Verify their
+current values again before release. The protected
 `HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN` may still name the source key, but fresh mode overrides it with the verified
 destination AgentCore Identity key above. Do not copy the source key ARN into the destination deployment.
 
@@ -203,6 +209,9 @@ Dispatch **Build private destination Mac candidate** from the same `main` commit
 platforms, signs and notarizes the Mac app and disk image, checks the Sparkle ZIP and appcast, records nonsecret
 checksums, and deletes the signed files and isolated build directory from the runner. Its Actions artifact contains
 only the receipt; the live Sparkle feed and GitHub Release remain unchanged.
+The Mac export uses the protected Developer ID profile with local manual signing. A new profile requires the
+`ai.heytim.app` App ID and the existing Developer ID Application certificate; creating a replacement certificate
+also requires updating its matching certificate bundle in the protected production environment.
 [Apple says](https://developer.apple.com/help/app-store-connect/test-a-beta-version/add-testers-to-builds/)
 that eligible builds can be made available automatically to the **App Store Connect Users** internal group. The
 preflight receipt is therefore evidence of a local signed build, not a TestFlight build. An operator must review that

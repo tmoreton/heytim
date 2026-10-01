@@ -16,6 +16,7 @@ if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
   required_values+=(
     DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64
     DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD
+    HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64
     APPLE_DEVELOPMENT_CERTIFICATE_BASE64 APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD
     HEYTIM_SPARKLE_PUBLIC_KEY SPARKLE_PRIVATE_KEY
   )
@@ -66,6 +67,12 @@ umask 077
 if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
   developer_id_certificate="$temporary_root/developer-id-application.p12"
   printf '%s' "$DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64" | base64 -D > "$developer_id_certificate"
+  developer_id_profile="$temporary_root/heytim-developer-id.provisionprofile"
+  if ! printf '%s' "$HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64" \
+    | base64 -D > "$developer_id_profile" || [[ ! -s "$developer_id_profile" ]]; then
+    echo 'The HeyTim Mac Developer ID provisioning profile is not valid base64.' >&2
+    exit 1
+  fi
 fi
 if [[ "$release_scope" == full || "$release_scope" == ios-preflight \
   || "$release_scope" == ios-post-migration ]]; then
@@ -183,6 +190,8 @@ fi
 if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
   APP_STORE_CONNECT_KEY_PATH="$api_key" \
     HEYTIM_SIGNING_KEYCHAIN="$keychain" \
+    HEYTIM_DEVELOPER_ID_IDENTITY="$developer_id_identity" \
+    HEYTIM_DEVELOPER_ID_PROFILE_PATH="$developer_id_profile" \
     HEYTIM_RELEASE_TAG="${HEYTIM_RELEASE_TAG:-v$HEYTIM_MARKETING_VERSION}" \
     "$apple_root/scripts/distribute-macos.sh"
 fi

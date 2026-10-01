@@ -78,6 +78,7 @@ ZIP, and a signed Sparkle feed with:
 
 ```bash
 APPLE_TEAM_ID=YOURTEAMID NOTARY_KEYCHAIN_PROFILE=HeyTimNotary \
+  HEYTIM_DEVELOPER_ID_PROFILE_PATH=/path/to/HeyTim.provisionprofile \
   HEYTIM_MARKETING_VERSION=1.0.1 \
   ./scripts/apple-app.sh distribute-macos
 ```
@@ -92,7 +93,10 @@ afterward. Local runs use the developer account signed into Xcode by default. Pu
 For unattended uploads, set `APP_STORE_CONNECT_KEY_PATH`, `APP_STORE_CONNECT_KEY_ID`, and
 `APP_STORE_CONNECT_ISSUER_ID` together; never commit the `.p8` key. Add `--dry-run` before the platform to inspect
 the selected archive path and build number without signing or uploading. Direct Mac distribution additionally needs
-a Developer ID Application certificate and notarization credentials. Locally,
+a Developer ID Application certificate, its matching Developer ID provisioning
+profile for `ai.heytim.app`, and notarization credentials. The Mac export uses
+the local signing identity and embeds the supplied profile. CI decodes the profile
+from the protected `HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64` secret. Locally,
 save a validated `notarytool` profile with `xcrun notarytool store-credentials
 HeyTimNotary --apple-id YOUR_APPLE_ID --team-id YOURTEAMID`, then set
 `NOTARY_KEYCHAIN_PROFILE=HeyTimNotary`. Alternatively, set `APPLE_ID` and

@@ -30,8 +30,46 @@ permissions:
   id-token: write
 
 jobs:
+  draft-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.draft.outputs.release_id }}
+    steps:
+      - name: Verify existing backend-Mac draft
+        id: draft
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_scope == 'backend-macos' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MANUAL_RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          if [[ ! "$MANUAL_RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'backend-macos requires release_tag vMAJOR.MINOR.PATCH.' >&2
+            exit 1
+          fi
+          if ! release_id="$(gh release view "$MANUAL_RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" --json databaseId --jq .databaseId)" \
+            || [[ ! "$release_id" =~ ^[1-9][0-9]*$ ]]; then
+            echo 'Could not identify the existing draft release.' >&2
+            exit 1
+          fi
+          if ! release_json="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id")" \
+            || ! jq -e --argjson id "$release_id" --arg tag "$MANUAL_RELEASE_TAG" \
+              --arg commit "$GITHUB_SHA" '
+              .id == $id and .tag_name == $tag and .target_commitish == $commit
+              and .draft == true and .prerelease == false
+              and ((.body // "") | contains("<!-- heytim-backend-macos-predeployed -->"))
+            ' <<<"$release_json" >/dev/null; then
+            echo 'backend-macos requires an unpublished stable draft with the predeployed marker.' >&2
+            exit 1
+          fi
+          echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
+
   deploy:
     if: ${{ github.event_name != 'release' || !contains(github.event.release.body, '<!-- heytim-backend-macos-predeployed -->') }}
+    needs: draft-preflight
     runs-on: ubuntu-latest
     timeout-minutes: 90
     environment: production
@@ -50,7 +88,7 @@ jobs:
           RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
           RELEASE_SCOPE: ${{ inputs.release_scope }}
           MANUAL_RELEASE_TAG: ${{ inputs.release_tag }}
-          GH_TOKEN: ${{ github.token }}
+          DRAFT_RELEASE_ID: ${{ needs.draft-preflight.outputs.release_id }}
         run: |
           if [[ "$GITHUB_EVENT_NAME" == release ]]; then
             if [[ "$RELEASE_DRAFT" == true || "$RELEASE_PRERELEASE" == true ]]; then
@@ -89,11 +127,8 @@ jobs:
               echo 'The draft release tag must point to the current main commit.' >&2
               exit 1
             fi
-            if ! gh api "repos/$GITHUB_REPOSITORY/releases/tags/$MANUAL_RELEASE_TAG" \
-              | jq -e '.draft == true and .prerelease == false
-                and ((.body // "") | contains("<!-- heytim-backend-macos-predeployed -->"))' \
-                >/dev/null; then
-              echo 'backend-macos requires an unpublished stable draft with the predeployed marker.' >&2
+            if [[ ! "$DRAFT_RELEASE_ID" =~ ^[1-9][0-9]*$ ]]; then
+              echo 'The backend-Mac draft preflight did not return a release ID.' >&2
               exit 1
             fi
             echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -147,6 +182,7 @@ jobs:
           APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD }}
           DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64: ${{ secrets.HEYTIM_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
           DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD: ${{ secrets.HEYTIM_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
+          HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64: ${{ secrets.HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64 }}
           HEYTIM_SPARKLE_PUBLIC_KEY: ${{ vars.HEYTIM_SPARKLE_PUBLIC_KEY }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.HEYTIM_SPARKLE_PRIVATE_KEY }}
           RELEASE_SCOPE: ${{ github.event_name == 'release' && 'full' || inputs.release_scope }}
@@ -183,6 +219,7 @@ jobs:
               APPLE_DEVELOPMENT_CERTIFICATE_BASE64 APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD
               DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64
               DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD
+              HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64
               HEYTIM_SPARKLE_PUBLIC_KEY SPARKLE_PRIVATE_KEY
             )
           elif [[ "$RELEASE_SCOPE" == backend-macos ]]; then
@@ -191,6 +228,7 @@ jobs:
               APP_STORE_CONNECT_PRIVATE_KEY APPLE_DEVELOPMENT_CERTIFICATE_BASE64
               APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64
               DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD
+              HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64
               HEYTIM_SPARKLE_PUBLIC_KEY SPARKLE_PRIVATE_KEY
             )
           fi
@@ -207,6 +245,12 @@ jobs:
               | base64 --decode 2>/dev/null | wc -c | tr -d ' ')" \
               || [[ "$sparkle_public_key_size" != 32 ]]; then
               echo 'HEYTIM_SPARKLE_PUBLIC_KEY must be a base64-encoded 32-byte Ed25519 public key.' >&2
+              exit 1
+            fi
+            if ! printf '%s' "$HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64" \
+              | base64 --decode 2>/dev/null \
+              | openssl cms -verify -inform DER -noverify -out /dev/null >/dev/null 2>&1; then
+              echo 'The Mac Developer ID provisioning profile is not valid signed CMS data.' >&2
               exit 1
             fi
           fi
@@ -738,7 +782,7 @@ jobs:
     needs: deploy
     if: ${{ github.event_name == 'release' || inputs.release_scope == 'full' || inputs.release_scope == 'backend-macos' }}
     runs-on: [self-hosted, macOS, ARM64, heytim-apple]
-    timeout-minutes: 120
+    timeout-minutes: 240
     environment: production
     permissions:
       actions: read
@@ -790,6 +834,7 @@ jobs:
           APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD }}
           DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64: ${{ secrets.HEYTIM_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
           DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD: ${{ secrets.HEYTIM_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
+          HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64: ${{ secrets.HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64 }}
           HEYTIM_SPARKLE_PUBLIC_KEY: ${{ vars.HEYTIM_SPARKLE_PUBLIC_KEY }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.HEYTIM_SPARKLE_PRIVATE_KEY }}
           HEYTIM_BUILD_NUMBER: ${{ steps.apple-build.outputs.number }}

@@ -21,6 +21,8 @@ Optional:
   APP_STORE_CONNECT_KEY_PATH, APP_STORE_CONNECT_KEY_ID,
   APP_STORE_CONNECT_ISSUER_ID
   HEYTIM_BUILD_NUMBER       Numeric build number; defaults to a UTC timestamp.
+  HEYTIM_DEVELOPER_ID_PROFILE_PATH  Developer ID profile for ai.heytim.app.
+  HEYTIM_DEVELOPER_ID_IDENTITY      SHA-1 identity to use for export; CI sets this.
   HEYTIM_REUSE_ARCHIVE      Set true to export an existing archive with that build number.
   HEYTIM_REUSE_EXPORT       Set true to notarize an existing Developer ID export.
   HEYTIM_RELEASE_TAG        Defaults to v<marketing version>.
@@ -105,6 +107,121 @@ if [[ "$release_base_url" != https://* ]]; then
   exit 2
 fi
 
+profile_temporary_root=''
+installed_profile=''
+profile_installed_here=false
+temporary_root=''
+mounted=false
+cleanup() {
+  if [[ "$mounted" == true ]]; then
+    hdiutil detach "$mount_point" >/dev/null 2>&1 || true
+  fi
+  if [[ "$profile_installed_here" == true ]]; then
+    rm -f -- "$installed_profile" || true
+  fi
+  if [[ -n "$profile_temporary_root" ]]; then
+    find "$profile_temporary_root" -depth -delete 2>/dev/null || true
+  fi
+  if [[ -n "$temporary_root" ]]; then
+    find "$temporary_root" -depth -delete 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+
+reuse_export="${HEYTIM_REUSE_EXPORT:-false}"
+if [[ "$dry_run" == false && "$reuse_export" != true ]]; then
+  profile_path="${HEYTIM_DEVELOPER_ID_PROFILE_PATH:-}"
+  if [[ -z "$profile_path" || ! -f "$profile_path" ]]; then
+    echo 'Set HEYTIM_DEVELOPER_ID_PROFILE_PATH to the HeyTim Mac Developer ID profile.' >&2
+    exit 2
+  fi
+  developer_id_identity="${HEYTIM_DEVELOPER_ID_IDENTITY:-}"
+  if [[ -z "$developer_id_identity" ]]; then
+    developer_id_identity="$(security find-identity -v -p codesigning \
+      | awk '/"Developer ID Application:/ { print $2; exit }')"
+  fi
+  if [[ ! "$developer_id_identity" =~ ^[[:xdigit:]]{40}$ ]]; then
+    echo 'A valid local Developer ID Application signing identity is required.' >&2
+    exit 2
+  fi
+
+  original_umask="$(umask)"
+  umask 077
+  profile_temporary_root="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/HeyTimMacProfile.XXXXXX")"
+  profile_plist="$profile_temporary_root/profile.plist"
+  if ! openssl cms -verify -inform DER -in "$profile_path" -noverify \
+    -out "$profile_plist" >/dev/null 2>&1; then
+    echo 'The HeyTim Mac Developer ID profile has an invalid CMS signature.' >&2
+    exit 1
+  fi
+  if ! profile_metadata="$(python3 - "$profile_plist" "$APPLE_TEAM_ID" "$developer_id_identity" <<'PY'
+import datetime
+import hashlib
+import plistlib
+import re
+import sys
+
+with open(sys.argv[1], 'rb') as file:
+    profile = plistlib.load(file)
+team_id, identity = sys.argv[2], sys.argv[3].upper()
+entitlements = profile.get('Entitlements', {})
+app_id = (entitlements.get('com.apple.application-identifier')
+          or entitlements.get('application-identifier'))
+expires = profile.get('ExpirationDate')
+if isinstance(expires, datetime.datetime) and expires.tzinfo is None:
+    expires = expires.replace(tzinfo=datetime.timezone.utc)
+expiry_floor = (datetime.datetime.now(datetime.timezone.utc)
+                + datetime.timedelta(days=1))
+if (profile.get('TeamIdentifier') != [team_id]
+        or app_id != f'{team_id}.ai.heytim.app'
+        or 'OSX' not in profile.get('Platform', [])
+        or not isinstance(expires, datetime.datetime)
+        or expires <= expiry_floor):
+    raise SystemExit('The Developer ID profile has the wrong team, app, platform, or expiry.')
+certificates = profile.get('DeveloperCertificates', [])
+if identity not in (hashlib.sha1(cert).hexdigest().upper()
+                    for cert in certificates):
+    raise SystemExit('The Developer ID profile does not contain the imported signing certificate.')
+name, uuid = profile.get('Name'), profile.get('UUID')
+if (not isinstance(name, str) or not name or '\n' in name
+        or not isinstance(uuid, str)
+        or not re.fullmatch(r'[0-9a-fA-F-]{36}', uuid)):
+    raise SystemExit('The Developer ID profile name or UUID is invalid.')
+print(name)
+print(uuid)
+PY
+  )"; then
+    exit 1
+  fi
+  profile_name="${profile_metadata%%$'\n'*}"
+  profile_uuid="${profile_metadata#*$'\n'}"
+  profile_store="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+  mkdir -p "$profile_store"
+  installed_profile="$profile_store/$profile_uuid.provisionprofile"
+  if [[ -e "$installed_profile" ]]; then
+    if ! cmp -s "$profile_path" "$installed_profile"; then
+      echo 'A different Developer ID profile with the same UUID is already installed.' >&2
+      exit 1
+    fi
+  else
+    if ! install -m 600 "$profile_path" "$installed_profile"; then
+      rm -f -- "$installed_profile" || true
+      exit 1
+    fi
+    profile_installed_here=true
+  fi
+  export_options="$profile_temporary_root/DeveloperIDExportOptions.plist"
+  cp "$apple_root/Resources/DeveloperIDExportOptions.plist" "$export_options"
+  /usr/libexec/PlistBuddy -c 'Set :signingStyle manual' "$export_options"
+  /usr/libexec/PlistBuddy -c "Set :signingCertificate $developer_id_identity" "$export_options"
+  /usr/libexec/PlistBuddy -c "Add :teamID string $APPLE_TEAM_ID" "$export_options"
+  /usr/libexec/PlistBuddy -c 'Add :provisioningProfiles dict' "$export_options"
+  /usr/libexec/PlistBuddy -c \
+    "Add :provisioningProfiles:ai.heytim.app string $profile_name" "$export_options"
+  plutil -lint "$export_options" >/dev/null
+  umask "$original_umask"
+fi
+
 echo "Mac direct release: $release_tag (build $build_number)"
 echo "Sparkle downloads: $release_base_url"
 echo "Output: $output"
@@ -114,7 +231,6 @@ if [[ "$dry_run" == true ]]; then
     "$apple_root/scripts/archive.sh" --dry-run macos
   exit 0
 fi
-reuse_export="${HEYTIM_REUSE_EXPORT:-false}"
 if [[ -e "$output" && "$reuse_export" != true ]]; then
   echo "Direct release directory already exists: $output" >&2
   exit 1
@@ -148,15 +264,7 @@ if [[ "$reuse_export" != true ]]; then
     -archivePath "$archive_path"
     -exportPath "$output"
     -exportOptionsPlist "$export_options"
-    -allowProvisioningUpdates
   )
-  if [[ -z "${NOTARY_KEYCHAIN_PROFILE:-}" && -n "${APP_STORE_CONNECT_KEY_PATH:-}" ]]; then
-    export_args+=(
-      -authenticationKeyPath "$APP_STORE_CONNECT_KEY_PATH"
-      -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID"
-      -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
-    )
-  fi
   xcodebuild "${export_args[@]}"
 fi
 
@@ -164,6 +272,13 @@ app_path="$output/HeyTim.app"
 if [[ ! -d "$app_path" ]]; then
   echo "Developer ID export did not produce $app_path" >&2
   exit 1
+fi
+if [[ "$reuse_export" != true ]]; then
+  embedded_profile="$app_path/Contents/embedded.provisionprofile"
+  if [[ ! -f "$embedded_profile" ]] || ! cmp -s "$profile_path" "$embedded_profile"; then
+    echo 'Developer ID export did not embed the selected HeyTim profile.' >&2
+    exit 1
+  fi
 fi
 export_info="$app_path/Contents/Info.plist"
 read_export_info() { /usr/libexec/PlistBuddy -c "Print :$1" "$export_info"; }
@@ -183,14 +298,6 @@ fi
 
 temporary_root="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/HeyTimNotary.XXXXXX")"
 notary_zip="$temporary_root/HeyTim-notary.zip"
-mounted=false
-cleanup() {
-  if [[ "$mounted" == true ]]; then
-    hdiutil detach "$mount_point" >/dev/null 2>&1 || true
-  fi
-  find "$temporary_root" -depth -delete 2>/dev/null || true
-}
-trap cleanup EXIT
 
 ditto -c -k --keepParent "$app_path" "$notary_zip"
 notary_auth=()

@@ -20,7 +20,7 @@ jobs:
   mac-candidate:
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, macOS, ARM64, heytim-apple]
-    timeout-minutes: 180
+    timeout-minutes: 300
     environment: production
     steps:
       - uses: actions/checkout@v7
@@ -118,6 +118,7 @@ jobs:
           APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD: ${{ secrets.FROGBOT_APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD }}
           DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64: ${{ secrets.HEYTIM_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
           DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD: ${{ secrets.HEYTIM_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
+          HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64: ${{ secrets.HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64 }}
           HEYTIM_SPARKLE_PUBLIC_KEY: ${{ vars.HEYTIM_SPARKLE_PUBLIC_KEY }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.HEYTIM_SPARKLE_PRIVATE_KEY }}
           HEYTIM_RELEASE_SCOPE: backend-macos

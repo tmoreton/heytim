@@ -26,7 +26,8 @@ jobs:
   ios-internal-smoke:
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, macOS, ARM64, heytim-apple]
-    timeout-minutes: 120
+    # The first run builds native transcription assets before the shared cache exists.
+    timeout-minutes: 300
     environment: production
     steps:
       - uses: actions/checkout@v7
