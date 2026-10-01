@@ -440,9 +440,17 @@ private struct InlineMetricsView: View {
               .foregroundStyle(baseColor)
               .minimumScaleFactor(0.72)
             if let detail = item.detail {
-              Text(detail)
-                .froggyFont(.caption, weight: .medium)
-                .foregroundStyle(elementColor(item.tone ?? .neutral, accent: accentColor))
+              HStack(alignment: .firstTextBaseline, spacing: 4) {
+                if let tone = item.tone, tone != .neutral {
+                  Image(systemName: elementIcon(tone))
+                    .foregroundStyle(elementColor(tone, accent: accentColor))
+                    .accessibilityHidden(true)
+                }
+                Text(detail)
+                  .foregroundStyle(baseColor.opacity(0.78))
+              }
+              .froggyFont(.caption, weight: .medium)
+              .accessibilityValue(item.tone?.rawValue.capitalized ?? "")
             }
           }
           .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)

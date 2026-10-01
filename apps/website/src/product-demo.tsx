@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { TimIcon } from './tim-icon';
 import { Icon, type IconName } from './icon';
 
@@ -40,7 +40,7 @@ export function ProductDemo() {
       <div className="demo-content" id="demo-conversation" aria-live="polite" aria-atomic="true">
         <div className="demo-room"><TimIcon size={46} /><div><strong>{story.room}</strong><span>{story.context}</span></div></div>
         <div className="demo-message demo-person"><span>You</span><p>{story.prompt}</p></div>
-        <div className="demo-bot"><TimIcon size={32} color={story.color} /><div><strong>{story.bot}</strong><p>{story.reply}</p></div></div>
+        <div className="demo-bot" style={{ '--bot-color': story.color } as CSSProperties}><TimIcon size={32} color={story.color} /><div><strong>{story.bot}</strong><p>{story.reply}</p></div></div>
         <div className="demo-result"><span className="demo-result-icon"><Icon name={story.icon} size={21} /></span><div><strong>{story.result}</strong><span>{story.detail}</span></div></div>
       </div>
       <div className="demo-memory"><Icon name="memory" size={16} /><span>{story.memory}</span><span className="demo-memory-label">Memory</span></div>

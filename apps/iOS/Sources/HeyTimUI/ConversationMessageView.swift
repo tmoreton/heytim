@@ -69,7 +69,7 @@ struct MessageBubble: View {
             #endif
             Text(mine ? "You" : authorLabel)
               .froggyFont(.caption, weight: .semibold)
-              .foregroundStyle(botMessage ? messageReadableAccent : FrogTheme.statusText)
+              .foregroundStyle(FrogTheme.statusText)
           }
           .padding(.horizontal, plainAssistantMessage ? 0 : 6)
         } else if message.source == "email" {
@@ -92,8 +92,7 @@ struct MessageBubble: View {
           MessageActivityView(
             steps: activity,
             status: message.status,
-            timestamp: isProgressOnly ? timestamp : nil,
-            tint: botMessage ? messageReadableAccent : FrogTheme.activity)
+            timestamp: isProgressOnly ? timestamp : nil)
         }
 
         if hasBubbleContent {
@@ -126,7 +125,7 @@ struct MessageBubble: View {
               MarkdownMessageView(
                 message.text, expandsToFill: !mine,
                 baseColor: FrogTheme.textSoft,
-                accentColor: botMessage ? messageReadableAccent : FrogTheme.accent,
+                accentColor: FrogTheme.accent,
                 onRevise: revise)
             }
 
@@ -136,7 +135,7 @@ struct MessageBubble: View {
                   attachment.name, systemImage: attachment.kind == "image" ? "photo" : "doc")
               }
               .buttonStyle(.plain).froggyFont(.callout, weight: .semibold)
-              .foregroundStyle(botMessage ? messageReadableAccent : FrogTheme.accent)
+              .foregroundStyle(FrogTheme.accent)
             }
             if message.allowedActions?.contains("saveDecision") == true {
               Button("Save decision", systemImage: "bookmark") {
@@ -273,7 +272,7 @@ struct MessageBubble: View {
   private var bubbleBorder: Color {
     if awaitingApproval { return FrogTheme.approvalBorder }
     if message.status == "error" { return Color.red.opacity(0.35) }
-    if botMessage { return messageReadableAccent.opacity(0.45) }
+    if botMessage { return messageReadableAccent.opacity(colorScheme == .dark ? 0.52 : 0.75) }
     return .clear
   }
   private func open(_ attachment: Attachment) {
@@ -404,15 +403,13 @@ private struct MessageActivityView: View {
   let steps: [String]
   let status: String
   let timestamp: String?
-  let tint: Color
   @State private var isExpanded: Bool
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  init(steps: [String], status: String, timestamp: String? = nil, tint: Color) {
+  init(steps: [String], status: String, timestamp: String? = nil) {
     self.steps = steps
     self.status = status
     self.timestamp = timestamp
-    self.tint = tint
     _isExpanded = State(initialValue: MessageActivityPhase(status: status).isActive)
   }
 
@@ -450,7 +447,7 @@ private struct MessageActivityView: View {
         }
       }
     }
-    .tint(tint)
+    .tint(FrogTheme.activity)
     .padding(.horizontal, 12)
     .padding(.vertical, 10)
     .frame(maxWidth: 520, alignment: .leading)
@@ -476,12 +473,14 @@ private struct MessageActivityView: View {
   private var activityHeader: some View {
     HStack(spacing: 8) {
       if phase.isIndeterminate {
-        ProgressView().controlSize(.small).tint(tint)
+        ProgressView().controlSize(.small).tint(FrogTheme.activity)
       } else {
         Image(systemName: phase.systemImage)
+          .foregroundStyle(phase == .failed ? FrogTheme.danger : FrogTheme.activity)
       }
       Text(formattedActivityStep(phase.title(steps: steps)))
         .froggyFont(.caption, weight: .semibold)
+        .foregroundStyle(FrogTheme.textSoft)
       Spacer(minLength: 0)
       if let timestamp, !timestamp.isEmpty {
         Text(timestamp)
@@ -489,21 +488,12 @@ private struct MessageActivityView: View {
           .foregroundStyle(FrogTheme.statusText)
       }
     }
-    .foregroundStyle(headerColor)
     .accessibilityIdentifier("chat.progress.\(status.lowercased())")
   }
 
   private func stepColor(at index: Int) -> Color {
     phase == .running && index == steps.indices.last
-      ? tint : FrogTheme.muted.opacity(0.55)
-  }
-
-  private var headerColor: Color {
-    switch phase {
-    case .running, .queued: tint
-    case .failed: FrogTheme.danger
-    default: FrogTheme.statusText
-    }
+      ? FrogTheme.activity : FrogTheme.statusText
   }
 }
 

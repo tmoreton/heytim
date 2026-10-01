@@ -1440,7 +1440,9 @@ private struct Composer: View {
       .padding(6)
       .frame(minHeight: 56)
       .frame(maxWidth: composerMaxWidth)
-      .froggyComposerSurface(tint: composerOutlineColor, backgroundTint: conversationAccent)
+      .froggyComposerSurface(
+        tint: composerOutlineColor, backgroundTint: conversationAccent,
+        focused: composerFocused.wrappedValue)
       .animation(reduceMotion ? nil : .snappy, value: model.canStop)
     }
 
@@ -1471,7 +1473,9 @@ private struct Composer: View {
           dictationButton
         }
         .frame(minHeight: 51)
-        .froggyComposerSurface(tint: composerOutlineColor, backgroundTint: conversationAccent)
+        .froggyComposerSurface(
+          tint: composerOutlineColor, backgroundTint: conversationAccent,
+          focused: composerFocused.wrappedValue)
         .layoutPriority(1)
 
         if model.canStop {

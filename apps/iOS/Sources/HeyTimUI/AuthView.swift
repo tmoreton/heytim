@@ -176,9 +176,7 @@ public struct AuthView: View {
           if email.isEmpty {
             Text("you@example.com")
               .froggyFont(size: 16, relativeTo: .body)
-              .foregroundStyle(FrogTheme.text)
-              .grayscale(1)
-              .opacity(0.45)
+              .foregroundStyle(FrogTheme.statusText)
               .padding(.horizontal, 16)
               .allowsHitTesting(false)
           }
