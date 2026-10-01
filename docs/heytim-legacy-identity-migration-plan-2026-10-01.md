@@ -10,7 +10,7 @@ Read-only snapshot: 2026-10-01, destination account `820323452649`, `us-east-1`.
 
 ## Priority 1: keep the release configuration unambiguous
 
-The committed `services/API/amplify_outputs.json` and `apps/iOS/Resources/amplify_outputs.json` still contain the **source** account's pool/API; the release workflows intentionally stage `services/API/amplify_outputs.production-candidate.json` for the **destination**. After 1.0.13, make the destination the normal local build configuration or make the environment selection explicit. Verify the embedded output in both iOS and macOS artifacts, then run `./scripts/apple-app.sh build` and `./scripts/apple-app.sh verify`. Do not alter an in-flight release job or tag to clean up these files.
+The isolated follow-up branch now uses the verified destination configuration in `services/API/amplify_outputs.json` and its reduced `apps/iOS/Resources/amplify_outputs.json` copy. `services/API/amplify_outputs.source-rollback.json` preserves the prior source-account outputs, and the DynamoDB migration script names that file explicitly. The Apple release preflight rejects outputs from another AWS account. These changes have not been applied to the 1.0.13 release commit. Before a later Apple release, verify the embedded output in both iOS and macOS artifacts, then run `./scripts/apple-app.sh build` and `./scripts/apple-app.sh verify`.
 
 ## Priority 2: low-risk names and compatibility paths
 
