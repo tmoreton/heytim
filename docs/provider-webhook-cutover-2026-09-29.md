@@ -1,6 +1,10 @@
 # Provider webhook cutover: Stripe and GitHub App
 
-**Status:** Prepared, not executed. Use inside the bounded maintenance window in
+**Status:** Historical migration plan, superseded by the fresh free-account
+launch. The GitHub App webhook was switched on 2026-10-01 as recorded in
+[`github-app-cutover-2026-10-01.md`](github-app-cutover-2026-10-01.md).
+The Stripe migration steps below were not executed; the destination launch uses
+free billing. The original plan was prepared for a bounded maintenance window in
 [`account-isolation-cutover-2026-09-25.md`](account-isolation-cutover-2026-09-25.md).
 The source API and its provider endpoints remain active until the migration
 acceptance checks pass. Keep the source configuration available for the 30-day
