@@ -163,14 +163,18 @@ export const memoryKmsKeyArn = requiredSetting('HEYTIM_AGENTCORE_MEMORY_KMS_KEY_
 export const legacyTokenVaultKmsKeyArn = optionalKmsKeyArn(
   'HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN',
 );
-function connectionEnabledSetting(name: string): boolean {
-  const value = process.env[name] ?? 'true';
+function connectionEnabledSetting(name: string, defaultValue = true): boolean {
+  const value = process.env[name] ?? String(defaultValue);
   if (value !== 'true' && value !== 'false') {
     throw new Error(`${name} must be true or false.`);
   }
   return value === 'true';
 }
 export const googleConnectionsEnabled = connectionEnabledSetting('HEYTIM_GOOGLE_CONNECTIONS_ENABLED');
+// Workspace requests additional Google scopes and needs its own review before exposure.
+export const googleWorkspaceConnectionsEnabled = connectionEnabledSetting(
+  'HEYTIM_GOOGLE_WORKSPACE_CONNECTIONS_ENABLED', false,
+);
 export const slackConnectionsEnabled = connectionEnabledSetting('HEYTIM_SLACK_CONNECTIONS_ENABLED');
 export const notionConnectionsEnabled = connectionEnabledSetting('HEYTIM_NOTION_CONNECTIONS_ENABLED');
 export const xConnectionsEnabled = connectionEnabledSetting('HEYTIM_X_CONNECTIONS_ENABLED');

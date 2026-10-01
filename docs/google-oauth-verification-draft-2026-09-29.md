@@ -16,7 +16,13 @@ the unverified-user cap was 1/100 at that check. The deployed
 `HEYTIM_GOOGLE_REVIEW_APPROVED=false` and
 `HEYTIM_GOOGLE_CONNECTIONS_ENABLED=false` gates keep Google connections hidden.
 Keep both gates false until the declared scopes, policy, demo, assessment, and
-Google approval are complete.
+Google approval are complete. The live Verification Center still needs scope
+justifications, an intended-use description, and a demonstration video for a
+data-access submission. A registered destination callback and verified branding
+do not remove Google's unverified-app screen.
+The live `https://heytim.ai/privacy/` page returns HTTP 200 and includes
+Google-connection and OpenRouter disclosures. Its completeness and policy
+compliance still require review before submission.
 
 ## Scope inventory and proposed Google form answers
 
@@ -54,17 +60,17 @@ Google Data Access page at the last check:
 - `https://www.googleapis.com/auth/calendar.events.freebusy`
 - `https://www.googleapis.com/auth/calendar.events.readonly`
 
-Google says to declare **all scopes used by the app** in Data Access. The
-current `googleConnectionsEnabled` gate disables or exposes Gmail, YouTube,
-**and** Workspace together; simply turning it on after verifying the three
-listed scopes would expose an authorization path for these five undeclared
-scopes. Before submission, either add, justify, and demonstrate all five, or
-change the production provider gate so Workspace remains disabled until its
-own review is ready. The Workspace MCP tools are documented as Developer
-Preview, so verify that this Google project is admitted and that each feature
-works before claiming it in the review video. `drive.readonly` is restricted;
-`documents.readonly` is sensitive. Verify each Calendar scope's current
-classification in the Console when added.
+Google says to declare **all scopes used by the app** in Data Access. Add and
+justify all five if Workspace will be enabled for this submission. The new
+separate Workspace connection gate defaults off, so Gmail and YouTube can be
+reviewed without offering these undeclared Workspace scopes. Deploy and verify
+the gate before relying on it; production's existing global Google flag still
+disables all three services together. Keep Workspace's separate enable and
+review flags false until its scopes and feature are ready. The Workspace MCP
+tools are documented as Developer Preview, so verify that this Google project
+is admitted and each feature works before claiming it in the review video.
+`drive.readonly` is restricted; `documents.readonly` is sensitive. Verify each
+Calendar scope's current classification in the Console when added.
 Google recommends considering per-file `drive.file` with Picker as a narrower
 alternative to broad Drive access, but the current product searches and reads
 across an account and has no Picker grant flow. Do not claim a narrower scope
@@ -285,10 +291,9 @@ completion or Google approval.
 
 - [x] HeyTim branding is verified and shown to users in Google Cloud Console;
   `heytim.ai` ownership and the destination Web callback were checked.
-- [ ] Choose the production scope set. Declare and justify all five Workspace
-  scopes **or** keep Workspace separately disabled in the authorization path;
-  the current single Google gate cannot safely expose only the three declared
-  scopes.
+- [ ] Deploy and verify the separate Workspace gate so Gmail and YouTube can be
+  reviewed without offering the five undeclared Workspace scopes. If Workspace
+  is included in this submission, declare and justify all five scopes.
 - [ ] Review the current privacy text, add the affirmative Limited Use
   statement, verify the final page is publicly live at the exact consent
   screen URL, and check the app disclosure immediately before authorization.

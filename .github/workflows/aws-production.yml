@@ -160,6 +160,8 @@ jobs:
           APNS_SANDBOX_APPLICATION_ARN: ${{ vars.HEYTIM_APNS_SANDBOX_APPLICATION_ARN }}
           GOOGLE_REVIEW_APPROVED: ${{ vars.HEYTIM_GOOGLE_REVIEW_APPROVED }}
           GOOGLE_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_GOOGLE_CONNECTIONS_ENABLED || 'true' }}
+          GOOGLE_WORKSPACE_REVIEW_APPROVED: ${{ vars.HEYTIM_GOOGLE_WORKSPACE_REVIEW_APPROVED || 'false' }}
+          GOOGLE_WORKSPACE_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_GOOGLE_WORKSPACE_CONNECTIONS_ENABLED || 'false' }}
           SLACK_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_SLACK_CONNECTIONS_ENABLED || 'true' }}
           NOTION_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_NOTION_CONNECTIONS_ENABLED || 'true' }}
           X_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_X_CONNECTIONS_ENABLED || 'true' }}
@@ -325,6 +327,17 @@ jobs:
               exit 1
             fi
           done
+          if [[ "$GOOGLE_WORKSPACE_CONNECTIONS_ENABLED" != true \
+            && "$GOOGLE_WORKSPACE_CONNECTIONS_ENABLED" != false ]]; then
+            echo 'HEYTIM_GOOGLE_WORKSPACE_CONNECTIONS_ENABLED must be true or false.' >&2
+            exit 1
+          fi
+          if [[ "$GOOGLE_WORKSPACE_CONNECTIONS_ENABLED" == true \
+            && ( "$GOOGLE_CONNECTIONS_ENABLED" != true \
+              || "$GOOGLE_WORKSPACE_REVIEW_APPROVED" != true ) ]]; then
+            echo 'Google Workspace requires Google connections and separate Workspace review approval.' >&2
+            exit 1
+          fi
           attestations=()
           if [[ "$DATA_LAUNCH_MODE" != fresh || "$RELEASE_SCOPE" != backend-only ]]; then
             attestations+=(RELEASE_COMPLIANCE_APPROVED APNS_DEVICE_SMOKE_APPROVED)
@@ -547,6 +560,7 @@ jobs:
           HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN: ${{ vars.HEYTIM_DATA_LAUNCH_MODE == 'fresh' && 'arn:aws:kms:us-east-1:820323452649:key/4893a4c0-00e8-4381-823b-19c8bc8ed248' || vars.HEYTIM_LEGACY_TOKEN_VAULT_KMS_KEY_ARN }}
           HEYTIM_GOOGLE_OAUTH_SECRET_ARN: ${{ secrets.HEYTIM_GOOGLE_OAUTH_SECRET_ARN }}
           HEYTIM_GOOGLE_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_GOOGLE_CONNECTIONS_ENABLED || 'true' }}
+          HEYTIM_GOOGLE_WORKSPACE_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_GOOGLE_WORKSPACE_CONNECTIONS_ENABLED || 'false' }}
           HEYTIM_SLACK_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_SLACK_CONNECTIONS_ENABLED || 'true' }}
           HEYTIM_NOTION_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_NOTION_CONNECTIONS_ENABLED || 'true' }}
           HEYTIM_X_CONNECTIONS_ENABLED: ${{ vars.HEYTIM_X_CONNECTIONS_ENABLED || 'true' }}

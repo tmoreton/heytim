@@ -389,6 +389,34 @@ class InfrastructureContractTests(unittest.TestCase):
             self.provider_connections,
         )
 
+    def test_workspace_scope_gate_is_default_off_and_wired_to_all_api_paths(self) -> None:
+        self.assertIn(
+            "'HEYTIM_GOOGLE_WORKSPACE_CONNECTIONS_ENABLED', false",
+            self.settings,
+        )
+        self.assertIn(
+            "if (!googleWorkspaceConnectionsEnabled) disabledProviders.add('google_workspace')",
+            self.provider_connections,
+        )
+        self.assertEqual(
+            self.backend.count(
+                "}, googleConnectionsEnabled, googleWorkspaceConnectionsEnabled, "
+                "slackConnectionsEnabled,"
+            ),
+            2,
+        )
+        self.assertIn(
+            "workerFunction.addEnvironment('DISABLED_CONNECTION_PROVIDER_IDS', "
+            "disabledConnectionProviderIds)",
+            self.backend,
+        )
+        self.assertIn(
+            "HEYTIM_GOOGLE_WORKSPACE_CONNECTIONS_ENABLED: "
+            "${{ vars.HEYTIM_GOOGLE_WORKSPACE_CONNECTIONS_ENABLED || 'false' }}",
+            self.production_workflow,
+        )
+        self.assertIn("GOOGLE_WORKSPACE_REVIEW_APPROVED", self.production_workflow)
+
     def test_worker_can_make_atomic_usage_admissions_for_runtime_users(self) -> None:
         self.assertIn("dynamodb:TransactWriteItems", self.backend)
         self.assertIn("bedrock-agentcore:InvokeAgentRuntimeForUser", self.backend)
