@@ -8,6 +8,17 @@ the current checkout or environment still has the same status.
 
 ## 2026-10-01 — fresh destination launch and Apple release in progress
 
+- An October 1 read of Google Auth Platform's Verification Center showed **HeyTim branding verified and shown to
+  users**, while **data access remains unverified** for `youtube.readonly`, `gmail.readonly`, and `gmail.compose`.
+  Google's submission screen still requires scope justifications, intended data usage, and a demonstration video;
+  none of the four Google/X/Slack/Notion production connection/review flag pairs was enabled. The X production app
+  `33430000` was renamed from FroggyBot to **HeyTim by tmoreton**, and its public website, organization, terms, and
+  privacy links were updated to `heytim.ai` and verified after saving. Its new destination OAuth callback was already
+  registered; older callbacks remain for rollback. The signed-in Slack dashboard exposed an unrelated ZEUS app: its
+  client ID did not match the Slack client ID held in either production account. No Slack app setting was changed.
+  The signed-in Notion developer page remained stuck on loading placeholders, so its callback and distribution status
+  could not be verified. App Store Connect requested a fresh Apple sign-in on refresh, leaving the exact processing
+  state of iOS build `20261001055358` unverified. The installed Mac app also reported an expired session.
 - The owner chose a fresh, free launch in destination AWS account `820323452649`, retaining source account
   `188757775631` for rollback without transferring customer records or tokens. The destination public API at
   `https://srrkqsqrqd.execute-api.us-east-1.amazonaws.com` returned the HeyTim catalog on October 1. Production
