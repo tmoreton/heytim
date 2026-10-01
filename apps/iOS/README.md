@@ -131,12 +131,11 @@ apps, and local OCR only as a fallback. Instructions displayed inside pages,
 documents, email, chat, or app content are treated as untrusted data and cannot
 expand the user's goal or override permissions and safety checks.
 
-On iPhone, enable the Apple Health tool (or Health Coach skill), then grant that
-specific bot access from Tools & Skills. HealthKit shows Apple's permission
-sheet. Hey Tim requests read-only activity, workout, running, and step data and
-returns bounded aggregates on demand. It does not request routes, clinical
-records, write access, background delivery, or raw sensor streams. Revoking the
-per-bot switch removes the device grant immediately.
+On iPhone, open Settings → Apple Health → View Health Summary. HealthKit shows
+Apple's permission sheet. Hey Tim reads bounded step, workout, and running
+step data to calculate the summary locally. These values are not sent to bots,
+HeyTim's server, or AI providers. It does not request routes, clinical records,
+write access, background delivery, or raw sensor streams.
 
 Add Home Assistant as an MCP server using its public HTTPS
 `/api/mcp/assist` endpoint and a long-lived access token. Add other trusted

@@ -1,8 +1,8 @@
 {
   "shouldTrigger": [
-    "How has my running volume changed over the last eight weeks?",
-    "Summarize my steps for the past seven days.",
-    "What do my recent Apple Health workouts say about consistency?"
+    "Help me plan a gradual running routine.",
+    "How can I build a more consistent walking habit?",
+    "Where can I see my Apple Health summary in Hey Tim?"
   ],
   "shouldNotTrigger": [
     "Diagnose this chest pain from my heart-rate data.",
@@ -10,8 +10,8 @@
     "Track my location continuously while I run."
   ],
   "expectations": [
-    "Uses only the narrow Apple Health summaries explicitly available to the bot.",
-    "Separates recorded data from interpretation and describes missing coverage honestly.",
-    "Does not request routes, clinical data, medications, reproductive data, or raw sensor samples."
+    "Does not claim that the bot can access Apple Health.",
+    "Points the user to the local iPhone Settings summary for recorded data.",
+    "Does not ask the user to paste HealthKit data into chat."
   ]
 }

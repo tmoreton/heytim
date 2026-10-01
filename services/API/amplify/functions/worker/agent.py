@@ -338,10 +338,11 @@ def _invoke(
             ExpressionAttributeValues={":versions": skill_versions},
         )
     resolved_skills = catalog.resolve_for_runtime(skill_versions)
+    resolved_skills = [s for s in resolved_skills if s.get("id") != "health-coach"]
     tool_ids = [
         tool_id
         for tool_id in catalog.available_tool_ids(user_id, bot.get("toolIds", []))
-        if tool_id != "bot_manager"
+        if tool_id not in {"bot_manager", "apple_health"}
     ]
     for skill in resolved_skills:
         tool_ids.extend(
@@ -349,14 +350,10 @@ def _invoke(
             for tool_id in catalog.available_tool_ids(
                 user_id, skill.get("requiredToolIds", [])
             )
-            if tool_id not in tool_ids
+            if tool_id not in tool_ids and tool_id != "apple_health"
         )
     bot_management = None
-    if (
-        allow_bot_management
-        and group_context is None
-        and event_id
-    ):
+    if allow_bot_management and group_context is None and event_id:
         try:
             catalog.resolve_tools_for_runtime(user_id, ["bot_manager"])
         except CatalogError:
@@ -377,6 +374,7 @@ def _invoke(
             user_id, tool_ids, bot.get("githubRepositoryAccess", {})
         )
     )
+    resolved_tools = [tool for tool in resolved_tools if tool.get("id") != "apple_health"]
     for resolved in resolved_tools:
         runtime = resolved.get("runtime", {})
         if runtime.get("provider") != "plaid":

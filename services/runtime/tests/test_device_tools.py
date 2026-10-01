@@ -47,7 +47,10 @@ def test_device_digest_binds_tool_identity_platform_and_exact_arguments() -> Non
 
 
 def test_device_result_must_match_the_exact_interrupted_call() -> None:
-    proposal = _proposal()
+    proposal = _request(
+        {"toolUseId": "tool-use-1", "name": "mac_computer_observe", "input": {}},
+        platform="macos", tool_id="mac_computer",
+    )
     response = {
         "digest": proposal["digest"],
         "toolUseId": proposal["toolUseId"],
@@ -68,6 +71,14 @@ def test_device_result_must_match_the_exact_interrupted_call() -> None:
                 "error": "Health permission was revoked",
             },
         )
+
+    health_proposal = _proposal()
+    with pytest.raises(RuntimeError, match="only on the iPhone"):
+        _device_result(health_proposal, {
+            "digest": health_proposal["digest"],
+            "toolUseId": health_proposal["toolUseId"],
+            "status": "success", "result": {"steps": 8_000},
+        })
 
 
 def test_only_one_well_formed_device_interrupt_can_pause_a_turn() -> None:

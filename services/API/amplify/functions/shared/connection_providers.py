@@ -36,9 +36,9 @@ OPTIONAL_PUBLIC_PROVIDER_FIELDS = (
 GOOGLE_FAMILY = {
     "familyId": "google",
     "familyName": "Google",
-    "familyDescription": "Connect the Google accounts each bot needs for Gmail and Workspace.",
+    "familyDescription": "Connect the Google account each bot needs for Gmail.",
     "familyIconText": "G",
-    "familyLogoProviderId": "google_workspace",
+    "familyLogoProviderId": "gmail",
 }
 
 # This is the single backend registry for connection identity, client presentation,
@@ -120,10 +120,11 @@ CONNECTION_PROVIDER_SPECS = (
         "category": "Email",
         "iconText": "G",
         "permissionsSummary": "No sending, deleting, relabeling, or archiving",
-        "privacyTitle": "Your Gmail account stays private",
+        "privacyTitle": "How your Gmail data is used",
         "privacyDescription": (
-            "HeyTim uses this connection only when a bot needs the account. "
-            "It can search and read email and create drafts for review."
+            "Assigned bots can read Gmail and create drafts for your review. "
+            "Relevant message content may be sent through OpenRouter to an AI provider "
+            "for your request and included in saved conversations or bot memory."
         ),
         "connectLabel": "Connect account",
         "reconnectLabel": "Reconnect account",
@@ -142,10 +143,11 @@ CONNECTION_PROVIDER_SPECS = (
         "category": "Social",
         "iconText": "YT",
         "permissionsSummary": "Read-only channel access; shared project quota still applies",
-        "privacyTitle": "Your channel connection is optional",
+        "privacyTitle": "How your YouTube data is used",
         "privacyDescription": (
-            "Connect a YouTube account before a bot can search videos or read "
-            "your own channel data."
+            "Assigned bots can read your channel and uploads. Relevant results may "
+            "be sent through OpenRouter to an AI provider for your request and "
+            "included in saved conversations or bot memory."
         ),
         "connectLabel": "Connect account",
         "reconnectLabel": "Reconnect account",

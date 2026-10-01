@@ -13,6 +13,9 @@ from .device_contract import (
 
 DEVICE_LEASE_SECONDS = 180
 MAX_DEVICES_PER_ACCOUNT = 12
+# HealthKit is read only on the iPhone. Its data must not enter a server-side
+# device call or an AI model response, including from older app versions.
+LOCAL_ONLY_DEVICE_TOOL_IDS = frozenset({"apple_health"})
 
 
 def validate_device_binding(value: Any) -> dict:
@@ -101,6 +104,8 @@ def available_device_tools(
     result = []
     for item in resolved_tools:
         runtime = item.get("runtime", {})
+        if item.get("id") in LOCAL_ONLY_DEVICE_TOOL_IDS:
+            continue
         if runtime.get("kind") != "device":
             result.append(item)
             continue
@@ -143,6 +148,8 @@ def select_device(
     operation: str,
     platform: str,
 ) -> dict | None:
+    if tool_id in LOCAL_ONLY_DEVICE_TOOL_IDS:
+        return None
     candidates = [
         item
         for item in _active_devices(table, user_id)
@@ -158,6 +165,7 @@ __all__ = [
     "DEVICE_OPERATION_PLATFORMS",
     "DEVICE_TOOL_IDS",
     "DEVICE_TOOL_OPERATIONS",
+    "LOCAL_ONLY_DEVICE_TOOL_IDS",
     "available_device_tools",
     "select_device",
     "validate_device_binding",

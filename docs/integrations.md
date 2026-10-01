@@ -74,6 +74,8 @@ requests only `youtube.readonly`. Google Workspace requests `drive.readonly`, `d
 `calendar.calendarlist.readonly`, `calendar.events.freebusy`, and `calendar.events.readonly`. User authentication does
 not move YouTube calls outside the Google project's quota.
 The Workspace MCP services are in Google's Developer Preview and require access to that program before live use.
+Google Workspace connections default to off through `HEYTIM_GOOGLE_WORKSPACE_CONNECTIONS_ENABLED` so Gmail and
+YouTube can be reviewed and enabled without requesting Workspace scopes.
 
 ### HeyTim GitHub App
 

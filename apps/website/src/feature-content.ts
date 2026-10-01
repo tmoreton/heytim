@@ -64,7 +64,7 @@ export const featureGroups: FeatureGroup[] = [
       { title: 'One team across your devices', description: 'Use the native SwiftUI app on iPhone and Mac with the same account, bots, groups, schedules, files, and connections. Receive notifications and follow invitations into the app.' },
       { title: 'On-device dictation', description: 'Transcribe your voice on your device, then review and send the text to your bot. Longer meeting transcripts can be attached as a text file for notes and follow-ups.' },
       { title: 'Mac app actions and browser handoff', description: 'With per-bot permission, Mac Operator can use supported controls in authorized Mac apps. For websites, use its interactive browser and private sign-in handoff. Local input pauses Mac control until you resume it.' },
-      { title: 'Apple Health on iPhone', description: 'Grant Health Coach read-only access to activity, workout, running, and step summaries. You choose the bot and Apple Health permissions; the tool does not request routes, clinical records, or write access.' },
+      { title: 'Apple Health on iPhone', description: 'View read-only step, workout, and running summaries in iPhone Settings. HealthKit data stays on the device and is not available to bots or AI providers.' },
     ],
   },
   {
@@ -82,7 +82,6 @@ export const featureGroups: FeatureGroup[] = [
 
 export const integrations = [
   { name: 'Gmail', detail: 'Search email, read threads, and create drafts for review.', scope: 'Read & draft' },
-  { name: 'Google Workspace', detail: 'Read Drive files, Docs, Sheets, and Calendar events.', scope: 'Read only' },
   { name: 'Slack', detail: 'Search messages and read threads in selected workspaces.', scope: 'Read only' },
   { name: 'GitHub', detail: 'Work with selected repositories, branches, and pull requests.', scope: 'Selected repositories' },
   { name: 'YouTube', detail: 'Search videos and read connected channel details and uploads.', scope: 'Read only' },

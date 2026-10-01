@@ -33,8 +33,8 @@ stored per connected account in AWS Secrets Manager; selected bots receive
 access to only the connection IDs the user assigns. This is the implemented
 path **if Google connections are enabled**, not a claim of Google's approval.
 The Google Data Access page currently declares the three scopes in this table;
-the code can additionally request the five Workspace scopes below if its
-single Google connection gate is enabled.
+the code can additionally request the five Workspace scopes below only if its
+separate Workspace connection gate is enabled.
 
 | Scope requested by current code | Use and proposed justification | Why a narrower scope does not currently work |
 | --- | --- | --- |
@@ -105,7 +105,8 @@ an eligible Gmail use case, subject to review and Limited Use.
 Google requires a publicly accessible privacy policy on the verified home
 domain describing how Google data is accessed, used, stored, and shared. The
 current website [privacy source](../apps/website/src/pages/privacy.tsx)
-**already names** optional Gmail, YouTube, and Workspace connections, assigned
+**already names** optional Gmail and YouTube connections, the disabled Workspace
+connection, assigned
 bots, AWS Secrets Manager, OpenRouter and downstream model providers, saved
 conversations/files/memory/tool results, group sharing, and what disconnect
 does not erase. It does **not** yet contain an affirmative statement that

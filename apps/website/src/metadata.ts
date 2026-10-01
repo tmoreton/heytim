@@ -1,6 +1,6 @@
 export const descriptions: Record<string, string> = {
   '/': 'Meet HeyTim, your personal AI team for iPhone and Mac. Remember what matters, work with your people, connect your tools, and put useful work on a schedule.',
-  '/features': 'Explore HeyTim’s memory, groups, schedules, event routines, skills, documents, images, account connections, Mac actions, and Apple Health tools.',
+  '/features': 'Explore HeyTim’s memory, groups, schedules, event routines, skills, documents, images, account connections, Mac actions, and a private iPhone Health summary.',
   '/library': 'Meet HeyTim’s ready-made AI bots for planning, research, creative work, budgets, health, and more. Choose your team and make each bot your own.',
   '/skills': 'Browse reviewed, reusable HeyTim skills for research, planning, meeting notes, writing, data, and creative work. Read the instructions and build your own workflow.',
   '/download': 'Get HeyTim for Mac or request iPhone TestFlight access. HeyTim is in private beta with invitation-based accounts.',

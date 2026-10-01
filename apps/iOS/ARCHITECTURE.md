@@ -19,7 +19,7 @@ Public Cognito and API configuration is synchronized from Amplify output with `n
 
 ## Device tool boundary
 
-Apple-only capabilities use the same catalog/tool vocabulary as cloud tools, but execute on a currently authorized client:
+Mac device capabilities use the same catalog/tool vocabulary as cloud tools, but execute on a currently authorized client:
 
 1. An active app publishes a three-minute capability lease containing its platform, supported operations, and explicit per-bot grants. A lease advertises availability; it is not a durable bearer credential.
 2. The worker exposes only the intersection of the bot's catalog tools, the live device manifest, and that bot's local grant.
@@ -32,7 +32,7 @@ Mac control is semantic-first. Accessibility supplies app/window identity, suppo
 
 Website work remains browser-first through AgentCore Browser because structured page state is more reliable than driving a local browser with pixels. The Mac Operator skill uses Accessibility only for native/local surfaces or when browser control is unavailable, treats content inside apps and pages as untrusted, and stops on stale state, takeover, ambiguity, or a consequential control. Arbitrary shortcuts, terminal execution, and unrestricted coordinates are outside this boundary.
 
-iPhone does not attempt general cross-app control. Apple Health is an explicit, read-only adapter with per-bot consent and Apple's per-type authorization. The adapter returns daily or period summaries and deliberately omits routes, clinical records, writes, background delivery, and raw samples.
+iPhone does not attempt general cross-app control. Apple Health is a separate, read-only local view in iPhone Settings with Apple's per-type authorization. It displays step and workout summaries on the device and deliberately omits routes, clinical records, writes, background delivery, and raw samples. The iPhone does not advertise Health as a device tool, and the server rejects legacy Health requests and results from older builds.
 
 ## Shared Apple surface
 

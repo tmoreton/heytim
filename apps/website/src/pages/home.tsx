@@ -9,7 +9,7 @@ const { bots, skills } = availableEntries(catalog);
 const teamIds = ['chief', 'trip-planner', 'research-reports', 'youtube-studio', 'mac-operator'];
 const featured = teamIds.flatMap((id) => bots.filter((bot) => bot.id === id));
 const providers = [
-  ['gmail', 'Gmail'], ['google_workspace', 'Google Workspace'], ['slack', 'Slack'],
+  ['gmail', 'Gmail'], ['slack', 'Slack'],
   ['github', 'GitHub'], ['notion', 'Notion'], ['youtube', 'YouTube'],
 ];
 
@@ -62,7 +62,7 @@ export function Home() {
       <div className="section-heading split-heading"><div><p className="eyebrow">Made to come along</p><h2 id="native-heading">On your desk.<br /><em>Out in the world.</em></h2></div><p>One team, in two native Apple apps. Your conversations, context, files, and routines travel with you.</p></div>
       <div className="native-grid">
         <article className="native-card mac-card"><div className="native-label"><Icon name="laptop" /><span>HEYTIM FOR MAC</span></div><h3>A helping hand<br />on your Mac.</h3><p>Mac Operator can navigate websites and work with supported controls in authorized Mac apps. Give it access per bot, sign in to its browser yourself, and step in whenever you need to.</p><div className="native-bottom"><span><Icon name="shield" size={17} />Your permissions. Your pace.</span><a href="/features/#apple" aria-label="Explore Mac features"><Icon name="diagonal" /></a></div></article>
-        <article className="native-card phone-card"><div className="native-label"><Icon name="phone" /><span>HEYTIM FOR IPHONE</span></div><h3>Good ideas don’t<br />wait for your desk.</h3><p>Dictate on device, pick up a conversation, and get a notification when work finishes. With your permission, Health Coach can turn Apple Health activity summaries into useful reflections.</p><div className="native-bottom"><span><Icon name="mic" size={17} />On-device voice transcription.</span><a href="/features/#apple" aria-label="Explore iPhone features"><Icon name="diagonal" /></a></div></article>
+        <article className="native-card phone-card"><div className="native-label"><Icon name="phone" /><span>HEYTIM FOR IPHONE</span></div><h3>Good ideas don’t<br />wait for your desk.</h3><p>Dictate on device, pick up a conversation, and get a notification when work finishes. View a private Apple Health summary in iPhone Settings.</p><div className="native-bottom"><span><Icon name="mic" size={17} />On-device voice transcription.</span><a href="/features/#apple" aria-label="Explore iPhone features"><Icon name="diagonal" /></a></div></article>
       </div>
       <a className="all-features-link" href="/features/">And there’s more: documents, images, meeting notes, custom skills, and bot email.<span>See everything HeyTim can do <Icon name="arrow" /></span></a>
     </section>

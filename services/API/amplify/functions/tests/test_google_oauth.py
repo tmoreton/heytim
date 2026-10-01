@@ -66,6 +66,25 @@ class GoogleOAuthTests(unittest.TestCase):
         self.assertEqual(item["userId"], "user-1")
         self.assertEqual(item["expiresAt"], 1_600)
 
+    def test_workspace_can_stay_off_while_gmail_and_youtube_connect(self) -> None:
+        with (
+            patch.dict(os.environ, {
+                **GOOGLE_ENV,
+                "DISABLED_CONNECTION_PROVIDER_IDS": "google_workspace",
+            }),
+            patch.object(self.google_oauth, "_oauth_client", return_value=("client-id", "client-secret")),
+        ):
+            for provider in ("gmail", "youtube"):
+                result = self.google_oauth._begin_google_authorization(
+                    "user-1", {"returnUrl": f"heytim://app?connection={provider}"}, provider
+                )
+                self.assertIn("https://accounts.google.com/", result["authorizationUrl"])
+            with self.assertRaises(self.google_oauth.ApiError) as rejected:
+                self.google_oauth._begin_google_workspace_authorization(
+                    "user-1", {"returnUrl": "heytim://app?connection=google_workspace"}
+                )
+            self.assertEqual(rejected.exception.status_code, 404)
+
     def test_native_return_url_accepts_the_apple_callback_shape(self) -> None:
         self.assertEqual(
             self.google_oauth._return_url("heytim://app?connection=gmail"),

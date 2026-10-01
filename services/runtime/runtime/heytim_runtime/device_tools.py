@@ -215,6 +215,8 @@ def _request(tool_use: dict, *, platform: str, tool_id: str) -> dict:
 
 
 def _device_result(proposal: dict, response: Any) -> Any:
+    if proposal.get("toolId") == "apple_health":
+        raise RuntimeError("Apple Health summaries are available only on the iPhone.")
     if (
         not isinstance(response, dict)
         or response.get("digest") != proposal["digest"]
@@ -260,7 +262,7 @@ def device_tools(bindings: list[dict]) -> list[Any]:
     return [
         _device_tool(operation, binding["platform"], binding["id"])
         for binding in bindings
-        if binding.get("kind") == "device"
+        if binding.get("kind") == "device" and binding.get("id") != "apple_health"
         for operation in binding["operations"]
     ]
 
