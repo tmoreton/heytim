@@ -34,6 +34,7 @@ export function addProviderConnectionAccess(
   apiEndpoint: string,
   secrets: ProviderSecrets,
   googleConnectionsEnabled = true,
+  googleWorkspaceConnectionsEnabled = false,
   slackConnectionsEnabled = true,
   notionConnectionsEnabled = true,
   xConnectionsEnabled = true,
@@ -55,6 +56,7 @@ export function addProviderConnectionAccess(
   if (!googleConnectionsEnabled) {
     providerIdsBySecret.google.forEach((providerId) => disabledProviders.add(providerId));
   }
+  if (!googleWorkspaceConnectionsEnabled) disabledProviders.add('google_workspace');
   if (!slackConnectionsEnabled) disabledProviders.add('slack');
   if (!notionConnectionsEnabled) disabledProviders.add('notion');
   if (!xConnectionsEnabled) disabledProviders.add('x');

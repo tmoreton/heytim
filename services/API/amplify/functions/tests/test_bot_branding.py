@@ -348,6 +348,24 @@ class BotBrandingTests(unittest.TestCase):
         self.assertNotIn("microsoft", [provider["id"] for provider in providers])
         self.assertIn("slack", [provider["id"] for provider in providers])
 
+    def test_workspace_gate_keeps_gmail_and_youtube_in_bootstrap(self) -> None:
+        with (
+            patch.dict("os.environ", {
+                "DISABLED_CONNECTION_PROVIDER_IDS": "google_workspace",
+            }),
+            patch.object(self.bots, "_list_bots", return_value=[]),
+            patch.object(self.bots, "_ensure_chief", return_value=[]),
+            patch.object(self.bots, "_list_groups", return_value=[]),
+            patch.object(self.bots.catalog, "list_bot_templates", return_value=[]),
+            patch.object(self.bots.catalog, "list_tools", return_value=[]),
+            patch.object(self.bots.catalog, "list_skills", return_value=[]),
+        ):
+            result = self.bots._bootstrap("workspace-gate-user")
+        providers = {provider["id"] for provider in result["connectionProviders"]}
+        self.assertNotIn("google_workspace", providers)
+        self.assertIn("gmail", providers)
+        self.assertIn("youtube", providers)
+
     def test_review_gated_provider_cards_follow_the_disable_setting(self) -> None:
         gated = {"gmail", "youtube", "google_workspace", "slack", "notion", "x"}
         with patch.dict("os.environ", {"DISABLED_CONNECTION_PROVIDER_IDS": ""}):

@@ -1,12 +1,15 @@
 # Google OAuth verification draft and privacy review
 
-**Status:** Draft for product/legal review. No Google verification submission or
-published privacy-policy edit has been made from this note. The new destination
-callback being authorized and the `heytim.ai` domain being verified do not mean
-Google has approved the app's data access or removed its unverified-app screen.
-The Verification Center currently lists `youtube.readonly`, `gmail.readonly`,
-and `gmail.compose` as unverified, and `Prepare for verification` is disabled
-until the changed HeyTim branding is verified and published.
+**Status (October 1, 2026):** Draft for product/legal review. Google's live
+Verification Center now marks the HeyTim branding **verified** and shows it;
+data access remains **unverified**. The center lists `youtube.readonly`,
+`gmail.readonly`, and `gmail.compose` as unverified and still needs the scope
+justifications, intended-use description, and demonstration video for a
+submission. A registered destination callback and verified branding do not
+remove Google's unverified-app screen or constitute data-access approval.
+The live `https://heytim.ai/privacy/` page returns HTTP 200 and includes
+Google-connection and OpenRouter disclosures. Its completeness and policy
+compliance still require review before submission.
 
 ## Scope inventory and proposed Google form answers
 
@@ -31,8 +34,8 @@ The YouTube adapter exposes search, own-channel details, and uploads.
 
 ## Workspace scopes missing from Data Access
 
-The same production OAuth client currently also requests these five scopes
-when a user connects **Google Workspace**:
+The same OAuth client can request these five additional scopes when a user
+connects **Google Workspace**:
 
 - `https://www.googleapis.com/auth/drive.readonly`
 - `https://www.googleapis.com/auth/documents.readonly`
@@ -41,9 +44,13 @@ when a user connects **Google Workspace**:
 - `https://www.googleapis.com/auth/calendar.events.readonly`
 
 Google says to declare **all scopes used by the app** in Data Access. Add and
-justify all five before submitting the present code for verification, or
-remove/disable the Workspace connection from the production authorization
-path until its feature and review are ready. The Workspace MCP tools are
+justify all five if Workspace will be enabled for this submission. This branch
+adds a separate Workspace connection gate that defaults off, so Gmail and
+YouTube can be reviewed without offering these undeclared Workspace scopes.
+The gate must be deployed and verified before relying on it; production's
+existing global Google flag currently disables Gmail, YouTube, and Workspace
+together. Keep Workspace's separate enable and review flags false until its
+scopes and feature are ready. The Workspace MCP tools are
 documented as Developer Preview, so verify that this Google project is
 admitted and the feature works before claiming it in the review video.
 `drive.readonly` is also restricted; `documents.readonly` is sensitive.
@@ -65,13 +72,13 @@ an eligible Gmail use case, subject to review and Limited Use.
 
 Google requires a publicly accessible privacy policy on the verified home
 domain describing how Google data is accessed, used, stored, and shared. The
-current [`Privacy` page](../apps/website/src/pages/privacy.tsx) covers generic
-account content and service providers but does **not** mention connected
-Gmail/YouTube/Workspace data, refresh grants, agent processing of Google
-content, OpenRouter, or Google Limited Use. Update and publish accurate copy
-before submission. Confirm model-provider data retention/training terms,
-deletion timing, and shared-content behavior before making definitive
-promises about those items.
+live [`Privacy` page](../apps/website/src/pages/privacy.tsx) now mentions
+connected Gmail/YouTube/Workspace data, refresh grants, agent processing of
+connected-service content, and OpenRouter. It was confirmed reachable at
+`https://heytim.ai/privacy/` on October 1. Review whether this wording fully
+satisfies Google's Limited Use and restricted-scope requirements. Confirm
+model-provider data retention/training terms, deletion timing, and
+shared-content behavior before making definitive promises about those items.
 
 ### Data path confirmed in current code
 
@@ -186,12 +193,13 @@ actual use of **each** requested sensitive or restricted scope.
 
 ## Submission gates
 
-- [ ] HeyTim branding has completed verification and is **published**, not
-  merely saved or domain-verified.
+- [x] The live Verification Center marks HeyTim branding verified and shows it
+  (October 1); confirm the submitted consent screen's displayed state before
+  recording the review video.
 - [ ] Every scope the production code can request is declared in Data Access;
   scope justification matches the demonstrated feature.
-- [ ] The revised Google-data privacy section is reviewed, accurate, and live
-  at the URL on the OAuth consent screen.
+- [ ] The live Google-data privacy section is reviewed for accuracy and policy
+  sufficiency at the URL on the OAuth consent screen.
 - [ ] The demonstration video covers each requested scope, with current app
   name and OAuth client ID visible.
 - [ ] Restricted-scope security assessment requirements, assessor evidence,

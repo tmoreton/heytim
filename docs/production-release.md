@@ -89,6 +89,9 @@ Set these non-secret variables:
 - `HEYTIM_GOOGLE_REVIEW_APPROVED`, `HEYTIM_SLACK_REVIEW_APPROVED`,
   `HEYTIM_X_REVIEW_APPROVED`, and `HEYTIM_NOTION_REVIEW_APPROVED` set to `true` only after the provider's
   production verification/distribution requirements are complete
+- `HEYTIM_GOOGLE_WORKSPACE_CONNECTIONS_ENABLED` defaults to `false`. Set it to `true` only after
+  declaring and reviewing Workspace's additional Google scopes, verifying the Workspace tools, and setting
+  `HEYTIM_GOOGLE_WORKSPACE_REVIEW_APPROVED=true`. The regular Google gate must also be enabled and approved.
 - `HEYTIM_ACCOUNT_ISOLATION_CUTOVER_APPROVED=true` only for the reviewed state-migration path; use the fresh-launch
   flag for an empty destination instead
 - `HEYTIM_RELEASE_COMPLIANCE_APPROVED=true` only after privacy policy, terms, support and deletion disclosures,
@@ -163,11 +166,14 @@ the U.S.-only external web purchase flow. Do not set `HEYTIM_STRIPE_LIVE_MODE=tr
 For a launch that omits a provider while its external review is pending, set that provider's protected production
 environment variable to `false` before deploying: `HEYTIM_GOOGLE_CONNECTIONS_ENABLED`,
 `HEYTIM_SLACK_CONNECTIONS_ENABLED`, `HEYTIM_NOTION_CONNECTIONS_ENABLED`, or `HEYTIM_X_CONNECTIONS_ENABLED`.
-All default to `true`. Disabling Google covers Gmail, YouTube account access, and Google Workspace together. The
+These four provider switches default to `true`; the separate Google Workspace switch defaults to `false`.
+Disabling Google covers Gmail, YouTube account access, and Google Workspace together. When Google is enabled but
+Workspace remains disabled, Gmail and YouTube can be offered without the Workspace authorization path. The
 destination backend then omits those connection cards, rejects new authorization and pending callbacks, and excludes
 any retained connection tools from bot selection and execution. Independent public catalog tools remain available.
 The release gate requires a provider's review attestation only while its connections are enabled. Keep an unapproved
 provider's review attestation `false`; enable its connections and redeploy only after its external review is verified.
+Workspace also requires its own review attestation before that separate switch may be enabled.
 
 ### Fresh-launch protected variable reconciliation (2026-09-30)
 
