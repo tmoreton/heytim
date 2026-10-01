@@ -17,8 +17,10 @@ the current checkout or environment still has the same status.
   registered; older callbacks remain for rollback. The signed-in Slack dashboard exposed an unrelated ZEUS app: its
   client ID did not match the Slack client ID held in either production account. No Slack app setting was changed.
   The signed-in Notion developer page remained stuck on loading placeholders, so its callback and distribution status
-  could not be verified. App Store Connect requested a fresh Apple sign-in on refresh, leaving the exact processing
-  state of iOS build `20261001055358` unverified. The installed Mac app also reported an expired session.
+  could not be verified. App Store Connect requested a fresh Apple sign-in on refresh; the signed-in GitHub run summary
+  separately showed iOS build `20261001055358` as `VALID` and `INTERNAL_ONLY`, with the Account Holder accepted in an
+  all-builds internal group. The same summary found that the App Store listing lacked an account-deletion URL. The
+  installed Mac app also reported an expired session.
 - The owner chose a fresh, free launch in destination AWS account `820323452649`, retaining source account
   `188757775631` for rollback without transferring customer records or tokens. The destination public API at
   `https://srrkqsqrqd.execute-api.us-east-1.amazonaws.com` returned the HeyTim catalog on October 1. Production
@@ -42,8 +44,9 @@ the current checkout or environment still has the same status.
   `620c2b9`, destination account `820323452649`, and destination API. The upload log says Apple's package is
   processing; this is submission evidence, not processing completion or availability on a device. A later
   [read-only inventory 36839073340](https://github.com/tmoreton/heytim/actions/runs/36839073340) again verified
-  the Account Holder's accepted membership in the all-builds internal group, but its accessible log did not show
-  the new build's exact processing row. The private
+  the Account Holder's accepted membership in the all-builds internal group. Its GitHub Actions job summary showed
+  iOS `1.0.13` build `20261001055358` processed as `VALID` with audience `INTERNAL_ONLY`. This confirms Apple
+  processing and internal group eligibility, but not installation or push delivery on a physical iPhone. The private
   [Mac candidate 36821899708](https://github.com/tmoreton/heytim/actions/runs/36821899708) subsequently
   succeeded for `1.0.13` build `20261001084651`, also from `620c2b9` and the destination AWS configuration.
   Its nonsecret receipt (artifact `11154275607`) records the signed DMG, Sparkle ZIP, and signed appcast checksums.
