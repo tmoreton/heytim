@@ -193,7 +193,7 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
       case "/billing":
         return Self.response(
           for: request,
-          body: #"{"plan":"free","status":"free","creditsUsed":7,"creditsRemaining":23,"creditLimit":30,"resetsAt":"2026-10-01T00:00:00Z","cancelAtPeriodEnd":false,"billingAvailable":true,"checkoutAvailable":true,"managementAvailable":false,"supportedStorefrontCountryCode":"USA","price":{"currency":"usd","unitAmount":2000,"interval":"month"},"mode":"test","usage":{"periodStart":"2026-09-01T00:00:00Z","periodEnd":"2026-10-01T00:00:00Z","totalCostUsd":"0.0055","totalTokens":250,"inputTokens":190,"outputTokens":60,"cacheReadInputTokens":105,"cacheWriteInputTokens":15,"reasoningTokens":23,"costEstimated":true,"costIncomplete":false}}"#)
+          body: #"{"plan":"free","status":"free","creditsUsed":7,"creditsRemaining":23,"creditLimit":30,"resetsAt":"2026-10-01T00:00:00Z","cancelAtPeriodEnd":false,"billingAvailable":true,"checkoutAvailable":true,"managementAvailable":false,"supportedStorefrontCountryCode":"USA","price":{"currency":"usd","unitAmount":2000,"interval":"month"},"mode":"test","usage":{"periodStart":"2026-09-01T00:00:00Z","periodEnd":"2026-10-01T00:00:00Z","totalCostUsd":"0.0055","totalTokens":250,"inputTokens":190,"outputTokens":60,"cacheReadInputTokens":105,"cacheWriteInputTokens":15,"reasoningTokens":23,"costEstimated":true,"costIncomplete":false,"imageCostIncomplete":false,"imageTokens":25,"tokenIncomplete":false,"cacheCoverage":"complete"}}"#)
       case "/billing/checkout":
         let body = try Self.jsonBody(request)
         XCTAssertEqual(body["storefrontCountryCode"] as? String, "USA")
@@ -218,6 +218,10 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
     XCTAssertEqual(summary.creditsRemaining, 23)
     XCTAssertEqual(summary.usage?.totalCostUsd, "0.0055")
     XCTAssertEqual(summary.usage?.totalTokens, 250)
+    XCTAssertEqual(summary.usage?.cacheCoverage, "complete")
+    XCTAssertEqual(summary.usage?.imageCostIncomplete, false)
+    XCTAssertEqual(summary.usage?.imageTokens, 25)
+    XCTAssertEqual(summary.usage?.tokenIncomplete, false)
     XCTAssertEqual(checkout.host, "checkout.stripe.com")
     XCTAssertEqual(portal.host, "billing.stripe.com")
     XCTAssertEqual(requests.map { "\($0.0) \($0.1)" }, [

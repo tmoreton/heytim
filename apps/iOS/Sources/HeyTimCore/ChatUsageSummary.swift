@@ -25,4 +25,8 @@ public struct BillingUsageSummary: Codable, Equatable, Sendable {
   public var reasoningTokens: Int
   public var costEstimated: Bool
   public var costIncomplete: Bool
+  public var imageCostIncomplete: Bool?
+  public var imageTokens: Int?
+  public var tokenIncomplete: Bool?
+  public var cacheCoverage: String?
 }

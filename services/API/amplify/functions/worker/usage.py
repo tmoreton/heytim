@@ -24,6 +24,7 @@ TOKEN_FIELDS = (
     "cacheWriteInputTokens",
     "reasoningTokens",
 )
+UNPRICED_IMAGE_OPERATIONS = {"generate_image", "create_youtube_thumbnail"}
 
 # Fallback estimates only. OpenRouter normally supplies the exact provider cost.
 # Values are USD per one million tokens and are deliberately versioned.
@@ -148,7 +149,7 @@ def _usage_item(
     tool_call_count = 0
     calls: list[dict[str, Any]] = []
 
-    for raw_model in raw_models[:8]:
+    for raw_model in raw_models[:24]:
         if not isinstance(raw_model, dict):
             continue
         provider = _identifier(raw_model.get("provider"), 32)
@@ -160,6 +161,8 @@ def _usage_item(
             "modelId": model_id,
             "callCount": _count(raw_model.get("callCount")),
         }
+        if provider == "openrouter_image":
+            model["tokenReportAvailable"] = raw_model.get("tokenReportAvailable") is True
         for field in TOKEN_FIELDS:
             value = _count(raw_model.get(field))
             model[field] = value
@@ -238,10 +241,28 @@ def _usage_item(
         call["status"] == "failed" and call["inputTokens"] == 0
         for call in calls
     )
-    if not models:
-        cost_basis = "not_applicable"
-    elif unpriced_models or uncertain_calls:
+    image_dispatches = sum(
+        _count(tool.get("callCount"))
+        for tool in raw_tools[:512]
+        if isinstance(tool, dict)
+        and tool.get("provider") == "openrouter"
+        and tool.get("operation") in UNPRICED_IMAGE_OPERATIONS
+    )
+    image_models = [model for model in models if model["provider"] == "openrouter_image"]
+    unpriced_image_request = image_dispatches > sum(
+        model["callCount"] for model in image_models
+    ) or any(
+        model.get("costBasis") != "provider_reported" for model in image_models
+    )
+    image_token_incomplete = image_dispatches > sum(
+        model["callCount"] for model in image_models
+    ) or any(
+        model.get("tokenReportAvailable") is not True for model in image_models
+    )
+    if unpriced_image_request or (models and (unpriced_models or uncertain_calls)):
         cost_basis = "partial"
+    elif not models:
+        cost_basis = "not_applicable"
     elif exact_models and estimated_models:
         cost_basis = "mixed"
     elif exact_models:
@@ -265,7 +286,9 @@ def _usage_item(
         "costUsd": normalized_cost.quantize(USD_QUANTUM),
         "providerReportedCostUsd": provider_cost.quantize(USD_QUANTUM),
         "costBasis": cost_basis,
-        "costIncomplete": unpriced_models > 0 or uncertain_calls,
+        "costIncomplete": unpriced_models > 0 or uncertain_calls or unpriced_image_request,
+        "imageCostIncomplete": unpriced_image_request,
+        "tokenIncomplete": image_token_incomplete,
         "pricingVersion": PRICING_VERSION,
         "createdAt": timestamp,
         "expiresAt": int(

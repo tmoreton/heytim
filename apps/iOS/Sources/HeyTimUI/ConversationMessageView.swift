@@ -294,7 +294,9 @@ private struct ModelUsageCaption: View {
   private var costLabel: String {
     guard let amount = Decimal(string: usage.costUsd) else { return "Cost unavailable" }
     let cost = NSDecimalNumber(decimal: amount).doubleValue
-    if usage.costIncomplete { return "Partial cost" }
+    if usage.costIncomplete {
+      return cost > 0 ? String(format: "$%.6f+ (partial)", cost) : "Partial cost"
+    }
     if cost > 0 && cost < 0.000001 { return "<$0.000001" }
     return String(format: "$%.6f", cost)
   }
@@ -314,9 +316,11 @@ private struct ModelUsageCaption: View {
       .foregroundStyle(FrogTheme.statusText)
       .textSelection(.enabled)
       .accessibilityLabel("Latest model run: \(caption)")
-      .help(usage.costBasis == "provider_reported"
-        ? "Provider reported cost for the latest model run."
-        : "Estimated model cost for the latest model run.")
+      .help(usage.costIncomplete
+        ? "Recorded cost is partial because some provider charges are unavailable."
+        : usage.costBasis == "provider_reported"
+          ? "Provider reported cost for the latest model run."
+          : "Estimated model cost for the latest model run.")
       .accessibilityIdentifier("chat.message.usage")
   }
 

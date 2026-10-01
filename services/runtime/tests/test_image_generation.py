@@ -123,6 +123,39 @@ def test_image_generator_calls_openrouter_and_saves_png(monkeypatch) -> None:
     assert output.size == (640, 480)
 
 
+def test_image_response_usage_records_exact_cost_and_tokens(monkeypatch) -> None:
+    usage = UsageAccumulator()
+    response = _success()
+    response.payload["usage"] = {
+        "prompt_tokens": 120,
+        "completion_tokens": 80,
+        "total_tokens": 200,
+        "cost": 0.0123,
+    }
+    tools, _, _ = _factory(monkeypatch, [response], usage=usage)
+
+    asyncio.run(tools["generate_image"]("usage.png", "A frog"))
+
+    image = usage.snapshot()["models"][0]
+    assert image["provider"] == "openrouter_image"
+    assert image["inputTokens"] == 120
+    assert image["outputTokens"] == 80
+    assert image["providerCostUsd"] == "0.0123"
+    assert image["tokenReportAvailable"] is True
+
+
+def test_image_response_without_usage_is_explicitly_unreported(monkeypatch) -> None:
+    usage = UsageAccumulator()
+    tools, _, _ = _factory(monkeypatch, [_success()], usage=usage)
+
+    asyncio.run(tools["generate_image"]("usage.png", "A frog"))
+
+    image = usage.snapshot()["models"][0]
+    assert image["provider"] == "openrouter_image"
+    assert image["tokenReportAvailable"] is False
+    assert "providerCostUsd" not in image
+
+
 @pytest.mark.parametrize(
     ("connections", "image_available"),
     [
