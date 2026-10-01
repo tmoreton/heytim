@@ -113,7 +113,10 @@ if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
 fi
 
 security create-keychain -p "$keychain_password" "$keychain"
-security set-keychain-settings -lut 7200 "$keychain"
+# Uncached native transcription builds can run for more than two hours before
+# Xcode first signs embedded frameworks. Keep this short-lived CI keychain
+# unlocked for the full five-hour job; the EXIT trap still deletes it.
+security set-keychain-settings -lut 21600 "$keychain"
 security unlock-keychain -p "$keychain_password" "$keychain"
 security add-certificates -k "$keychain" "$signing_intermediate"
 if [[ "$release_scope" == full || "$release_scope" == backend-macos ]]; then
