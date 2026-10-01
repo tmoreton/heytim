@@ -12,6 +12,20 @@ const outputs = JSON.parse(await readFile(source, 'utf8'));
 if (requireProduction && outputs.custom?.environment !== 'production') {
   throw new Error('Refusing an Apple release with non-production Amplify outputs.');
 }
+if (requireProduction) {
+  const targets = JSON.parse(await readFile(path.join(root, 'agentcore/aws-targets.json'), 'utf8'));
+  const production = targets.find((target) => target.name === 'production');
+  if (!production?.account || !production?.region) {
+    throw new Error('Production AWS target is missing from agentcore/aws-targets.json.');
+  }
+  const expectedBucket = `heytim-production-user-files-${production.account}-${production.region}`;
+  if (outputs.auth?.aws_region !== production.region
+      || outputs.custom?.filesBucketName !== expectedBucket
+      || !outputs.custom?.alarmTopicArn?.startsWith(`arn:aws:sns:${production.region}:${production.account}:`)
+      || !outputs.custom?.githubDeployRoleArn?.startsWith(`arn:aws:iam::${production.account}:role/`)) {
+    throw new Error('Refusing an Apple release with Amplify outputs from another AWS account.');
+  }
+}
 const value = `${JSON.stringify({
   auth: {
     user_pool_id: outputs.auth?.user_pool_id,

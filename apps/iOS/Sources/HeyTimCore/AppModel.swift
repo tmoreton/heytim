@@ -80,7 +80,6 @@ public final class AppModel {
   public private(set) var sendingSelection: ConversationSelection?
   public private(set) var messageQueues: [ConversationSelection: [QueuedChatMessage]] = [:]
   public var errorMessage: String?
-  public var showAISharingConsent = false
   public internal(set) var isUpdatingAISharingConsent = false
   public var sheet: AppSheet?
   public var pendingAttachments: [Attachment] = []
@@ -232,7 +231,6 @@ public final class AppModel {
     sendingSelection = nil
     messageQueues = [:]
     errorMessage = nil
-    showAISharingConsent = false
     isUpdatingAISharingConsent = false
     sheet = nil
     pendingAttachments = []
@@ -499,7 +497,6 @@ public final class AppModel {
       || !submitted.workspaceFiles.isEmpty, !isUploading
     else { return }
     if !demoMode && bootstrap?.aiSharingConsent.granted != true {
-      showAISharingConsent = true
       return
     }
     let replyBotId = selection.kind == .group ? activeGroupReplyBotId : nil

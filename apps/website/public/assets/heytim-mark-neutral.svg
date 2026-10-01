@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <style>
+    .ink { fill: #171717; }
+    .ink-line { stroke: #171717; }
+    .cutout { fill: #ffffff; }
+    @media (prefers-color-scheme: dark) {
+      .ink { fill: #f5f5f3; }
+      .ink-line { stroke: #f5f5f3; }
+      .cutout { fill: #1b1b1b; }
+    }
+  </style>
+  <path d="M50 21C50 11 56 7 65 7" fill="none" class="ink-line" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="69" cy="8" r="8" class="ink"/>
+  <circle cx="69" cy="8" r="2.7" class="cutout"/>
+  <circle cx="50" cy="58" r="39" class="ink"/>
+  <rect x="18" y="40" width="64" height="38" rx="19" class="cutout"/>
+  <path d="M29 62c1-7 11-7 12 0m18 0c1-7 11-7 12 0" fill="none" class="ink-line" stroke-width="5.5" stroke-linecap="round"/>
+</svg>

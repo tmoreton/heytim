@@ -1,12 +1,12 @@
 {
   "auth": {
-    "user_pool_id": "us-east-1_N22obdhLi",
+    "user_pool_id": "us-east-1_biJejrNQF",
     "aws_region": "us-east-1",
-    "user_pool_client_id": "ct7oq9i58nige4ts6vas49vbd"
+    "user_pool_client_id": "5jvibhljen2qphi7t2kkqribdm"
   },
   "version": "1.5",
   "custom": {
-    "apiUrl": "https://twrxzanvwg.execute-api.us-east-1.amazonaws.com",
+    "apiUrl": "https://srrkqsqrqd.execute-api.us-east-1.amazonaws.com",
     "shareBaseUrl": "https://heytim.ai/invite",
     "environment": "production"
   }

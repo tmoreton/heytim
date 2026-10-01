@@ -117,6 +117,7 @@ private struct AppRoot: View {
   #endif
   @State private var invitation: PendingInvitation?
   @State private var connected = false
+  @State private var aiSetupDismissed = false
   @State private var pendingPushSelection: PushSelection?
 
   var body: some View {
@@ -126,7 +127,28 @@ private struct AppRoot: View {
         ProgressView("Opening Hey Tim…").frame(maxWidth: .infinity, maxHeight: .infinity)
           .background(FrogTheme.background)
       case .signedOut, .codeSent: AuthView(auth: auth, invitation: invitation)
-      case .signedIn: MainView(model: model, auth: auth)
+      case .signedIn:
+        if !Self.isUITesting && model.bootstrap == nil {
+          accountLoading
+        } else if model.bootstrap?.aiSharingConsent.granted == false
+          && model.bootstrap?.aiSharingConsent.reviewed != true
+          && !aiSetupDismissed
+        {
+          AIProcessingSetupView(
+            isWorking: model.isUpdatingAISharingConsent,
+            errorMessage: model.errorMessage,
+            onAllow: { Task { await model.allowAISharing() } },
+            onLater: {
+              let session = auth.sessionIdentifier
+              aiSetupDismissed = true
+              Task {
+                guard auth.phase == .signedIn, auth.sessionIdentifier == session else { return }
+                await model.revokeAISharing()
+              }
+            })
+        } else {
+          MainView(model: model, auth: auth)
+        }
       }
     }
     .tint(FrogTheme.accent)
@@ -148,6 +170,7 @@ private struct AppRoot: View {
         }
       } else if phase == .signedOut {
         connected = false
+        aiSetupDismissed = false
         pendingPushSelection = nil
         deviceTools.disconnect()
         model.resetSession()
@@ -204,6 +227,26 @@ private struct AppRoot: View {
       pendingPushSelection = selection
       Task { await openPendingPushSelectionIfReady() }
     }
+  }
+
+  private var accountLoading: some View {
+    VStack(spacing: 16) {
+      if let error = model.errorMessage {
+        ContentUnavailableView(
+          "Couldn’t open your account", systemImage: "wifi.exclamationmark",
+          description: Text(error))
+        Button("Try Again") {
+          Task {
+            if connected { await model.load() } else { await connectIfNeeded() }
+          }
+        }
+        .buttonStyle(.borderedProminent)
+      } else {
+        ProgressView("Getting your account ready…")
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(FrogTheme.background)
   }
 
   private func capturePendingPushSelection() {

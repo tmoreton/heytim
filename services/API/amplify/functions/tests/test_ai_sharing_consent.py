@@ -79,18 +79,22 @@ class AIConsentStorageTests(unittest.TestCase):
     def test_existing_account_defaults_to_denied_and_mutations_are_ordered(self) -> None:
         self.assertEqual(
             consent_status(self.table, self.s3, "files", "owner"),
-            {"version": 1, "granted": False},
+            {"version": 1, "granted": False, "reviewed": False},
         )
         with self.assertRaises(ConsentRequired):
             active_grant(self.table, self.s3, "files", "owner")
 
-        self.assertTrue(set_consent(self.table, self.s3, "files", "owner", True)["granted"])
+        grant_status = set_consent(self.table, self.s3, "files", "owner", True)
+        self.assertTrue(grant_status["granted"])
+        self.assertTrue(grant_status["reviewed"])
         self.assertEqual(self.table.events, ["lease", "state", "fence", "release"])
         grant = active_grant(self.table, self.s3, "files", "owner")
         self.assertEqual(len(grant["actorId"]), 64)
 
         self.table.events.clear()
-        self.assertFalse(set_consent(self.table, self.s3, "files", "owner", False)["granted"])
+        denial_status = set_consent(self.table, self.s3, "files", "owner", False)
+        self.assertFalse(denial_status["granted"])
+        self.assertTrue(denial_status["reviewed"])
         self.assertEqual(self.table.events, ["lease", "fence", "state", "release"])
         with self.assertRaises(ConsentRequired):
             active_grant(self.table, self.s3, "files", "owner")

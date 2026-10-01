@@ -20,6 +20,7 @@ import {
   WORKER_CONCURRENCY, deploymentEnvironment,
   apnsApplicationArn, apnsSandboxApplicationArn, authEmailProvider,
   githubAppSecretArn, globalWindowRunUnitLimit, googleConnectionsEnabled,
+  googleWorkspaceConnectionsEnabled,
   googleOAuthSecretArn,
   hubspotOAuthSecretArn, legacyTokenVaultKmsKeyArn,
   jiraOAuthSecretArn,
@@ -554,7 +555,8 @@ const disabledConnectionProviderIds = addProviderConnectionAccess(apiFunction, h
   zoom: zoomOAuthSecretArn,
   microsoft: microsoftOAuthSecretArn, notion: notionOAuthSecretArn, plaid: plaidSecretArn, quickbooks: quickBooksOAuthSecretArn,
   slack: slackOAuthSecretArn, x: xOAuthSecretArn,
-}, googleConnectionsEnabled, slackConnectionsEnabled, notionConnectionsEnabled, xConnectionsEnabled);
+}, googleConnectionsEnabled, googleWorkspaceConnectionsEnabled, slackConnectionsEnabled,
+notionConnectionsEnabled, xConnectionsEnabled);
 workerFunction.addEnvironment('DISABLED_CONNECTION_PROVIDER_IDS', disabledConnectionProviderIds);
 addProviderConnectionAccess(publicApiFunction, httpApi.apiEndpoint, {
   github: githubAppSecretArn, google: googleOAuthSecretArn,
@@ -563,7 +565,8 @@ addProviderConnectionAccess(publicApiFunction, httpApi.apiEndpoint, {
   zoom: zoomOAuthSecretArn,
   microsoft: microsoftOAuthSecretArn, notion: notionOAuthSecretArn, plaid: plaidSecretArn, quickbooks: quickBooksOAuthSecretArn,
   slack: slackOAuthSecretArn, x: xOAuthSecretArn,
-}, googleConnectionsEnabled, slackConnectionsEnabled, notionConnectionsEnabled, xConnectionsEnabled);
+}, googleConnectionsEnabled, googleWorkspaceConnectionsEnabled, slackConnectionsEnabled,
+notionConnectionsEnabled, xConnectionsEnabled);
 
 const autofix = addProductionAutofix({
   stack, table, workerLogGroup, logsKey, githubAppSecretArn, runtimeArn, runtimeQualifier,

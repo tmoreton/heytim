@@ -152,7 +152,7 @@ class GoogleOAuthTests(unittest.TestCase):
                 with (
                     patch.dict(os.environ, {
                         **GOOGLE_ENV,
-                        "DISABLED_CONNECTION_PROVIDER_IDS": "gmail,youtube,google_workspace",
+                        "DISABLED_CONNECTION_PROVIDER_IDS": provider,
                     }),
                     patch.object(self.google_oauth.time, "time", return_value=1_000),
                     patch.object(self.google_oauth, "_exchange_code") as exchange,

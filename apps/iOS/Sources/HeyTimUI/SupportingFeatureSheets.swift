@@ -1733,6 +1733,10 @@ struct AccountView: View {
           }
         }
 
+        if let usage = billing.usage {
+          AccountUsageView(usage: usage, plan: billing.plan)
+        }
+
         if billing.plan == "plus", billing.managementAvailable {
           Button { startBillingPortal() } label: {
             billingButtonLabel("Manage Subscription", systemImage: "creditcard")
@@ -1774,7 +1778,7 @@ struct AccountView: View {
     } header: {
       Text("Usage & Plan")
     } footer: {
-      Text("A work credit covers one bot reply or one planned group reply. Token and provider usage is still measured privately for cost and reliability.")
+      Text("A work credit covers one bot reply or one planned group reply. Model totals include all your bots and work types. Cached input is already part of input tokens. External tool charges are not included.")
     }
   }
 

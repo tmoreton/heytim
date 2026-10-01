@@ -13,16 +13,15 @@ public extension HeyTimAPI {
 }
 
 @MainActor public extension AppModel {
-  func allowAISharing(sendPendingMessage: Bool = false) async {
+  func allowAISharing() async {
     guard !isUpdatingAISharingConsent, let api else { return }
     isUpdatingAISharingConsent = true
+    errorMessage = nil
     defer { isUpdatingAISharingConsent = false }
     do {
       let consent = try await api.allowAISharing()
       guard self.api === api else { return }
       bootstrap?.aiSharingConsent = consent
-      showAISharingConsent = false
-      if sendPendingMessage { await send() }
     } catch {
       if self.api === api { present(error) }
     }
@@ -31,6 +30,7 @@ public extension HeyTimAPI {
   func revokeAISharing() async {
     guard !isUpdatingAISharingConsent, let api else { return }
     isUpdatingAISharingConsent = true
+    errorMessage = nil
     defer { isUpdatingAISharingConsent = false }
     do {
       let consent = try await api.revokeAISharing()

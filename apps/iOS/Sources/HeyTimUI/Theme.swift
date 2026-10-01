@@ -278,8 +278,8 @@ public enum FrogTheme {
   public static let approvalBorder = border
   public static let danger = Color.red
 
-  // Keep exact bot color for avatars. Small text and thin strokes
-  // need a contrast-adjusted shade, particularly for Chief yellow in light mode.
+  // Keep exact bot color for avatars and subtle fills. Composer outlines and
+  // bubble borders need a contrast-adjusted shade; message text stays neutral.
   public static func botReadableColor(_ hex: String, scheme: ColorScheme) -> Color {
     guard let base = RGB(hex: hex) else { return accent }
     let background = scheme == .dark ? RGB(23, 23, 23) : RGB(255, 255, 255)
@@ -531,7 +531,7 @@ extension View {
   }
 
   @ViewBuilder func froggyComposerSurface(
-    tint: Color? = nil, backgroundTint: Color? = nil
+    tint: Color? = nil, backgroundTint: Color? = nil, focused: Bool = false
   ) -> some View {
     background {
       RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -545,6 +545,14 @@ extension View {
         RoundedRectangle(cornerRadius: 22, style: .continuous)
           .stroke(tint ?? FrogTheme.border, lineWidth: 1)
       )
+      .overlay {
+        if focused {
+          RoundedRectangle(cornerRadius: 26, style: .continuous)
+            .stroke(FrogTheme.text, lineWidth: 2)
+            .padding(-4)
+            .allowsHitTesting(false)
+        }
+      }
   }
 
   @ViewBuilder func froggySheetSize() -> some View {

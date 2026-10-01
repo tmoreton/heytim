@@ -193,7 +193,7 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
       case "/billing":
         return Self.response(
           for: request,
-          body: #"{"plan":"free","status":"free","creditsUsed":7,"creditsRemaining":23,"creditLimit":30,"resetsAt":"2026-10-01T00:00:00Z","cancelAtPeriodEnd":false,"billingAvailable":true,"checkoutAvailable":true,"managementAvailable":false,"supportedStorefrontCountryCode":"USA","price":{"currency":"usd","unitAmount":2000,"interval":"month"},"mode":"test"}"#)
+          body: #"{"plan":"free","status":"free","creditsUsed":7,"creditsRemaining":23,"creditLimit":30,"resetsAt":"2026-10-01T00:00:00Z","cancelAtPeriodEnd":false,"billingAvailable":true,"checkoutAvailable":true,"managementAvailable":false,"supportedStorefrontCountryCode":"USA","price":{"currency":"usd","unitAmount":2000,"interval":"month"},"mode":"test","usage":{"periodStart":"2026-09-01T00:00:00Z","periodEnd":"2026-10-01T00:00:00Z","totalCostUsd":"0.0055","totalTokens":250,"inputTokens":190,"outputTokens":60,"cacheReadInputTokens":105,"cacheWriteInputTokens":15,"reasoningTokens":23,"costEstimated":true,"costIncomplete":false}}"#)
       case "/billing/checkout":
         let body = try Self.jsonBody(request)
         XCTAssertEqual(body["storefrontCountryCode"] as? String, "USA")
@@ -216,6 +216,8 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
     let portal = try await api.createBillingPortal()
 
     XCTAssertEqual(summary.creditsRemaining, 23)
+    XCTAssertEqual(summary.usage?.totalCostUsd, "0.0055")
+    XCTAssertEqual(summary.usage?.totalTokens, 250)
     XCTAssertEqual(checkout.host, "checkout.stripe.com")
     XCTAssertEqual(portal.host, "billing.stripe.com")
     XCTAssertEqual(requests.map { "\($0.0) \($0.1)" }, [
@@ -881,7 +883,7 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
     XCTAssertEqual(model.pendingAttachments.map(\.id), ["risks"])
   }
 
-  func testFirstSendRequiresExplicitAISharingPermissionAndKeepsDraft() async throws {
+  func testSendWithoutAISharingPermissionKeepsDraftWithoutOpeningAConsentSheet() async throws {
     var bootstrap = DemoData.bootstrap
     bootstrap.aiSharingConsent = AISharingConsent(version: 1, granted: false)
     var requests: [String] = []
@@ -900,22 +902,20 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
 
     await model.send()
 
-    XCTAssertTrue(model.showAISharingConsent)
     XCTAssertEqual(model.composerText, "A private plan")
     XCTAssertEqual(model.pendingAttachments.map(\.id), ["brief"])
     XCTAssertTrue(requests.isEmpty)
-    model.showAISharingConsent = false
     XCTAssertEqual(model.composerText, "A private plan")
   }
 
-  func testAllowingAISharingSendsThePendingDraftOnce() async throws {
+  func testAllowingAISharingDoesNotSendTheDraftUntilTheUserSendsIt() async throws {
     var bootstrap = DemoData.bootstrap
     bootstrap.aiSharingConsent = AISharingConsent(version: 1, granted: false)
     var requests: [String] = []
     MockURLProtocol.handler = { request in
       requests.append("\(request.httpMethod ?? "") \(request.url?.path ?? "")")
       if request.httpMethod == "PUT" {
-        return Self.response(for: request, body: #"{"version":1,"granted":true}"#)
+        return Self.response(for: request, body: #"{"version":1,"granted":true,"reviewed":true}"#)
       }
       if request.httpMethod == "GET" {
         return Self.response(for: request, body: #"{"messages":[]}"#)
@@ -930,8 +930,12 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
     model.selection = .init(kind: .bot, id: "chief")
     model.composerText = "Send this after I agree"
 
+    await model.allowAISharing()
+
+    XCTAssertEqual(requests, ["PUT /account/ai-sharing"])
+    XCTAssertEqual(model.composerText, "Send this after I agree")
+
     await model.send()
-    await model.allowAISharing(sendPendingMessage: true)
 
     XCTAssertEqual(
       requests,
@@ -939,9 +943,19 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
         "PUT /account/ai-sharing", "POST /bots/chief/messages",
         "GET /bots/chief/messages", "GET /bootstrap",
       ])
-    XCTAssertEqual(model.bootstrap?.aiSharingConsent, AISharingConsent(version: 1, granted: true))
-    XCTAssertFalse(model.showAISharingConsent)
+    XCTAssertEqual(
+      model.bootstrap?.aiSharingConsent,
+      AISharingConsent(version: 1, granted: true, reviewed: true))
     XCTAssertTrue(model.composerText.isEmpty)
+  }
+
+  func testAISharingGrantRequestDoesNotSendServerOwnedReviewStatus() throws {
+    let data = try JSONEncoder().encode(
+      AISharingConsent(version: 1, granted: true, reviewed: true))
+    let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    XCTAssertEqual(body.count, 2)
+    XCTAssertEqual(body["version"] as? Int, 1)
+    XCTAssertEqual(body["granted"] as? Bool, true)
   }
 
   func testQueuedGroupMessageCanSteerTheActiveRun() async throws {

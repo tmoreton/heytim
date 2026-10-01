@@ -899,16 +899,6 @@ public struct AppConstraints: Codable, Equatable, Sendable {
     maxPhotoDimension: GeneratedAppConstraints.maxPhotoDimension)
 }
 
-public struct AISharingConsent: Codable, Equatable, Sendable {
-  public var version: Int
-  public var granted: Bool
-
-  public init(version: Int = 1, granted: Bool = false) {
-    self.version = version
-    self.granted = granted
-  }
-}
-
 public struct Bootstrap: Codable, Sendable {
   public var bots: [Bot]
   public var botTemplates: [BotTemplate]
@@ -1010,6 +1000,7 @@ public struct BillingSummary: Codable, Equatable, Sendable {
   public var supportedStorefrontCountryCode: String
   public var price: Price
   public var mode: String
+  public var usage: BillingUsageSummary?
 }
 
 public struct BillingSession: Codable, Equatable, Sendable {

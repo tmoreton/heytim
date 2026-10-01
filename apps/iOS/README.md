@@ -41,8 +41,10 @@ Run `npm --prefix services/API run outputs:apple` whenever Amplify produces a ne
 `services/API/amplify_outputs.json`. The Apple copy contains public client configuration only. Before external
 TestFlight or direct Mac distribution, confirm that the source file came from the production Amplify deployment and
 run the sync command. The release scripts run `outputs:apple:production:check` automatically and refuse sandbox,
-stale, or unknown outputs. Download the production client-configuration artifact from the successful production
-release workflow before creating the archive.
+stale, or wrong-account outputs. The tracked default points to the destination production account; the prior
+source-account snapshot is retained at `services/API/amplify_outputs.source-rollback.json` for an explicit rollback.
+Download the production client-configuration artifact from the successful production release workflow before creating
+the archive.
 
 Before installing on physical devices or distributing the app:
 

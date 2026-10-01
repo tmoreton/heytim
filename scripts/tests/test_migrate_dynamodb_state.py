@@ -21,6 +21,22 @@ IDENTITY = migration.Identity.build(OLD_SUB, NEW_SUB, {"bot-1"})
 
 
 class MigrationPlanningTests(unittest.TestCase):
+    def test_default_outputs_keep_source_and_destination_separate(self) -> None:
+        source = migration.load_outputs(migration.SOURCE_OUTPUTS)
+        destination = migration.load_outputs(migration.DESTINATION_OUTPUTS)
+        self.assertIn(
+            f"::{migration.SOURCE_ACCOUNT}:role/",
+            source["custom"]["githubDeployRoleArn"],
+        )
+        self.assertIn(
+            f"::{migration.DESTINATION_ACCOUNT}:role/",
+            destination["custom"]["githubDeployRoleArn"],
+        )
+        self.assertNotEqual(
+            source["custom"]["dataTableName"],
+            destination["custom"]["dataTableName"],
+        )
+
     def test_recursive_identity_remap_preserves_types(self) -> None:
         original = {
             "pk": f"CHAT#{OLD_SUB}#bot-1",
