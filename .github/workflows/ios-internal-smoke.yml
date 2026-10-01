@@ -58,8 +58,8 @@ jobs:
             || "$DESTINATION_ACCOUNT_ID" != 820323452649 || "$BILLING_MODE" != free \
             || "$AWS_DEPLOY_ROLE_ARN" != "arn:aws:iam::$DESTINATION_ACCOUNT_ID:role/"* \
             || -z "$AMPLIFY_APP_ID" \
-            || "$APNS_APPLICATION_ARN" != 'arn:aws:sns:us-east-1:820323452649:app/APNS/FrogBot' \
-            || "$APNS_SANDBOX_APPLICATION_ARN" != 'arn:aws:sns:us-east-1:820323452649:app/APNS_SANDBOX/FrogBot' ]]; then
+            || "$APNS_APPLICATION_ARN" != 'arn:aws:sns:us-east-1:820323452649:app/APNS/HeyTim' \
+            || "$APNS_SANDBOX_APPLICATION_ARN" != 'arn:aws:sns:us-east-1:820323452649:app/APNS_SANDBOX/HeyTim' ]]; then
             echo 'Internal device smoke requires the approved fresh, free launch in the dedicated destination account.' >&2
             exit 1
           fi

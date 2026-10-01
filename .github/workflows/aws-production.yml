@@ -218,8 +218,8 @@ jobs:
               || "$configured_account" != "$DESTINATION_ACCOUNT_ID" \
               || "$AWS_DEPLOY_ROLE_ARN" != "arn:aws:iam::$DESTINATION_ACCOUNT_ID:role/"* \
               || "$AMPLIFY_APP_ID" != d17sj7dvhx07c \
-              || "$APNS_APPLICATION_ARN" != 'arn:aws:sns:us-east-1:820323452649:app/APNS/FrogBot' \
-              || "$APNS_SANDBOX_APPLICATION_ARN" != 'arn:aws:sns:us-east-1:820323452649:app/APNS_SANDBOX/FrogBot' ]]; then
+              || "$APNS_APPLICATION_ARN" != 'arn:aws:sns:us-east-1:820323452649:app/APNS/HeyTim' \
+              || "$APNS_SANDBOX_APPLICATION_ARN" != 'arn:aws:sns:us-east-1:820323452649:app/APNS_SANDBOX/HeyTim' ]]; then
               echo 'Fresh launch needs its own approval, destination account/role/app, and destination APNS applications. It must not reuse migration approval or source resources.' >&2
               exit 1
             fi
