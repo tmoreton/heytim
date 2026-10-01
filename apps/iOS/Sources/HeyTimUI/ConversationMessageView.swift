@@ -291,15 +291,6 @@ struct MessageBubble: View {
 private struct ModelUsageCaption: View {
   let usage: ChatUsageSummary
 
-  private var modelLabel: String {
-    let names = usage.modelIds.map { id in
-      if id.hasPrefix("deepseek/") { return "DeepSeek" }
-      if id.hasPrefix("z-ai/") { return "GLM" }
-      return id
-    }
-    return Array(NSOrderedSet(array: names)).compactMap { $0 as? String }.joined(separator: " + ")
-  }
-
   private var costLabel: String {
     guard let amount = Decimal(string: usage.costUsd) else { return "Cost unavailable" }
     let cost = NSDecimalNumber(decimal: amount).doubleValue
@@ -318,20 +309,24 @@ private struct ModelUsageCaption: View {
   }
 
   var body: some View {
-    Text("\(modelLabel)\(effortLabel) · \(costLabel) · \(cacheLabel)")
+    Text(caption)
       .froggyFont(.caption)
       .foregroundStyle(FrogTheme.statusText)
       .textSelection(.enabled)
-      .accessibilityLabel("Latest model run: \(modelLabel)\(effortLabel), \(costLabel), \(cacheLabel)")
+      .accessibilityLabel("Latest model run: \(caption)")
       .help(usage.costBasis == "provider_reported"
         ? "Provider reported cost for the latest model run."
         : "Estimated model cost for the latest model run.")
       .accessibilityIdentifier("chat.message.usage")
   }
 
-  private var effortLabel: String {
-    guard let effort = usage.reasoningEffort else { return "" }
-    return " · \(effort.capitalized) reasoning"
+  private var caption: String {
+    var parts: [String] = []
+    if let effort = usage.reasoningEffort {
+      parts.append("\(effort.capitalized) reasoning")
+    }
+    parts.append(contentsOf: [costLabel, cacheLabel])
+    return parts.joined(separator: " · ")
   }
 }
 

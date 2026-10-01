@@ -1000,6 +1000,7 @@ public struct BillingSummary: Codable, Equatable, Sendable {
   public var supportedStorefrontCountryCode: String
   public var price: Price
   public var mode: String
+  public var usage: BillingUsageSummary?
 }
 
 public struct BillingSession: Codable, Equatable, Sendable {

@@ -10,6 +10,7 @@
 		F20000000000000000000001 /* AppModel+Fork.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000001 /* AppModel+Fork.swift */; };
 		F20000000000000000000002 /* BotSettingsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000002 /* BotSettingsModels.swift */; };
 		F20000000000000000000003 /* ChatUsageSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000003 /* ChatUsageSummary.swift */; };
+		C0B1199E76FA4A32B8A00001 /* AccountUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0B1199E76FA4A32B8A00002 /* AccountUsageView.swift */; };
 		F20000000000000000000004 /* BotEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000004 /* BotEditorView.swift */; };
 		F20000000000000000000005 /* InlineFlowDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000005 /* InlineFlowDisplay.swift */; };
 		F20000000000000000000006 /* ConversationMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000006 /* ConversationMessageView.swift */; };
@@ -80,6 +81,7 @@
 		F30000000000000000000001 /* AppModel+Fork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AppModel+Fork.swift"; path = "Sources/HeyTimCore/AppModel+Fork.swift"; sourceTree = "<group>"; };
 		F30000000000000000000002 /* BotSettingsModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BotSettingsModels.swift; path = Sources/HeyTimCore/BotSettingsModels.swift; sourceTree = "<group>"; };
 		F30000000000000000000003 /* ChatUsageSummary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatUsageSummary.swift; path = Sources/HeyTimCore/ChatUsageSummary.swift; sourceTree = "<group>"; };
+		C0B1199E76FA4A32B8A00002 /* AccountUsageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AccountUsageView.swift; path = Sources/HeyTimUI/AccountUsageView.swift; sourceTree = "<group>"; };
 		F30000000000000000000004 /* BotEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BotEditorView.swift; path = Sources/HeyTimUI/BotEditorView.swift; sourceTree = "<group>"; };
 		F30000000000000000000005 /* InlineFlowDisplay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InlineFlowDisplay.swift; path = Sources/HeyTimUI/InlineFlowDisplay.swift; sourceTree = "<group>"; };
 		F30000000000000000000006 /* ConversationMessageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConversationMessageView.swift; path = Sources/HeyTimUI/ConversationMessageView.swift; sourceTree = "<group>"; };
@@ -223,6 +225,7 @@
 				F30000000000000000000005 /* InlineFlowDisplay.swift */,
 				9EDB7CD6380F2E79F6618CA2 /* ProviderLogoView.swift */,
 				1E8F50345C6F715CCAD7D4AA /* SupportingFeatureSheets.swift */,
+				C0B1199E76FA4A32B8A00002 /* AccountUsageView.swift */,
 				F30000000000000000000009 /* ShareView.swift */,
 				F3000000000000000000000A /* AISharingConsentDisclosure.swift */,
 				A5E8990A0000000000000002 /* GitHubConnectionRepositoriesView.swift */,
@@ -463,6 +466,7 @@
 				F20000000000000000000005 /* InlineFlowDisplay.swift in Sources */,
 				CB46C889E20746FC5BBFEC49 /* ProviderLogoView.swift in Sources */,
 				115CF026C6D962CAEDF7D3DE /* SupportingFeatureSheets.swift in Sources */,
+				C0B1199E76FA4A32B8A00001 /* AccountUsageView.swift in Sources */,
 				F20000000000000000000009 /* ShareView.swift in Sources */,
 				F2000000000000000000000A /* AISharingConsentDisclosure.swift in Sources */,
 				F2000000000000000000000D /* AISharingConsent.swift in Sources */,

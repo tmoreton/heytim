@@ -11,9 +11,11 @@ import urllib.parse
 import urllib.request
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import boto3
+from boto3.dynamodb.conditions import Key
 from botocore.config import Config
 from shared.billing import billing_available, entitlement_for_user
 
@@ -161,8 +163,122 @@ def _counter_value(item: dict[str, Any] | None) -> int:
     return max(0, result)
 
 
-def billing_summary(user_id: str) -> dict[str, Any]:
-    entitlement = entitlement_for_user(table, user_id)
+def _usage_count(value: Any) -> int:
+    if (
+        isinstance(value, Decimal)
+        and value.is_finite()
+        and value == value.to_integral_value()
+    ):
+        value = int(value)
+    return value if type(value) is int and value >= 0 else 0
+
+
+def _usage_cost(value: Any) -> Decimal:
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal(0)
+    return amount if amount.is_finite() and amount >= 0 else Decimal(0)
+
+
+def _usage_period_start(entitlement: Any, current: datetime) -> datetime:
+    if entitlement.plan == "plus":
+        start_epoch = int(entitlement.period_key.split(":", 1)[1])
+        return datetime.fromtimestamp(start_epoch, UTC)
+    return datetime(current.year, current.month, 1, tzinfo=UTC)
+
+
+def _usage_totals(user_id: str, entitlement: Any, current: datetime) -> dict[str, Any]:
+    """Sum one recorded event per invocation across every bot and work type."""
+    start = _usage_period_start(entitlement, current)
+    end = datetime.fromisoformat(entitlement.resets_at.replace("Z", "+00:00"))
+    input_tokens = output_tokens = cache_read_tokens = 0
+    cache_write_tokens = reasoning_tokens = 0
+    cost = Decimal(0)
+    estimated = incomplete = False
+    query_args: dict[str, Any] = {
+        "KeyConditionExpression": (
+            Key("pk").eq(f"USER#{user_id}") & Key("sk").begins_with("USAGE#")
+        ),
+        "ProjectionExpression": "#createdAt,#models,#costUsd,#costBasis,#costIncomplete",
+        "ExpressionAttributeNames": {
+            "#createdAt": "createdAt",
+            "#models": "models",
+            "#costUsd": "costUsd",
+            "#costBasis": "costBasis",
+            "#costIncomplete": "costIncomplete",
+        },
+        "ConsistentRead": True,
+    }
+    while True:
+        page = table.query(**query_args)
+        for item in page.get("Items", []):
+            recorded_at = item.get("createdAt")
+            if not isinstance(recorded_at, str):
+                continue
+            try:
+                recorded = datetime.fromisoformat(recorded_at.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if recorded.tzinfo is None or not start <= recorded.astimezone(UTC) < end:
+                continue
+
+            cost += _usage_cost(item.get("costUsd"))
+            incomplete |= (
+                item.get("costIncomplete") is True
+                or item.get("costBasis") == "partial"
+            )
+            estimated |= item.get("costBasis") in {"estimated", "mixed"}
+            models = item.get("models")
+            if not isinstance(models, list):
+                continue
+            for model in models:
+                if not isinstance(model, dict):
+                    continue
+                prompt = _usage_count(model.get("inputTokens"))
+                output = _usage_count(model.get("outputTokens"))
+                cache_read = _usage_count(model.get("cacheReadInputTokens"))
+                cache_write = _usage_count(model.get("cacheWriteInputTokens"))
+                # OpenRouter includes cached tokens in prompt tokens; Bedrock
+                # reports them separately. Reasoning tokens are part of output.
+                if model.get("provider") == "bedrock":
+                    normalized_input = prompt + cache_read + cache_write
+                else:
+                    normalized_input = prompt
+                    cache_read = min(cache_read, prompt)
+                    cache_write = min(cache_write, prompt - cache_read)
+                input_tokens += normalized_input
+                output_tokens += output
+                cache_read_tokens += cache_read
+                cache_write_tokens += cache_write
+                reasoning_tokens += min(
+                    _usage_count(model.get("reasoningTokens")), output
+                )
+                estimated |= model.get("costBasis") == "estimated"
+
+        last_key = page.get("LastEvaluatedKey")
+        if not last_key:
+            break
+        query_args["ExclusiveStartKey"] = last_key
+
+    return {
+        "periodStart": start.isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "periodEnd": entitlement.resets_at,
+        "totalCostUsd": format(cost, "f"),
+        "totalTokens": input_tokens + output_tokens,
+        "inputTokens": input_tokens,
+        "outputTokens": output_tokens,
+        "cacheReadInputTokens": cache_read_tokens,
+        "cacheWriteInputTokens": cache_write_tokens,
+        "reasoningTokens": reasoning_tokens,
+        "costEstimated": estimated,
+        "costIncomplete": incomplete,
+    }
+
+
+def billing_summary(user_id: str, *, now: datetime | None = None) -> dict[str, Any]:
+    current = (now or datetime.now(UTC)).astimezone(UTC)
+    entitlement = entitlement_for_user(table, user_id, now=current)
     counter = table.get_item(
         Key={
             "pk": f"USER#{user_id}",
@@ -191,6 +307,7 @@ def billing_summary(user_id: str) -> dict[str, Any]:
             "interval": "month",
         },
         "mode": "live" if _stripe_live_mode() else "test",
+        "usage": _usage_totals(user_id, entitlement, current),
     }
 
 
