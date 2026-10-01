@@ -6,6 +6,56 @@ was recorded, including legacy repository, cloud-resource, secret, and bundle ID
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-10-01 — fresh destination launch and Apple release in progress
+
+- An October 1 read of Google Auth Platform's Verification Center showed **HeyTim branding verified and shown to
+  users**, while **data access remains unverified** for `youtube.readonly`, `gmail.readonly`, and `gmail.compose`.
+  Google's submission screen still requires scope justifications, intended data usage, and a demonstration video;
+  none of the four Google/X/Slack/Notion production connection/review flag pairs was enabled. The X production app
+  `33430000` was renamed from FroggyBot to **HeyTim by tmoreton**, and its public website, organization, terms, and
+  privacy links were updated to `heytim.ai` and verified after saving. Its new destination OAuth callback was already
+  registered; older callbacks remain for rollback. The signed-in Slack dashboard exposed an unrelated ZEUS app: its
+  client ID did not match the Slack client ID held in either production account. No Slack app setting was changed.
+  The signed-in Notion developer page remained stuck on loading placeholders, so its callback and distribution status
+  could not be verified. App Store Connect requested a fresh Apple sign-in on refresh; the signed-in GitHub run summary
+  separately showed iOS build `20261001055358` as `VALID` and `INTERNAL_ONLY`, with the Account Holder accepted in an
+  all-builds internal group. The same summary found that the optional App Store account-deletion URL was blank;
+  `https://heytim.ai/account-deletion/` is already live, and account deletion is initiated in the app's Settings.
+  The installed Mac app also reported an expired session.
+- The owner chose a fresh, free launch in destination AWS account `820323452649`, retaining source account
+  `188757775631` for rollback without transferring customer records or tokens. The destination public API at
+  `https://srrkqsqrqd.execute-api.us-east-1.amazonaws.com` returned the HeyTim catalog on October 1. Production
+  [backend-only run 36806967998](https://github.com/tmoreton/heytim/actions/runs/36806967998) succeeded with the
+  managed five-scenario regression and authenticated workflow checks. Unapproved Google, X, Slack, and Notion
+  connections remain disabled.
+- The GitHub repository is `tmoreton/heytim`, its Pages domain is `heytim.ai`, and the GitHub App is presented as
+  HeyTim. Legacy protected credential handles and the `frogbot-macmini` runner registration remain in place for
+  compatibility; release jobs select the `heytim-apple` runner label. The annotated `v1.0.13` tag and unpublished
+  draft release target current main commit `620c2b9a7b302b38613b65e6defc5f80a604936e` and have no public assets.
+- Read-only [App Store Connect inventory 36825304305](https://github.com/tmoreton/heytim/actions/runs/36825304305)
+  passed: the HeyTim listing name, privacy URL, and support URL match; the Apple Account Holder is accepted or
+  installed in an internal group with access to all builds. The App Privacy label is drafted but unpublished.
+  DNS points `heytim.ai` mail to Namecheap forwarding, but the `support@heytim.ai` alias destination and delivery
+  remain unverified. Both `HEYTIM_RELEASE_COMPLIANCE_APPROVED` and `HEYTIM_APNS_DEVICE_SMOKE_APPROVED` remain `false`.
+- The first internal iPhone upload [run 36808752688](https://github.com/tmoreton/heytim/actions/runs/36808752688)
+  failed before upload when its temporary signing keychain locked after two hours of native compilation. Main commit
+  `620c2b9` extends that timeout to six hours. The corrected internal-only
+  [retry 36821645378](https://github.com/tmoreton/heytim/actions/runs/36821645378) succeeded on October 1 and
+  submitted iOS `1.0.13` build `20261001055358` to App Store Connect. Its private receipt pins the source to
+  `620c2b9`, destination account `820323452649`, and destination API. The upload log says Apple's package is
+  processing; this is submission evidence, not processing completion or availability on a device. A later
+  [read-only inventory 36839073340](https://github.com/tmoreton/heytim/actions/runs/36839073340) again verified
+  the Account Holder's accepted membership in the all-builds internal group. Its GitHub Actions job summary showed
+  iOS `1.0.13` build `20261001055358` processed as `VALID` with audience `INTERNAL_ONLY`. This confirms Apple
+  processing and internal group eligibility, but not installation or push delivery on a physical iPhone. The private
+  [Mac candidate 36821899708](https://github.com/tmoreton/heytim/actions/runs/36821899708) subsequently
+  succeeded for `1.0.13` build `20261001084651`, also from `620c2b9` and the destination AWS configuration.
+  Its nonsecret receipt (artifact `11154275607`) records the signed DMG, Sparkle ZIP, and signed appcast checksums.
+  Apple accepted notarization of both the app and DMG; signature, stapling, Gatekeeper, and mounted-image checks
+  passed. The runner removed the signed binaries and left the GitHub release as a draft with zero assets. This
+  private run's Apple verification used Mac unit tests plus a generic iPhone build, since its runner has no iOS
+  Simulator runtime. It did not prove physical push delivery or publish a Sparkle update.
+
 ## 2026-09-30 — capture infrastructure staged; traffic cutover NO-GO
 
 - The source account `188757775631` still serves customers and accepts mail. No source write freeze, customer-state

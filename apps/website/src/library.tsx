@@ -39,9 +39,11 @@ export function Library({ kind = 'skills' }: { kind?: 'bots' | 'skills' }) {
       <div className="catalog-grid">
         {visible.map((item) => <article key={item.id} className="catalog-card" id={item.id}>
           <div className="card-top">
-            <span className="card-mark" style={{ '--bot-color': item.color ?? '#FFBC3B' } as CSSProperties}>
-              <TimIcon color={item.color ?? '#FFBC3B'} size={64} />
-            </span>
+            {kind === 'bots' && item.color
+              ? <span className="card-mark" style={{ '--bot-color': item.color } as CSSProperties}>
+                  <TimIcon color={item.color} size={64} />
+                </span>
+              : <span className="card-mark card-mark-neutral"><Icon name="spark" size={32} /></span>}
             <span className="badge">{item.category}</span>
           </div>
           <h2>{item.name}</h2><p>{item.tagline ?? item.description}</p>

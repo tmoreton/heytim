@@ -1,0 +1,49 @@
+{
+  "auth": {
+    "user_pool_id": "us-east-1_N22obdhLi",
+    "aws_region": "us-east-1",
+    "user_pool_client_id": "ct7oq9i58nige4ts6vas49vbd",
+    "identity_pool_id": "us-east-1:b8bb632d-78e6-459a-b49b-296e9091c817",
+    "mfa_methods": [
+      "EMAIL"
+    ],
+    "standard_required_attributes": [],
+    "username_attributes": [
+      "email"
+    ],
+    "user_verification_types": [
+      "email"
+    ],
+    "groups": [],
+    "mfa_configuration": "OPTIONAL",
+    "password_policy": {
+      "min_length": 8,
+      "require_lowercase": true,
+      "require_numbers": true,
+      "require_symbols": true,
+      "require_uppercase": true
+    },
+    "unauthenticated_identities_enabled": false,
+    "passwordless": {
+      "email_otp_enabled": true,
+      "sms_otp_enabled": false
+    }
+  },
+  "version": "1.5",
+  "custom": {
+    "environment": "production",
+    "apiUrl": "https://twrxzanvwg.execute-api.us-east-1.amazonaws.com",
+    "billingAvailable": true,
+    "stripeWebhookUrl": "https://twrxzanvwg.execute-api.us-east-1.amazonaws.com/public/webhooks/stripe",
+    "shareBaseUrl": "https://heytim.ai/invite",
+    "dataTableName": "amplify-d1tu46ki1836w1-main-branch-6ca713cbb2-FrogBotAppE7B48881-JFCXVU7AR8CZ-Data666C94C7-11QZBY5HST87M",
+    "inviteTableName": "amplify-d1tu46ki1836w1-main-branch-6ca713cbb2-auth179371D7-1XFXVPVDVYJ2M-InviteAccess65794604-MMIJ330UTNUS",
+    "filesBucketName": "frogbot-production-user-files-188757775631-us-east-1",
+    "alarmTopicArn": "arn:aws:sns:us-east-1:188757775631:amplify-d1tu46ki1836w1-main-branch-6ca713cbb2-FrogBotAppE7B48881-JFCXVU7AR8CZ-ServiceAlarms935ECF17-4w8jhtn0AgXJ",
+    "logsKeyArn": "arn:aws:kms:us-east-1:188757775631:key/da1bedac-62cd-4214-8bf3-b08eb55bc5a3",
+    "nativePushFeedbackRoleArn": "arn:aws:iam::188757775631:role/amplify-d1tu46ki1836w1-ma-NativePushFeedbackRole267-Kk6L37S1jkkd",
+    "githubDeployRoleArn": "arn:aws:iam::188757775631:role/amplify-d1tu46ki1836w1-ma-GitHubProductionDeployRol-4yCU2lqEKbXU",
+    "autofixDispatcherArn": "arn:aws:lambda:us-east-1:188757775631:function:amplify-d1tu46ki1836w1-ma-AutofixDispatcher62964F5-jeQUz1MDgTl6",
+    "monthlyBudgetName": "amplify-d1tu46ki1836w1-main-branch-6ca713cbb2-FrogBotAppE7B48881-JFCXVU7AR8CZ-monthly-cost"
+  }
+}

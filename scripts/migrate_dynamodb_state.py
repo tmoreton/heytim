@@ -26,7 +26,7 @@ from _mail_alias_plan import legacy_mail_address, mail_alias_key
 
 SOURCE_ACCOUNT = "188757775631"
 DESTINATION_ACCOUNT = "820323452649"
-SOURCE_OUTPUTS = Path(__file__).resolve().parents[1] / "services/API/amplify_outputs.json"
+SOURCE_OUTPUTS = Path(__file__).resolve().parents[1] / "services/API/amplify_outputs.source-rollback.json"
 DESTINATION_OUTPUTS = Path(__file__).resolve().parents[1] / (
     "services/API/amplify_outputs.production-candidate.json"
 )
