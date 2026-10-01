@@ -94,8 +94,15 @@ def consent_status(table, s3, bucket: str, user_id: str) -> dict:
     try:
         active_grant(table, s3, bucket, user_id)
     except ConsentRequired:
-        return {"version": CONSENT_VERSION, "granted": False}
-    return {"version": CONSENT_VERSION, "granted": True}
+        state = _record(table, user_id)
+        decision = state.get("aiSharingConsent")
+        reviewed = bool(
+            isinstance(decision, dict)
+            and decision.get("version") == CONSENT_VERSION
+            and decision.get("granted") is False
+        )
+        return {"version": CONSENT_VERSION, "granted": False, "reviewed": reviewed}
+    return {"version": CONSENT_VERSION, "granted": True, "reviewed": True}
 
 
 def _write_fence(s3, bucket: str, user_id: str, epoch: str, granted: bool) -> None:

@@ -881,7 +881,7 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
     XCTAssertEqual(model.pendingAttachments.map(\.id), ["risks"])
   }
 
-  func testFirstSendRequiresExplicitAISharingPermissionAndKeepsDraft() async throws {
+  func testSendWithoutAISharingPermissionKeepsDraftWithoutOpeningAConsentSheet() async throws {
     var bootstrap = DemoData.bootstrap
     bootstrap.aiSharingConsent = AISharingConsent(version: 1, granted: false)
     var requests: [String] = []
@@ -900,22 +900,20 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
 
     await model.send()
 
-    XCTAssertTrue(model.showAISharingConsent)
     XCTAssertEqual(model.composerText, "A private plan")
     XCTAssertEqual(model.pendingAttachments.map(\.id), ["brief"])
     XCTAssertTrue(requests.isEmpty)
-    model.showAISharingConsent = false
     XCTAssertEqual(model.composerText, "A private plan")
   }
 
-  func testAllowingAISharingSendsThePendingDraftOnce() async throws {
+  func testAllowingAISharingDoesNotSendTheDraftUntilTheUserSendsIt() async throws {
     var bootstrap = DemoData.bootstrap
     bootstrap.aiSharingConsent = AISharingConsent(version: 1, granted: false)
     var requests: [String] = []
     MockURLProtocol.handler = { request in
       requests.append("\(request.httpMethod ?? "") \(request.url?.path ?? "")")
       if request.httpMethod == "PUT" {
-        return Self.response(for: request, body: #"{"version":1,"granted":true}"#)
+        return Self.response(for: request, body: #"{"version":1,"granted":true,"reviewed":true}"#)
       }
       if request.httpMethod == "GET" {
         return Self.response(for: request, body: #"{"messages":[]}"#)
@@ -930,8 +928,12 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
     model.selection = .init(kind: .bot, id: "chief")
     model.composerText = "Send this after I agree"
 
+    await model.allowAISharing()
+
+    XCTAssertEqual(requests, ["PUT /account/ai-sharing"])
+    XCTAssertEqual(model.composerText, "Send this after I agree")
+
     await model.send()
-    await model.allowAISharing(sendPendingMessage: true)
 
     XCTAssertEqual(
       requests,
@@ -939,9 +941,19 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
         "PUT /account/ai-sharing", "POST /bots/chief/messages",
         "GET /bots/chief/messages", "GET /bootstrap",
       ])
-    XCTAssertEqual(model.bootstrap?.aiSharingConsent, AISharingConsent(version: 1, granted: true))
-    XCTAssertFalse(model.showAISharingConsent)
+    XCTAssertEqual(
+      model.bootstrap?.aiSharingConsent,
+      AISharingConsent(version: 1, granted: true, reviewed: true))
     XCTAssertTrue(model.composerText.isEmpty)
+  }
+
+  func testAISharingGrantRequestDoesNotSendServerOwnedReviewStatus() throws {
+    let data = try JSONEncoder().encode(
+      AISharingConsent(version: 1, granted: true, reviewed: true))
+    let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    XCTAssertEqual(body.count, 2)
+    XCTAssertEqual(body["version"] as? Int, 1)
+    XCTAssertEqual(body["granted"] as? Bool, true)
   }
 
   func testQueuedGroupMessageCanSteerTheActiveRun() async throws {

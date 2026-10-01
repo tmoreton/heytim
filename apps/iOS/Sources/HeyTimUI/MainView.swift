@@ -76,13 +76,6 @@ public struct MainView: View {
     } message: {
       Text("Add this shared \(model.deepLinkInvite?.kind ?? "item") to your account?")
     }
-    .sheet(isPresented: $model.showAISharingConsent) {
-      AISharingConsentDisclosure(
-        isWorking: model.isUpdatingAISharingConsent,
-        allowTitle: "Allow and Send",
-        onAllow: { Task { await model.allowAISharing(sendPendingMessage: true) } },
-        onCancel: { model.showAISharingConsent = false })
-    }
     .onDisappear { dictation.shutDown() }
   }
 
@@ -1309,6 +1302,19 @@ private struct Composer: View {
         Label(error, systemImage: "exclamationmark.triangle")
           .froggyFont(.caption).foregroundStyle(.red).padding(.top, 5)
       }
+      if model.bootstrap?.aiSharingConsent.granted == false {
+        HStack(spacing: 8) {
+          Text("AI processing is off. Turn it on in Settings to message bots.")
+            .froggyFont(.caption)
+            .foregroundStyle(FrogTheme.textSoft)
+          Spacer(minLength: 4)
+          Button("Settings") { model.sheet = .account }
+            .froggyFont(.caption, weight: .semibold)
+            .accessibilityIdentifier("chat.ai-processing-settings")
+        }
+        .frame(maxWidth: composerMaxWidth)
+        .padding(.top, 8)
+      }
     }
     .padding(.horizontal, composerHorizontalPadding)
     .padding(.top, composerTopPadding)
@@ -1603,6 +1609,7 @@ private struct Composer: View {
   private var canSubmit: Bool {
     let available = canSend && !model.isUploading
       && !dictation.isRecording && !dictation.isStarting
+      && model.bootstrap?.aiSharingConsent.granted != false
     return available
   }
   private var sendActionTitle: String {
