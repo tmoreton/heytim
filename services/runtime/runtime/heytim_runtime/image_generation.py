@@ -260,6 +260,7 @@ async def _invoke_image(
     *,
     input_references: list[str] | None = None,
     before_dispatch: Callable[[], Awaitable[None] | None] | None = None,
+    on_response_usage: Callable[[Any], None] | None = None,
 ) -> bytes:
     request: dict[str, Any] = {
         "model": IMAGE_MODEL_ID,
@@ -310,6 +311,8 @@ async def _invoke_image(
         raise RuntimeError(
             "OpenRouter image generation returned an invalid response"
         ) from exc
+    if on_response_usage is not None:
+        on_response_usage(payload.get("usage") if isinstance(payload, dict) else None)
     return _response_image(payload)
 
 
@@ -360,6 +363,10 @@ def image_generation_tools(
                 aspect_ratio,
                 input_references=input_references,
                 before_dispatch=before_dispatch,
+                on_response_usage=(
+                    lambda raw_usage: usage.observe_image_result(IMAGE_MODEL_ID, raw_usage)
+                    if usage is not None else None
+                ),
             )
         finally:
             if owns_client:

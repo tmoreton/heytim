@@ -16,11 +16,26 @@ struct AccountUsageView: View {
       LabeledContent("Total tokens", value: usage.totalTokens.formatted())
       LabeledContent("Input", value: usage.inputTokens.formatted())
       LabeledContent("Output", value: usage.outputTokens.formatted())
-      LabeledContent("Cached input", value: usage.cacheReadInputTokens.formatted())
+      if let imageTokens = usage.imageTokens, imageTokens > 0 {
+        LabeledContent("Image tokens", value: imageTokens.formatted())
+      }
+      LabeledContent("Cached input", value: cachedInputLabel)
       if usage.cacheWriteInputTokens > 0 {
         LabeledContent("Cache writes", value: usage.cacheWriteInputTokens.formatted())
       }
-      if usage.costIncomplete {
+      if usage.imageCostIncomplete == true {
+        Label("Some image generation charges are unavailable. Recorded cost is partial.",
+              systemImage: "info.circle")
+          .froggyFont(.footnote)
+          .foregroundStyle(.secondary)
+      }
+      if usage.tokenIncomplete == true {
+        Label("Some image token counts are unavailable, so total tokens are partial.",
+              systemImage: "info.circle")
+          .froggyFont(.footnote)
+          .foregroundStyle(.secondary)
+      }
+      if usage.costIncomplete, usage.imageCostIncomplete != true {
         Label("Some model costs are unavailable, so the recorded cost is partial.",
               systemImage: "info.circle")
           .froggyFont(.footnote)
@@ -50,5 +65,13 @@ struct AccountUsageView: View {
     guard let amount = Decimal(string: usage.totalCostUsd) else { return "Unavailable" }
     if amount > 0 && amount < Decimal(string: "0.000001")! { return "<$0.000001" }
     return String(format: "$%.6f", NSDecimalNumber(decimal: amount).doubleValue)
+  }
+
+  private var cachedInputLabel: String {
+    switch usage.cacheCoverage {
+    case "complete": return usage.cacheReadInputTokens.formatted()
+    case "partial": return "\(usage.cacheReadInputTokens.formatted()) recorded (partial)"
+    default: return "Unavailable"
+    }
   }
 }

@@ -121,6 +121,7 @@ class UsageAccumulator:
         youtube_search_quota: dict[str, Any] | None = None,
     ) -> None:
         self._models: dict[tuple[str, str], dict[str, Any]] = {}
+        self._image_results: list[dict[str, Any]] = []
         self._tools: dict[tuple[str, str], int] = {}
         self._model_dispatches = 0
         self._calls: list[dict[str, Any]] = []
@@ -250,9 +251,10 @@ class UsageAccumulator:
                 call["cacheReadInputTokens"] += _nonnegative_int(
                     usage.get("cacheReadInputTokens")
                 )
-                call["cacheReportAvailable"] |= metadata.get(
-                    "heytimCacheReadReported"
-                ) is True
+                call["cacheReportAvailable"] |= (
+                    metadata.get("heytimCacheReadReported") is True
+                    or (provider == "bedrock" and "cacheReadInputTokens" in usage)
+                )
 
             provider_cost = _nonnegative_decimal(metadata.get("heytimProviderCostUsd"))
             if provider_cost is not None:
@@ -311,12 +313,38 @@ class UsageAccumulator:
             if is_image:
                 self._image_dispatches += 1
 
+    def observe_image_result(self, model_id: str, raw_usage: Any) -> None:
+        """Record a successful image response separately from text cache metrics."""
+        usage = raw_usage if isinstance(raw_usage, dict) else {}
+        input_tokens = _nonnegative_int(usage.get("prompt_tokens"))
+        output_tokens = _nonnegative_int(usage.get("completion_tokens"))
+        cost = _nonnegative_decimal(usage.get("cost"))
+        result: dict[str, Any] = {
+            "provider": "openrouter_image",
+            "modelId": model_id,
+            "callCount": 1,
+            "inputTokens": input_tokens,
+            "outputTokens": output_tokens,
+            "totalTokens": input_tokens + output_tokens,
+            "tokenReportAvailable": (
+                type(usage.get("prompt_tokens")) is int
+                and usage["prompt_tokens"] >= 0
+                and type(usage.get("completion_tokens")) is int
+                and usage["completion_tokens"] >= 0
+            ),
+        }
+        if cost is not None:
+            result["providerCostUsd"] = format(cost, "f")
+        with self._lock:
+            self._image_results.append(result)
+
     def snapshot(self) -> dict[str, Any]:
         models: list[dict[str, Any]] = []
         totals = {field: 0 for field in TOKEN_FIELDS}
         totals["callCount"] = 0
         with self._lock:
             tracked_models = [dict(item) for item in self._models.values()]
+            image_results = [dict(item) for item in self._image_results]
             tracked_tools = list(self._tools.items())
             model_dispatches = self._model_dispatches
             tracked_calls = [dict(call) for call in self._calls]
@@ -335,6 +363,11 @@ class UsageAccumulator:
             if tracked["callCount"] and tracked["costReportCount"] == tracked["callCount"]:
                 model["providerCostUsd"] = format(tracked["providerCostUsd"], "f")
             models.append(model)
+        for image in image_results:
+            models.append(image)
+            for field in TOKEN_FIELDS:
+                totals[field] += _nonnegative_int(image.get(field))
+            totals["callCount"] += 1
         tools = [
             {"provider": provider, "operation": operation, "callCount": count}
             for (provider, operation), count in tracked_tools

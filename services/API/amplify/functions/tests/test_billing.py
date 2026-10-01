@@ -88,15 +88,16 @@ class BillingTests(ApiTestCase):
                         "costBasis": "provider_reported",
                         "costIncomplete": False,
                         "models": [{
-                            "provider": "openrouter", "inputTokens": 100,
+                            "provider": "openrouter", "callCount": 1, "inputTokens": 100,
                             "outputTokens": 20, "cacheReadInputTokens": 75,
                             "cacheWriteInputTokens": 5, "reasoningTokens": 8,
                             "costBasis": "provider_reported",
                         }],
+                        "calls": [{"cacheReportAvailable": True}],
                     },
                     {
                         "createdAt": "2026-09-30T23:59:59.999Z",
-                        "costUsd": Decimal("9"), "models": [],
+                        "costUsd": Decimal(9), "models": [],
                     },
                 ],
                 "LastEvaluatedKey": {"pk": "USER#user-1", "sk": "USAGE#first"},
@@ -109,15 +110,16 @@ class BillingTests(ApiTestCase):
                         "costBasis": "estimated",
                         "costIncomplete": False,
                         "models": [{
-                            "provider": "bedrock", "inputTokens": 50,
+                            "provider": "bedrock", "callCount": 1, "inputTokens": 50,
                             "outputTokens": 40, "cacheReadInputTokens": 30,
                             "cacheWriteInputTokens": 10, "reasoningTokens": 15,
                             "costBasis": "estimated",
                         }],
+                        "calls": [{"cacheReportAvailable": True}],
                     },
                     {
                         "createdAt": "2026-11-01T00:00:00.000Z",
-                        "costUsd": Decimal("9"), "models": [],
+                        "costUsd": Decimal(9), "models": [],
                     },
                 ]
             },
@@ -142,6 +144,7 @@ class BillingTests(ApiTestCase):
         self.assertEqual(usage["reasoningTokens"], 23)
         self.assertTrue(usage["costEstimated"])
         self.assertFalse(usage["costIncomplete"])
+        self.assertEqual(usage["cacheCoverage"], "complete")
         self.assertEqual(query.call_count, 2)
         self.assertEqual(query.call_args_list[1].kwargs["ExclusiveStartKey"],
                          {"pk": "USER#user-1", "sk": "USAGE#first"})
@@ -166,7 +169,7 @@ class BillingTests(ApiTestCase):
                 },
                 {
                     "createdAt": "2026-10-20T12:00:00Z",
-                    "costUsd": Decimal("10"), "models": [],
+                    "costUsd": Decimal(10), "models": [],
                 },
             ]}),
         ):
@@ -180,6 +183,80 @@ class BillingTests(ApiTestCase):
         self.assertEqual(usage["totalCostUsd"], "0.4")
         self.assertEqual(usage["totalTokens"], 15)
         self.assertTrue(usage["costIncomplete"])
+
+    def test_usage_reports_partial_cache_coverage_and_legacy_image_cost(self) -> None:
+        with (
+            patch.dict(self.billing.os.environ, {
+                "HEYTIM_STRIPE_AVAILABLE": "false", "HEYTIM_FREE_ONLY_MODE": "true",
+            }),
+            patch.object(self.data_table, "query", return_value={"Items": [
+                {
+                    "createdAt": "2026-10-01T12:00:00Z", "costUsd": Decimal("0.01"),
+                    "models": [{"provider": "openrouter", "callCount": 1,
+                                "inputTokens": 100, "outputTokens": 10}],
+                    "calls": [{"cacheReportAvailable": True}],
+                },
+                {
+                    "createdAt": "2026-10-01T12:01:00Z", "costUsd": Decimal("0.02"),
+                    "models": [{"provider": "openrouter", "callCount": 1,
+                                "inputTokens": 100, "outputTokens": 10}],
+                    "calls": [{"cacheReportAvailable": False}],
+                    "tools": [{"provider": "openrouter", "operation": "generate_image", "callCount": 1}],
+                },
+            ]}),
+        ):
+            usage = self.billing.billing_summary(
+                "user-1", now=datetime(2026, 10, 15, tzinfo=UTC))["usage"]
+
+        self.assertEqual(usage["cacheCoverage"], "partial")
+        self.assertTrue(usage["costIncomplete"])
+        self.assertTrue(usage["imageCostIncomplete"])
+        self.assertTrue(usage["tokenIncomplete"])
+        self.assertEqual(usage["totalCostUsd"], "0.03")
+
+    def test_usage_reports_cache_unavailable_without_a_provider_report(self) -> None:
+        with (
+            patch.dict(self.billing.os.environ, {
+                "HEYTIM_STRIPE_AVAILABLE": "false", "HEYTIM_FREE_ONLY_MODE": "true",
+            }),
+            patch.object(self.data_table, "query", return_value={"Items": [{
+                "createdAt": "2026-10-01T12:00:00Z", "costUsd": Decimal("0.01"),
+                "models": [{"provider": "openrouter", "callCount": 1,
+                            "inputTokens": 100, "outputTokens": 10}],
+                "calls": [{"cacheReportAvailable": False}],
+            }]}),
+        ):
+            usage = self.billing.billing_summary(
+                "user-1", now=datetime(2026, 10, 15, tzinfo=UTC))["usage"]
+
+        self.assertEqual(usage["cacheReadInputTokens"], 0)
+        self.assertEqual(usage["cacheCoverage"], "unavailable")
+
+    def test_reported_image_cost_and_tokens_do_not_affect_text_cache_coverage(self) -> None:
+        with (
+            patch.dict(self.billing.os.environ, {
+                "HEYTIM_STRIPE_AVAILABLE": "false", "HEYTIM_FREE_ONLY_MODE": "true",
+            }),
+            patch.object(self.data_table, "query", return_value={"Items": [{
+                "createdAt": "2026-10-01T12:00:00Z",
+                "costUsd": Decimal("0.0123"), "costBasis": "provider_reported",
+                "models": [{
+                    "provider": "openrouter_image", "callCount": 1,
+                    "inputTokens": 120, "outputTokens": 80,
+                    "costBasis": "provider_reported", "tokenReportAvailable": True,
+                }],
+                "tools": [{"provider": "openrouter", "operation": "generate_image", "callCount": 1}],
+            }]}),
+        ):
+            usage = self.billing.billing_summary(
+                "user-1", now=datetime(2026, 10, 15, tzinfo=UTC))["usage"]
+
+        self.assertEqual(usage["totalCostUsd"], "0.0123")
+        self.assertEqual(usage["totalTokens"], 200)
+        self.assertEqual(usage["imageTokens"], 200)
+        self.assertEqual(usage["cacheCoverage"], "complete")
+        self.assertFalse(usage["costIncomplete"])
+        self.assertFalse(usage["tokenIncomplete"])
 
     def test_stripe_configuration_accepts_live_restricted_key(self) -> None:
         secrets = MagicMock()

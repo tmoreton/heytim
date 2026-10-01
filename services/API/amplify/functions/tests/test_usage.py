@@ -195,6 +195,80 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(item["tools"][0]["operation"], "youtube_search")
         self.assertEqual(item["costBasis"], "not_applicable")
 
+    def test_image_dispatch_marks_cost_partial_even_with_exact_text_model_cost(self) -> None:
+        item = self.usage._usage_item(
+            "user-1", "event-1",
+            {
+                "models": [{
+                    "provider": "openrouter", "modelId": "deepseek/deepseek-v4.1-flash",
+                    "callCount": 1, "inputTokens": 100, "outputTokens": 10,
+                    "providerCostUsd": "0.0001",
+                }],
+                "tools": [{
+                    "provider": "openrouter", "operation": "generate_image",
+                    "callCount": 1,
+                }],
+            },
+            work_type="direct", bot_id="bot-1",
+        )
+
+        self.assertEqual(item["costUsd"], Decimal("0.000100000000"))
+        self.assertTrue(item["costIncomplete"])
+        self.assertTrue(item["imageCostIncomplete"])
+        self.assertEqual(item["costBasis"], "partial")
+
+    def test_image_cost_flag_survives_bounded_tool_diagnostics(self) -> None:
+        tools = [
+            {"provider": "other", "operation": f"operation_{index}", "callCount": 1}
+            for index in range(32)
+        ]
+        tools.append({"provider": "openrouter", "operation": "generate_image", "callCount": 1})
+        item = self.usage._usage_item(
+            "user-1", "event-1", {"models": [], "tools": tools},
+            work_type="direct", bot_id="bot-1",
+        )
+
+        self.assertEqual(len(item["tools"]), 32)
+        self.assertTrue(item["imageCostIncomplete"])
+        self.assertTrue(item["costIncomplete"])
+
+    def test_reported_image_usage_adds_exact_cost_and_tokens(self) -> None:
+        item = self.usage._usage_item(
+            "user-1", "event-1", {
+                "models": [{
+                    "provider": "openrouter_image", "modelId": "openai/gpt-image-2.5-sunburst",
+                    "callCount": 1, "inputTokens": 120, "outputTokens": 80,
+                    "tokenReportAvailable": True, "providerCostUsd": "0.0123",
+                }],
+                "tools": [{
+                    "provider": "openrouter", "operation": "generate_image", "callCount": 1,
+                }],
+            }, work_type="direct", bot_id="bot-1",
+        )
+
+        self.assertEqual(item["costUsd"], Decimal("0.012300000000"))
+        self.assertEqual(item["inputTokens"], 120)
+        self.assertEqual(item["outputTokens"], 80)
+        self.assertFalse(item["costIncomplete"])
+        self.assertFalse(item["imageCostIncomplete"])
+        self.assertFalse(item["tokenIncomplete"])
+
+    def test_unreported_image_response_marks_cost_and_tokens_partial(self) -> None:
+        item = self.usage._usage_item(
+            "user-1", "event-1", {
+                "models": [{
+                    "provider": "openrouter_image", "modelId": "openai/gpt-image-2.5-sunburst",
+                    "callCount": 1, "tokenReportAvailable": False,
+                }],
+                "tools": [{
+                    "provider": "openrouter", "operation": "generate_image", "callCount": 1,
+                }],
+            }, work_type="direct", bot_id="bot-1",
+        )
+
+        self.assertTrue(item["imageCostIncomplete"])
+        self.assertTrue(item["tokenIncomplete"])
+
     def test_default_deepseek_model_has_a_fallback_price(self) -> None:
         item = self.usage._usage_item(
             "user-1",

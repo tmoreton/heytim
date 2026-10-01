@@ -392,6 +392,20 @@ def test_cache_diagnostics_record_each_call_without_prompt_contents() -> None:
     assert "private instructions" not in str(report)
 
 
+def test_bedrock_cache_report_is_detected_from_usage_metadata() -> None:
+    accumulator = model_loader.UsageAccumulator()
+    delegate = FakeModel("bedrock", [{
+        "metadata": {"usage": {"inputTokens": 100, "cacheReadInputTokens": 0}}
+    }])
+    model = model_loader.UsageTrackingModel(
+        delegate, accumulator, provider="bedrock", model_id="test-bedrock-model"
+    )
+
+    asyncio.run(_events(model))
+
+    assert accumulator.snapshot()["calls"][0]["cacheReportAvailable"] is True
+
+
 def test_usage_tracker_observes_structured_output_metadata() -> None:
     accumulator = model_loader.UsageAccumulator()
     delegate = FakeModel("primary", [])
