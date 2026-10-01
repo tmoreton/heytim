@@ -16,13 +16,16 @@ unchanged. The existing App secrets in AWS accounts `188757775631` and
 webhook signing key; no credential value was printed or copied during this
 cutover.
 
+The post-installation Setup URL now points to the destination GitHub OAuth
+callback. Both source and destination callback URLs remain authorized for
+rollback, with wildcard matching off. GitHub's owner settings confirmed the
+destination Setup URL and webhook URL after saving.
+
 Before switching GitHub, the destination webhook returned `401` for an invalid
 signature and `200` for a correctly signed `ping` payload without starting a
 routine. GitHub had no recent deliveries available for a provider-generated
 redelivery check. A new signed GitHub delivery and an end-to-end connection
 test remain necessary before treating GitHub issue routines as verified.
-The App's OAuth callback and post-installation settings should also be read
-back in its owner settings before claiming the connection flow is verified.
 
 For rollback, change only the existing App webhook URL back to the source URL
 above, then verify GitHub's readback and delivery status. Keep the App ID,
