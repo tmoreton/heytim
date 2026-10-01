@@ -323,7 +323,11 @@ ln "$archive_file" "$appcast_source/$archive_name" \
 
 generate_appcast="${SPARKLE_GENERATE_APPCAST:-}"
 if [[ -z "$generate_appcast" ]]; then
-  generate_appcast="$(find /tmp "$HOME/Library/Developer/Xcode/DerivedData" \
+  sparkle_search_roots=(/tmp "$HOME/Library/Developer/Xcode/DerivedData")
+  if [[ -n "${HEYTIM_DERIVED_DATA_PATH:-}" ]]; then
+    sparkle_search_roots=("$HEYTIM_DERIVED_DATA_PATH" "${sparkle_search_roots[@]}")
+  fi
+  generate_appcast="$(find "${sparkle_search_roots[@]}" \
     -path '*/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast' \
     -type f -print -quit 2>/dev/null || true)"
 fi
