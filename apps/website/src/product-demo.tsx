@@ -38,7 +38,7 @@ export function ProductDemo() {
     <div className="demo-window">
       <div className="demo-toolbar"><span className="demo-dots" aria-hidden="true"><i /><i /><i /></span><span>HeyTim</span><Icon name="sliders" size={16} /></div>
       <div className="demo-content" id="demo-conversation" aria-live="polite" aria-atomic="true">
-        <div className="demo-room"><TimIcon size={46} /><div><strong>{story.room}</strong><span>{story.context}</span></div></div>
+        <div className="demo-room"><TimIcon size={46} color={story.color} /><div><strong>{story.room}</strong><span>{story.context}</span></div></div>
         <div className="demo-message demo-person"><span>You</span><p>{story.prompt}</p></div>
         <div className="demo-bot" style={{ '--bot-color': story.color } as CSSProperties}><TimIcon size={32} color={story.color} /><div><strong>{story.bot}</strong><p>{story.reply}</p></div></div>
         <div className="demo-result"><span className="demo-result-icon"><Icon name={story.icon} size={21} /></span><div><strong>{story.result}</strong><span>{story.detail}</span></div></div>

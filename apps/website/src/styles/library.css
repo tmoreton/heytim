@@ -25,6 +25,7 @@
 .catalog-card:target { outline: 2px solid var(--ink); outline-offset: 4px; }
 .card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .card-mark { width: 72px; height: 72px; display: grid; place-items: center; background: color-mix(in srgb, var(--bot-color) 9%, var(--card)); border-radius: 12px; }
+.card-mark-neutral { color: var(--ink); background: var(--surface-alt); }
 .badge { padding: 6px 9px; background: var(--raised); color: var(--muted); border-radius: 4px; font-size: .75rem; }
 .catalog-card h2 { font-size: 1.38rem; margin-top: 24px; letter-spacing: -.035em; }
 .catalog-card > p { margin-top: 10px; font-size: .96rem; color: var(--muted); line-height: 1.6; }
