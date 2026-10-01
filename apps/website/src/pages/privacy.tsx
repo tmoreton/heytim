@@ -3,7 +3,7 @@ export function Privacy() {
     <main className="doc-page" id="main">
       <p className="eyebrow">HeyTim</p>
       <h1>Privacy Policy</h1>
-      <p className="effective">Effective September 30, 2026</p>
+      <p className="effective">Effective October 1, 2026</p>
       <p>This policy explains what HeyTim collects, why we use it, and the choices available to you.</p>
 
       <h2>Information we collect</h2>
