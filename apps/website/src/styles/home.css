@@ -238,3 +238,16 @@
   .faq-section { grid-template-columns: 1fr; gap: 32px; }
   .faq-list summary { min-height: 73px; }
 }
+@media (max-width: 320px) {
+  .hero h1 { font-size: 2.8rem; }
+  .difference-grid { grid-template-columns: minmax(0, 1fr); }
+  .difference-grid article { min-width: 0; padding: 22px 16px; }
+  .memory-notes > div { min-width: 0; }
+  .together-avatars { flex-wrap: wrap; }
+  .connections-section { grid-template-columns: minmax(0, 1fr); padding: 24px 18px; }
+  .connections-copy, .connections-board { min-width: 0; }
+  .connections-copy .button { gap: 8px; padding-inline: 10px; }
+  .connection-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .connection-tile { min-width: 0; padding-inline: 4px; }
+  .connection-tile span { overflow-wrap: anywhere; }
+}
