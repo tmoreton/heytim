@@ -6,6 +6,31 @@ was recorded, including legacy repository, cloud-resource, secret, and bundle ID
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-10-01 — fresh destination launch and Apple release in progress
+
+- The owner chose a fresh, free launch in destination AWS account `820323452649`, retaining source account
+  `188757775631` for rollback without transferring customer records or tokens. The destination public API at
+  `https://srrkqsqrqd.execute-api.us-east-1.amazonaws.com` returned the HeyTim catalog on October 1. Production
+  [backend-only run 36806967998](https://github.com/tmoreton/heytim/actions/runs/36806967998) succeeded with the
+  managed five-scenario regression and authenticated workflow checks. Unapproved Google, X, Slack, and Notion
+  connections remain disabled.
+- The GitHub repository is `tmoreton/heytim`, its Pages domain is `heytim.ai`, and the GitHub App is presented as
+  HeyTim. Legacy protected credential handles and the `frogbot-macmini` runner registration remain in place for
+  compatibility; release jobs select the `heytim-apple` runner label. The annotated `v1.0.13` tag and unpublished
+  draft release target current main commit `620c2b9a7b302b38613b65e6defc5f80a604936e` and have no public assets.
+- Read-only [App Store Connect inventory 36825304305](https://github.com/tmoreton/heytim/actions/runs/36825304305)
+  passed: the HeyTim listing name, privacy URL, and support URL match; the Apple Account Holder is accepted or
+  installed in an internal group with access to all builds. The App Privacy label is drafted but unpublished.
+  DNS points `heytim.ai` mail to Namecheap forwarding, but the `support@heytim.ai` alias destination and delivery
+  remain unverified. Both `HEYTIM_RELEASE_COMPLIANCE_APPROVED` and `HEYTIM_APNS_DEVICE_SMOKE_APPROVED` remain `false`.
+- The first internal iPhone upload [run 36808752688](https://github.com/tmoreton/heytim/actions/runs/36808752688)
+  failed before upload when its temporary signing keychain locked after two hours of native compilation. Main commit
+  `620c2b9` extends that timeout to six hours. The corrected internal-only
+  [retry 36821645378](https://github.com/tmoreton/heytim/actions/runs/36821645378) was still compiling at
+  07:19 UTC; the private [Mac candidate 36821899708](https://github.com/tmoreton/heytim/actions/runs/36821899708)
+  was pending behind it. No `1.0.13` TestFlight processing result, physical push proof, or new Sparkle publication
+  was claimed at this checkpoint.
+
 ## 2026-09-30 — capture infrastructure staged; traffic cutover NO-GO
 
 - The source account `188757775631` still serves customers and accepts mail. No source write freeze, customer-state
