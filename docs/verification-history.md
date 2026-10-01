@@ -33,9 +33,13 @@ the current checkout or environment still has the same status.
   [read-only inventory 36839073340](https://github.com/tmoreton/heytim/actions/runs/36839073340) again verified
   the Account Holder's accepted membership in the all-builds internal group, but its accessible log did not show
   the new build's exact processing row. The private
-  [Mac candidate 36821899708](https://github.com/tmoreton/heytim/actions/runs/36821899708) remained in its
-  two-platform verification at 08:52 UTC. No physical push proof or new Sparkle publication was claimed at this
-  checkpoint.
+  [Mac candidate 36821899708](https://github.com/tmoreton/heytim/actions/runs/36821899708) subsequently
+  succeeded for `1.0.13` build `20261001084651`, also from `620c2b9` and the destination AWS configuration.
+  Its nonsecret receipt (artifact `11154275607`) records the signed DMG, Sparkle ZIP, and signed appcast checksums.
+  Apple accepted notarization of both the app and DMG; signature, stapling, Gatekeeper, and mounted-image checks
+  passed. The runner removed the signed binaries and left the GitHub release as a draft with zero assets. This
+  private run's Apple verification used Mac unit tests plus a generic iPhone build, since its runner has no iOS
+  Simulator runtime. It did not prove physical push delivery or publish a Sparkle update.
 
 ## 2026-09-30 — capture infrastructure staged; traffic cutover NO-GO
 
