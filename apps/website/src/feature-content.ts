@@ -75,7 +75,7 @@ export const featureGroups: FeatureGroup[] = [
       { title: 'Permission for interactive tools', description: 'Interactive tools ask for approval covering the bot’s enabled tools. You can revoke persistent approval. Device tools also require local permission on the authorized device.' },
       { title: 'Private and shared spaces', description: 'Personal chats, private files, group memory, and group files have separate access boundaries. Current group members can access the files shared with their group.' },
       { title: 'Portable context and visible source', description: 'Export memory, remove remembered information, revoke sharing links, or delete your account. HeyTim’s source is available under the PolyForm Noncommercial license.' },
-      { title: 'Usage and plan', description: 'See your plan, work credits used, remaining credits, and renewal information in settings. Where available, manage a Plus subscription through the app’s billing flow.' },
+      { title: 'Usage and plan', description: 'See your current Free plan, work credits used and remaining, model token usage, and next credit reset in settings. Plus checkout is unavailable in the current beta.' },
     ],
   },
 ];

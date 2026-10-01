@@ -17,12 +17,12 @@ export function BillingReturn() {
 
   const successful = status === 'success';
   return <main className="doc-page" id="main">
-    <p className="eyebrow">HeyTim Plus</p>
-    <h1>{successful ? 'You’re all set.' : 'Return to HeyTim'}</h1>
+    <p className="eyebrow">HeyTim billing</p>
+    <h1>{successful ? 'Billing redirect received' : 'Return to HeyTim'}</h1>
     <p>{successful
-      ? 'Stripe is confirming your subscription. Your plan and work-credit balance will refresh in the app.'
-      : 'Your plan was not changed. You can return to the app whenever you’re ready.'}</p>
+      ? 'The current fresh beta offers only the Free plan. An earlier Stripe checkout does not automatically change your current account. Contact support@heytim.ai if you have a question about a charge or earlier subscription.'
+      : 'Open the app to check your current plan and work-credit balance.'}</p>
     <p><a className="button" href={appURL(status)}>Open HeyTim</a></p>
-    <p className="effective">You can manage or cancel a subscription from Usage &amp; Plan in HeyTim settings.</p>
+    <p className="effective">New Plus checkout and subscription management are unavailable in this release.</p>
   </main>;
 }
