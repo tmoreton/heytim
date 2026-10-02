@@ -39,6 +39,7 @@ struct BrowserHandoffView: View {
         }
         if state?.status == "human_control" {
           Button("Reconnect Live View", systemImage: "arrow.clockwise") { reconnect() }
+            .froggyGlassButton()
             .disabled(isBusy)
           Button("Return Control", systemImage: "arrow.uturn.backward") {
             resume(rememberLogin: false)
@@ -46,6 +47,7 @@ struct BrowserHandoffView: View {
             .froggyGlassButton()
             .disabled(isBusy)
           Button("Save Login and Return Control") { resume(rememberLogin: true) }
+            .froggyGlassButton()
             .disabled(isBusy)
         }
       }
@@ -77,6 +79,7 @@ struct BrowserHandoffView: View {
         } actions: {
           if state?.status == "human_control" {
             Button("Show Browser") { reconnect() }
+              .froggyGlassButton(prominent: true)
           }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
