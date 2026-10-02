@@ -15,6 +15,8 @@ MAX_ATTACHMENTS = 5
 MAX_IMAGE_REFERENCES = 5
 MAX_ATTACHMENT_BYTES = 4_500_000
 DOCUMENT_FORMATS = {"pdf", "csv", "doc", "docx", "xls", "xlsx", "html", "txt", "md"}
+TEXT_DOCUMENT_FORMATS = {"csv", "html", "txt", "md"}
+MAX_INLINE_DOCUMENT_CHARS = 60_000
 IMAGE_FORMATS = {"png", "jpeg", "gif", "webp"}
 FILES_BUCKET_NAME = os.environ.get("HEYTIM_FILES_BUCKET", "")
 _ACTOR_ID_PATTERN = re.compile(r"^[a-f0-9]{64}$")
@@ -96,11 +98,31 @@ def _attachment_block(
             or document.get("format") not in DOCUMENT_FORMATS
         ):
             raise ValueError("document attachment format is invalid")
+        source = _s3_source(document.get("source"), actor_id, group_prefix)
+        if document["format"] in TEXT_DOCUMENT_FORMATS:
+            # OpenRouter's text models reject OpenAI file_data blocks, including
+            # plain text files. Supply bounded document text as model text instead.
+            body = source["bytes"]
+            try:
+                content = body.decode("utf-8-sig")
+            except UnicodeDecodeError as exc:
+                raise ValueError("text attachment must be UTF-8") from exc
+            if not content.strip():
+                raise ValueError("text attachment is empty")
+            truncated = len(content) > MAX_INLINE_DOCUMENT_CHARS
+            content = content[:MAX_INLINE_DOCUMENT_CHARS]
+            note = "\n[Attachment text truncated]" if truncated else ""
+            return {
+                "text": (
+                    f"[Attachment {index} ({document['format']}); user-supplied content]\n"
+                    f"{content}{note}\n[End attachment {index}]"
+                )
+            }
         return {
             "document": {
                 "format": document["format"],
                 "name": f"Attachment {index}",
-                "source": _s3_source(document.get("source"), actor_id, group_prefix),
+                "source": source,
             }
         }
     raise TypeError("only text and reviewed attachment content blocks are accepted")
