@@ -288,6 +288,8 @@ struct ConnectionsView: View {
   @State private var loading = true
   @State private var loadError: String?
   @State private var connectingProviderID: String?
+  @State private var pendingGoogleConnection: GoogleConnectionRequest?
+  @State private var approvedGoogleConnection: GoogleConnectionRequest?
   @State private var disconnectCandidate: Capability?
   @State private var refreshingPlaidID: String?
   @State private var successMessage: String?
@@ -372,6 +374,22 @@ struct ConnectionsView: View {
     .sheet(isPresented: $showingMCPServerSetup) {
       mcpServerSetupSheet
     }
+    .sheet(item: $pendingGoogleConnection, onDismiss: {
+      if let approvedGoogleConnection {
+        self.approvedGoogleConnection = nil
+        startConnection(
+          approvedGoogleConnection.provider.id,
+          chooseAnotherAccount: approvedGoogleConnection.chooseAnotherAccount)
+      }
+    }) { request in
+      GoogleConnectionDisclosure(
+        provider: request.provider,
+        onContinue: {
+          approvedGoogleConnection = request
+          pendingGoogleConnection = nil
+        },
+        onCancel: { pendingGoogleConnection = nil })
+    }
     .onChange(of: webAuthentication.outcome) { _, outcome in
       guard let outcome else { return }
       switch outcome {
@@ -440,6 +458,17 @@ struct ConnectionsView: View {
       showingMCPServerSetup = true
       return
     }
+    if (id == "gmail" || id == "youtube" || id == "google_workspace"),
+      let provider = providers.first(where: { $0.id == id })
+    {
+      pendingGoogleConnection = GoogleConnectionRequest(
+        provider: provider, chooseAnotherAccount: chooseAnotherAccount)
+      return
+    }
+    startConnection(id, chooseAnotherAccount: chooseAnotherAccount)
+  }
+
+  private func startConnection(_ id: String, chooseAnotherAccount: Bool = false) {
     connectingProviderID = id
     Task {
       do {
