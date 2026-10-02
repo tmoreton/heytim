@@ -30,7 +30,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: astral-sh/setup-uv@v10.1.0
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
           cache-dependency-glob: services/runtime/uv.lock
@@ -81,7 +81,7 @@ jobs:
           cache-dependency-path: |
             services/API/package-lock.json
             agentcore/cdk/package-lock.json
-      - uses: astral-sh/setup-uv@v10.1.0
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
           cache-dependency-glob: services/runtime/uv.lock
