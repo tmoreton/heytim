@@ -284,13 +284,15 @@ async function main() {
     expectedTesterEmail: process.env.APP_STORE_CONNECT_EXPECTED_INTERNAL_TESTER_EMAIL,
   });
   const summaryPath = required(process.env.GITHUB_STEP_SUMMARY, 'GITHUB_STEP_SUMMARY');
-  await appendFile(summaryPath, renderSummary(inventory));
+  const summary = renderSummary(inventory);
+  await appendFile(summaryPath, summary);
   if (process.argv[2] === '--require-owner-ready') {
     assertInternalOwnerReady(inventory);
   }
   console.log(`HeyTim iOS inventory: ${inventory.recentBuilds.length} recent build(s);`
     + ` ${inventory.identitySource} in all-builds internal group: ${inventory.ownerInAllBuildsInternalGroup ? 'yes' : 'no'};`
     + ` accepted or installed: ${inventory.ownerAcceptedOrInstalled ? 'yes' : 'no'}.`);
+  console.log(summary);
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
