@@ -46,7 +46,7 @@ struct BotEditor: View {
   private var canSave: Bool {
     identityIssue == nil && instructionsIssue == nil
       && effectiveCatalogToolIDs(draft: draft, skills: model.bootstrap?.skills ?? []).count
-        <= (model.constraints.maxToolsPerBot ?? 12)
+        <= (model.constraints.maxToolsPerBot ?? 13)
       && !saving
   }
 
@@ -142,8 +142,8 @@ struct BotEditor: View {
       } footer: {
         Text(
           effectiveCatalogToolIDs(draft: draft, skills: model.bootstrap?.skills ?? []).count
-            > (model.constraints.maxToolsPerBot ?? 12)
-            ? "Choose at most \(model.constraints.maxToolsPerBot ?? 12) tools, including those required by skills."
+            > (model.constraints.maxToolsPerBot ?? 13)
+            ? "Choose at most \(model.constraints.maxToolsPerBot ?? 13) tools, including those required by skills."
             : "Choose optional playbooks and the actions this bot can use.")
       }
       Section {

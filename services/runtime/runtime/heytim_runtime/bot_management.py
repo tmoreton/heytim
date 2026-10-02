@@ -44,8 +44,8 @@ def _id_list(value: Any, field_name: str) -> list[str]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise TypeError(f"{field_name} must be a list of IDs")
     unique = list(dict.fromkeys(item.strip() for item in value if item.strip()))
-    if len(unique) > 12:
-        raise ValueError(f"{field_name} can contain at most 12 IDs")
+    if len(unique) > 13:
+        raise ValueError(f"{field_name} can contain at most 13 IDs")
     return unique
 
 

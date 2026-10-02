@@ -100,6 +100,15 @@ public struct AuthView: View {
       .padding(.top, 16)
 
       if case .codeSent = auth.phase {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+          let remaining = max(0, 30 - Int(context.date.timeIntervalSince(auth.lastCodeSentAt ?? .distantPast)))
+          Button(remaining == 0 ? "Resend code" : "Resend code in \(remaining)s") {
+            Task { await auth.resendCode() }
+          }
+          .disabled(remaining > 0 || auth.isBusy)
+          .frame(maxWidth: .infinity, minHeight: 44)
+          .accessibilityIdentifier("auth.resend")
+        }
         Button("Use a different email address") {
           code = ""
           auth.useDifferentEmail()
@@ -206,7 +215,7 @@ public struct AuthView: View {
   private var brandText: Color { FrogTheme.accent }
   private var primaryLabel: String { isCodeSent ? "Sign in" : "Continue" }
   private var title: String {
-    isCodeSent ? "Check your messages" : invitation == nil ? "Welcome back" : "Join Hey Tim"
+    isCodeSent ? "Check your messages" : invitation == nil ? "Continue with email" : "Join Hey Tim"
   }
   private var copy: String {
     if case .codeSent(let email, let purpose) = auth.phase {

@@ -545,6 +545,7 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
   }
 
   func testBotEditorOnlyOffersExistingInteractiveApprovalsForRevocation() throws {
+    XCTAssertEqual(BotDraft().toolIds, ["browser"])
     let tools = try JSONDecoder().decode(
       [Capability].self,
       from: Data(
@@ -718,7 +719,7 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
 
     XCTAssertEqual(
       template.effectiveToolIDs(skills: DemoData.skills),
-      ["web_search", "code_interpreter"])
+      ["browser", "web_search", "code_interpreter"])
   }
 
   func testConnectionCallbackAcceptsOnlyCompletedNativeOAuthResults() throws {
@@ -1588,6 +1589,80 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
     XCTAssertEqual(
       captured?.url?.absoluteString,
       "https://api.example.com/bots/bot%2Fone/messages?cursor=next%20page")
+  }
+
+  func testBrowserAddressAcceptsCommonLinksAndRejectsInvalidSchemes() throws {
+    XCTAssertEqual(try BrowserAddress.normalizedURL("google.com")?.absoluteString,
+                   "https://google.com")
+    XCTAssertEqual(try BrowserAddress.normalizedURL("  https://example.com/path  ")?.absoluteString,
+                   "https://example.com/path")
+    XCTAssertNil(try BrowserAddress.normalizedURL(" "))
+    XCTAssertThrowsError(try BrowserAddress.normalizedURL("file:///private/data"))
+  }
+
+  func testBrowserReturnControlSendsBooleanRememberLogin() async throws {
+    var captured: URLRequest?
+    MockURLProtocol.handler = { request in
+      captured = request
+      return Self.response(
+        for: request,
+        body: #"{"botId":"bot-one","status":"ready","contextLabel":"Private chat","hasSavedLogin":false}"#)
+    }
+    let api = HeyTimAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+
+    _ = try await api.resumeBrowser(botId: "bot-one", rememberLogin: false)
+
+    XCTAssertEqual(captured?.url?.path, "/bots/bot-one/browser/resume")
+    let fields = try Self.jsonBody(XCTUnwrap(captured))
+    XCTAssertEqual(fields["rememberLogin"] as? Bool, false)
+  }
+
+  func testFailedChatLoadKeepsAnInlineRetryState() async throws {
+    MockURLProtocol.handler = { request in
+      Self.response(for: request, status: 503,
+        body: #"{"code":"temporarily_unavailable","message":"History unavailable"}"#)
+    }
+    let api = HeyTimAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let model = AppModel(api: api)
+    model.bootstrap = DemoData.bootstrap
+    model.selection = .init(kind: .bot, id: "chief")
+
+    do {
+      _ = try await model.loadMessages()
+      XCTFail("Expected a chat load failure")
+    } catch {}
+    XCTAssertEqual(model.messagesLoadError, "History unavailable")
+    XCTAssertTrue(model.messages.isEmpty)
+
+    MockURLProtocol.handler = { request in
+      Self.response(for: request, body: #"{"messages":[],"nextToken":null}"#)
+    }
+    await model.retryLoadMessages()
+    XCTAssertNil(model.messagesLoadError)
+    XCTAssertEqual(model.loadedMessagesSelection, model.selection)
+  }
+
+  func testDirectShareDefaultsToBotOnlyAndCanIncludeChat() async throws {
+    var scopes: [String] = []
+    MockURLProtocol.handler = { request in
+      let fields = try Self.jsonBody(request)
+      scopes.append(fields["scope"] as? String ?? "")
+      return Self.response(for: request, body: #"{"url":"https://example.com/invite"}"#)
+    }
+    let api = HeyTimAPI(
+      baseURL: try XCTUnwrap(URL(string: "https://api.example.com")), session: mockSession
+    ) { "id-token" }
+    let model = AppModel(api: api)
+    let selection = ConversationSelection(kind: .bot, id: "chief")
+
+    _ = await model.share(selection)
+    _ = await model.share(selection, includeChatHistory: true)
+
+    XCTAssertEqual(scopes, ["bot", "chat"])
   }
 
   func testBootstrapSupportsTheDeployedLegacyShape() async throws {

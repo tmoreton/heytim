@@ -603,7 +603,7 @@ struct BotToolsAndSkillsEditor: View {
     var id: Self { self }
   }
 
-  private var maxTools: Int { model.constraints.maxToolsPerBot ?? 12 }
+  private var maxTools: Int { model.constraints.maxToolsPerBot ?? 13 }
   private var effectiveToolIDs: Set<String> {
     effectiveCatalogToolIDs(draft: draft, skills: skills)
   }
@@ -1721,6 +1721,7 @@ private struct ScheduleEditor: View {
   @State private var deleting = false
   @State private var confirmingDeletion = false
   @State private var confirmingRecipient = false
+  @State private var showingTimeZonePicker = false
   @Environment(\.dismiss) private var dismiss
 
   private var weekdays: [ScheduleWeekday] {
@@ -1733,19 +1734,6 @@ private struct ScheduleEditor: View {
       ScheduleWeekday(id: "FRI", name: "Friday"),
       ScheduleWeekday(id: "SAT", name: "Saturday"),
     ]
-  }
-
-  private var timeZoneOptions: [String] {
-    var seen = Set<String>()
-    return [
-      draft.timezone,
-      TimeZone.current.identifier,
-      "America/New_York",
-      "America/Chicago",
-      "America/Denver",
-      "America/Los_Angeles",
-      "UTC",
-    ].filter { !$0.isEmpty && TimeZone(identifier: $0) != nil && seen.insert($0).inserted }
   }
 
   private var taskIssue: String? {
@@ -1825,10 +1813,10 @@ private struct ScheduleEditor: View {
         if draft.frequency != "hourly" {
           DatePicker("Time", selection: taskTime, displayedComponents: .hourAndMinute)
         }
-        Picker("Time Zone", selection: $draft.timezone) {
-          ForEach(timeZoneOptions, id: \.self) { identifier in
-            Text(timeZoneLabel(identifier)).tag(identifier)
-          }
+        Button {
+          showingTimeZonePicker = true
+        } label: {
+          LabeledContent("Time Zone", value: timeZoneLabel(draft.timezone))
         }
       } header: {
         Text("Schedule")
@@ -1891,6 +1879,9 @@ private struct ScheduleEditor: View {
           .froggyGlassButton(prominent: true)
           .disabled(!canSave)
       }
+    }
+    .sheet(isPresented: $showingTimeZonePicker) {
+      TimeZoneSelectionView(selection: $draft.timezone)
     }
     .onAppear {
       if let existing { draft = ScheduledTaskDraft(task: existing) }
@@ -2030,6 +2021,42 @@ private struct ScheduleEditor: View {
   }
 }
 
+private struct TimeZoneSelectionView: View {
+  @Binding var selection: String
+  @State private var search = ""
+  @Environment(\.dismiss) private var dismiss
+
+  private var zones: [String] {
+    let all = TimeZone.knownTimeZoneIdentifiers.sorted()
+    guard !search.isEmpty else { return all }
+    return all.filter {
+      $0.localizedCaseInsensitiveContains(search)
+        || $0.replacingOccurrences(of: "_", with: " ").localizedCaseInsensitiveContains(search)
+    }
+  }
+
+  var body: some View {
+    NavigationStack {
+      List(zones, id: \.self) { identifier in
+        Button {
+          selection = identifier
+          dismiss()
+        } label: {
+          HStack {
+            Text(identifier.replacingOccurrences(of: "_", with: " "))
+            Spacer()
+            if selection == identifier { Image(systemName: "checkmark") }
+          }
+        }
+      }
+      .searchable(text: $search, prompt: "Search time zones")
+      .navigationTitle("Time Zone")
+      .toolbar { CloseButton { dismiss() } }
+    }
+    .frame(minWidth: 320, minHeight: 400)
+  }
+}
+
 struct ScheduleRunsView: View {
   @Bindable var model: AppModel
   let selection: ConversationSelection
@@ -2037,10 +2064,12 @@ struct ScheduleRunsView: View {
   @State private var runs: [ScheduleRun] = []
   @State private var isLoading = false
   @State private var loadError: String?
+  @State private var selectedRun: ScheduleRun?
   var body: some View {
     List {
       ForEach(runs) { run in
-        VStack(alignment: .leading, spacing: 6) {
+        Button { selectedRun = run } label: {
+          VStack(alignment: .leading, spacing: 6) {
           HStack {
             Text(run.scheduleName).froggyFont(.headline)
             Spacer()
@@ -2059,7 +2088,8 @@ struct ScheduleRunsView: View {
             .froggyFont(.caption)
             .foregroundStyle(.secondary)
           }
-        }
+          }
+        }.buttonStyle(.plain)
       }
     }
     .froggyListSurface()
@@ -2089,6 +2119,34 @@ struct ScheduleRunsView: View {
     }
     .refreshable { await load() }
     .task { await load() }
+    .sheet(item: $selectedRun) { run in
+      NavigationStack {
+        ScrollView {
+          VStack(alignment: .leading, spacing: 18) {
+            LabeledContent("Status", value: run.status.capitalized)
+            LabeledContent("Started", value: run.createdAt)
+            if let completed = run.completedAt {
+              LabeledContent("Completed", value: completed)
+            }
+            LabeledContent("Instructions") { Text(run.prompt).textSelection(.enabled) }
+            if let output = run.output {
+              LabeledContent("Full result") { Text(output).textSelection(.enabled) }
+            }
+            if let activity = run.activity, !activity.isEmpty {
+              LabeledContent("Activity") { Text(activity.joined(separator: "\n")).textSelection(.enabled) }
+            }
+            if let attachments = run.attachments, !attachments.isEmpty {
+              LabeledContent("Files", value: attachments.map(\.name).joined(separator: ", "))
+            }
+          }
+          .frame(maxWidth: 720, alignment: .leading)
+          .padding()
+        }
+        .navigationTitle(run.scheduleName)
+        .toolbar { CloseButton { selectedRun = nil } }
+      }
+      .frame(minWidth: 360, minHeight: 400)
+    }
   }
 
   private func load() async {

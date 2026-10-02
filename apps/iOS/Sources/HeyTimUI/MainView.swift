@@ -243,13 +243,15 @@ private struct ConversationSidebar: View {
     #endif
     .overlay {
       if conversations.isEmpty {
-        ContentUnavailableView(
-          search.isEmpty ? "No chats yet" : "No matches",
-          systemImage: search.isEmpty ? "bubble.left.and.bubble.right" : "magnifyingglass",
-          description: Text(
-            search.isEmpty ? "Your chats will appear here." : "Try a different search."))
+        ContentUnavailableView {
+          Label(search.isEmpty ? "No chats yet" : "No matches",
+            systemImage: search.isEmpty ? "bubble.left.and.bubble.right" : "magnifyingglass")
+        } description: {
+          Text(search.isEmpty ? "Add a bot to start your first conversation." : "Try a different search.")
+        } actions: {
+          if search.isEmpty { Button("Add a bot") { present(.botLibrary) } }
+        }
           .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .allowsHitTesting(false)
       }
     }
     #if os(iOS)
@@ -557,6 +559,7 @@ private struct ConversationView: View {
   @State private var showDelete = false
   @State private var showClear = false
   @State private var showBrowserPanel = false
+  @State private var showSharePopover = false
   @State private var previewURL: URL?
   @State private var previewTask: Task<Void, Never>?
   @State private var previewRequestID = UUID()
@@ -683,12 +686,14 @@ private struct ConversationView: View {
           if let bot = model.selectedBot, bot.allowedActions?.contains("browser") == true {
             ToolbarItem(placement: .primaryAction) { browserButton(botID: bot.id) }
           }
+          ToolbarItem(placement: .primaryAction) { shareButton }
           ToolbarItem(placement: .primaryAction) { detailsButton }
         }
       #else
         if let bot = model.selectedBot, bot.allowedActions?.contains("browser") == true {
           ToolbarItem(placement: .primaryAction) { browserButton(botID: bot.id) }
         }
+        ToolbarItem(placement: .primaryAction) { shareButton }
         ToolbarItem(placement: .primaryAction) { detailsButton }
       #endif
     }
@@ -769,6 +774,18 @@ private struct ConversationView: View {
   }
 
   @ViewBuilder private var transcriptContent: some View {
+    if let error = model.messagesLoadError {
+      HStack(spacing: 12) {
+        Label("Couldn’t load chat", systemImage: "wifi.exclamationmark")
+          .froggyFont(.callout, weight: .semibold)
+        Text(error).froggyFont(.caption).foregroundStyle(.secondary)
+        Spacer(minLength: 0)
+        Button("Retry") { Task { await model.retryLoadMessages() } }
+      }
+      .padding(12)
+      .background(FrogTheme.surface, in: RoundedRectangle(cornerRadius: 12))
+      .accessibilityIdentifier("chat.load-error")
+    }
     if model.nextToken != nil {
       Button("Load Earlier Messages", systemImage: "arrow.up") {
         Task { await model.loadEarlier() }
@@ -781,7 +798,7 @@ private struct ConversationView: View {
       ProgressView("Loading conversation…")
         .tint(FrogTheme.activity)
         .containerRelativeFrame(.vertical, alignment: .center)
-    } else if transcriptMessages.isEmpty {
+    } else if transcriptMessages.isEmpty && model.messagesLoadError == nil {
       emptyConversation
         .containerRelativeFrame(.vertical, alignment: .center)
     }
@@ -921,6 +938,30 @@ private struct ConversationView: View {
     .accessibilityHint("Shows tasks, history, sharing, memory, and editing options")
     .accessibilityIdentifier("chat.details")
     .help("Details, tasks, history, sharing, memory, and editing")
+  }
+
+  private var shareButton: some View {
+    Button {
+      #if os(macOS)
+        showSharePopover = true
+      #else
+        if let selection = model.selection { model.sheet = .share(selection) }
+      #endif
+    } label: {
+      Label(model.selectedGroup == nil ? "Share" : "Invite", systemImage: "square.and.arrow.up")
+    }
+    #if os(iOS)
+      .labelStyle(.iconOnly)
+    #endif
+    .accessibilityIdentifier("chat.share")
+    #if os(macOS)
+      .popover(isPresented: $showSharePopover, arrowEdge: .bottom) {
+        if let selection = model.selection {
+          ShareView(model: model, selection: selection, showsDismissButton: false)
+            .frame(width: 440, height: 460)
+        }
+      }
+    #endif
   }
 
   private func browserButton(botID: String) -> some View {
@@ -1743,19 +1784,20 @@ private struct Composer: View {
     .frame(maxWidth: 780).padding(.bottom, 7)
   }
   private var replyPicker: some View {
-    HStack(spacing: 10) {
+    VStack(alignment: .leading, spacing: 2) {
+      HStack(spacing: 10) {
       Label("Who should answer?", systemImage: "person.2")
         .froggyFont(.callout, weight: .medium)
         .foregroundStyle(FrogTheme.statusText)
       Spacer(minLength: 14)
       Picker("Who should reply", selection: replySelection) {
-        Text("No Bot Reply").tag(String?.none)
+        Text("Post to people only").tag(String?.none)
         if let group = model.selectedGroup {
           if group.bots.count > 1 {
-            Text("All Bots").tag(String?.some("all"))
+            Text("Ask the whole team").tag(String?.some("all"))
           }
           ForEach(group.bots) { bot in
-            Text(bot.name).tag(String?.some(bot.id))
+            Text("Ask \(bot.name)").tag(String?.some(bot.id))
           }
         }
       }
@@ -1766,6 +1808,12 @@ private struct Composer: View {
       .tint(FrogTheme.accent)
       .accessibilityLabel("Who should reply")
       .accessibilityIdentifier("chat.replyPicker")
+      }
+      Text(model.groupReplyBotId == nil
+        ? "Posts to the room without an AI reply."
+        : "Bot replies use work credits from your plan.")
+        .froggyFont(.caption)
+        .foregroundStyle(.secondary)
     }
     .frame(minHeight: 44)
     .padding(.horizontal, 12)

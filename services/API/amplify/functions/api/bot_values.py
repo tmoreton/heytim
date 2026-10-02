@@ -46,6 +46,8 @@ def _bot_values(
                 required_tools.extend(skill.get("requiredToolIds", []))
         if "toolIds" in value:
             extra_tool_ids = catalog.validate_tools(user_id, value.get("toolIds"))
+        elif not previous:
+            extra_tool_ids = catalog.validate_tools(user_id, ["browser"])
         elif isinstance(previous.get("extraToolIds"), list):
             extra_tool_ids = catalog.available_tool_ids(
                 user_id, previous["extraToolIds"]

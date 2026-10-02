@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C10000000000000000000004 /* GroupRoutineEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000004 /* GroupRoutineEditor.swift */; };
 		F20000000000000000000001 /* AppModel+Fork.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000001 /* AppModel+Fork.swift */; };
 		F20000000000000000000002 /* BotSettingsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000002 /* BotSettingsModels.swift */; };
 		F20000000000000000000003 /* ChatUsageSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000003 /* ChatUsageSummary.swift */; };
@@ -41,7 +42,9 @@
 		4B60EAA6CFC8E6C938CBBFC5 /* DictationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AF4C4F234301D2BBDF33497 /* DictationModel.swift */; };
 		60B61E316F326C765ECFB10C /* DesktopControlCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CB8E42C1443BED003885D42 /* DesktopControlCoordinator.swift */; };
 		6485D94A99820735555208AD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = 1827C14F2DD477512A1F7AB4 /* Sparkle */; };
+		C10000000000000000000001 /* DemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000001 /* DemoData.swift */; };
 		703716656630AB43ACDA3F0D /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A8BD71384316330EFB50046 /* AppModel.swift */; };
+		C10000000000000000000003 /* CommonPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000003 /* CommonPanels.swift */; };
 		71657CB25210E15EB004C3B3 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 023CEBD733F786082B5D08D4 /* Theme.swift */; };
 		71EDEC9AE45AE3FD64A263D9 /* HeyTimParakeet in Frameworks */ = {isa = PBXBuildFile; productRef = D21F581866FE82D3302798DD /* HeyTimParakeet */; };
 		85263F88A58D5A0421360C0E /* HeyTimAppleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0827082CADD0435A0DB5D202 /* HeyTimAppleTests.swift */; };
@@ -79,6 +82,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		C20000000000000000000004 /* GroupRoutineEditor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GroupRoutineEditor.swift; path = Sources/HeyTimUI/GroupRoutineEditor.swift; sourceTree = "<group>"; };
 		F30000000000000000000001 /* AppModel+Fork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AppModel+Fork.swift"; path = "Sources/HeyTimCore/AppModel+Fork.swift"; sourceTree = "<group>"; };
 		F30000000000000000000002 /* BotSettingsModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BotSettingsModels.swift; path = Sources/HeyTimCore/BotSettingsModels.swift; sourceTree = "<group>"; };
 		F30000000000000000000003 /* ChatUsageSummary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatUsageSummary.swift; path = Sources/HeyTimCore/ChatUsageSummary.swift; sourceTree = "<group>"; };
@@ -93,6 +97,7 @@
 		F3000000000000000000000D /* AISharingConsent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AISharingConsent.swift; path = Sources/HeyTimCore/AISharingConsent.swift; sourceTree = "<group>"; };
 		F30000000000000000000009 /* ShareView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareView.swift; path = Sources/HeyTimUI/ShareView.swift; sourceTree = "<group>"; };
 		F3000000000000000000000A /* AISharingConsentDisclosure.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AISharingConsentDisclosure.swift; path = Sources/HeyTimUI/AISharingConsentDisclosure.swift; sourceTree = "<group>"; };
+		C20000000000000000000003 /* CommonPanels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CommonPanels.swift; path = Sources/HeyTimUI/CommonPanels.swift; sourceTree = "<group>"; };
 		023CEBD733F786082B5D08D4 /* Theme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Theme.swift; path = Sources/HeyTimUI/Theme.swift; sourceTree = "<group>"; };
 		0827082CADD0435A0DB5D202 /* HeyTimAppleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HeyTimAppleTests.swift; path = Tests/HeyTimAppleTests.swift; sourceTree = "<group>"; };
 		0941498FBD04101B8F9E6E1B /* GitHubSkillImportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GitHubSkillImportView.swift; path = Sources/HeyTimUI/GitHubSkillImportView.swift; sourceTree = "<group>"; };
@@ -109,6 +114,7 @@
 		2AF4C4F234301D2BBDF33497 /* DictationModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DictationModel.swift; path = Sources/HeyTimPlatform/DictationModel.swift; sourceTree = "<group>"; };
 		305EF1F2657C9AC0A9FA9D98 /* HeyTim-macOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = "HeyTim-macOS.entitlements"; path = "Resources/HeyTim-macOS.entitlements"; sourceTree = "<group>"; };
 		389D7153611901EA6F5911BF /* BotInboxView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BotInboxView.swift; path = Sources/HeyTimUI/BotInboxView.swift; sourceTree = "<group>"; };
+		C20000000000000000000001 /* DemoData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DemoData.swift; path = Sources/HeyTimCore/DemoData.swift; sourceTree = "<group>"; };
 		3A8BD71384316330EFB50046 /* AppModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppModel.swift; path = Sources/HeyTimCore/AppModel.swift; sourceTree = "<group>"; };
 		3CD0F9A4EAAEEA20FE442CBB /* AuthView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthView.swift; path = Sources/HeyTimUI/AuthView.swift; sourceTree = "<group>"; };
 		565C957C8A8DF33814A16451 /* HeyTimAppleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HeyTimAppleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -197,6 +203,7 @@
 				FFBB1B96E367269E3D95160A /* APIRoutes.generated.swift */,
 				A80000000000000000000001 /* PlatformContract.generated.swift */,
 				3A8BD71384316330EFB50046 /* AppModel.swift */,
+				C20000000000000000000001 /* DemoData.swift */,
 				F30000000000000000000001 /* AppModel+Fork.swift */,
 				F30000000000000000000007 /* AppModel+AISharingConsent.swift */,
 				F3000000000000000000000D /* AISharingConsent.swift */,
@@ -234,6 +241,8 @@
 				A5E8990A0000000000000002 /* GitHubConnectionRepositoriesView.swift */,
 				023CEBD733F786082B5D08D4 /* Theme.swift */,
 				F3000000000000000000000C /* ButtonStyles.swift */,
+				C20000000000000000000003 /* CommonPanels.swift */,
+				C20000000000000000000004 /* GroupRoutineEditor.swift */,
 				DF6DC85847D1E63C3F66E5AE /* amplify_outputs.json */,
 				6F25A4E6E1346DB162542258 /* PrivacyInfo.xcprivacy */,
 				5EEAFB13611E1267A3DB575D /* Assets.xcassets */,
@@ -440,6 +449,7 @@
 				28007A1F824DD4E0E1C38D99 /* APIRoutes.generated.swift in Sources */,
 				A90000000000000000000001 /* PlatformContract.generated.swift in Sources */,
 				703716656630AB43ACDA3F0D /* AppModel.swift in Sources */,
+				C10000000000000000000001 /* DemoData.swift in Sources */,
 				F20000000000000000000001 /* AppModel+Fork.swift in Sources */,
 				F20000000000000000000007 /* AppModel+AISharingConsent.swift in Sources */,
 				F20000000000000000000008 /* InvitationParser.swift in Sources */,
@@ -477,6 +487,8 @@
 				A5E8990A0000000000000001 /* GitHubConnectionRepositoriesView.swift in Sources */,
 				71657CB25210E15EB004C3B3 /* Theme.swift in Sources */,
 				F2000000000000000000000C /* ButtonStyles.swift in Sources */,
+				C10000000000000000000003 /* CommonPanels.swift in Sources */,
+				C10000000000000000000004 /* GroupRoutineEditor.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

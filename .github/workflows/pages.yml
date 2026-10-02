@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/pages.yml'
       - 'apps/website/**'
+      - 'apps/browser-viewer/**'
       - 'catalog/**'
       - 'scripts/check-source-size.sh'
   workflow_dispatch:
@@ -26,10 +27,21 @@ jobs:
         with:
           node-version: '22.23.2'
           cache: npm
-          cache-dependency-path: apps/website/package-lock.json
+          cache-dependency-path: |
+            apps/website/package-lock.json
+            apps/browser-viewer/package-lock.json
       - run: npm ci --prefix apps/website
+      - run: npm ci --prefix apps/browser-viewer
       - run: npm run verify --prefix apps/website
       - run: npm run build --prefix apps/website
+      - run: npm run build --prefix apps/browser-viewer
+      - name: Stage secure browser viewer
+        run: |
+          mkdir -p apps/website/dist/browser-viewer
+          cp -R apps/browser-viewer/dist/. apps/website/dist/browser-viewer/
+          cp -R apps/browser-viewer/dist/nice-dcv-web-client-sdk apps/website/dist/nice-dcv-web-client-sdk
+          test -f apps/website/dist/browser-viewer/index.html
+          test -f apps/website/dist/nice-dcv-web-client-sdk/dcvjs-esm/dcv.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

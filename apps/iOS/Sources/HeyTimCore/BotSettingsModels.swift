@@ -6,7 +6,7 @@ public struct BotDraft: Codable, Equatable, Sendable {
   // Chief owns Tim yellow. New custom bots start with the service's supported teal.
   public var color = "#58BEAA"
   public var prompt = ""
-  public var toolIds: [String] = []
+  public var toolIds: [String] = ["browser"]
   public var skillIds: [String] = []
   public var actionApprovalMode = "automatic"
   public var modelPreference = "deepseek"

@@ -161,7 +161,7 @@ import XCTest
     app.launchForUITesting()
 
     XCTAssertTrue(app.staticTexts["Hey Tim"].firstMatch.waitForExistence(timeout: 10))
-    XCTAssertTrue(app.staticTexts["Welcome back"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["Continue with email"].waitForExistence(timeout: 5))
     XCTAssertTrue(app.textFields["Email address"].exists)
     XCTAssertTrue(app.buttons["Continue"].exists)
     XCTAssertTrue(app.descendants(matching: .any)["Need an invite? Request beta access"].exists)

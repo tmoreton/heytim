@@ -130,6 +130,13 @@ class FakeTable:
         item = self.items.get(self._storage_key(Key))
         return {"Item": dict(item)} if item else {}
 
+    def query(self, *, ExpressionAttributeValues: dict | None = None, **_kwargs) -> dict:
+        values = ExpressionAttributeValues or {}
+        partition = values.get(":pk")
+        prefix = values.get(":prefix", "")
+        return {"Items": [dict(item) for (pk, sk), item in self.items.items()
+                          if pk == partition and sk.startswith(prefix)]}
+
     def transact_write_items(self, *, TransactItems: list[dict], **_kwargs) -> None:
         condition = TransactItems[0]["ConditionCheck"]
         state = self.items.get(self._storage_key(condition["Key"]))

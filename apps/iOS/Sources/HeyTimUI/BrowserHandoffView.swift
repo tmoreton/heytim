@@ -11,6 +11,7 @@ struct BrowserHandoffView: View {
   @State private var loading = false
   @State private var refreshing = false
   @State private var loadError: String?
+  @State private var navigationError: String?
 
   var body: some View {
     VStack(spacing: 0) {
@@ -19,15 +20,32 @@ struct BrowserHandoffView: View {
           TextField("https://example.com", text: $address)
             .textFieldStyle(.roundedBorder)
             .accessibilityLabel("Website address")
+            #if os(iOS)
+              .textInputAutocapitalization(.never)
+              .keyboardType(.URL)
+            #endif
+            .autocorrectionDisabled()
             .disabled(isBusy)
             .onSubmit { open() }
           Button("Open") { open() }
             .froggyGlassButton(prominent: true)
             .disabled(isBusy)
         }
+        if let navigationError {
+          Text(navigationError)
+            .froggyFont(.footnote)
+            .foregroundStyle(FrogTheme.danger)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
         if state?.status == "human_control" {
-          Button("Return Control", systemImage: "arrow.uturn.backward") { resume() }
+          Button("Reconnect Live View", systemImage: "arrow.clockwise") { reconnect() }
+            .disabled(isBusy)
+          Button("Return Control", systemImage: "arrow.uturn.backward") {
+            resume(rememberLogin: false)
+          }
             .froggyGlassButton()
+            .disabled(isBusy)
+          Button("Save Login and Return Control") { resume(rememberLogin: true) }
             .disabled(isBusy)
         }
       }
@@ -46,15 +64,21 @@ struct BrowserHandoffView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else if let raw = state?.liveViewUrl, let url = URL(string: raw) {
-        BrowserWebView(url: url)
+        BrowserWebView(signedURL: url, viewport: state?.viewport) { message in
+          navigationError = message
+        }
       } else {
-        ContentUnavailableView(
-          state?.status == "expired" ? "Session expired" : "Browser is ready",
-          systemImage: "globe",
-          description: Text(
-            state?.contextLabel
-              ?? "Open a website when a bot asks you to sign in or complete a private step.")
-        )
+        ContentUnavailableView {
+          Label(state?.status == "expired" ? "Session expired" : "Browser is ready",
+            systemImage: "globe")
+        } description: {
+          Text(state?.contextLabel
+            ?? "Open a website when a bot asks you to sign in or complete a private step.")
+        } actions: {
+          if state?.status == "human_control" {
+            Button("Show Browser") { reconnect() }
+          }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
@@ -68,7 +92,8 @@ struct BrowserHandoffView: View {
       ToolbarItem(placement: .primaryAction) {
         Menu {
           Button("Refresh", systemImage: "arrow.clockwise") {
-            Task { await refresh() }
+            if state?.status == "human_control" { reconnect() }
+            else { Task { await refresh() } }
           }
           .disabled(isBusy)
           Divider()
@@ -105,6 +130,14 @@ struct BrowserHandoffView: View {
     }
   }
   private func open() {
+    let url: URL?
+    do {
+      url = try BrowserAddress.normalizedURL(address)
+      navigationError = nil
+    } catch {
+      navigationError = error.localizedDescription
+      return
+    }
     loading = true
     Task {
       defer { loading = false }
@@ -115,15 +148,29 @@ struct BrowserHandoffView: View {
           let display = "desktop"
         #endif
         state = try await model.api?.openBrowser(
-          botId: botId, groupId: groupId, url: URL(string: address), display: display)
-      } catch { model.present(error) }
+          botId: botId, groupId: groupId, url: url, display: display)
+        if let url { address = url.absoluteString }
+      } catch { navigationError = error.localizedDescription }
     }
   }
-  private func resume() {
+  private func reconnect() {
     loading = true
     Task {
       defer { loading = false }
-      do { state = try await model.api?.resumeBrowser(botId: botId, groupId: groupId) } catch {
+      do {
+        state = try await model.api?.openBrowser(botId: botId, groupId: groupId)
+        navigationError = nil
+      } catch { navigationError = error.localizedDescription }
+    }
+  }
+  private func resume(rememberLogin: Bool) {
+    loading = true
+    Task {
+      defer { loading = false }
+      do {
+        state = try await model.api?.resumeBrowser(
+          botId: botId, groupId: groupId, rememberLogin: rememberLogin)
+      } catch {
         model.present(error)
       }
     }
@@ -146,20 +193,125 @@ struct BrowserHandoffView: View {
   }
 }
 
+enum BrowserAddress {
+  static func normalizedURL(_ input: String) throws -> URL? {
+    let value = input.trimmingCharacters(in: .whitespacesAndNewlines)
+    if value.isEmpty { return nil }
+    let candidate = value.contains("://") ? value : "https://\(value)"
+    guard let components = URLComponents(string: candidate),
+      let scheme = components.scheme?.lowercased(), ["http", "https"].contains(scheme),
+      let host = components.host, host.contains("."),
+      components.user == nil, components.password == nil,
+      let url = components.url
+    else {
+      throw APIError.configuration("Enter a valid website address, such as google.com.")
+    }
+    return url
+  }
+}
+
+private enum BrowserViewerPage {
+  static let url = URL(string: "https://heytim.ai/browser-viewer/")!
+}
+
+private final class BrowserViewerCoordinator: NSObject, WKNavigationDelegate {
+  var signedURL: URL
+  var viewport: BrowserViewport?
+  var onError: (String) -> Void
+  private var loaded = false
+  private var injectedURL: URL?
+
+  init(signedURL: URL, viewport: BrowserViewport?, onError: @escaping (String) -> Void) {
+    self.signedURL = signedURL
+    self.viewport = viewport
+    self.onError = onError
+  }
+
+  func update(_ view: WKWebView, signedURL: URL, viewport: BrowserViewport?) {
+    self.signedURL = signedURL
+    self.viewport = viewport
+    if loaded { injectSession(into: view) }
+  }
+
+  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    loaded = true
+    injectSession(into: webView)
+  }
+
+  func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!,
+    withError error: Error
+  ) {
+    onError("Couldn’t load the live browser. Check your connection and try Show Browser again.")
+  }
+
+  func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction
+  ) async -> WKNavigationActionPolicy {
+    guard navigationAction.targetFrame?.isMainFrame == true else {
+      return .allow
+    }
+    guard let url = navigationAction.request.url else { return .cancel }
+    if url.scheme == "about" { return .allow }
+    return url.scheme == "https"
+      && ["heytim.ai", "www.heytim.ai"].contains(url.host ?? "")
+      && url.path == "/browser-viewer/" ? .allow : .cancel
+  }
+
+  private func injectSession(into view: WKWebView) {
+    guard injectedURL != signedURL,
+      let data = try? JSONEncoder().encode(signedURL.absoluteString),
+      let quotedURL = String(data: data, encoding: .utf8)
+    else { return }
+    let width = viewport?.width ?? 1920
+    let height = viewport?.height ?? 1080
+    injectedURL = signedURL
+    view.evaluateJavaScript("window.heytimSetBrowserSession(\(quotedURL), \(width), \(height))") {
+      [weak self] _, error in
+      if error != nil {
+        self?.injectedURL = nil
+        self?.onError("Couldn’t connect to the live browser. Refresh the browser session and try again.")
+      }
+    }
+  }
+}
+
 #if os(iOS)
   private struct BrowserWebView: UIViewRepresentable {
-    let url: URL
-    func makeUIView(context: Context) -> WKWebView { WKWebView() }
+    let signedURL: URL
+    let viewport: BrowserViewport?
+    let onError: (String) -> Void
+    func makeCoordinator() -> BrowserViewerCoordinator {
+      BrowserViewerCoordinator(signedURL: signedURL, viewport: viewport, onError: onError)
+    }
+    func makeUIView(context: Context) -> WKWebView {
+      let config = WKWebViewConfiguration()
+      config.websiteDataStore = .nonPersistent()
+      let view = WKWebView(frame: .zero, configuration: config)
+      view.navigationDelegate = context.coordinator
+      view.load(URLRequest(url: BrowserViewerPage.url))
+      return view
+    }
     func updateUIView(_ view: WKWebView, context: Context) {
-      if view.url != url { view.load(URLRequest(url: url)) }
+      context.coordinator.update(view, signedURL: signedURL, viewport: viewport)
     }
   }
 #elseif os(macOS)
   private struct BrowserWebView: NSViewRepresentable {
-    let url: URL
-    func makeNSView(context: Context) -> WKWebView { WKWebView() }
+    let signedURL: URL
+    let viewport: BrowserViewport?
+    let onError: (String) -> Void
+    func makeCoordinator() -> BrowserViewerCoordinator {
+      BrowserViewerCoordinator(signedURL: signedURL, viewport: viewport, onError: onError)
+    }
+    func makeNSView(context: Context) -> WKWebView {
+      let config = WKWebViewConfiguration()
+      config.websiteDataStore = .nonPersistent()
+      let view = WKWebView(frame: .zero, configuration: config)
+      view.navigationDelegate = context.coordinator
+      view.load(URLRequest(url: BrowserViewerPage.url))
+      return view
+    }
     func updateNSView(_ view: WKWebView, context: Context) {
-      if view.url != url { view.load(URLRequest(url: url)) }
+      context.coordinator.update(view, signedURL: signedURL, viewport: viewport)
     }
   }
 #endif

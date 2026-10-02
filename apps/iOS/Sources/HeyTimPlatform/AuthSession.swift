@@ -84,6 +84,7 @@ public final class AuthSession {
   public var errorMessage: String?
   public private(set) var email = ""
   public var isBusy = false
+  public private(set) var lastCodeSentAt: Date?
 
   @ObservationIgnored private let configuration: AppConfiguration
   @ObservationIgnored private let network: URLSession
@@ -184,6 +185,7 @@ public final class AuthSession {
           pending = PendingCode(
             email: value, purpose: .signUp, session: nil, signUpSession: response.session)
           phase = .codeSent(email: value, purpose: .signUp)
+          lastCodeSentAt = Date()
           return
         } catch let error as CognitoError where error.name == "UsernameExistsException" {
           // Existing invitees sign in normally.
@@ -205,6 +207,7 @@ public final class AuthSession {
         email = value
         pending = PendingCode(email: value, purpose: .signUp, session: nil, signUpSession: nil)
         phase = .codeSent(email: value, purpose: .signUp)
+        lastCodeSentAt = Date()
       } catch { errorMessage = error.localizedDescription }
     } catch { errorMessage = error.localizedDescription }
   }
@@ -266,8 +269,30 @@ public final class AuthSession {
     } catch { errorMessage = error.localizedDescription }
   }
 
+  public func resendCode() async {
+    guard let pending, !isBusy else { return }
+    guard lastCodeSentAt.map({ Date().timeIntervalSince($0) >= 30 }) ?? true else { return }
+    isBusy = true
+    errorMessage = nil
+    defer { isBusy = false }
+    do {
+      if pending.purpose == .signIn {
+        try await beginSignIn(pending.email)
+      } else {
+        _ = try await invoke(
+          "ResendConfirmationCode",
+          payload: ["ClientId": configuration.auth.userPoolClientId,
+                    "Username": pending.email])
+        self.pending = PendingCode(
+          email: pending.email, purpose: .signUp, session: nil, signUpSession: nil)
+        lastCodeSentAt = Date()
+      }
+    } catch { errorMessage = error.localizedDescription }
+  }
+
   public func useDifferentEmail() {
     pending = nil
+    lastCodeSentAt = nil
     email = ""
     errorMessage = nil
     phase = .signedOut
@@ -358,6 +383,7 @@ public final class AuthSession {
     self.email = email
     pending = PendingCode(email: email, purpose: .signIn, session: session, signUpSession: nil)
     phase = .codeSent(email: email, purpose: .signIn)
+    lastCodeSentAt = Date()
   }
 
   private func store(_ result: CognitoResponse.Result?, preservingRefreshToken: String?) throws {

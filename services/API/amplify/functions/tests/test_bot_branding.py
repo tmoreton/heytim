@@ -17,6 +17,15 @@ class BotBrandingTests(unittest.TestCase):
         cls.bots = base.bots
         cls.support = base.support
 
+    def test_browser_default_does_not_reenable_after_an_explicit_opt_out(self) -> None:
+        bot = {
+            "id": "bot-1", "toolIds": [], "extraToolIds": [],
+            "browserDefaultApplied": True,
+        }
+        with patch.object(self.bots.table, "update_item") as update:
+            self.assertEqual(self.bots._apply_browser_default("user-1", bot), bot)
+        update.assert_not_called()
+
     def test_chief_is_green_and_other_bots_cannot_use_brand_green(self) -> None:
         chief = self.support._public_bot({"color": "#FFAA34", "systemRole": "chief"})
         other = self.support._public_bot({"color": self.support.CHIEF_COLOR})
@@ -286,7 +295,10 @@ class BotBrandingTests(unittest.TestCase):
         ):
             result = self.bots._bootstrap("brand-new-user")
 
-        self.assertEqual(result["bots"], [chief])
+        self.assertEqual(len(result["bots"]), 1)
+        self.assertEqual(result["bots"][0]["id"], chief["id"])
+        self.assertIn("browser", result["bots"][0]["toolIds"])
+        self.assertTrue(result["bots"][0]["browserDefaultApplied"])
         self.assertEqual(result["botTemplates"], templates)
         self.assertEqual(
             [provider["id"] for provider in result["connectionProviders"]],

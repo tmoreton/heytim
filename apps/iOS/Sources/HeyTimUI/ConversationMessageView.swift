@@ -294,43 +294,26 @@ private struct ModelUsageCaption: View {
   private var costLabel: String {
     guard let amount = Decimal(string: usage.costUsd) else { return "Cost unavailable" }
     let cost = NSDecimalNumber(decimal: amount).doubleValue
-    if usage.costIncomplete {
-      return cost > 0 ? String(format: "$%.6f+ (partial)", cost) : "Partial cost"
-    }
-    if cost > 0 && cost < 0.000001 { return "<$0.000001" }
-    return String(format: "$%.6f", cost)
-  }
-
-  private var cacheLabel: String {
-    guard usage.cacheReportAvailable, usage.inputTokens > 0 else {
-      return "Cache data unavailable"
-    }
-    let share = min(100, Int((Double(usage.cacheReadInputTokens) /
-      Double(usage.inputTokens) * 100).rounded()))
-    return "\(share)% cached"
+    if usage.costIncomplete { return "Partial provider cost" }
+    if cost > 0 && cost < 0.0001 { return "Est. provider cost < $0.0001" }
+    return String(format: "Est. provider cost $%.4f", cost)
   }
 
   var body: some View {
-    Text(caption)
+    Text("\(effortLabel) · \(costLabel)")
       .froggyFont(.caption)
       .foregroundStyle(FrogTheme.statusText)
       .textSelection(.enabled)
-      .accessibilityLabel("Latest model run: \(caption)")
-      .help(usage.costIncomplete
-        ? "Recorded cost is partial because some provider charges are unavailable."
-        : usage.costBasis == "provider_reported"
-          ? "Provider reported cost for the latest model run."
-          : "Estimated model cost for the latest model run.")
+      .accessibilityLabel("Latest model run: \(effortLabel), \(costLabel)")
+      .help(usage.costBasis == "provider_reported"
+        ? "Provider reported cost for the latest model run."
+        : "Estimated model cost for the latest model run.")
       .accessibilityIdentifier("chat.message.usage")
   }
 
-  private var caption: String {
-    var parts: [String] = []
-    if let effort = usage.reasoningEffort {
-      parts.append("\(effort.capitalized) reasoning")
-    }
-    parts.append(contentsOf: [costLabel, cacheLabel])
-    return parts.joined(separator: " · ")
+  private var effortLabel: String {
+    guard let effort = usage.reasoningEffort else { return "Reasoning" }
+    return "\(effort.capitalized) reasoning"
   }
 }
 

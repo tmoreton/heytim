@@ -135,7 +135,11 @@ def _template_values(
     bot_values: Callable[..., dict],
     system_role: str | None = None,
 ) -> dict:
-    values = bot_values(user_id, template, system_role=system_role)
+    values = bot_values(
+        user_id,
+        {**template, "toolIds": list(dict.fromkeys(["browser", *template.get("toolIds", [])]))},
+        system_role=system_role,
+    )
     values.update(
         {
             "templateId": template["id"],

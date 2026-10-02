@@ -14,7 +14,7 @@ from .provider_connections import validated_provider_binding
 
 MAX_SKILL_INSTRUCTIONS_CHARS = 20_000
 MAX_SKILLS = 12
-MAX_TOOLS = 12
+MAX_TOOLS = 13
 STAN_BUILTIN_TOOLS = {"web_fetch"}
 STAN_PLUGINS = {"todos"}
 STAN_SUBAGENTS = {"generalist"}

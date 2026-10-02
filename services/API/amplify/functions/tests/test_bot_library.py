@@ -135,9 +135,9 @@ class BotInstallTests(test_api_safety.ApiTestCase):
 
         self.assertEqual(
             installed["toolIds"],
-            ["youtube_search", "web_search", "image_generator"],
+            ["browser", "youtube_search", "web_search", "image_generator"],
         )
-        self.assertEqual(installed["extraToolIds"], [])
+        self.assertEqual(installed["extraToolIds"], ["browser"])
         self.assertEqual(installed["actionApprovalMode"], "automatic")
         self.assertEqual(installed["alwaysAllowedToolIds"], ["image_generator"])
         self.assertEqual(

@@ -17,7 +17,7 @@ public enum GeneratedAppConstraints {
   public static let skillInstructionsMaxLength = 20000
   public static let memoryMaxLength = 16000
   public static let maxAttachmentsPerMessage = 5
-  public static let maxToolsPerBot = 12
+  public static let maxToolsPerBot = 13
   public static let imageMaxBytes = 3750000
   public static let documentMaxBytes = 4500000
   public static let maxPhotoDimension = 1920

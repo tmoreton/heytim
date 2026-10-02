@@ -6,14 +6,29 @@ struct ShareView: View {
   var showsDismissButton = true
   @State private var url: URL?
   @State private var creatingLink = false
+  @State private var includeChatHistory = false
   var body: some View {
     VStack(spacing: 22) {
       Image(systemName: "person.2.badge.plus").froggyFont(size: 48, relativeTo: .title).foregroundStyle(
         FrogTheme.green)
-      Text("Share \(title)").froggyFont(.title2, weight: .bold)
-      Text("Anyone with this link can accept the invitation before it expires.").foregroundStyle(
+      Text(selection.kind == .group ? "Invite someone to \(title)" : "Share a copy of \(title)")
+        .froggyFont(.title2, weight: .bold)
+      Text(selection.kind == .group
+        ? "Anyone with this link can join the live room and see its shared conversation."
+        : includeChatHistory
+          ? "The recipient gets their own copy of this bot and up to 100 recent text exchanges. Attachments and private connections are not copied."
+          : "The recipient gets their own copy of this bot's setup. Your conversation stays private.")
+        .foregroundStyle(
         .secondary
       ).multilineTextAlignment(.center)
+      if selection.kind == .bot && url == nil {
+        Toggle("Include recent chat messages", isOn: $includeChatHistory)
+          .toggleStyle(.switch)
+          .frame(maxWidth: 360)
+      }
+      Text("The link expires in 30 days. You can revoke it in Settings → Shared links.")
+        .froggyFont(.footnote).foregroundStyle(.secondary)
+        .multilineTextAlignment(.center)
       if let url {
         Text(url.absoluteString).textSelection(.enabled).froggyFont(.caption)
         ShareLink(item: url) { Label("Share invitation", systemImage: "square.and.arrow.up") }
@@ -32,10 +47,6 @@ struct ShareView: View {
         .froggyGlassButton(prominent: true)
         .controlSize(.large)
         .disabled(creatingLink)
-        Text("The link becomes active only after you create it, and you can revoke it from Settings.")
-          .froggyFont(.footnote)
-          .foregroundStyle(.secondary)
-          .multilineTextAlignment(.center)
       }
     }.padding(32).frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(FrogTheme.pageBackground)
@@ -60,7 +71,7 @@ struct ShareView: View {
   private func createLink() {
     creatingLink = true
     Task {
-      url = await model.share(selection)
+      url = await model.share(selection, includeChatHistory: includeChatHistory)
       creatingLink = false
     }
   }

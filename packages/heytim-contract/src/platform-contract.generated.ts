@@ -16,7 +16,7 @@ export const appConstraints = {
   "skillInstructionsMaxLength": 20000,
   "memoryMaxLength": 16000,
   "maxAttachmentsPerMessage": 5,
-  "maxToolsPerBot": 12,
+  "maxToolsPerBot": 13,
   "imageMaxBytes": 3750000,
   "documentMaxBytes": 4500000,
   "maxPhotoDimension": 1920

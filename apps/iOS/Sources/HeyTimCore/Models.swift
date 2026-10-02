@@ -137,7 +137,7 @@ public struct BotTemplate: Codable, Identifiable, Hashable, Sendable {
   public func effectiveToolIDs(skills: [Skill]) -> [String] {
     let skillsByID = Dictionary(uniqueKeysWithValues: skills.map { ($0.id, $0) })
     var seen = Set<String>()
-    return (toolIds + skillIds.flatMap { skillsByID[$0]?.requiredToolIds ?? [] })
+    return (["browser"] + toolIds + skillIds.flatMap { skillsByID[$0]?.requiredToolIds ?? [] })
       .filter { seen.insert($0).inserted }
   }
 }

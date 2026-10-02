@@ -559,16 +559,16 @@ public final class HeyTimAPI: Sendable {
       queryItems: groupId.map { [.init(name: "groupId", value: $0)] } ?? [])
   }
   public func openBrowser(
-    botId: String, groupId: String? = nil, url: URL? = nil, display: String = "desktop"
+    botId: String, groupId: String? = nil, url: URL? = nil, display: String? = nil
   ) async throws -> BrowserState {
     try await request(
       .browserOpen, parameters: ["botId": botId],
       body: BrowserBody(groupId: groupId, url: url?.absoluteString, display: display))
   }
-  public func resumeBrowser(botId: String, groupId: String? = nil) async throws -> BrowserState {
+  public func resumeBrowser(botId: String, groupId: String? = nil, rememberLogin: Bool = false) async throws -> BrowserState {
     try await request(
       .browserResume, parameters: ["botId": botId],
-      body: BrowserBody(groupId: groupId, url: nil, display: nil))
+      body: BrowserResumeBody(groupId: groupId, rememberLogin: rememberLogin))
   }
   public func closeBrowser(botId: String, groupId: String? = nil) async throws {
     let _: EmptyResponse = try await request(
@@ -750,6 +750,7 @@ private struct BrowserBody: Codable {
   var url: String?
   var display: String?
 }
+private struct BrowserResumeBody: Codable { var groupId: String?; var rememberLogin: Bool }
 private struct PushRegistration: Codable {
   var provider: String
   var token: String
@@ -764,7 +765,6 @@ private struct BillingRequest: Codable {
   var requestId: String
   var storefrontCountryCode: String?
 }
-
 extension Data {
   fileprivate mutating func appendMultipart(_ value: String) { append(Data(value.utf8)) }
 }

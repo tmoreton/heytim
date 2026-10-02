@@ -1,0 +1,30 @@
+{
+  "name": "@heytim/browser-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && vite build && node scripts/copy-dcv.mjs",
+    "verify": "npm run build"
+  },
+  "dependencies": {
+    "@babel/runtime": "^8.0.5",
+    "@cloudscape-design/components": "^3.0.1391",
+    "@cloudscape-design/design-tokens": "^3.0.114",
+    "@cloudscape-design/global-styles": "^1.0.71",
+    "bedrock-agentcore": "0.4.5",
+    "prop-types": "^15.8.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.1.1",
+    "typescript": "~6.0.3",
+    "vite": "8.3.0"
+  },
+  "engines": {
+    "node": ">=22.13 <25"
+  }
+}

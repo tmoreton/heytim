@@ -20,6 +20,7 @@ from shared.storage import delete_object_versions
 from shared.work_state import processing_summary
 
 from .ai_consent import current_consent
+from .bot_browser_defaults import _apply_browser_default
 from .bot_documents import _delete_bot_documents, _preserve_bot_documents
 from .bot_roles import CHIEF_COLOR, CHIEF_SYSTEM_ROLE
 from .bot_setup import LEGACY_BOT_TEMPLATE_IDS, ensure_chief, install_bot_template
@@ -93,6 +94,7 @@ def _put_bot(
         "sk": _bot_sk(bot_id),
         "entity": "BOT",
         "id": bot_id,
+        "browserDefaultApplied": True,
         "createdAt": values.get("createdAt", current),
         "updatedAt": current,
         "lastMessage": values.get("lastMessage", "Ready when you are."),
@@ -237,6 +239,7 @@ def _bootstrap(user_id: str) -> dict:
     if bots:
         migrated = []
         for bot in bots:
+            bot = _apply_browser_default(user_id, bot)
             legacy_template_id = LEGACY_BOT_TEMPLATE_IDS.get(bot["id"])
             if legacy_template_id and not bot.get("templateId"):
                 table.update_item(
