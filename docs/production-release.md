@@ -309,3 +309,10 @@ permissions from protected environment secrets immediately before deployment and
 
 Rollback reverts `main` to the last known-good state and uses a reviewed manual workflow run. Never rename or manually
 replace retained stateful resources during an incident.
+
+For a targeted recheck of the deployed attachment/schedule/share/approval path, dispatch **Verify deployed HeyTim
+production workflow** (`production-smoke.yml`) from current `main`. It uses the production deployment role and
+synthetic account without redeploying infrastructure. It reports fixed failure categories and synthetic-account
+credit counts, and reads only sanitized AgentCore terminal failure markers from the preceding hour. Message text,
+credentials, user identifiers, and raw tracebacks are excluded from its diagnostic output. A successful targeted
+recheck does not replace the full release gate or physical-device evidence.
