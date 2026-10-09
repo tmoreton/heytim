@@ -1,6 +1,38 @@
 import XCTest
 
 @MainActor final class HeyTimAppleUITests: XCTestCase {
+  func testCompletedReplyKeepsUsageCaptionAndDraftAccessible() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing", "--ui-testing-activity-transition"]
+    app.launchForUITesting()
+    let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
+    XCTAssertTrue(composer.waitForExistence(timeout: 10))
+    let active = XCTAttachment(string: app.debugDescription)
+    active.name = "Active reply accessibility tree"
+    active.lifetime = .keepAlways
+    add(active)
+    #if os(macOS)
+      composer.click()
+    #else
+      composer.tap()
+    #endif
+    composer.typeText("Keep this draft after the reply")
+    let usage = app.staticTexts["chat.message.usage"].firstMatch
+    XCTAssertTrue(usage.waitForExistence(timeout: 30))
+    let completed = XCTAttachment(string: app.debugDescription)
+    completed.name = "Completed reply accessibility tree"
+    completed.lifetime = .keepAlways
+    add(completed)
+    let expected = "Latest model run: Medium reasoning, Est. provider cost $0.0012"
+    #if os(macOS)
+      XCTAssertEqual(usage.value as? String, expected)
+    #else
+      XCTAssertEqual(usage.label, expected)
+    #endif
+    XCTAssertEqual(composer.value as? String, "Keep this draft after the reply")
+    XCTAssertFalse(app.alerts.firstMatch.exists)
+  }
+
   func testExpiredBrowserHandoffCanEndWithoutLosingTheDraft() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing", "--ui-testing-browser-expired"]

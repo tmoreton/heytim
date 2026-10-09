@@ -300,10 +300,10 @@ private struct ModelUsageCaption: View {
   }
 
   var body: some View {
+    // Selectable metadata can crash macOS accessibility when a reply completes.
     Text("\(effortLabel) · \(costLabel)")
       .froggyFont(.caption)
       .foregroundStyle(FrogTheme.statusText)
-      .textSelection(.enabled)
       .accessibilityLabel("Latest model run: \(effortLabel), \(costLabel)")
       .help(usage.costBasis == "provider_reported"
         ? "Provider reported cost for the latest model run."

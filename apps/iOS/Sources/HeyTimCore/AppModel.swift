@@ -138,6 +138,19 @@ public final class AppModel {
         messages = []
       } else if arguments.contains("--ui-testing-activity") {
         messages = DemoData.activityMessages
+      } else if arguments.contains("--ui-testing-activity-transition") {
+        messages = DemoData.activityMessages
+        messages[1].status = "pending"
+        messages[1].activity = []
+        Task { [weak self] in
+          try? await Task.sleep(for: .seconds(15))
+          guard let self else { return }
+          self.messages[1].activity = ["Running background work"]
+          try? await Task.sleep(for: .seconds(1))
+          self.messages[1].status = "running"
+          try? await Task.sleep(for: .seconds(1))
+          self.messages[1] = DemoData.completedActivityMessages[1]
+        }
       } else if arguments.contains("--ui-testing-markdown") {
         messages = DemoData.markdownMessages
       } else if arguments.contains("--ui-testing-delayed-conversation") {
