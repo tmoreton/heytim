@@ -35,13 +35,16 @@ the current checkout or environment still has the same status.
   the HeyTim listing name, privacy URL, and iOS support URL match. The newest existing iPhone build is `1.0.16`,
   build `20261002171304`, processed `VALID` with audience `INTERNAL_ONLY`. The Apple Account Holder is accepted
   in an internal group with access to all builds. The optional account-deletion URL remains unlinked in Apple's
-  metadata; the public deletion guidance is available on the website.
+  metadata; the public deletion guidance is available on the website. A read-only mailbox check found the
+  October 1 synthetic support delivery test in the owner's Inbox, addressed to `support@heytim.ai`, mailed through
+  `eforward.registrar-servers.com`, and signed by `heytim.ai`. This establishes the alias forwarded that test
+  successfully; no new email was sent.
 - Public distribution remains pending: `HEYTIM_RELEASE_COMPLIANCE_APPROVED` and
   `HEYTIM_APNS_DEVICE_SMOKE_APPROVED` both read `false`. The prior device evidence established provider-accepted
-  notification delivery, but not tapping the notification into its intended conversation. End-to-end delivery of
-  mail to `support@heytim.ai` also remains unconfirmed. These are evidence gaps, not an additional request for
-  deployment authorization; the owner has requested the production release. Unapproved Google, Slack, Notion,
-  and X connections remain disabled, and this fresh launch remains free.
+  notification delivery, but not tapping the notification into its intended conversation. An unpublished
+  `v1.0.19` release draft targets the verified application commit `752d386` and has no attached public binaries.
+  The latest public download and Sparkle feed remain `v1.0.12` until the public release gates pass. Unapproved
+  Google, Slack, Notion, and X connections remain disabled, and this fresh launch remains free.
 
 ## 2026-10-01 — fresh destination launch and Apple release in progress
 
