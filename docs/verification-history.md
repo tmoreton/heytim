@@ -6,6 +6,43 @@ was recorded, including legacy repository, cloud-resource, secret, and bundle ID
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-10-09 — browser recovery, Mac layout, and accessibility fixes
+
+- Merged [PR #121](https://github.com/tmoreton/heytim/pull/121) as
+  `a253203a7c3caf7fbe8475f28e14f955cfe49486` and
+  [PR #122](https://github.com/tmoreton/heytim/pull/122) as
+  `752d3867caaefc7f9bafcccbe0c23f5e822187b4`. The Mac chat column now contains
+  its browser panel without clipping the composer behind the sidebar. Expired browser handoffs expose inline
+  recovery that preserves the draft and waits for confirmed success. Completed-reply usage metadata remains
+  accessible without triggering the reproduced SwiftUI accessibility crash.
+- [Production backend deployment 37986357343](https://github.com/tmoreton/heytim/actions/runs/37986357343)
+  passed in destination account `820323452649`, including all five managed AgentCore regression scenarios and
+  the authenticated production workflow. The destination API remains
+  `https://srrkqsqrqd.execute-api.us-east-1.amazonaws.com` with Cognito pool `us-east-1_biJejrNQF`.
+- The merged source passed [Apple verification 37994686234](https://github.com/tmoreton/heytim/actions/runs/37994686234):
+  97 Mac unit tests, four Mac UI tests, six transcription tests, and a generic iPhone build. This host has no iOS
+  Simulator runtime; a generic build is not evidence of a physical-device notification test.
+- [Private Mac candidate 37994687001](https://github.com/tmoreton/heytim/actions/runs/37994687001) produced
+  version `1.0.19`, build `20261009214232`, from `752d386`. Developer ID signing, app and DMG notarization,
+  stapling, Gatekeeper, and destination client-configuration checks passed. The owner-authorized local installation
+  at `/Applications/HeyTim.app` received the requested live test reply from the destination backend. Accessibility
+  inspection through reply completion and browser-panel navigation succeeded, and the existing unsent draft was
+  preserved. This private installer did not publish a GitHub release or change the Sparkle feed. Version `1.0.18`
+  was superseded after reproducing the accessibility crash and must not be promoted.
+- [Website deployment 37998005111](https://github.com/tmoreton/heytim/actions/runs/37998005111) succeeded from
+  `752d386`, including website verification, the marketing site, and the secure browser viewer.
+- [Read-only Apple inventory 37998007356](https://github.com/tmoreton/heytim/actions/runs/37998007356) confirmed
+  the HeyTim listing name, privacy URL, and iOS support URL match. The newest existing iPhone build is `1.0.16`,
+  build `20261002171304`, processed `VALID` with audience `INTERNAL_ONLY`. The Apple Account Holder is accepted
+  in an internal group with access to all builds. The optional account-deletion URL remains unlinked in Apple's
+  metadata; the public deletion guidance is available on the website.
+- Public distribution remains pending: `HEYTIM_RELEASE_COMPLIANCE_APPROVED` and
+  `HEYTIM_APNS_DEVICE_SMOKE_APPROVED` both read `false`. The prior device evidence established provider-accepted
+  notification delivery, but not tapping the notification into its intended conversation. End-to-end delivery of
+  mail to `support@heytim.ai` also remains unconfirmed. These are evidence gaps, not an additional request for
+  deployment authorization; the owner has requested the production release. Unapproved Google, Slack, Notion,
+  and X connections remain disabled, and this fresh launch remains free.
+
 ## 2026-10-01 — fresh destination launch and Apple release in progress
 
 - An October 1 read of Google Auth Platform's Verification Center showed **HeyTim branding verified and shown to
