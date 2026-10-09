@@ -959,27 +959,6 @@ public struct Bootstrap: Codable, Sendable {
   }
 }
 
-public struct BrowserState: Codable, Sendable {
-  public var botId: String
-  public var groupId: String?
-  public var status: String
-  public var contextLabel: String
-  public var hasSavedLogin: Bool
-  public var display: String?
-  public var viewport: BrowserViewport?
-  public var mobileSiteSupported: Bool?
-  public var recoveryRequired: Bool?
-  public var sessionExpiresAt: String?
-  public var liveViewUrl: String?
-  public var liveViewExpiresAt: String?
-  public var resumedTurnId: String?
-}
-
-public struct BrowserViewport: Codable, Sendable {
-  public var width: Int
-  public var height: Int
-}
-
 public struct BillingSummary: Codable, Equatable, Sendable {
   public struct Price: Codable, Equatable, Sendable {
     public var currency: String

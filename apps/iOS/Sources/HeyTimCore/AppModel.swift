@@ -81,6 +81,10 @@ public final class AppModel {
   public private(set) var sendingSelection: ConversationSelection?
   public private(set) var messageQueues: [ConversationSelection: [QueuedChatMessage]] = [:]
   public var errorMessage: String?
+  public internal(set) var browserStates: [String: BrowserState] = [:]
+  public internal(set) var blockedBrowserBotIDs: Set<String> = []
+  public internal(set) var closingBrowserBotIDs: Set<String> = []
+  public internal(set) var busyBrowserBotIDs: Set<String> = []
   public internal(set) var isUpdatingAISharingConsent = false
   public var sheet: AppSheet?
   public var pendingAttachments: [Attachment] = []
@@ -103,6 +107,7 @@ public final class AppModel {
   @ObservationIgnored private var composerDrafts: [ConversationSelection: ComposerDraft] = [:]
   @ObservationIgnored private var selectionGeneration: UInt = 0
   @ObservationIgnored var sessionGeneration: UInt = 0
+  @ObservationIgnored var browserStateRevisions: [String: UInt] = [:]
   @ObservationIgnored private var refreshedConfigurationMessageIDs: Set<String> = []
 
   public init(api: HeyTimAPI? = nil, demoMode: Bool = false) {
@@ -158,6 +163,7 @@ public final class AppModel {
         messages = []
       }
       if !isLoadingMessages { loadedMessagesSelection = selection }
+      configureBrowserDemo(arguments: arguments)
       #if DEBUG
         // Keep the destination in the option itself: macOS can interpret a
         // standalone value as a document to open and suppress the main window.
@@ -232,6 +238,11 @@ public final class AppModel {
     sendingSelection = nil
     messageQueues = [:]
     errorMessage = nil
+    browserStates = [:]
+    blockedBrowserBotIDs = []
+    closingBrowserBotIDs = []
+    busyBrowserBotIDs = []
+    browserStateRevisions = [:]
     isUpdatingAISharingConsent = false
     sheet = nil
     pendingAttachments = []
@@ -512,6 +523,7 @@ public final class AppModel {
     guard let selection, !text.isEmpty || !submitted.attachments.isEmpty
       || !submitted.workspaceFiles.isEmpty, !isUploading
     else { return }
+    guard !browserBlocksSending(for: selection) else { return }
     if !demoMode && bootstrap?.aiSharingConsent.granted != true {
       return
     }
@@ -550,6 +562,7 @@ public final class AppModel {
 
   public func steerQueuedMessage(_ id: UUID) async {
     guard !isSending, !isUploading, let selection,
+      !browserBlocksSending(for: selection),
       let removed = removeQueuedMessage(id, from: selection)
     else { return }
     await transmit(
@@ -628,6 +641,12 @@ public final class AppModel {
     } catch {
       guard sessionIsCurrent(requestedSession, api: api) else { return }
       recover(message, for: selection, using: recovery)
+      if selection.kind == .bot, isBrowserHandoffError(error) {
+        blockedBrowserBotIDs.insert(selection.id)
+        browserStateRevisions[selection.id, default: 0] &+= 1
+        _ = await refreshBrowserState(botId: selection.id)
+        return
+      }
       present(error)
       return
     }
@@ -1075,6 +1094,7 @@ public final class AppModel {
     for target: ConversationSelection
   ) async {
     guard selection == target, !isSending, !isUploading,
+      !browserBlocksSending(for: target),
       !conversationHasUnfinishedResponse(for: target),
       let first = messageQueues[target]?.first,
       let removed = removeQueuedMessage(first.id, from: target)

@@ -570,8 +570,8 @@ public final class HeyTimAPI: Sendable {
       .browserResume, parameters: ["botId": botId],
       body: BrowserResumeBody(groupId: groupId, rememberLogin: rememberLogin))
   }
-  public func closeBrowser(botId: String, groupId: String? = nil) async throws {
-    let _: EmptyResponse = try await request(
+  public func closeBrowser(botId: String, groupId: String? = nil) async throws -> BrowserState {
+    try await request(
       .browserClose, parameters: ["botId": botId],
       body: BrowserBody(groupId: groupId, url: nil, display: nil))
   }

@@ -6,6 +6,7 @@ struct BrowserHandoffView: View {
   let botId: String
   let groupId: String?
   var showsDismissButton = true
+  var isEmbedded = false
   @State private var state: BrowserState?
   @State private var address = ""
   @State private var loading = false
@@ -14,6 +15,34 @@ struct BrowserHandoffView: View {
   @State private var navigationError: String?
 
   var body: some View {
+    Group {
+      if isEmbedded {
+        browserContent
+      } else {
+        browserContent
+          .froggyNavigationTitle("Secure Browser")
+          .toolbarTitleDisplayMode(.inline)
+          .toolbar {
+            if showsDismissButton { CloseButton { model.sheet = nil } }
+            ToolbarItem(placement: .primaryAction) { browserMenu }
+          }
+      }
+    }
+    .task { await refresh() }
+    .onChange(of: model.browserStates[botId]) { _, summary in
+      guard var summary else {
+        state = nil
+        return
+      }
+      if summary.status == state?.status {
+        summary.liveViewUrl = state?.liveViewUrl
+        summary.liveViewExpiresAt = state?.liveViewExpiresAt
+      }
+      state = summary
+    }
+  }
+
+  private var browserContent: some View {
     VStack(spacing: 0) {
       VStack(alignment: .trailing, spacing: 10) {
         HStack(spacing: 8) {
@@ -30,6 +59,7 @@ struct BrowserHandoffView: View {
           Button("Open") { open() }
             .froggyGlassButton(prominent: true)
             .disabled(isBusy)
+          if isEmbedded { browserMenu }
         }
         if let navigationError {
           Text(navigationError)
@@ -41,14 +71,29 @@ struct BrowserHandoffView: View {
           Button("Reconnect Live View", systemImage: "arrow.clockwise") { reconnect() }
             .froggyGlassButton()
             .disabled(isBusy)
-          Button("Return Control", systemImage: "arrow.uturn.backward") {
+          Button("Resume Bot", systemImage: "arrow.uturn.backward") {
             resume(rememberLogin: false)
           }
             .froggyGlassButton()
             .disabled(isBusy)
-          Button("Save Login and Return Control") { resume(rememberLogin: true) }
+          Button("Save Login and Resume Bot") { resume(rememberLogin: true) }
             .froggyGlassButton()
             .disabled(isBusy)
+        }
+        if state?.requiresHandoff == true || model.blockedBrowserBotIDs.contains(botId) {
+          if state?.status == "expired" {
+            Button("Reopen Browser", systemImage: "arrow.clockwise") { reconnect() }
+              .froggyGlassButton()
+              .disabled(isBusy)
+          }
+          Button("End Browser Handoff") { close() }
+            .froggyGlassButton()
+            .disabled(isBusy || operationInProgress)
+            .accessibilityIdentifier("browser.end-handoff")
+          Text("Ends this browser session without sending a message. Saved logins are kept.")
+            .froggyFont(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
       }
       .padding()
@@ -71,8 +116,7 @@ struct BrowserHandoffView: View {
         }
       } else {
         ContentUnavailableView {
-          Label(state?.status == "expired" ? "Session expired" : "Browser is ready",
-            systemImage: "globe")
+          Label(statusTitle, systemImage: "globe")
         } description: {
           Text(state?.contextLabel
             ?? "Open a website when a bot asks you to sign in or complete a private step.")
@@ -86,45 +130,64 @@ struct BrowserHandoffView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    .froggyNavigationTitle("Secure Browser")
-    .toolbarTitleDisplayMode(.inline)
-    .toolbar {
-      if showsDismissButton {
-        CloseButton { model.sheet = nil }
-      }
-      ToolbarItem(placement: .primaryAction) {
-        Menu {
-          Button("Refresh", systemImage: "arrow.clockwise") {
-            if state?.status == "human_control" { reconnect() }
-            else { Task { await refresh() } }
-          }
-          .disabled(isBusy)
-          Divider()
-          Button("Disconnect browser", role: .destructive) { close() }.disabled(
-            state?.status == "closed" || isBusy)
-          Button("Forget saved login", role: .destructive) { forget() }.disabled(
-            state?.hasSavedLogin != true || isBusy)
-        } label: {
-          Image(systemName: "ellipsis.circle")
-        }
-      }
-    }
-    .task { await refresh() }
   }
 
-  private var isBusy: Bool { loading || refreshing }
+  private var browserMenu: some View {
+    Menu {
+      Button("Refresh", systemImage: "arrow.clockwise") {
+        if state?.status == "human_control" { reconnect() }
+        else { Task { await refresh() } }
+      }
+      .disabled(isBusy)
+      Divider()
+      Button("End Browser Handoff") { close() }.disabled(
+        state?.status == "closed" || isBusy || operationInProgress)
+      Button("Forget saved login", role: .destructive) { forget() }.disabled(
+        state?.hasSavedLogin != true || isBusy)
+    } label: {
+      Image(systemName: "ellipsis.circle")
+    }
+  }
+
+  private var isBusy: Bool {
+    loading || refreshing || model.closingBrowserBotIDs.contains(botId)
+      || model.busyBrowserBotIDs.contains(botId)
+  }
+  private var operationInProgress: Bool {
+    ["opening", "resuming"].contains(state?.status ?? "") && state?.recoveryRequired == false
+  }
+  private var statusTitle: String {
+    switch state?.status {
+    case "expired": "Browser session expired"
+    case "opening": "Opening browser"
+    case "resuming": state?.recoveryRequired == true ? "Browser handoff needs attention" : "Returning control"
+    case "closed": "Browser is closed"
+    default: "Browser is ready"
+    }
+  }
+
+  private func apply(_ value: BrowserState?) {
+    state = value
+    if let value { model.updateBrowserState(value) }
+  }
 
   private func refresh() async {
     refreshing = true
     defer { refreshing = false }
     guard let api = model.api else {
+      state = model.browserStates[botId]
       loadError = nil
       return
     }
+    let session = model.sessionGeneration
     do {
-      state = try await api.browserState(botId: botId, groupId: groupId)
+      guard groupId == nil else { throw APIError.configuration("Browser handoffs are private to a bot’s direct chat.") }
+      let value = try await model.fetchBrowserState(botId: botId)
+      guard model.sessionIsCurrent(session, api: api) else { return }
+      if let value { state = value }
       loadError = nil
     } catch {
+      guard model.sessionIsCurrent(session, api: api) else { return }
       if state == nil {
         loadError = error.localizedDescription
       } else {
@@ -132,7 +195,13 @@ struct BrowserHandoffView: View {
       }
     }
   }
+  private func finishOperation(session: UInt) {
+    loading = false
+    if model.sessionGeneration == session { model.busyBrowserBotIDs.remove(botId) }
+  }
   private func open() {
+    guard let api = model.api else { return }
+    let session = model.sessionGeneration
     let url: URL?
     do {
       url = try BrowserAddress.normalizedURL(address)
@@ -141,57 +210,83 @@ struct BrowserHandoffView: View {
       navigationError = error.localizedDescription
       return
     }
+    guard model.beginBrowserOperation(botId: botId) else { return }
     loading = true
     Task {
-      defer { loading = false }
+      defer { finishOperation(session: session) }
       do {
         #if os(iOS)
           let display = "mobile"
         #else
           let display = "desktop"
         #endif
-        state = try await model.api?.openBrowser(
+        let value = try await api.openBrowser(
           botId: botId, groupId: groupId, url: url, display: display)
+        guard model.sessionIsCurrent(session, api: api) else { return }
+        apply(value)
         if let url { address = url.absoluteString }
-      } catch { navigationError = error.localizedDescription }
+      } catch {
+        if model.sessionIsCurrent(session, api: api) { navigationError = error.localizedDescription }
+      }
     }
   }
   private func reconnect() {
+    guard let api = model.api else { return }
+    let session = model.sessionGeneration
+    guard model.beginBrowserOperation(botId: botId) else { return }
     loading = true
     Task {
-      defer { loading = false }
+      defer { finishOperation(session: session) }
       do {
-        state = try await model.api?.openBrowser(botId: botId, groupId: groupId)
+        let value = try await api.openBrowser(botId: botId, groupId: groupId)
+        guard model.sessionIsCurrent(session, api: api) else { return }
+        apply(value)
         navigationError = nil
-      } catch { navigationError = error.localizedDescription }
+      } catch {
+        if model.sessionIsCurrent(session, api: api) { navigationError = error.localizedDescription }
+      }
     }
   }
   private func resume(rememberLogin: Bool) {
+    guard let api = model.api else { return }
+    let session = model.sessionGeneration
+    guard model.beginBrowserOperation(botId: botId) else { return }
     loading = true
     Task {
-      defer { loading = false }
+      defer { finishOperation(session: session) }
       do {
-        state = try await model.api?.resumeBrowser(
+        let value = try await api.resumeBrowser(
           botId: botId, groupId: groupId, rememberLogin: rememberLogin)
+        guard model.sessionIsCurrent(session, api: api) else { return }
+        apply(value)
       } catch {
-        model.present(error)
+        if model.sessionIsCurrent(session, api: api) { model.present(error) }
       }
     }
   }
   private func close() {
+    guard groupId == nil else { return }
     Task {
-      do {
-        try await model.api?.closeBrowser(botId: botId, groupId: groupId)
-        await refresh()
-      } catch { model.present(error) }
+      if await model.endBrowserHandoff(botId: botId) {
+        state = model.browserStates[botId]
+        navigationError = nil
+      }
     }
   }
   private func forget() {
+    guard let api = model.api, groupId == nil else { return }
+    let session = model.sessionGeneration
+    guard model.beginBrowserOperation(botId: botId) else { return }
+    loading = true
     Task {
+      defer { finishOperation(session: session) }
       do {
-        try await model.api?.forgetBrowserLogin(botId: botId)
+        try await api.forgetBrowserLogin(botId: botId)
+        guard model.sessionIsCurrent(session, api: api) else { return }
         await refresh()
-      } catch { model.present(error) }
+      } catch {
+        if model.sessionIsCurrent(session, api: api) { model.present(error) }
+      }
     }
   }
 }

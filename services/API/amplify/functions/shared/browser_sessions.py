@@ -55,6 +55,12 @@ def _iso(epoch: int) -> str:
     return datetime.fromtimestamp(epoch, timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def browser_blocks_sending(record: dict) -> bool:
+    return bool(record.get("revoked") or record["status"] in {
+        "HUMAN_CONTROL", "OPENING", "RESUMING",
+    } or record.get("resumeState") == "UNCERTAIN")
+
+
 class BrowserSessionService:
     def __init__(self, table, agentcore, user_id, bot_id, group_id=None, *,
                  control=None, catalog=None, signer=live_view_url, clock=time.time,
@@ -80,6 +86,7 @@ class BrowserSessionService:
             status = "EXPIRED"
         result = {"status": status.lower(), "botId": self.store.bot_id,
                   "contextLabel": f"{bot.get('name', 'Bot')} · Private direct chat",
+                  "blocksSending": browser_blocks_sending(record),
                   "hasSavedLogin": bool(record.get("profileId") and record.get("profileVersion"))}
         display = record.get("display", "desktop")
         # The DCV desktop size belongs to the session, not the site preference.
@@ -171,13 +178,20 @@ class BrowserSessionService:
     def get(self) -> dict:
         bot = self.store.authorize()
         record = self.store.read()
-        if self._ended_handoff(record):
-            record = {**record, "status": "EXPIRED", "resumedTurnId": None}
-        if record["status"] in {"READY", "HUMAN_CONTROL"} and not self._valid(record):
-            record = {**record, "status": "EXPIRED"}
+        # A display status must not hide the stored handoff/send guard. GET stays
+        # read-only; only an explicit close/resume may release human control.
         view = self._view(record, bot)
+        if self._ended_handoff(record):
+            view["status"] = "expired"
+            view.pop("resumedTurnId", None)
+        if (record["status"] in {"READY", "HUMAN_CONTROL"}
+                and record.get("resumeState") not in {"ENQUEUEING", "UNCERTAIN"}
+                and not self._valid(record)):
+            view["status"] = "expired"
         if record["status"] in {"OPENING", "RESUMING"}:
             view["recoveryRequired"] = int(record.get("operationUntil", 0)) <= self._now()
+        if view["status"] == "expired" and view["blocksSending"]:
+            view["recoveryRequired"] = True
         return view
 
     def _ended_handoff(self, record: dict) -> bool:
@@ -401,9 +415,12 @@ def ensure_browser_send_allowed(table, user_id: str, bot_id: str) -> None:
     The worker independently verifies the binding before using it.
     """
     record = BrowserSessionStore(table, user_id, bot_id).read()
-    if (record.get("revoked") or record["status"] in {"HUMAN_CONTROL", "OPENING", "RESUMING"}
-            or record.get("resumeState") == "UNCERTAIN"):
-        raise BrowserSessionError(409, "Finish the browser handoff with Resume or Close before sending another message")
+    if browser_blocks_sending(record):
+        raise BrowserSessionError(
+            409,
+            "Open Browser to resume the bot or end the browser handoff before sending another message.",
+            code="browser_handoff_incomplete",
+        )
 
 
 def delete_browser_context(table, user_id: str, bot_id: str, *, agentcore=None,

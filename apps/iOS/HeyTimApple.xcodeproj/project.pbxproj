@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F20000000000000000000012 /* BrowserHandoffNotice.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000012 /* BrowserHandoffNotice.swift */; };
+		F20000000000000000000011 /* BrowserModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000011 /* BrowserModels.swift */; };
+		F20000000000000000000010 /* AppModel+Browser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000010 /* AppModel+Browser.swift */; };
 		C10000000000000000000004 /* GroupRoutineEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000004 /* GroupRoutineEditor.swift */; };
 		F20000000000000000000001 /* AppModel+Fork.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000001 /* AppModel+Fork.swift */; };
 		F20000000000000000000002 /* BotSettingsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000002 /* BotSettingsModels.swift */; };
@@ -82,6 +85,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		F30000000000000000000012 /* BrowserHandoffNotice.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "BrowserHandoffNotice.swift"; path = "Sources/HeyTimUI/BrowserHandoffNotice.swift"; sourceTree = "<group>"; };
+		F30000000000000000000011 /* BrowserModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "BrowserModels.swift"; path = "Sources/HeyTimCore/BrowserModels.swift"; sourceTree = "<group>"; };
+		F30000000000000000000010 /* AppModel+Browser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AppModel+Browser.swift"; path = "Sources/HeyTimCore/AppModel+Browser.swift"; sourceTree = "<group>"; };
 		C20000000000000000000004 /* GroupRoutineEditor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GroupRoutineEditor.swift; path = Sources/HeyTimUI/GroupRoutineEditor.swift; sourceTree = "<group>"; };
 		F30000000000000000000001 /* AppModel+Fork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AppModel+Fork.swift"; path = "Sources/HeyTimCore/AppModel+Fork.swift"; sourceTree = "<group>"; };
 		F30000000000000000000002 /* BotSettingsModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BotSettingsModels.swift; path = Sources/HeyTimCore/BotSettingsModels.swift; sourceTree = "<group>"; };
@@ -209,6 +215,9 @@
 				F3000000000000000000000D /* AISharingConsent.swift */,
 				F30000000000000000000008 /* InvitationParser.swift */,
 				F3000000000000000000000B /* AppModel+SidebarActivity.swift */,
+				F30000000000000000000012 /* BrowserHandoffNotice.swift */,
+				F30000000000000000000011 /* BrowserModels.swift */,
+				F30000000000000000000010 /* AppModel+Browser.swift */,
 				F30000000000000000000002 /* BotSettingsModels.swift */,
 				F30000000000000000000003 /* ChatUsageSummary.swift */,
 				6215600B1AD6C11F22092AEB /* Models.swift */,
@@ -454,6 +463,9 @@
 				F20000000000000000000007 /* AppModel+AISharingConsent.swift in Sources */,
 				F20000000000000000000008 /* InvitationParser.swift in Sources */,
 				F2000000000000000000000B /* AppModel+SidebarActivity.swift in Sources */,
+				F20000000000000000000012 /* BrowserHandoffNotice.swift in Sources */,
+				F20000000000000000000011 /* BrowserModels.swift in Sources */,
+				F20000000000000000000010 /* AppModel+Browser.swift in Sources */,
 				F20000000000000000000002 /* BotSettingsModels.swift in Sources */,
 				F20000000000000000000003 /* ChatUsageSummary.swift in Sources */,
 				0A87C1D4CB05978494CB610A /* Models.swift in Sources */,

@@ -1619,6 +1619,175 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
     XCTAssertEqual(fields["rememberLogin"] as? Bool, false)
   }
 
+  func testBrowserHandoffStatusSupportsLegacyAndExplicitSendEligibility() throws {
+    for (status, explicit, expected) in [
+      ("closed", nil, false), ("ready", nil, false), ("human_control", nil, true),
+      ("expired", nil, true), ("expired", false, false), ("expired", true, true),
+      ("resuming", false, false), ("resuming", true, true),
+    ] as [(String, Bool?, Bool)] {
+      let state = BrowserState(botId: "chief", status: status, contextLabel: "Private chat",
+        hasSavedLogin: true, blocksSending: explicit)
+      XCTAssertEqual(state.requiresHandoff, expected, status)
+    }
+  }
+
+  func testRejectedBrowserHandoffPreservesDraftAndEndsWithoutSendingOrForgetting() async throws {
+    var sent = 0
+    var closeRequests = 0
+    MockURLProtocol.handler = { request in
+      switch (request.httpMethod, request.url?.path) {
+      case ("POST", "/bots/chief/messages"):
+        sent += 1
+        return Self.response(for: request, status: 409,
+          body: #"{"code":"browser_handoff_incomplete","message":"Finish the handoff"}"#)
+      case ("GET", "/bots/chief/browser"):
+        return Self.response(for: request,
+          body: #"{"botId":"chief","status":"expired","contextLabel":"Private chat","hasSavedLogin":true,"blocksSending":true,"recoveryRequired":true}"#)
+      case ("POST", "/bots/chief/browser/close"):
+        closeRequests += 1
+        return Self.response(for: request,
+          body: #"{"botId":"chief","status":"closed","contextLabel":"Private chat","hasSavedLogin":true,"blocksSending":false}"#)
+      default:
+        XCTFail("Unexpected request: \(request.httpMethod ?? "") \(request.url?.path ?? "")")
+        return Self.response(for: request, status: 500, body: "{}")
+      }
+    }
+    let api = HeyTimAPI(baseURL: try XCTUnwrap(URL(string: "https://api.example.com")),
+      session: mockSession) { "id-token" }
+    let model = AppModel(api: api)
+    model.bootstrap = DemoData.bootstrap
+    model.selection = .init(kind: .bot, id: "chief")
+    model.composerText = "Keep my message"
+    model.pendingAttachments = [Self.attachment("private-file")]
+
+    await model.send()
+    XCTAssertEqual(model.composerText, "Keep my message")
+    XCTAssertEqual(model.pendingAttachments.map(\.id), ["private-file"])
+    XCTAssertTrue(model.browserBlocksSending)
+    XCTAssertNil(model.errorMessage)
+    XCTAssertEqual(model.browserStates["chief"]?.status, "expired")
+    await model.send()
+    XCTAssertEqual(sent, 1)
+
+    let closed = await model.endBrowserHandoff(botId: "chief")
+    XCTAssertTrue(closed)
+    XCTAssertFalse(model.browserBlocksSending)
+    XCTAssertEqual(model.composerText, "Keep my message")
+    XCTAssertEqual(model.browserStates["chief"]?.hasSavedLogin, true)
+    XCTAssertEqual(closeRequests, 1)
+    XCTAssertEqual(sent, 1, "Ending a handoff must not automatically send the draft")
+  }
+
+  func testLegacyHandoffErrorKeepsRecoveryAvailableWhenStatusIsUnavailable() async throws {
+    MockURLProtocol.handler = { request in
+      if request.httpMethod == "POST" {
+        return Self.response(for: request, status: 409,
+          body: #"{"code":"browser_error","message":"Finish the browser handoff with Resume or Close before sending another message"}"#)
+      }
+      return Self.response(for: request, status: 503,
+        body: #"{"code":"browser_service_unavailable","message":"Unavailable"}"#)
+    }
+    let api = HeyTimAPI(baseURL: try XCTUnwrap(URL(string: "https://api.example.com")),
+      session: mockSession) { "id-token" }
+    let model = AppModel(api: api)
+    model.bootstrap = DemoData.bootstrap
+    model.selection = .init(kind: .bot, id: "chief")
+    model.composerText = "Keep the old server draft"
+    await model.send()
+    XCTAssertTrue(model.browserBlocksSending)
+    XCTAssertEqual(model.composerText, "Keep the old server draft")
+    XCTAssertNil(model.errorMessage)
+  }
+
+  func testFailedBrowserCloseKeepsTheBlockerAndDraft() async throws {
+    MockURLProtocol.handler = { request in
+      Self.response(for: request, status: 503,
+        body: #"{"code":"browser_service_unavailable","message":"Please retry ending the handoff"}"#)
+    }
+    let api = HeyTimAPI(baseURL: try XCTUnwrap(URL(string: "https://api.example.com")),
+      session: mockSession) { "id-token" }
+    let model = AppModel(api: api)
+    model.selection = .init(kind: .bot, id: "chief")
+    model.composerText = "My unsent draft"
+    model.updateBrowserState(BrowserState(botId: "chief", status: "expired",
+      contextLabel: "Private chat", hasSavedLogin: true, blocksSending: true))
+
+    let closed = await model.endBrowserHandoff(botId: "chief")
+
+    XCTAssertFalse(closed)
+    XCTAssertTrue(model.browserBlocksSending)
+    XCTAssertEqual(model.composerText, "My unsent draft")
+    XCTAssertEqual(model.errorMessage, "Please retry ending the handoff")
+    XCTAssertTrue(model.closingBrowserBotIDs.isEmpty)
+  }
+
+  func testBrowserStatusIsPrivateToTheBotAndResetWithTheAccount() {
+    let model = AppModel()
+    model.selection = .init(kind: .bot, id: "chief")
+    model.updateBrowserState(BrowserState(botId: "chief", status: "human_control",
+      contextLabel: "Private chat", hasSavedLogin: true,
+      liveViewUrl: "https://example.test/secret", liveViewExpiresAt: "later"))
+    XCTAssertTrue(model.browserBlocksSending)
+    XCTAssertNil(model.browserStates["chief"]?.liveViewUrl)
+    XCTAssertNil(model.browserStates["chief"]?.liveViewExpiresAt)
+    model.selection = .init(kind: .group, id: "chief")
+    XCTAssertFalse(model.browserBlocksSending)
+    model.selection = .init(kind: .bot, id: "other")
+    XCTAssertFalse(model.browserBlocksSending)
+    model.resetSession()
+    XCTAssertTrue(model.browserStates.isEmpty)
+    XCTAssertTrue(model.blockedBrowserBotIDs.isEmpty)
+  }
+
+  func testBrowserOperationPreventsConcurrentCloseAndPreservesTheDraft() async {
+    let model = AppModel(demoMode: true)
+    model.selection = .init(kind: .bot, id: "chief")
+    model.composerText = "Keep the in-flight draft"
+    XCTAssertTrue(model.beginBrowserOperation(botId: "chief"))
+    XCTAssertFalse(model.beginBrowserOperation(botId: "chief"))
+    XCTAssertTrue(model.browserBlocksSending)
+    await model.send()
+    let closed = await model.endBrowserHandoff(botId: "chief")
+    XCTAssertFalse(closed)
+    XCTAssertEqual(model.composerText, "Keep the in-flight draft")
+    XCTAssertTrue(model.closingBrowserBotIDs.isEmpty)
+    model.resetSession()
+    XCTAssertTrue(model.busyBrowserBotIDs.isEmpty)
+  }
+
+  func testLateBrowserStatusCannotReblockAnEndedHandoff() async throws {
+    let started = expectation(description: "Status request started")
+    let release = DispatchSemaphore(value: 0)
+    defer { release.signal() }
+    ConcurrentMockURLProtocol.handler = { request in
+      if request.httpMethod == "GET" {
+        started.fulfill()
+        release.wait()
+        return Self.response(for: request,
+          body: #"{"botId":"chief","status":"expired","contextLabel":"Private chat","hasSavedLogin":true,"blocksSending":true}"#)
+      }
+      return Self.response(for: request,
+        body: #"{"botId":"chief","status":"closed","contextLabel":"Private chat","hasSavedLogin":true,"blocksSending":false}"#)
+    }
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [ConcurrentMockURLProtocol.self]
+    let api = HeyTimAPI(baseURL: try XCTUnwrap(URL(string: "https://api.example.com")),
+      session: URLSession(configuration: configuration)) { "id-token" }
+    let model = AppModel(api: api)
+    model.selection = .init(kind: .bot, id: "chief")
+    model.blockedBrowserBotIDs.insert("chief")
+    let status = Task { await model.refreshBrowserState(botId: "chief") }
+    await fulfillment(of: [started], timeout: 2)
+
+    let closed = await model.endBrowserHandoff(botId: "chief")
+    XCTAssertTrue(closed)
+    release.signal()
+    _ = await status.value
+
+    XCTAssertFalse(model.browserBlocksSending)
+    XCTAssertEqual(model.browserStates["chief"]?.status, "closed")
+  }
+
   func testFailedChatLoadKeepsAnInlineRetryState() async throws {
     MockURLProtocol.handler = { request in
       Self.response(for: request, status: 503,
