@@ -1,7 +1,15 @@
 # Source AgentCore Memory record capture
 
-**Capture stack deployed; source Memory stream not attached. This does not clear the cutover NO-GO.** This
-source-account stack is prepared to capture
+**Migration capture retired after the fresh-account launch.** Synthesis defaults to retained archive,
+encryption keys, and consumer logs without a stream, consumer, or capture permissions. The October 9 cost cleanup
+was approved after confirming no Memory attachment, no retained stream records, and no archive object versions.
+The source Memory and all retained data remain untouched. Because the old stream has a RETAIN policy, removing
+it from the template alone does not stop billing: the confirmed-empty retained stream must also be explicitly
+deleted after the retirement update completes. Never delete a stream containing unarchived records.
+
+Re-enabling capture requires an explicitly approved maintenance drill and `-c captureEnabled=true`; it incurs
+stream charges even while idle. The historical migration procedure below applies only to that enabled mode
+and does not clear the cutover NO-GO. This source-account stack can capture
 `FULL_CONTENT` AgentCore Memory record lifecycle events. The stack uses account `188757775631`, region `us-east-1`,
 and the existing Memory `HeyTimProduction_HeyTimMemory-xeQPMmBQGC`. It does not create or replace the Memory.
 Never deploy it in destination account `820323452649`.
@@ -14,7 +22,7 @@ Never deploy it in destination account `820323452649`.
    execution role is in that same account and that no other stream delivery is attached. Keep the role ARN out of
    shell history where practical.
 2. From this directory run `npm ci`, `npm run build`, and `npm test`. Synthesize and review the exact stack diff with
-   `npx cdk diff HeyTimMemoryCapture -c memoryRoleArn=<existing-source-memory-role-arn> --profile frogbot-release`.
+   `npx cdk diff HeyTimMemoryCapture -c captureEnabled=true -c memoryRoleArn=<existing-source-memory-role-arn> --profile frogbot-release`.
    The stack creates a seven-day KMS-encrypted on-demand Kinesis stream, a KMS-encrypted versioned S3 archive with
    30-day governance Object Lock, a Lambda consumer, and CloudWatch alarms. It adds PutRecords/DescribeStream and
    KMS GenerateDataKey to the **existing** Memory execution role. Confirm the diff makes no replacement or edit to

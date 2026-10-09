@@ -68,7 +68,6 @@ class CatalogTests(unittest.TestCase):
                 "event-planner",
                 "group-decision",
                 "shared-budget",
-                "health-coach",
             },
         )
 

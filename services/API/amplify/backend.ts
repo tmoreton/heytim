@@ -1,6 +1,6 @@
 import { defineBackend } from '@aws-amplify/backend';
 import { ArnFormat, Duration, RemovalPolicy } from 'aws-cdk-lib';
-import { ReadWriteType, Trail } from 'aws-cdk-lib/aws-cloudtrail';
+import { CfnTrail, ReadWriteType, Trail } from 'aws-cdk-lib/aws-cloudtrail';
 import { AttributeType, BillingMode, Table, TableEncryption } from 'aws-cdk-lib/aws-dynamodb';
 import { EventField, Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
 import { SqsQueue } from 'aws-cdk-lib/aws-events-targets';
@@ -304,6 +304,10 @@ const auditTrail = new Trail(stack, 'AuditTrail', {
     ? { cloudWatchLogGroup: auditLogGroup }
     : { cloudWatchLogsRetention: RetentionDays.ONE_MONTH }),
 });
+// Production already records account-wide management events; sandbox copies
+// incur duplicate-event charges. Keep their historical logs and resources.
+const cfnAuditTrail = auditTrail.node.defaultChild as CfnTrail;
+cfnAuditTrail.isLogging = deploymentEnvironment === 'production';
 auditTrail.addS3EventSelector([{ bucket: legacyFilesBucket }, { bucket: heytimFilesBucket }], {
   readWriteType: ReadWriteType.ALL,
 });
