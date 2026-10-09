@@ -4,6 +4,7 @@ set -euo pipefail
 apple_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 project="$apple_root/HeyTimApple.xcodeproj"
 derived_data="$(mktemp -d /tmp/HeyTimAppleVerification.XXXXXX)"
+results_dir="${HEYTIM_APPLE_TEST_RESULTS_DIR:-$derived_data/TestResults}"
 temporary_simulator=false
 allow_generic_ios_build="${HEYTIM_ALLOW_GENERIC_IOS_BUILD:-false}"
 if [[ "$allow_generic_ios_build" != true && "$allow_generic_ios_build" != false ]]; then
@@ -45,6 +46,7 @@ cleanup() {
   find "$derived_data" -depth -delete 2>/dev/null || true
 }
 trap cleanup EXIT
+mkdir -p "$results_dir"
 
 "$apple_root/scripts/check-architecture.sh"
 "$apple_root/scripts/prepare-transcription.sh"
@@ -59,6 +61,7 @@ run_with_timeout 1200 'macOS unit tests' xcodebuild test -quiet \
   -scheme HeyTimAppleUnit \
   -destination 'platform=macOS' \
   -derivedDataPath "$derived_data" \
+  -resultBundlePath "$results_dir/mac-unit.xcresult" \
   -parallel-testing-enabled NO \
   -maximum-parallel-testing-workers 1 \
   -only-testing:HeyTimAppleTests \
@@ -66,11 +69,12 @@ run_with_timeout 1200 'macOS unit tests' xcodebuild test -quiet \
 
 # Offline UI fixtures use a separate local identity without APNs or associated
 # domain entitlements, which would require a distribution provisioning profile.
-run_with_timeout 1200 'macOS chat and browser UI tests' xcodebuild test -quiet \
+run_with_timeout 1200 'macOS chat and browser UI tests' xcodebuild test \
   -project "$project" \
   -scheme HeyTimAppleUI \
   -destination 'platform=macOS' \
   -derivedDataPath "$derived_data" \
+  -resultBundlePath "$results_dir/mac-ui.xcresult" \
   -parallel-testing-enabled NO \
   -maximum-parallel-testing-workers 1 \
   -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testExpiredBrowserHandoffCanEndWithoutLosingTheDraft \
@@ -102,6 +106,7 @@ if [[ -z "$simulator_id" ]]; then
         -configuration Debug \
         -destination 'generic/platform=iOS' \
         -derivedDataPath "$derived_data" \
+        -resultBundlePath "$results_dir/ios-build.xcresult" \
         CODE_SIGNING_ALLOWED=NO
       exit 0
     fi
@@ -122,6 +127,7 @@ run_with_timeout 1200 'iOS UI tests' xcodebuild test -quiet \
   -scheme HeyTimAppleUI \
   -destination "id=$simulator_id" \
   -derivedDataPath "$derived_data" \
+  -resultBundlePath "$results_dir/ios-ui.xcresult" \
   -parallel-testing-enabled NO \
   -maximum-parallel-testing-workers 1 \
   ONLY_ACTIVE_ARCH=YES

@@ -56,4 +56,13 @@ jobs:
           # This self-hosted runner has Xcode but no iOS simulator runtime.
           # verify.sh still runs Mac tests and compiles the iOS app in that case.
           HEYTIM_ALLOW_GENERIC_IOS_BUILD: 'true'
+          HEYTIM_APPLE_TEST_RESULTS_DIR: ${{ runner.temp }}/heytim-apple-${{ github.run_id }}-${{ github.run_attempt }}
         run: ./scripts/verify.sh apple
+      - name: Retain Apple test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: apple-test-results-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/heytim-apple-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          retention-days: 3

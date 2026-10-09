@@ -44,6 +44,9 @@ compile and reports that distinction. The gate includes Mac unit tests and
 targeted Mac UI tests for expired-handoff recovery, draft preservation, composer
 bounds with the browser shown/hidden, Details bounds, and toolbar ownership.
 The UI runner uses a separate verification bundle ID and local ad hoc signing.
+CI retains result bundles and screenshots for three days, including failures.
+Local runs can retain the same diagnostics by setting
+`HEYTIM_APPLE_TEST_RESULTS_DIR` to a fresh directory outside the build scratch path.
 
 Backend coverage includes expired human and ready sessions, explicit close
 without profile deletion or continuation, uncertain resume, stored/display
