@@ -23,7 +23,7 @@ if (!dependencies.vite || !dependencies.react || !website.scripts.build.includes
 }
 const apps = (await readdir(path.join(root, 'apps'), { withFileTypes: true }))
   .filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
-if (JSON.stringify(apps) !== JSON.stringify(['iOS', 'website'])) {
+if (JSON.stringify(apps) !== JSON.stringify(['browser-viewer', 'iOS', 'website'])) {
   throw new Error(`Unexpected app directories: ${apps.join(', ')}. Expo belongs in the local reference archive.`);
 }
 for (const retired of ['apps/website/amplify_outputs.json', 'apps/website/eas.json', '.easignore']) {

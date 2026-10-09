@@ -49,8 +49,21 @@ dependencies = [
     # CodeZip resolves MCP's OpenAPI transitive afresh; retain the tested lock version.
     "openapi-pydantic == 0.5.1",
     # AgentCore CodeZip installs from pyproject, not uv.lock. Keep fresh package
-    # resolution on the tested version; 6.8.0 otherwise drifts from the lock.
-    "multidict==6.8.0",
+    # resolution on the audited version, including the CVE-2026-104874 fix.
+    "multidict==6.9.1",
+    # CodeZip resolves these transitives independently of uv.lock. Retain the
+    # already-verified versions instead of accepting fresh packaging drift.
+    "dnspython == 2.8.0",
+    "fastmcp == 3.4.7",
+    "fastmcp-slim == 3.4.7",
+    "griffelib == 2.3.0",
+    "pycparser == 3.0",
+    "pydantic == 2.13.5",
+    "pydantic-core == 2.46.5",
+    "rpds-py == 2026.6.3",
+    "tenacity == 9.1.4",
+    "uncalled-for == 0.4.0",
+    "websockets == 17.1",
     # AgentCore CodeZip resolves instrumentation transitives afresh. Keep the
     # packaged GenAI helpers identical to the version verified in uv.lock.
     "opentelemetry-util-genai == 1.1b0",
