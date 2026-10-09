@@ -51,7 +51,7 @@ trap cleanup EXIT
 
 (
   cd "$apple_root/../../packages/heytim-transcription"
-  swift test
+  swift test --scratch-path "$derived_data/Transcription"
 )
 
 run_with_timeout 1200 'macOS unit tests' xcodebuild test -quiet \
@@ -63,6 +63,23 @@ run_with_timeout 1200 'macOS unit tests' xcodebuild test -quiet \
   -maximum-parallel-testing-workers 1 \
   -only-testing:HeyTimAppleTests \
   CODE_SIGNING_ALLOWED=NO
+
+# Offline UI fixtures use a separate local identity without APNs or associated
+# domain entitlements, which would require a distribution provisioning profile.
+run_with_timeout 1200 'macOS chat and browser UI tests' xcodebuild test -quiet \
+  -project "$project" \
+  -scheme HeyTimAppleUI \
+  -destination 'platform=macOS' \
+  -derivedDataPath "$derived_data" \
+  -parallel-testing-enabled NO \
+  -maximum-parallel-testing-workers 1 \
+  -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testExpiredBrowserHandoffCanEndWithoutLosingTheDraft \
+  -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testMacComposerAndToolbarStayInsideTheNativeWindowLayout \
+  -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testMacBrowserPanelKeepsComposerAndDetailsInsideTheChatColumn \
+  PRODUCT_BUNDLE_IDENTIFIER=ai.heytim.verification \
+  CODE_SIGN_ENTITLEMENTS= \
+  CODE_SIGNING_ALLOWED=YES \
+  CODE_SIGN_IDENTITY=-
 
 # The speech model is intentionally embedded in the application, but Xcode also
 # copies it into test bundles. Release the completed Mac test products before

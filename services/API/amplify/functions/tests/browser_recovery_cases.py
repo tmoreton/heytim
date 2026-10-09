@@ -2,6 +2,65 @@
 
 
 class BrowserRecoveryCases:
+    def test_expired_human_handoff_exposes_blocker_until_explicit_close(self):
+        self.service.open()
+        self.service.store.write(self.record(), sessionExpiresAt=self.now - 1,
+                                 profileId="saved-profile", profileVersion=1)
+        before = self.record()
+        view = self.service.get()
+        self.assertEqual(view["status"], "expired")
+        self.assertTrue(view["blocksSending"])
+        self.assertTrue(view["recoveryRequired"])
+        self.assertEqual(before, self.record())
+        with self.assertRaises(self.module.BrowserSessionError) as error:
+            self.module.ensure_browser_send_allowed(self.table, "user-1", "bot-1")
+        self.assertEqual(error.exception.code, "browser_handoff_incomplete")
+        closed = self.service.close()
+        self.assertFalse(closed["blocksSending"])
+        self.assertTrue(closed["hasSavedLogin"])
+        self.module.ensure_browser_send_allowed(self.table, "user-1", "bot-1")
+        self.cp.delete_browser_profile.assert_not_called()
+        self.enqueue.assert_not_called()
+
+    def test_expired_ready_browser_does_not_claim_to_block_sending(self):
+        self.service.open()
+        self.service.store.write(self.record(), status="READY", sessionExpiresAt=self.now - 1)
+        view = self.service.get()
+        self.assertEqual(view["status"], "expired")
+        self.assertFalse(view["blocksSending"])
+        self.module.ensure_browser_send_allowed(self.table, "user-1", "bot-1")
+
+    def test_uncertain_resume_does_not_offer_expiry_reopen_recovery(self):
+        self.service.open()
+        self.service.store.write(self.record(), status="READY", resumeState="UNCERTAIN",
+                                 sessionExpiresAt=self.now - 1)
+        view = self.service.get()
+        self.assertEqual(view["status"], "resuming")
+        self.assertTrue(view["blocksSending"])
+        self.assert_error(409, self.service.open)
+        self.enqueue.assert_not_called()
+
+    def test_blocking_status_is_independent_of_display_recovery(self):
+        self.service.open()
+        for status, resume, revoked, expected in (
+            ("HUMAN_CONTROL", None, False, True),
+            ("OPENING", None, False, True),
+            ("RESUMING", "UNCERTAIN", False, True),
+            ("READY", "ENQUEUEING", False, False),
+            ("READY", "UNCERTAIN", False, True),
+            ("CLOSED", None, True, True),
+            ("CLOSED", None, False, False),
+        ):
+            with self.subTest(status=status, resume=resume, revoked=revoked):
+                self.service.store.write(self.record(), status=status, resumeState=resume,
+                                         revoked=revoked, operationUntil=0)
+                self.assertEqual(self.service.get()["blocksSending"], expected)
+                if expected:
+                    self.assert_error(409, lambda: self.module.ensure_browser_send_allowed(
+                        self.table, "user-1", "bot-1"))
+                else:
+                    self.module.ensure_browser_send_allowed(self.table, "user-1", "bot-1")
+
     def failed_handoff(self, status="OPENING", **changes):
         self.service.open()
         return self.service.store.write(

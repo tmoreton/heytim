@@ -1,6 +1,39 @@
 import XCTest
 
 @MainActor final class HeyTimAppleUITests: XCTestCase {
+  func testExpiredBrowserHandoffCanEndWithoutLosingTheDraft() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing", "--ui-testing-browser-expired"]
+    app.launchForUITesting()
+    let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
+    let notice = app.descendants(matching: .any)["chat.browser-handoff"].firstMatch
+    let send = app.buttons["chat.send"]
+    XCTAssertTrue(composer.waitForExistence(timeout: 10))
+    XCTAssertTrue(notice.exists)
+    XCTAssertEqual(composer.value as? String, "Keep this draft")
+    XCTAssertFalse(send.exists && send.isEnabled)
+    let end = app.buttons["chat.browser-handoff.end"]
+    XCTAssertTrue(end.isHittable)
+    let before = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+    before.name = "Expired browser handoff recovery"
+    before.lifetime = .keepAlways
+    add(before)
+    #if os(macOS)
+      end.click()
+    #else
+      end.tap()
+    #endif
+    XCTAssertTrue(notice.waitForNonExistence(timeout: 5))
+    XCTAssertEqual(composer.value as? String, "Keep this draft")
+    XCTAssertTrue(send.waitForExistence(timeout: 5))
+    XCTAssertTrue(send.isEnabled)
+    XCTAssertFalse(app.alerts.firstMatch.exists)
+    let after = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+    after.name = "Ended browser handoff with the draft preserved"
+    after.lifetime = .keepAlways
+    add(after)
+  }
+
   #if os(iOS)
     func testLaunchShowsChatListBeforeOpeningAConversation() {
       let app = XCUIApplication()
@@ -1014,6 +1047,48 @@ import XCTest
       XCTAssertTrue(
         app.staticTexts["This is the native app’s offline test reply."].waitForExistence(
           timeout: 5))
+    }
+
+    func testMacBrowserPanelKeepsComposerAndDetailsInsideTheChatColumn() {
+      let app = XCUIApplication()
+      app.launchArguments = ["--ui-testing", "--ui-testing-empty-conversation"]
+      app.launchForUITesting()
+      let transcript = app.scrollViews["chat.transcript"]
+      XCTAssertTrue(transcript.waitForExistence(timeout: 10))
+      let originalBounds = transcript.frame
+      let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
+      composer.click()
+      composer.typeText("Keep layout draft")
+      func assertComposerFits() {
+        let controls = [app.menuButtons["chat.attachments"],
+          app.descendants(matching: .any)["chat.composer"].firstMatch,
+          app.buttons["chat.microphone"], app.buttons["chat.send"]]
+        for control in controls {
+          XCTAssertTrue(control.isHittable)
+          XCTAssertGreaterThanOrEqual(control.frame.minX, transcript.frame.minX + 8)
+          XCTAssertLessThanOrEqual(control.frame.maxX, transcript.frame.maxX - 8)
+        }
+        XCTAssertFalse(app.toolbars.staticTexts["Secure Browser"].exists)
+      }
+      assertComposerFits()
+      app.buttons["chat.browser"].click()
+      let hide = app.buttons["Hide browser panel"]
+      XCTAssertTrue(hide.waitForExistence(timeout: 5))
+      XCTAssertLessThan(transcript.frame.width, originalBounds.width)
+      assertComposerFits()
+      let screenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+      screenshot.name = "Browser panel with the chat composer inside its column"
+      screenshot.lifetime = .keepAlways
+      add(screenshot)
+      hide.click()
+      XCTAssertTrue(hide.waitForNonExistence(timeout: 5))
+      assertComposerFits()
+      app.buttons["chat.details"].click()
+      let edit = app.buttons["conversation.edit-bot"]
+      XCTAssertTrue(edit.waitForExistence(timeout: 5))
+      XCTAssertTrue(edit.isHittable)
+      XCTAssertGreaterThanOrEqual(edit.frame.minX, originalBounds.minX + 8)
+      XCTAssertFalse(app.toolbars.staticTexts["Secure Browser"].exists)
     }
 
     func testMacEditorUsesAReadableSlideOut() {

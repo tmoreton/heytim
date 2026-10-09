@@ -588,6 +588,16 @@ private struct ConversationView: View {
   }
 
   var body: some View {
+    #if os(macOS)
+      ConversationBrowserLayout(model: model, isPresented: $showBrowserPanel) {
+        conversationContent
+      }
+    #else
+      conversationContent
+    #endif
+  }
+
+  private var conversationContent: some View {
     ScrollViewReader { proxy in
       ScrollView {
         transcriptStack
@@ -653,16 +663,24 @@ private struct ConversationView: View {
         }
       }
       .safeAreaInset(edge: .bottom, spacing: 0) {
-        Composer(
-          model: model, dictation: dictation, importing: $importing,
-          composerFocused: $composerFocused,
-          onSubmit: {
-            scheduleScrollToBottom(using: proxy, animated: true)
-            Task { await model.send() }
-          })
-          .opacity(showsChatHeader ? 1 : 0)
-          .allowsHitTesting(showsChatHeader)
-          .accessibilityHidden(!showsChatHeader)
+        VStack(spacing: 0) {
+          if model.browserBlocksSending, let botId = model.selection?.id {
+            BrowserHandoffNotice(model: model, botId: botId) { openBrowser(botID: botId) }
+              .frame(maxWidth: 720)
+              .padding(.horizontal, 18)
+              .padding(.top, 8)
+          }
+          Composer(
+            model: model, dictation: dictation, importing: $importing,
+            composerFocused: $composerFocused,
+            onSubmit: {
+              scheduleScrollToBottom(using: proxy, animated: true)
+              Task { await model.send() }
+            })
+            .opacity(showsChatHeader ? 1 : 0)
+            .allowsHitTesting(showsChatHeader)
+            .accessibilityHidden(!showsChatHeader)
+        }
       }
     }
     .tint(FrogTheme.accent)
@@ -699,7 +717,15 @@ private struct ConversationView: View {
     }
     .background(FrogTheme.appBackground)
     .onChange(of: showsChatHeader) { _, isVisible in
-      if !isVisible { composerFocused = false }
+      if !isVisible {
+        composerFocused = false
+        showBrowserPanel = false
+      }
+    }
+    .task(id: model.selection) {
+      if let bot = model.selectedBot, bot.allowedActions?.contains("browser") == true {
+        await model.refreshBrowserState(botId: bot.id)
+      }
     }
     .froggyInspector(isPresented: $showInspector, onDismiss: finishInspectorAction) {
       if let inspectorSelection = inspectorSelection ?? model.selection {
@@ -743,26 +769,6 @@ private struct ConversationView: View {
     .confirmationDialog("Delete \(model.title)?", isPresented: $showDelete) {
       Button("Delete", role: .destructive) { Task { await model.deleteCurrent() } }
     }
-    #if os(macOS)
-      .inspector(isPresented: $showBrowserPanel) {
-        if let bot = model.selectedBot {
-          VStack(spacing: 0) {
-            HStack {
-              Text("Live Browser").froggyFont(.headline)
-              Spacer()
-              Button("Close", systemImage: "xmark") { showBrowserPanel = false }
-                .labelStyle(.iconOnly)
-                .accessibilityLabel("Close browser panel")
-            }
-            .padding(12)
-            Divider()
-            BrowserHandoffView(
-              model: model, botId: bot.id, groupId: nil, showsDismissButton: false)
-          }
-          .inspectorColumnWidth(min: 320, ideal: 440, max: 640)
-        }
-      }
-    #endif
   }
 
   @ViewBuilder private var transcriptStack: some View {
@@ -961,6 +967,14 @@ private struct ConversationView: View {
             .frame(width: 440, height: 460)
         }
       }
+    #endif
+  }
+
+  private func openBrowser(botID: String) {
+    #if os(macOS)
+      showBrowserPanel = true
+    #else
+      model.sheet = .browser(botId: botID, groupId: nil)
     #endif
   }
 
@@ -1441,6 +1455,7 @@ private struct Composer: View {
           .frame(width: 44, height: 44)
 
         composerInput
+          .frame(minWidth: 0, maxWidth: .infinity)
           .padding(.leading, 7)
           .padding(.vertical, 10)
 
@@ -1651,6 +1666,7 @@ private struct Composer: View {
     let available = canSend && !model.isUploading
       && !dictation.isRecording && !dictation.isStarting
       && model.bootstrap?.aiSharingConsent.granted != false
+      && !model.browserBlocksSending
     return available
   }
   private var sendActionTitle: String {
