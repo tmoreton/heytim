@@ -1,0 +1,58 @@
+name: Verify deployed HeyTim production workflow
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: heytim-production-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  smoke:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.23.2
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Verify immutable destination source and configuration
+        run: |
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          ./scripts/assert-release-ready.sh --aws
+          test "$(aws sts get-caller-identity --query Account --output text)" = 820323452649
+          npm --prefix services/API run outputs:apple:production:check
+      - name: Verify diagnostic redaction
+        run: python3 -m unittest discover -s services/API/amplify/functions/tests -p test_runtime_error_summary.py
+      - name: Run authenticated synthetic workflow without redeployment
+        env:
+          HEYTIM_RELEASE_TEST_REFRESH_TOKEN: ${{ secrets.HEYTIM_RELEASE_TEST_REFRESH_TOKEN }}
+        run: |
+          set +x
+          outputs=services/API/amplify_outputs.json
+          client_id="$(jq -r '.auth.user_pool_client_id' "$outputs")"
+          api_url="$(jq -r '.custom.apiUrl' "$outputs")"
+          auth_parameters="$(jq -nc --arg refreshToken "$HEYTIM_RELEASE_TEST_REFRESH_TOKEN" '{REFRESH_TOKEN:$refreshToken}')"
+          id_token="$(aws cognito-idp initiate-auth --auth-flow REFRESH_TOKEN_AUTH \
+            --client-id "$client_id" --auth-parameters "$auth_parameters" \
+            --query 'AuthenticationResult.IdToken' --output text)"
+          test -n "$id_token" && test "$id_token" != None
+          echo "::add-mask::$id_token"
+          HEYTIM_API_URL="$api_url" HEYTIM_ID_TOKEN="$id_token" \
+            npm --prefix services/API run workflow:test
+      - name: Summarize sanitized runtime failures
+        if: ${{ always() }}
+        run: python3 services/API/scripts/runtime-error-summary.py

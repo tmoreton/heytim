@@ -85,6 +85,18 @@ const requireValue = (condition, message) => {
   if (!condition) throw new Error(message);
 };
 
+const requireCompletedReply = (reply, stage) => {
+  if (reply.status === 'complete') return;
+  const text = typeof reply.text === 'string' ? reply.text.toLowerCase() : '';
+  const code = text.includes('usage limit') ? 'usage_limit'
+    : text.includes('ai processing is off') ? 'ai_consent_required'
+      : text.includes('could not start its worker') ? 'runtime_startup_failed'
+        : text.includes('safely authorized') ? 'run_admission_failed'
+          : 'agent_failure';
+  // Only fixed categories enter public CI logs; never print reply content.
+  throw new Error(`${stage} turn failed (${code}).`);
+};
+
 let accountDeletionQueued = false;
 let cleanupSucceeded = true;
 let workflowError;
@@ -134,6 +146,12 @@ try {
   const bootstrap = await request('GET', '/bootstrap');
   assertBootstrapReady(bootstrap);
   completed.push('bootstrap');
+  const billing = await request('GET', '/billing');
+  console.log(JSON.stringify({ syntheticAccountCredits: Object.fromEntries(
+    ['creditsUsed', 'creditsRemaining', 'creditLimit'].map((key) => [
+      key, Number.isSafeInteger(billing[key]) ? billing[key] : null,
+    ]),
+  ) }));
 
   const botSuffix = new Date().toISOString().replaceAll(/[^0-9]/g, '').slice(0, 14);
   const standardBot = await request('POST', '/bots', {
@@ -171,7 +189,7 @@ try {
     }),
   );
   const attachmentReply = await waitForTurn(standardBot.id, attachmentTurn.turnId);
-  requireValue(attachmentReply.status === 'complete', `Attachment turn ended as ${attachmentReply.status}.`);
+  requireCompletedReply(attachmentReply, 'Attachment');
   completed.push('attachment upload and agent read');
 
   const schedule = await request('POST', `/bots/${encodeURIComponent(standardBot.id)}/schedules`, {
@@ -190,7 +208,7 @@ try {
     ),
   );
   const scheduledReply = await waitForTurn(standardBot.id, scheduledTurn.turnId);
-  requireValue(scheduledReply.status === 'complete', `Scheduled turn ended as ${scheduledReply.status}.`);
+  requireCompletedReply(scheduledReply, 'Scheduled');
   await request(
     'DELETE',
     `/bots/${encodeURIComponent(standardBot.id)}/schedules/${encodeURIComponent(schedule.id)}`,
@@ -299,7 +317,10 @@ try {
   }
 }
 
-if (workflowError) throw workflowError;
+if (workflowError) {
+  console.error(JSON.stringify({ passed: false, completed, cleanupSucceeded }));
+  throw workflowError;
+}
 requireValue(cleanupSucceeded, 'One or more temporary workflow-test bots could not be deleted.');
 if (deleteAccount) {
   requireValue(accountDeletionQueued, 'Disposable account deletion was not queued.');

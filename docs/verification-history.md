@@ -31,6 +31,12 @@ the current checkout or environment still has the same status.
   was superseded after reproducing the accessibility crash and must not be promoted.
 - [Website deployment 37998005111](https://github.com/tmoreton/heytim/actions/runs/37998005111) succeeded from
   `752d386`, including website verification, the marketing site, and the secure browser viewer.
+- [Backend rollout 37998002979](https://github.com/tmoreton/heytim/actions/runs/37998002979) deployed
+  `752d386` to AgentCore and Amplify and passed resource checks and all five managed regression scenarios
+  with scores of 1.0. Its final authenticated workflow failed when the scheduled reply ended in an error;
+  the attachment step had passed. This run is not a successful release verification. A separate protected,
+  main-only production smoke workflow now permits targeted rechecking without another deployment and
+  summarizes only sanitized runtime failure categories, exception types, and code locations.
 - [Read-only Apple inventory 37998007356](https://github.com/tmoreton/heytim/actions/runs/37998007356) confirmed
   the HeyTim listing name, privacy URL, and iOS support URL match. The newest existing iPhone build is `1.0.16`,
   build `20261002171304`, processed `VALID` with audience `INTERNAL_ONLY`. The Apple Account Holder is accepted
