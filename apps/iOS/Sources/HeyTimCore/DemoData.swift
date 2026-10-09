@@ -206,6 +206,16 @@ public enum DemoData {
       createdAt: "2026-09-12T12:02:01.000Z", activityUpdatedAt: "2026-09-12T12:02:10.000Z",
       status: "running"),
   ]
+  public static var completedActivityMessages: [ChatMessage] {
+    var value = activityMessages
+    value[1].status = "complete"
+    value[1].text = "Hey Tim test passed."
+    value[1].usageSummary = ChatUsageSummary(
+      modelIds: ["test/model"], callCount: 1, inputTokens: 120, outputTokens: 40,
+      cacheReadInputTokens: 0, cacheReportAvailable: false, costUsd: "0.0012",
+      costBasis: "estimated", costIncomplete: false, reasoningEffort: "medium")
+    return value
+  }
   public static let groupProgressGroup = BotGroup(
     id: "research-team", name: "Research Team", memory: "", memoryUpdatedAt: nil,
     memoryUpdatedByName: nil, ownerId: "owner", currentUserId: "owner", isOwner: true,
