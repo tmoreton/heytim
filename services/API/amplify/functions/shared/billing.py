@@ -6,7 +6,26 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
+from .memory_identity import memory_actor_id
+
 ACTIVE_SUBSCRIPTION_STATUSES = {"active", "trialing"}
+RELEASE_TEST_ACTOR_ID = "3893a3ef3b21d5e84bd8a1117ce54afc4599424dc4c02cc5860ac572a921da56"
+
+
+def _free_credit_limit(user_id: str) -> int:
+    limit = free_monthly_credits()
+    # The existing dedicated fixture runs four metered turns per release check.
+    # Keep its allowance bounded, destination-only, and subject to normal admission.
+    if (
+        free_only_mode()
+        and not billing_available()
+        and os.environ.get("USER_POOL_ID") == "us-east-1_biJejrNQF"
+        and os.environ.get("FILES_BUCKET_NAME")
+        == "heytim-production-user-files-820323452649-us-east-1"
+        and memory_actor_id(user_id) == RELEASE_TEST_ACTOR_ID
+    ):
+        return max(limit, 300)
+    return limit
 
 
 def _bounded_integer(name: str, default: int, minimum: int, maximum: int) -> int:
@@ -132,7 +151,7 @@ def entitlement_for_user(
     return BillingEntitlement(
         plan="free",
         status=str(status) if isinstance(status, str) else "free",
-        credit_limit=free_monthly_credits(),
+        credit_limit=_free_credit_limit(user_id),
         counter_sort_key=f"USAGE_LIMIT#MONTH#{month}",
         period_key=f"month:{month}",
         resets_at=_iso_timestamp(_next_month(current)),

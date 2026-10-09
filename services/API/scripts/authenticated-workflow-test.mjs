@@ -45,6 +45,7 @@ const waitForTurnStatus = async (botId, turnId, statuses, timeoutMs = 240_000) =
     const reply = messages.find((message) => message.id === `${turnId}-assistant`);
     if (reply && statuses.has(reply.status)) return reply;
     if (reply && terminalStatuses.has(reply.status)) {
+      if (reply.status === 'error') requireCompletedReply(reply, 'Requested');
       throw new Error(`Turn ${turnId} ended as ${reply.status} before the expected state.`);
     }
     if (reply && ['awaiting_approval', 'awaiting_device', 'needs_input'].includes(reply.status)) {
@@ -152,6 +153,8 @@ try {
       key, Number.isSafeInteger(billing[key]) ? billing[key] : null,
     ]),
   ) }));
+  requireValue(Number.isSafeInteger(billing.creditsRemaining) && billing.creditsRemaining >= 4,
+    'The synthetic workflow requires at least four remaining credits; no test turns were started.');
 
   const botSuffix = new Date().toISOString().replaceAll(/[^0-9]/g, '').slice(0, 14);
   const standardBot = await request('POST', '/bots', {

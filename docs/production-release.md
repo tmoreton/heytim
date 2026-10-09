@@ -106,6 +106,10 @@ Set these environment secrets:
 - `HEYTIM_RELEASE_TEST_REFRESH_TOKEN`, issued only to a dedicated production synthetic user. Keep that user free of
   personal data and third-party connections. The release test deletes every temporary bot it creates but deliberately
   retains the account so the refresh token can be reused and rotated independently.
+  In the dedicated free-launch destination, only the pinned release fixture identity receives a 300-credit monthly
+  test allowance. Its usage remains metered and subject to monthly, per-user, global-rate, and circuit limits;
+  ordinary free accounts retain their configured allowance. The authenticated check requires four remaining
+  credits before creating temporary resources, so an exhausted fixture fails before any test turns start.
 - `HEYTIM_GOOGLE_OAUTH_SECRET_ARN`, `HEYTIM_GITHUB_APP_SECRET_ARN`, `HEYTIM_X_OAUTH_SECRET_ARN`,
   `HEYTIM_SLACK_OAUTH_SECRET_ARN`, `HEYTIM_NOTION_OAUTH_SECRET_ARN`
 - `HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64` for direct Mac distribution. This is the Apple-issued Developer ID
