@@ -7,6 +7,11 @@ on:
         description: Next Mac version (MAJOR.MINOR.PATCH, for example 1.0.13)
         required: true
         type: string
+      retain_local_installer:
+        description: Keep the notarized DMG on the signing Mac for owner installation only
+        required: true
+        default: false
+        type: boolean
 
 # Signing jobs share one runner and must not overlap a production release.
 concurrency:
@@ -126,6 +131,7 @@ jobs:
           HEYTIM_BUILD_NUMBER: ${{ steps.build.outputs.number }}
           HEYTIM_MARKETING_VERSION: ${{ inputs.marketing_version }}
           HEYTIM_DERIVED_DATA_PATH: ${{ runner.temp }}/heytim-mac-candidate-derived-${{ steps.build.outputs.number }}
+          RETAIN_LOCAL_INSTALLER: ${{ inputs.retain_local_installer }}
         run: |
           if [[ ! "$HEYTIM_BUILD_NUMBER" =~ ^[0-9]{14}$ ]]; then
             echo 'The candidate build number must be a UTC timestamp.' >&2
@@ -181,9 +187,24 @@ jobs:
           writeFileSync(join(process.env.RUNNER_TEMP, 'heytim-mac-candidate', 'receipt.json'),
             JSON.stringify(receipt, null, 2) + '\n');
           NODE
+          if [[ "$RETAIN_LOCAL_INSTALLER" == true ]]; then
+            # This repository is public. Keep the internal installer only on the
+            # signing Mac; never upload it to Actions or a GitHub Release.
+            local_root="$HOME/Library/Application Support/HeyTim/Internal Installers"
+            local_installer="$local_root/$HEYTIM_BUILD_NUMBER"
+            mkdir -p "$local_root"
+            chmod 700 "$local_root"
+            mkdir -m 700 "$local_installer"
+            install -m 600 "$output/HeyTim-$HEYTIM_MARKETING_VERSION-macOS.dmg" \
+              "$local_installer/HeyTim-$HEYTIM_MARKETING_VERSION-macOS.dmg"
+            install -m 600 "$receipt" "$local_installer/receipt.json"
+          fi
           {
             echo "Mac $HEYTIM_MARKETING_VERSION ($HEYTIM_BUILD_NUMBER) was signed and notarized."
-            echo 'Only a checksum receipt is retained; signed binaries are removed from the runner.'
+            echo 'Only a checksum receipt is uploaded; signed build files are removed from the runner workspace.'
+            if [[ "$RETAIN_LOCAL_INSTALLER" == true ]]; then
+              echo 'The owner-only installer is retained locally on the signing Mac under HeyTim/Internal Installers.'
+            fi
             echo 'This workflow did not publish a GitHub Release or replace the live Sparkle feed.'
           } >> "$GITHUB_STEP_SUMMARY"
 

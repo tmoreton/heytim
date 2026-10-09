@@ -215,6 +215,12 @@ Dispatch **Build private destination Mac candidate** from the same `main` commit
 platforms, signs and notarizes the Mac app and disk image, checks the Sparkle ZIP and appcast, records nonsecret
 checksums, and deletes the signed files and isolated build directory from the runner. Its Actions artifact contains
 only the receipt; the live Sparkle feed and GitHub Release remain unchanged.
+For an owner-requested installation on the signing Mac, set `retain_local_installer=true`. After notarization,
+the workflow retains only the DMG and checksum receipt under
+`~/Library/Application Support/HeyTim/Internal Installers/<build-number>/`, with owner-only permissions.
+Download or copy that installer directly from the signing Mac and verify its checksum against the receipt before
+installing. This opt-in does not upload binaries to the public repository, publish a release, change the Sparkle
+feed, or mark the public-release approval checks complete. The default still deletes all signed binaries.
 The Mac export uses the protected Developer ID profile with local manual signing. A new profile requires the
 `ai.heytim.app` App ID and the existing Developer ID Application certificate; creating a replacement certificate
 also requires updating its matching certificate bundle in the protected production environment.
