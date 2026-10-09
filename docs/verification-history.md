@@ -37,6 +37,11 @@ the current checkout or environment still has the same status.
   the attachment step had passed. This run is not a successful release verification. A separate protected,
   main-only production smoke workflow now permits targeted rechecking without another deployment and
   summarizes only sanitized runtime failure categories, exception types, and code locations.
+- [Targeted production check 38000782671](https://github.com/tmoreton/heytim/actions/runs/38000782671)
+  passed attachments, scheduled replies, and sharing, but failed before the second approval proposal.
+  The synthetic account started with 27 of its 30 monthly credits consumed; the preceding three turns consumed
+  its remaining allowance. Temporary resources were cleaned up, and the sanitized runtime-marker query returned
+  no failures. This later quota failure is separate from the earlier scheduled runtime-client error.
 - [Read-only Apple inventory 37998007356](https://github.com/tmoreton/heytim/actions/runs/37998007356) confirmed
   the HeyTim listing name, privacy URL, and iOS support URL match. The newest existing iPhone build is `1.0.16`,
   build `20261002171304`, processed `VALID` with audience `INTERNAL_ONLY`. The Apple Account Holder is accepted
