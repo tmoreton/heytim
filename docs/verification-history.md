@@ -6,6 +6,24 @@ was recorded, including legacy repository, cloud-resource, secret, and bundle ID
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-10-09 — verified production recovery
+
+- Merged [PR #123](https://github.com/tmoreton/heytim/pull/123) and
+  [PR #124](https://github.com/tmoreton/heytim/pull/124), ending at
+  `0bb6b26f0c4a96984a7c7331cb46a72a175e9638`. Backend and security CI passed.
+  The pinned synthetic fixture now has a metered 300-credit monthly allowance in the exact dedicated destination;
+  customer free limits remain 30. The release check fails before mutations when fewer than four credits remain.
+- [Production recovery rollout 38001583301](https://github.com/tmoreton/heytim/actions/runs/38001583301)
+  succeeded from `0bb6b26`: AgentCore and Amplify deployment, production resource checks, all five managed
+  regression sessions, and the complete authenticated attachment/schedule/share/approval/cleanup workflow passed.
+  Both managed evaluators scored all five sessions 1.0, with no failed or ignored sessions.
+  The earlier failed rollout and fixture-quota check remain recorded below.
+- The preserved generated Apple client configuration exactly matches `/Applications/HeyTim.app`, version
+  `1.0.19` build `20261009214232`. Its UI source is unchanged from the verified `752d386` candidate.
+  The website and public catalog remain healthy. Public publication remains pending the existing compliance
+  and physical notification-open gates; both protected flags still read `false`. The `v1.0.19` release remains
+  an unpublished draft with no public binaries, and the live public updater remains `v1.0.12`.
+
 ## 2026-10-09 — browser recovery, Mac layout, and accessibility fixes
 
 - Merged [PR #121](https://github.com/tmoreton/heytim/pull/121) as
