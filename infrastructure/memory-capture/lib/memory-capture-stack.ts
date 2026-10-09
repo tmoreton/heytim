@@ -24,6 +24,7 @@ export const SOURCE_MEMORY_ARN =
 
 export interface MemoryCaptureStackProps extends StackProps {
   readonly memoryRoleArn: string;
+  readonly captureEnabled?: boolean;
 }
 
 export class MemoryCaptureStack extends Stack {
@@ -40,6 +41,37 @@ export class MemoryCaptureStack extends Stack {
       enableKeyRotation: true,
       removalPolicy: RemovalPolicy.RETAIN,
     });
+    const archiveKey = new kms.Key(this, 'CaptureArchiveKey', {
+      enableKeyRotation: true,
+      removalPolicy: RemovalPolicy.RETAIN,
+    });
+    const archive = new s3.Bucket(this, 'CaptureArchive', {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      bucketKeyEnabled: true,
+      encryption: s3.BucketEncryption.KMS,
+      encryptionKey: archiveKey,
+      enforceSSL: true,
+      objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_ENFORCED,
+      versioned: true,
+      objectLockEnabled: true,
+      objectLockDefaultRetention: s3.ObjectLockRetention.governance(Duration.days(30)),
+      removalPolicy: RemovalPolicy.RETAIN,
+    });
+
+    const logGroup = new logs.LogGroup(this, 'CaptureConsumerLogs', {
+      retention: logs.RetentionDays.ONE_MONTH,
+      removalPolicy: RemovalPolicy.RETAIN,
+    });
+
+    new CfnOutput(this, 'StreamKeyArn', { value: streamKey.keyArn });
+    new CfnOutput(this, 'ArchiveBucketName', { value: archive.bucketName });
+    new CfnOutput(this, 'ArchiveKeyArn', { value: archiveKey.keyArn });
+    new CfnOutput(this, 'MemoryRoleArn', { value: props.memoryRoleArn });
+
+    // The fresh account launch did not use migration capture. Keep retained data
+    // and keys, but require an explicit opt-in before recreating billable capture.
+    if (!props.captureEnabled) return;
+
     const stream = new kinesis.Stream(this, 'MemoryRecordStream', {
       streamName: 'heytim-memory-record-capture',
       streamMode: kinesis.StreamMode.ON_DEMAND,
@@ -63,27 +95,6 @@ export class MemoryCaptureStack extends Stack {
     }));
     streamKey.grant(memoryRole, 'kms:GenerateDataKey');
 
-    const archiveKey = new kms.Key(this, 'CaptureArchiveKey', {
-      enableKeyRotation: true,
-      removalPolicy: RemovalPolicy.RETAIN,
-    });
-    const archive = new s3.Bucket(this, 'CaptureArchive', {
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      bucketKeyEnabled: true,
-      encryption: s3.BucketEncryption.KMS,
-      encryptionKey: archiveKey,
-      enforceSSL: true,
-      objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_ENFORCED,
-      versioned: true,
-      objectLockEnabled: true,
-      objectLockDefaultRetention: s3.ObjectLockRetention.governance(Duration.days(30)),
-      removalPolicy: RemovalPolicy.RETAIN,
-    });
-
-    const logGroup = new logs.LogGroup(this, 'CaptureConsumerLogs', {
-      retention: logs.RetentionDays.ONE_MONTH,
-      removalPolicy: RemovalPolicy.RETAIN,
-    });
     const sourceConsumer = path.join(__dirname, '..', 'consumer');
     const consumerPath = existsSync(sourceConsumer) ? sourceConsumer : path.join(__dirname, '..', '..', 'consumer');
     const consumer = new lambda.Function(this, 'CaptureConsumer', {
@@ -152,10 +163,6 @@ export class MemoryCaptureStack extends Stack {
     });
 
     new CfnOutput(this, 'StreamArn', { value: stream.streamArn });
-    new CfnOutput(this, 'StreamKeyArn', { value: streamKey.keyArn });
-    new CfnOutput(this, 'ArchiveBucketName', { value: archive.bucketName });
-    new CfnOutput(this, 'ArchiveKeyArn', { value: archiveKey.keyArn });
     new CfnOutput(this, 'ConsumerFunctionArn', { value: consumer.functionArn });
-    new CfnOutput(this, 'MemoryRoleArn', { value: props.memoryRoleArn });
   }
 }
