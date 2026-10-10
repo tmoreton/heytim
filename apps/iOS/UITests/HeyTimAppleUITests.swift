@@ -809,33 +809,63 @@ import XCTest
 
     let transcript = app.scrollViews["chat.transcript"]
     let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
-    let latestBeforeSend = app.staticTexts["Latest message before send."]
+    let latestBeforeSend = app.staticTexts["Latest message before send."].firstMatch
     let scrollToLatest = app.buttons["chat.scroll-to-latest"]
+    func waitUntilVisible(_ element: XCUIElement) {
+      #if os(macOS)
+        // macOS exposes both a noninteractive message container and its text.
+        // Verify the message is inside the viewport rather than clickable.
+        let visible = XCTNSPredicateExpectation(
+          predicate: NSPredicate { _, _ in
+            element.exists && !element.frame.isEmpty && transcript.frame.contains(element.frame)
+          }, object: nil)
+      #else
+        let visible = XCTNSPredicateExpectation(
+          predicate: NSPredicate(format: "hittable == true"), object: element)
+      #endif
+      XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 5), .completed)
+    }
     XCTAssertTrue(transcript.waitForExistence(timeout: 10))
     XCTAssertTrue(composer.waitForExistence(timeout: 5))
     XCTAssertTrue(latestBeforeSend.waitForExistence(timeout: 5))
-    XCTAssertTrue(latestBeforeSend.isHittable)
+    waitUntilVisible(latestBeforeSend)
 
     transcript.swipeDown(velocity: .fast)
     transcript.swipeDown(velocity: .fast)
     XCTAssertTrue(scrollToLatest.waitForExistence(timeout: 5))
     XCTAssertTrue(scrollToLatest.isHittable)
-    scrollToLatest.tap()
+    #if os(macOS)
+      scrollToLatest.click()
+    #else
+      scrollToLatest.tap()
+    #endif
     XCTAssertTrue(latestBeforeSend.waitForExistence(timeout: 5))
-    XCTAssertTrue(latestBeforeSend.isHittable)
+    waitUntilVisible(latestBeforeSend)
 
     transcript.swipeDown(velocity: .fast)
     transcript.swipeDown(velocity: .fast)
     XCTAssertTrue(scrollToLatest.waitForExistence(timeout: 5))
-    composer.tap()
+    #if os(macOS)
+      composer.click()
+    #else
+      composer.tap()
+    #endif
     composer.typeText("Return to the latest message")
-    app.buttons["chat.send"].tap()
+    #if os(macOS)
+      app.buttons["chat.send"].click()
+    #else
+      app.buttons["chat.send"].tap()
+    #endif
 
-    let reply = app.staticTexts["This is the native app’s offline test reply."]
+    let reply = app.staticTexts["This is the native app’s offline test reply."].firstMatch
     XCTAssertTrue(reply.waitForExistence(timeout: 5))
-    XCTAssertTrue(reply.isHittable)
+    waitUntilVisible(reply)
     XCTAssertLessThan(reply.frame.maxY, composer.frame.minY)
     XCTAssertFalse(scrollToLatest.exists)
+    let screenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+    screenshot.name = "Chat after scrolling and sending with hidden indicators"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
   }
 
   #if os(macOS)
