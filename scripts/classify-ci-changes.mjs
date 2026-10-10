@@ -65,6 +65,7 @@ export function classifyPaths(paths) {
       dependencies: isDependencyDefinition(path),
       application: startsWithAny(path, [
         'apps/website/',
+        'apps/browser-viewer/',
         'catalog/',
         'packages/',
       ]) || path === 'scripts/check-client-entrypoints.mjs'

@@ -33,6 +33,16 @@ test('website changes run the application suite', () => {
   });
 });
 
+test('browser viewer changes run the application suite', () => {
+  assert.deepEqual(classifyPaths(['apps/browser-viewer/src/connection.ts']), {
+    dependencies: false,
+    application: true,
+    backend: false,
+    runtime: false,
+    agentcore: false,
+  });
+});
+
 test('skill instruction changes verify the catalog and its published website', () => {
   const result = classifyPaths(['catalog/skills/trip-planner/SKILL.md']);
   assert.equal(result.application, true);

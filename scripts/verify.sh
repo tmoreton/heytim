@@ -70,6 +70,12 @@ verify_application() {
     npm run build
   )
   python3 -m unittest discover -s "$repository_root/catalog/tests"
+
+  section "Secure browser viewer"
+  npm --prefix "$repository_root/apps/browser-viewer" run verify
+  npm --prefix "$repository_root/apps/browser-viewer" run test:ui
+  HEYTIM_TEST_BROWSER=1 uv run --project "$repository_root/services/runtime" --frozen \
+    pytest -q "$repository_root/services/runtime/tests/test_browser_chromium.py"
 }
 
 verify_apple() {

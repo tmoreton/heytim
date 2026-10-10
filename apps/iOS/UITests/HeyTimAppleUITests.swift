@@ -1,6 +1,24 @@
 import XCTest
 
 @MainActor final class HeyTimAppleUITests: XCTestCase {
+  func testPendingBrowserSaveKeepsRecoveryControlsAccessible() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing", "--ui-testing-browser-saving", "--ui-testing-sheet=browser"]
+    app.launchForUITesting()
+    let resume = app.buttons["browser.continue-saving"]
+    let end = app.buttons["browser.end-handoff"]
+    XCTAssertTrue(resume.waitForExistence(timeout: 10))
+    XCTAssertTrue(resume.isHittable)
+    XCTAssertTrue(resume.isEnabled)
+    XCTAssertTrue(end.isHittable)
+    XCTAssertTrue(end.isEnabled, "A completed save wait must not trap the user in a busy operation")
+    XCTAssertFalse(app.alerts.firstMatch.exists)
+    let screenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+    screenshot.name = "Pending browser save with explicit recovery"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+  }
+
   func testMCPSetupRequiresTestingBeforeSaving() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing", "--ui-testing-sheet", "mcp-server-setup"]

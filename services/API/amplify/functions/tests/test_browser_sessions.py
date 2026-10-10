@@ -333,11 +333,16 @@ class BrowserSessionTests(BrowserRouteCases, BrowserDisplayCases, BrowserRecover
     def test_async_profile_save_can_be_polled_without_resaving_or_double_enqueue(self):
         self.service.open()
         self.cp.get_browser_profile.return_value = {"status": "SAVING"}
-        self.assertEqual(self.service.resume(True, self.enqueue)["status"], "resuming")
+        pending = self.service.resume(True, self.enqueue)
+        self.assertEqual(pending["status"], "resuming")
+        self.assertTrue(pending["profileSavePending"])
+        self.assertTrue(self.service.get()["profileSavePending"])
         self.enqueue.assert_not_called()
         self.assert_error(409, lambda: self.service.resume(False, self.enqueue))
         self.cp.get_browser_profile.return_value = {"status": "READY", "lastSavedBrowserSessionId": "session1"}
-        self.assertEqual(self.service.resume(True, self.enqueue)["status"], "ready")
+        resumed = self.service.resume(True, self.enqueue)
+        self.assertEqual(resumed["status"], "ready")
+        self.assertFalse(resumed["profileSavePending"])
         self.assertEqual(self.dp.save_browser_session_profile.call_count, 1)
         self.assertEqual(self.enqueue.call_count, 1)
 

@@ -34,7 +34,7 @@ jobs:
       - run: npm ci --prefix apps/browser-viewer
       - run: npm run verify --prefix apps/website
       - run: npm run build --prefix apps/website
-      - run: npm run build --prefix apps/browser-viewer
+      - run: npm run verify --prefix apps/browser-viewer
       - name: Stage secure browser viewer
         run: |
           mkdir -p apps/website/dist/browser-viewer

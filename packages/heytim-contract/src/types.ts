@@ -5,6 +5,9 @@ export type BotBrowserState = BotBrowserContext & {
   status: 'closed' | 'ready' | 'human_control' | 'expired' | 'opening' | 'resuming';
   contextLabel: string;
   hasSavedLogin: boolean;
+  blocksSending?: boolean;
+  /** Resume may poll this confirmed profile save using the same Remember choice. */
+  profileSavePending?: boolean;
   display?: 'mobile' | 'desktop';
   viewport?: { width: number; height: number };
   mobileSiteSupported?: boolean;

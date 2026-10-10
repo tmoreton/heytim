@@ -15,6 +15,8 @@ from bedrock_agentcore.tools.browser_client import BrowserClient
 from bedrock_agentcore.tools.code_interpreter_client import (
     CodeInterpreter as CodeInterpreterClient,
 )
+from playwright.async_api import Error as BrowserError
+from playwright.async_api import TimeoutError as BrowserTimeout
 from strands import tool
 from strands_tools.browser import AgentCoreBrowser
 from strands_tools.code_interpreter import AgentCoreCodeInterpreter
@@ -66,6 +68,7 @@ class PersistentAgentCoreBrowser(AgentCoreBrowser):
         self.managed_session = managed_session
         self.artifact_prefix = artifact_prefix
         self.storage_client = storage_client
+        self._failed_navigation_pages: set[Any] = set()
 
     @tool(
         name="browser",
@@ -199,6 +202,7 @@ class PersistentAgentCoreBrowser(AgentCoreBrowser):
         return result
 
     async def _async_cleanup(self) -> None:
+        self._failed_navigation_pages.clear()
         if not self.managed_session:
             await super()._async_cleanup()
             return
@@ -208,6 +212,66 @@ class PersistentAgentCoreBrowser(AgentCoreBrowser):
             await self._playwright.stop()
         self._playwright = None
         self._sessions.clear()
+
+    async def _async_navigate(self, action) -> dict[str, Any]:
+        return await self._navigate_page(action, "goto", "Page opened", action.url)
+
+    async def _async_back(self, action) -> dict[str, Any]:
+        return await self._navigate_page(action, "go_back", "Navigated back")
+
+    async def _async_forward(self, action) -> dict[str, Any]:
+        return await self._navigate_page(action, "go_forward", "Navigated forward")
+
+    async def _async_refresh(self, action) -> dict[str, Any]:
+        return await self._navigate_page(action, "reload", "Page refreshed")
+
+    async def _navigate_page(self, action, operation, message, url=None) -> dict[str, Any]:
+        error = self.validate_session(action.session_name)
+        if error:
+            return error
+        page = self.get_session_page(action.session_name)
+        if not page:
+            return {"status": "error", "content": [{"text": "No active browser page. Open a tab first."}]}
+        try:
+            if operation == "goto" and page in self._failed_navigation_pages:
+                # A failed Chromium navigation can commit its error document
+                # after goto throws, interrupting the NEXT requested page.
+                # Reset only on an explicit subsequent navigation; keep cookies.
+                for attempt in range(2):
+                    try:
+                        await page.goto("about:blank", wait_until="domcontentloaded", timeout=5_000)
+                        break
+                    except BrowserError:
+                        # goto can report an interruption even when its blank
+                        # document is still committing. Await that document
+                        # before another reset; never replay a site request.
+                        try:
+                            await page.wait_for_url("about:blank", wait_until="domcontentloaded", timeout=2_000)
+                            break
+                        except BrowserTimeout:
+                            if attempt:
+                                raise
+                self._failed_navigation_pages.discard(page)
+            navigate = getattr(page, operation)
+            # Modern pages may stream indefinitely. DOM readiness supports
+            # interaction without waiting for analytics/networkidle or every
+            # image. History restores may not emit another load event at all.
+            options = {"wait_until": "commit" if operation in {"go_back", "go_forward"}
+                       else "domcontentloaded", "timeout": 15_000}
+            if url is not None:
+                await navigate(url, **options)
+            else:
+                await navigate(**options)
+            self._failed_navigation_pages.discard(page)
+            return {"status": "success", "content": [{"text": message}]}
+        except BrowserError:
+            self._failed_navigation_pages.add(page)
+            # Never echo provider exceptions: they can contain private URLs.
+            return {"status": "error", "content": [{"text": (
+                "The page could not finish opening. Check the address and connection, "
+                "then navigate again. If content is already visible, inspect the page "
+                "with get_text before deciding whether another navigation is needed."
+            )}]}
 
     async def _async_init_session(self, action) -> dict[str, Any]:
         if not self.managed_session:
