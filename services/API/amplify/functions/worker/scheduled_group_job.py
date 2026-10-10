@@ -66,7 +66,7 @@ def _process_scheduled_group_round(record: dict, request: dict) -> None:
             if (owner != user_id and catalog.approval_tool_names(owner, bot.get("toolIds", []))) or catalog.unapproved_tools(
                 owner,
                 bot.get("toolIds", []),
-                effective_allowed_interactive_tool_ids(bot),
+                effective_allowed_interactive_tool_ids(bot, catalog, owner),
             ):
                 raise ValueError("Scheduled group bot lacks a one-time tool grant")
         message = _put_once({

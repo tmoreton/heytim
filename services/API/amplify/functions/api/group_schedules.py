@@ -62,7 +62,7 @@ def _group_schedule_team(user_id: str, group_id: str, *, allow_approval: bool = 
             member["botOwnerId"], bot.get("toolIds", []))
         unapproved = catalog.unapproved_tools(
             member["botOwnerId"], bot.get("toolIds", []),
-            effective_allowed_interactive_tool_ids(bot))
+            effective_allowed_interactive_tool_ids(bot, catalog, member["botOwnerId"]))
         if (interactive and member["botOwnerId"] != user_id) or (
             unapproved and not allow_approval
         ):

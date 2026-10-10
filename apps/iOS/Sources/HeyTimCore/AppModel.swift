@@ -12,6 +12,7 @@ public enum AppSheet: Identifiable, Hashable, Sendable {
   case account, skills
   case skillEditor(String?)
   case connections
+  case mcpServerSetup(name: String, endpoint: String)
   case documents(String)
   case browser(botId: String, groupId: String?)
   case share(ConversationSelection)
@@ -28,6 +29,7 @@ public enum AppSheet: Identifiable, Hashable, Sendable {
     case .skills: "skills"
     case .skillEditor(let id): "skill-\(id ?? "new")"
     case .connections: "connections"
+    case .mcpServerSetup(let name, let endpoint): "mcp-setup-\(name)-\(endpoint)"
     case .documents(let id): "documents-\(id)"
     case .browser(let botId, let groupId): "browser-\(botId)-\(groupId ?? "direct")"
     case .share(let value): "share-\(value.kind)-\(value.id)"
@@ -211,6 +213,7 @@ public final class AppModel {
       case "skills": return .skills
       case "skill-editor": return .skillEditor(nil)
       case "connections": return .connections
+      case "mcp-server-setup": return .mcpServerSetup(name: "Home Assistant", endpoint: "")
       case "documents": return .documents(bot.id)
       case "browser": return .browser(botId: bot.id, groupId: nil)
       case "share": return .share(selection)

@@ -7,6 +7,8 @@ from typing import Any
 
 from strands import tool
 
+from .integration_setup import request_integration_setup
+
 ALLOWED_COLORS = {
     "#58BEAA",
     "#FFAA34",
@@ -26,7 +28,6 @@ MAX_SKILL_DESCRIPTION_CHARS = 240
 MAX_SKILL_INSTRUCTIONS_CHARS = 20_000
 DEFAULT_MAX_MEMORY_CHARS = 16_000
 
-
 def _text(value: Any, field_name: str, maximum: int, *, required: bool = True) -> str:
     if not isinstance(value, str):
         raise TypeError(f"{field_name} must be text")
@@ -37,7 +38,6 @@ def _text(value: Any, field_name: str, maximum: int, *, required: bool = True) -
         raise ValueError(f"{field_name} must be at most {maximum} characters")
     return clean
 
-
 def _id_list(value: Any, field_name: str) -> list[str]:
     if value is None:
         return []
@@ -47,7 +47,6 @@ def _id_list(value: Any, field_name: str) -> list[str]:
     if len(unique) > 13:
         raise ValueError(f"{field_name} can contain at most 13 IDs")
     return unique
-
 
 def _ids(value: Any, field_name: str, allowed: set[str]) -> list[str]:
     unique = _id_list(value, field_name)
@@ -516,6 +515,7 @@ def bot_management_tools(context: dict, tracker: BotMutationTracker) -> list[Any
         )
 
     tools = [
+        request_integration_setup,
         list_skill_authoring_options,
         create_skill_for_self,
         update_self,

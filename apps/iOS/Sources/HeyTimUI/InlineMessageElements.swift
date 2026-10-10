@@ -286,7 +286,6 @@ private struct InlineChartView: View {
           .frame(width: chartWidth, height: 220)
           .padding(.top, 2)
       }
-      .scrollIndicators(.visible)
     }
     .inlineElementCard(baseColor: baseColor, accentColor: accentColor)
     .accessibilityIdentifier("chat.element.chart")

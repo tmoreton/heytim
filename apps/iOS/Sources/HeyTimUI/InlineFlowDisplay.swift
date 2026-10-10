@@ -45,7 +45,6 @@ struct InlineFlowView: View {
           }
         }
       }
-      .scrollIndicators(.visible)
     }
     .inlineElementCard(baseColor: baseColor, accentColor: accentColor)
     .accessibilityIdentifier("chat.element.flow")

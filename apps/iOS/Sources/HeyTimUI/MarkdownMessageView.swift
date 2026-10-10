@@ -504,7 +504,6 @@ private struct MarkdownBlockView: View {
           .padding(11)
           .fixedSize(horizontal: true, vertical: false)
       }
-      .scrollIndicators(.visible)
     }
     .background(baseColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
     .overlay {
@@ -540,7 +539,6 @@ private struct MarkdownBlockView: View {
           .stroke(baseColor.opacity(0.16), lineWidth: 0.5)
       }
     }
-    .scrollIndicators(.visible)
     .accessibilityElement(children: .contain)
   }
 

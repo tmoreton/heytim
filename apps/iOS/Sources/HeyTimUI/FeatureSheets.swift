@@ -71,6 +71,8 @@ public struct FeatureSheet: View {
       case .skills: SkillsView(model: model)
       case .skillEditor(let id): SkillEditor(model: model, id: id)
       case .connections: ConnectionsView(model: model)
+      case .mcpServerSetup(let name, let endpoint):
+        MCPServerSetupView(model: model, onSaved: { Task { await model.refreshBootstrap() } }, name: name, endpoint: endpoint)
       case .documents(let id): DocumentsView(model: model, botId: id)
       case .browser(let botId, let groupId):
         BrowserHandoffView(model: model, botId: botId, groupId: groupId)
@@ -591,10 +593,6 @@ struct BotToolsAndSkillsEditor: View {
   @State private var autosave = BotDraftAutosaveQueue()
   @State private var connectingProviderID: String?
   @State private var showingMCPServerSetup = false
-  @State private var mcpServerName = ""
-  @State private var mcpServerURL = ""
-  @State private var mcpServerToken = ""
-  @State private var savingMCPServer = false
   @State private var connectionAuthentication = WebAuthenticationController()
 
   private enum CapabilitySection: String, CaseIterable, Identifiable {
@@ -786,21 +784,21 @@ struct BotToolsAndSkillsEditor: View {
         } header: {
           Text("Action approvals")
         } footer: {
-          Text("Run enabled tools automatically, or pause before interactive actions. Account scopes and device permissions still apply.")
+          Text("Run enabled tools automatically, or pause before interactive actions. Reviewed custom MCP connections still need an explicit grant. Account scopes and device permissions apply.")
         }
 
-        if draft.actionApprovalMode == "ask" && !alwaysAllowedTools.isEmpty {
+        if !alwaysAllowedTools.isEmpty {
           Section {
             ForEach(alwaysAllowedTools) { tool in
               Label(tool.name, systemImage: "checkmark.shield")
             }
-            Button("Ask before these actions again", role: .destructive) {
+            Button("Clear explicit approvals", role: .destructive) {
               draft.alwaysAllowedToolIds = []
             }
           } header: {
             Text("Approved exceptions")
           } footer: {
-            Text("These tools were approved from chat after the stricter setting was enabled.")
+            Text("These tools have an explicit Always Allow grant from chat. Clearing it makes reviewed custom connections ask again; other tools follow the setting above.")
           }
         }
       }
@@ -1221,9 +1219,6 @@ struct BotToolsAndSkillsEditor: View {
 
   private func connect(_ provider: ConnectionProvider) {
     if provider.id == "mcp_server" {
-      mcpServerName = ""
-      mcpServerURL = ""
-      mcpServerToken = ""
       showingMCPServerSetup = true
       return
     }
@@ -1265,64 +1260,10 @@ struct BotToolsAndSkillsEditor: View {
   }
 
   private var mcpServerSetupSheet: some View {
-    NavigationStack {
-      Form {
-        Section {
-          TextField("Server name", text: $mcpServerName)
-            .accessibilityIdentifier("connection.mcp.name")
-          TextField("MCP HTTPS URL", text: $mcpServerURL)
-            .autocorrectionDisabled()
-            .accessibilityIdentifier("connection.mcp.url")
-          SecureField("Access token", text: $mcpServerToken)
-            .accessibilityIdentifier("connection.mcp.token")
-        } header: {
-          Text("Add MCP server")
-        } footer: {
-          Text("Use a trusted public HTTPS endpoint. HeyTim stores its access token privately, and this bot stays disabled until you turn the server on in the Tools list.")
-        }
-      }
-      .formStyle(.grouped)
-      .navigationTitle("MCP server")
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button("Cancel") { closeMCPServerSetup() }
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Add server") { saveMCPServer() }
-            .froggyGlassButton(prominent: true)
-            .disabled(
-              savingMCPServer || mcpServerName.isEmpty || mcpServerURL.isEmpty
-                || mcpServerToken.isEmpty)
-        }
-      }
-      .overlay { if savingMCPServer { ProgressView() } }
-    }
-    .frame(minWidth: 460, minHeight: 340)
-  }
-
-  private func closeMCPServerSetup() {
-    mcpServerName = ""
-    mcpServerURL = ""
-    mcpServerToken = ""
-    showingMCPServerSetup = false
-  }
-
-  private func saveMCPServer() {
-    guard !savingMCPServer else { return }
-    savingMCPServer = true
-    Task {
-      defer { savingMCPServer = false }
-      do {
-        _ = try await model.requireAPI().connectMCPServer(
-          name: mcpServerName.trimmingCharacters(in: .whitespacesAndNewlines),
-          url: mcpServerURL.trimmingCharacters(in: .whitespacesAndNewlines),
-          accessToken: mcpServerToken.trimmingCharacters(in: .whitespacesAndNewlines))
-        closeMCPServerSetup()
-        _ = await model.refreshBootstrap()
-      } catch {
-        model.present(error)
-      }
-    }
+    MCPServerSetupView(model: model, onSaved: {
+      showingMCPServerSetup = false
+      Task { _ = await model.refreshBootstrap() }
+    })
   }
 
   private func set(_ enabled: Bool, id: String, in values: inout [String]) {

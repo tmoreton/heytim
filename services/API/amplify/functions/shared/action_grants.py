@@ -29,9 +29,15 @@ def action_approval_mode(bot: dict) -> str:
     )
 
 
-def effective_allowed_interactive_tool_ids(bot: dict) -> list[str]:
+def effective_allowed_interactive_tool_ids(bot: dict, catalog=None, owner_id: str | None = None) -> list[str]:
     """Resolve the tool grants sent to runtimes and unattended jobs."""
     tool_ids = bot.get("toolIds", [])
+    if catalog is not None and owner_id is not None:
+        explicit = set(bot.get("alwaysAllowedToolIds", []))
+        reviewed = {key for key in tool_ids if re.fullmatch(r"connection_[a-f0-9]{20}", key)
+                    and (catalog._get_connection(owner_id, key) or {}).get("runtime", {})
+                    .get("requireActionApproval") is True}
+        tool_ids = [key for key in tool_ids if key not in reviewed or key in explicit]
     if action_approval_mode(bot) == AUTOMATIC_APPROVAL_MODE:
         return (
             tool_ids

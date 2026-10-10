@@ -36,7 +36,14 @@ class ConnectionLifecycleMixin:
 
     def _get_connection(self, user_id: str, connection_id: str) -> dict | None: ...
 
-    def _delete_secret(self, secret_arn: str) -> None: ...
+    def _delete_secret(self, secret_arn: str) -> None:
+        if not _valid_secret_arn(secret_arn):
+            return
+        client = self._secret_client()
+        try:
+            client.delete_secret(SecretId=secret_arn, RecoveryWindowInDays=7)
+        except client.exceptions.ResourceNotFoundException:
+            return
 
     def _revoke_google_token(self, refresh_token: str) -> None: ...
 
@@ -176,7 +183,7 @@ class ConnectionLifecycleMixin:
             Key={"pk": f"USER#{user_id}", "sk": f"CONNECTION#{connection_id}"}
         )
         result = {"deleted": True}
-        if isinstance(secret_arn, str):
+        if _valid_secret_arn(secret_arn):
             result["credentialDeletionWindowDays"] = 7
         return result
 

@@ -426,7 +426,7 @@ def _invoke(
             ),
             "toolIds": tool_ids,
             "tools": resolved_tools,
-            "alwaysAllowedToolIds": effective_allowed_interactive_tool_ids(bot),
+            "alwaysAllowedToolIds": effective_allowed_interactive_tool_ids(bot, catalog, user_id),
             "skillIds": bot.get("skillIds", []),
             "skills": resolved_skills,
         },

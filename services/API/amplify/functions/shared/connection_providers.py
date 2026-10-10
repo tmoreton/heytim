@@ -92,13 +92,13 @@ CONNECTION_PROVIDER_SPECS = (
     {
         "id": "mcp_server",
         "name": "MCP server",
-        "description": "Connect a remote MCP server by HTTPS URL and access token.",
+        "description": "Test a remote HTTPS MCP server and choose its tools.",
         "category": "Integrations",
         "iconText": "MCP",
         "permissionsSummary": "The selected bot can use tools exposed by this server",
         "privacyTitle": "Assign each server only to bots that need it",
         "privacyDescription": (
-            "HeyTim stores the access token privately on the server. Only bots "
+            "HeyTim stores credentials privately on the server. Only bots "
             "you select can discover and call that server's tools."
         ),
         "connectLabel": "Add server",

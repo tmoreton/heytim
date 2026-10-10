@@ -10,15 +10,19 @@ A company-credentialed, login-free social-research layer is under evaluation. It
 contract below. The current recommendation, provider comparison, platform-policy constraints, and proof-of-concept
 gate are recorded in [the social research integration assessment](social-research-integration-assessment.md).
 
-Legacy generic MCP bearer/API-key records are intentionally unsupported. They remain in storage until their owner
-deletes the account or removes the record, but they are not listed, selectable, or accepted by runtime resolution.
-Reconnect the one pilot account through the provider-specific flows after deployment.
+Custom HTTPS MCP servers can be added in Settings → Accounts & MCP Servers. The setup wizard tests the endpoint,
+lists tools for explicit selection, and assigns the saved connection to selected bots. Bearer-token and anonymous
+servers are supported. Credentials stay server-side; anonymous connections create no Secrets Manager record.
+See [custom MCP connections](custom-mcp-connections.md) for permissions, network boundaries and compatibility.
 
-The account screens are provider-agnostic. Names, descriptions, icons, privacy copy, and connect/reconnect labels all
-come from the backend provider registry. Authentication types are opaque to clients, and every provider starts through
+Legacy records with `authType: bearer` or API-key formats remain unsupported. Current `bearer_token` records use
+the generic MCP adapter; they must not be confused with those retired formats.
+
+Reviewed account providers are registry-driven. Names, descriptions, icons, privacy copy, and connect/reconnect labels all
+come from the backend provider registry. Authentication types are opaque to clients, and reviewed OAuth providers start through
 the same authorization route. Adding or changing a reviewed provider therefore requires a backend registry entry and
 server adapter, not Expo or Apple UI changes. Provider endpoints, scopes, secrets, and token exchange remain
-server-only; this abstraction does not restore arbitrary customer-supplied credentials.
+server-only. Custom MCP connections use a separate tested setup flow.
 
 ## Active provider contract
 

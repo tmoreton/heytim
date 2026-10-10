@@ -103,10 +103,11 @@ class CatalogTests(unittest.TestCase):
         )
 
         self.assertEqual(chief["name"], "Chief")
-        self.assertEqual(chief["version"], 7)
+        self.assertEqual(chief["version"], 8)
         self.assertEqual(chief["color"], "#FFBC3B")
         self.assertEqual(chief["toolIds"], ["current_time", "bot_manager"])
         self.assertIn("skill-builder", chief["skillIds"])
+        self.assertIn("connect-integration", chief["skillIds"])
         self.assertEqual(skill_builder["requiredToolIds"], [])
         self.assertNotIn("systemRole", chief)
         self.assertNotIn("requiredOnSetup", chief)

@@ -151,6 +151,7 @@ private struct AppRoot: View {
         }
       }
     }
+    .scrollIndicators(.never)
     .tint(FrogTheme.accent)
     .froggyTextSize(textSize, systemSize: systemTextSize)
     .preferredColorScheme(appearance.colorScheme)

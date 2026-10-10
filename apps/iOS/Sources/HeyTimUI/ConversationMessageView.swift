@@ -181,6 +181,11 @@ struct MessageBubble: View {
         if !mine { Spacer(minLength: 50) }
       #endif
     }
+    .environment(\.openURL, OpenURLAction { url in
+      guard let setup = MCPSetupLink(url: url) else { return .systemAction }
+      model.sheet = .mcpServerSetup(name: setup.name, endpoint: setup.endpoint)
+      return .handled
+    })
     .frame(maxWidth: .infinity)
     .padding(.bottom, 8)
     .contextMenu {
