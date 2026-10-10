@@ -118,6 +118,7 @@ export const apiContractPaths = {
   "plaidSyncRequest": "/connections/{connectionId}/plaid-sync",
   "homeAssistantConnect": "/connections/home-assistant",
   "mcpServerConnect": "/connections/mcp-servers",
+  "mcpServerDiscover": "/connections/mcp-servers/discover",
   "mcpServerRename": "/connections/{connectionId}",
   "connectionAuthorize": "/connections/{providerId}/authorization",
   "connectionDelete": "/connections/{connectionId}",

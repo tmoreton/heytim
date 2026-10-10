@@ -322,6 +322,7 @@ def test_non_chief_receives_only_safe_self_management_tools() -> None:
         "create_skill_for_self",
         "list_skill_authoring_options",
         "remember_for_user",
+        "request_integration_setup",
         "update_self",
     }
 
@@ -376,6 +377,7 @@ def test_catalog_bindings_expose_chief_and_meme_tools(monkeypatch) -> None:
         "list_bot_options",
         "list_skill_authoring_options",
         "remember_for_user",
+        "request_integration_setup",
         "save_artifact",
         "search_meme_templates",
         "update_bot",

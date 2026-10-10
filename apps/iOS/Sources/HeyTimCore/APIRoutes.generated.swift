@@ -133,6 +133,7 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case plaidSyncRequest
     case homeAssistantConnect
     case mcpServerConnect
+    case mcpServerDiscover
     case mcpServerRename
     case connectionAuthorize
     case connectionDelete
@@ -891,6 +892,12 @@ public enum GeneratedAPIContract {
             id: .mcpServerConnect,
             method: .post,
             pathTemplate: "/connections/mcp-servers",
+            access: .authenticated
+        ),
+        .mcpServerDiscover: APIContractRoute(
+            id: .mcpServerDiscover,
+            method: .post,
+            pathTemplate: "/connections/mcp-servers/discover",
             access: .authenticated
         ),
         .mcpServerRename: APIContractRoute(

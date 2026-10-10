@@ -28,6 +28,7 @@ from .github_app import (
 )
 from .mcp_auth import AccessToken, RefreshingBearerAuth
 from .mcp_client import BoundedMCPClient
+from .mcp_review import reviewed_binding
 from .mcp_tool_catalog import (
     GMAIL_MCP_ENDPOINT,
     GMAIL_MCP_TOOLS,
@@ -36,6 +37,7 @@ from .mcp_tool_catalog import (
     SCOPED_GOOGLE_TOOLS,
 )
 from .mcp_tool_names import _bounded_tool_name
+from .mcp_transport import PublicMCPTransport
 
 __all__ = [
     "BoundedMCPClient", "ConnectionCredentialUnavailable", "_bounded_tool_name",
@@ -105,6 +107,13 @@ def _validated_endpoint(value: Any) -> str:
 async def _validate_outbound_request(request: httpx.Request) -> None:
     """Re-resolve immediately before connection to narrow DNS-rebinding exposure."""
     _validated_endpoint(str(request.url))
+    if request.method == "POST":
+        try:
+            method = json.loads(request.content).get("method")
+        except (ValueError, AttributeError, httpx.RequestNotRead):
+            method = None
+        if method in {"initialize", "tools/list"}:
+            request.extensions["timeout"] = {"connect": 3, "read": 5, "write": 3, "pool": 3}
 
 
 def _secure_http_client(
@@ -116,7 +125,7 @@ def _secure_http_client(
         headers=headers,
         timeout=timeout or httpx.Timeout(30, read=300),
         auth=auth,
-        follow_redirects=False,
+        follow_redirects=False, transport=PublicMCPTransport(), trust_env=False,
         event_hooks={"request": [_validate_outbound_request]},
     )
 
@@ -141,6 +150,7 @@ def validated_connection_binding(tool_id: str, runtime: dict) -> dict:
         "endpoint": endpoint,
         "authType": auth_type,
     }
+    binding.update(reviewed_binding(runtime))
     account_label = runtime.get("accountLabel")
     if account_label is not None:
         if not isinstance(account_label, str) or not account_label.strip() or len(account_label) > 160:
@@ -392,7 +402,7 @@ def _mcp_access_token(binding: dict) -> str:
     token = _json_secret(binding["secretArn"]).get("accessToken")
     if (
         not isinstance(token, str)
-        or not 20 <= len(token) <= 4096
+        or not 1 <= len(token) <= 4096
         or not re.fullmatch(r"[A-Za-z0-9._~+/-]+={0,3}", token)
     ):
         raise ConnectionCredentialUnavailable(
@@ -474,7 +484,8 @@ def connection_client(binding: dict) -> MCPClient:
     options = {
         "connection_id": binding["id"],
         "startup_timeout": 15,
-        "continue_on_error": False,
+        "continue_on_error": binding.get("approvedTools") is not None,
+        "approved_tools": binding.get("approvedTools"),
         "application_name": "HeyTim",
         "account_label": binding.get("accountLabel"),
     }

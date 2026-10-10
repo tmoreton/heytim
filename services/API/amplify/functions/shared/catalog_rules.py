@@ -21,6 +21,7 @@ from shared.provider_contract import (
 )
 
 from .finance_bindings import validate_plaid_binding
+from .mcp_permissions import public_mcp_metadata, reviewed_binding
 
 MAX_SKILLS_PER_BOT = 12
 MAX_SKILL_INSTRUCTIONS = SKILL_INSTRUCTIONS_MAX_LENGTH
@@ -498,7 +499,7 @@ def _validate_runtime_binding(value: Any) -> dict:
     if kind == "gateway":
         return _validate_gateway_binding(value)
     if kind == "mcp":
-        return _validate_mcp_binding(value)
+        return reviewed_binding(_validate_mcp_binding(value), value, CatalogError)
     if kind == "mcp_bundle":
         return _validate_mcp_bundle_binding(value)
     if kind == "provider_api":
@@ -563,9 +564,7 @@ def _public_tool(item: dict) -> dict:
     if public.get("provider") == "home_assistant":
         public["provider"] = "mcp_server"
     if public.get("provider") == "mcp_server":
-        # Saving a URL and token is not an MCP handshake. Existing grants are
-        # presented honestly as unverified until a connection test exists.
-        public["connectionStatus"] = "saved"
+        public.update(public_mcp_metadata(item))
         display_name = (
             item.get("connectedAccount") if item.get("provider") == "mcp_server"
             else item.get("displayName")

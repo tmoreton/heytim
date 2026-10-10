@@ -297,10 +297,8 @@ struct ConnectionsView: View {
   @State private var showingMCPServerSetup = false
   @State private var mcpServerName = ""
   @State private var mcpServerURL = ""
-  @State private var mcpServerToken = ""
   @State private var updatingMCPServer = false
   @State private var editingMCPServerID: String?
-  @State private var savingMCPServer = false
   @State private var webAuthentication = WebAuthenticationController()
 
   private var providers: [ConnectionProvider] { model.bootstrap?.connectionProviders ?? [] }
@@ -468,7 +466,6 @@ struct ConnectionsView: View {
       updatingMCPServer = false
       mcpServerName = ""
       mcpServerURL = ""
-      mcpServerToken = ""
       showingMCPServerSetup = true
       return
     }
@@ -506,7 +503,6 @@ struct ConnectionsView: View {
     editingMCPServerID = connection.id
     mcpServerName = connection.name
     mcpServerURL = connection.endpoint ?? ""
-    mcpServerToken = ""
     showingMCPServerSetup = true
   }
 
@@ -515,72 +511,14 @@ struct ConnectionsView: View {
     editingMCPServerID = nil
     mcpServerName = ""
     mcpServerURL = ""
-    mcpServerToken = ""
     showingMCPServerSetup = false
   }
 
   private var mcpServerSetupSheet: some View {
-    NavigationStack {
-      Form {
-        Section {
-          TextField("Server name", text: $mcpServerName)
-            .accessibilityIdentifier("connection.mcp.name")
-          TextField("MCP HTTPS URL", text: $mcpServerURL)
-            .autocorrectionDisabled()
-            .accessibilityIdentifier("connection.mcp.url")
-            .disabled(updatingMCPServer)
-          SecureField("Access token", text: $mcpServerToken)
-            .accessibilityIdentifier("connection.mcp.token")
-        } header: {
-          Text(updatingMCPServer ? "Update MCP server" : "Add MCP server")
-        } footer: {
-          Text(updatingMCPServer
-               ? "Leave the token blank to rename this server without changing its credential. Enter a new token to rotate it. To change the URL, add a new server and reassign bots."
-               : "Use a public HTTPS MCP endpoint you trust. For Home Assistant, enter the full /api/mcp/assist URL and a long-lived access token. HeyTim stores tokens privately. Add multiple servers and enable each only for the bots that need it.")
-        }
-      }
-      .formStyle(.grouped)
-      .navigationTitle("MCP server")
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button("Cancel") { closeMCPServerSetup() }
-        }
-        ToolbarItem(placement: .confirmationAction) {
-            Button(updatingMCPServer ? "Save server" : "Add server") { saveMCPServer() }
-            .froggyGlassButton(prominent: true)
-            .disabled(savingMCPServer || mcpServerName.isEmpty || mcpServerURL.isEmpty || (!updatingMCPServer && mcpServerToken.isEmpty))
-        }
-      }
-      .overlay { if savingMCPServer { ProgressView() } }
-    }
-    .frame(minWidth: 460, minHeight: 340)
-  }
-
-  private func saveMCPServer() {
-    guard !savingMCPServer else { return }
-    savingMCPServer = true
-    Task {
-      defer { savingMCPServer = false }
-      do {
-        let name = mcpServerName.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let editingMCPServerID, mcpServerToken.isEmpty {
-          _ = try await model.requireAPI().renameMCPServer(id: editingMCPServerID, name: name)
-        } else {
-          _ = try await model.requireAPI().connectMCPServer(
-            name: name,
-            url: mcpServerURL.trimmingCharacters(in: .whitespacesAndNewlines),
-            accessToken: mcpServerToken.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
-        let updated = updatingMCPServer
-        closeMCPServerSetup()
-        await load()
-        successMessage = updated
-          ? "MCP server saved. Its connection has not been tested."
-          : "MCP server saved, but not tested. Enable it in a bot’s Tools list to use it."
-      } catch {
-        model.present(error)
-      }
-    }
+    MCPServerSetupView(
+      model: model, editingID: editingMCPServerID,
+      onSaved: { closeMCPServerSetup(); Task { await load() } },
+      name: mcpServerName, endpoint: mcpServerURL)
   }
 
   private func remove(_ connection: Capability) {
@@ -677,7 +615,7 @@ struct ConnectionsView: View {
   }
 
   private func connectionStatusLabel(_ connection: Capability) -> String {
-    if connection.provider == "mcp_server" { return "Saved · Not tested" }
+    if connection.provider == "mcp_server" { return connection.connectionStatus == "tested" ? "Tested" : "Saved · Not tested" }
     if connection.provider == "plaid", connection.plaidSync?.status == "needs_reconnect" {
       return "Reconnect required"
     }
@@ -762,7 +700,7 @@ private struct ConnectionDetailView: View {
   }
 
   private var statusLabel: String {
-    if connection.provider == "mcp_server" { return "Saved, not tested" }
+    if connection.provider == "mcp_server" { return connection.connectionStatus == "tested" ? "Connection tested" : "Saved, not tested" }
     if connection.provider == "plaid", connection.plaidSync?.status == "needs_reconnect" {
       return "Reconnect required"
     }

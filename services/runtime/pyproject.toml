@@ -34,6 +34,7 @@ dependencies = [
     "googleapis-common-protos == 1.75.3",
     # Direct dependency: hardened remote MCP transports use HTTPX directly.
     "httpx == 0.28.1",
+    "httpcore == 1.0.9",
     # CodeZip resolves HTTPX transitives afresh; keep the packaged version
     # identical to the runtime lockfile and its integration test.
     "idna == 3.19",

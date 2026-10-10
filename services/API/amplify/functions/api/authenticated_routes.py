@@ -39,6 +39,7 @@ from .connections import (
     _connect_mcp_server,
     _connections,
     _delete_connection,
+    _discover_mcp_server,
     _plaid_sync_status,
     _rename_mcp_server,
     _request_plaid_sync,
@@ -155,7 +156,6 @@ def _group_run_route(
         ))
     return None
 
-
 def _library_route(
     user_id: str, _display_name: str, method: str, path: str, params: dict, event: dict
 ) -> dict | None:
@@ -171,6 +171,8 @@ def _library_route(
         return _response(201, _connect_home_assistant(user_id, _body(event)))
     if method == "POST" and path == "/connections/mcp-servers":
         return _response(201, _connect_mcp_server(user_id, _body(event)))
+    if method == "POST" and path == "/connections/mcp-servers/discover":
+        return _response(200, _discover_mcp_server(user_id, _body(event)))
     if method == "PATCH" and path.startswith("/connections/"):
         return _response(200, _rename_mcp_server(
             user_id, params.get("connectionId", ""), _body(event)
@@ -200,7 +202,6 @@ def _library_route(
     if method == "DELETE" and path.startswith("/memory/"):
         return _response(200, _delete_user_memory_record(user_id, params.get("memoryRecordId", "")))
     return None
-
 
 def _group_message_route(
     user_id: str,
@@ -239,7 +240,6 @@ def _group_message_route(
             ),
         )
     return None
-
 
 def _group_admin_route(
     user_id: str,

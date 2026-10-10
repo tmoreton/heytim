@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
+import test_catalog as catalog_fixtures
 from api_test_case import ApiTestCase
 from worker_test_case import WorkerTestCase
 
@@ -63,6 +64,32 @@ class GroupScheduleApiTests(ApiTestCase):
             self.assertRaises(self.support.ApiError),
         ):
             self.schedules._get_schedule("owner", "chief", item["id"])
+
+
+class GroupScheduleMCPPolicyTests(ApiTestCase):
+    def test_reviewed_connection_requires_owner_grant_before_scheduling(self):
+        fixture = catalog_fixtures.CatalogServiceTests()
+        fixture.setUp()
+        catalog = fixture.catalog
+        with patch("shared.mcp_servers._validate_mcp_endpoint", return_value="https://example.com/mcp"), \
+                patch("shared.mcp_servers.discover_mcp_server", return_value={
+                    "serverName": "Example", "tools": [{"name": "read_state", "digest": "a" * 64}]}):
+            connection = catalog.save_mcp_server_connection(
+                "owner", "Example", "https://example.com/mcp", None, auth_type="none",
+                approved_tools={"read_state": "a" * 64})
+        bot = {"id": "chief", "toolIds": [connection["id"]],
+               "actionApprovalMode": "automatic", "alwaysAllowedToolIds": []}
+        team = [{"botOwnerId": "owner", "botId": "chief"}]
+        module = self.group_schedules
+        with patch.object(module, "catalog", catalog), \
+                patch.object(module, "_require_group_member", return_value=({}, [])), \
+                patch.object(module, "plan_group_reply_round", return_value=team), \
+                patch.object(module, "_get_bot", return_value=bot):
+            with self.assertRaises(self.support.ApiError) as error:
+                module._group_schedule_team("owner", "home")
+            self.assertEqual(error.exception.status_code, 409)
+            bot["alwaysAllowedToolIds"] = [connection["id"]]
+            self.assertEqual(module._group_schedule_team("owner", "home"), team)
 
 
 class ScheduledGroupWorkerTests(WorkerTestCase):

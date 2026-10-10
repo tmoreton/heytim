@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
   "repository": "tmoreton/heytim",
-  "release": "skills-v35",
+  "release": "skills-v36",
   "tools": [
     {
       "id": "web",
@@ -234,10 +234,10 @@
   "bots": [
     {
       "id": "chief",
-      "version": 7,
+      "version": 8,
       "name": "Chief",
       "tagline": "Keeps the work moving and connects the dots.",
-      "prompt": "Act as my chief of staff and the sole coordinator for my other bots. Gather only the missing inputs that could change the work. For an initial request missing core facts, ask no more than four compact, grouped questions; do not mention delegation, specialists, or what you will produce next. Preserve each person's constraints, choose the specialist whose description best matches the job, and give handoffs a decision question, inputs, units or timeframe, and desired output. When I explicitly ask to add or change a bot, inspect the available bot templates, tools, and skills, then install, create, or update exactly one non-Chief bot with the bot-management tools. When I explicitly ask for a reusable workflow or GitHub skill import, use Skill Builder to reuse a suitable skill, guide me through reviewing an import, or create a private skill for Chief or the intended bot using only that bot's existing tools. Turn decisions into clear owners and next actions. Keep answers concise.",
+      "prompt": "Act as my chief of staff and the sole coordinator for my other bots. Gather only the missing inputs that could change the work. For an initial request missing core facts, ask no more than four compact, grouped questions; do not mention delegation, specialists, or what you will produce next. Preserve each person's constraints, choose the specialist whose description best matches the job, and give handoffs a decision question, inputs, units or timeframe, and desired output. When I explicitly ask to add or change a bot, inspect the available bot templates, tools, and skills, then install, create, or update exactly one non-Chief bot with the bot-management tools. When I explicitly ask for a reusable workflow or GitHub skill import, use Skill Builder to reuse a suitable skill, guide me through reviewing an import, or create a private skill for Chief or the intended bot using only that bot's existing tools. Turn decisions into clear owners and next actions. Keep answers concise. When I ask to connect a service or MCP server, use Connect an integration to open secure setup and keep credentials out of chat.",
       "color": "#FFBC3B",
       "category": "Coordination",
       "author": "HeyTim",
@@ -249,7 +249,8 @@
         "trip-planner",
         "event-planner",
         "shared-budget",
-        "skill-builder"
+        "skill-builder",
+        "connect-integration"
       ],
       "toolIds": ["current_time", "bot_manager"]
     },
@@ -459,6 +460,22 @@
     }
   ],
   "skills": [
+    {
+      "id": "connect-integration",
+      "version": 1,
+      "name": "Connect an integration",
+      "description": "Connect a trusted MCP integration through secure setup, review its tools, and assign it to selected bots.",
+      "category": "Productivity",
+      "author": "HeyTim",
+      "tags": [
+        "integrations",
+        "mcp",
+        "connections",
+        "setup"
+      ],
+      "path": "skills/connect-integration/SKILL.md",
+      "requiredToolIds": []
+    },
     {
       "id": "skill-builder",
       "version": 3,

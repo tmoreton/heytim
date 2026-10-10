@@ -8,6 +8,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
@@ -35,6 +36,7 @@ from .connection_providers import (
 from .connection_revocation import revoke_google_token
 from .finance_connections import FinanceConnectionMixin
 from .github_app import GITHUB_MCP_ENDPOINT, narrowed_permissions
+from .mcp_permissions import anonymous_credential
 from .mcp_servers import MCPServerConnectionMixin
 from .time import utc_now_iso as _now
 
@@ -288,13 +290,6 @@ class ConnectionMixin(MCPServerConnectionMixin, FinanceConnectionMixin, Connecti
             raise RuntimeError("Secrets Manager did not return a secret ARN")
         return arn
 
-    def _delete_secret(self, secret_arn: str) -> None:
-        client = self._secret_client()
-        try:
-            client.delete_secret(SecretId=secret_arn, RecoveryWindowInDays=7)
-        except client.exceptions.ResourceNotFoundException:
-            return
-
     def _account_accepts_connections(self, user_id: str) -> bool:
         return account_accepts_writes(self.table, user_id)
 
@@ -371,7 +366,8 @@ class ConnectionMixin(MCPServerConnectionMixin, FinanceConnectionMixin, Connecti
             if existing
             else _connection_id(provider, user_id, account_id)
         )
-        secret_arn = self._create_secret(user_id, connection_id, credential_json)
+        secret_arn = (f"anonymous:{uuid.uuid4().hex}" if provider == "mcp_server" and not credential
+                      else self._create_secret(user_id, connection_id, credential_json))
         previous_secret_arn = None
         item = None
         try:
@@ -387,7 +383,7 @@ class ConnectionMixin(MCPServerConnectionMixin, FinanceConnectionMixin, Connecti
                         else _connection_id(provider, user_id, account_id)
                     )
                 previous_secret_arn = existing.get("secretArn") if existing else None
-                if existing and not _valid_secret_arn(previous_secret_arn):
+                if existing and not _valid_secret_arn(previous_secret_arn) and not anonymous_credential(existing):
                     raise CatalogError("The connection credential is invalid")
 
                 current = _now()
@@ -445,7 +441,7 @@ class ConnectionMixin(MCPServerConnectionMixin, FinanceConnectionMixin, Connecti
         except Exception:
             self._delete_secret(secret_arn)
             raise
-        if isinstance(previous_secret_arn, str):
+        if _valid_secret_arn(previous_secret_arn):
             try:
                 self._delete_secret(previous_secret_arn)
             except (BotoCoreError, ClientError):

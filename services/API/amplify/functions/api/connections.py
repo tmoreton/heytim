@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from datetime import datetime, timezone
 
@@ -11,6 +12,7 @@ from shared.connection_providers import (
     connection_provider,
 )
 from shared.job_envelope import send_job
+from shared.mcp_discovery import discover_mcp_server
 from shared.plaid_ledger import item_mapping_key, public_sync_status, sync_key
 
 from .external_oauth import (
@@ -157,8 +159,21 @@ def _connect_home_assistant(user_id: str, value: dict) -> dict:
 def _connect_mcp_server(user_id: str, value: dict) -> dict:
     try:
         return catalog.save_mcp_server_connection(
-            user_id, value.get("name"), value.get("url"), value.get("accessToken")
+            user_id, value.get("name"), value.get("url"), value.get("accessToken"),
+            **({"approved_tools": value["approvedTools"]} if "approvedTools" in value else {}),
+            **({"auth_type": value["authType"]} if "authType" in value else {}),
         )
+    except CatalogError as exc:
+        raise ApiError(400, str(exc)) from exc
+
+
+def _discover_mcp_server(_user_id: str, value: dict) -> dict:
+    token = value.get("accessToken")
+    if token is not None and (not isinstance(token, str) or len(token) > 4096
+                              or not re.fullmatch(r"[A-Za-z0-9._~+/-]+={0,3}", token)):
+        raise ApiError(400, "MCP access token is invalid")
+    try:
+        return discover_mcp_server(value.get("url"), token or None)
     except CatalogError as exc:
         raise ApiError(400, str(exc)) from exc
 

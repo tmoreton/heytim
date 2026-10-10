@@ -1,6 +1,41 @@
 import XCTest
 
 @MainActor final class HeyTimAppleUITests: XCTestCase {
+  func testMCPSetupRequiresTestingBeforeSaving() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing", "--ui-testing-sheet", "mcp-server-setup"]
+    app.launchForUITesting()
+    let save = app.buttons["connection.mcp.save"]
+    let test = app.buttons["connection.mcp.test"]
+    XCTAssertTrue(save.waitForExistence(timeout: 10))
+    XCTAssertFalse(save.isEnabled)
+    XCTAssertTrue(test.exists)
+    XCTAssertFalse(test.isEnabled)
+    let endpoint = app.textFields["connection.mcp.url"]
+    let token = app.secureTextFields["connection.mcp.token"]
+    XCTAssertTrue(endpoint.isHittable)
+    XCTAssertTrue(token.exists)
+    #if os(macOS)
+      endpoint.click()
+    #else
+      endpoint.tap()
+    #endif
+    endpoint.typeText("https://home.example.com/api/mcp/assist")
+    #if os(macOS)
+      token.click()
+    #else
+      token.tap()
+    #endif
+    token.typeText("test-only-placeholder-token")
+    XCTAssertTrue(test.isEnabled)
+    XCTAssertFalse(save.isEnabled)
+    XCTAssertFalse(app.alerts.firstMatch.exists)
+    let screenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+    screenshot.name = "MCP setup before discovery"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+  }
+
   func testCompletedReplyKeepsUsageCaptionAndDraftAccessible() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing", "--ui-testing-activity-transition"]

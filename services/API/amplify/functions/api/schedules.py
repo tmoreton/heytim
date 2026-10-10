@@ -251,7 +251,7 @@ def _create_schedule(
     if schedule_values["enabled"] and catalog.unapproved_tools(
         user_id,
         bot.get("toolIds", []),
-        effective_allowed_interactive_tool_ids(bot),
+        effective_allowed_interactive_tool_ids(bot, catalog, user_id),
     ):
         raise ApiError(409, "Allow this bot's tools in a direct chat before scheduling it")
     schedule_id = request_id or str(uuid.uuid4())
@@ -300,7 +300,7 @@ def _update_schedule(user_id: str, bot_id: str, schedule_id: str, value: dict) -
     if schedule_values["enabled"] and catalog.unapproved_tools(
         user_id,
         bot.get("toolIds", []),
-        effective_allowed_interactive_tool_ids(bot),
+        effective_allowed_interactive_tool_ids(bot, catalog, user_id),
     ):
         raise ApiError(409, "Allow this bot's tools in a direct chat before scheduling it")
     item = {
