@@ -12,6 +12,9 @@ dependencies = [
     # CodeZip resolves dependencies independently of uv.lock.
     "aws-opentelemetry-distro == 0.19.0",
     "bedrock-agentcore >= 1.22.0",
+    # CodeZip resolves transitives afresh. Keep py-key-value-aio's runtime type
+    # checker on the same version exercised by the locked application tests.
+    "beartype == 0.22.9",
     # AgentCore CodeZip resolves from this file instead of uv.lock. AWS SDK
     # patch releases are frequent, so pin both halves to keep deployed bundles
     # identical to the version verified in uv.lock.

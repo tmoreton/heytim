@@ -87,6 +87,9 @@ class BrowserSessionService:
         result = {"status": status.lower(), "botId": self.store.bot_id,
                   "contextLabel": f"{bot.get('name', 'Bot')} · Private direct chat",
                   "blocksSending": browser_blocks_sending(record),
+                  # Only this confirmed, idempotent phase may be polled with
+                  # another resume request. Never replay an uncertain enqueue.
+                  "profileSavePending": record.get("resumeState") == "WAIT_PROFILE",
                   "hasSavedLogin": bool(record.get("profileId") and record.get("profileVersion"))}
         display = record.get("display", "desktop")
         # The DCV desktop size belongs to the session, not the site preference.

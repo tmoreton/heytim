@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit && vite build && node scripts/copy-dcv.mjs",
-    "verify": "npm run build"
+    "verify": "npm test && npm run build",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "test:ui": "uv run --project ../../services/runtime --frozen python tests/ui.py"
   },
   "dependencies": {
     "@babel/runtime": "^8.0.5",

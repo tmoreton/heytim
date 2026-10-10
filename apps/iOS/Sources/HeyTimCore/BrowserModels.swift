@@ -7,6 +7,7 @@ public struct BrowserState: Codable, Equatable, Sendable {
   public var contextLabel: String
   public var hasSavedLogin: Bool
   public var blocksSending: Bool?
+  public var profileSavePending: Bool?
   public var display: String?
   public var viewport: BrowserViewport?
   public var mobileSiteSupported: Bool?
@@ -20,6 +21,20 @@ public struct BrowserState: Codable, Equatable, Sendable {
     // Older servers did not return blocksSending. An expired display state can
     // still hide stored human control, so require explicit recovery in that case.
     blocksSending ?? ["human_control", "opening", "resuming", "expired"].contains(status)
+  }
+}
+
+enum BrowserResumeError: LocalizedError {
+  case busy, stillSaving, unconfirmed
+
+  var errorDescription: String? {
+    switch self {
+    case .busy: "Wait for the current browser operation to finish."
+    case .stillSaving:
+      "Your login is still being saved. Choose Continue Saving Login to check again. The bot has not resumed."
+    case .unconfirmed:
+      "The browser handoff has not been confirmed. Check the conversation and browser status before trying again."
+    }
   }
 }
 

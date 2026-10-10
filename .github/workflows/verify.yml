@@ -80,10 +80,14 @@ jobs:
           cache: npm
           cache-dependency-path: |
             apps/website/package-lock.json
+            apps/browser-viewer/package-lock.json
 
       - name: Install dependencies
         run: |
           npm ci
+          npm ci --prefix ../browser-viewer
+
+      - uses: astral-sh/setup-uv@v10.1.0
 
       - name: Verify application
         run: ../../scripts/verify.sh application

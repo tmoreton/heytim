@@ -1619,6 +1619,130 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
     XCTAssertEqual(fields["rememberLogin"] as? Bool, false)
   }
 
+  private func browserResumeModel() throws -> AppModel {
+    let api = HeyTimAPI(baseURL: try XCTUnwrap(URL(string: "https://api.example.com")),
+      session: mockSession) { "id-token" }
+    let model = AppModel(api: api)
+    model.bootstrap = DemoData.bootstrap
+    model.selection = .init(kind: .bot, id: "chief")
+    model.demoMode = false
+    model.composerText = "Keep this draft"
+    return model
+  }
+
+  func testBrowserProfileSavePollsUntilAContinuationIsConfirmed() async throws {
+    var requests = 0
+    MockURLProtocol.handler = { request in
+      requests += 1
+      XCTAssertEqual(request.httpMethod, "POST")
+      XCTAssertEqual(request.url?.path, "/bots/chief/browser/resume")
+      XCTAssertEqual(try Self.jsonBody(request)["rememberLogin"] as? Bool, true)
+      return Self.response(for: request, body: requests < 3
+        ? #"{"botId":"chief","status":"resuming","contextLabel":"Private chat","hasSavedLogin":false,"blocksSending":true,"profileSavePending":true}"#
+        : #"{"botId":"chief","status":"ready","contextLabel":"Private chat","hasSavedLogin":true,"blocksSending":false,"profileSavePending":false,"resumedTurnId":"one-continuation"}"#)
+    }
+    let model = try browserResumeModel()
+    let result = try await model.resumeBrowserHandoff(
+      botId: "chief", rememberLogin: true, pause: {})
+    XCTAssertEqual(requests, 3)
+    XCTAssertEqual(result.resumedTurnId, "one-continuation")
+    XCTAssertFalse(model.browserBlocksSending)
+    XCTAssertTrue(model.busyBrowserBotIDs.isEmpty)
+    XCTAssertEqual(model.composerText, "Keep this draft")
+  }
+
+  func testBrowserUncertainAndLegacyResumeAreNeverAutomaticallyRepeated() async throws {
+    for field in [#","profileSavePending":false"#, ""] {
+      var requests = 0
+      MockURLProtocol.handler = { request in
+        requests += 1
+        return Self.response(for: request,
+          body: #"{"botId":"chief","status":"resuming","contextLabel":"Private chat","hasSavedLogin":false,"blocksSending":true"# + field + "}")
+      }
+      let model = try browserResumeModel()
+      do {
+        try await model.resumeBrowserHandoff(botId: "chief", rememberLogin: true, pause: {})
+        XCTFail("An uncertain handoff must not be reported as resumed")
+      } catch BrowserResumeError.unconfirmed {}
+      XCTAssertEqual(requests, 1)
+      XCTAssertTrue(model.browserBlocksSending)
+      XCTAssertTrue(model.busyBrowserBotIDs.isEmpty)
+    }
+  }
+
+  func testBrowserProfileSaveTimeoutPreservesDraftAndExplicitRecovery() async throws {
+    var requests = 0
+    MockURLProtocol.handler = { request in
+      requests += 1
+      return Self.response(for: request,
+        body: #"{"botId":"chief","status":"resuming","contextLabel":"Private chat","hasSavedLogin":false,"blocksSending":true,"profileSavePending":true}"#)
+    }
+    let model = try browserResumeModel()
+    do {
+      try await model.resumeBrowserHandoff(
+        botId: "chief", rememberLogin: true, maximumPolls: 2, pause: {})
+      XCTFail("An unfinished save must not be reported as resumed")
+    } catch BrowserResumeError.stillSaving {}
+    XCTAssertEqual(requests, 3)
+    XCTAssertTrue(model.browserBlocksSending)
+    XCTAssertEqual(model.browserStates["chief"]?.profileSavePending, true)
+    XCTAssertTrue(model.busyBrowserBotIDs.isEmpty)
+    XCTAssertEqual(model.composerText, "Keep this draft")
+  }
+
+  func testBrowserLostResumeResponseIsNotReplayed() async throws {
+    var requests = 0
+    MockURLProtocol.handler = { request in
+      requests += 1
+      return Self.response(for: request, status: 503,
+        body: #"{"code":"browser_service_unavailable","message":"Resume could not be confirmed"}"#)
+    }
+    let model = try browserResumeModel()
+    model.updateBrowserState(BrowserState(botId: "chief", status: "human_control",
+      contextLabel: "Private chat", hasSavedLogin: false, blocksSending: true))
+    do {
+      try await model.resumeBrowserHandoff(botId: "chief", rememberLogin: false, pause: {})
+      XCTFail("A lost acknowledgement must require explicit recovery")
+    } catch {}
+    XCTAssertEqual(requests, 1)
+    XCTAssertTrue(model.browserBlocksSending)
+    XCTAssertTrue(model.busyBrowserBotIDs.isEmpty)
+  }
+
+  func testBrowserProfilePollingStopsAfterAccountReset() async throws {
+    var requests = 0
+    MockURLProtocol.handler = { request in
+      requests += 1
+      return Self.response(for: request,
+        body: #"{"botId":"chief","status":"resuming","contextLabel":"Private chat","hasSavedLogin":false,"blocksSending":true,"profileSavePending":true}"#)
+    }
+    let model = try browserResumeModel()
+    do {
+      try await model.resumeBrowserHandoff(botId: "chief", rememberLogin: true,
+        pause: { model.resetSession() })
+      XCTFail("Changing accounts must stop profile polling")
+    } catch is CancellationError {}
+    XCTAssertEqual(requests, 1)
+    XCTAssertTrue(model.browserStates.isEmpty)
+    XCTAssertTrue(model.busyBrowserBotIDs.isEmpty)
+  }
+
+  func testBrowserReadyWithoutContinuationIsNotReportedAsResumed() async throws {
+    var requests = 0
+    MockURLProtocol.handler = { request in
+      requests += 1
+      return Self.response(for: request,
+        body: #"{"botId":"chief","status":"ready","contextLabel":"Private chat","hasSavedLogin":false,"blocksSending":false}"#)
+    }
+    let model = try browserResumeModel()
+    do {
+      try await model.resumeBrowserHandoff(botId: "chief", rememberLogin: false, pause: {})
+      XCTFail("A continuation identifier is required to confirm resume")
+    } catch BrowserResumeError.unconfirmed {}
+    XCTAssertEqual(requests, 1)
+    XCTAssertTrue(model.busyBrowserBotIDs.isEmpty)
+  }
+
   func testBrowserHandoffStatusSupportsLegacyAndExplicitSendEligibility() throws {
     for (status, explicit, expected) in [
       ("closed", nil, false), ("ready", nil, false), ("human_control", nil, true),

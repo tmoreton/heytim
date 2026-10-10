@@ -36,6 +36,7 @@ class BrowserRecoveryCases:
                                  sessionExpiresAt=self.now - 1)
         view = self.service.get()
         self.assertEqual(view["status"], "resuming")
+        self.assertFalse(view["profileSavePending"])
         self.assertTrue(view["blocksSending"])
         self.assert_error(409, self.service.open)
         self.enqueue.assert_not_called()

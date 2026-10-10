@@ -816,6 +816,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aws-opentelemetry-distro" },
+    { name = "beartype" },
     { name = "bedrock-agentcore" },
     { name = "boto3" },
     { name = "botocore" },
@@ -884,6 +885,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aws-opentelemetry-distro", specifier = "==0.19.0" },
+    { name = "beartype", specifier = "==0.22.9" },
     { name = "bedrock-agentcore", specifier = ">=1.22.0" },
     { name = "boto3", specifier = "==1.43.90" },
     { name = "botocore", specifier = "==1.43.92" },

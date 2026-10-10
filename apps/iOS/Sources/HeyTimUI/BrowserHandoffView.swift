@@ -13,6 +13,7 @@ struct BrowserHandoffView: View {
   @State private var refreshing = false
   @State private var loadError: String?
   @State private var navigationError: String?
+  @State private var viewerRevision = 0
 
   var body: some View {
     Group {
@@ -80,6 +81,15 @@ struct BrowserHandoffView: View {
             .froggyGlassButton()
             .disabled(isBusy)
         }
+        if state?.profileSavePending == true {
+          Label("Saving your login securely…", systemImage: "lock.shield")
+            .froggyFont(.footnote)
+          Button("Continue Saving Login") { resume(rememberLogin: true) }
+            .froggyGlassButton()
+            .disabled(isBusy)
+            .accessibilityIdentifier("browser.continue-saving")
+        }
+        if loading { ProgressView("Updating browser…").controlSize(.small) }
         if state?.requiresHandoff == true || model.blockedBrowserBotIDs.contains(botId) {
           if state?.status == "expired" {
             Button("Reopen Browser", systemImage: "arrow.clockwise") { reconnect() }
@@ -111,9 +121,10 @@ struct BrowserHandoffView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else if let raw = state?.liveViewUrl, let url = URL(string: raw) {
-        BrowserWebView(signedURL: url, viewport: state?.viewport) { message in
+        BrowserWebView(signedURL: url, viewport: state?.viewport, onReconnect: reconnect) { message in
           navigationError = message
         }
+        .id(viewerRevision)
       } else {
         ContentUnavailableView {
           Label(statusTitle, systemImage: "globe")
@@ -154,7 +165,9 @@ struct BrowserHandoffView: View {
       || model.busyBrowserBotIDs.contains(botId)
   }
   private var operationInProgress: Bool {
-    ["opening", "resuming"].contains(state?.status ?? "") && state?.recoveryRequired == false
+    state?.profileSavePending != true
+      && ["opening", "resuming"].contains(state?.status ?? "")
+      && state?.recoveryRequired == false
   }
   private var statusTitle: String {
     switch state?.status {
@@ -168,6 +181,7 @@ struct BrowserHandoffView: View {
 
   private func apply(_ value: BrowserState?) {
     state = value
+    if value?.liveViewUrl != nil { viewerRevision &+= 1 }
     if let value { model.updateBrowserState(value) }
   }
 
@@ -195,9 +209,11 @@ struct BrowserHandoffView: View {
       }
     }
   }
-  private func finishOperation(session: UInt) {
+  private func finishOperation(session: UInt, releasesLease: Bool = true) {
     loading = false
-    if model.sessionGeneration == session { model.busyBrowserBotIDs.remove(botId) }
+    if releasesLease && model.sessionGeneration == session {
+      model.busyBrowserBotIDs.remove(botId)
+    }
   }
   private func open() {
     guard let api = model.api else { return }
@@ -226,7 +242,10 @@ struct BrowserHandoffView: View {
         apply(value)
         if let url { address = url.absoluteString }
       } catch {
-        if model.sessionIsCurrent(session, api: api) { navigationError = error.localizedDescription }
+        if model.sessionIsCurrent(session, api: api) {
+          navigationError = error.localizedDescription
+          if let latest = try? await model.fetchBrowserState(botId: botId) { state = latest }
+        }
       }
     }
   }
@@ -243,24 +262,37 @@ struct BrowserHandoffView: View {
         apply(value)
         navigationError = nil
       } catch {
-        if model.sessionIsCurrent(session, api: api) { navigationError = error.localizedDescription }
+        if model.sessionIsCurrent(session, api: api) {
+          navigationError = error.localizedDescription
+          if let latest = try? await model.fetchBrowserState(botId: botId) { state = latest }
+        }
       }
     }
   }
   private func resume(rememberLogin: Bool) {
-    guard let api = model.api else { return }
+    guard let api = model.api, !isBusy else { return }
     let session = model.sessionGeneration
-    guard model.beginBrowserOperation(botId: botId) else { return }
     loading = true
+    navigationError = nil
+    // Disconnect the human viewer before enabling the bot's automation stream.
+    state?.liveViewUrl = nil
+    state?.liveViewExpiresAt = nil
     Task {
-      defer { finishOperation(session: session) }
+      defer { finishOperation(session: session, releasesLease: false) }
       do {
-        let value = try await api.resumeBrowser(
-          botId: botId, groupId: groupId, rememberLogin: rememberLogin)
+        guard model.sessionIsCurrent(session, api: api) else { return }
+        guard groupId == nil else {
+          throw APIError.configuration("Browser handoffs are private to a bot’s direct chat.")
+        }
+        let value = try await model.resumeBrowserHandoff(
+          botId: botId, rememberLogin: rememberLogin)
         guard model.sessionIsCurrent(session, api: api) else { return }
         apply(value)
       } catch {
-        if model.sessionIsCurrent(session, api: api) { model.present(error) }
+        if model.sessionIsCurrent(session, api: api), !(error is CancellationError) {
+          navigationError = error.localizedDescription
+          if let latest = try? await model.fetchBrowserState(botId: botId) { state = latest }
+        }
       }
     }
   }
@@ -312,16 +344,21 @@ private enum BrowserViewerPage {
   static let url = URL(string: "https://heytim.ai/browser-viewer/")!
 }
 
-private final class BrowserViewerCoordinator: NSObject, WKNavigationDelegate {
+private final class BrowserViewerCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   var signedURL: URL
   var viewport: BrowserViewport?
-  var onError: (String) -> Void
+  var onReconnect: () -> Void
+  var onError: (String?) -> Void
   private var loaded = false
+  private var detached = false
   private var injectedURL: URL?
 
-  init(signedURL: URL, viewport: BrowserViewport?, onError: @escaping (String) -> Void) {
+  init(signedURL: URL, viewport: BrowserViewport?, onReconnect: @escaping () -> Void,
+    onError: @escaping (String?) -> Void
+  ) {
     self.signedURL = signedURL
     self.viewport = viewport
+    self.onReconnect = onReconnect
     self.onError = onError
   }
 
@@ -332,6 +369,7 @@ private final class BrowserViewerCoordinator: NSObject, WKNavigationDelegate {
   }
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    guard !detached else { return }
     loaded = true
     injectSession(into: webView)
   }
@@ -339,7 +377,50 @@ private final class BrowserViewerCoordinator: NSObject, WKNavigationDelegate {
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!,
     withError error: Error
   ) {
-    onError("Couldn’t load the live browser. Check your connection and try Show Browser again.")
+    guard !detached else { return }
+    loaded = false
+    injectedURL = nil
+    onError("Couldn’t load the live browser. Check your connection and choose Reconnect Live View.")
+  }
+
+  func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+    guard !detached else { return }
+    loaded = false
+    injectedURL = nil
+    onError("The live browser connection was interrupted. Choose Reconnect Live View.")
+  }
+
+  func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+    guard !detached else { return }
+    loaded = false
+    injectedURL = nil
+    onError("The live browser stopped responding. Choose Reconnect Live View.")
+  }
+
+  func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+    guard !detached, message.frameInfo.isMainFrame,
+      message.frameInfo.securityOrigin.protocol == "https",
+      ["heytim.ai", "www.heytim.ai"].contains(message.frameInfo.securityOrigin.host),
+      let body = message.body as? [String: String] else { return }
+    if body["action"] == "reconnect" {
+      onReconnect()
+      return
+    }
+    guard let phase = body["state"] else { return }
+    switch phase {
+    case "connecting", "connected": onError(nil)
+    case "failed", "disconnected", "timeout":
+      onError("The live browser could not stay connected. Choose Reconnect Live View to try again.")
+    default: break
+    }
+  }
+
+  func detach(_ view: WKWebView) {
+    detached = true
+    view.configuration.userContentController.removeScriptMessageHandler(forName: "heytimBrowserStatus")
+    view.navigationDelegate = nil
+    view.stopLoading()
+    view.loadHTMLString("", baseURL: nil)
   }
 
   func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction
@@ -364,7 +445,7 @@ private final class BrowserViewerCoordinator: NSObject, WKNavigationDelegate {
     injectedURL = signedURL
     view.evaluateJavaScript("window.heytimSetBrowserSession(\(quotedURL), \(width), \(height))") {
       [weak self] _, error in
-      if error != nil {
+      if error != nil, self?.detached == false {
         self?.injectedURL = nil
         self?.onError("Couldn’t connect to the live browser. Refresh the browser session and try again.")
       }
@@ -376,13 +457,16 @@ private final class BrowserViewerCoordinator: NSObject, WKNavigationDelegate {
   private struct BrowserWebView: UIViewRepresentable {
     let signedURL: URL
     let viewport: BrowserViewport?
-    let onError: (String) -> Void
+    let onReconnect: () -> Void
+    let onError: (String?) -> Void
     func makeCoordinator() -> BrowserViewerCoordinator {
-      BrowserViewerCoordinator(signedURL: signedURL, viewport: viewport, onError: onError)
+      BrowserViewerCoordinator(signedURL: signedURL, viewport: viewport,
+        onReconnect: onReconnect, onError: onError)
     }
     func makeUIView(context: Context) -> WKWebView {
       let config = WKWebViewConfiguration()
       config.websiteDataStore = .nonPersistent()
+      config.userContentController.add(context.coordinator, name: "heytimBrowserStatus")
       let view = WKWebView(frame: .zero, configuration: config)
       view.navigationDelegate = context.coordinator
       view.load(URLRequest(url: BrowserViewerPage.url))
@@ -391,18 +475,24 @@ private final class BrowserViewerCoordinator: NSObject, WKNavigationDelegate {
     func updateUIView(_ view: WKWebView, context: Context) {
       context.coordinator.update(view, signedURL: signedURL, viewport: viewport)
     }
+    static func dismantleUIView(_ view: WKWebView, coordinator: BrowserViewerCoordinator) {
+      coordinator.detach(view)
+    }
   }
 #elseif os(macOS)
   private struct BrowserWebView: NSViewRepresentable {
     let signedURL: URL
     let viewport: BrowserViewport?
-    let onError: (String) -> Void
+    let onReconnect: () -> Void
+    let onError: (String?) -> Void
     func makeCoordinator() -> BrowserViewerCoordinator {
-      BrowserViewerCoordinator(signedURL: signedURL, viewport: viewport, onError: onError)
+      BrowserViewerCoordinator(signedURL: signedURL, viewport: viewport,
+        onReconnect: onReconnect, onError: onError)
     }
     func makeNSView(context: Context) -> WKWebView {
       let config = WKWebViewConfiguration()
       config.websiteDataStore = .nonPersistent()
+      config.userContentController.add(context.coordinator, name: "heytimBrowserStatus")
       let view = WKWebView(frame: .zero, configuration: config)
       view.navigationDelegate = context.coordinator
       view.load(URLRequest(url: BrowserViewerPage.url))
@@ -410,6 +500,9 @@ private final class BrowserViewerCoordinator: NSObject, WKNavigationDelegate {
     }
     func updateNSView(_ view: WKWebView, context: Context) {
       context.coordinator.update(view, signedURL: signedURL, viewport: viewport)
+    }
+    static func dismantleNSView(_ view: WKWebView, coordinator: BrowserViewerCoordinator) {
+      coordinator.detach(view)
     }
   }
 #endif

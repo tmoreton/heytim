@@ -11,6 +11,14 @@ extension AppModel {
             botId: bot.id, status: "expired", contextLabel: "Private direct chat",
             hasSavedLogin: true, blocksSending: true))
       }
+      if arguments.contains("--ui-testing-browser-saving"), let bot = bootstrap?.bots.first {
+        messages = []
+        composerText = "Keep this draft"
+        updateBrowserState(
+          BrowserState(botId: bot.id, status: "resuming", contextLabel: "Private direct chat",
+            hasSavedLogin: false, blocksSending: true, profileSavePending: true,
+            recoveryRequired: false))
+      }
     }
   #endif
 
@@ -66,6 +74,37 @@ extension AppModel {
     busyBrowserBotIDs.insert(botId)
     browserStateRevisions[botId, default: 0] &+= 1
     return true
+  }
+
+  /// Poll only an explicitly confirmed profile save, never an uncertain enqueue.
+  @discardableResult func resumeBrowserHandoff(
+    botId: String, rememberLogin: Bool,
+    maximumPolls: Int = 10,
+    pause: () async throws -> Void = { try await Task.sleep(for: .seconds(2)) }
+  ) async throws -> BrowserState {
+    guard let api else { throw APIError.configuration("Sign in to resume the browser.") }
+    guard beginBrowserOperation(botId: botId) else { throw BrowserResumeError.busy }
+    let session = sessionGeneration
+    defer {
+      if sessionGeneration == session { busyBrowserBotIDs.remove(botId) }
+    }
+    for attempt in 0...max(0, maximumPolls) {
+      try Task.checkCancellation()
+      guard sessionIsCurrent(session, api: api) else { throw CancellationError() }
+      let value = try await api.resumeBrowser(botId: botId, rememberLogin: rememberLogin)
+      guard sessionIsCurrent(session, api: api) else { throw CancellationError() }
+      guard value.botId == botId, value.groupId == nil else { throw APIError.invalidResponse }
+      updateBrowserState(value)
+      if value.status == "ready", value.resumedTurnId?.isEmpty == false,
+        !value.requiresHandoff {
+        return value
+      }
+      guard rememberLogin, value.status == "resuming", value.profileSavePending == true
+      else { throw BrowserResumeError.unconfirmed }
+      guard attempt < maximumPolls else { throw BrowserResumeError.stillSaving }
+      try await pause()
+    }
+    throw BrowserResumeError.stillSaving
   }
 
   @discardableResult public func endBrowserHandoff(botId: String) async -> Bool {

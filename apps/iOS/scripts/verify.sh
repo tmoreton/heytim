@@ -81,6 +81,7 @@ run_with_timeout 1200 'macOS chat and browser UI tests' xcodebuild test \
   -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testScrollToLatestControlAndSendingReturnToTheBottom \
   -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testCompletedReplyKeepsUsageCaptionAndDraftAccessible \
   -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testExpiredBrowserHandoffCanEndWithoutLosingTheDraft \
+  -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testPendingBrowserSaveKeepsRecoveryControlsAccessible \
   -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testMacComposerAndToolbarStayInsideTheNativeWindowLayout \
   -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testMacBrowserPanelKeepsComposerAndDetailsInsideTheChatColumn \
   PRODUCT_BUNDLE_IDENTIFIER=ai.heytim.verification \
