@@ -213,12 +213,16 @@ export async function runWebhookSmoke({ apiUrl, idToken, fetcher = fetch,
   } finally {
     // POST creates are never retried. Recover only this run's exact random names
     // if a successful create lost its HTTP response before returning its ID.
-    if (plannedBotNames.size || plannedSourceNames.size) {
+    if (plannedBotNames.size) {
       try {
         const bootstrap = await api('GET', '/bootstrap', undefined, 'Discover disposable bots for cleanup');
         for (const bot of bootstrap.bots ?? []) {
           if (plannedBotNames.has(bot.name) && !bots.includes(bot.id)) bots.push(bot.id);
         }
+      } catch { cleanupSucceeded = false; }
+    }
+    if (plannedSourceNames.size) {
+      try {
         const listed = await api('GET', '/webhook-sources', undefined, 'Discover disposable sources for cleanup');
         for (const source of listed.sources ?? []) {
           if (plannedSourceNames.has(source.name) && !sources.includes(source.id)) sources.push(source.id);
@@ -238,11 +242,19 @@ export async function runWebhookSmoke({ apiUrl, idToken, fetcher = fetch,
         for (const message of await messages(botId)) {
           if (message.role === 'assistant' && active.has(message.status) && message.id.endsWith('-assistant')) {
             const turnId = message.id.slice(0, -'-assistant'.length);
-            await api('POST', `/bots/${botId}/messages/${turnId}/cancel`, undefined, 'Cancel disposable in-flight turn');
+            try {
+              await api('POST', `/bots/${botId}/messages/${turnId}/cancel`, undefined, 'Cancel disposable in-flight turn');
+            } catch {
+              // Cancellation can race a completed reply. Confirm terminal state
+              // without hiding an unresolved cancellation or blocking deletion.
+              const latest = (await messages(botId)).find((item) => item.id === message.id);
+              if (latest && active.has(latest.status)) cleanupSucceeded = false;
+            }
           }
         }
-        await api('DELETE', `/bots/${botId}`, undefined, 'Clean disposable bot');
       } catch { cleanupSucceeded = false; }
+      try { await api('DELETE', `/bots/${botId}`, undefined, 'Clean disposable bot'); }
+      catch { cleanupSucceeded = false; }
     }
   }
   if (primaryError) {

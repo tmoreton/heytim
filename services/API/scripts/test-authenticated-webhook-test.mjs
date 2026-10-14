@@ -3,7 +3,8 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { genericDelivery, pebbleTestDelivery, runWebhookSmoke } from './authenticated-webhook-test.mjs';
 
-function mockCloud({ credits = 10, failLocalSubmission = false, loseCreatedSourceResponse = false } = {}) {
+function mockCloud({ credits = 10, failLocalSubmission = false, loseCreatedSourceResponse = false,
+  failCleanupBootstrap = false, cancelRace } = {}) {
   const state = { bots: new Map(), sources: new Map(), events: new Map(), deliveries: new Map(),
     conversations: new Map(), devices: new Set(), turns: 0, calls: [] };
   const response = (value, status = 200) => new Response(JSON.stringify(value), { status,
@@ -52,10 +53,11 @@ function mockCloud({ credits = 10, failLocalSubmission = false, loseCreatedSourc
       return response({ accepted: true, eventId: event.id, status: event.status }, 202);
     }
     assert.equal(options.headers.authorization, 'Bearer never-print-id-token');
-    if (method === 'GET' && path === '/bootstrap') return response({
-      bots: [{ id: 'chief', systemRole: 'chief', templateId: 'chief' }, ...state.bots.values()],
-      botTemplates: [{ id: 'chief' }, { id: 'research' }],
-    });
+    if (method === 'GET' && path === '/bootstrap') {
+      if (failCleanupBootstrap && state.unknownSourceCreated) return response({}, 503);
+      return response({ bots: [{ id: 'chief', systemRole: 'chief', templateId: 'chief' }, ...state.bots.values()],
+        botTemplates: [{ id: 'chief' }, { id: 'research' }] });
+    }
     if (path === '/billing') return response({ creditsRemaining: credits, privateBilling: 'never-print-billing' });
     if (method === 'POST' && path === '/bots') {
       assert.ok(value.name.length <= 48, 'Fixture name must satisfy the live bot name contract');
@@ -64,6 +66,10 @@ function mockCloud({ credits = 10, failLocalSubmission = false, loseCreatedSourc
     }
     if (path.startsWith('/bots/')) {
       const botId = path.split('/')[2];
+      if (method === 'POST' && path.endsWith('/cancel')) {
+        if (cancelRace === 'complete') state.conversations.get(botId).find((message) => message.role === 'assistant').status = 'complete';
+        return response({ message: 'never-print-cancellation-conflict' }, 409);
+      }
       if (method === 'GET') return response({ messages: state.conversations.get(botId) });
       if (method === 'DELETE') { state.bots.delete(botId); return response({ deleted: true }); }
     }
@@ -71,7 +77,10 @@ function mockCloud({ credits = 10, failLocalSubmission = false, loseCreatedSourc
       const source = { ...value, id: randomUUID(), credential: `never-print-credential-${randomUUID()}`,
         signingSecret: `never-print-signing-${randomUUID()}` };
       state.sources.set(source.id, source);
-      if (loseCreatedSourceResponse) throw new Error('never-print-unknown-create-response');
+      if (loseCreatedSourceResponse) {
+        state.unknownSourceCreated = true;
+        throw new Error('never-print-unknown-create-response');
+      }
       const { credential, signingSecret, ...publicSource } = source;
       return response({ source: publicSource, credential, signingSecret }, 201);
     }
@@ -99,7 +108,14 @@ function mockCloud({ credits = 10, failLocalSubmission = false, loseCreatedSourc
           modelRevision: '216d1ccb46a9e9b036eb9187b248db98480f77d4', requestDigest: 'digest', leaseToken: 'never-print-lease' }] });
       }
       if (method === 'POST') {
-        if (failLocalSubmission) return response({ message: 'never-print-reply-body' }, 500);
+        if (failLocalSubmission) {
+          if (cancelRace && !state.pendingTurnId) {
+            const botId = state.sources.get(state.events.get(path.split('/')[4]).sourceId).allowedBotIds[0];
+            state.pendingTurnId = randomUUID();
+            state.conversations.set(botId, [{ id: `${state.pendingTurnId}-assistant`, role: 'assistant', status: 'running' }]);
+          }
+          return response({ message: 'never-print-reply-body' }, 500);
+        }
         const event = state.events.get(path.split('/')[4]);
         assert.equal(value.confidence, (2 * value.probabilities[value.botId] - 1));
         event.routingDecision = { ...value, method: 'local' };
@@ -152,6 +168,32 @@ test('unknown create outcomes are discovered by exact run name and cleaned witho
   assert.equal(state.calls.filter((call) => call === 'POST /webhook-sources').length, 1);
   assert.equal(state.turns, 0);
 });
+
+test('source discovery still cleans an unknown create when cleanup bootstrap is unavailable', async () => {
+  const { state, fetcher } = mockCloud({ loseCreatedSourceResponse: true, failCleanupBootstrap: true });
+  await assert.rejects(runWebhookSmoke({ apiUrl: 'https://api.example.test', idToken: 'never-print-id-token', fetcher, sleep: async () => {} }), (error) => {
+    assert.equal(error.smokeSummary.cleanupSucceeded, false, 'Unverified bot discovery must remain visible');
+    return true;
+  });
+  assert.ok(state.calls.includes('GET /webhook-sources'));
+  assert.equal(state.sources.size + state.bots.size, 0);
+});
+
+for (const cancelRace of ['complete', 'active']) {
+  test(`cancellation conflict with ${cancelRace} turn still attempts bot deletion and reports cleanup truthfully`, async () => {
+    const { state, fetcher } = mockCloud({ failLocalSubmission: true, cancelRace });
+    await assert.rejects(runWebhookSmoke({ apiUrl: 'https://api.example.test', idToken: 'never-print-id-token', fetcher, sleep: async () => {} }), (error) => {
+      assert.equal(error.smokeSummary.cleanupSucceeded, cancelRace === 'complete');
+      assert.doesNotMatch(error.message + JSON.stringify(error.smokeSummary), /never-print/);
+      return true;
+    });
+    const cancelIndex = state.calls.findIndex((call) => call.endsWith('/cancel'));
+    assert.ok(cancelIndex >= 0);
+    assert.match(state.calls[cancelIndex + 1], /^GET \/bots\/[^/]+\/messages$/);
+    assert.match(state.calls[cancelIndex + 2], /^DELETE \/bots\//);
+    assert.equal(state.bots.size + state.sources.size + state.devices.size, 0);
+  });
+}
 
 test('test payload helpers sign exact JSON and binary multipart bytes without exposing key material', () => {
   const generic = genericDelivery('unit-signing-key', { text: 'question' }, '1700000000');
