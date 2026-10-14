@@ -18,15 +18,9 @@ class DeploymentRoleContractTests(unittest.TestCase):
     def test_production_deploy_role_scopes_company_credentials(self) -> None:
         self.assertNotIn("bedrock-agentcore:*", self.deployment_role)
         self.assertIn("bedrock-agentcore:GetTokenVault", self.deployment_role)
-        self.assertIn(
-            "actions: ['bedrock-agentcore:SetTokenVaultCMK'],\n    resources: ['*'],",
-            self.deployment_role,
-        )
-        self.assertIn("actions: ['kms:CreateKey', 'kms:TagResource']", self.deployment_role)
-        self.assertIn(
-            "'aws:RequestTag/agentcore:project': 'HeyTim'", self.deployment_role
-        )
-        self.assertIn("'aws:TagKeys': ['agentcore:project']", self.deployment_role)
+        self.assertNotIn("bedrock-agentcore:SetTokenVaultCMK", self.deployment_role)
+        self.assertNotIn("kms:CreateKey", self.deployment_role)
+        self.assertNotIn("kms:TagResource", self.deployment_role)
         self.assertIn(
             "'aws:ResourceTag/agentcore:project': 'HeyTim'", self.deployment_role
         )
