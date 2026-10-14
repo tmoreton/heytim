@@ -58,6 +58,11 @@ these three named providers. It deliberately cannot create the vault encryption 
 principal whose KMS create/tag permissions require the `agentcore:project=HeyTim` request tag, then
 remove that bootstrap access before enabling routine deployments.
 
+The default-vault lookup must allow `GetTokenVault` on its control route (`Resource: "*"`, restricted to the deployment
+Region). The CLI omits `tokenVaultId` and treats a denied lookup as a missing vault key. The deployment role must retain
+the lookup permission while excluding `kms:CreateKey`, `kms:TagResource`, and `SetTokenVaultCMK`, so routine releases reuse
+the existing encryption key and fail without creating another key if the vault is not bootstrapped.
+
 ## Package boundary
 
 The CodeZip source is `services/runtime/runtime/`. The toolkit locates the parent
