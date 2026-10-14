@@ -2180,7 +2180,9 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
     writer.name = "Writer"
     var bootstrap = DemoData.bootstrap
     bootstrap.bots.append(writer)
+    var paths: [String] = []
     MockURLProtocol.handler = { request in
+      paths.append(request.url?.path ?? "")
       XCTAssertEqual(request.url?.path, "/bots/writer/messages")
       return Self.response(
         for: request,
@@ -2196,8 +2198,9 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
     model.messages = DemoData.messages
     model.sheet = .account
 
-    await model.openConversationFromNotification(.init(kind: .bot, id: "writer"))
+    await model.openConversation(.init(kind: .bot, id: "writer"))
 
+    XCTAssertEqual(paths, ["/bots/writer/messages"])
     XCTAssertEqual(model.selection, .init(kind: .bot, id: "writer"))
     XCTAssertEqual(model.messages.map(\.id), ["notification-message"])
     XCTAssertNil(model.sheet)
@@ -2230,7 +2233,7 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
     let model = AppModel(api: api)
     model.bootstrap = DemoData.bootstrap
 
-    await model.openConversationFromNotification(.init(kind: .bot, id: "writer"))
+    await model.openConversation(.init(kind: .bot, id: "writer"))
 
     XCTAssertEqual(paths, ["/bootstrap", "/bots/writer/messages"])
     XCTAssertEqual(model.selection, .init(kind: .bot, id: "writer"))

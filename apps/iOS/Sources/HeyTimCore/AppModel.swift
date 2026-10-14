@@ -373,9 +373,9 @@ public final class AppModel {
     catch { /* loadMessages publishes a contextual inline error. */ }
   }
 
-  /// Opens the exact conversation represented by a notification, including when
-  /// the tap arrives during a cold launch or while that conversation is already selected.
-  public func openConversationFromNotification(_ value: ConversationSelection) async {
+  /// Opens and refreshes a conversation, including after a cold launch or when
+  /// that conversation is already selected.
+  public func openConversation(_ value: ConversationSelection) async {
     #if DEBUG
       if demoMode {
         guard conversationExists(value) else { return }
