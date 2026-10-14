@@ -1366,9 +1366,8 @@ private extension XCUIApplication {
     #if os(macOS)
       activate()
       if !windows.firstMatch.waitForExistence(timeout: 2) {
-        let newWindow = menuBars.menuItems["New Window"]
-        if newWindow.waitForExistence(timeout: 2) { newWindow.click() }
         activate()
+        typeKey("n", modifierFlags: .command)
       }
       XCTAssertTrue(windows.firstMatch.waitForExistence(timeout: 5), "The Mac test app needs a window.")
     #endif
