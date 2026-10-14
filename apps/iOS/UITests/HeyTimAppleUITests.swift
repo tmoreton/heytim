@@ -17,10 +17,18 @@ import XCTest
         option.click()
       #else
         picker.tap()
-        let option = app.buttons[title].firstMatch
+        let option = app.collectionViews.containing(.button, identifier: title).buttons[title].firstMatch
         if let excludedTitle { XCTAssertFalse(app.buttons[excludedTitle].exists) }
         XCTAssertTrue(option.waitForExistence(timeout: 5))
         option.tap()
+        let retainedOption = app.collectionViews.containing(.button, identifier: title).buttons[title].firstMatch
+        if retainedOption.exists && retainedOption.isHittable && !retainedOption.isSelected {
+          let recovery = XCTAttachment(string: "Retained iOS menu after selecting \(title) from \(identifier)")
+          recovery.name = "Retained iOS picker menu recovery"
+          recovery.lifetime = .keepAlways
+          self.add(recovery)
+          retainedOption.tap()
+        }
       #endif
     }
     func expectValue(_ value: String, for identifier: String) {
