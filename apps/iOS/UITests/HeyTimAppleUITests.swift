@@ -66,13 +66,17 @@ import XCTest
     expectValue("Review manually", for: "webhooks.fallback-bot")
     choose("Chief", from: "webhooks.fallback-bot")
     expectValue("Chief", for: "webhooks.fallback-bot")
-    let chief = app.descendants(matching: .any)["webhooks.permitted-bot.chief"].firstMatch
+    #if os(macOS)
+      let chief = app.descendants(matching: .any)["webhooks.permitted-bot.chief"].firstMatch
+    #else
+      let chief = app.switches["webhooks.permitted-bot.chief"]
+    #endif
     for _ in 0..<2 where !chief.isHittable { app.swipeUp() }
     XCTAssertTrue(chief.waitForExistence(timeout: 5))
     #if os(macOS)
       chief.click()
     #else
-      chief.tap()
+      chief.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).tap()
     #endif
     expectValue("Review manually", for: "webhooks.fallback-bot")
     choose("Always use one bot", from: "webhooks.routing")
