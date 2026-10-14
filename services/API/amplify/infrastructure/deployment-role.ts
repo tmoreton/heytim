@@ -204,26 +204,14 @@ export function addGithubDeploymentRole({
     }));
   }
   role.addToPolicy(new PolicyStatement({
+    // The CLI omits tokenVaultId when reading the account's default vault.
+    // AgentCore authorizes that control route with "*", not the vault ARN.
+    // A denied lookup makes the CLI attempt to create another encryption key.
     actions: ['bedrock-agentcore:GetTokenVault'],
-    resources: [tokenVaultArn],
-  }));
-  role.addToPolicy(new PolicyStatement({
-    // AgentCore currently authorizes this API against its non-resource control
-    // route ARN, so the action cannot be constrained to the documented vault ARN.
-    actions: ['bedrock-agentcore:SetTokenVaultCMK'],
-    resources: ['*'],
-  }));
-  role.addToPolicy(new PolicyStatement({
-    // AgentCore CLI creates the token-vault encryption key with this project tag.
-    // CreateKey requires "*" because the key ARN does not exist until the call succeeds.
-    actions: ['kms:CreateKey', 'kms:TagResource'],
     resources: ['*'],
     conditions: {
       StringEquals: {
-        'aws:RequestTag/agentcore:project': 'HeyTim',
-      },
-      'ForAllValues:StringEquals': {
-        'aws:TagKeys': ['agentcore:project'],
+        'aws:RequestedRegion': stack.region,
       },
     },
   }));
