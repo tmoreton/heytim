@@ -25,6 +25,7 @@ struct WorkspaceSettingsSection: View {
           title: "Webhooks", detail: "Receive Pebble voice notes and messages from external sources.",
           systemImage: "waveform.badge.plus")
       }
+      .accessibilityIdentifier("settings.webhooks")
     }
   }
 }

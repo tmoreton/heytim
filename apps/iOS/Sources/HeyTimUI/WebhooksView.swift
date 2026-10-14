@@ -244,7 +244,7 @@ private struct WebhookSourceEditor: View {
             }
           }
         }
-      } header: { Text("Permitted Bots") } footer: {
+      } header: { Text("Permitted Bots").accessibilityIdentifier("webhooks.permitted-bots") } footer: {
         Text("The router can choose only these bots. Messages wait while the Mac is unavailable, and uncertain choices can be reviewed here.")
       }
       if let error { Section { Text(error).foregroundStyle(.red) } }

@@ -27,8 +27,16 @@
 
     init(bundle: Bundle = .main) {
       let configuration = DesktopUpdateConfiguration(info: bundle.infoDictionary ?? [:])
-      isConfigured = configuration.isConfigured
-      controller = configuration.isConfigured
+      #if DEBUG
+        let process = ProcessInfo.processInfo
+        let isTesting = process.arguments.contains("--ui-testing")
+          || process.environment["XCTestConfigurationFilePath"] != nil
+      #else
+        let isTesting = false
+      #endif
+      // Offline fixture runs must not show or install a live Sparkle update.
+      isConfigured = configuration.isConfigured && !isTesting
+      controller = isConfigured
         ? SPUStandardUpdaterController(
           startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
         : nil

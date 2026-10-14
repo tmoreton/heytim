@@ -12,17 +12,33 @@ import XCTest
     #endif
     let settings = app.buttons["sidebar.settings"]
     XCTAssertTrue(settings.waitForExistence(timeout: 10))
-    settings.tap()
-    let webhooks = app.staticTexts["Webhooks"]
+    #if os(macOS)
+      settings.click()
+    #else
+      settings.tap()
+    #endif
+    let webhooks = app.descendants(matching: .any)["settings.webhooks"].firstMatch
     XCTAssertTrue(webhooks.waitForExistence(timeout: 5))
-    webhooks.tap()
+    #if os(macOS)
+      webhooks.click()
+    #else
+      webhooks.tap()
+    #endif
     let add = app.buttons["webhooks.add"]
     XCTAssertTrue(add.waitForExistence(timeout: 5))
     XCTAssertTrue(add.isEnabled)
-    add.tap()
-    XCTAssertTrue(app.staticTexts["Permitted Bots"].waitForExistence(timeout: 5))
+    #if os(macOS)
+      add.click()
+    #else
+      add.tap()
+    #endif
+    XCTAssertTrue(app.descendants(matching: .any)["webhooks.permitted-bots"].firstMatch.waitForExistence(timeout: 5))
     XCTAssertTrue(app.buttons["Create"].exists)
-    app.buttons["Cancel"].tap()
+    #if os(macOS)
+      app.buttons["Cancel"].click()
+    #else
+      app.buttons["Cancel"].tap()
+    #endif
     XCTAssertTrue(add.waitForExistence(timeout: 5))
     XCTAssertFalse(app.alerts.firstMatch.exists)
   }
