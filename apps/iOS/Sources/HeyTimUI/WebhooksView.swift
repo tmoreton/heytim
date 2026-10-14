@@ -172,8 +172,7 @@ struct WebhooksView: View {
       if let reason = event.reviewReason { Text(reason.replacingOccurrences(of: "_", with: " ")).font(.caption).foregroundStyle(.secondary) }
       if let botId = event.botId, let bot = model.bootstrap?.bots.first(where: { $0.id == botId }) {
         Button("Open \(bot.name)", systemImage: "bubble.left") {
-          model.sheet = nil
-          model.select(.init(kind: .bot, id: botId))
+          Task { await model.openConversation(.init(kind: .bot, id: botId)) }
         }
       } else if event.status != "test", event.status != "rejected" {
         Menu("Choose a Bot") {

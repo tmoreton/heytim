@@ -266,9 +266,9 @@ private struct AppRoot: View {
     else { return }
     pendingPushSelection = nil
     if let groupId = selection.groupId {
-      await model.openConversationFromNotification(.init(kind: .group, id: groupId))
+      await model.openConversation(.init(kind: .group, id: groupId))
     } else if let botId = selection.botId {
-      await model.openConversationFromNotification(.init(kind: .bot, id: botId))
+      await model.openConversation(.init(kind: .bot, id: botId))
     }
   }
 

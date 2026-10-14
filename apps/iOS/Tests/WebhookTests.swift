@@ -8,6 +8,79 @@ import XCTest
     super.tearDown()
   }
 
+  func testOpeningSelectedConversationRefreshesWebhookReplyAndPreservesDraft() async throws {
+    var serverMessages = DemoData.messages
+    var requests: [String] = []
+    WebhookURLProtocol.handler = { request in
+      requests.append("\(request.httpMethod ?? "") \(request.url?.path ?? "")")
+      XCTAssertEqual(request.httpMethod, "GET")
+      XCTAssertEqual(request.url?.path, "/bots/chief/messages")
+      return (200, try JSONEncoder().encode(MessagePage(messages: serverMessages, nextToken: nil)))
+    }
+    let model = AppModel(api: api())
+    let chief = ConversationSelection(kind: .bot, id: "chief")
+    model.bootstrap = DemoData.bootstrap
+    model.selection = chief
+    try await model.loadMessages()
+    XCTAssertEqual(model.loadedMessagesSelection, chief)
+    let previousIDs = model.messages.map(\.id)
+    let draftFile = Attachment(id: "draft-file", name: "draft.txt", size: 12,
+      kind: "file", format: "txt", contentType: "text/plain")
+    model.composerText = "Keep my unsent follow-up"
+    model.pendingAttachments = [draftFile]
+    model.sheet = .account
+    serverMessages.append(ChatMessage(id: "webhook-reply", role: "assistant", source: "webhook",
+      text: "New reply from the external source", createdAt: "2026-10-14T18:00:00Z", status: "complete"))
+
+    await model.openConversation(chief)
+
+    XCTAssertEqual(requests, ["GET /bots/chief/messages", "GET /bots/chief/messages"])
+    XCTAssertEqual(model.selection, chief)
+    XCTAssertEqual(model.loadedMessagesSelection, chief)
+    XCTAssertEqual(model.messages.map(\.id), previousIDs + ["webhook-reply"])
+    XCTAssertEqual(model.messages.last?.text, "New reply from the external source")
+    XCTAssertEqual(model.composerText, "Keep my unsent follow-up")
+    XCTAssertEqual(model.pendingAttachments, [draftFile])
+    XCTAssertNil(model.sheet)
+    XCTAssertEqual(model.notificationFocusRevision, 1)
+  }
+
+  func testOpeningConversationCannotPublishAReplyAfterSessionReplacement() async throws {
+    let started = expectation(description: "Conversation request started")
+    let release = DispatchSemaphore(value: 0)
+    defer { release.signal() }
+    var requests: [String] = []
+    WebhookURLProtocol.handler = { request in
+      requests.append(request.url?.path ?? "")
+      XCTAssertEqual(request.url?.path, "/bots/chief/messages")
+      started.fulfill()
+      release.wait()
+      return (200, Data(#"{"messages":[{"id":"stale-webhook-reply","role":"assistant","text":"Old account reply","createdAt":"2026-10-14T18:00:00Z","status":"complete"}]}"#.utf8))
+    }
+    let model = AppModel(api: api())
+    model.bootstrap = DemoData.bootstrap
+    let chief = ConversationSelection(kind: .bot, id: "chief")
+    model.selection = chief
+    let opening = Task { await model.openConversation(chief) }
+    await fulfillment(of: [started], timeout: 2)
+    model.resetSession()
+    model.connect(api())
+    model.bootstrap = DemoData.bootstrap
+    model.selection = chief
+    model.messages = DemoData.messages
+    model.composerText = "Replacement account draft"
+    model.sheet = .account
+    release.signal()
+    await opening.value
+
+    XCTAssertEqual(requests, ["/bots/chief/messages"])
+    XCTAssertEqual(model.messages, DemoData.messages)
+    XCTAssertEqual(model.composerText, "Replacement account draft")
+    XCTAssertEqual(model.sheet, .account)
+    XCTAssertNil(model.loadedMessagesSelection)
+    XCTAssertEqual(model.notificationFocusRevision, 0)
+  }
+
   func testCreateSourceUsesAuthenticatedContractAndDecodesOneTimeCredentials() async throws {
     WebhookURLProtocol.handler = { request in
       XCTAssertEqual(request.url?.path, "/webhook-sources")
