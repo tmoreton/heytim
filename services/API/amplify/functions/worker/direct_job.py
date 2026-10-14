@@ -11,8 +11,9 @@ from shared.action_grants import (
 from shared.device_tools import LOCAL_ONLY_DEVICE_TOOL_IDS
 from shared.job_envelope import send_job
 from shared.time import utc_now_iso
+from shared.webhooks import get_source as live_webhook_source
+from shared.webhooks import validate_choice as validate_webhook_choice
 from shared.work_state import is_claimable
-from shared.webhooks import get_source as live_webhook_source, validate_choice as validate_webhook_choice
 
 from .agent import _invoke, agent_failure_message
 from .approval_job import delete_approval_snapshot, queue_approval_expiry

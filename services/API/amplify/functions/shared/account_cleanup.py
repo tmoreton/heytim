@@ -17,8 +17,9 @@ from shared.memory_identity import direct_session_id, memory_actor_id, scoped_se
 from shared.plaid_ledger import item_mapping_key
 from shared.schedules import delete_remote_schedule
 from shared.storage import delete_object_versions
+from shared.webhooks import owner_key as webhook_owner_key
+from shared.webhooks import retire_secret as retire_webhook_secret
 from shared.work_state import IN_FLIGHT_STATUSES
-from shared.webhooks import owner_key as webhook_owner_key, retire_secret as retire_webhook_secret
 
 
 @dataclass(frozen=True)

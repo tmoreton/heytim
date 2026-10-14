@@ -11,13 +11,26 @@ import uuid
 from email.parser import BytesParser
 from email.policy import default
 
-from shared.account_state import (AccountInactiveError, UserItemConflictError,
-                                  UserItemGuardFailedError, account_accepts_writes,
-                                  put_user_item_while_account_active)
+from shared.account_state import (
+    AccountInactiveError,
+    UserItemConflictError,
+    UserItemGuardFailedError,
+    account_accepts_writes,
+    put_user_item_while_account_active,
+)
 from shared.job_envelope import send_job
-from shared.webhooks import (EVENT_RETENTION_SECONDS, MAX_TEXT, WebhookError, event_key,
-                             get_source, owner_key, public_event, source_key, text_at_path)
-from .support import ApiError, QUEUE_URL, _now, _response, catalog, sqs, table
+from shared.webhooks import (
+    EVENT_RETENTION_SECONDS,
+    MAX_TEXT,
+    WebhookError,
+    event_key,
+    get_source,
+    owner_key,
+    source_key,
+    text_at_path,
+)
+
+from .support import QUEUE_URL, ApiError, _now, _response, catalog, sqs, table
 
 MAX_BODY_BYTES = 3_000_000  # Fits Lambda's synchronous event limit after base64 expansion.
 
@@ -79,7 +92,7 @@ def authenticate(source: dict, secret: dict, raw: bytes, hs: dict) -> tuple[str 
         if mode == "hmac":
             raise WebhookError(401, "This source requires a signed webhook")
         authorization = hs.get("authorization", "")
-        if not hmac.compare_digest(authorization.encode("utf-8"), f"Bearer {secret['credential']}".encode("utf-8")):
+        if not hmac.compare_digest(authorization.encode("utf-8"), f"Bearer {secret['credential']}".encode()):
             raise WebhookError(401, "Webhook credential is invalid")
     return delivery, is_test
 

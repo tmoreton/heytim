@@ -8,10 +8,10 @@ from .external_oauth import _external_callback
 from .finance_connections import _plaid_callback, _quickbooks_callback
 from .github_oauth import _github_callback
 from .github_webhook import github_issue_webhook
-from .webhook_ingress import incoming_webhook
 from .google_oauth import _google_callback
 from .sharing import _public_invite_preview
 from .support import ApiError, _response, catalog
+from .webhook_ingress import incoming_webhook
 from .x_oauth import _x_callback
 
 logger = logging.getLogger(__name__)

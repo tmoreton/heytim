@@ -5,12 +5,19 @@ import hmac
 import json
 import time
 import uuid
-from unittest.mock import patch
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from api_test_case import ApiTestCase
-from shared.webhooks import (MODEL_ID, MODEL_REVISION, WebhookError, event_key,
-                             owner_key, public_source, routing_device_key, source_key)
+from shared.webhooks import (
+    MODEL_ID,
+    MODEL_REVISION,
+    WebhookError,
+    event_key,
+    owner_key,
+    public_source,
+    source_key,
+)
 
 
 class WebhookTests(ApiTestCase):

@@ -4,17 +4,32 @@ from __future__ import annotations
 import time
 import uuid
 
-from shared.account_state import (AccountInactiveError, UserItemConflictError,
-                                  UserItemGuardFailedError, account_accepts_writes,
-                                  put_user_item_while_account_active)
+from shared.account_state import (
+    AccountInactiveError,
+    UserItemConflictError,
+    UserItemGuardFailedError,
+    account_accepts_writes,
+    put_user_item_while_account_active,
+)
 from shared.ai_consent import ConsentRequired
 from shared.browser_session_store import BrowserSessionError
 from shared.browser_sessions import ensure_browser_send_allowed
 from shared.job_envelope import send_job
-from shared.webhooks import (WebhookError, event_key, get_event, get_source, source_key,
-                             validate_choice)
+from shared.webhooks import (
+    WebhookError,
+    event_key,
+    get_event,
+    get_source,
+    source_key,
+    validate_choice,
+)
+
 from .ai_consent import grants_for_job
-from .email_inbound_job import _active_turn_exists, _claim_send_lease, _release_send_lease
+from .email_inbound_job import (
+    _active_turn_exists,
+    _claim_send_lease,
+    _release_send_lease,
+)
 from .support import QUEUE_URL, _bot_key, _turn_pk, sqs, table
 
 

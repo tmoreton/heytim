@@ -7,14 +7,32 @@ import secrets
 import time
 from datetime import UTC, datetime
 
-from shared.account_state import account_accepts_writes, put_user_item_while_account_active
+from shared.account_state import (
+    put_user_item_while_account_active,
+)
 from shared.job_envelope import send_job
-from shared.webhooks import (DEVICE_LEASE_SECONDS, MODEL_ID, MODEL_REVISION, ROUTING_LEASE_SECONDS,
-                             WebhookError, eligible_bots, event_key, get_event, get_source, identifier,
-                             number, partition, public_event, request_digest, routing_device_key,
-                             validate_choice, reasoning_decision)
+from shared.webhooks import (
+    DEVICE_LEASE_SECONDS,
+    MODEL_ID,
+    MODEL_REVISION,
+    ROUTING_LEASE_SECONDS,
+    WebhookError,
+    eligible_bots,
+    event_key,
+    get_event,
+    get_source,
+    identifier,
+    number,
+    partition,
+    public_event,
+    reasoning_decision,
+    request_digest,
+    routing_device_key,
+    validate_choice,
+)
+
 from .ai_consent import require_request_consent
-from .support import ApiError, QUEUE_URL, _body, _now, _response, sqs, table
+from .support import QUEUE_URL, ApiError, _body, _response, sqs, table
 from .webhook_sources import delete_source, list_sources, rotate_source, save_source
 
 

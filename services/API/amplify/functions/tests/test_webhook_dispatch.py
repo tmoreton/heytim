@@ -6,8 +6,8 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from worker_test_case import WorkerTestCase
 from shared.webhooks import event_key, source_key
+from worker_test_case import WorkerTestCase
 
 
 class WebhookDispatchTests(WorkerTestCase):

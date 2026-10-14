@@ -6,7 +6,6 @@ from typing import Any
 from shared.job_envelope import decode_job
 
 from .account_cleanup import _delete_account
-from .webhook_job import process_webhook_dispatch, recover_webhook_dispatches
 from .approval_job import process_approval_expiry
 from .background_work import _process_background_work
 from .device_calls import process_device_call_expiry
@@ -24,6 +23,7 @@ from .plaid_sync import delete_plaid_ledger, process_plaid_sync
 from .scheduled_group_job import _process_scheduled_group_round
 from .scheduled_job import _process_scheduled_agent_reply, _request_string
 from .support import ACTIVE_VISIBILITY_SECONDS, QUEUE_URL, catalog, sqs
+from .webhook_job import process_webhook_dispatch, recover_webhook_dispatches
 
 RETRY_VISIBILITY_SECONDS = 10
 

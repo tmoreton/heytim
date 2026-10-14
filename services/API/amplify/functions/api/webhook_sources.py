@@ -1,19 +1,33 @@
 """User-managed webhook sources. Credentials are revealed only on create/rotate."""
 from __future__ import annotations
 
-import os
-import time
 import logging
-from functools import wraps
-from contextvars import ContextVar
+import os
 import secrets
+import time
 import uuid
+from contextvars import ContextVar
+from functools import wraps
 
-from shared.account_state import put_user_item_while_account_active, UserItemConflictError, UserItemGuardFailedError
-from shared.webhooks import (MAX_SOURCES, WebhookError, eligible_bots, get_source,
-                             owner_key, partition, public_source, source_key, retire_secret, validate_text_path)
-from .support import catalog, table, _now
+from shared.account_state import (
+    UserItemConflictError,
+    UserItemGuardFailedError,
+    put_user_item_while_account_active,
+)
+from shared.webhooks import (
+    MAX_SOURCES,
+    WebhookError,
+    eligible_bots,
+    get_source,
+    owner_key,
+    partition,
+    public_source,
+    retire_secret,
+    source_key,
+    validate_text_path,
+)
 
+from .support import _now, catalog, table
 
 _mutation_owner = ContextVar("webhook_mutation_owner", default="")
 logger = logging.getLogger(__name__)
@@ -48,7 +62,7 @@ def _source_mutation(function):
             try:
                 table.delete_item(Key=key, ConditionExpression="mutationOwner = :owner",
                                   ExpressionAttributeValues={":owner": owner})
-            except Exception:
+            except Exception:  # noqa: BLE001 - TTL recovers this best-effort lease release; keep SDK details private.
                 logger.warning("Webhook source mutation lease will expire automatically")
     return serialized
 
@@ -164,7 +178,7 @@ def rotate_source(user_id: str, source_id: str, event: dict) -> dict:
     for old_arn in retired:
         try:
             retire_secret(catalog, old_arn)
-        except Exception:
+        except Exception:  # noqa: BLE001 - account cleanup retries revocation; never log secret-bearing SDK details.
             logger.warning("Retired webhook credential deletion will be retried at account cleanup")
     return {"source": public_source(item, _base_url(event)),
             "credential": credential, "signingSecret": signing_secret}
