@@ -50,6 +50,18 @@ import XCTest
     XCTAssertTrue(resultSeen)
   }
 
+  func testSourceToggleDoesNotResubmitStaleConfiguration() async throws {
+    let source = try JSONDecoder().decode(WebhookCredential.self, from: Data(Self.credential.utf8)).source
+    WebhookURLProtocol.handler = { request in
+      XCTAssertEqual(request.httpMethod, "PUT")
+      XCTAssertEqual(request.url?.path, "/webhook-sources/source-1")
+      let body = try JSONSerialization.jsonObject(with: Self.body(request)) as! [String: Bool]
+      XCTAssertEqual(body, ["enabled": false])
+      return (200, Data(Self.credential.utf8))
+    }
+    try await api().updateWebhookSource(source, enabled: false)
+  }
+
   func testAbstentionDoesNotSubmitAnAutomaticDestination() async throws {
     WebhookURLProtocol.handler = { request in
       let body = try JSONSerialization.jsonObject(with: Self.body(request)) as! [String: Any]

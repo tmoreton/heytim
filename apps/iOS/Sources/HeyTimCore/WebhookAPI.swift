@@ -16,10 +16,8 @@ extension HeyTimAPI {
   }
 
   public func updateWebhookSource(_ source: WebhookSource, enabled: Bool) async throws {
-    var draft = WebhookSourceDraft(source: source)
-    draft.enabled = enabled
     let _: SourcePage = try await request(
-      .webhookSourceUpdate, parameters: ["sourceId": source.id], body: draft)
+      .webhookSourceUpdate, parameters: ["sourceId": source.id], body: ["enabled": enabled])
   }
 
   public func deleteWebhookSource(_ id: String) async throws {

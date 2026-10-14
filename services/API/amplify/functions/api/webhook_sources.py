@@ -98,11 +98,15 @@ def _values(user_id: str, value: dict, previous: dict | None = None) -> dict:
             or any(not isinstance(item, str) or not 1 <= len(item) <= 100 for item in allowed)
             or len(allowed) != len(set(allowed))):
         raise WebhookError(400, "allowedBotIds must be a unique list of bot identifiers")
-    owned = {bot["id"] for bot in eligible_bots(table, user_id, {"allowedBotIds": []})}
-    if not set(allowed).issubset(owned):
-        raise WebhookError(400, "Every allowed bot must belong to this account")
-    if fallback is not None and (not isinstance(fallback, str) or fallback not in owned or (allowed and fallback not in allowed)):
-        raise WebhookError(400, "fallbackBotId must be an eligible bot")
+    # Revocation must remain possible after a previously permitted bot is deleted.
+    # Only an existing-source disable with no configuration fields gets this path.
+    disable_only = bool(previous) and set(value) == {"enabled"} and enabled is False
+    if not disable_only:
+        owned = {bot["id"] for bot in eligible_bots(table, user_id, {"allowedBotIds": []})}
+        if not set(allowed).issubset(owned):
+            raise WebhookError(400, "Every allowed bot must belong to this account")
+        if fallback is not None and (not isinstance(fallback, str) or fallback not in owned or (allowed and fallback not in allowed)):
+            raise WebhookError(400, "fallbackBotId must be an eligible bot")
     if mode == "fixed" and not fallback:
         raise WebhookError(400, "Fixed routing requires fallbackBotId")
     return {"name": name.strip(), "kind": kind, "routingMode": mode,

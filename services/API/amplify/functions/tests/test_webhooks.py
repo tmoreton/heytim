@@ -198,6 +198,41 @@ class WebhookTests(ApiTestCase):
             self.assertFalse(disabled["source"]["enabled"])
             self.assertNotIn("credential", disabled)
 
+    def test_partial_disable_preserves_deleted_bot_references_but_reenable_requires_valid_configuration(self):
+        self.source.update(routingMode="fixed", allowedBotIds=["bot-1"], fallbackBotId="bot-1")
+        self._put(self.source)
+        self.data_table.delete_item(Key={"pk": "USER#owner-1", "sk": "BOT#bot-1"})
+        disabled = self.sources.save_source(self.user_id, {"enabled": False}, {}, self.source_id)["source"]
+        self.assertFalse(disabled["enabled"])
+        self.assertEqual(disabled["allowedBotIds"], ["bot-1"])
+        self.assertEqual(disabled["fallbackBotId"], "bot-1")
+        self.assertEqual(disabled["name"], self.source["name"])
+        with self.assertRaises(WebhookError):
+            self.ingress.ingest(self._json(), self.source_id)
+        with self.assertRaises(WebhookError):
+            self.sources.save_source(self.user_id, {"enabled": True}, {}, self.source_id)
+        stored = self.data_table.get_item(Key=source_key(self.user_id, self.source_id))["Item"]
+        self.assertFalse(stored["enabled"])
+        self._put({"pk": "USER#owner-1", "sk": "BOT#bot-2", "entity": "BOT", "id": "bot-2"})
+        repaired = self.sources.save_source(self.user_id, {"enabled": True,
+            "allowedBotIds": ["bot-2"], "fallbackBotId": "bot-2"}, {}, self.source_id)["source"]
+        self.assertTrue(repaired["enabled"])
+        self.assertEqual(repaired["fallbackBotId"], "bot-2")
+
+    def test_disable_does_not_bypass_foreign_bot_validation_for_creates_or_configuration_updates(self):
+        foreign = {"enabled": False, "allowedBotIds": ["foreign-bot"], "fallbackBotId": "foreign-bot"}
+        with patch.object(self.sources.catalog, "_create_secret") as create_secret:
+            with self.assertRaises(WebhookError):
+                self.sources.save_source(self.user_id, foreign, {})
+            create_secret.assert_not_called()
+        with self.assertRaises(WebhookError):
+            self.sources.save_source(self.user_id, foreign, {}, self.source_id)
+        with self.assertRaises(WebhookError):
+            self.sources.save_source(self.user_id, {"enabled": 0}, {}, self.source_id)
+        stored = self.data_table.get_item(Key=source_key(self.user_id, self.source_id))["Item"]
+        self.assertTrue(stored["enabled"])
+        self.assertEqual(stored["allowedBotIds"], [])
+
     def test_unsigned_pebble_retry_boundary_changes_keep_one_recording_identity(self):
         self.source["kind"] = "pebble"; self._put(self.source)
         event = self._pebble()
