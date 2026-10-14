@@ -12,3 +12,4 @@ services/runtime/evals/results/
 # Generated local verification evidence. Keep intentional media in output/.
 output/e2e-*/
 output/*.xcresult/
+output/webhook-routing/

@@ -125,6 +125,7 @@ preserve the retired repositories. See
 - [Production release](docs/production-release.md)
 - [Operations and recovery](docs/operations.md)
 - [Integrations](docs/integrations.md)
+- [Webhooks and local Mac routing](docs/webhooks-and-local-routing.md)
 - [Public launch checklist](docs/public-launch-checklist.md)
 - [Support](SUPPORT.md)
 - [Catalog contribution and safety](catalog/CONTRIBUTING.md)

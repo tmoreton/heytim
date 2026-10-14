@@ -6,6 +6,7 @@ on:
     paths:
       - apps/iOS/**
       - packages/heytim-transcription/**
+      - packages/heytim-decider/**
       - services/API/amplify/functions/api/api-contract.json
       - services/API/scripts/generate-api-contract.mjs
       - services/API/scripts/generate-platform-contract.mjs
@@ -19,6 +20,7 @@ on:
     paths:
       - apps/iOS/**
       - packages/heytim-transcription/**
+      - packages/heytim-decider/**
       - services/API/amplify/functions/api/api-contract.json
       - services/API/scripts/generate-api-contract.mjs
       - services/API/scripts/generate-platform-contract.mjs

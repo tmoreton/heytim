@@ -23,6 +23,7 @@ from .plaid_sync import delete_plaid_ledger, process_plaid_sync
 from .scheduled_group_job import _process_scheduled_group_round
 from .scheduled_job import _process_scheduled_agent_reply, _request_string
 from .support import ACTIVE_VISIBILITY_SECONDS, QUEUE_URL, catalog, sqs
+from .webhook_job import process_webhook_dispatch, recover_webhook_dispatches
 
 RETRY_VISIBILITY_SECONDS = 10
 
@@ -32,7 +33,11 @@ logger = logging.getLogger(__name__)
 def _process(record: dict) -> None:
     request = decode_job(record["body"])
     request_type = request["type"]
+    if request_type == "WEBHOOK_DISPATCH":
+        process_webhook_dispatch(record, request)
+        return
     if request_type == "CATALOG_REFRESH":
+        recover_webhook_dispatches()
         catalog.sync_official(force=True)
         return
     if request_type == "PLAID_SYNC":

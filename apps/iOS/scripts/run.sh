@@ -35,6 +35,9 @@ project="$apple_root/HeyTimApple.xcodeproj"
 derived_data="${HEYTIM_DERIVED_DATA:-/tmp/HeyTimAppleDerivedData}"
 
 "$apple_root/scripts/prepare-transcription.sh"
+if [[ "$platform" == macos || "$platform" == all ]]; then
+  "$apple_root/scripts/prepare-decider.sh"
+fi
 
 build_macos() {
     xcodebuild build -quiet \

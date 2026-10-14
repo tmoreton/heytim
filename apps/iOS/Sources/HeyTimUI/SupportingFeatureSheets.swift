@@ -1203,7 +1203,7 @@ private struct MemoryExportDocument: FileDocument {
   }
 }
 
-private struct SettingsNavigationLabel: View {
+struct SettingsNavigationLabel: View {
   let title: String
   let detail: String
   let systemImage: String
@@ -1270,32 +1270,7 @@ struct AccountView: View {
         }
       }
 
-      Section("Workspace") {
-        FeatureLink {
-          MemoriesView(model: model, groupId: nil, showsDismissButton: false)
-        } label: {
-          SettingsNavigationLabel(
-            title: "Memory",
-            detail: "Review facts and preferences shared across your bots.",
-            systemImage: "brain.head.profile")
-        }
-        FeatureLink {
-          SkillsView(model: model, showsDismissButton: false)
-        } label: {
-          SettingsNavigationLabel(
-            title: "Tools & Skills",
-            detail: "Browse playbooks and available capabilities.",
-            systemImage: "wrench.and.screwdriver")
-        }
-        FeatureLink {
-          ConnectionsView(model: model, showsDismissButton: false)
-        } label: {
-          SettingsNavigationLabel(
-            title: "Accounts & MCP Servers",
-            detail: "Connect, reconnect, or remove external services.",
-            systemImage: "link")
-        }
-      }
+      WorkspaceSettingsSection(model: model)
 
       billingSection
 

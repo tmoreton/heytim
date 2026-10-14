@@ -361,6 +361,8 @@ def _invoke(
         else:
             tool_ids.append("bot_manager")
             bot_management = _bot_management_context(user_id, bot)
+    blocked_tool_ids = {"apple_health"} if allow_bot_management else {"apple_health", "bot_manager"}
+    tool_ids = [tool_id for tool_id in tool_ids if tool_id not in blocked_tool_ids]
     jira_project_access = bot.get("jiraProjectAccess")
     teams_channel_access = bot.get("teamsChannelAccess")
     resource_access = bot.get("resourceAccess")
@@ -374,7 +376,7 @@ def _invoke(
             user_id, tool_ids, bot.get("githubRepositoryAccess", {})
         )
     )
-    resolved_tools = [tool for tool in resolved_tools if tool.get("id") != "apple_health"]
+    resolved_tools = [tool for tool in resolved_tools if tool.get("id") not in blocked_tool_ids]
     for resolved in resolved_tools:
         runtime = resolved.get("runtime", {})
         if runtime.get("provider") != "plaid":
@@ -392,7 +394,7 @@ def _invoke(
             runtime["ledgerObjectKey"] = object_key
             runtime["ledgerLastSyncedAt"] = state.get("lastSyncedAt", "")
             runtime["ledgerHistoricalComplete"] = state.get("historicalComplete") is True
-    if device_result is None:
+    if device_result is None:  # Resumes retain the interrupted device tool.
         if allow_device_tools:
             resolved_tools = available_device_tools(
                 table, user_id, bot_id, resolved_tools
@@ -403,10 +405,10 @@ def _invoke(
                 for item in resolved_tools
                 if item.get("runtime", {}).get("kind") != "device"
             ]
-    # On resume, keep the interrupted device tool registered; later calls are re-authorized.
     uses_youtube_search = _uses_youtube_search(resolved_tools)
     payload = {
         "aiConsent": {"version": 1, "subjects": consent_grants},
+        "inputProvenance": bot.get("inputProvenance"),
         "messages": (
             history
             if history is not None

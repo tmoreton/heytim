@@ -114,7 +114,7 @@ test('requires protected key values before any API call', async () => {
   assert.equal(called, false);
 });
 
-test('reports only HeyTim build status and owner membership booleans', async () => {
+test('reports HeyTim status and deduplicated audience counts without tester identities', async () => {
   const calls = [];
   const privateName = 'Private Person';
   const privateEmail = 'private@example.invalid';
@@ -145,6 +145,12 @@ test('reports only HeyTim build status and owner membership booleans', async () 
     { data: [{
       type: 'betaTesters', id: 'private-tester',
       attributes: { email: 'OWNER@example.invalid', state: 'ACCEPTED', firstName: privateName },
+    }, {
+      type: 'betaTesters', id: 'other-tester',
+      attributes: { email: privateEmail, state: 'INSTALLED', firstName: privateName },
+    }, {
+      type: 'betaTesters', id: 'duplicate-tester-record',
+      attributes: { email: privateEmail.toUpperCase(), state: 'INSTALLED' },
     }] },
   ];
   const fetchImpl = async (url, options) => {
@@ -157,6 +163,10 @@ test('reports only HeyTim build status and owner membership booleans', async () 
   assert.match(summary, /Internal tester group available: \*\*yes\*\*/);
   assert.match(summary, /Expected owner in an all-builds internal group: \*\*yes\*\*/);
   assert.match(summary, /Expected owner accepted or installed: \*\*yes\*\*/);
+  assert.equal(inventory.internalTesterCount, 2);
+  assert.equal(inventory.allBuildsInternalTesterCount, 2);
+  assert.equal(inventory.otherAllBuildsInternalTesterCount, 1);
+  assert.match(summary, /All-builds internal testers other than the expected owner: \*\*1\*\*/);
   assert.doesNotMatch(summary, /Private Person|private@example\.invalid|owner@example\.invalid|opaque-build/);
   assert.equal(calls.length, 4);
   assert.ok(calls.every(call => call.options.method === 'GET'
@@ -247,6 +257,22 @@ test('compares the unique Apple Account Holder privately when no expected email 
   });
   assert.equal(inventory.identitySource, 'Apple Account Holder');
   assert.equal(inventory.ownerInAllBuildsInternalGroup, true);
+  assert.equal(inventory.allBuildsInternalTesterCount, 1);
+  assert.equal(inventory.otherAllBuildsInternalTesterCount, 0);
   assert.doesNotMatch(renderSummary(inventory), /holder@example\.invalid/i);
   assert.ok(calls[0].includes('/v1/users?filter%5Broles%5D=ACCOUNT_HOLDER'));
+});
+
+test('an unreadable internal tester prevents an incomplete audience count', async () => {
+  const responses = [
+    { data: [{ type: 'apps', id: '123456789', attributes: { bundleId: 'ai.heytim.app' } }] },
+    { data: [], included: [] },
+    { data: [{ type: 'betaGroups', id: 'internal-1', attributes: {
+      isInternalGroup: true, hasAccessToAllBuilds: true,
+    } }] },
+    { data: [{ type: 'betaTesters', attributes: { state: 'ACCEPTED' } }] },
+  ];
+  await assert.rejects(inspectAppStoreConnect(credentials, async () => ({
+    ok: true, json: async () => responses.shift(),
+  })), /audience review is incomplete/);
 });

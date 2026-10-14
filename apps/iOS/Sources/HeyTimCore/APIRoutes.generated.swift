@@ -138,6 +138,18 @@ public enum APIRouteID: String, CaseIterable, Sendable {
     case connectionAuthorize
     case connectionDelete
     case accountDelete
+    case webhookSourceList
+    case webhookSourceCreate
+    case webhookSourceUpdate
+    case webhookSourceDelete
+    case webhookSourceRotate
+    case webhookEventList
+    case webhookEventRoute
+    case routingDevicePut
+    case routingDeviceDelete
+    case routingRequestList
+    case routingRequestResult
+    case incomingWebhook
 }
 
 public enum APIContractError: Error, Equatable, Sendable {
@@ -923,6 +935,78 @@ public enum GeneratedAPIContract {
             method: .delete,
             pathTemplate: "/account",
             access: .authenticated
+        ),
+        .webhookSourceList: APIContractRoute(
+            id: .webhookSourceList,
+            method: .get,
+            pathTemplate: "/webhook-sources",
+            access: .authenticated
+        ),
+        .webhookSourceCreate: APIContractRoute(
+            id: .webhookSourceCreate,
+            method: .post,
+            pathTemplate: "/webhook-sources",
+            access: .authenticated
+        ),
+        .webhookSourceUpdate: APIContractRoute(
+            id: .webhookSourceUpdate,
+            method: .put,
+            pathTemplate: "/webhook-sources/{sourceId}",
+            access: .authenticated
+        ),
+        .webhookSourceDelete: APIContractRoute(
+            id: .webhookSourceDelete,
+            method: .delete,
+            pathTemplate: "/webhook-sources/{sourceId}",
+            access: .authenticated
+        ),
+        .webhookSourceRotate: APIContractRoute(
+            id: .webhookSourceRotate,
+            method: .post,
+            pathTemplate: "/webhook-sources/{sourceId}/rotate",
+            access: .authenticated
+        ),
+        .webhookEventList: APIContractRoute(
+            id: .webhookEventList,
+            method: .get,
+            pathTemplate: "/webhook-events",
+            access: .authenticated
+        ),
+        .webhookEventRoute: APIContractRoute(
+            id: .webhookEventRoute,
+            method: .post,
+            pathTemplate: "/webhook-events/{eventId}/route",
+            access: .authenticated
+        ),
+        .routingDevicePut: APIContractRoute(
+            id: .routingDevicePut,
+            method: .put,
+            pathTemplate: "/devices/{deviceId}/routing",
+            access: .authenticated
+        ),
+        .routingDeviceDelete: APIContractRoute(
+            id: .routingDeviceDelete,
+            method: .delete,
+            pathTemplate: "/devices/{deviceId}/routing",
+            access: .authenticated
+        ),
+        .routingRequestList: APIContractRoute(
+            id: .routingRequestList,
+            method: .get,
+            pathTemplate: "/devices/{deviceId}/routing-requests",
+            access: .authenticated
+        ),
+        .routingRequestResult: APIContractRoute(
+            id: .routingRequestResult,
+            method: .post,
+            pathTemplate: "/devices/{deviceId}/routing-requests/{requestId}/result",
+            access: .authenticated
+        ),
+        .incomingWebhook: APIContractRoute(
+            id: .incomingWebhook,
+            method: .post,
+            pathTemplate: "/public/webhooks/incoming/{sourceId}",
+            access: .publicAccess
         ),
     ]
 

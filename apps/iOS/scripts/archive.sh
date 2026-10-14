@@ -102,6 +102,9 @@ if [[ -e "$archive_path" ]]; then
 fi
 
 "$apple_root/scripts/prepare-transcription.sh"
+if [[ "$platform" == macos ]]; then
+  "$apple_root/scripts/prepare-decider.sh"
+fi
 mkdir -p "$archives_root"
 
 archive_args=(

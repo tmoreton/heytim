@@ -137,6 +137,8 @@ def put_user_item_while_account_active(
     require_absent: bool = False,
     expected_secret_arn: str | None = None,
     required_item_condition: dict | None = None,
+    expected_item_fields: dict | None = None,
+    additional_put_items: list[dict] | None = None,
 ) -> None:
     if require_absent and expected_secret_arn is not None:
         raise ValueError("A conditional user write cannot have two expectations")
@@ -157,6 +159,16 @@ def put_user_item_while_account_active(
                 },
             }
         )
+    if expected_item_fields:
+        clauses = []
+        for index, (field, expected) in enumerate(expected_item_fields.items()):
+            alias, parameter = f"#expected{index}", f":expected{index}"
+            clauses.append(f"{alias} = {parameter}")
+            put.setdefault("ExpressionAttributeNames", {})[alias] = field
+            put.setdefault("ExpressionAttributeValues", {})[parameter] = expected
+        original = put.get("ConditionExpression")
+        put["ConditionExpression"] = " AND ".join(([f"({original})"] if original else []) + clauses)
+        has_item_condition = True
     transact_items = [
         {
             "ConditionCheck": {
@@ -181,6 +193,9 @@ def put_user_item_while_account_active(
             "ConditionCheck": {"TableName": table.name, **required_item_condition}
         })
     transact_items.append({"Put": put})
+    for extra in additional_put_items or []:
+        transact_items.append({"Put": {"TableName": table.name, "Item": extra,
+                                      "ConditionExpression": "attribute_not_exists(pk)"}})
     token = _transaction_token(
         user_id,
         item,
@@ -188,6 +203,8 @@ def put_user_item_while_account_active(
         expected_secret_arn=expected_secret_arn,
         required_item_condition=required_item_condition,
     )
+    if expected_item_fields or additional_put_items:
+        token = hashlib.sha256(json.dumps(transact_items, default=repr, sort_keys=True).encode()).hexdigest()[:32]
     client = table.meta.client
     delays = (0.0, *TRANSACTION_SETTLEMENT_DELAYS_SECONDS)
     last_error: BotoCoreError | ClientError | None = None

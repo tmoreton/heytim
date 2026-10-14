@@ -1,0 +1,123 @@
+{
+  "description": "Final acceptance inputs authored after freezing the semantic rubric and concentration thresholds. Do not tune policy or rubric against these inputs.",
+  "cases": [
+    {
+      "id": "final-trip-logistics",
+      "text": "Plan a seven-day vacation in Portugal for two adults and a teenager. Compare Lisbon and Porto, account for train travel, a nut allergy, a tight daily budget and museum opening hours, then give us a realistic itinerary.",
+      "botId": "trip-planner",
+      "effort": "high"
+    },
+    {
+      "id": "final-budget-total",
+      "text": "Add these two household expenses: thirty dollars for gas and fifteen dollars for groceries. Give only the total expense.",
+      "botId": "budget-planner",
+      "effort": "low"
+    },
+    {
+      "id": "final-fact-capital",
+      "text": "Quick factual question: what is the capital city of Italy?",
+      "botId": "research-reports",
+      "effort": "low"
+    },
+    {
+      "id": "final-fact-time",
+      "text": "How many seconds are there in one minute?",
+      "botId": "research-reports",
+      "effort": "low"
+    },
+    {
+      "id": "final-research-evidence",
+      "text": "Research solar panels versus a small wind turbine for a rural household. Compare seasonal output, installation and maintenance costs, permitting assumptions and the reliability of the evidence before recommending one.",
+      "botId": "research-reports",
+      "effort": "high"
+    },
+    {
+      "id": "final-formal-design",
+      "text": "Produce an exhaustive technical report on a replicated distributed ledger. Prove its safety and liveness invariants under Byzantine behavior, partitions and crash recovery, analyze combinations of failure modes, and synthesize competing protocol designs into a justified architecture.",
+      "botId": "research-reports",
+      "effort": "max"
+    },
+    {
+      "id": "final-meme-caption",
+      "text": "Make a simple two-button meme. The buttons say fix the bug and add another feature, and the sweating person is me.",
+      "botId": "meme-maker",
+      "effort": "low"
+    },
+    {
+      "id": "final-mac-open",
+      "text": "Open TextEdit on my Mac, please.",
+      "botId": "mac-operator",
+      "effort": "low"
+    },
+    {
+      "id": "final-ambiguous",
+      "text": "Could you sort that out for me when you get a chance?",
+      "botId": null,
+      "effort": "low"
+    },
+    {
+      "id": "final-fiction",
+      "text": "Tell me an original fantasy story about a dragon who collects umbrellas.",
+      "botId": null,
+      "effort": "low"
+    }
+  ],
+  "bots": [
+    {
+      "id": "trip-planner",
+      "name": "Trip Planner",
+      "description": "Plans vacations and travel: destinations, itineraries, flights, hotels, packing and accessibility.",
+      "toolIds": [
+        "web-search"
+      ],
+      "skillIds": [
+        "trip-planner"
+      ],
+      "reasoningEffort": "high"
+    },
+    {
+      "id": "budget-planner",
+      "name": "Budget Planner",
+      "description": "Builds household or group budgets, calculates expenses and fair cost splits, compares financial scenarios.",
+      "toolIds": [],
+      "skillIds": [
+        "shared-budget"
+      ],
+      "reasoningEffort": "high"
+    },
+    {
+      "id": "research-reports",
+      "name": "Research & Reports",
+      "description": "Finds reliable factual answers, researches technical and scientific questions, compares evidence and writes reports.",
+      "toolIds": [
+        "web-search"
+      ],
+      "skillIds": [
+        "deep-research"
+      ],
+      "reasoningEffort": "high"
+    },
+    {
+      "id": "mac-operator",
+      "name": "Mac Operator",
+      "description": "Operates websites and authorized Mac apps: opens apps, navigates screens, edits visible forms and verifies actions.",
+      "toolIds": [
+        "mac-computer"
+      ],
+      "skillIds": [
+        "computer-operator"
+      ],
+      "reasoningEffort": "high"
+    },
+    {
+      "id": "meme-maker",
+      "name": "Meme Lord",
+      "description": "Creates funny memes from image templates or user-supplied images and caption text.",
+      "toolIds": [],
+      "skillIds": [
+        "meme-maker"
+      ],
+      "reasoningEffort": "low"
+    }
+  ]
+}

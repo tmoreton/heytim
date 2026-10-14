@@ -136,6 +136,18 @@
     { "id": "connectionAuthorize", "method": "POST", "path": "/connections/{providerId}/authorization", "access": "authenticated", "handler": "library" },
     { "id": "connectionDelete", "method": "DELETE", "path": "/connections/{connectionId}", "access": "authenticated", "handler": "library" },
 
-    { "id": "accountDelete", "method": "DELETE", "path": "/account", "access": "authenticated", "handler": "account" }
+    { "id": "accountDelete", "method": "DELETE", "path": "/account", "access": "authenticated", "handler": "account" },
+    {"id": "webhookSourceList", "method": "GET", "path": "/webhook-sources", "access": "authenticated", "handler": "webhook"},
+    {"id": "webhookSourceCreate", "method": "POST", "path": "/webhook-sources", "access": "authenticated", "handler": "webhook"},
+    {"id": "webhookSourceUpdate", "method": "PUT", "path": "/webhook-sources/{sourceId}", "access": "authenticated", "handler": "webhook"},
+    {"id": "webhookSourceDelete", "method": "DELETE", "path": "/webhook-sources/{sourceId}", "access": "authenticated", "handler": "webhook"},
+    {"id": "webhookSourceRotate", "method": "POST", "path": "/webhook-sources/{sourceId}/rotate", "access": "authenticated", "handler": "webhook"},
+    {"id": "webhookEventList", "method": "GET", "path": "/webhook-events", "access": "authenticated", "handler": "webhook"},
+    {"id": "webhookEventRoute", "method": "POST", "path": "/webhook-events/{eventId}/route", "access": "authenticated", "handler": "webhook"},
+    {"id": "routingDevicePut", "method": "PUT", "path": "/devices/{deviceId}/routing", "access": "authenticated", "handler": "webhook"},
+    {"id": "routingDeviceDelete", "method": "DELETE", "path": "/devices/{deviceId}/routing", "access": "authenticated", "handler": "webhook"},
+    {"id": "routingRequestList", "method": "GET", "path": "/devices/{deviceId}/routing-requests", "access": "authenticated", "handler": "webhook"},
+    {"id": "routingRequestResult", "method": "POST", "path": "/devices/{deviceId}/routing-requests/{requestId}/result", "access": "authenticated", "handler": "webhook"},
+    {"id": "incomingWebhook", "method": "POST", "path": "/public/webhooks/incoming/{sourceId}", "access": "public", "handler": "public"}
   ]
 }

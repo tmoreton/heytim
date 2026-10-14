@@ -167,6 +167,8 @@ export async function inspectAppStoreConnect(credentials, fetchImpl = fetch) {
   let ownerInInternalGroup = false;
   let ownerInAllBuildsInternalGroup = false;
   let ownerAcceptedOrInstalled = false;
+  const internalTesters = new Set();
+  const allBuildsInternalTesters = new Set();
   for (let page = 0; next && page < 20; page += 1) {
     const groups = await getJson(next, token, fetchImpl);
     if (!Array.isArray(groups.data)) {
@@ -195,6 +197,12 @@ export async function inspectAppStoreConnect(credentials, fetchImpl = fetch) {
             }
             const email = tester.attributes?.email;
             const state = tester.attributes?.state;
+            if (typeof email !== 'string' || !email.trim() || email.length > 320) {
+              throw new InventoryError('Apple returned an unreadable internal tester identity; audience review is incomplete.');
+            }
+            const normalizedEmail = email.trim().toLowerCase();
+            internalTesters.add(normalizedEmail);
+            if (group.attributes.hasAccessToAllBuilds === true) allBuildsInternalTesters.add(normalizedEmail);
             if (typeof email === 'string' && email.trim().toLowerCase() === expectedTesterEmail
               && ['INVITED', 'ACCEPTED', 'INSTALLED'].includes(state)) {
               ownerInInternalGroup = true;
@@ -238,6 +246,9 @@ export async function inspectAppStoreConnect(credentials, fetchImpl = fetch) {
   return {
     bundleId: BUNDLE_ID, identitySource, recentBuilds, internalGroupCount, allBuildsInternalGroupCount,
     ownerInInternalGroup, ownerInAllBuildsInternalGroup, ownerAcceptedOrInstalled,
+    internalTesterCount: internalTesters.size,
+    allBuildsInternalTesterCount: allBuildsInternalTesters.size,
+    otherAllBuildsInternalTesterCount: [...allBuildsInternalTesters].filter(email => email !== expectedTesterEmail).length,
   };
 }
 
@@ -251,6 +262,9 @@ export function renderSummary(inventory) {
     `${inventory.identitySource ?? 'Expected owner'} in an internal group: **${inventory.ownerInInternalGroup ? 'yes' : 'no'}**`,
     `${inventory.identitySource ?? 'Expected owner'} in an all-builds internal group: **${inventory.ownerInAllBuildsInternalGroup ? 'yes' : 'no'}**`,
     `${inventory.identitySource ?? 'Expected owner'} accepted or installed: **${inventory.ownerAcceptedOrInstalled ? 'yes' : 'no'}**`,
+    `Unique internal tester records: **${inventory.internalTesterCount}**`,
+    `Unique all-builds internal tester records: **${inventory.allBuildsInternalTesterCount}**`,
+    `All-builds internal testers other than the expected owner: **${inventory.otherAllBuildsInternalTesterCount}**`,
     '',
     '| iOS version | Build | Processing | Audience | Uploaded (UTC) |',
     '| --- | --- | --- | --- | --- |',

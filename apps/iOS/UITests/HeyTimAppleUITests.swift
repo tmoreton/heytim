@@ -1,6 +1,117 @@
 import XCTest
 
 @MainActor final class HeyTimAppleUITests: XCTestCase {
+  func testWebhookSettingsCanCreateASourceWithoutSendingLiveRequests() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing", "--ui-testing-two-bots", "--ui-testing-webhook-source"]
+    app.launchForUITesting()
+    func choose(_ title: String, from identifier: String, excluding excludedTitle: String? = nil) {
+      let picker = app.descendants(matching: .any)[identifier].firstMatch
+      for _ in 0..<2 where !picker.isHittable { app.swipeDown() }
+      XCTAssertTrue(picker.waitForExistence(timeout: 5))
+      #if os(macOS)
+        picker.click()
+        let option = app.menuItems[title]
+        if let excludedTitle { XCTAssertFalse(app.menuItems[excludedTitle].exists) }
+        XCTAssertTrue(option.waitForExistence(timeout: 5))
+        option.click()
+      #else
+        picker.tap()
+        let option = app.buttons[title].firstMatch
+        if let excludedTitle { XCTAssertFalse(app.buttons[excludedTitle].exists) }
+        XCTAssertTrue(option.waitForExistence(timeout: 5))
+        option.tap()
+      #endif
+    }
+    func expectValue(_ value: String, for identifier: String) {
+      let picker = app.descendants(matching: .any)[identifier].firstMatch
+      for _ in 0..<2 where !picker.exists { app.swipeDown() }
+      XCTAssertTrue(picker.waitForExistence(timeout: 5))
+      let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", value), object: picker)
+      XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 3), .completed)
+    }
+    #if os(iOS)
+      let sidebar = app.buttons["Hey Tim"]
+      XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
+      sidebar.tap()
+    #endif
+    let settings = app.buttons["sidebar.settings"]
+    XCTAssertTrue(settings.waitForExistence(timeout: 10))
+    #if os(macOS)
+      settings.click()
+    #else
+      settings.tap()
+    #endif
+    let webhooks = app.descendants(matching: .any)["settings.webhooks"].firstMatch
+    XCTAssertTrue(webhooks.waitForExistence(timeout: 5))
+    #if os(macOS)
+      webhooks.click()
+    #else
+      webhooks.tap()
+    #endif
+    let add = app.buttons["webhooks.add"]
+    XCTAssertTrue(add.waitForExistence(timeout: 5))
+    XCTAssertTrue(add.isEnabled)
+    #if os(macOS)
+      add.click()
+    #else
+      add.tap()
+    #endif
+    let permittedBots = app.descendants(matching: .any)["webhooks.permitted-bots"].firstMatch
+    for _ in 0..<2 where !permittedBots.exists { app.swipeUp() }
+    XCTAssertTrue(permittedBots.waitForExistence(timeout: 5))
+    let create = app.buttons["Create"]
+    XCTAssertTrue(create.exists)
+    XCTAssertTrue(create.isEnabled)
+    expectValue("Review manually", for: "webhooks.fallback-bot")
+    choose("Chief", from: "webhooks.fallback-bot")
+    expectValue("Chief", for: "webhooks.fallback-bot")
+    #if os(macOS)
+      let chief = app.descendants(matching: .any)["webhooks.permitted-bot.chief"].firstMatch
+    #else
+      let chief = app.switches["webhooks.permitted-bot.chief"]
+    #endif
+    for _ in 0..<2 where !chief.isHittable { app.swipeUp() }
+    XCTAssertTrue(chief.waitForExistence(timeout: 5))
+    #if os(macOS)
+      chief.click()
+    #else
+      chief.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.5)).tap()
+    #endif
+    expectValue("Review manually", for: "webhooks.fallback-bot")
+    choose("Always use one bot", from: "webhooks.routing")
+    expectValue("Choose a bot", for: "webhooks.fixed-bot")
+    XCTAssertFalse(create.isEnabled)
+    choose("Research Bot", from: "webhooks.fixed-bot", excluding: "Chief")
+    expectValue("Research Bot", for: "webhooks.fixed-bot")
+    XCTAssertTrue(create.isEnabled)
+    choose("Choose on my Mac", from: "webhooks.routing")
+    choose("Review manually", from: "webhooks.fallback-bot")
+    expectValue("Review manually", for: "webhooks.fallback-bot")
+    XCTAssertTrue(create.isEnabled)
+    #if os(macOS)
+      app.buttons["Cancel"].click()
+    #else
+      app.buttons["Cancel"].tap()
+    #endif
+    XCTAssertTrue(add.waitForExistence(timeout: 5))
+    XCTAssertFalse(app.alerts.firstMatch.exists)
+    choose("Edit", from: "webhooks.source-menu.fixture-source")
+    XCTAssertTrue(app.staticTexts["Some previously selected bots are no longer available. Review the permitted bots and fallback before saving."].waitForExistence(timeout: 5))
+    XCTAssertEqual(app.textFields["webhooks.source-name"].value as? String, "Pebble Index Fixture")
+    expectValue("Chief", for: "webhooks.fallback-bot")
+    choose("Review manually", from: "webhooks.fallback-bot")
+    expectValue("Review manually", for: "webhooks.fallback-bot")
+    XCTAssertTrue(app.buttons["Save"].isEnabled)
+    #if os(macOS)
+      app.buttons["Cancel"].click()
+    #else
+      app.buttons["Cancel"].tap()
+    #endif
+    XCTAssertTrue(add.waitForExistence(timeout: 5))
+    XCTAssertFalse(app.alerts.firstMatch.exists)
+  }
+
   func testMCPSetupRequiresTestingBeforeSaving() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing", "--ui-testing-sheet", "mcp-server-setup"]
@@ -532,7 +643,9 @@ import XCTest
     for title in ["Memory", "Add a Bot", "Tools & Skills", "Accounts & MCP Servers"] {
       XCTAssertTrue(app.descendants(matching: .any)[title].firstMatch.exists)
     }
-    XCTAssertTrue(app.descendants(matching: .any)["settings.appearance"].exists)
+    let appearance = app.descendants(matching: .any)["settings.appearance"].firstMatch
+    for _ in 0..<2 where !appearance.exists { app.swipeUp() }
+    XCTAssertTrue(appearance.waitForExistence(timeout: 5))
     let textSize = app.descendants(matching: .any)["settings.text-size"].firstMatch
     for _ in 0..<2 where !textSize.exists { app.swipeUp() }
     XCTAssertTrue(textSize.waitForExistence(timeout: 5))
@@ -1253,9 +1366,8 @@ private extension XCUIApplication {
     #if os(macOS)
       activate()
       if !windows.firstMatch.waitForExistence(timeout: 2) {
-        let newWindow = menuBars.menuItems["New Window"]
-        if newWindow.waitForExistence(timeout: 2) { newWindow.click() }
         activate()
+        typeKey("n", modifierFlags: .command)
       }
       XCTAssertTrue(windows.firstMatch.waitForExistence(timeout: 5), "The Mac test app needs a window.")
     #endif

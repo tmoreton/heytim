@@ -110,6 +110,8 @@ class FakeTable:
         return {"Item": dict(item)} if item else {}
 
     def query(self, *, ExpressionAttributeValues: dict | None = None, KeyConditionExpression=None, **_kwargs) -> dict:
+        if _kwargs.get("IndexName") == "WebhookDispatch":
+            return {"Items": [dict(item) for item in self.items.values() if item.get("webhookDispatchPk") == "PENDING"]}
         ExpressionAttributeValues = ExpressionAttributeValues or KeyConditionExpression.values
         pk = ExpressionAttributeValues[":pk"]
         prefix = ExpressionAttributeValues.get(":prefix", "")

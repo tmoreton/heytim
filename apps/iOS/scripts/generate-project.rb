@@ -177,6 +177,18 @@ remove_obsolete_laya.shell_script = <<~'SCRIPT'
 SCRIPT
 remove_obsolete_laya.always_out_of_date = '1'
 
+# The local classifier ships only with the directly distributed Mac app. The
+# runtime is prepared before Xcode runs; this phase copies/signs nested native
+# code before Xcode applies the enclosing app signature.
+stage_decider = app.new_shell_script_build_phase('Embed local Decider runtime (macOS)')
+stage_decider.shell_script = <<~'SCRIPT'
+  if [ "$PLATFORM_NAME" = macosx ]; then
+    "$SRCROOT/../../packages/heytim-decider/scripts/stage-macos.sh" \
+      "$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers/HeyTimDecider"
+  fi
+SCRIPT
+stage_decider.always_out_of_date = '1'
+
 project.save
 scheme = Xcodeproj::XCScheme.new
 scheme.configure_with_targets(app, tests, launch_target: true)

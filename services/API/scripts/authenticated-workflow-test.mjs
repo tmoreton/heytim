@@ -7,6 +7,10 @@ const idToken = process.env.HEYTIM_ID_TOKEN;
 if (!apiUrl || !idToken) {
   throw new Error('Set HEYTIM_API_URL and HEYTIM_ID_TOKEN before running the workflow test.');
 }
+const requiredCredits = Number(process.env.HEYTIM_WORKFLOW_REQUIRED_CREDITS ?? 4);
+if (!Number.isSafeInteger(requiredCredits) || requiredCredits < 4 || requiredCredits > 100) {
+  throw new Error('HEYTIM_WORKFLOW_REQUIRED_CREDITS must be an integer between 4 and 100.');
+}
 const deleteAccount = process.env.HEYTIM_DISPOSABLE_ACCOUNT === '1'
   || process.env.HEYTIM_DELETE_ACCOUNT === '1';
 
@@ -153,8 +157,8 @@ try {
       key, Number.isSafeInteger(billing[key]) ? billing[key] : null,
     ]),
   ) }));
-  requireValue(Number.isSafeInteger(billing.creditsRemaining) && billing.creditsRemaining >= 4,
-    'The synthetic workflow requires at least four remaining credits; no test turns were started.');
+  requireValue(Number.isSafeInteger(billing.creditsRemaining) && billing.creditsRemaining >= requiredCredits,
+    `The synthetic workflow requires at least ${requiredCredits === 4 ? 'four' : requiredCredits} remaining credits; no test turns were started.`);
 
   const botSuffix = new Date().toISOString().replaceAll(/[^0-9]/g, '').slice(0, 14);
   const standardBot = await request('POST', '/bots', {

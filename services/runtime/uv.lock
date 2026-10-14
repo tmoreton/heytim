@@ -815,7 +815,9 @@ name = "heytim"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "authlib" },
     { name = "aws-opentelemetry-distro" },
+    { name = "beartype" },
     { name = "bedrock-agentcore" },
     { name = "boto3" },
     { name = "botocore" },
@@ -836,6 +838,7 @@ dependencies = [
     { name = "jiter" },
     { name = "mcp" },
     { name = "mcp-proxy-for-aws" },
+    { name = "more-itertools" },
     { name = "multidict" },
     { name = "openapi-pydantic" },
     { name = "openpyxl" },
@@ -848,6 +851,7 @@ dependencies = [
     { name = "pycparser" },
     { name = "pydantic" },
     { name = "pydantic-core" },
+    { name = "pydantic-settings" },
     { name = "pyjwt" },
     { name = "python-docx" },
     { name = "python-dotenv" },
@@ -883,7 +887,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "authlib", specifier = "==1.8.0" },
     { name = "aws-opentelemetry-distro", specifier = "==0.19.0" },
+    { name = "beartype", specifier = "==0.22.9" },
     { name = "bedrock-agentcore", specifier = ">=1.22.0" },
     { name = "boto3", specifier = "==1.43.90" },
     { name = "botocore", specifier = "==1.43.92" },
@@ -904,6 +910,7 @@ requires-dist = [
     { name = "jiter", specifier = "==0.16.0" },
     { name = "mcp", specifier = ">=1.29.1,<2.0.0" },
     { name = "mcp-proxy-for-aws", specifier = ">=1.6.0,<2.0.0" },
+    { name = "more-itertools", specifier = "==11.1.0" },
     { name = "multidict", specifier = "==6.9.1" },
     { name = "openapi-pydantic", specifier = "==0.5.1" },
     { name = "openpyxl", specifier = ">=3.1.5,<4.0.0" },
@@ -916,6 +923,7 @@ requires-dist = [
     { name = "pycparser", specifier = "==3.0" },
     { name = "pydantic", specifier = "==2.13.5" },
     { name = "pydantic-core", specifier = "==2.46.5" },
+    { name = "pydantic-settings", specifier = "==2.15.0" },
     { name = "pyjwt", specifier = "==2.15.0" },
     { name = "python-docx", specifier = ">=1.2.0,<2.0.0" },
     { name = "python-dotenv", specifier = "==1.2.3" },

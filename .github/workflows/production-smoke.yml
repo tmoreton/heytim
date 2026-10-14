@@ -51,8 +51,10 @@ jobs:
             --query 'AuthenticationResult.IdToken' --output text)"
           test -n "$id_token" && test "$id_token" != None
           echo "::add-mask::$id_token"
-          HEYTIM_API_URL="$api_url" HEYTIM_ID_TOKEN="$id_token" \
+          HEYTIM_API_URL="$api_url" HEYTIM_ID_TOKEN="$id_token" HEYTIM_WORKFLOW_REQUIRED_CREDITS=7 \
             npm --prefix services/API run workflow:test
+          HEYTIM_API_URL="$api_url" HEYTIM_ID_TOKEN="$id_token" \
+            npm --prefix services/API run webhook:test
       - name: Summarize sanitized runtime failures
         if: ${{ always() }}
         run: python3 services/API/scripts/runtime-error-summary.py
