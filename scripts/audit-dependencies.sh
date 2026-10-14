@@ -43,3 +43,15 @@ uvx pip-audit@2.10.0 \
   --cache-dir "$audit_directory/cache" \
   --progress-spinner off \
   -r "$repository_root/services/API/amplify/functions/requirements.txt"
+
+# Audit the helper's complete hash-locked registry dependency graph without
+# installing it. pip-audit cannot map the pinned Strands GitHub archive to a
+# registry package version; its source and archive provenance require review.
+echo "Auditing local helper registry dependencies; the pinned GitHub source archive has no pip-audit advisory coverage."
+uvx pip-audit@2.10.1 \
+  --cache-dir "$audit_directory/cache" \
+  --progress-spinner off \
+  --no-deps \
+  --disable-pip \
+  --require-hashes \
+  -r "$repository_root/packages/heytim-decider/requirements.lock"

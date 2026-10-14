@@ -32,7 +32,8 @@ class WebhookTurnPolicyTests(WorkerTestCase):
         self.turn["eventSourceId"] = self.source_id
         self.turn["routingDecision"]["sourceId"] = self.source_id
         self.source = {"pk": "USER#user-1", "sk": f"WEBHOOK_SOURCE#{self.source_id}",
-                       "entity": "WEBHOOK_SOURCE", "id": self.source_id, "enabled": True, "allowedBotIds": ["bot-1"]}
+                       "entity": "WEBHOOK_SOURCE", "id": self.source_id, "enabled": True,
+                       "routingMode": "local", "allowedBotIds": ["bot-1"]}
         self.usage = {"models": [{
             "provider": "openrouter", "modelId": "deepseek/deepseek-v4.1-flash",
             "callCount": 1, "inputTokens": 100, "outputTokens": 20,
@@ -209,6 +210,44 @@ class WebhookTurnPolicyTests(WorkerTestCase):
             for resumed in (False, True):
                 with self.subTest(source=state, resumed=resumed):
                     self.source = state
+                    self.turn["runtimeResult"] = {"text": "Finished", "usage": self.usage} if resumed else None
+                    mocks = self._run()
+                    mocks["_invoke"].assert_not_called()
+                    mocks["finish_failed_attempt"].assert_called_once()
+
+    def test_fallback_pointer_removal_or_change_fences_pending_and_resumed_turns(self):
+        self.turn["routingDecision"]["method"] = "local_fallback"
+        self.source.update(routingMode="local", fallbackBotId="bot-1")
+        original = deepcopy(self.source)
+        for fallback in (None, "different-bot"):
+            for resumed in (False, True):
+                with self.subTest(fallback=fallback, resumed=resumed):
+                    self.source = {**original, "fallbackBotId": fallback}
+                    self.turn["runtimeResult"] = {"text": "Finished", "usage": self.usage} if resumed else None
+                    mocks = self._run()
+                    mocks["_invoke"].assert_not_called()
+                    mocks["finish_failed_attempt"].assert_called_once()
+
+    def test_fallback_uses_pinned_saved_effort_without_inheriting_raw_effort_or_privileges(self):
+        self.source.update(routingMode="local", fallbackBotId="bot-1")
+        self.bot["reasoningEffort"] = "low"
+        self.turn["routingDecision"].update(method="local_fallback", reasoningEffort="max",
+            localDecision={"botId": None, "reasoningEffort": "low", "confidence": .2})
+        mocks = self._run()
+        invocation = mocks["_invoke"].call_args
+        self.assertEqual(invocation.args[2]["reasoningEffort"], "max")
+        self.assertEqual(invocation.args[2]["inputProvenance"], {"kind": "webhook"})
+        self.assertFalse(invocation.kwargs["allow_bot_management"])
+        self.assertFalse(invocation.kwargs["allow_device_tools"])
+        self.assertEqual(self.table.items[("USER#user-1", "BOT#bot-1")]["reasoningEffort"], "low")
+
+    def test_routing_mode_changes_fence_pending_and_resumed_local_or_fixed_turns(self):
+        self.source["fallbackBotId"] = "bot-1"
+        for method, changed_mode in (("local", "fixed"), ("local_fallback", "fixed"), ("fixed", "local")):
+            for resumed in (False, True):
+                with self.subTest(method=method, changed_mode=changed_mode, resumed=resumed):
+                    self.turn["routingDecision"]["method"] = method
+                    self.source["routingMode"] = changed_mode
                     self.turn["runtimeResult"] = {"text": "Finished", "usage": self.usage} if resumed else None
                     mocks = self._run()
                     mocks["_invoke"].assert_not_called()

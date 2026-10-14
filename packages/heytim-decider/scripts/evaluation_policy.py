@@ -1,5 +1,7 @@
 """Acceptance accounting, including explicit effort abstentions and raw model misses."""
 
+MINIMUM_REASONING_CONFIDENCE = 0.6
+
 
 def assess_case(case, result, bots):
     route_ok = result["botId"] is None or result["botId"] == case["botId"]
@@ -9,9 +11,9 @@ def assess_case(case, result, bots):
     confidence = result["reasoningConfidence"]
     raw_ok = result["suggestedReasoningEffort"] == case["effort"]
     if deferred:
-        effort_ok = result["reasoningEffort"] == saved and (confidence < 0.5 or result["botId"] is None)
+        effort_ok = result["reasoningEffort"] == saved and (confidence < MINIMUM_REASONING_CONFIDENCE or result["botId"] is None)
     else:
-        effort_ok = (confidence >= 0.5 and result["reasoningEffort"] == case["effort"]
+        effort_ok = (confidence >= MINIMUM_REASONING_CONFIDENCE and result["reasoningEffort"] == case["effort"]
                      and result["reasoningEffort"] == result["suggestedReasoningEffort"])
     return {"routeOK": route_ok, "effortOK": effort_ok, "rawEffortOK": raw_ok,
             "effortAutomaticallyApplied": result["botId"] is not None and not deferred,

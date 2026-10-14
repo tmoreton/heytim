@@ -1,7 +1,7 @@
-# Tested upstream Apple Silicon dependency versions. Regenerate requirements.lock
+# Tested Apple Silicon dependency versions. Regenerate requirements.lock
 # deliberately, never resolve fresh dependencies during an app release build.
 strands-decider[mlx] @ https://github.com/strands-labs/strands-decider/archive/8b6faa553038a59e73fa7f16c4081f8ceb21d27e.tar.gz
-torch==2.7.1
+torch==2.13.0
 transformers==5.17.0
 peft==0.21.0
 mlx==0.32.2

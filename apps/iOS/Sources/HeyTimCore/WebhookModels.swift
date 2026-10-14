@@ -38,6 +38,22 @@ public struct WebhookSourceDraft: Codable, Sendable {
     enabled = source.enabled
     textPath = source.textPath
   }
+  private enum CodingKeys: String, CodingKey {
+    case name, kind, allowedBotIds, fallbackBotId, routingMode, enabled, textPath
+  }
+  public func encode(to encoder: Encoder) throws {
+    try encodeConfiguration(to: encoder, includingEnabled: true)
+  }
+  func encodeConfiguration(to encoder: Encoder, includingEnabled: Bool) throws {
+    var values = encoder.container(keyedBy: CodingKeys.self)
+    try values.encode(name, forKey: .name)
+    try values.encode(kind, forKey: .kind)
+    try values.encode(allowedBotIds, forKey: .allowedBotIds)
+    try values.encode(fallbackBotId, forKey: .fallbackBotId)
+    try values.encode(routingMode, forKey: .routingMode)
+    if includingEnabled { try values.encode(enabled, forKey: .enabled) }
+    try values.encode(textPath, forKey: .textPath)
+  }
 }
 
 public struct WebhookCredential: Codable, Sendable {
@@ -47,6 +63,7 @@ public struct WebhookCredential: Codable, Sendable {
 }
 
 public struct WebhookRoutingDecision: Codable, Sendable {
+  public var method: String?
   public var botId: String?
   public var reasoningEffort: String?
   public var confidence: Double?
@@ -105,7 +122,10 @@ public struct LocalDeciderResult: Codable, Sendable {
     let maximum = probabilities.values.max() ?? 0
     let count = Double(candidateIDs.count)
     let concentration = (count * maximum - 1) / max(1, count - 1)
-    guard modelId == request.modelId, modelRevision == request.modelRevision,
+    let reasoningFieldCount = [reasoningConfidence != nil, reasoningDeferred != nil,
+                               suggestedReasoningEffort != nil].filter { $0 }.count
+    guard reasoningFieldCount == 0 || reasoningFieldCount == 3,
+      modelId == request.modelId, modelRevision == request.modelRevision,
       ["low", "high", "max"].contains(reasoningEffort),
       confidence.isFinite, (0...1).contains(confidence),
       reasoningConfidence.map({ $0.isFinite && (0...1).contains($0) }) ?? true,
@@ -124,7 +144,7 @@ public struct LocalDeciderResult: Codable, Sendable {
       }
     }
     if botId != nil, let reasoningConfidence, let reasoningDeferred {
-      guard reasoningDeferred == (reasoningConfidence < 0.5) else {
+      guard reasoningDeferred == (reasoningConfidence < 0.6) else {
         throw APIError.configuration("The local router returned inconsistent reasoning confidence.")
       }
     }

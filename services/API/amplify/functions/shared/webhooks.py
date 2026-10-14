@@ -12,6 +12,7 @@ from typing import Any
 MODEL_ID = "StrandsAgents/strands-decider-2B-qwen3.5-v1-2610"
 MODEL_REVISION = "216d1ccb46a9e9b036eb9187b248db98480f77d4"
 EFFORTS = {"low", "high", "max"}
+MINIMUM_REASONING_CONFIDENCE = Decimal("0.60")
 EVENT_RETENTION_SECONDS = 90 * 24 * 60 * 60
 ROUTING_LEASE_SECONDS = 300
 DEVICE_LEASE_SECONDS = 600
@@ -95,15 +96,31 @@ def public_event(item: dict) -> dict:
     return {key: item[key] for key in names if key in item}
 
 
+def _compact_text(value: Any, byte_limit: int) -> str:
+    text = " ".join(str(value or "").split())
+    return text.encode("utf-8", errors="replace")[:byte_limit].decode("utf-8", errors="ignore")
+
+
+def _routing_bot(bot: dict) -> dict:
+    tagline = _compact_text(bot.get("tagline"), 192) or _compact_text(bot.get("description"), 192)
+    prompt = _compact_text(bot.get("prompt"), 256)
+    # Keep the model's capability summary small without weakening stale-edit
+    # detection: the server digest also binds the full authored routing fields.
+    fields = {key: bot.get(key) for key in (
+        "name", "tagline", "description", "prompt", "toolIds", "skillIds", "reasoningEffort")}
+    fingerprint = hashlib.sha256(json.dumps(fields, sort_keys=True, separators=(",", ":"),
+                                            default=str).encode()).hexdigest()
+    return {"id": bot["id"], "name": _compact_text(bot.get("name", "Bot"), 200),
+            "description": " ".join(part for part in (tagline, prompt) if part),
+            "toolIds": bot.get("toolIds", [])[:20], "skillIds": bot.get("skillIds", [])[:20],
+            "reasoningEffort": bot.get("reasoningEffort", "high"), "catalogFingerprint": fingerprint}
+
+
 def eligible_bots(table: Any, user_id: str, source: dict) -> list[dict]:
     allowed = source.get("allowedBotIds", [])
     bots = [bot for bot in partition(table, user_id, "BOT#")
             if bot.get("entity") == "BOT" and (not allowed or bot.get("id") in allowed)]
-    return [{"id": bot["id"], "name": str(bot.get("name", "Bot")).encode("utf-8", errors="replace")[:200].decode("utf-8", errors="ignore"),
-             "description": str(bot.get("description") or bot.get("prompt", "")).encode("utf-8", errors="replace")[:2000].decode("utf-8", errors="ignore"),
-             "toolIds": bot.get("toolIds", [])[:20], "skillIds": bot.get("skillIds", [])[:20],
-             "reasoningEffort": bot.get("reasoningEffort", "high")}
-            for bot in bots[:100]]
+    return [_routing_bot(bot) for bot in bots[:100]]
 
 
 def validate_choice(table: Any, user_id: str, source: dict, bot_id: Any, effort: Any) -> dict:
@@ -115,11 +132,48 @@ def validate_choice(table: Any, user_id: str, source: dict, bot_id: Any, effort:
                           ConsistentRead=True).get("Item", {})
 
 
-def request_digest(item: dict, bots: list[dict]) -> str:
+def routing_source_policy(source: dict) -> dict:
+    return {key: source.get(key) for key in ("routingMode", "allowedBotIds", "fallbackBotId")}
+
+
+def request_digest(item: dict, bots: list[dict], source: dict | None = None) -> str:
     value = {"id": item["id"], "sourceId": item["sourceId"], "text": item["text"],
              "bots": bots, "modelId": MODEL_ID, "modelRevision": MODEL_REVISION}
+    if source is not None:
+        value["sourcePolicy"] = routing_source_policy(source)
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
                                      default=str).encode()).hexdigest()
+
+
+def validate_routing_policy(source: dict, decision: dict) -> None:
+    method = decision.get("method")
+    if method not in {"local", "local_fallback", "fixed", "manual"}:
+        raise WebhookError(409, "Webhook routing method is unsupported")
+    if method == "manual" and "manualAttemptId" in decision:
+        identifier(decision["manualAttemptId"], "manualAttemptId")
+    if method in {"local", "fixed", "local_fallback"}:
+        mode = "fixed" if method == "fixed" else "local"
+        if source.get("routingMode") != mode:
+            raise WebhookError(409, "Source routing mode changed")
+    if method in {"fixed", "local_fallback"} and source.get("fallbackBotId") != decision.get("botId"):
+        raise WebhookError(409, "Source fallback routing policy changed")
+
+
+def routing_source_guard(user_id: str, source: dict) -> dict:
+    values = {":enabled": True, ":mode": source.get("routingMode"), ":allowed": source.get("allowedBotIds", [])}
+    condition = "enabled = :enabled AND routingMode = :mode AND allowedBotIds = :allowed"
+    if source.get("fallbackBotId") is None:
+        condition += " AND attribute_not_exists(fallbackBotId)"
+    else:
+        condition += " AND fallbackBotId = :fallback"
+        values[":fallback"] = source["fallbackBotId"]
+    return {"Key": source_key(user_id, source["id"]), "ConditionExpression": condition,
+            "ExpressionAttributeValues": values}
+
+
+def saved_reasoning_effort(bot: dict) -> str:
+    saved = bot.get("reasoningEffort", "high")
+    return saved if isinstance(saved, str) and saved in EFFORTS else "high"
 
 
 def number(value: Any, name: str) -> Decimal:
@@ -156,13 +210,11 @@ def reasoning_decision(value: dict, bot: dict | None) -> dict:
         deferred, suggested = value.get("reasoningDeferred"), value.get("suggestedReasoningEffort")
         if not isinstance(deferred, bool) or not isinstance(suggested, str) or suggested not in EFFORTS:
             raise WebhookError(400, "Reasoning decision metadata is invalid")
-        if bot is not None and deferred != (confidence < number(.5, "reasoningConfidence")):
+        if bot is not None and deferred != (confidence < MINIMUM_REASONING_CONFIDENCE):
             raise WebhookError(400, "reasoningDeferred does not match the reasoning confidence gate")
     effective = raw
     if bot is not None:
-        saved = bot.get("reasoningEffort", "high")
-        if not isinstance(saved, str) or saved not in EFFORTS:
-            saved = "high"
+        saved = saved_reasoning_effort(bot)
         if deferred:
             if any(field in value for field in metadata) and raw != saved:
                 raise WebhookError(400, "Uncertain reasoning must retain the bot's saved effort")

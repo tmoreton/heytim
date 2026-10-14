@@ -1,0 +1,501 @@
+{
+  "candidateSets": {
+    "first10": [
+      {
+        "id": "31692007-9196-5795-bcaa-8952ff00bb17",
+        "name": "Chief",
+        "description": "Keeps the work moving and connects the dots. Act as my chief of staff and the sole coordinator for my other bots. Gather only the missing inputs that could change the work. For an initial request missing core facts, ask no more than four compact, grouped questions; do not mention delegation, speciali",
+        "toolIds": [
+          "current_time",
+          "bot_manager",
+          "task_list",
+          "calculator",
+          "web",
+          "web_search",
+          "code_interpreter"
+        ],
+        "skillIds": [
+          "group-intake",
+          "group-decision",
+          "trip-planner",
+          "event-planner",
+          "shared-budget",
+          "skill-builder",
+          "connect-integration"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "d2b10de520ac4d57a2172b51c585d51103a75c5c331cc2f01388c7a6f420e097"
+      },
+      {
+        "id": "f5faaa82-8276-5e65-861e-aab6b5063c85",
+        "name": "Trip Planner",
+        "description": "Turns everyone's constraints into a trip the group can actually take. Plan practical group trips. Keep each traveler's dates, budget, pace, accessibility needs, and non-negotiables distinct. Ask for missing decisions before proposing a detailed itinerary. When enough constraints exist for a provisional structure, provide it ",
+        "toolIds": [
+          "task_list",
+          "web",
+          "web_search",
+          "calculator",
+          "code_interpreter"
+        ],
+        "skillIds": [
+          "group-intake",
+          "trip-planner",
+          "shared-budget"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "3c662223040352660a4ab9e0e2cd8ec2db063aa2eac96c8a8d474f8085b5b628"
+      },
+      {
+        "id": "daf55e84-dfa8-5aa3-8b76-9f2ee53850c8",
+        "name": "Event Planner",
+        "description": "Coordinates event decisions, costs, owners, and the run of show. Coordinate group events from the first questions through the final run of show. Keep decisions, costs, owners, due dates, accessibility needs, and unresolved risks clear. Compare options provisionally, but never select or present one as final, book, buy, p",
+        "toolIds": [
+          "task_list",
+          "web_search",
+          "calculator",
+          "code_interpreter"
+        ],
+        "skillIds": [
+          "group-intake",
+          "event-planner",
+          "group-decision",
+          "shared-budget"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "e117f714ab21bb64a46fec842f1bb40234b7dffdc5608ffd691be998c76bdd16"
+      },
+      {
+        "id": "8cd41351-2df3-52dd-8c8e-35e6f1405483",
+        "name": "Research & Reports",
+        "description": "Finds reliable answers and turns them into useful files. Research broad questions with current, high-quality sources and lead with the conclusion. Distinguish evidence from interpretation and association from causation; never invent drivers or recommendations unsupported by the supplied evidence. When exact curr",
+        "toolIds": [
+          "web",
+          "web_search",
+          "task_list",
+          "delegate",
+          "calculator",
+          "code_interpreter"
+        ],
+        "skillIds": [
+          "deep-research",
+          "data-analyst"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "a5cfa905c6669446791cc4149bced7b57609a22a7f9eafe31e7009e0c02c6009"
+      },
+      {
+        "id": "6cf28d51-6b05-551f-9032-5bd0c2fb6a0b",
+        "name": "Decision Coach",
+        "description": "Helps a group compare tradeoffs without inventing agreement. Help groups make clear decisions. Gather each person's constraints separately, identify genuine agreement and disagreement, compare only workable options, and recommend a fair next step without claiming consensus that has not been reached.",
+        "toolIds": [
+          "task_list",
+          "calculator"
+        ],
+        "skillIds": [
+          "group-intake",
+          "group-decision"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "175faf999976d5a172c3fd3b53b1b67c63b3c6806457a42db42b7babfbc5b4e7"
+      },
+      {
+        "id": "b6c6d761-03df-544c-a761-21af3785a23b",
+        "name": "Budget Planner",
+        "description": "Builds transparent budgets and fair cost splits. Turn real costs and constraints into a transparent budget. Keep known numbers separate from estimates, show assumptions, compare useful scenarios, and calculate fair splits. Verify arithmetic two ways: sum every line item, then confirm the known and estima",
+        "toolIds": [
+          "calculator",
+          "code_interpreter"
+        ],
+        "skillIds": [
+          "shared-budget"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "51b10f5f66b1bcf2bb86c821830fc06c32afda1fc11aa050100f8f9c48c91c43"
+      },
+      {
+        "id": "8813ef14-3fbd-5ad1-a333-bf2fea62f4a2",
+        "name": "Data Analyst",
+        "description": "Checks the numbers and produces decision-ready analysis. Analyze supplied data carefully. Confirm the question, definitions, comparison period, and dataset; calculate results with executable tools; and check for missing or misleading fields. Distinguish findings from possible explanations and label possible caus",
+        "toolIds": [
+          "calculator",
+          "code_interpreter"
+        ],
+        "skillIds": [
+          "data-analyst"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "bc3890cf50e0a086dc81314ab221d22d9d1791c9b6cf9a4648ed636900abd9b3"
+      },
+      {
+        "id": "8c42a8f0-6b37-5b4e-8c4d-4ca5c8b5f150",
+        "name": "Project Organizer",
+        "description": "Turns a shared goal into decisions, owners, and a live checklist. Organize small collaborative projects. Clarify the outcome, audience, constraints, stakeholders, deadline, and cadence before building the plan. For vague projects, ask only the blocking questions and wait before creating owners or tasks. Break confirmed w",
+        "toolIds": [
+          "task_list",
+          "calculator"
+        ],
+        "skillIds": [
+          "group-intake",
+          "group-decision"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "a7a6a0adfc21c1c51cde255aa780500405d7c4a1c737ee77a99133610142a001"
+      },
+      {
+        "id": "78849616-2b8b-56f4-be86-2c09cce5c795",
+        "name": "Meme Lord",
+        "description": "Turns familiar image templates into finished, captioned memes. Create concise, readable memes from a stored popular template or an image supplied by the user. Preserve the source image, write or refine the caption copy when asked, choose the layout that fits the format, and use the Meme Lord image actions to produce a",
+        "toolIds": [
+          "meme_lord"
+        ],
+        "skillIds": [
+          "meme-maker"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "bca390f25fe0e6f41367e731dbb9ff39ac33ad75d3d1ddf4674c1500b73de4fe"
+      },
+      {
+        "id": "243a2319-3d79-5c1e-9888-9e6c14e3c766",
+        "name": "Creator Studio",
+        "description": "Uses public signals to shape the video hook and create its thumbnail. Develop evidence-backed YouTube video strategies and generated thumbnail images. Start by clarifying the channel, target viewer, objective, format, geography, and relevant timeframe. Use YouTube search only when a YouTube integration is assigned to this bo",
+        "toolIds": [
+          "web_search",
+          "image_generator"
+        ],
+        "skillIds": [
+          "youtube-strategy",
+          "youtube-thumbnail-director"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "fb0b99dbd07faa621f97e411833038d6f7173961fb1308a7a520907c2ff7d195"
+      }
+    ],
+    "all17": [
+      {
+        "id": "31692007-9196-5795-bcaa-8952ff00bb17",
+        "name": "Chief",
+        "description": "Keeps the work moving and connects the dots. Act as my chief of staff and the sole coordinator for my other bots. Gather only the missing inputs that could change the work. For an initial request missing core facts, ask no more than four compact, grouped questions; do not mention delegation, speciali",
+        "toolIds": [
+          "current_time",
+          "bot_manager",
+          "task_list",
+          "calculator",
+          "web",
+          "web_search",
+          "code_interpreter"
+        ],
+        "skillIds": [
+          "group-intake",
+          "group-decision",
+          "trip-planner",
+          "event-planner",
+          "shared-budget",
+          "skill-builder",
+          "connect-integration"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "d2b10de520ac4d57a2172b51c585d51103a75c5c331cc2f01388c7a6f420e097"
+      },
+      {
+        "id": "f5faaa82-8276-5e65-861e-aab6b5063c85",
+        "name": "Trip Planner",
+        "description": "Turns everyone's constraints into a trip the group can actually take. Plan practical group trips. Keep each traveler's dates, budget, pace, accessibility needs, and non-negotiables distinct. Ask for missing decisions before proposing a detailed itinerary. When enough constraints exist for a provisional structure, provide it ",
+        "toolIds": [
+          "task_list",
+          "web",
+          "web_search",
+          "calculator",
+          "code_interpreter"
+        ],
+        "skillIds": [
+          "group-intake",
+          "trip-planner",
+          "shared-budget"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "3c662223040352660a4ab9e0e2cd8ec2db063aa2eac96c8a8d474f8085b5b628"
+      },
+      {
+        "id": "daf55e84-dfa8-5aa3-8b76-9f2ee53850c8",
+        "name": "Event Planner",
+        "description": "Coordinates event decisions, costs, owners, and the run of show. Coordinate group events from the first questions through the final run of show. Keep decisions, costs, owners, due dates, accessibility needs, and unresolved risks clear. Compare options provisionally, but never select or present one as final, book, buy, p",
+        "toolIds": [
+          "task_list",
+          "web_search",
+          "calculator",
+          "code_interpreter"
+        ],
+        "skillIds": [
+          "group-intake",
+          "event-planner",
+          "group-decision",
+          "shared-budget"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "e117f714ab21bb64a46fec842f1bb40234b7dffdc5608ffd691be998c76bdd16"
+      },
+      {
+        "id": "8cd41351-2df3-52dd-8c8e-35e6f1405483",
+        "name": "Research & Reports",
+        "description": "Finds reliable answers and turns them into useful files. Research broad questions with current, high-quality sources and lead with the conclusion. Distinguish evidence from interpretation and association from causation; never invent drivers or recommendations unsupported by the supplied evidence. When exact curr",
+        "toolIds": [
+          "web",
+          "web_search",
+          "task_list",
+          "delegate",
+          "calculator",
+          "code_interpreter"
+        ],
+        "skillIds": [
+          "deep-research",
+          "data-analyst"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "a5cfa905c6669446791cc4149bced7b57609a22a7f9eafe31e7009e0c02c6009"
+      },
+      {
+        "id": "6cf28d51-6b05-551f-9032-5bd0c2fb6a0b",
+        "name": "Decision Coach",
+        "description": "Helps a group compare tradeoffs without inventing agreement. Help groups make clear decisions. Gather each person's constraints separately, identify genuine agreement and disagreement, compare only workable options, and recommend a fair next step without claiming consensus that has not been reached.",
+        "toolIds": [
+          "task_list",
+          "calculator"
+        ],
+        "skillIds": [
+          "group-intake",
+          "group-decision"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "175faf999976d5a172c3fd3b53b1b67c63b3c6806457a42db42b7babfbc5b4e7"
+      },
+      {
+        "id": "b6c6d761-03df-544c-a761-21af3785a23b",
+        "name": "Budget Planner",
+        "description": "Builds transparent budgets and fair cost splits. Turn real costs and constraints into a transparent budget. Keep known numbers separate from estimates, show assumptions, compare useful scenarios, and calculate fair splits. Verify arithmetic two ways: sum every line item, then confirm the known and estima",
+        "toolIds": [
+          "calculator",
+          "code_interpreter"
+        ],
+        "skillIds": [
+          "shared-budget"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "51b10f5f66b1bcf2bb86c821830fc06c32afda1fc11aa050100f8f9c48c91c43"
+      },
+      {
+        "id": "8813ef14-3fbd-5ad1-a333-bf2fea62f4a2",
+        "name": "Data Analyst",
+        "description": "Checks the numbers and produces decision-ready analysis. Analyze supplied data carefully. Confirm the question, definitions, comparison period, and dataset; calculate results with executable tools; and check for missing or misleading fields. Distinguish findings from possible explanations and label possible caus",
+        "toolIds": [
+          "calculator",
+          "code_interpreter"
+        ],
+        "skillIds": [
+          "data-analyst"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "bc3890cf50e0a086dc81314ab221d22d9d1791c9b6cf9a4648ed636900abd9b3"
+      },
+      {
+        "id": "8c42a8f0-6b37-5b4e-8c4d-4ca5c8b5f150",
+        "name": "Project Organizer",
+        "description": "Turns a shared goal into decisions, owners, and a live checklist. Organize small collaborative projects. Clarify the outcome, audience, constraints, stakeholders, deadline, and cadence before building the plan. For vague projects, ask only the blocking questions and wait before creating owners or tasks. Break confirmed w",
+        "toolIds": [
+          "task_list",
+          "calculator"
+        ],
+        "skillIds": [
+          "group-intake",
+          "group-decision"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "a7a6a0adfc21c1c51cde255aa780500405d7c4a1c737ee77a99133610142a001"
+      },
+      {
+        "id": "78849616-2b8b-56f4-be86-2c09cce5c795",
+        "name": "Meme Lord",
+        "description": "Turns familiar image templates into finished, captioned memes. Create concise, readable memes from a stored popular template or an image supplied by the user. Preserve the source image, write or refine the caption copy when asked, choose the layout that fits the format, and use the Meme Lord image actions to produce a",
+        "toolIds": [
+          "meme_lord"
+        ],
+        "skillIds": [
+          "meme-maker"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "bca390f25fe0e6f41367e731dbb9ff39ac33ad75d3d1ddf4674c1500b73de4fe"
+      },
+      {
+        "id": "243a2319-3d79-5c1e-9888-9e6c14e3c766",
+        "name": "Creator Studio",
+        "description": "Uses public signals to shape the video hook and create its thumbnail. Develop evidence-backed YouTube video strategies and generated thumbnail images. Start by clarifying the channel, target viewer, objective, format, geography, and relevant timeframe. Use YouTube search only when a YouTube integration is assigned to this bo",
+        "toolIds": [
+          "web_search",
+          "image_generator"
+        ],
+        "skillIds": [
+          "youtube-strategy",
+          "youtube-thumbnail-director"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "fb0b99dbd07faa621f97e411833038d6f7173961fb1308a7a520907c2ff7d195"
+      },
+      {
+        "id": "1347642b-dfd1-567e-8618-3609fd16fbaa",
+        "name": "Trend Scout",
+        "description": "Turns current sources into a ranked opportunity watchlist. Research emerging trends for a defined audience, market, or creative decision. Confirm the niche, audience, geography, platforms, decision, and time horizon. Compare current signals from the broader web, plus YouTube and recent public X posts only when tho",
+        "toolIds": [
+          "web_search",
+          "delegate"
+        ],
+        "skillIds": [
+          "trend-scout"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "7c55d756d0e1cb09e449d25d1d1c39b5af978f971747c84b92d958e097dc4dea"
+      },
+      {
+        "id": "aa69f79e-d2d0-521b-868d-873452fd3b22",
+        "name": "Morning Brief",
+        "description": "Turns fresh developments into a concise, personalized plan for today. Create a concise, source-backed briefing anchored to the user's local date, priorities, and decisions. Confirm the timezone, geography, interests, lookback window, and desired length when they are missing. Search each priority area separately, open origina",
+        "toolIds": [
+          "web",
+          "web_search",
+          "current_time",
+          "task_list"
+        ],
+        "skillIds": [
+          "morning-brief"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "b18ee60712107dca61c5eaa9538fcc714241f548707773ce5cf57bdd47b12c6a"
+      },
+      {
+        "id": "9ea9e963-8980-5a12-8478-097603c6b50d",
+        "name": "Social Writer",
+        "description": "Turns real source material into platform-ready drafts in your voice. Create accurate social drafts from supplied material or current research. Confirm the platform, audience, objective, voice, call to action, and constraints. Open supplied links and verify consequential current claims. Use recent public X results only when ",
+        "toolIds": [
+          "web",
+          "web_search",
+          "current_time"
+        ],
+        "skillIds": [
+          "social-writer"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "34786d67177622920bec1990411498b9b4a530e84fa60a556101f19cbf1d630b"
+      },
+      {
+        "id": "aa9b654b-74d1-57d0-a4a4-086265c02cba",
+        "name": "Meeting Prep",
+        "description": "Builds the context, agenda, questions, and checklist for an important meeting. Prepare the user for an upcoming meeting. Confirm the purpose, date and timezone, duration, attendees and roles, relationship context, desired decisions, and known sensitivities. Research organizations, roles, products, and relevant developments from curre",
+        "toolIds": [
+          "web",
+          "web_search",
+          "current_time",
+          "task_list"
+        ],
+        "skillIds": [
+          "meeting-prep"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "a5ffa84434a6e6571aaa6b9808fd6380b17a32ca2e18660d448131c46d429c4d"
+      },
+      {
+        "id": "16ee4cb3-2d7d-507f-83b0-b457fe8a9f46",
+        "name": "Career Coach",
+        "description": "Tailors truthful applications, interview practice, and career decisions to real roles. Help with a concrete job search, application, interview, offer comparison, or career decision. Establish the target role, career stage, geography, constraints, deadline, and desired outcome, and request the actual resume, work history, job description, or ",
+        "toolIds": [
+          "web",
+          "web_search",
+          "code_interpreter"
+        ],
+        "skillIds": [
+          "career-coach"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "7b620602fe50248dc120d0e99aade54c783e819e8b0db2897458a893344b67db"
+      },
+      {
+        "id": "62720412-4c0f-5057-9c88-71cff169cb86",
+        "name": "Mac Operator",
+        "description": "Navigates websites and authorized Mac apps while keeping you in control. Complete bounded tasks in websites and authorized Mac apps. Prefer the browser tool for websites because it provides structured page state; use Mac computer only for local apps or capabilities the browser cannot reach. Before acting, restate the target app",
+        "toolIds": [
+          "browser",
+          "mac_computer"
+        ],
+        "skillIds": [
+          "computer-operator"
+        ],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "1694d6bc9d797369a3f9b2fb0eda81718613c48dfcbf5e685ddb243b612c0437"
+      },
+      {
+        "id": "91e34470-f50d-548f-9270-5bb985a04294",
+        "name": "Health Coach",
+        "description": "Helps you plan practical training around the goals you describe. Help the user plan training and reflect on goals they describe. Apple Health summaries are available only in iPhone Settings and cannot be read by this bot. Do not ask the user to paste Apple Health data into chat. Ask for relevant goals, training context,",
+        "toolIds": [],
+        "skillIds": [],
+        "reasoningEffort": "high",
+        "catalogFingerprint": "0e0f2d128a887b8e2a384bb845d71f002542170c706b09b48cf265881bbdd390"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "id": "final-01",
+      "candidateSet": "first10",
+      "text": "Three of us shared lunch. The food was thirty-nine dollars and we left a six-dollar tip. Split the total equally and tell me what each person owes.",
+      "botId": "b6c6d761-03df-544c-a761-21af3785a23b",
+      "effort": "low"
+    },
+    {
+      "id": "final-02",
+      "candidateSet": "all17",
+      "text": "Please make this one warm Bluesky post under two hundred characters: our neighborhood seed swap is Sunday at eleven outside the library, everyone can take seeds even if they have none to bring. End with an invitation to stop by, and don't add any other details.",
+      "botId": "9ea9e963-8980-5a12-8478-097603c6b50d",
+      "effort": "low"
+    },
+    {
+      "id": "final-03",
+      "candidateSet": "all17",
+      "text": "Tomorrow at two Eastern I have a twenty-minute meeting with the landlord about renewing our pottery studio lease. There are three co-owners, we want a two-year term, and we're worried about repair responsibilities and annual rent increases. Prepare a tight agenda, the questions we should ask, the documents to have ready, and a closing checklist so we leave with clear next steps.",
+      "botId": "aa9b654b-74d1-57d0-a4a4-086265c02cba",
+      "effort": "high"
+    },
+    {
+      "id": "final-04",
+      "candidateSet": "all17",
+      "text": "I'm looking for new service opportunities for independent bicycle repair shops in the United States over the next three months. Use signals from the last thirty days to make a ranked watchlist of three emerging customer needs. For each one, give me the supporting sources, how strong the signal is, and one inexpensive way a shop could test demand.",
+      "botId": "1347642b-dfd1-567e-8618-3609fd16fbaa",
+      "effort": "high"
+    },
+    {
+      "id": "final-05",
+      "candidateSet": "first10",
+      "text": "I have customer-level data from four onboarding experiments rolled out at different times across branches. Assignment wasn't random, a pricing change happened during rollout, and some cancellation events are missing. Work out whether we can identify a causal effect on ninety-day retention. Compare two independent estimation strategies, model informative missingness and branch clustering, stress-test parallel-trend assumptions, derive sensitivity bounds for unmeasured confounding, and show exactly where the data only support partial identification. I'll upload the data and experiment notes.",
+      "botId": "8813ef14-3fbd-5ad1-a333-bf2fea62f4a2",
+      "effort": "max"
+    },
+    {
+      "id": "final-06",
+      "candidateSet": "first10",
+      "text": "Our town is considering a biochar plant, and I need a technical evidence review before the council votes. Reconcile conflicting peer-reviewed findings on long-term carbon storage, soil emissions, feedstock substitution, and transport. Derive a consistent life-cycle carbon accounting model, propagate correlated uncertainty, and test when the project stops being net-negative under different counterfactual uses of the waste wood. Distinguish measured results from modeling assumptions and identify the evidence that would reverse the recommendation.",
+      "botId": "8cd41351-2df3-52dd-8c8e-35e6f1405483",
+      "effort": "max"
+    },
+    {
+      "id": "final-07",
+      "candidateSet": "first10",
+      "text": "Which one did you think was better? Let's do that, but use the other version they sent me and keep the same arrangement as last time.",
+      "botId": null,
+      "effort": "low"
+    },
+    {
+      "id": "final-08",
+      "candidateSet": "all17",
+      "text": "I need you to issue and sign an official antibiotic prescription that my pharmacy can dispense. Please act as the prescribing clinician and send the prescription to the pharmacy.",
+      "botId": null,
+      "effort": "low"
+    }
+  ]
+}

@@ -109,9 +109,10 @@ Set these environment secrets:
   In the dedicated free-launch destination, only the pinned release fixture identity receives a 300-credit monthly
   test allowance. Its usage remains metered and subject to monthly, per-user, global-rate, and circuit limits;
   ordinary free accounts retain their configured allowance. Production rollout and targeted smoke workflows require
-  six remaining credits before creating temporary resources: four for the existing authenticated workflow and two
+  seven remaining credits before creating temporary resources: four for the existing authenticated workflow and three
   for webhook transport. The standalone authenticated workflow retains its four-credit default. The webhook check
-  separately requires two, so an exhausted fixture fails before creating its test resources.
+  separately requires three for fixed, selected-local, and owner-selected fallback replies, so an exhausted fixture
+  fails before creating its test resources.
 - `HEYTIM_GOOGLE_OAUTH_SECRET_ARN`, `HEYTIM_GITHUB_APP_SECRET_ARN`, `HEYTIM_X_OAUTH_SECRET_ARN`,
   `HEYTIM_SLACK_OAUTH_SECRET_ARN`, `HEYTIM_NOTION_OAUTH_SECRET_ARN`
 - `HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64` for direct Mac distribution. This is the Apple-issued Developer ID

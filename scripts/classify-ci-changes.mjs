@@ -41,6 +41,7 @@ function isDependencyDefinition(path) {
     || path === 'scripts/audit-dependencies.sh'
     || /(^|\/)(package|package-lock)\.json$/.test(path)
     || /(^|\/)(pyproject\.toml|uv\.lock)$/.test(path)
+    || /^packages\/heytim-decider\/requirements\.(in|lock)$/.test(path)
   );
 }
 

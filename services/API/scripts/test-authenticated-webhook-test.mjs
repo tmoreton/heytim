@@ -3,7 +3,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { genericDelivery, pebbleTestDelivery, runWebhookSmoke } from './authenticated-webhook-test.mjs';
 
-function mockCloud({ credits = 10, failLocalSubmission = false, loseCreatedSourceResponse = false,
+function mockCloud({ credits = 10, failLocalSubmission = false, corruptFallbackEffort = false, loseCreatedSourceResponse = false,
   failCleanupBootstrap = false, cancelRace } = {}) {
   const state = { bots: new Map(), sources: new Map(), events: new Map(), deliveries: new Map(),
     conversations: new Map(), devices: new Set(), turns: 0, calls: [] };
@@ -117,9 +117,18 @@ function mockCloud({ credits = 10, failLocalSubmission = false, loseCreatedSourc
           return response({ message: 'never-print-reply-body' }, 500);
         }
         const event = state.events.get(path.split('/')[4]);
-        assert.equal(value.confidence, (2 * value.probabilities[value.botId] - 1));
-        event.routingDecision = { ...value, method: 'local' };
-        execute(event, value.botId, value.reasoningEffort);
+        assert.equal(value.confidence, (2 * Math.max(...Object.values(value.probabilities)) - 1));
+        const source = state.sources.get(event.sourceId);
+        if (value.botId === null && source.fallbackBotId) {
+          const { leaseToken, requestDigest, ...localDecision } = value;
+          const effort = corruptFallbackEffort ? 'low' : state.bots.get(source.fallbackBotId).reasoningEffort;
+          event.routingDecision = { method: 'local_fallback', botId: source.fallbackBotId,
+            reasoningEffort: effort, localDecision };
+          execute(event, source.fallbackBotId, effort);
+        } else {
+          event.routingDecision = { ...value, method: 'local' };
+          execute(event, value.botId, value.reasoningEffort);
+        }
         return response({ accepted: true, status: event.status });
       }
     }
@@ -128,22 +137,31 @@ function mockCloud({ credits = 10, failLocalSubmission = false, loseCreatedSourc
   return { state, fetcher };
 }
 
-test('smoke caps paid turns at two and cleans every fixture with explicit simulated-model evidence', async () => {
+test('smoke caps paid turns at three and cleans every fixture with explicit simulated-model evidence', async () => {
   const { state, fetcher } = mockCloud();
   const result = await runWebhookSmoke({ apiUrl: 'https://api.example.test', idToken: 'never-print-id-token', fetcher, sleep: async () => {} });
   assert.equal(result.passed, true);
-  assert.equal(state.turns, 2);
+  assert.equal(state.turns, 3);
+  assert.equal(result.modelTurns, 3);
   assert.equal(state.bots.size + state.sources.size + state.devices.size, 0);
   assert.equal(result.physicalAPNsDeliveryVerified, false);
   assert.match(result.localDecisionEvidence, /simulated/);
-  assert.doesNotMatch(JSON.stringify(result), /never-print|webhook-fixed-|webhook-local-/);
+  assert.doesNotMatch(JSON.stringify(result), /never-print|webhook-fixed-|webhook-local-|webhook-fallback-/);
 });
 
 test('insufficient credits stop before any fixture creation or public webhook', async () => {
-  const { state, fetcher } = mockCloud({ credits: 1 });
-  await assert.rejects(runWebhookSmoke({ apiUrl: 'https://api.example.test', idToken: 'never-print-id-token', fetcher }), /at least two remaining credits/);
+  const { state, fetcher } = mockCloud({ credits: 2 });
+  await assert.rejects(runWebhookSmoke({ apiUrl: 'https://api.example.test', idToken: 'never-print-id-token', fetcher }), /at least three remaining credits/);
   assert.deepEqual(state.calls, ['GET /bootstrap', 'GET /billing']);
   assert.equal(state.turns, 0);
+});
+
+test('fallback smoke detects an uncertain effort overriding the saved fallback preference and still cleans up', async () => {
+  const { state, fetcher } = mockCloud({ corruptFallbackEffort: true });
+  await assert.rejects(runWebhookSmoke({ apiUrl: 'https://api.example.test', idToken: 'never-print-id-token',
+    fetcher, sleep: async () => {} }), /owner fallback did not preserve saved effort/);
+  assert.equal(state.turns, 3);
+  assert.equal(state.bots.size + state.sources.size + state.devices.size, 0);
 });
 
 test('a local transport failure cleans existing resources without leaking service messages or secrets', async () => {

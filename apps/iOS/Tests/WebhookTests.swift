@@ -62,6 +62,53 @@ import XCTest
     try await api().updateWebhookSource(source, enabled: false)
   }
 
+  func testEditingSourcePreservesEndpointAndCredentialsAndEncodesNullableClears() async throws {
+    var source = try JSONDecoder().decode(WebhookCredential.self, from: Data(Self.credential.utf8)).source
+    source.fallbackBotId = "travel"
+    source.textPath = "event.message.text"
+    source.credentialVersion = 3
+    for fallback in ["travel", nil] as [String?] {
+      var expected = source
+      expected.name = "Edited Pebble"
+      expected.fallbackBotId = fallback
+      expected.textPath = nil
+      WebhookURLProtocol.handler = { request in
+        XCTAssertEqual(request.httpMethod, "PUT")
+        XCTAssertEqual(request.url?.path, "/webhook-sources/source-1")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer fixture-token")
+        let body = try JSONSerialization.jsonObject(with: Self.body(request)) as! [String: Any]
+        XCTAssertEqual(body["name"] as? String, expected.name)
+        XCTAssertEqual(body["allowedBotIds"] as? [String], source.allowedBotIds)
+        if let fallback { XCTAssertEqual(body["fallbackBotId"] as? String, fallback) }
+        else { XCTAssertTrue(body["fallbackBotId"] is NSNull) }
+        XCTAssertTrue(body["textPath"] is NSNull)
+        for key in ["id", "url", "userId", "credential", "signingSecret", "credentialVersion", "enabled"] {
+          XCTAssertNil(body[key])
+        }
+        return (200, try JSONEncoder().encode(["source": expected]))
+      }
+      var draft = WebhookSourceDraft(source: source)
+      draft.name = expected.name
+      draft.fallbackBotId = fallback
+      draft.textPath = nil
+      let updated = try await api().updateWebhookSource(source, draft: draft)
+      XCTAssertEqual(updated.id, source.id)
+      XCTAssertEqual(updated.url, source.url)
+      XCTAssertEqual(updated.credentialVersion, source.credentialVersion)
+      XCTAssertEqual(updated.fallbackBotId, fallback)
+      XCTAssertNil(updated.textPath)
+    }
+  }
+
+  func testFallbackEventDecodesItsMethodWithoutInventingModelConfidence() throws {
+    let data = Data("""
+      {"id":"event-1","sourceId":"source-1","sourceName":"Pebble","text":"Help","status":"queued","createdAt":"2026-10-14T14:00:00Z","botId":"travel","routingDecision":{"method":"local_fallback","botId":"travel","reasoningEffort":"high","localDecision":{"botId":null}}}
+      """.utf8)
+    let event = try JSONDecoder().decode(WebhookEvent.self, from: data)
+    XCTAssertEqual(event.routingDecision?.method, "local_fallback")
+    XCTAssertNil(event.routingDecision?.confidence)
+  }
+
   func testAbstentionDoesNotSubmitAnAutomaticDestination() async throws {
     WebhookURLProtocol.handler = { request in
       let body = try JSONSerialization.jsonObject(with: Self.body(request)) as! [String: Any]
@@ -118,7 +165,86 @@ import XCTest
     XCTAssertThrowsError(try deferred.validated(for: Self.routingRequest))
   }
 
+  func testPartialReasoningMetadataFailsValidationWhileLegacyAbsenceIsSupported() throws {
+    for missingField in 0..<3 {
+      var result = Self.result
+      if missingField == 0 { result.reasoningConfidence = nil }
+      if missingField == 1 { result.reasoningDeferred = nil }
+      if missingField == 2 { result.suggestedReasoningEffort = nil }
+      XCTAssertThrowsError(try result.validated(for: Self.routingRequest))
+    }
+    var legacy = Self.result
+    legacy.reasoningConfidence = nil
+    legacy.reasoningDeferred = nil
+    legacy.suggestedReasoningEffort = nil
+    XCTAssertNoThrow(try legacy.validated(for: Self.routingRequest))
+  }
+
+  func testReasoningJustBelowPointSixKeepsSavedPreferenceAndRejectsAutomaticOverride() throws {
+    var result = Self.result
+    result.reasoningConfidence = 0.5999
+    result.reasoningDeferred = true
+    result.suggestedReasoningEffort = "low"
+    result.reasoningEffort = "max"
+    XCTAssertNoThrow(try result.validated(for: Self.routingRequest))
+    result.reasoningEffort = "low"
+    XCTAssertThrowsError(try result.validated(for: Self.routingRequest))
+    result.reasoningDeferred = false
+    XCTAssertThrowsError(try result.validated(for: Self.routingRequest))
+  }
+
+  func testReasoningAtPointSixAllowsSuggestedEffortAndRejectsDeferral() throws {
+    var result = Self.result
+    result.reasoningConfidence = 0.6
+    result.reasoningDeferred = false
+    result.suggestedReasoningEffort = "low"
+    result.reasoningEffort = "low"
+    XCTAssertNoThrow(try result.validated(for: Self.routingRequest))
+    result.reasoningEffort = "max"
+    result.reasoningDeferred = true
+    XCTAssertThrowsError(try result.validated(for: Self.routingRequest))
+  }
+
   #if os(macOS)
+  func testHelperFailureSubmitsCompleteClarifyMetadataAndCleansUpRegistration() async throws {
+    let submitted = expectation(description: "Helper failure submitted for review or owner-selected fallback")
+    let unregistered = expectation(description: "Fixture router cleanup finished")
+    let requestPage = try JSONEncoder().encode(RequestPage(requests: [Self.routingRequest]))
+    var claimed = false
+    WebhookURLProtocol.handler = { request in
+      if request.httpMethod == "DELETE" {
+        unregistered.fulfill()
+      } else if request.url?.path.hasSuffix("/routing-requests") == true {
+        let body = claimed ? Data("{\"requests\":[]}".utf8) : requestPage
+        claimed = true
+        return (200, body)
+      } else if request.url?.path.hasSuffix("/result") == true {
+        let body = try JSONSerialization.jsonObject(with: Self.body(request)) as! [String: Any]
+        XCTAssertNil(body["botId"])
+        XCTAssertEqual(body["reasoningEffort"] as? String, "high")
+        XCTAssertEqual(body["reasoningConfidence"] as? Double, 0)
+        XCTAssertEqual(body["reasoningDeferred"] as? Bool, true)
+        XCTAssertEqual(body["suggestedReasoningEffort"] as? String, "high")
+        XCTAssertEqual(body["probabilities"] as? [String: Double], ["travel": 0, "clarify": 1])
+        XCTAssertEqual(body["requestDigest"] as? String, "digest-1")
+        XCTAssertEqual(body["leaseToken"] as? String, "lease-1")
+        submitted.fulfill()
+      }
+      return (200, Data("{}".utf8))
+    }
+    let suite = "WebhookTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(true, forKey: "heytim.local-routing.enabled")
+    let helper = SetupFixtureDecider()
+    await helper.prepare { _ in }
+    let router = LocalRoutingCoordinator(defaults: defaults, helper: helper)
+    router.connect(api: api())
+    await fulfillment(of: [submitted], timeout: 5)
+    router.disconnect()
+    await fulfillment(of: [unregistered], timeout: 5)
+  }
+
   func testEnabledRouterStartsPollingAfterFirstModelSetup() async throws {
     let registered = expectation(description: "Router registered after model installation")
     let unregistered = expectation(description: "Fixture router cleanup finished")

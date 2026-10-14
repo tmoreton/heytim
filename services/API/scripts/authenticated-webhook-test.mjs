@@ -129,9 +129,9 @@ export async function runWebhookSmoke({ apiUrl, idToken, fetcher = fetch,
   };
   try {
     assertBootstrapReady(await api('GET', '/bootstrap', undefined, 'Verify synthetic account bootstrap'));
-    const billing = await api('GET', '/billing', undefined, 'Check two-turn credit budget');
-    ensure(Number.isSafeInteger(billing.creditsRemaining) && billing.creditsRemaining >= 2,
-      'The webhook smoke requires at least two remaining credits; no fixture resources were created.');
+    const billing = await api('GET', '/billing', undefined, 'Check three-turn credit budget');
+    ensure(Number.isSafeInteger(billing.creditsRemaining) && billing.creditsRemaining >= 3,
+      'The webhook smoke requires at least three remaining credits; no fixture resources were created.');
     const fixedBot = await createBot('Fixed');
     const fixed = await createSource({ name: 'Disposable fixed nested JSON webhook smoke', kind: 'generic',
       allowedBotIds: [fixedBot.id], fallbackBotId: fixedBot.id, routingMode: 'fixed',
@@ -208,6 +208,45 @@ export async function runWebhookSmoke({ apiUrl, idToken, fetcher = fetch,
     ensure((await messages(localBot.id)).filter((message) => message.role === 'user').length === 1,
       'Replayed local results created another turn.');
     completed.push('simulated Mac lease/result reaches one completed persisted bot turn');
+
+    const fallbackBot = await createBot('Fallback', 'high');
+    const fallback = await createSource({ name: 'Disposable owner-selected fallback smoke', kind: 'generic',
+      allowedBotIds: [fallbackBot.id], fallbackBotId: fallbackBot.id,
+      routingMode: 'local', enabled: true, authentication: 'hmac' });
+    const fallbackMarker = `webhook-fallback-${randomUUID()}`;
+    const fallbackDelivery = genericDelivery(fallback.signingSecret, {
+      eventId: randomUUID(), text: `Reply with only this marker: ${fallbackMarker}` });
+    const fallbackEvent = await incoming(fallback.source, fallbackDelivery, 'Accept fallback fixture', [202]);
+    const fallbackClaim = await waitFor(async () => (await api('GET', `/devices/${deviceId}/routing-requests`,
+      undefined, 'Claim simulated fallback fixture')).requests?.[0],
+    (value) => {
+      if (value && value.id !== fallbackEvent.eventId) throw new Error('The synthetic account has an unrelated fallback routing request.');
+      return Boolean(value);
+    }, 'Lease fallback fixture');
+    ensure(fallbackClaim.bots?.length === 1 && fallbackClaim.bots[0].id === fallbackBot.id,
+      'The fallback lease did not preserve its source allowlist.');
+    const simulatedAbstention = { requestDigest: fallbackClaim.requestDigest, leaseToken: fallbackClaim.leaseToken,
+      modelId, modelRevision, botId: null, confidence: .8,
+      probabilities: { [fallbackBot.id]: .1, clarify: .9 }, reasoningEffort: 'high',
+      reasoningConfidence: .95, reasoningDeferred: true, suggestedReasoningEffort: 'low' };
+    const fallbackResultPath = `/devices/${deviceId}/routing-requests/${fallbackClaim.id}/result`;
+    await api('POST', fallbackResultPath, simulatedAbstention, 'Submit explicitly simulated abstention');
+    const fallbackAnswer = await answer(fallbackBot.id, fallbackEvent.eventId, fallbackMarker);
+    const fallbackDecision = fallbackAnswer.event.routingDecision;
+    ensure(fallbackDecision?.method === 'local_fallback' && fallbackDecision.botId === fallbackBot.id
+      && fallbackDecision.reasoningEffort === 'high'
+      && fallbackDecision.localDecision?.botId === null
+      && fallbackDecision.localDecision?.suggestedReasoningEffort === 'low'
+      && fallbackDecision.localDecision?.confidence === .8
+      && !('leaseToken' in fallbackDecision.localDecision)
+      && !('requestDigest' in fallbackDecision.localDecision)
+      && fallbackAnswer.reply.usageSummary?.reasoningEffort === 'high',
+    'The owner fallback did not preserve saved effort and the raw abstention separately.');
+    await api('POST', fallbackResultPath, simulatedAbstention, 'Replay simulated abstention');
+    await incoming(fallback.source, fallbackDelivery, 'Replay completed fallback delivery', [202]);
+    ensure((await messages(fallbackBot.id)).filter((message) => message.role === 'user').length === 1,
+      'Replayed fallback deliveries created another turn.');
+    completed.push('owner-selected fallback preserves saved effort and completes one persisted turn');
   } catch (error) {
     primaryError = error;
   } finally {
@@ -263,7 +302,7 @@ export async function runWebhookSmoke({ apiUrl, idToken, fetcher = fetch,
     throw failure;
   }
   ensure(cleanupSucceeded, 'Disposable webhook smoke resources could not all be cleaned up.');
-  return { passed: true, completed, cleanupSucceeded, modelTurns: 2,
+  return { passed: true, completed, cleanupSucceeded, modelTurns: 3,
     localDecisionEvidence: 'simulated cloud transport; real Mac inference evaluated separately',
     notificationEvidence: 'notification queue state is not exposed by the public API',
     physicalAPNsDeliveryVerified: false };

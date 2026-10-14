@@ -23,7 +23,8 @@ MAX_TEXT_BYTES = 16_384
 MAX_REQUEST_BYTES = 131_072
 MAX_BOTS = 32
 EFFORTS = ("low", "high", "max")
-MINIMUM_REASONING_CONFIDENCE = 0.5
+MINIMUM_ROUTING_CONFIDENCE = 0.6
+MINIMUM_REASONING_CONFIDENCE = 0.6
 ADAPTER_FILES = (
     "strands_decider_config.json", "head.safetensors", "lora/adapter_config.json",
     "lora/adapter_model.safetensors", "tokenizer.json", "tokenizer_config.json",
@@ -152,7 +153,7 @@ def select_result(answers: dict[str, Any], *, minimum_confidence: float,
 
 
 class Decider:
-    def __init__(self, root: Path, device: str = "auto", *, minimum_confidence: float = 0.8,
+    def __init__(self, root: Path, device: str = "auto", *, minimum_confidence: float = MINIMUM_ROUTING_CONFIDENCE,
                  minimum_margin: float = 0.15) -> None:
         self.root = root.expanduser().resolve()
         self.device = device
@@ -355,7 +356,7 @@ def main() -> None:
     parser.add_argument("--model-root", type=Path, required=True)
     parser.add_argument("--device", choices=("auto", "mlx", "mps", "cpu"), default="auto")
     parser.add_argument("--prepare", action="store_true")
-    parser.add_argument("--minimum-confidence", type=float, default=0.8)
+    parser.add_argument("--minimum-confidence", type=float, default=MINIMUM_ROUTING_CONFIDENCE)
     parser.add_argument("--minimum-margin", type=float, default=0.15)
     args = parser.parse_args()
     if not 0 <= args.minimum_confidence <= 1 or not 0 <= args.minimum_margin <= 1:

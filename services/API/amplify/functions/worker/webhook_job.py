@@ -15,13 +15,16 @@ from shared.ai_consent import ConsentRequired
 from shared.browser_session_store import BrowserSessionError
 from shared.browser_sessions import ensure_browser_send_allowed
 from shared.job_envelope import send_job
+from shared.time import utc_now_iso
 from shared.webhooks import (
     WebhookError,
     event_key,
     get_event,
     get_source,
-    source_key,
+    identifier,
+    routing_source_guard,
     validate_choice,
+    validate_routing_policy,
 )
 
 from .ai_consent import grants_for_job
@@ -48,6 +51,40 @@ def _release(key: dict, owner: str) -> None:
             ConditionExpression="dispatchLeaseOwner = :owner",
             ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={":pending": "dispatch_pending", ":owner": owner})
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        pass
+
+
+def _webhook_turn_id(user_id: str, event_id: str, decision: dict | None = None) -> str:
+    identity = f"heytim:webhook-turn:{user_id}:{event_id}"
+    if decision and decision.get("method") == "manual" and "manualAttemptId" in decision:
+        identity += ":manual:" + identifier(decision["manualAttemptId"], "manualAttemptId")
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, identity))
+
+
+def _finish_unstarted_turn(user_id: str, item: dict) -> None:
+    bot_id = item.get("routingDecision", {}).get("botId")
+    if not isinstance(bot_id, str) or not bot_id:
+        return
+    try:
+        turn_id = _webhook_turn_id(user_id, item["id"], item.get("routingDecision"))
+    except WebhookError:
+        return
+    key = {"pk": _turn_pk(user_id, bot_id), "sk": f"TURN#{item['createdAt']}#{turn_id}"}
+    turn = table.get_item(Key=key, ConsistentRead=True).get("Item", {})
+    if (turn.get("status") != "PENDING" or turn.get("startedAt") or turn.get("leaseOwner")
+            or turn.get("botId") != bot_id or turn.get("webhookEventId") != item["id"]
+            or turn.get("eventSourceId") != item["sourceId"]):
+        return
+    try:
+        table.update_item(Key=key,
+            UpdateExpression="SET #status = :cancelled, assistantText = :message, completedAt = :now",
+            ConditionExpression=("#status = :pending AND attribute_not_exists(startedAt) AND attribute_not_exists(leaseOwner) "
+                                 "AND botId = :bot AND webhookEventId = :event AND eventSourceId = :source"),
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={":cancelled": "CANCELLED", ":pending": "PENDING", ":bot": bot_id,
+                ":event": item["id"], ":source": item["sourceId"], ":now": utc_now_iso(),
+                ":message": "Webhook routing changed before this response started. Review the incoming message to continue."})
     except table.meta.client.exceptions.ConditionalCheckFailedException:
         pass
 
@@ -84,10 +121,11 @@ def process_webhook_dispatch(record: dict, request: dict) -> None:
         bot = table.get_item(Key=_bot_key(user_id, bot_id), ConsistentRead=True).get("Item", {})
         effort = decision.get("reasoningEffort", bot.get("reasoningEffort", "high"))
         bot = validate_choice(table, user_id, source, bot_id, effort)
-        if not bot or (decision.get("method") == "fixed" and source.get("fallbackBotId") != bot_id):
+        validate_routing_policy(source, decision)
+        if not bot:
             raise WebhookError(409, "Source routing policy changed")
         grants_for_job(user_id, user_id, None, None)
-        turn_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"heytim:webhook-turn:{user_id}:{event_id}"))
+        turn_id = _webhook_turn_id(user_id, event_id, decision)
         bot_lease = _claim_send_lease(user_id, bot_id, owner)
         if not bot_lease or _active_turn_exists(user_id, bot_id, turn_id):
             attempt = int(request.get("waitAttempt", 0))
@@ -106,9 +144,7 @@ def process_webhook_dispatch(record: dict, request: dict) -> None:
                 "eventSourceId": source["id"], "routingDecision": decision}
         try:
             put_user_item_while_account_active(table, user_id, turn, require_absent=True,
-                required_item_condition={"Key": source_key(user_id, source["id"]),
-                    "ConditionExpression": "enabled = :enabled AND updatedAt = :updated",
-                    "ExpressionAttributeValues": {":enabled": True, ":updated": source["updatedAt"]}})
+                required_item_condition=routing_source_guard(user_id, source))
         except UserItemConflictError:
             stored = table.get_item(Key={"pk": turn["pk"], "sk": turn["sk"]}, ConsistentRead=True).get("Item", {})
             if stored.get("webhookEventId") != event_id or stored.get("eventSourceId") != source["id"]:
@@ -117,6 +153,7 @@ def process_webhook_dispatch(record: dict, request: dict) -> None:
             # later bot preference edit must not change its already pinned effort.
             decision = stored["routingDecision"]
             validate_choice(table, user_id, source, decision.get("botId"), decision.get("reasoningEffort"))
+            validate_routing_policy(source, decision)
         table.update_item(Key=_bot_key(user_id, bot_id),
             UpdateExpression="SET lastMessage = :text, lastMessageAt = :now, updatedAt = :now",
             ConditionExpression="attribute_exists(pk)",
@@ -132,6 +169,7 @@ def process_webhook_dispatch(record: dict, request: dict) -> None:
                 ":decision": decision, ":owner": owner})
     except (WebhookError, ConsentRequired, BrowserSessionError, UserItemGuardFailedError) as exc:
         reason = "consent_required" if isinstance(exc, ConsentRequired) else "settings_changed"
+        _finish_unstarted_turn(user_id, item)
         _review(key, owner, reason)
     except AccountInactiveError:
         return

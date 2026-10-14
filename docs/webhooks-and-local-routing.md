@@ -8,7 +8,8 @@ the existing AgentCore execution, conversation persistence, and final-answer APN
 
 1. Open HeyTim Settings → Webhooks. On the Mac, download the routing model and enable local routing.
 2. Add a source, choose Pebble Index or JSON, and select the bots it may use. Fixed routing can target one bot without
-   a local model. Automatic routing waits while no authorized Mac is available.
+   a local model. Automatic routing can optionally use a permitted bot you select under **When uncertain**; leaving
+   it unset keeps uncertain messages for manual review. Automatic routing waits while no authorized Mac is available.
 3. Save the endpoint, bearer credential, and signing secret when shown. Credentials are revealed once and can be
    replaced. Disabling or removing a source stops new requests and pending execution.
 4. In the Pebble phone app, configure the desired Index gesture's webhook endpoint and Authorization header,
@@ -47,14 +48,26 @@ The API persists a source-bound event before acknowledgment. Mac routing request
 an expiring claim, a request digest, a snapshot of eligible bot metadata, and a pinned model identity. The server
 revalidates the source and current bot catalog before accepting the result or executing a turn.
 
-Uncertain decisions and rejected model inputs remain visible for manual review in Webhooks. Choose a permitted bot
-there to continue. Automatic messages wait behind active bot work rather than steering it. The normal consent,
+After a Mac abstains or rejects model input, a local source uses its explicitly configured fallback bot, if any.
+The fallback must still belong to the account and remain permitted by the source. It uses that bot's saved reasoning
+preference, never the uncertain model effort suggestion. Its decision is marked `local_fallback`, with the original
+validated model decision retained separately for inspection. Removing or changing the fallback, disabling the source,
+or removing the bot's permission stops pending execution and resumed turns. Credential rotation preserves accepted work.
+
+Without a configured fallback, uncertain decisions and rejected model inputs remain visible for manual review in
+Webhooks. Choose a permitted bot there to continue. The fallback does not run while the Mac is unavailable.
+Automatic messages wait behind active bot work rather than steering it. The normal consent,
 billing, resource grants, and action approvals still apply. Webhook turns do not gain bot-management or Mac-control
 authority.
 
-Automatic bot selection requires confidence of at least 0.8 and a margin of at least 0.15 over the next candidate.
-The reasoning classifier overrides the bot's saved Low, High, or Maximum preference only when its confidence reaches
-0.5. Otherwise the turn keeps that preference. The raw suggestion, confidence, and effective effort are retained on
+Automatic bot selection requires choice concentration of at least 0.60 and a probability margin of at least 0.15
+over the next candidate, including the clarification option. Concentration is `(N * pmax - 1) / (N - 1)`, where `N`
+includes every permitted bot and clarification. It measures how concentrated the model's distribution is around
+its winner; it is not a calibrated probability that the destination is correct. The cutoff was selected using
+development cases and real catalog projections, which are calibration evidence rather than a production accuracy estimate.
+
+The reasoning classifier overrides the bot's saved Low, High, or Maximum preference only when its concentration reaches
+0.60. Otherwise the turn keeps that preference. The raw suggestion, confidence, and effective effort are retained on
 the turn for inspection; routing never edits the bot's saved preference. Pending dispatch has a recoverable outbox
 so interrupted SQS handoffs can be retried.
 
@@ -80,7 +93,9 @@ Backend tests cover source authorization, exact signature bytes, replay identiti
 and routing leases, queue handoff recovery, busy-bot ordering, per-turn reasoning, and existing notification behavior.
 Native tests cover API requests, response decoding, model identity and result validation, and clarification handling.
 The model evaluation uses the real pinned weights and retains original failures as well as final results; fixtures
-used to tune a rubric are development evidence, not a held-out accuracy claim.
+used to tune a rubric are development evidence, not a held-out accuracy claim. Larger catalog acceptance sets have
+shown correct rankings with insufficient automatic-routing coverage; optional owner-configured fallback keeps that
+uncertainty explicit without changing classifier thresholds or claiming the model coverage gate passed.
 
 Run the repository backend/runtime checks, the decider's unit and real-model gates, and both Apple destinations with
 `./scripts/apple-app.sh build` and `./scripts/apple-app.sh verify`. Deployment uses the protected production GitHub

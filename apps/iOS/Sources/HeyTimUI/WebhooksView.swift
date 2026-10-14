@@ -19,6 +19,7 @@ struct WebhooksView: View {
   @State private var isWorking = false
   @State private var error: String?
   @State private var showsCreate = false
+  @State private var editCandidate: WebhookSource?
   @State private var credential: WebhookCredentialPresentation?
   @State private var pendingCredential: WebhookCredentialPresentation?
   @State private var deleteCandidate: WebhookSource?
@@ -33,7 +34,7 @@ struct WebhooksView: View {
       LocalRoutingSettingsSection(router: router)
       #else
       Section {
-        Text("Automatic routing runs in Hey Tim on your Mac. Keep the Mac app running with Local Routing enabled.")
+        Text("Automatic routing runs in Hey Tim on your Mac. Keep the Mac app running with Local Routing enabled. Uncertain messages wait for review unless you choose a fallback bot for the source.")
       } header: { Text("Local Routing") }
       #endif
       if let error {
@@ -88,6 +89,15 @@ struct WebhooksView: View {
       NavigationStack { WebhookCredentialView(credential: presentation.value) }
         .frame(minWidth: 360, minHeight: 480)
     }
+    .sheet(item: $editCandidate) { source in
+      NavigationStack {
+        WebhookSourceEditor(bots: model.bootstrap?.bots ?? [], source: source) { draft in
+          try await model.updateWebhookSource(source, draft: draft)
+          await refresh()
+        }
+      }
+      .frame(minWidth: 360, minHeight: 480)
+    }
     .confirmationDialog("Remove this webhook?", isPresented: Binding(
       get: { deleteCandidate != nil }, set: { if !$0 { deleteCandidate = nil } }
     ), titleVisibility: .visible) {
@@ -119,6 +129,7 @@ struct WebhooksView: View {
         Spacer()
         Text(source.enabled ? "Enabled" : "Disabled").foregroundStyle(.secondary).font(.caption)
         Menu {
+          Button("Edit") { editCandidate = source }
           Button(source.enabled ? "Disable" : "Enable") {
             Task { await perform { try await model.updateWebhookSource(source, enabled: !source.enabled) } }
           }
@@ -126,13 +137,24 @@ struct WebhooksView: View {
           Button("Replace Credentials") { rotateCandidate = source }
           Button("Remove", role: .destructive) { deleteCandidate = source }
         } label: { Image(systemName: "ellipsis.circle") }
+        .accessibilityIdentifier("webhooks.source-menu.\(source.id)")
         .disabled(isWorking)
       }
-      Text(source.routingMode == "local" ? "Choose a bot on this Mac" : "Send to the configured bot")
+      Text(routingDescription(for: source))
         .font(.caption).foregroundStyle(.secondary)
       Text(source.url).font(.caption.monospaced()).textSelection(.enabled)
     }
     .padding(.vertical, 4)
+  }
+
+  private func routingDescription(for source: WebhookSource) -> String {
+    guard source.routingMode == "local" else { return "Send to the configured bot" }
+    if let bot = model.bootstrap?.bots.first(where: {
+      $0.id == source.fallbackBotId && (source.allowedBotIds.isEmpty || source.allowedBotIds.contains($0.id))
+    }) {
+      return "Choose a bot on your Mac; when uncertain, use \(bot.name)."
+    }
+    return "Choose a bot on your Mac; when uncertain, review manually."
   }
 
   private func eventRow(_ event: WebhookEvent) -> some View {
@@ -144,6 +166,9 @@ struct WebhooksView: View {
           .font(.caption).foregroundStyle(.secondary)
       }
       Text(event.text).lineLimit(8).textSelection(.enabled)
+      if event.routingDecision?.method == "local_fallback" {
+        Text("Used your fallback bot").font(.caption).foregroundStyle(.secondary)
+      }
       if let reason = event.reviewReason { Text(reason.replacingOccurrences(of: "_", with: " ")).font(.caption).foregroundStyle(.secondary) }
       if let botId = event.botId, let bot = model.bootstrap?.bots.first(where: { $0.id == botId }) {
         Button("Open \(bot.name)", systemImage: "bubble.left") {
@@ -194,16 +219,47 @@ struct WebhooksView: View {
 
 private struct WebhookSourceEditor: View {
   let bots: [Bot]
+  let source: WebhookSource?
   let save: @MainActor (WebhookSourceDraft) async throws -> Void
-  @State private var draft = WebhookSourceDraft()
+  private let permissionsAdjusted: Bool
+  @State private var draft: WebhookSourceDraft
   @State private var isSaving = false
   @State private var error: String?
   @Environment(\.dismiss) private var dismiss
 
+  init(bots: [Bot], source: WebhookSource? = nil,
+       save: @escaping @MainActor (WebhookSourceDraft) async throws -> Void) {
+    self.bots = bots
+    self.source = source
+    self.save = save
+    var initial = source.map { WebhookSourceDraft(source: $0) } ?? WebhookSourceDraft()
+    let currentIDs = Set(bots.map(\.id))
+    let originalIDs = initial.allowedBotIds
+    let originalFallback = initial.fallbackBotId
+    initial.allowedBotIds = originalIDs.isEmpty ? bots.map(\.id) : originalIDs.filter { currentIDs.contains($0) }
+    if let fallback = initial.fallbackBotId, !initial.allowedBotIds.contains(fallback) { initial.fallbackBotId = nil }
+    permissionsAdjusted = (!originalIDs.isEmpty && originalIDs != initial.allowedBotIds)
+      || originalFallback != initial.fallbackBotId
+    _draft = State(initialValue: initial)
+  }
+
+  private var permittedBots: [Bot] { bots.filter { draft.allowedBotIds.contains($0.id) } }
+  private var destinationName: String {
+    permittedBots.first(where: { $0.id == draft.fallbackBotId })?.name
+      ?? (draft.routingMode == "fixed" ? "Choose a bot" : "Review manually")
+  }
+
   var body: some View {
     Form {
+      if permissionsAdjusted {
+        Section {
+          Text("Some previously selected bots are no longer available. Review the permitted bots and fallback before saving.")
+            .foregroundStyle(.secondary)
+        }
+      }
       Section("Source") {
         TextField("Name", text: $draft.name)
+          .accessibilityIdentifier("webhooks.source-name")
         Picker("Format", selection: $draft.kind) {
           Text("Pebble Index").tag("pebble")
           Text("JSON Webhook").tag("generic")
@@ -217,13 +273,21 @@ private struct WebhookSourceEditor: View {
           Text("Choose on my Mac").tag("local")
           Text("Always use one bot").tag("fixed")
         }
-        if draft.routingMode == "fixed" {
-          Picker("Bot", selection: Binding(
-            get: { draft.fallbackBotId ?? "" }, set: { draft.fallbackBotId = $0.isEmpty ? nil : $0 }
-          )) {
-            Text("Choose a bot").tag("")
-            ForEach(bots.filter { draft.allowedBotIds.contains($0.id) }) { bot in Text(bot.name).tag(bot.id) }
-          }
+        .pickerStyle(.menu)
+        .accessibilityIdentifier("webhooks.routing")
+        Picker(draft.routingMode == "fixed" ? "Bot" : "When uncertain", selection: Binding(
+          get: { draft.fallbackBotId ?? "" },
+          set: { id in draft.fallbackBotId = permittedBots.contains(where: { $0.id == id }) ? id : nil }
+        )) {
+          Text(draft.routingMode == "fixed" ? "Choose a bot" : "Review manually").tag("")
+          ForEach(permittedBots) { bot in Text(bot.name).tag(bot.id) }
+        }
+        .pickerStyle(.menu)
+        .accessibilityIdentifier(draft.routingMode == "fixed" ? "webhooks.fixed-bot" : "webhooks.fallback-bot")
+        .accessibilityValue(destinationName)
+        if draft.routingMode == "local" {
+          Text("Review manually keeps uncertain messages in your inbox. An optional fallback answers with its saved reasoning level.")
+            .font(.caption).foregroundStyle(.secondary)
         }
       }
       Section {
@@ -243,18 +307,21 @@ private struct WebhookSourceEditor: View {
               Text(bot.tagline).font(.caption).foregroundStyle(.secondary)
             }
           }
+          .accessibilityIdentifier("webhooks.permitted-bot.\(bot.id)")
         }
       } header: { Text("Permitted Bots").accessibilityIdentifier("webhooks.permitted-bots") } footer: {
-        Text("The router can choose only these bots. Messages wait while the Mac is unavailable, and uncertain choices can be reviewed here.")
+        Text(draft.routingMode == "local"
+          ? "The router and any fallback can use only these bots. Messages wait while the Mac is unavailable."
+          : "Messages always use your selected permitted bot.")
       }
       if let error { Section { Text(error).foregroundStyle(.red) } }
     }
     .formStyle(.grouped)
-    .navigationTitle("New Webhook")
+    .navigationTitle(source == nil ? "New Webhook" : "Edit Webhook")
     .toolbar {
       ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(isSaving) }
       ToolbarItem(placement: .confirmationAction) {
-        Button("Create") {
+        Button(source == nil ? "Create" : "Save") {
           isSaving = true
           Task {
             do { try await save(draft); dismiss() }
@@ -266,7 +333,6 @@ private struct WebhookSourceEditor: View {
           || draft.allowedBotIds.isEmpty || (draft.routingMode == "fixed" && draft.fallbackBotId == nil))
       }
     }
-    .onAppear { if draft.allowedBotIds.isEmpty { draft.allowedBotIds = bots.map(\.id) } }
   }
 }
 
@@ -341,7 +407,7 @@ private struct LocalRoutingSettingsSection: View {
           .accessibilityIdentifier("webhooks.download-model")
       }
     } header: { Text("Local Routing") } footer: {
-      Text("Requires an Apple silicon Mac and approximately 5 GB for the model download. Classification runs on this Mac; your chosen bot answers through Hey Tim’s existing service. Uncertain reasoning choices keep the bot’s saved preference.")
+      Text("Requires an Apple silicon Mac and approximately 5 GB for the model download. Classification runs on this Mac; your chosen bot answers through Hey Tim’s existing service. Uncertain bot choices wait for review unless the source has a fallback. Fallback answers and uncertain reasoning choices use the bot’s saved preference.")
     }
     .task { await router.checkModel() }
   }

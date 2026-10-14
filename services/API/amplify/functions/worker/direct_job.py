@@ -13,6 +13,7 @@ from shared.job_envelope import send_job
 from shared.time import utc_now_iso
 from shared.webhooks import get_source as live_webhook_source
 from shared.webhooks import validate_choice as validate_webhook_choice
+from shared.webhooks import validate_routing_policy as validate_webhook_policy
 from shared.work_state import is_claimable
 
 from .agent import _invoke, agent_failure_message
@@ -79,6 +80,7 @@ def _effective_bot_for_turn(bot: dict, turn: dict) -> dict:
             raise ValueError("Webhook routing decision belongs to another event or source")
         source = live_webhook_source(table, turn["userId"], turn["eventSourceId"], enabled=True)
         validate_webhook_choice(table, turn["userId"], source, bot["id"], routing["reasoningEffort"])
+        validate_webhook_policy(source, routing)
         effective["inputProvenance"] = {"kind": "webhook"}
     return effective
 

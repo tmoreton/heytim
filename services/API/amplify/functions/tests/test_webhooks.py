@@ -13,9 +13,11 @@ from shared.webhooks import (
     MODEL_ID,
     MODEL_REVISION,
     WebhookError,
+    eligible_bots,
     event_key,
     owner_key,
     public_source,
+    request_digest,
     source_key,
 )
 
@@ -244,11 +246,56 @@ class WebhookTests(ApiTestCase):
         self.assertEqual(first["eventId"], second["eventId"])
 
     def test_unicode_bot_metadata_fits_local_helper_byte_limits(self):
-        from shared.webhooks import eligible_bots
-        self.data_table.items[("USER#owner-1", "BOT#bot-1")].update(name="你好" * 200, prompt="🚀" * 1500)
+        self.data_table.items[("USER#owner-1", "BOT#bot-1")].update(name="你好" * 200,
+            tagline="你好" * 100, prompt="🚀" * 1500)
         bot = eligible_bots(self.data_table, self.user_id, self.source)[0]
         self.assertLessEqual(len(bot["name"].encode()), 200)
-        self.assertLessEqual(len(bot["description"].encode()), 2000)
+        tagline, prompt = bot["description"].split(" ", 1)
+        self.assertEqual(len(tagline.encode()), 192)
+        self.assertEqual(len(prompt.encode()), 256)
+        self.assertEqual(len(bot["description"].encode()), 449)
+        self.assertNotIn("\ufffd", bot["description"])
+
+    def test_tagline_and_prompt_are_normalized_in_summary_and_tagline_edits_change_digest(self):
+        raw = self.data_table.items[("USER#owner-1", "BOT#bot-1")]
+        raw.update(tagline="  Vacation\n planning  ", prompt="\tPlan trips.\nKeep budgets clear. ")
+        before = eligible_bots(self.data_table, self.user_id, self.source)
+        self.assertEqual(before[0]["description"], "Vacation planning Plan trips. Keep budgets clear.")
+        event = {"id": str(uuid.uuid4()), "sourceId": self.source_id, "text": "Plan a trip"}
+        raw["tagline"] = "Vacation planning with accessibility"
+        after = eligible_bots(self.data_table, self.user_id, self.source)
+        self.assertIn("accessibility", after[0]["description"])
+        self.assertNotEqual(before[0]["catalogFingerprint"], after[0]["catalogFingerprint"])
+        self.assertNotEqual(request_digest(event, before), request_digest(event, after))
+
+    def test_blank_tagline_keeps_prompt_role_and_legacy_description_is_optional(self):
+        raw = self.data_table.items[("USER#owner-1", "BOT#bot-1")]
+        raw.update(tagline="\n\t ", prompt="  Research\n scientific questions.  ")
+        projected = eligible_bots(self.data_table, self.user_id, self.source)[0]
+        self.assertEqual(projected["description"], "Research scientific questions.")
+        raw["description"] = "Legacy research responsibility."
+        projected = eligible_bots(self.data_table, self.user_id, self.source)[0]
+        self.assertEqual(projected["description"], "Legacy research responsibility. Research scientific questions.")
+
+    def test_late_prompt_edit_preserves_summary_but_changes_fingerprint_and_rejects_stale_callback(self):
+        raw = self.data_table.items[("USER#owner-1", "BOT#bot-1")]
+        raw["prompt"] = "Research factual questions. " + "Context " * 400 + "Original final instruction."
+        item, result = self._claimed_event()
+        before = eligible_bots(self.data_table, self.user_id, self.source)
+        raw["prompt"] += " Changed responsibility after the visible prefix."
+        after = eligible_bots(self.data_table, self.user_id, self.source)
+        self.assertEqual(before[0]["description"], after[0]["description"])
+        self.assertNotEqual(before[0]["catalogFingerprint"], after[0]["catalogFingerprint"])
+        self.assertNotEqual(request_digest(item, before), request_digest(item, after))
+        with self.assertRaises(WebhookError) as error:
+            self.routing.submit_result(self.user_id, self.device_id, item["id"], result)
+        self.assertEqual(error.exception.status, 409)
+        self.assertIn("bot catalog changed", str(error.exception))
+        release = self.data_table.updated[-1]
+        self.assertEqual(release["Key"], event_key(self.user_id, item["id"]))
+        self.assertEqual(release["ExpressionAttributeValues"][":awaiting"], "awaiting_routing")
+        self.assertIn("REMOVE routingLeaseExpiresAt", release["UpdateExpression"])
+        self.assertFalse(self.sqs.send_message.called)
 
     def test_choice_confidence_is_official_concentration_and_not_max_probability(self):
         item, result = self._claimed_event()
@@ -258,6 +305,26 @@ class WebhookTests(ApiTestCase):
             self.assertEqual(self.routing.submit_result(self.user_id, self.device_id, item["id"], result)["status"], "dispatch_pending")
             result["confidence"] = .9
             with self.assertRaises(WebhookError): self.routing.submit_result(self.user_id, self.device_id, item["id"], result)
+
+    def test_routing_concentration_just_below_cutoff_requires_review_without_queueing(self):
+        item, result = self._claimed_event()
+        # For two labels, (2 * .79995 - 1) / (2 - 1) = .5999.
+        result.update(confidence=.5999, probabilities={"bot-1": .79995, "clarify": .20005})
+        with patch.dict(self.routing.submit_result.__globals__, {
+            "require_request_consent": lambda _: self.fail("A review-only decision cannot start a paid turn")
+        }):
+            response = self.routing.submit_result(self.user_id, self.device_id, item["id"], result)
+        self.assertEqual(response["status"], "needs_review")
+        self.assertFalse(self.sqs.send_message.called)
+
+    def test_routing_concentration_at_cutoff_dispatches_with_valid_distribution_and_consent(self):
+        item, result = self._claimed_event()
+        # For two labels, (2 * .8 - 1) / (2 - 1) = .6, with margin .6.
+        result.update(confidence=.6, probabilities={"bot-1": .8, "clarify": .2})
+        with patch.dict(self.routing.submit_result.__globals__, {"require_request_consent": lambda _: None}):
+            response = self.routing.submit_result(self.user_id, self.device_id, item["id"], result)
+        self.assertEqual(response["status"], "dispatch_pending")
+        self.sqs.send_message.assert_called_once()
 
     def test_fixed_ingress_persists_sparse_outbox_when_initial_sqs_handoff_fails(self):
         self.source.update(routingMode="fixed", fallbackBotId="bot-1"); self._put(self.source)
@@ -316,12 +383,36 @@ class WebhookTests(ApiTestCase):
         self.assertTrue(result["reasoningDeferred"])
         self.assertEqual(result["suggestedReasoningEffort"], "max")
 
-    def test_reasoning_gate_boundary_accepts_confident_formal_max_at_half(self):
+    def test_reasoning_gate_just_below_point_six_preserves_saved_preference(self):
         from shared.webhooks import reasoning_decision
-        decision = reasoning_decision({"reasoningEffort": "max", "reasoningConfidence": .5655,
+        value = {"reasoningEffort": "high", "reasoningConfidence": .5999,
+                 "reasoningDeferred": True, "suggestedReasoningEffort": "max"}
+        decision = reasoning_decision(value, {"reasoningEffort": "high"})
+        self.assertEqual(decision["reasoningEffort"], "high")
+        self.assertEqual(decision["suggestedReasoningEffort"], "max")
+        self.assertTrue(decision["reasoningDeferred"])
+        with self.assertRaises(WebhookError):
+            reasoning_decision({**value, "reasoningEffort": "max"}, {"reasoningEffort": "high"})
+        with self.assertRaises(WebhookError):
+            reasoning_decision({**value, "reasoningDeferred": False}, {"reasoningEffort": "high"})
+
+    def test_reasoning_gate_at_point_six_accepts_suggested_effort(self):
+        from shared.webhooks import reasoning_decision
+        decision = reasoning_decision({"reasoningEffort": "max", "reasoningConfidence": .6,
                                        "reasoningDeferred": False, "suggestedReasoningEffort": "max"}, {"reasoningEffort": "high"})
         self.assertEqual(decision["reasoningEffort"], "max")
         self.assertFalse(decision["reasoningDeferred"])
+        with self.assertRaises(WebhookError):
+            reasoning_decision({"reasoningEffort": "high", "reasoningConfidence": .6,
+                                "reasoningDeferred": True, "suggestedReasoningEffort": "max"}, {"reasoningEffort": "high"})
+
+    def test_effort_at_point5825_is_retained_as_raw_suggestion_without_override(self):
+        from shared.webhooks import reasoning_decision
+        decision = reasoning_decision({"reasoningEffort": "max", "reasoningConfidence": .5825,
+                                       "reasoningDeferred": True, "suggestedReasoningEffort": "high"}, {"reasoningEffort": "max"})
+        self.assertEqual(decision["reasoningEffort"], "max")
+        self.assertEqual(decision["suggestedReasoningEffort"], "high")
+        self.assertTrue(decision["reasoningDeferred"])
 
     def test_generic_message_field_path_extracts_nested_text_and_ignores_control_fields(self):
         self.source["textPath"] = "event.message.text"; self._put(self.source)

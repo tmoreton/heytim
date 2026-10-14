@@ -8,7 +8,9 @@ import types
 import unittest
 from unittest import mock
 
-from heytim_decider.helper import Decider, MODEL_ID, MODEL_REVISION, prepare, select_result, validate_params
+from heytim_decider.helper import (Decider, MODEL_ID, MODEL_REVISION,
+                                  MINIMUM_ROUTING_CONFIDENCE, main, prepare,
+                                  select_result, validate_params)
 
 
 class InputAndRoutingTests(unittest.TestCase):
@@ -41,11 +43,50 @@ class InputAndRoutingTests(unittest.TestCase):
         self.assertEqual(result["reason"], "low_confidence")
         self.assertTrue(result["reasoningDeferred"])
 
+    def test_route_just_below_frozen_cutoff_requires_review(self):
+        answer = {"agent": {"choice": "travel", "confidence": 0.5999,
+                            "probabilities": {"travel": 0.79995, "clarify": 0.20005}},
+                  "effort": {"choice": "low", "confidence": 0.9}}
+        result = select_result(answer, minimum_confidence=MINIMUM_ROUTING_CONFIDENCE,
+                               minimum_margin=0.15)
+        self.assertIsNone(result["botId"])
+        self.assertEqual(result["reason"], "low_confidence")
+        self.assertTrue(result["reasoningDeferred"])
+
+    def test_route_at_frozen_cutoff_can_dispatch(self):
+        answer = {"agent": {"choice": "travel", "confidence": 0.6,
+                            "probabilities": {"travel": 0.8, "clarify": 0.2}},
+                  "effort": {"choice": "low", "confidence": 0.9}}
+        result = select_result(answer, minimum_confidence=MINIMUM_ROUTING_CONFIDENCE,
+                               minimum_margin=0.15)
+        self.assertEqual(result["botId"], "travel")
+        self.assertFalse(result["needsReview"])
+        self.assertFalse(result["reasoningDeferred"])
+
+    def test_close_runner_up_requires_review_even_with_lower_custom_cutoff(self):
+        answer = {"agent": {"choice": "travel", "confidence": 0.02,
+                            "probabilities": {"travel": 0.51, "clarify": 0.49}},
+                  "effort": {"choice": "low", "confidence": 0.9}}
+        result = select_result(answer, minimum_confidence=0.0, minimum_margin=0.15)
+        self.assertIsNone(result["botId"])
+        self.assertEqual(result["reason"], "ambiguous")
+
+    def test_class_and_cli_defaults_share_the_frozen_cutoff(self):
+        root = Path("/nonexistent/model")
+        self.assertEqual(Decider(root).minimum_confidence, 0.6)
+        with mock.patch.object(sys, "argv", ["heytim-decider", "--model-root", str(root)]), \
+                mock.patch("heytim_decider.helper.Decider") as decider, \
+                mock.patch("heytim_decider.helper.serve"):
+            main()
+        decider.assert_called_once_with(root, "auto", minimum_confidence=0.6,
+                                        minimum_margin=0.15)
+
     def test_clarify_does_not_become_an_executable_bot_id(self):
         answer = {"agent": {"choice": "clarify", "confidence": 0.99,
                             "probabilities": {"travel": 0.005, "clarify": 0.995}},
                   "effort": {"choice": "low", "confidence": 0.8}}
-        result = select_result(answer, minimum_confidence=0.8, minimum_margin=0.15)
+        result = select_result(answer, minimum_confidence=MINIMUM_ROUTING_CONFIDENCE,
+                               minimum_margin=0.15)
         self.assertIsNone(result["botId"])
         self.assertEqual(result["reason"], "clarification")
 
@@ -70,11 +111,22 @@ class InputAndRoutingTests(unittest.TestCase):
     def test_confident_effort_can_override_saved_preference_at_frozen_threshold(self):
         answer = {"agent": {"choice": "travel", "confidence": 0.95,
                             "probabilities": {"travel": 0.975, "clarify": 0.025}},
-                  "effort": {"choice": "max", "confidence": 0.5}}
+                  "effort": {"choice": "max", "confidence": 0.6}}
         result = select_result(answer, minimum_confidence=0.8, minimum_margin=0.15,
                                bot_preferences={"travel": "high"})
         self.assertFalse(result["reasoningDeferred"])
         self.assertEqual(result["reasoningEffort"], "max")
+
+    def test_effort_just_below_frozen_threshold_preserves_saved_preference(self):
+        answer = {"agent": {"choice": "travel", "confidence": 0.95,
+                            "probabilities": {"travel": 0.975, "clarify": 0.025}},
+                  "effort": {"choice": "max", "confidence": 0.5999}}
+        result = select_result(answer, minimum_confidence=MINIMUM_ROUTING_CONFIDENCE,
+                               minimum_margin=0.15, bot_preferences={"travel": "low"})
+        self.assertEqual(result["botId"], "travel")
+        self.assertTrue(result["reasoningDeferred"])
+        self.assertEqual(result["reasoningEffort"], "low")
+        self.assertEqual(result["suggestedReasoningEffort"], "max")
 
 
 class ProtocolTests(unittest.TestCase):

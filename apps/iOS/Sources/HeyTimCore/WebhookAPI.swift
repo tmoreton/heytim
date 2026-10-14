@@ -4,6 +4,10 @@ private struct WebhookSourcesPage: Decodable, Sendable { var sources: [WebhookSo
 private struct WebhookEventsPage: Decodable, Sendable { var events: [WebhookEvent] }
 private struct RoutingRequestsPage: Decodable, Sendable { var requests: [LocalRoutingRequest] }
 private struct SourcePage: Decodable, Sendable { var source: WebhookSource }
+private struct SourceEditBody: Encodable, Sendable {
+  var draft: WebhookSourceDraft
+  func encode(to encoder: Encoder) throws { try draft.encodeConfiguration(to: encoder, includingEnabled: false) }
+}
 
 extension HeyTimAPI {
   public func webhookSources() async throws -> [WebhookSource] {
@@ -18,6 +22,12 @@ extension HeyTimAPI {
   public func updateWebhookSource(_ source: WebhookSource, enabled: Bool) async throws {
     let _: SourcePage = try await request(
       .webhookSourceUpdate, parameters: ["sourceId": source.id], body: ["enabled": enabled])
+  }
+
+  public func updateWebhookSource(_ source: WebhookSource, draft: WebhookSourceDraft) async throws -> WebhookSource {
+    let page: SourcePage = try await request(
+      .webhookSourceUpdate, parameters: ["sourceId": source.id], body: SourceEditBody(draft: draft))
+    return page.source
   }
 
   public func deleteWebhookSource(_ id: String) async throws {
@@ -90,6 +100,15 @@ extension HeyTimAPI {
 
 extension AppModel {
   public func loadWebhookSources() async throws -> [WebhookSource] {
+    #if DEBUG
+    if demoMode, ProcessInfo.processInfo.arguments.contains("--ui-testing-webhook-source") {
+      return [WebhookSource(
+        id: "fixture-source", name: "Pebble Index Fixture", kind: "pebble",
+        url: "https://example.invalid/public/webhooks/incoming/fixture-source",
+        allowedBotIds: ["chief", "researcher", "removed-fixture-bot"], fallbackBotId: "chief", routingMode: "local",
+        enabled: true, createdAt: "2026-10-14T14:00:00Z")]
+    }
+    #endif
     guard let api, !demoMode else { return [] }
     return try await api.webhookSources()
   }
@@ -104,6 +123,10 @@ extension AppModel {
   public func updateWebhookSource(_ source: WebhookSource, enabled: Bool) async throws {
     guard let api, !demoMode else { return }
     try await api.updateWebhookSource(source, enabled: enabled)
+  }
+  public func updateWebhookSource(_ source: WebhookSource, draft: WebhookSourceDraft) async throws {
+    guard let api, !demoMode else { throw APIError.configuration("Sign in to edit a webhook.") }
+    let _: WebhookSource = try await api.updateWebhookSource(source, draft: draft)
   }
   public func deleteWebhookSource(_ id: String) async throws {
     guard let api, !demoMode else { return }

@@ -177,6 +177,7 @@ final class LocalRoutingCoordinator {
                 modelId: request.modelId, modelRevision: request.modelRevision,
                 botId: nil, reasoningEffort: "high", confidence: 1,
                 probabilities: probabilities, reasoningConfidence: 0, reasoningDeferred: true,
+                suggestedReasoningEffort: "high",
                 needsReview: true,
                 reason: "local_router_error")
               lastError = error.localizedDescription

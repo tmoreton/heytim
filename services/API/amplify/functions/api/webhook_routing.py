@@ -5,6 +5,7 @@ import hashlib
 import json
 import secrets
 import time
+import uuid
 from datetime import UTC, datetime
 
 from shared.account_state import (
@@ -28,12 +29,16 @@ from shared.webhooks import (
     reasoning_decision,
     request_digest,
     routing_device_key,
+    saved_reasoning_effort,
     validate_choice,
 )
 
 from .ai_consent import require_request_consent
 from .support import QUEUE_URL, ApiError, _body, _response, sqs, table
 from .webhook_sources import delete_source, list_sources, rotate_source, save_source
+
+MINIMUM_ROUTING_CONFIDENCE = number(0.60, "confidence")
+MINIMUM_ROUTING_MARGIN = number(0.15, "margin")
 
 
 def register_router(user_id: str, device_id: str, value: dict) -> dict:
@@ -89,7 +94,7 @@ def list_requests(user_id: str, device_id: str) -> dict:
             item = {**item, "status": "routing", "routingDeviceId": device_id,
                     "routingLeaseToken": secrets.token_urlsafe(24),
                     "routingLeaseExpiresAt": now + ROUTING_LEASE_SECONDS,
-                    "routingBots": bots, "requestDigest": request_digest(item, bots)}
+                    "routingBots": bots, "requestDigest": request_digest(item, bots, source)}
             try:
                 table.update_item(Key=event_key(user_id, item["id"]),
                     UpdateExpression=("SET #status = :routing, routingDeviceId = :device, "
@@ -137,13 +142,13 @@ def submit_result(user_id: str, device_id: str, event_id: str, value: dict) -> d
         raise WebhookError(409, "Routing lease expired or was already consumed")
     source = get_source(table, user_id, item["sourceId"], enabled=True)
     bots = eligible_bots(table, user_id, source)
-    if request_digest(item, bots) != item["requestDigest"]:
+    if request_digest(item, bots, source) != item["requestDigest"]:
         table.update_item(Key=event_key(user_id, event_id),
             UpdateExpression="SET #status = :awaiting REMOVE routingLeaseExpiresAt",
             ConditionExpression="routingLeaseToken = :token",
             ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={":awaiting": "awaiting_routing", ":token": value["leaseToken"]})
-        raise WebhookError(409, "The bot catalog changed; obtain a new routing request")
+        raise WebhookError(409, "The bot catalog changed or source routing policy changed; obtain a new routing request")
     candidate_ids = {bot["id"] for bot in bots} | {"clarify"}
     empty_abstention = not probabilities and value.get("botId") is None and confidence == 0
     if not empty_abstention:
@@ -168,9 +173,26 @@ def submit_result(user_id: str, device_id: str, event_id: str, value: dict) -> d
     if bot_id is not None:
         chosen = probabilities.get(bot_id, number(0, "probability"))
         runner_up = max((prob for key, prob in probabilities.items() if key != bot_id), default=number(0, "probability"))
-        if chosen == max(probabilities.values()) and confidence >= number(0.8, "confidence") and chosen - runner_up >= number(.15, "margin"):
-            require_request_consent(user_id)
+        if chosen == max(probabilities.values()) and confidence >= MINIMUM_ROUTING_CONFIDENCE and chosen - runner_up >= MINIMUM_ROUTING_MARGIN:
             status = "dispatch_pending"
+    if status == "needs_review" and source.get("routingMode") == "local" and source.get("fallbackBotId"):
+        fallback_id = source["fallbackBotId"]
+        fallback = validate_choice(table, user_id, source, fallback_id, "high")
+        local_decision = {"botId": bot_id, "reasoningEffort": value["reasoningEffort"],
+                          "confidence": confidence, "probabilities": probabilities,
+                          "modelId": MODEL_ID, "modelRevision": MODEL_REVISION}
+        for field in ("reasoningConfidence", "reasoningDeferred", "suggestedReasoningEffort"):
+            if field in value:
+                local_decision[field] = reasoning[field]
+        decision = {"method": "local_fallback", "botId": fallback_id,
+                    "reasoningEffort": saved_reasoning_effort(fallback),
+                    "sourceId": item["sourceId"], "eventId": event_id,
+                    "modelId": MODEL_ID, "modelRevision": MODEL_REVISION,
+                    "fallbackReason": "local_abstention" if bot_id is None else "routing_gate",
+                    "localDecision": local_decision}
+        status = "dispatch_pending"
+    if status == "dispatch_pending":
+        require_request_consent(user_id)
     outbox = ", webhookDispatchPk = :outbox, webhookDispatchSk = :sort" if status == "dispatch_pending" else " REMOVE webhookDispatchPk, webhookDispatchSk"
     table.update_item(Key=event_key(user_id, event_id),
         UpdateExpression="SET #status = :status, routingDecision = :decision, routingResultDigest = :result, reviewReason = :reason" + outbox,
@@ -196,7 +218,11 @@ def manual_route(user_id: str, event_id: str, value: dict) -> dict:
     effort = value.get("reasoningEffort", raw_bot.get("reasoningEffort", "high"))
     validate_choice(table, user_id, source, bot_id, effort)
     decision = {"method": "manual", "botId": bot_id, "reasoningEffort": effort,
-                "confidence": 1, "sourceId": item["sourceId"], "eventId": event_id}
+                "confidence": 1, "sourceId": item["sourceId"], "eventId": event_id,
+                "manualAttemptId": str(uuid.uuid4())}
+    local_decision = item.get("routingDecision", {}).get("localDecision")
+    if isinstance(local_decision, dict):
+        decision["localDecision"] = local_decision
     try:
         table.update_item(Key=event_key(user_id, event_id),
             UpdateExpression="SET #status = :pending, routingDecision = :decision, webhookDispatchPk = :outbox, webhookDispatchSk = :sort REMOVE routingLeaseExpiresAt, routingResultDigest",

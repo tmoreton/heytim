@@ -72,6 +72,18 @@ test('dependency definitions add the dependency audit to their owning suite', ()
   });
 });
 
+for (const filename of ['requirements.in', 'requirements.lock']) {
+  test(`local helper ${filename} independently triggers dependency and package verification`, () => {
+    assert.deepEqual(classifyPaths([`packages/heytim-decider/${filename}`]), {
+      dependencies: true,
+      application: true,
+      backend: false,
+      runtime: false,
+      agentcore: false,
+    });
+  });
+}
+
 test('unclassified source changes fail open to every suite', () => {
   assert.deepEqual(classifyPaths(['new-service/source.go']), {
     dependencies: true,
