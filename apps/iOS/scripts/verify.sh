@@ -50,6 +50,9 @@ mkdir -p "$results_dir"
 
 "$apple_root/scripts/check-architecture.sh"
 "$apple_root/scripts/prepare-transcription.sh"
+"$apple_root/scripts/prepare-decider.sh"
+PYTHONPATH="$apple_root/../../packages/heytim-decider/src" python3 -m unittest discover \
+  -s "$apple_root/../../packages/heytim-decider/tests"
 
 (
   cd "$apple_root/../../packages/heytim-transcription"
@@ -78,6 +81,7 @@ run_with_timeout 1200 'macOS chat and browser UI tests' xcodebuild test \
   -parallel-testing-enabled NO \
   -maximum-parallel-testing-workers 1 \
   -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testMCPSetupRequiresTestingBeforeSaving \
+  -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testWebhookSettingsCanCreateASourceWithoutSendingLiveRequests \
   -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testScrollToLatestControlAndSendingReturnToTheBottom \
   -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testCompletedReplyKeepsUsageCaptionAndDraftAccessible \
   -only-testing:HeyTimAppleUITests/HeyTimAppleUITests/testExpiredBrowserHandoffCanEndWithoutLosingTheDraft \

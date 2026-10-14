@@ -108,6 +108,7 @@ from .sharing import (
 )
 from .support import ApiError, _body, _response, _verified_email
 from .workspaces import _workspace_route
+from .webhook_routing import webhook_route
 
 Route = Callable[[str, str, str, str, dict, dict], dict | None]
 device_route = device_calls.device_route
@@ -554,9 +555,8 @@ def _skill_route(
         return _response(201, _import_skill(user_id, params.get("token", "")))
     return None
 
-
 _HANDLERS: dict[str, Route] = {
-    "billing": billing_route,
+    "webhook": webhook_route, "billing": billing_route,
     "bot": _bot_route,
     "botInbox": _bot_inbox_route,
     "browser": browser_session_route,

@@ -6,6 +6,7 @@ from typing import Any
 from shared.job_envelope import decode_job
 
 from .account_cleanup import _delete_account
+from .webhook_job import process_webhook_dispatch, recover_webhook_dispatches
 from .approval_job import process_approval_expiry
 from .background_work import _process_background_work
 from .device_calls import process_device_call_expiry
@@ -32,7 +33,11 @@ logger = logging.getLogger(__name__)
 def _process(record: dict) -> None:
     request = decode_job(record["body"])
     request_type = request["type"]
+    if request_type == "WEBHOOK_DISPATCH":
+        process_webhook_dispatch(record, request)
+        return
     if request_type == "CATALOG_REFRESH":
+        recover_webhook_dispatches()
         catalog.sync_official(force=True)
         return
     if request_type == "PLAID_SYNC":

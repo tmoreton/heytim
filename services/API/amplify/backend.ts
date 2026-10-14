@@ -46,6 +46,7 @@ import {
 } from './infrastructure/native-push';
 import { addObservability, createApplicationLogGroups } from './infrastructure/observability';
 import { addPlaidWebhook } from './infrastructure/plaid-webhook';
+import { addWebhookDispatchIndex } from './infrastructure/webhook-routing';
 import { addPublicAvailabilityProbe } from './infrastructure/production-readiness';
 import { addProviderConnectionAccess } from './infrastructure/provider-connections';
 import { addStripeBilling } from './infrastructure/stripe-billing';
@@ -311,7 +312,6 @@ cfnAuditTrail.isLogging = deploymentEnvironment === 'production';
 auditTrail.addS3EventSelector([{ bucket: legacyFilesBucket }, { bucket: heytimFilesBucket }], {
   readWriteType: ReadWriteType.ALL,
 });
-
 const deadLetterQueue = new Queue(stack, 'AgentJobsDeadLetter', {
   encryption: QueueEncryption.SQS_MANAGED,
   enforceSSL: true,
@@ -326,6 +326,7 @@ const jobs = new Queue(stack, 'AgentJobs', {
   retentionPeriod: Duration.days(4),
   deadLetterQueue: { queue: deadLetterQueue, maxReceiveCount: 3 },
 });
+addWebhookDispatchIndex(table);
 const botEmail = deploymentEnvironment === 'production'
   ? addBotEmailReceiving({ stack, table, logsKey, jobs })
   : undefined;
@@ -390,7 +391,6 @@ const { apiFunction, publicApiFunction, workerFunction } = createApplicationFunc
   workerLogGroup,
   workerConcurrency: WORKER_CONCURRENCY,
 });
-
 const plaidWebhookFunction = addPlaidWebhook({
   stack, table, jobs, logGroup: plaidWebhookLogGroup,
   secretArn: plaidSecretArn, workerFunction,
@@ -534,7 +534,6 @@ workerFunction.addToRolePolicy(
 addMemoryAccess({
   stack, apiFunction, workerFunction, memoryId, memoryKmsKeyArn,
 });
-
 const httpApi = addHttpApi({
   stack,
   apiFunction,
@@ -546,6 +545,7 @@ const httpApi = addHttpApi({
   userPoolClientId: backend.auth.resources.userPoolClient.userPoolClientId,
 });
 workerFunction.addEnvironment('PLAID_WEBHOOK_URL', httpApi.apiEndpoint + '/public/webhooks/plaid');
+apiFunction.addEnvironment('WEBHOOK_API_BASE_URL', httpApi.apiEndpoint);
 const availabilityProbe = addPublicAvailabilityProbe({
   stack,
   apiEndpoint: httpApi.apiEndpoint,

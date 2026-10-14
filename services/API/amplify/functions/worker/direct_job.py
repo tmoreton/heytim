@@ -12,6 +12,7 @@ from shared.device_tools import LOCAL_ONLY_DEVICE_TOOL_IDS
 from shared.job_envelope import send_job
 from shared.time import utc_now_iso
 from shared.work_state import is_claimable
+from shared.webhooks import get_source as live_webhook_source, validate_choice as validate_webhook_choice
 
 from .agent import _invoke, agent_failure_message
 from .approval_job import delete_approval_snapshot, queue_approval_expiry
@@ -49,6 +50,36 @@ from .usage_controls import (
 from .work import _claim_work, _finish_work, _pause_work
 
 logger = logging.getLogger(__name__)
+
+def _effective_bot_for_turn(bot: dict, turn: dict) -> dict:
+    """Apply a server-persisted routing decision without changing the saved bot."""
+    routing = turn.get("routingDecision")
+    is_webhook = turn.get("source") == "webhook"
+    if routing is None and not is_webhook:
+        return bot
+    if (
+        not isinstance(routing, dict)
+        or routing.get("botId") != bot.get("id")
+        or turn.get("botId") != bot.get("id")
+        or not isinstance(routing.get("reasoningEffort"), str)
+        or routing["reasoningEffort"] not in {"low", "high", "max"}
+    ):
+        raise ValueError("Turn routing decision is missing, invalid or belongs to another bot")
+    effective = {**bot, "reasoningEffort": routing["reasoningEffort"]}
+    if is_webhook:
+        if (
+            not isinstance(turn.get("webhookEventId"), str)
+            or not turn["webhookEventId"]
+            or routing.get("eventId") != turn["webhookEventId"]
+            or not isinstance(turn.get("eventSourceId"), str)
+            or not turn["eventSourceId"]
+            or routing.get("sourceId") != turn["eventSourceId"]
+        ):
+            raise ValueError("Webhook routing decision belongs to another event or source")
+        source = live_webhook_source(table, turn["userId"], turn["eventSourceId"], enabled=True)
+        validate_webhook_choice(table, turn["userId"], source, bot["id"], routing["reasoningEffort"])
+        effective["inputProvenance"] = {"kind": "webhook"}
+    return effective
 
 
 def _process_agent_reply(record: dict, request: dict) -> None:
@@ -143,6 +174,10 @@ def _process_agent_reply(record: dict, request: dict) -> None:
     attempt = begin_attempt(record, lambda: None)
     configuration_changed = False
     try:
+        bot = _effective_bot_for_turn(bot, turn)
+        is_webhook = turn.get("source") == "webhook"
+        if is_webhook and (turn.get("deviceResult") or turn.get("deviceRequest")):
+            raise ValueError("Webhook requests cannot resume Apple device calls")
         decision = turn.get("approvalDecision")
         if decision and not turn.get("runtimeResult"):
             proposal = turn.get("approvalRequest")
@@ -218,7 +253,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             on_progress=progress_updater(turn_key, lease_owner),
             runtime_result=turn.get("runtimeResult"),
             work_key=turn_key, lease_owner=lease_owner, resume_request=request,
-            allow_bot_management=turn.get("source") != "schedule",
+            allow_bot_management=turn.get("source") not in {"schedule", "webhook"},
             workspace_files=turn.get("attachments", []),
             action_approval=(
                 {key: decision[key] for key in ("id", "digest", "toolUseId")}
@@ -229,7 +264,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
                 if device_result and not turn.get("runtimeResult")
                 else None
             ),
-            allow_device_tools=turn.get("source") not in {"schedule", "email"},
+            allow_device_tools=turn.get("source") not in {"schedule", "email", "webhook"},
         )
         record_invocation_usage(
             user_id,
@@ -238,6 +273,8 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             work_type=("schedule" if turn.get("source") == "schedule" else "direct"),
             bot_id=bot_id,
         )
+        if is_webhook and (result.bot_mutations or result.pending_device_call):
+            raise ValueError("Webhook requests cannot manage bots or execute Apple device calls")
         if result.bot_mutations and (
             result.pending_work
             or result.pending_approval

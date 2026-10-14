@@ -144,6 +144,9 @@ if [[ "$dry_run" == false && "$reuse_export" != true ]]; then
     echo 'A valid local Developer ID Application signing identity is required.' >&2
     exit 2
   fi
+  # The embedded Python/MLX libraries must use the same Developer ID as the
+  # exported app. Xcode export cannot discover and re-sign every Python extension.
+  export HEYTIM_DEVELOPER_ID_IDENTITY="$developer_id_identity"
 
   original_umask="$(umask)"
   umask 077

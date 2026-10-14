@@ -39,3 +39,10 @@ relicensed by HeyTim. A distributed binary or hosted build must continue to
 include every notice required by those dependencies. Run
 `scripts/audit-dependencies.sh` and the native transcription preparation checks
 before a release that changes dependency versions.
+## Local routing model and runtime
+
+The optional macOS routing feature uses Strands Decider (Apache-2.0), its Qwen3.5 2B checkpoint and base model
+(Apache-2.0), and the upstream Python/Torch/MLX runtime dependencies. Their licenses remain independent of HeyTim's
+license. Runtime distributions retain their license and notice files; downloaded model artifacts retain the upstream
+model license and provenance. Exact code, model revisions, and dependency hashes are recorded in
+`packages/heytim-decider/README.md` and `requirements.lock`.

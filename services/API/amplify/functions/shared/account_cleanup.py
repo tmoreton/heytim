@@ -18,6 +18,7 @@ from shared.plaid_ledger import item_mapping_key
 from shared.schedules import delete_remote_schedule
 from shared.storage import delete_object_versions
 from shared.work_state import IN_FLIGHT_STATUSES
+from shared.webhooks import owner_key as webhook_owner_key, retire_secret as retire_webhook_secret
 
 
 @dataclass(frozen=True)
@@ -507,6 +508,12 @@ class AccountCleanupService:
         self.remove_invite_access_for_user(user_id)
         deleted_skills = self.remove_owned_skills(user_id, user_items)
         deleted_connections = self.catalog.delete_connection_secrets(user_items)
+        for source in user_items:
+            if source.get("entity") == "WEBHOOK_SOURCE":
+                self.table.delete_item(Key=webhook_owner_key(source["id"]))
+                for secret_arn in [source.get("secretArn"), *source.get("retiredSecretArns", [])]:
+                    if isinstance(secret_arn, str):
+                        retire_webhook_secret(self.catalog, secret_arn)
         for connection in user_items:
             if (
                 connection.get("entity") != "CONNECTION"

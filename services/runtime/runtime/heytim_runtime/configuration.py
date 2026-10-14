@@ -16,6 +16,7 @@ from .instructions import (
     base_instructions,
     continuation_instructions,
     image_reference_instructions,
+    input_provenance_instructions,
     team_instructions,
 )
 from .memes import image_attachments_from_messages
@@ -72,6 +73,7 @@ def bot_configuration(
         raise ValueError("bot.conversationMode must be agent or chat")
 
     continuation_context = continuation_instructions(payload)
+    provenance_context = input_provenance_instructions(payload)
     team_context = team_instructions(payload.get("team"))
     artifact_prefix = artifact_prefix_from_payload(payload, actor_id)
     workspace_files = workspace_files_from_payload(payload, actor_id)
@@ -148,6 +150,7 @@ def bot_configuration(
         if asset_summary:
             instructions += " Existing durable assets: " + asset_summary + "."
     for context in (
+        provenance_context,
         team_context,
         image_reference_instructions(image_references),
         continuation_context,

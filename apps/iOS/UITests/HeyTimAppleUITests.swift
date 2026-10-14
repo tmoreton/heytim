@@ -1,6 +1,32 @@
 import XCTest
 
 @MainActor final class HeyTimAppleUITests: XCTestCase {
+  func testWebhookSettingsCanCreateASourceWithoutSendingLiveRequests() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--ui-testing"]
+    app.launchForUITesting()
+    #if os(iOS)
+      let sidebar = app.buttons["Hey Tim"]
+      XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
+      sidebar.tap()
+    #endif
+    let settings = app.buttons["sidebar.settings"]
+    XCTAssertTrue(settings.waitForExistence(timeout: 10))
+    settings.tap()
+    let webhooks = app.staticTexts["Webhooks"]
+    XCTAssertTrue(webhooks.waitForExistence(timeout: 5))
+    webhooks.tap()
+    let add = app.buttons["webhooks.add"]
+    XCTAssertTrue(add.waitForExistence(timeout: 5))
+    XCTAssertTrue(add.isEnabled)
+    add.tap()
+    XCTAssertTrue(app.staticTexts["Permitted Bots"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["Create"].exists)
+    app.buttons["Cancel"].tap()
+    XCTAssertTrue(add.waitForExistence(timeout: 5))
+    XCTAssertFalse(app.alerts.firstMatch.exists)
+  }
+
   func testMCPSetupRequiresTestingBeforeSaving() {
     let app = XCUIApplication()
     app.launchArguments = ["--ui-testing", "--ui-testing-sheet", "mcp-server-setup"]

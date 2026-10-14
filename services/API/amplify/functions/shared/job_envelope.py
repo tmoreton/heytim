@@ -13,6 +13,7 @@ JOB_SCHEMA_VERSION = 1
 KNOWN_JOB_TYPES = frozenset(
     {
         "AGENT_REPLY",
+        "WEBHOOK_DISPATCH",
         "APPROVAL_EXPIRY",
         "BACKGROUND_WORK_POLL",
         "CATALOG_REFRESH",

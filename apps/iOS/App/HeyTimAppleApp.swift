@@ -18,6 +18,7 @@ struct HeyTimAppleApp: App {
   #endif
   #if os(macOS)
     @State private var desktopControl = DesktopControlCoordinator()
+    @State private var localRouter = LocalRoutingCoordinator()
     private let updateController = DesktopUpdateController.shared
   #endif
 
@@ -53,6 +54,7 @@ struct HeyTimAppleApp: App {
         }
         .environment(deviceTools)
         .environment(desktopControl)
+        .environment(localRouter)
       }
       .defaultSize(width: 1200, height: 760)
       .windowStyle(.hiddenTitleBar)
@@ -114,6 +116,7 @@ private struct AppRoot: View {
     @Environment(AppleHealthCoordinator.self) private var appleHealth
   #elseif os(macOS)
     @Environment(DesktopControlCoordinator.self) private var desktopControl
+    @Environment(LocalRoutingCoordinator.self) private var localRouter
   #endif
   @State private var invitation: PendingInvitation?
   @State private var connected = false
@@ -174,6 +177,9 @@ private struct AppRoot: View {
         aiSetupDismissed = false
         pendingPushSelection = nil
         deviceTools.disconnect()
+        #if os(macOS)
+          localRouter.disconnect()
+        #endif
         model.resetSession()
       }
     }
@@ -297,6 +303,7 @@ private struct AppRoot: View {
           api: api,
           registration: { Self.macRegistration(desktop) },
           execute: { call in await desktop.execute(call) })
+        localRouter.connect(api: api)
       #endif
       await NativeNotifications.registerIfAuthorized()
       if let invitation {

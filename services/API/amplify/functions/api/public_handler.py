@@ -8,6 +8,7 @@ from .external_oauth import _external_callback
 from .finance_connections import _plaid_callback, _quickbooks_callback
 from .github_oauth import _github_callback
 from .github_webhook import github_issue_webhook
+from .webhook_ingress import incoming_webhook
 from .google_oauth import _google_callback
 from .sharing import _public_invite_preview
 from .support import ApiError, _response, catalog
@@ -17,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 def route_public(event: dict, method: str, path: str, params: dict) -> dict | None:
+    if method == "POST" and path.startswith("/public/webhooks/incoming/"):
+        return incoming_webhook(event, params.get("sourceId", ""))
     if method == "POST" and path == "/public/webhooks/github":
         return github_issue_webhook(event)
     if method == "POST" and path == "/public/webhooks/stripe":

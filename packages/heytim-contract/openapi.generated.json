@@ -6743,6 +6743,659 @@
           }
         }
       }
+    },
+    "/webhook-sources": {
+      "get": {
+        "operationId": "webhookSourceList",
+        "tags": [
+          "webhook"
+        ],
+        "security": [
+          {
+            "cognitoBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": [
+                    "object",
+                    "array"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable HeyTim API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "webhookSourceCreate",
+        "tags": [
+          "webhook"
+        ],
+        "security": [
+          {
+            "cognitoBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": [
+                    "object",
+                    "array"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable HeyTim API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhook-sources/{sourceId}": {
+      "put": {
+        "operationId": "webhookSourceUpdate",
+        "tags": [
+          "webhook"
+        ],
+        "security": [
+          {
+            "cognitoBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": [
+                    "object",
+                    "array"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable HeyTim API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "webhookSourceDelete",
+        "tags": [
+          "webhook"
+        ],
+        "security": [
+          {
+            "cognitoBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": [
+                    "object",
+                    "array"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable HeyTim API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhook-sources/{sourceId}/rotate": {
+      "post": {
+        "operationId": "webhookSourceRotate",
+        "tags": [
+          "webhook"
+        ],
+        "security": [
+          {
+            "cognitoBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": [
+                    "object",
+                    "array"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable HeyTim API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhook-events": {
+      "get": {
+        "operationId": "webhookEventList",
+        "tags": [
+          "webhook"
+        ],
+        "security": [
+          {
+            "cognitoBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": [
+                    "object",
+                    "array"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable HeyTim API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhook-events/{eventId}/route": {
+      "post": {
+        "operationId": "webhookEventRoute",
+        "tags": [
+          "webhook"
+        ],
+        "security": [
+          {
+            "cognitoBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": [
+                    "object",
+                    "array"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable HeyTim API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/devices/{deviceId}/routing": {
+      "put": {
+        "operationId": "routingDevicePut",
+        "tags": [
+          "webhook"
+        ],
+        "security": [
+          {
+            "cognitoBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": [
+                    "object",
+                    "array"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable HeyTim API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "routingDeviceDelete",
+        "tags": [
+          "webhook"
+        ],
+        "security": [
+          {
+            "cognitoBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": [
+                    "object",
+                    "array"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable HeyTim API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/devices/{deviceId}/routing-requests": {
+      "get": {
+        "operationId": "routingRequestList",
+        "tags": [
+          "webhook"
+        ],
+        "security": [
+          {
+            "cognitoBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": [
+                    "object",
+                    "array"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable HeyTim API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/devices/{deviceId}/routing-requests/{requestId}/result": {
+      "post": {
+        "operationId": "routingRequestResult",
+        "tags": [
+          "webhook"
+        ],
+        "security": [
+          {
+            "cognitoBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          },
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": [
+                    "object",
+                    "array"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable HeyTim API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/webhooks/incoming/{sourceId}": {
+      "post": {
+        "operationId": "incomingWebhook",
+        "tags": [
+          "public"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": [
+                    "object",
+                    "array"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Stable HeyTim API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

@@ -1,0 +1,135 @@
+{
+  "description": "Additional acceptance inputs authored by the implementation lead after the helper development rubric was frozen; evaluate without tuning against these cases.",
+  "cases": [
+    {
+      "id": "trip-short-voice",
+      "text": "Hey, could you make a quick packing list for a one-night business trip?",
+      "botId": "trip-planner",
+      "effort": "low"
+    },
+    {
+      "id": "trip-family-tradeoffs",
+      "text": "We have five days in Italy with a six-year-old and my elderly father. Compare Rome and Florence, including walking distances, summer heat, train access and hotels, then propose a realistic itinerary.",
+      "botId": "trip-planner",
+      "effort": "high"
+    },
+    {
+      "id": "budget-equal-shares",
+      "text": "Four roommates split a hundred and twenty dollar electricity bill equally. How much should each person pay?",
+      "botId": "budget-planner",
+      "effort": "low"
+    },
+    {
+      "id": "budget-scenario",
+      "text": "Compare paying an extra five hundred dollars toward debt each month with keeping it as emergency savings. Use income of forty-five hundred, expenses of thirty-five hundred, an emergency fund of one thousand and debt at twenty percent interest. Explain the tradeoffs.",
+      "botId": "budget-planner",
+      "effort": "high"
+    },
+    {
+      "id": "fact-voice-dictation",
+      "text": "Quick question, what is the largest planet in our solar system?",
+      "botId": "research-reports",
+      "effort": "low"
+    },
+    {
+      "id": "research-evidence",
+      "text": "Compare battery electric and hydrogen buses for a small city's transit fleet. Research lifecycle emissions, maintenance, charging or fueling infrastructure, and weather constraints; make the assumptions explicit.",
+      "botId": "research-reports",
+      "effort": "high"
+    },
+    {
+      "id": "research-formal",
+      "text": "Perform an exhaustive technical investigation of a distributed payment ledger under Byzantine faults, network partitions and crash recovery. Develop and prove the consistency invariants, analyze interacting failure scenarios and compare competing protocol architectures in a detailed report.",
+      "botId": "research-reports",
+      "effort": "max"
+    },
+    {
+      "id": "mac-open-simple",
+      "text": "Please open Safari on this Mac.",
+      "botId": "mac-operator",
+      "effort": "low"
+    },
+    {
+      "id": "mac-multistep",
+      "text": "On my Mac, open the current spreadsheet, locate the quarterly totals, update the visible chart labels and verify that the changes appear in the saved document.",
+      "botId": "mac-operator",
+      "effort": "high"
+    },
+    {
+      "id": "meme-brief",
+      "text": "Make a Drake meme: reject another meeting, approve an email instead.",
+      "botId": "meme-maker",
+      "effort": "low"
+    },
+    {
+      "id": "unclear-voice",
+      "text": "Uh, can you handle the thing from before, you know the one?",
+      "botId": null,
+      "effort": "low"
+    },
+    {
+      "id": "unsupported-fiction",
+      "text": "Write an original bedtime fairy tale about a talking fox and a sleepy moon.",
+      "botId": null,
+      "effort": "low"
+    }
+  ],
+  "bots": [
+    {
+      "id": "trip-planner",
+      "name": "Trip Planner",
+      "description": "Plans vacations and travel: destinations, itineraries, flights, hotels, packing and accessibility.",
+      "toolIds": [
+        "web-search"
+      ],
+      "skillIds": [
+        "trip-planner"
+      ],
+      "reasoningEffort": "high"
+    },
+    {
+      "id": "budget-planner",
+      "name": "Budget Planner",
+      "description": "Builds household or group budgets, calculates expenses and fair cost splits, compares financial scenarios.",
+      "toolIds": [],
+      "skillIds": [
+        "shared-budget"
+      ],
+      "reasoningEffort": "high"
+    },
+    {
+      "id": "research-reports",
+      "name": "Research & Reports",
+      "description": "Finds reliable factual answers, researches technical and scientific questions, compares evidence and writes reports.",
+      "toolIds": [
+        "web-search"
+      ],
+      "skillIds": [
+        "deep-research"
+      ],
+      "reasoningEffort": "high"
+    },
+    {
+      "id": "mac-operator",
+      "name": "Mac Operator",
+      "description": "Operates websites and authorized Mac apps: opens apps, navigates screens, edits visible forms and verifies actions.",
+      "toolIds": [
+        "mac-computer"
+      ],
+      "skillIds": [
+        "computer-operator"
+      ],
+      "reasoningEffort": "high"
+    },
+    {
+      "id": "meme-maker",
+      "name": "Meme Lord",
+      "description": "Creates funny memes from image templates or user-supplied images and caption text.",
+      "toolIds": [],
+      "skillIds": [
+        "meme-maker"
+      ],
+      "reasoningEffort": "low"
+    }
+  ]
+}

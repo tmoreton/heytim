@@ -1,0 +1,28 @@
+{
+  "description": "Hand-labeled acceptance cases for a small installed HeyTim bot set. These are development cases, not independent evidence of production accuracy.",
+  "bots": [
+    {"id":"trip-planner","name":"Trip Planner","description":"Plans vacations and travel: destinations, itineraries, flights, hotels, packing and accessibility.","toolIds":["web-search"],"skillIds":["trip-planner"],"reasoningEffort":"high"},
+    {"id":"budget-planner","name":"Budget Planner","description":"Builds household or group budgets, calculates expenses and fair cost splits, compares financial scenarios.","toolIds":[],"skillIds":["shared-budget"],"reasoningEffort":"high"},
+    {"id":"research-reports","name":"Research & Reports","description":"Finds reliable factual answers, researches technical and scientific questions, compares evidence and writes reports.","toolIds":["web-search"],"skillIds":["deep-research"],"reasoningEffort":"high"},
+    {"id":"mac-operator","name":"Mac Operator","description":"Operates websites and authorized Mac apps: opens apps, navigates screens, edits visible forms and verifies actions.","toolIds":["mac-computer"],"skillIds":["computer-operator"],"reasoningEffort":"high"},
+    {"id":"meme-maker","name":"Meme Lord","description":"Creates funny memes from image templates or user-supplied images and caption text.","toolIds":[],"skillIds":["meme-maker"],"reasoningEffort":"low"}
+  ],
+  "cases": [
+    {"id":"travel-itinerary","text":"Plan a three-day vacation itinerary for Boston with two adults and a toddler. We need museums, stroller-friendly routes and a hotel near public transport.","botId":"trip-planner","effort":"high"},
+    {"id":"travel-packing","text":"Make a simple packing checklist for a weekend beach vacation.","botId":"trip-planner","effort":"low"},
+    {"id":"travel-compare","text":"Compare a trip to Tokyo versus Seoul for our family vacation, balancing flight time, vegetarian food, wheelchair accessibility and a total budget of six thousand dollars.","botId":"trip-planner","effort":"high"},
+    {"id":"budget-simple-split","text":"Split a restaurant bill of ninety dollars equally between three people. What does each person owe?","botId":"budget-planner","effort":"low"},
+    {"id":"budget-monthly","text":"Build a monthly household budget from these numbers: income 5000, rent 1800, food 600, utilities 200, transport 300. Compare saving twenty versus thirty percent and explain the tradeoffs.","botId":"budget-planner","effort":"high"},
+    {"id":"budget-addition","text":"Add our expenses: groceries forty dollars and transport ten dollars. Give only the total.","botId":"budget-planner","effort":"low"},
+    {"id":"research-fact","text":"What is the chemical symbol for gold?","botId":"research-reports","effort":"low"},
+    {"id":"research-summary","text":"Research the main differences between heat pumps and gas boilers and compare efficiency, cost assumptions and suitability for cold weather.","botId":"research-reports","effort":"high"},
+    {"id":"research-complex","text":"Conduct a deep technical research investigation into replacing a distributed database consensus protocol. Compare Raft, Multi-Paxos and Byzantine fault tolerance; prove safety under network partitions, examine interacting failure modes, and synthesize several competing architectures into a detailed recommendation.","botId":"research-reports","effort":"max"},
+    {"id":"research-short-lookup","text":"Find the current population of Canada and give one official source.","botId":"research-reports","effort":"low"},
+    {"id":"mac-open","text":"Open the Calculator app on my Mac.","botId":"mac-operator","effort":"low"},
+    {"id":"mac-website","text":"Navigate the open website, find the account settings screen and change the visible display name to Tim. Verify the saved result.","botId":"mac-operator","effort":"high"},
+    {"id":"meme-caption","text":"Make a funny distracted boyfriend meme with the caption me ignoring chores for another coding project.","botId":"meme-maker","effort":"low"},
+    {"id":"meme-image","text":"Use my supplied cat image to make a meme saying when the meeting could have been an email.","botId":"meme-maker","effort":"low"},
+    {"id":"ambiguous","text":"Can you help me with that thing we discussed?","botId":null,"effort":"low"},
+    {"id":"unsupported","text":"Coach me through a ten-minute breathing exercise.","botId":null,"effort":"low"}
+  ]
+}

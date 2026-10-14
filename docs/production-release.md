@@ -108,8 +108,10 @@ Set these environment secrets:
   retains the account so the refresh token can be reused and rotated independently.
   In the dedicated free-launch destination, only the pinned release fixture identity receives a 300-credit monthly
   test allowance. Its usage remains metered and subject to monthly, per-user, global-rate, and circuit limits;
-  ordinary free accounts retain their configured allowance. The authenticated check requires four remaining
-  credits before creating temporary resources, so an exhausted fixture fails before any test turns start.
+  ordinary free accounts retain their configured allowance. Production rollout and targeted smoke workflows require
+  six remaining credits before creating temporary resources: four for the existing authenticated workflow and two
+  for webhook transport. The standalone authenticated workflow retains its four-credit default. The webhook check
+  separately requires two, so an exhausted fixture fails before creating its test resources.
 - `HEYTIM_GOOGLE_OAUTH_SECRET_ARN`, `HEYTIM_GITHUB_APP_SECRET_ARN`, `HEYTIM_X_OAUTH_SECRET_ARN`,
   `HEYTIM_SLACK_OAUTH_SECRET_ARN`, `HEYTIM_NOTION_OAUTH_SECRET_ARN`
 - `HEYTIM_MAC_DEVELOPER_ID_PROFILE_BASE64` for direct Mac distribution. This is the Apple-issued Developer ID
@@ -286,8 +288,9 @@ permissions from protected environment secrets immediately before deployment and
    neither built nor published by this release.
    The default `full` scope requires the protected Apple API key and Distribution certificate. When an authorized
    release operator must use the Apple account already signed into Xcode, manually run the workflow from `main` with
-   `backend-only`; every AWS, provider,
-   compliance, and device approval remains enforced, but the TestFlight job is skipped. Download the preserved
+   `backend-only`; AWS and provider approvals remain enforced and Apple publication is skipped. For the approved
+   fresh destination, this scope permits pending compliance and physical-device attestations because it does not
+   distribute an Apple release. Public Apple distribution still requires both attestations. Download the preserved
    production client-configuration artifact, place its two files at their recorded repository paths, then run
    `APPLE_TEAM_ID=GVXC5FQ2RP ./scripts/apple-app.sh testflight ios` and then the documented
    `distribute-macos` command from a clean checkout of the same commit. Manual
