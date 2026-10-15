@@ -42,7 +42,13 @@ the current checkout or environment still has the same status.
   passed all 161 native tests (128 Mac unit, seven Mac UI, 26 iPhone UI; zero failures/skips) against the same source
   and uploaded **1.1.1 / 20261015184612** for internal-only TestFlight processing. Submission receipt artifact
   `11999303112` retains the exact source and destination. Signing cleanup restored the login keychain and removed
-  the temporary signing keychain. Apple processing is being checked separately.
+  the temporary signing keychain. Xcode's upload success was recorded at 19:06:03 UTC. Read-only inventories
+  [38791306361](https://github.com/tmoreton/heytim/actions/runs/38791306361) and
+  [38791645935](https://github.com/tmoreton/heytim/actions/runs/38791645935) did not yet list the new build at
+  19:07/19:10 UTC. Both confirmed one accepted/installed owner in the all-builds internal group and zero other testers;
+  those runs do not establish the new build's processing status or audience. Final inventory
+  [38792321134](https://github.com/tmoreton/heytim/actions/runs/38792321134) confirmed the exact build as
+  **VALID / INTERNAL_ONLY**, uploaded at 19:07:04 UTC, with the same one-owner/zero-other-tester review.
 - **PENDING — live installed-app Terminal/computer smoke:** the owner session shows version
   **1.1.1 / 20261015172350** and desktop connection **Connected**, but the global Terminal/app-action switches remain
   off and Accessibility is not granted. The access confirmation is unanswered, so no new grants or live Terminal
