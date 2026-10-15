@@ -120,6 +120,15 @@ final class AppleDeviceToolCoordinator {
     lastError = nil
   }
 
+  /// Drains work before a caller releases the coordinator's network resources.
+  func disconnectAndWait() async {
+    let polling = pollTask
+    disconnect()
+    let unregistration = unregisterTask
+    await polling?.value
+    await unregistration?.value
+  }
+
   private func startIfNeeded() {
     guard isActive, api != nil, registrationProvider != nil, executor != nil,
       pollTask == nil
