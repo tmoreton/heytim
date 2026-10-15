@@ -8,7 +8,7 @@ public enum DemoData {
     scheduleNameMaxLength: 100, schedulePromptMaxLength: 20_000,
     scheduleDayOfMonthMin: 1, scheduleDayOfMonthMax: 28,
     skillNameMaxLength: 80, skillDescriptionMaxLength: 500, skillInstructionsMaxLength: 30_000,
-    memoryMaxLength: 2_000, maxAttachmentsPerMessage: 10, maxToolsPerBot: 13,
+    memoryMaxLength: 2_000, maxAttachmentsPerMessage: 10, maxToolsPerBot: 13, maxSkillsPerBot: 20,
     imageMaxBytes: 20_000_000, documentMaxBytes: 50_000_000, maxPhotoDimension: 4096
   )
   public static let tools = [

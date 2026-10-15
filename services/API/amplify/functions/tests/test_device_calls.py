@@ -140,6 +140,70 @@ class DeviceCallTests(ApiTestCase):
             [],
         )
 
+    def test_terminal_tool_requires_live_mac_lease_and_matching_bot_grant(self) -> None:
+        operations = [
+            "mac_terminal_list_sessions", "mac_terminal_read_session", "mac_terminal_execute_command",
+        ]
+        registration = {
+            "schemaVersion": 1, "platform": "macos", "appVersion": "1.0 (1)",
+            "tools": [{"id": "mac_terminal", "operations": operations}],
+            "botGrants": [{"botId": self.bot_id, "toolIds": ["mac_terminal"]}],
+        }
+        self.device_calls.register_device_capabilities("user-1", self.device_id, registration)
+        lease = self.data_table.items[("USER#user-1", f"DEVICE#{self.device_id}")]
+        resolved = [{
+            "id": "mac_terminal", "risk": "interactive", "runtime": {
+                "kind": "device", "platform": "macos", "operations": operations,
+                "interactiveOperations": ["mac_terminal_execute_command"],
+            },
+        }]
+        self.data_table.query.return_value = {"Items": [lease]}
+        self.assertEqual(available_device_tools(self.data_table, "user-1", self.bot_id, resolved), resolved)
+        self.assertEqual(select_device(
+            self.data_table, "user-1", self.bot_id, tool_id="mac_terminal",
+            operation="mac_terminal_execute_command", platform="macos",
+        )["deviceId"], self.device_id)
+        self.assertEqual(available_device_tools(self.data_table, "user-1", "other-bot", resolved), [])
+        self.assertEqual(available_device_tools(self.data_table, "user-1", self.bot_id, []), [])
+
+        for unavailable in (
+            {**lease, "botGrants": []},
+            {**lease, "platform": "ios"},
+            {**lease, "leaseExpiresAt": int(datetime.now(UTC).timestamp()) - 1},
+        ):
+            with self.subTest(lease=unavailable):
+                self.data_table.query.return_value = {"Items": [unavailable]}
+                self.assertEqual(available_device_tools(self.data_table, "user-1", self.bot_id, resolved), [])
+                self.assertIsNone(select_device(
+                    self.data_table, "user-1", self.bot_id, tool_id="mac_terminal",
+                    operation="mac_terminal_execute_command", platform="macos",
+                ))
+
+        registration["platform"] = "ios"
+        with self.assertRaises(self.support.ApiError) as error:
+            self.device_calls.register_device_capabilities("user-1", self.device_id, registration)
+        self.assertEqual(error.exception.status_code, 400)
+
+    def test_template_and_legacy_chief_ids_can_receive_desktop_grants(self) -> None:
+        registration = {
+            "schemaVersion": 1, "platform": "macos", "appVersion": "1.0 (1)",
+            "tools": [{"id": "mac_terminal", "operations": ["mac_terminal_list_sessions"]}],
+            "botGrants": [],
+        }
+        for bot_id in ("catalog-chief", "catalog-mac-operator", "starter-trip-planner", self.bot_id):
+            with self.subTest(bot_id=bot_id):
+                registration["botGrants"] = [{"botId": bot_id, "toolIds": ["mac_terminal"]}]
+                self.device_calls.register_device_capabilities("user-1", self.device_id, registration)
+                saved = self.data_table.items[("USER#user-1", f"DEVICE#{self.device_id}")]
+                self.assertEqual(saved["botGrants"], registration["botGrants"])
+
+        for bot_id in ("", "catalog-chief\n", "BOT#catalog-chief", "../chief", "chief bot", "x" * 129, None):
+            with self.subTest(bot_id=bot_id):
+                registration["botGrants"] = [{"botId": bot_id, "toolIds": ["mac_terminal"]}]
+                with self.assertRaises(self.support.ApiError) as error:
+                    self.device_calls.register_device_capabilities("user-1", self.device_id, registration)
+                self.assertEqual(error.exception.status_code, 400)
+
     def test_old_health_result_is_rejected_without_resuming_the_turn(self) -> None:
         digest = "a" * 64
         call_id = "b" * 64

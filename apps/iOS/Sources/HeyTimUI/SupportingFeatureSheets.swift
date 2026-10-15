@@ -1232,6 +1232,7 @@ struct AccountView: View {
   #endif
   #if os(macOS)
     @Environment(DesktopControlCoordinator.self) private var desktopControl
+    @Environment(MacTerminalCoordinator.self) private var macTerminal
   #endif
   @AppStorage(FroggyPreferenceKeys.appearance) private var appearance =
     FroggyAppearancePreference.system.rawValue
@@ -1296,6 +1297,7 @@ struct AccountView: View {
 
       #if os(macOS)
         DesktopControlSettingsSection(coordinator: desktopControl)
+        MacTerminalSettingsSection(coordinator: macTerminal)
       #elseif os(iOS)
         AppleHealthSettingsSection(coordinator: appleHealth)
       #endif

@@ -19,6 +19,7 @@ from shared.job_envelope import send_job
 from .support import QUEUE_URL, ApiError, _body, _now, _response, sqs, table
 
 DEVICE_ID_PATTERN = re.compile(r"^[a-f0-9-]{36}$")
+BOT_ID_PATTERN = re.compile(r"[a-z0-9][a-z0-9_-]{0,127}\Z")
 CALL_ID_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 MAX_DEVICE_RESULT_BYTES = 64_000
 
@@ -87,10 +88,10 @@ def _validated_grants(value: Any, tool_ids: set[str]) -> list[dict]:
             raise ApiError(400, "Device bot grant is invalid")
         bot_id = item.get("botId")
         grant_tools = item.get("toolIds")
-        try:
-            valid_bot = isinstance(bot_id, str) and str(uuid.UUID(bot_id)) == bot_id
-        except ValueError:
-            valid_bot = False
+        # Saved template and legacy bots use IDs such as catalog-chief and
+        # starter-trip-planner. Grants remain scoped to this account's lease;
+        # only device IDs are required to be canonical UUIDs.
+        valid_bot = isinstance(bot_id, str) and BOT_ID_PATTERN.fullmatch(bot_id) is not None
         if (
             not valid_bot
             or bot_id in seen

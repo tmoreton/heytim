@@ -83,6 +83,9 @@ struct MessageBubble: View {
           Text("Scheduled · \(message.scheduleName ?? "Recurring task")")
             .froggyFont(.caption, weight: .bold).foregroundStyle(FrogTheme.statusText)
             .padding(.horizontal, 6)
+        } else if message.source == "bot_route" {
+          Text("Routed by Chief")
+            .froggyFont(.caption, weight: .semibold).foregroundStyle(.secondary)
         } else if message.source == "desktop_action" && !mine {
           Text("Mac app action")
             .froggyFont(.caption, weight: .semibold).foregroundStyle(.secondary)

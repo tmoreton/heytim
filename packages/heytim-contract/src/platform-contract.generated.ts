@@ -17,6 +17,7 @@ export const appConstraints = {
   "memoryMaxLength": 16000,
   "maxAttachmentsPerMessage": 5,
   "maxToolsPerBot": 13,
+  "maxSkillsPerBot": 20,
   "imageMaxBytes": 3750000,
   "documentMaxBytes": 4500000,
   "maxPhotoDimension": 1920
@@ -132,6 +133,18 @@ export const deviceCapabilityContract = {
         "mac_computer_act_on_element",
         "mac_computer_type_into_element",
         "mac_computer_scroll"
+      ]
+    },
+    {
+      "id": "mac_terminal",
+      "platform": "macos",
+      "operations": [
+        "mac_terminal_list_sessions",
+        "mac_terminal_read_session",
+        "mac_terminal_execute_command"
+      ],
+      "interactiveOperations": [
+        "mac_terminal_execute_command"
       ]
     },
     {

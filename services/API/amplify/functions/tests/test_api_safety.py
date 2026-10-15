@@ -9,6 +9,17 @@ from api_test_case import ApiTestCase
 
 class ApiSafetyTests(ApiTestCase):
 
+    def test_routed_message_is_labeled_with_its_chief_provenance(self) -> None:
+        message = self.bots._messages_from_turns([{
+            "id": "routed-task", "userText": "Compare the supplied options.",
+            "createdAt": "2026-10-15T16:01:00Z", "status": "PENDING",
+            "source": "bot_route", "routedFromBotId": "chief",
+        }])[0]
+        self.assertEqual(message["role"], "user")
+        self.assertEqual(message["source"], "bot_route")
+        self.assertEqual(message["authorName"], "Chief")
+        self.assertEqual(message["text"], "Compare the supplied options.")
+
     def test_request_body_rejects_non_text_json_input(self) -> None:
         with self.assertRaises(self.support.ApiError) as error:
             self.support._body({"body": {"unexpected": "object"}})

@@ -41,7 +41,7 @@ class DeviceWorkerContractTests(WorkerTestCase):
             patch.object(
                 self.agent.catalog,
                 "resolve_tools_for_runtime",
-                return_value=[self.tool],
+                side_effect=lambda _user, ids, *_: [self.tool] if self.tool["id"] in ids else [],
             ),
             patch.object(self.agent, "_team_roster", return_value=[]),
             patch.object(self.agent, "read_agent_stream", return_value="Done"),
@@ -110,3 +110,35 @@ class DeviceWorkerContractTests(WorkerTestCase):
     def test_schedules_and_email_runs_never_advertise_device_tools(self) -> None:
         payload = self._invoke(allow_device_tools=False)
         self.assertEqual(payload["bot"]["tools"], [])
+
+    def test_terminal_is_exposed_only_when_assigned_live_and_locally_granted(self) -> None:
+        self.tool = {
+            "id": "mac_terminal", "name": "Mac terminal", "risk": "interactive",
+            "runtime": {
+                "kind": "device", "platform": "macos",
+                "operations": ["mac_terminal_list_sessions", "mac_terminal_read_session", "mac_terminal_execute_command"],
+                "interactiveOperations": ["mac_terminal_execute_command"],
+            },
+        }
+        self.bot["toolIds"] = ["mac_terminal"]
+        self.assertEqual(self._invoke(allow_device_tools=True)["bot"]["tools"], [])
+        lease = {
+            "pk": "USER#user-1", "sk": "DEVICE#mac", "entity": "DEVICE_CAPABILITIES",
+            "deviceId": "mac", "platform": "macos",
+            "leaseExpiresAt": int(datetime.now(UTC).timestamp()) + 60,
+            "lastSeenAt": datetime.now(UTC).isoformat(),
+            "tools": [{"id": "mac_terminal", "operations": self.tool["runtime"]["operations"]}],
+            "botGrants": [{"botId": "bot-1", "toolIds": ["mac_terminal"]}],
+        }
+        self.table.items[(lease["pk"], lease["sk"])] = lease
+        self.assertEqual(self._invoke(allow_device_tools=True)["bot"]["tools"], [self.tool])
+        self.assertEqual(self._invoke(allow_device_tools=False)["bot"]["tools"], [])
+
+        self.bot["toolIds"] = []
+        self.assertEqual(self._invoke(allow_device_tools=True)["bot"]["tools"], [])
+        self.bot["toolIds"] = ["mac_terminal"]
+        lease["botGrants"] = [{"botId": "other-bot", "toolIds": ["mac_terminal"]}]
+        self.assertEqual(self._invoke(allow_device_tools=True)["bot"]["tools"], [])
+        lease["botGrants"] = [{"botId": "bot-1", "toolIds": ["mac_terminal"]}]
+        lease["leaseExpiresAt"] = int(datetime.now(UTC).timestamp()) - 1
+        self.assertEqual(self._invoke(allow_device_tools=True)["bot"]["tools"], [])

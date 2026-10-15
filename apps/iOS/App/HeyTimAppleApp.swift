@@ -18,6 +18,7 @@ struct HeyTimAppleApp: App {
   #endif
   #if os(macOS)
     @State private var desktopControl = DesktopControlCoordinator()
+    @State private var macTerminal = MacTerminalCoordinator()
     @State private var localRouter = LocalRoutingCoordinator()
     private let updateController = DesktopUpdateController.shared
   #endif
@@ -54,6 +55,7 @@ struct HeyTimAppleApp: App {
         }
         .environment(deviceTools)
         .environment(desktopControl)
+        .environment(macTerminal)
         .environment(localRouter)
       }
       .defaultSize(width: 1200, height: 760)
@@ -116,6 +118,7 @@ private struct AppRoot: View {
     @Environment(AppleHealthCoordinator.self) private var appleHealth
   #elseif os(macOS)
     @Environment(DesktopControlCoordinator.self) private var desktopControl
+    @Environment(MacTerminalCoordinator.self) private var macTerminal
     @Environment(LocalRoutingCoordinator.self) private var localRouter
   #endif
   @State private var invitation: PendingInvitation?
@@ -178,6 +181,7 @@ private struct AppRoot: View {
         pendingPushSelection = nil
         deviceTools.disconnect()
         #if os(macOS)
+          macTerminal.invalidateObservations()
           localRouter.disconnect()
         #endif
         model.resetSession()
@@ -299,10 +303,14 @@ private struct AppRoot: View {
           execute: { _ in .failure("Apple Health summaries stay on this iPhone.") })
       #elseif os(macOS)
         let desktop = desktopControl
+        let terminal = macTerminal
         deviceTools.connect(
           api: api,
-          registration: { Self.macRegistration(desktop) },
-          execute: { call in await desktop.execute(call) })
+          registration: { Self.macRegistration(desktop, terminal: terminal) },
+          execute: { call in
+            if call.toolId == "mac_terminal" { return await terminal.execute(call) }
+            return await desktop.execute(call)
+          })
         localRouter.connect(api: api)
       #endif
       await NativeNotifications.registerIfAuthorized()
@@ -337,21 +345,29 @@ private struct AppRoot: View {
     }
   #elseif os(macOS)
     @MainActor private static func macRegistration(
-      _ desktop: DesktopControlCoordinator
+      _ desktop: DesktopControlCoordinator, terminal: MacTerminalCoordinator
     ) -> DeviceCapabilityRegistration {
       let available = desktop.isEnabled && desktop.permissionGranted && !desktop.isPaused
-      let tools = available
+      var tools = available
         ? [DeviceToolCapability(
           id: "mac_computer",
           operations: GeneratedDeviceCapabilities.operationsByTool["mac_computer"] ?? [])]
         : []
+      var grants: [String: [String]] = [:]
+      if available {
+        for botID in desktop.enabledBotIDs { grants[botID, default: []].append("mac_computer") }
+      }
+      if terminal.isEnabled {
+        tools.append(DeviceToolCapability(
+          id: "mac_terminal",
+          operations: GeneratedDeviceCapabilities.operationsByTool["mac_terminal"] ?? []))
+        for botID in terminal.enabledBotIDs { grants[botID, default: []].append("mac_terminal") }
+      }
       return DeviceCapabilityRegistration(
         platform: "macos", appVersion: appVersion, tools: tools,
-        botGrants: available
-          ? desktop.enabledBotIDs.sorted().map {
-            DeviceBotGrant(botId: $0, toolIds: ["mac_computer"])
-          }
-          : [])
+        botGrants: grants.keys.sorted().map {
+          DeviceBotGrant(botId: $0, toolIds: grants[$0, default: []].sorted())
+        })
     }
   #endif
 

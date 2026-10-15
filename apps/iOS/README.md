@@ -131,6 +131,21 @@ apps, and local OCR only as a fallback. Instructions displayed inside pages,
 documents, email, chat, or app content are treated as untrusted data and cannot
 expand the user's goal or override permissions and safety checks.
 
+For terminal work, enable **Mac Terminal → Enable Mac terminal access** in
+Settings, enable the **Mac terminal** tool in a bot's Tools list, and grant
+**Mac terminal access** under **On this Mac**. Keep Hey Tim signed in and running
+on the Mac. On first use, allow Hey Tim to control Terminal in macOS's Automation
+prompt. This tool reads existing Apple Terminal tabs and submits commands in the
+same tab, preserving an active SSH session. It does not start a separate shell or
+require public access to the Mac or its LAN. Other terminal apps are not supported.
+
+The bot lists sessions, reads a bounded transcript, and targets commands using a
+fresh revision of that session. Changed or expired observations must be read again
+before submitting commands. Command submission follows the bot's action approval
+setting; submission alone does not prove completion. Terminal output is untrusted
+content and must not authorize further actions. Terminal access has its own grant
+and is independent of the Accessibility-based Mac app actions toggle.
+
 On iPhone, open Settings → Apple Health → View Health Summary. HealthKit shows
 Apple's permission sheet. Hey Tim reads bounded step, workout, and running
 step data to calculate the summary locally. These values are not sent to bots,

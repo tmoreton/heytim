@@ -4,6 +4,7 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from shared.client_contract import MAX_SKILLS_PER_BOT
 from worker_test_case import WorkerTestCase
 
 
@@ -75,7 +76,7 @@ class WorkerSkillBuilderTests(WorkerTestCase):
         target = {
             "id": "research",
             "toolIds": ["web_search"],
-            "skillIds": [f"skill-{index}" for index in range(12)],
+            "skillIds": [f"skill-{index}" for index in range(MAX_SKILLS_PER_BOT)],
         }
         api = SimpleNamespace(
             _get_bot=MagicMock(return_value=target), _update_bot=MagicMock()

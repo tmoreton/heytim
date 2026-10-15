@@ -26,6 +26,8 @@ PLATFORM_CONTRACT = json.loads(
     (ROOT.parent / "packages" / "heytim-contract" / "src" / "platform-contract.json").read_text()
 )
 DEVICE_CAPABILITIES = PLATFORM_CONTRACT["deviceCapabilities"]
+MAX_SKILLS_PER_BOT = PLATFORM_CONTRACT["constraints"]["maxSkillsPerBot"]
+MAX_TOOLS_PER_BOT = PLATFORM_CONTRACT["constraints"]["maxToolsPerBot"]
 MAX_DEVICE_OPERATIONS = DEVICE_CAPABILITIES["maxOperationsPerDevice"]
 DEVICE_OPERATION_PLATFORMS = {
     operation: tool["platform"]
@@ -286,21 +288,21 @@ def main() -> int:
         selected_skills = bot.get("skillIds")
         if (
             not isinstance(selected_skills, list)
-            or len(selected_skills) > 12
+            or len(selected_skills) > MAX_SKILLS_PER_BOT
             or any(not isinstance(item, str) for item in selected_skills)
             or len(selected_skills) != len(set(selected_skills))
             or set(selected_skills) - skill_ids
         ):
-            fail(f"{bot_id} skillIds must reference up to 12 known skills")
+            fail(f"{bot_id} skillIds must reference up to {MAX_SKILLS_PER_BOT} known skills")
         selected_tools = bot.get("toolIds", [])
         if (
             not isinstance(selected_tools, list)
-            or len(selected_tools) > 12
+            or len(selected_tools) > MAX_TOOLS_PER_BOT
             or any(not isinstance(item, str) for item in selected_tools)
             or len(selected_tools) != len(set(selected_tools))
             or set(selected_tools) - tool_ids
         ):
-            fail(f"{bot_id} toolIds must reference up to 12 known tools")
+            fail(f"{bot_id} toolIds must reference up to {MAX_TOOLS_PER_BOT} known tools")
 
         eval_path = ROOT / "bots" / bot_id / "evals.json"
         if not eval_path.is_file():

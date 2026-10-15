@@ -7,6 +7,8 @@ from typing import Any
 
 from strands import tool
 
+from .bot_routing import routing_tool
+from .client_contract import MAX_SKILLS_PER_BOT
 from .integration_setup import request_integration_setup
 
 ALLOWED_COLORS = {
@@ -38,18 +40,18 @@ def _text(value: Any, field_name: str, maximum: int, *, required: bool = True) -
         raise ValueError(f"{field_name} must be at most {maximum} characters")
     return clean
 
-def _id_list(value: Any, field_name: str) -> list[str]:
+def _id_list(value: Any, field_name: str, maximum: int = 13) -> list[str]:
     if value is None:
         return []
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise TypeError(f"{field_name} must be a list of IDs")
     unique = list(dict.fromkeys(item.strip() for item in value if item.strip()))
-    if len(unique) > 13:
-        raise ValueError(f"{field_name} can contain at most 13 IDs")
+    if len(unique) > maximum:
+        raise ValueError(f"{field_name} can contain at most {maximum} IDs")
     return unique
 
-def _ids(value: Any, field_name: str, allowed: set[str]) -> list[str]:
-    unique = _id_list(value, field_name)
+def _ids(value: Any, field_name: str, allowed: set[str], maximum: int = 13) -> list[str]:
+    unique = _id_list(value, field_name, maximum)
     unknown = set(unique) - allowed
     if unknown:
         raise ValueError(f"Unknown {field_name}: {', '.join(sorted(unknown))}")
@@ -368,7 +370,7 @@ def bot_management_tools(context: dict, tracker: BotMutationTracker) -> list[Any
                     "color must be one of the available non-Chief bot colors"
                 )
         if skill_ids is not None:
-            changes["skillIds"] = _ids(skill_ids, "skill_ids", allowed_self_skill_ids)
+            changes["skillIds"] = _ids(skill_ids, "skill_ids", allowed_self_skill_ids, MAX_SKILLS_PER_BOT)
         if not changes:
             raise ValueError("Provide at least one setting to update")
         tracker.stage("update_self", {"changes": changes})
@@ -442,7 +444,7 @@ def bot_management_tools(context: dict, tracker: BotMutationTracker) -> list[Any
             "prompt": _text(prompt, "prompt", MAX_PROMPT_CHARS),
             "color": _text(color, "color", 7),
             "toolIds": _ids(tool_ids, "tool_ids", available_tool_ids),
-            "skillIds": _ids(skill_ids, "skill_ids", available_skill_ids),
+            "skillIds": _ids(skill_ids, "skill_ids", available_skill_ids, MAX_SKILLS_PER_BOT),
         }
         if value["color"] not in ALLOWED_COLORS:
             raise ValueError("color must be one of the available non-Chief bot colors")
@@ -505,7 +507,7 @@ def bot_management_tools(context: dict, tracker: BotMutationTracker) -> list[Any
         if tool_ids is not None:
             changes["toolIds"] = _ids(tool_ids, "tool_ids", available_tool_ids)
         if skill_ids is not None:
-            changes["skillIds"] = _ids(skill_ids, "skill_ids", available_skill_ids)
+            changes["skillIds"] = _ids(skill_ids, "skill_ids", available_skill_ids, MAX_SKILLS_PER_BOT)
         if not changes:
             raise ValueError("Provide at least one bot setting to update")
         tracker.stage("update", {"botId": str(target["id"]), "changes": changes})
@@ -530,6 +532,7 @@ def bot_management_tools(context: dict, tracker: BotMutationTracker) -> list[Any
             create_bot,
             update_bot,
             create_skill_for_bot,
+            routing_tool(context, tracker, _text),
         ])
     return tools
 
@@ -592,8 +595,4 @@ def bot_email_tools(tracker: BotMutationTracker) -> list[Any]:
     return [send_bot_email, create_email_schedule]
 
 
-__all__ = [
-    "BotMutationTracker",
-    "bot_management_from_payload",
-    "bot_management_tools",
-]
+__all__ = ["BotMutationTracker", "bot_management_from_payload", "bot_management_tools"]

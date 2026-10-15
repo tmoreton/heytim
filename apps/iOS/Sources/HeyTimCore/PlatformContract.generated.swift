@@ -18,6 +18,7 @@ public enum GeneratedAppConstraints {
   public static let memoryMaxLength = 16000
   public static let maxAttachmentsPerMessage = 5
   public static let maxToolsPerBot = 13
+  public static let maxSkillsPerBot = 20
   public static let imageMaxBytes = 3750000
   public static let documentMaxBytes = 4500000
   public static let maxPhotoDimension = 1920
@@ -28,10 +29,12 @@ public enum GeneratedDeviceCapabilities {
   public static let maxOperationsPerDevice = 8
   public static let operationsByTool: [String: [String]] = [
     "mac_computer": ["mac_computer_observe", "mac_computer_act_on_element", "mac_computer_type_into_element", "mac_computer_wait_for_state", "mac_computer_scroll"],
+    "mac_terminal": ["mac_terminal_list_sessions", "mac_terminal_read_session", "mac_terminal_execute_command"],
     "apple_health": ["apple_health_activity_summary", "apple_health_workouts", "apple_health_running_totals", "apple_health_steps"],
   ]
   public static let interactiveOperationsByTool: [String: [String]] = [
     "mac_computer": ["mac_computer_act_on_element", "mac_computer_type_into_element", "mac_computer_scroll"],
+    "mac_terminal": ["mac_terminal_execute_command"],
     "apple_health": [],
   ]
 }

@@ -271,6 +271,7 @@ class ApiTestCase(unittest.TestCase):
             cls.attachments = importlib.import_module("api.attachments")
             cls.bot_documents = importlib.import_module("api.bot_documents")
             cls.bots = importlib.import_module("api.bots")
+            cls.chief_defaults = importlib.import_module("api.chief_defaults")
             cls.bot_inbox = importlib.import_module("api.bot_inbox")
             cls.direct_chat = importlib.import_module("api.direct_chat")
             cls.groups = importlib.import_module("api.groups")

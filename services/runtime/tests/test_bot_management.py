@@ -81,6 +81,54 @@ def test_chief_can_stage_an_official_template_install() -> None:
     assert tracker.pending[0]["value"] == {"templateId": "meme-maker"}
 
 
+def test_chief_routes_only_the_requested_task_to_one_saved_teammate() -> None:
+    tracker, tools = _tools()
+    result = json.loads(tools["route_to_bot"]("Research", "Compare the two supplied options."))
+
+    assert result["status"] == "ready_to_queue"
+    assert result["botId"] == "research"
+    assert result["botName"] == "Research"
+    assert "own chat" in result["delivery"]
+    assert tracker.pending[0]["action"] == "route_bot"
+    assert tracker.pending[0]["value"] == {
+        "botId": "research", "task": "Compare the two supplied options.",
+    }
+    with pytest.raises(ValueError, match="Only one bot change"):
+        tools["route_to_bot"]("Research", "A second task")
+
+
+@pytest.mark.parametrize("target", ["Chief", "missing bot"])
+def test_chief_routing_rejects_self_or_unknown_target(target: str) -> None:
+    tracker, tools = _tools()
+    with pytest.raises(ValueError):
+        tools["route_to_bot"](target, "A task")
+    assert tracker.pending == []
+
+
+def test_only_chief_receives_saved_teammate_routing() -> None:
+    context = _context()
+    context["canManageBots"] = False
+    tools = {tool.tool_name for tool in bot_management_tools(context, BotMutationTracker())}
+    assert "route_to_bot" not in tools
+
+
+def test_bot_updates_allow_the_contract_skill_limit_without_expanding_tool_limit() -> None:
+    from heytim_runtime.client_contract import MAX_SKILLS_PER_BOT
+
+    context = _context()
+    skill_ids = [f"skill-{index}" for index in range(MAX_SKILLS_PER_BOT)]
+    context["skills"] = [{"id": skill_id, "name": skill_id} for skill_id in skill_ids]
+    tracker = BotMutationTracker()
+    tools = {item.tool_name: item for item in bot_management_tools(context, tracker)}
+    tools["update_bot"]("Research", skill_ids=skill_ids)
+    assert tracker.pending[0]["value"]["changes"]["skillIds"] == skill_ids
+
+    context["tools"] = [{"id": f"tool-{index}", "name": f"Tool {index}"} for index in range(14)]
+    tools = {item.tool_name: item for item in bot_management_tools(context, BotMutationTracker())}
+    with pytest.raises(ValueError, match="at most 13"):
+        tools["update_bot"]("Research", tool_ids=[item["id"] for item in context["tools"]])
+
+
 def test_chief_can_stage_a_custom_bot_with_reviewed_capabilities() -> None:
     tracker, tools = _tools()
 
@@ -378,6 +426,7 @@ def test_catalog_bindings_expose_chief_and_meme_tools(monkeypatch) -> None:
         "list_skill_authoring_options",
         "remember_for_user",
         "request_integration_setup",
+        "route_to_bot",
         "save_artifact",
         "search_meme_templates",
         "update_bot",
