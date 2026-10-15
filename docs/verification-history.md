@@ -6,6 +6,49 @@ was recorded, including legacy repository, cloud-resource, secret, and bundle ID
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-10-15 — Chief defaults, teammate routing, and Mac Terminal
+
+- [PR #136](https://github.com/tmoreton/heytim/pull/136) merged as
+  `cfcbaf23c8931631e3abe86ddfe8fccf19b3c88f`. Chief v9 has 12 compatible built-in tools and 17 official skills;
+  bots support up to 20 skills. The signed-in owner's Chief also showed those counts with its existing prompt and
+  model preserved. Local Mac grants remain separate from the bot's tool selection.
+- [Backend rollout 38773634059](https://github.com/tmoreton/heytim/actions/runs/38773634059) succeeded in the
+  dedicated production account. Runtime 493, API 718, integrity evaluator two, and CDK ten tests passed. All five
+  managed regression sessions completed without invocation/session failures; GoalSuccessRate and ResponseRelevance
+  each averaged 1.0 across five evaluations. Evaluation artifact `11994485048` retains the evidence.
+- The authenticated workflow and three-turn webhook smoke passed with cleanup. The new Chief smoke passed
+  `chief_defaults`, `credit_preflight`, `chief_create`, `chief_edit`, and `chief_routing`: three Chief turns created
+  and edited a temporary bot, then routed one task whose exact reply was verified in the target chat. Scoped cleanup
+  succeeded. Website and production API catalogs both returned Chief v9, 12 tools, 17 skills, and `mac_terminal`.
+- [Apple CI 38770763421](https://github.com/tmoreton/heytim/actions/runs/38770763421) passed 161/161 native tests
+  with zero failures/skips: 128 Mac unit, seven Mac UI, and 26 iPhone UI tests. Artifact `11991893837` retains xcresults.
+  Its tested source `955c40b` has the same Git tree as the merged release. The original PR's service and security
+  checks also passed. Duplicate queued main-native/server runs were canceled; production server verification and the
+  private Apple workflows ran their own gates.
+- [Private Mac candidate 38775428149](https://github.com/tmoreton/heytim/actions/runs/38775428149) passed its
+  production-configured Apple gate, Developer ID export, app and DMG notarization, stapling, and Gatekeeper checks.
+  Receipt artifact `11996147017` identifies **1.1.1 / 20261015172350**, source `cfcbaf23`. Independent installation
+  checks matched its DMG SHA-256 `ddbe6e719b4c3eb396078ea6912def26d074b1e74372492f18faf709e3cb59e9`, production
+  configuration, team/bundle identity, and Apple Events entitlement. The installed update passed signature, staple,
+  and Gatekeeper checks again. Version 1.1.0 remains in an owner-only rollback directory outside `/Applications`.
+- Internal iPhone attempt [38776816463](https://github.com/tmoreton/heytim/actions/runs/38776816463) failed before
+  upload. Its 128 Mac unit tests passed, but XCTest timed out initiating a daemon control session before any Mac UI
+  case began (error 8, xcodebuild 65). Signing cleanup restored the original keychain list. The same source had passed
+  the preceding private Mac gate. A fresh single-case probe also stalled before test startup and was stopped (75).
+  After confirming no active test clients, one SIGTERM to the exact user-owned native `testmanagerd` process let
+  macOS recreate it. The cached composer/layout case then passed in 23.646 seconds (exit 0); its result is retained
+  under `/tmp/HeyTimMacUIInitializationRecheck-20261015-1828/mac-ui-after-daemon.xcresult`. SIP, TCC, and credentials
+  remained unchanged. [Internal iPhone retry 38788280531](https://github.com/tmoreton/heytim/actions/runs/38788280531)
+  passed all 161 native tests (128 Mac unit, seven Mac UI, 26 iPhone UI; zero failures/skips) against the same source
+  and uploaded **1.1.1 / 20261015184612** for internal-only TestFlight processing. Submission receipt artifact
+  `11999303112` retains the exact source and destination. Signing cleanup restored the login keychain and removed
+  the temporary signing keychain. Apple processing is being checked separately.
+- **PENDING — live installed-app Terminal/computer smoke:** the owner session shows version
+  **1.1.1 / 20261015172350** and desktop connection **Connected**, but the global Terminal/app-action switches remain
+  off and Accessibility is not granted. The access confirmation is unanswered, so no new grants or live Terminal
+  commands were attempted. Public Apple publication and its approval flags remain unchanged; the signed Mac installer
+  is retained privately on the canonical host. Physical iPhone installation and APNS delivery are not proved by upload.
+
 ## 2026-10-15 — Pebble webhooks and Mac-local routing
 
 Software is deployed, and the installed-app signed-webhook/duplicate-replay smoke passed with a persisted answer.
