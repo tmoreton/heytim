@@ -22,6 +22,33 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
 }
 
 #if os(macOS)
+  private struct MacProcessFixture {
+    let executableURL = URL(fileURLWithPath: "/Applications/Fixture.app/Contents/MacOS/Fixture")
+    let identifier = "ai.heytim.process-fixture"
+
+    func process(
+      pid: pid_t = 48568, uid: uid_t = 501, realUID: uid_t = 501,
+      executableURL: URL? = nil, start: UInt64 = 100
+    ) -> MacApplicationProcess.ProcessMetadata {
+      MacApplicationProcess.ProcessMetadata(
+        pid: pid, uid: uid, realUID: realUID, executableURL: executableURL ?? self.executableURL,
+        startSeconds: start, startMicroseconds: 25)
+    }
+
+    func resolve(
+      reportedPID: pid_t = -1, processes: [MacApplicationProcess.ProcessMetadata],
+      identity: MacApplicationProcess.Identity? = nil,
+      metadata: ((pid_t) -> MacApplicationProcess.ProcessMetadata?)? = nil
+    ) -> pid_t? {
+      MacApplicationProcess.resolve(
+        identity ?? .init(reportedPID: reportedPID, bundleIdentifier: identifier,
+          executableURL: executableURL),
+        bundleIdentifier: identifier, bundleExecutableURL: executableURL, currentUID: 501,
+        listPIDs: { processes.map(\.pid) },
+        metadata: metadata ?? { pid in processes.first { $0.pid == pid } })
+    }
+  }
+
   @MainActor private struct DesktopAXFixture {
     // Creating opaque references does not query these processes. All reads below are injected.
     let application = AXUIElementCreateApplication(91001)
@@ -76,6 +103,96 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
   }
 
   #if os(macOS)
+    func testMacProcessResolverFindsUniqueLiveProcessWhenAppKitPIDIsUnavailable() {
+      let fixture = MacProcessFixture()
+      let other = fixture.process(pid: 100, executableURL: URL(fileURLWithPath: "/usr/bin/other"))
+      for reported in [pid_t(-1), pid_t(0)] {
+        XCTAssertEqual(fixture.resolve(reportedPID: reported,
+          processes: [other, fixture.process()]), 48568)
+      }
+    }
+
+    func testMacProcessResolverRejectsMissingOrAmbiguousProcesses() {
+      let fixture = MacProcessFixture()
+      XCTAssertNil(fixture.resolve(processes: []))
+      XCTAssertNil(fixture.resolve(processes: [fixture.process(), fixture.process(pid: 48569)]))
+    }
+
+    func testMacProcessResolverRequiresCurrentRealAndEffectiveUser() {
+      let fixture = MacProcessFixture()
+      for process in [fixture.process(uid: 502), fixture.process(realUID: 502)] {
+        XCTAssertNil(fixture.resolve(processes: [process]))
+        XCTAssertNil(fixture.resolve(reportedPID: process.pid, processes: [process]))
+      }
+    }
+
+    func testMacProcessResolverRejectsSameNameAtAnotherExecutablePath() {
+      let fixture = MacProcessFixture()
+      let other = fixture.process(executableURL:
+        URL(fileURLWithPath: "/Applications/Other.app/Contents/MacOS/Fixture"))
+      XCTAssertNil(fixture.resolve(processes: [other]))
+    }
+
+    func testMacProcessResolverValidatesPositivePIDWithoutFallback() {
+      let fixture = MacProcessFixture()
+      XCTAssertEqual(fixture.resolve(reportedPID: 48568, processes: [fixture.process()]), 48568)
+      XCTAssertNil(fixture.resolve(reportedPID: 100, processes: [fixture.process()]))
+      let mismatch = fixture.process(pid: 100, executableURL: URL(fileURLWithPath: "/usr/bin/other"))
+      XCTAssertNil(fixture.resolve(reportedPID: 100, processes: [mismatch, fixture.process()]))
+    }
+
+    func testMacProcessResolverRejectsExitReuseAndIdentityChangesBeforeReturn() {
+      let fixture = MacProcessFixture()
+      let changes: [MacApplicationProcess.ProcessMetadata?] = [
+        nil, fixture.process(start: 101), fixture.process(uid: 502),
+        fixture.process(executableURL: URL(fileURLWithPath: "/usr/bin/other")),
+      ]
+      for reportedPID in [pid_t(-1), pid_t(48568)] {
+        for changed in changes {
+          var reads = 0
+          XCTAssertNil(fixture.resolve(reportedPID: reportedPID, processes: [fixture.process()],
+            metadata: { _ in
+              reads += 1
+              return reads == 1 ? fixture.process() : changed
+            }))
+          XCTAssertEqual(reads, 2)
+        }
+      }
+    }
+
+    func testMacProcessResolverRequiresBundleIdentifierAndExecutableAgreement() {
+      let fixture = MacProcessFixture()
+      for identity in [
+        MacApplicationProcess.Identity(reportedPID: -1, bundleIdentifier: "other.bundle",
+          executableURL: fixture.executableURL),
+        .init(reportedPID: -1, bundleIdentifier: fixture.identifier,
+          executableURL: URL(fileURLWithPath: "/usr/bin/other")),
+        .init(reportedPID: -1, bundleIdentifier: fixture.identifier,
+          executableURL: URL(string: "https://example.com/Fixture")!),
+      ] {
+        XCTAssertNil(fixture.resolve(processes: [fixture.process()], identity: identity))
+      }
+    }
+
+    func testMacProcessResolverRejectsUnreadableOrExcessiveEnumeration() {
+      let fixture = MacProcessFixture()
+      XCTAssertNil(fixture.resolve(processes: [fixture.process(), fixture.process(pid: 100)],
+        metadata: { pid in pid == 48568 ? fixture.process() : nil }))
+      var reads = 0
+      XCTAssertNil(MacApplicationProcess.resolve(
+        .init(reportedPID: -1, bundleIdentifier: fixture.identifier, executableURL: fixture.executableURL),
+        bundleIdentifier: fixture.identifier, bundleExecutableURL: fixture.executableURL, currentUID: 501,
+        listPIDs: { Array(repeating: 48568, count: MacApplicationProcess.maximumProcessCount + 1) },
+        metadata: { _ in reads += 1; return fixture.process() }))
+      XCTAssertEqual(reads, 0)
+    }
+
+    func testMacProcessResolverMatchesCanonicalExecutableURLs() {
+      let fixture = MacProcessFixture()
+      let alias = URL(fileURLWithPath: "/Applications/Fixture.app/Contents/MacOS/../MacOS/Fixture")
+      XCTAssertEqual(fixture.resolve(processes: [fixture.process(executableURL: alias)]), 48568)
+    }
+
     func testDesktopFailedCaptureClearsItsPreviousSnapshot() throws {
       let coordinator = DesktopControlCoordinator(startMonitoring: false)
       coordinator.snapshot = try DesktopAXFixture().capture().snapshot

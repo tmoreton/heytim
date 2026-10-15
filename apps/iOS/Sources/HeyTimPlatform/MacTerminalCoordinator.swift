@@ -106,8 +106,9 @@
     }
 
     private static func runningProcessID() -> Int32? {
-      NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Terminal")
-        .first(where: { !$0.isTerminated })?.processIdentifier
+      let processes = Set(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Terminal")
+        .filter { !$0.isTerminated }.compactMap(MacApplicationProcess.resolve))
+      return processes.count == 1 ? processes.first : nil
     }
 
     private static func target(from id: String) throws -> (processID: Int32, windowID: Int, tty: String) {
