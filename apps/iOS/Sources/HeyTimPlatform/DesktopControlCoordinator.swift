@@ -235,7 +235,8 @@
     @ObservationIgnored private var globalInputMonitor: DesktopEventMonitor?
     @ObservationIgnored private var automationArmedUntil: Date?
     @ObservationIgnored private var isSynthesizingInput = false
-    init() {
+    init(startMonitoring: Bool = true) {
+      guard startMonitoring else { return }
       refreshApplications()
       globalInputMonitor = DesktopEventMonitor(token: NSEvent.addGlobalMonitorForEvents(
         matching: [
@@ -454,6 +455,10 @@
     func capture() {
       proposal = nil
       message = nil
+      snapshot = nil
+      elements = [:]
+      ocrTargets = [:]
+      ocrMessage = nil
       guard isEnabled else {
         message = "Enable Mac app actions in Settings before inspecting another app."
         return
@@ -474,26 +479,15 @@
 
       let root = AXUIElementCreateApplication(application.id)
       AXUIElementSetMessagingTimeout(root, 1.0)
-      let window = activeWindow(in: root)
-      let windowTitle = stringAttribute(kAXTitleAttribute, from: window) ?? "Untitled window"
-      var controls: [DesktopControlSummary] = []
-      var resolved: [String: AXUIElement] = [:]
-      var visited = 0
-      walk(
-        window, depth: 0, visited: &visited,
-        controls: &controls, resolved: &resolved)
-
-      elements = resolved
-      ocrTargets = [:]
-      ocrMessage = nil
-      snapshot = DesktopSnapshot(
-        revision: UUID().uuidString.lowercased(),
-        application: application,
-        windowTitle: Self.clean(windowTitle, limit: 100),
-        capturedAt: Date(),
-        controls: Array(controls.prefix(60)))
-      if controls.isEmpty {
-        message = "No pressable controls were found in the focused window."
+      do {
+        let captured = try Self.readAccessibility(application: application, root: root)
+        elements = captured.elements
+        snapshot = captured.snapshot
+        if captured.snapshot.controls.isEmpty {
+          message = "No actionable controls were found in the accessible window."
+        }
+      } catch {
+        message = error.localizedDescription
       }
     }
 
@@ -590,10 +584,15 @@
         return "The control changed or the review expired. Ask again for a fresh action."
       }
       let root = AXUIElementCreateApplication(application.id)
-      let focusedWindow = activeWindow(in: root)
+      guard let focusedWindow = activeWindow(in: root),
+        let title = try? DesktopAXReader.live.windowTitle(focusedWindow)
+      else {
+        proposal = nil
+        pendingNoteText = nil
+        return "The target window could not be read. Ask again to review a fresh action."
+      }
       let currentWindowTitle = Self.clean(
-        stringAttribute(kAXTitleAttribute, from: focusedWindow) ?? "Untitled window",
-        limit: 100)
+        title, limit: 100)
       guard snapshot?.application.id == application.id,
         snapshot?.windowTitle == currentWindowTitle
       else {
@@ -619,8 +618,9 @@
         for _ in 0..<5 {
           try? await Task.sleep(for: .milliseconds(180))
           let root = AXUIElementCreateApplication(application.id)
-          let window = activeWindow(in: root)
-          if let body = findNotesBody(in: window, depth: 0) {
+          if let window = activeWindow(in: root),
+            let body = findNotesBody(in: window, depth: 0)
+          {
             var settable = DarwinBoolean(false)
             if AXUIElementIsAttributeSettable(body, kAXValueAttribute as CFString, &settable) == .success,
               settable.boolValue,
@@ -875,9 +875,12 @@
         return .failure("The Mac window changed or this snapshot expired. Observe it again.")
       }
       let root = AXUIElementCreateApplication(captured.application.id)
+      guard let window = activeWindow(in: root) else {
+        return .failure("The Mac window could not be read. Observe the app again before waiting.")
+      }
       let changed = await DesktopAXChangeWaiter().wait(
         pid: captured.application.id,
-        elements: [root, activeWindow(in: root)],
+        elements: [root, window],
         seconds: seconds)
       refreshApplications()
       guard applications.contains(where: { $0.id == captured.application.id }) else {
@@ -902,9 +905,10 @@
         NSRunningApplication(processIdentifier: captured.application.id) != nil
       else { return nil }
       let root = AXUIElementCreateApplication(captured.application.id)
-      let currentTitle = Self.clean(
-        stringAttribute(kAXTitleAttribute, from: activeWindow(in: root)) ?? "Untitled window",
-        limit: 100)
+      guard let window = activeWindow(in: root),
+        let title = try? DesktopAXReader.live.windowTitle(window)
+      else { return nil }
+      let currentTitle = Self.clean(title, limit: 100)
       return currentTitle == captured.windowTitle ? captured : nil
     }
 
@@ -1068,65 +1072,8 @@
       return !words.isDisjoint(with: blocked)
     }
 
-    private func walk(
-      _ element: AXUIElement,
-      depth: Int,
-      visited: inout Int,
-      controls: inout [DesktopControlSummary],
-      resolved: inout [String: AXUIElement]
-    ) {
-      guard depth <= 7, visited < 180, controls.count < 60 else { return }
-      visited += 1
-      let role = stringAttribute(kAXRoleAttribute, from: element) ?? "element"
-      // Secure fields are never included in the model's candidate tree.
-      guard role != "AXSecureTextField", boolAttribute("AXVisible", from: element) != false else {
-        return
-      }
-      let label = stringAttribute(kAXTitleAttribute, from: element)
-        ?? stringAttribute(kAXDescriptionAttribute, from: element)
-        ?? stringAttribute(kAXHelpAttribute, from: element)
-
-      let editable = [kAXTextFieldRole as String, kAXTextAreaRole as String].contains(role)
-        && attributeIsSettable(kAXValueAttribute, on: element)
-      let availableActions = actionNames(element)
-      let semanticActions = Self.semanticActions(availableActions)
-      let scrollableRoles: Set<String> = [
-        "AXScrollArea", "AXTable", "AXList", "AXOutline", "AXWebArea",
-      ]
-      let scrollable = scrollableRoles.contains(role)
-      if (editable || !semanticActions.isEmpty || scrollable),
-        boolAttribute(kAXEnabledAttribute, from: element) != false,
-        let resolvedLabel = label?.isEmpty == false ? label : Self.friendlyRoleName(role)
-      {
-        let id = "control_\(controls.count + 1)"
-        let summary = DesktopControlSummary(
-          id: id, role: role, label: Self.clean(resolvedLabel, limit: 100),
-          blockedByPolicy: !editable && Self.isHighImpact(label: resolvedLabel),
-          editable: editable,
-          value: valueDescription(kAXValueAttribute, from: element).map {
-            Self.clean($0, limit: 500)
-          },
-          supportedActions: semanticActions + (scrollable ? ["scroll"] : []))
-        controls.append(summary)
-        resolved[id] = element
-      }
-
-      let children = elementArrayAttribute(kAXChildrenAttribute, from: element)
-      // Large document/list subtrees can exhaust the bounded walk before a
-      // window's toolbar. Give visible toolbar actions first consideration.
-      let ordered = children.filter { stringAttribute(kAXRoleAttribute, from: $0) == "AXToolbar" }
-        + children.filter { stringAttribute(kAXRoleAttribute, from: $0) != "AXToolbar" }
-      for child in ordered {
-        walk(
-          child, depth: depth + 1, visited: &visited,
-          controls: &controls, resolved: &resolved)
-      }
-    }
-
-    private func activeWindow(in application: AXUIElement) -> AXUIElement {
-      elementAttribute(kAXFocusedWindowAttribute, from: application)
-        ?? elementArrayAttribute(kAXWindowsAttribute, from: application).first
-        ?? application
+    private func activeWindow(in application: AXUIElement) -> AXUIElement? {
+      try? DesktopAXReader.live.window(in: application)
     }
 
     private func stringAttribute(_ name: String, from element: AXUIElement) -> String? {
@@ -1232,7 +1179,7 @@
       }
     }
 
-    private static func semanticActions(_ actions: [String]) -> [String] {
+    static func semanticActions(_ actions: [String]) -> [String] {
       let mapping = [
         (kAXPressAction as String, "press"),
         (kAXIncrementAction as String, "increment"),
@@ -1242,13 +1189,13 @@
       return mapping.compactMap { actions.contains($0.0) ? $0.1 : nil }
     }
 
-    private static func friendlyRoleName(_ role: String) -> String {
+    static func friendlyRoleName(_ role: String) -> String {
       let stripped = role.hasPrefix("AX") ? String(role.dropFirst(2)) : role
       return stripped.replacingOccurrences(
         of: "([a-z])([A-Z])", with: "$1 $2", options: .regularExpression)
     }
 
-    private static func clean(_ value: String, limit: Int) -> String {
+    static func clean(_ value: String, limit: Int) -> String {
       let collapsed = value
         .components(separatedBy: .whitespacesAndNewlines)
         .filter { !$0.isEmpty }

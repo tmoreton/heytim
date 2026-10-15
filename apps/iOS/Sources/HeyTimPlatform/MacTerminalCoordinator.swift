@@ -22,43 +22,42 @@
 
   protocol MacTerminalServing: Sendable {
     func listSessions() async throws -> [MacTerminalSession]
-    func readSession(id: String) async throws -> MacTerminalSession
+    func readSession(id: String, mayRequestConsent: Bool) async throws -> MacTerminalSession
     func submit(command: String, to session: MacTerminalSession) async throws
-  }
-
-  private struct MacTerminalError: LocalizedError {
-    let message: String
-    var errorDescription: String? { message }
   }
 
   /// Uses the existing Terminal tab rather than creating a separate local shell.
   /// Apple Events are sent only in response to an authorized tool request.
   struct AppleTerminalService: MacTerminalServing {
-    private static let maximumCharacters = 20_000
     private static let executionLock = NSLock()
+    var permission = MacTerminalPermissionPreflight()
+    var processIDProvider: @Sendable () -> Int32? = { Self.runningProcessID() }
+    var scriptRunner: @Sendable (String, Int32, Bool) throws -> [MacTerminalSession] = {
+      try Self.run($0, processID: $1, commandRequested: $2)
+    }
 
     func listSessions() async throws -> [MacTerminalSession] {
-      try await Self.inBackground {
-        guard let processID = Self.runningProcessID() else { return [] }
-        let sessions = try Self.run(
-          Self.sessionScript(), processID: processID)
-        guard Self.runningProcessID() == processID else {
+      try await Self.inBackground { [self] in
+        guard let processID = processIDProvider() else { return [] }
+        let sessions = try runAuthorizedScript(
+          Self.sessionScript(), processID: processID, mayRequestConsent: true)
+        guard processIDProvider() == processID else {
           throw MacTerminalError(message: "Terminal restarted. List its sessions again.")
         }
         return sessions
       }
     }
 
-    func readSession(id: String) async throws -> MacTerminalSession {
-      try await Self.inBackground {
+    func readSession(id: String, mayRequestConsent: Bool = true) async throws -> MacTerminalSession {
+      try await Self.inBackground { [self] in
         let target = try Self.target(from: id)
-        guard Self.runningProcessID() == target.processID else {
+        guard processIDProvider() == target.processID else {
           throw MacTerminalError(message: "That Terminal session is no longer running. List sessions again.")
         }
-        let sessions = try Self.run(
+        let sessions = try runAuthorizedScript(
           Self.sessionScript(windowID: target.windowID, tty: target.tty, includeContents: true),
-          processID: target.processID)
-        guard Self.runningProcessID() == target.processID,
+          processID: target.processID, mayRequestConsent: mayRequestConsent)
+        guard processIDProvider() == target.processID,
           sessions.count == 1, let session = sessions.first, session.id == id
         else {
           throw MacTerminalError(message: "That Terminal tab closed or changed. List sessions again.")
@@ -68,15 +67,32 @@
     }
 
     func submit(command: String, to session: MacTerminalSession) async throws {
-      try await Self.inBackground {
-        guard Self.runningProcessID() == session.processID else {
+      try await Self.inBackground { [self] in
+        guard processIDProvider() == session.processID else {
           throw MacTerminalError(message: "Terminal restarted. Read the session again before sending a command.")
         }
         // The script compares the observed state once more immediately before
         // submitting to the exact tab. It never falls back to a new window.
-        _ = try Self.run(Self.submissionScript(command: command, session: session),
-          processID: session.processID)
+        _ = try runAuthorizedScript(Self.submissionScript(command: command, session: session),
+          processID: session.processID, mayRequestConsent: false, commandRequested: true)
       }
+    }
+
+    private func runAuthorizedScript(
+      _ source: String, processID: Int32, mayRequestConsent: Bool, commandRequested: Bool = false
+    ) throws -> [MacTerminalSession] {
+      Self.executionLock.lock()
+      defer { Self.executionLock.unlock() }
+      try Task.checkCancellation()
+      guard processIDProvider() == processID else {
+        throw MacTerminalError(message: "Terminal restarted before checking permission. List sessions again.")
+      }
+      try permission.authorize(processID: processID, mayRequestConsent: mayRequestConsent)
+      try Task.checkCancellation()
+      guard processIDProvider() == processID else {
+        throw MacTerminalError(message: "Terminal restarted while checking permission. List sessions again.")
+      }
+      return try scriptRunner(source, processID, commandRequested)
     }
 
     private static func inBackground<Value: Sendable>(
@@ -105,98 +121,9 @@
       return (processID, windowID, String(parts[3]))
     }
 
-    static func appleScriptLiteral(_ value: String) -> String {
-      // AppleScript has no JSON-style Unicode escapes. Construct control
-      // characters explicitly instead of letting data change the script source.
-      var pieces: [String] = []
-      var text = ""
-      func flush() {
-        guard !text.isEmpty else { return }
-        pieces.append("\"" + text.replacingOccurrences(of: "\\", with: "\\\\")
-          .replacingOccurrences(of: "\"", with: "\\\"") + "\"")
-        text = ""
-      }
-      for scalar in value.unicodeScalars {
-        if CharacterSet.controlCharacters.contains(scalar)
-          || CharacterSet.newlines.contains(scalar)
-        {
-          flush()
-          pieces.append("(character id \(scalar.value))")
-        } else { text.unicodeScalars.append(scalar) }
-      }
-      flush()
-      return pieces.isEmpty ? "\"\"" : "(" + pieces.joined(separator: " & ") + ")"
-    }
-
-    static func sessionScript(
-      windowID: Int? = nil, tty: String? = nil, includeContents: Bool = false
-    ) -> String {
-      let windowFilter = windowID.map { "if (id of terminalWindow) is \($0) then" } ?? ""
-      let ttyFilter = tty.map { "if tabTTY is \(appleScriptLiteral($0)) then" } ?? ""
-      let text = includeContents
-        ? "my boundedContents(contents of terminalTab as text)" : "\"\""
-      return """
-        \(tailHandler)
-        with timeout of 8 seconds
-          tell application id "com.apple.Terminal"
-            if not running then return {}
-            set resultRows to {}
-            repeat with terminalWindow in windows
-              \(windowFilter)
-              repeat with terminalTab in tabs of terminalWindow
-                set tabTTY to tty of terminalTab as text
-                \(ttyFilter)
-                set tabTitle to custom title of terminalTab as text
-                if tabTitle is "" then set tabTitle to name of terminalWindow as text
-                set end of resultRows to {id of terminalWindow, tabTTY, tabTitle, busy of terminalTab, processes of terminalTab, \(text)}
-                if (count resultRows) is greater than or equal to 64 then return resultRows
-                \(tty == nil ? "" : "end if")
-              end repeat
-              \(windowID == nil ? "" : "end if")
-            end repeat
-            return resultRows
-          end tell
-        end timeout
-        """
-    }
-
-    static func submissionScript(command: String, session: MacTerminalSession) -> String {
-      let processList = "{" + session.processes.map(appleScriptLiteral).joined(separator: ", ") + "}"
-      return """
-        \(tailHandler)
-        with timeout of 8 seconds
-          tell application id "com.apple.Terminal"
-            if not running then error "The observed Terminal app closed." number -2700
-            if not (exists window id \(session.windowID)) then error "The observed Terminal window closed." number -2700
-            repeat with terminalTab in tabs of window id \(session.windowID)
-              if (tty of terminalTab as text) is \(appleScriptLiteral(session.tty)) then
-                if (my boundedContents(contents of terminalTab as text)) is not \(appleScriptLiteral(session.contents)) then error "Terminal output changed. Read the session again." number -2700
-                if (busy of terminalTab) is not \(session.busy ? "true" : "false") then error "The foreground Terminal process changed. Read the session again." number -2700
-                if (processes of terminalTab) is not \(processList) then error "The foreground Terminal process changed. Read the session again." number -2700
-                do script \(appleScriptLiteral(command)) in terminalTab
-                return {}
-              end if
-            end repeat
-            error "The observed Terminal tab closed or changed." number -2700
-          end tell
-        end timeout
-        """
-    }
-
-    private static var tailHandler: String {
-      """
-      on boundedContents(valueText)
-        if (count characters of valueText) is greater than \(maximumCharacters) then
-          return text -\(maximumCharacters) thru -1 of valueText
-        end if
-        return valueText
-      end boundedContents
-      """
-    }
-
-    private static func run(_ source: String, processID: Int32) throws -> [MacTerminalSession] {
-      Self.executionLock.lock()
-      defer { Self.executionLock.unlock() }
+    private static func run(
+      _ source: String, processID: Int32, commandRequested: Bool
+    ) throws -> [MacTerminalSession] {
       try Task.checkCancellation()
       guard let script = NSAppleScript(source: source) else {
         throw MacTerminalError(message: "Hey Tim could not prepare the Terminal request.")
@@ -205,16 +132,10 @@
       try Task.checkCancellation()
       let result = script.executeAndReturnError(&details)
       if let details {
-        let code = details[NSAppleScript.errorNumber] as? Int
-        if code == -1743 {
-          throw MacTerminalError(message: "Allow Hey Tim to control Terminal in macOS System Settings → Privacy & Security → Automation, then try again.")
-        }
-        if code == -1712 {
-          throw MacTerminalError(message: "Terminal did not respond in time. If a command was requested, it may have been submitted; read the session before trying again.")
-        }
-        let explanation = details[NSAppleScript.errorMessage] as? String
-          ?? "Terminal could not complete this request."
-        throw MacTerminalError(message: String(explanation.prefix(600)))
+        throw MacTerminalError(message: MacTerminalDiagnostics.message(
+          code: details[NSAppleScript.errorNumber] as? Int ?? -1,
+          stage: MacTerminalDiagnostics.stage(from: details), processID: processID,
+          commandRequested: commandRequested))
       }
       var sessions: [MacTerminalSession] = []
       for index in 0..<min(result.numberOfItems, 64) {
@@ -262,6 +183,7 @@
         for submission in submissions.values where !enabledBotIDs.contains(submission.botID) {
           submission.task.cancel()
         }
+        for request in reads.values where !enabledBotIDs.contains(request.botID) { request.cancel() }
       }
     }
 
@@ -271,6 +193,7 @@
     @ObservationIgnored private var observations: [String: SessionObservation] = [:]
     @ObservationIgnored private var authorizationGeneration = 0
     @ObservationIgnored private var submissions: [UUID: (botID: String, task: Task<Void, Error>)] = [:]
+    @ObservationIgnored private var reads: [UUID: (botID: String, cancel: @Sendable () -> Void)] = [:]
 
     init(
       defaults: UserDefaults = .standard,
@@ -296,6 +219,7 @@
       observations.removeAll()
       authorizationGeneration += 1
       for submission in submissions.values { submission.task.cancel() }
+      for request in reads.values { request.cancel() }
     }
 
     func execute(_ call: DeviceCall) async -> DeviceCallOutcome {
@@ -308,7 +232,8 @@
           guard call.arguments.isEmpty else {
             return .failure("Listing Terminal sessions does not accept arguments.")
           }
-          let sessions = try await terminal.listSessions()
+          let terminal = terminal
+          let sessions = try await terminalRead(botID: call.botId) { try await terminal.listSessions() }
           guard isEnabled(for: call.botId) else { return accessRevoked }
           try Task.checkCancellation()
           var rows: [JSONValue] = []
@@ -327,7 +252,10 @@
           guard let sessionID = validSessionID(call.arguments["sessionId"]),
             let maximum = integerArgument(call.arguments["maxCharacters"], default: 12_000, range: 1_000...20_000)
           else { return .failure("Choose a listed sessionId and maxCharacters between 1000 and 20000.") }
-          let session = try await terminal.readSession(id: sessionID)
+          let terminal = terminal
+          let session = try await terminalRead(botID: call.botId) {
+            try await terminal.readSession(id: sessionID, mayRequestConsent: true)
+          }
           guard isEnabled(for: call.botId) else { return accessRevoked }
           try Task.checkCancellation()
           guard session.id == sessionID else {
@@ -348,6 +276,24 @@
       .failure("Mac terminal access was turned off before this request completed.")
     }
 
+    private func terminalRead<Value: Sendable>(
+      botID: String, operation: @escaping @Sendable () async throws -> Value
+    ) async throws -> Value {
+      let task = Task {
+        try Task.checkCancellation()
+        let value = try await operation()
+        try Task.checkCancellation()
+        return value
+      }
+      let id = UUID()
+      reads[id] = (botID, { task.cancel() })
+      defer { reads.removeValue(forKey: id) }
+      return try await withTaskCancellationHandler {
+        try Task.checkCancellation()
+        return try await task.value
+      } onCancel: { task.cancel() }
+    }
+
     private func executeCommand(_ call: DeviceCall) async -> DeviceCallOutcome {
       guard let sessionID = validSessionID(call.arguments["sessionId"]),
         let revision = call.arguments["revision"]?.stringValue,
@@ -365,7 +311,10 @@
       observations.removeValue(forKey: sessionID)
       let generation = authorizationGeneration
       do {
-        let current = try await terminal.readSession(id: sessionID)
+        let terminal = terminal
+        let current = try await terminalRead(botID: call.botId) {
+          try await terminal.readSession(id: sessionID, mayRequestConsent: false)
+        }
         guard isEnabled(for: call.botId), generation == authorizationGeneration else { return accessRevoked }
         try Task.checkCancellation()
         guard (0..<120).contains(now().timeIntervalSince(observation.capturedAt)) else {
@@ -377,7 +326,6 @@
         guard Self.hasShellPrompt(current) else {
           return .failure("This tab does not show a clear shell prompt. Finish any partial input or foreground program, then read the session again. Hey Tim will not send a command into a password prompt.")
         }
-        let terminal = terminal
         let submission = Task { try await terminal.submit(command: command, to: current) }
         let submissionID = UUID()
         submissions[submissionID] = (call.botId, submission)
@@ -399,7 +347,10 @@
           result["outputNote"] = .string("Terminal access was turned off after submission; no additional output was read.")
           return .success(.object(result))
         }
-        let updated = try await terminal.readSession(id: sessionID)
+        let terminal = terminal
+        let updated = try await terminalRead(botID: call.botId) {
+          try await terminal.readSession(id: sessionID, mayRequestConsent: false)
+        }
         guard isEnabled(for: call.botId), generation == authorizationGeneration else {
           result["outputNote"] = .string("Terminal access was turned off after submission; additional output was not shared.")
           return .success(.object(result))
