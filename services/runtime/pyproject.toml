@@ -44,6 +44,8 @@ dependencies = [
     # CodeZip resolves OpenAI transitives afresh; keep the packaged parser on
     # the exact version exercised by the locked runtime environment.
     "jiter == 0.16.0",
+    # Device bridges validate the same closed JSON schema exposed to the model.
+    "jsonschema == 4.26.0",
     # Direct dependency: the hardened remote transport uses MCP's streamable HTTP API.
     "mcp >= 1.29.1, < 2.0.0",
     "mcp-proxy-for-aws >= 1.6.0, < 2.0.0",
@@ -124,7 +126,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "jsonschema >= 4.26.0, < 5.0.0",
     "pytest>=8.4.0,<10.0.0",
     # The managed regression runner downloads a presigned dataset fixture.
     "requests == 2.34.2",
