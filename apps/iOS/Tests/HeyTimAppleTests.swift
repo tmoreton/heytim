@@ -21,6 +21,45 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
   func delete() { value = nil }
 }
 
+#if os(macOS)
+  @MainActor private struct DesktopAXFixture {
+    // Creating opaque references does not query these processes. All reads below are injected.
+    let application = AXUIElementCreateApplication(91001)
+    let window = AXUIElementCreateApplication(91002)
+    let text = AXUIElementCreateApplication(91003)
+    var attributes: [String: (AXError, CFTypeRef?)] = [:]
+    var actionError = AXError.success
+
+    init() {
+      attributes = [
+        "application.AXFocusedWindow": (.success, window),
+        "window.AXRole": (.success, kAXWindowRole as CFString),
+        "window.AXTitle": (.success, "Test document" as CFString),
+        "window.AXChildren": (.success, [] as [AXUIElement] as CFArray),
+      ]
+    }
+
+    var reader: DesktopAXReader {
+      DesktopAXReader(
+        copyAttribute: { element, name in
+          let scope = CFEqual(element, application) ? "application"
+            : CFEqual(element, window) ? "window" : "text"
+          return attributes["\(scope).\(name)"] ?? (.attributeUnsupported, nil)
+        },
+        copyActions: { _ in (actionError, [] as [String] as CFArray) },
+        isSettable: { element, name in
+          (.success, CFEqual(element, text) && name == kAXValueAttribute as String)
+        })
+    }
+
+    func capture() throws -> (snapshot: DesktopSnapshot, elements: [String: AXUIElement]) {
+      try DesktopControlCoordinator.readAccessibility(
+        application: DesktopApplication(id: 91001, name: "Fixture", bundleIdentifier: nil),
+        root: application, reader: reader)
+    }
+  }
+#endif
+
 @MainActor final class HeyTimAppleTests: XCTestCase {
   override func tearDown() {
     MockURLProtocol.handler = nil
@@ -37,6 +76,87 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
   }
 
   #if os(macOS)
+    func testDesktopFailedCaptureClearsItsPreviousSnapshot() throws {
+      let coordinator = DesktopControlCoordinator(startMonitoring: false)
+      coordinator.snapshot = try DesktopAXFixture().capture().snapshot
+      XCTAssertNotNil(coordinator.snapshot)
+      // No eligible app is registered; this must fail without querying any live app.
+      coordinator.capture()
+      XCTAssertNil(coordinator.snapshot)
+      XCTAssertNotNil(coordinator.message)
+    }
+
+    func testDesktopCaptureReportsInaccessibleApplicationInsteadOfEmptySuccess() {
+      let fixture = DesktopAXFixture()
+      var reader = fixture.reader
+      reader.copyAttribute = { _, _ in (.apiDisabled, nil) }
+      XCTAssertThrowsError(try DesktopControlCoordinator.readAccessibility(
+        application: DesktopApplication(id: 91001, name: "Fixture", bundleIdentifier: nil),
+        root: fixture.application, reader: reader)) { error in
+        XCTAssertTrue(error.localizedDescription.contains("AXFocusedWindow"))
+        XCTAssertTrue(error.localizedDescription.contains(String(AXError.apiDisabled.rawValue)))
+      }
+    }
+
+    func testDesktopCaptureRequiresAWindowAndSupportsMainWindowFallback() throws {
+      var fixture = DesktopAXFixture()
+      fixture.attributes["application.AXFocusedWindow"] = (.success, fixture.application)
+      fixture.attributes["application.AXRole"] = (.success, kAXApplicationRole as CFString)
+      XCTAssertThrowsError(try fixture.capture())
+      fixture.attributes["application.AXMainWindow"] = (.success, fixture.window)
+      XCTAssertEqual(try fixture.capture().snapshot.windowTitle, "Test document")
+    }
+
+    func testDesktopCaptureSupportsWindowsFallbackAndLegitimateEmptyUntitledWindow() throws {
+      var fixture = DesktopAXFixture()
+      fixture.attributes["application.AXFocusedWindow"] = (.noValue, nil)
+      fixture.attributes["application.AXWindows"] = (.success, [fixture.window] as CFArray)
+      fixture.attributes["window.AXTitle"] = (.noValue, nil)
+      let captured = try fixture.capture()
+      XCTAssertEqual(captured.snapshot.windowTitle, "Untitled window")
+      XCTAssertTrue(captured.snapshot.controls.isEmpty)
+      XCTAssertTrue(captured.elements.isEmpty)
+    }
+
+    func testDesktopCaptureReadsEditableTextAreaWithoutOCR() throws {
+      var fixture = DesktopAXFixture()
+      fixture.attributes["window.AXChildren"] = (.success, [fixture.text] as CFArray)
+      fixture.attributes["text.AXRole"] = (.success, kAXTextAreaRole as CFString)
+      fixture.attributes["text.AXDescription"] = (.success, "First Text View" as CFString)
+      fixture.attributes["text.AXValue"] = (.success, "READY seed" as CFString)
+      let captured = try fixture.capture()
+      let control = try XCTUnwrap(captured.snapshot.controls.first)
+      XCTAssertEqual(control.label, "First Text View")
+      XCTAssertTrue(control.editable)
+      XCTAssertEqual(control.value, "READY seed")
+      XCTAssertEqual(control.source, "accessibility")
+      XCTAssertTrue(CFEqual(captured.elements[control.id], fixture.text))
+    }
+
+    func testDesktopCaptureReportsUnreadableTitleAndChildren() {
+      for attribute in ["AXTitle", "AXChildren"] {
+        var fixture = DesktopAXFixture()
+        fixture.attributes["window.\(attribute)"] = (.cannotComplete, nil)
+        XCTAssertThrowsError(try fixture.capture()) { error in
+          XCTAssertTrue(error.localizedDescription.contains(attribute))
+          XCTAssertTrue(error.localizedDescription.contains(String(AXError.cannotComplete.rawValue)))
+        }
+      }
+    }
+
+    func testDesktopCaptureReportsUnreadableActionsAndMalformedWindowValue() {
+      var fixture = DesktopAXFixture()
+      fixture.actionError = .cannotComplete
+      XCTAssertThrowsError(try fixture.capture()) { error in
+        XCTAssertTrue(error.localizedDescription.contains("AXActions"))
+      }
+      fixture.actionError = .success
+      fixture.attributes["application.AXFocusedWindow"] = (.success, "not an AX element" as CFString)
+      XCTAssertThrowsError(try fixture.capture()) { error in
+        XCTAssertTrue(error.localizedDescription.contains("AXFocusedWindow"))
+      }
+    }
+
     func testDesktopUpdateConfigurationRequiresHTTPSAndAResolvedPublicKey() {
       XCTAssertTrue(
         DesktopUpdateConfiguration(info: [

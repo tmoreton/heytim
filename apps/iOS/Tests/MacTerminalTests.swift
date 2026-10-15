@@ -13,7 +13,7 @@
 
     init(_ sessions: [MacTerminalSession]) { self.sessions = sessions }
     func listSessions() async throws -> [MacTerminalSession] { sessions }
-    func readSession(id: String) async throws -> MacTerminalSession {
+    func readSession(id: String, mayRequestConsent: Bool) async throws -> MacTerminalSession {
       if let readHook { await readHook() }
       guard let session = sessions.first(where: { $0.id == id }) else {
         throw NSError(domain: "TerminalFixture", code: 1)
@@ -40,6 +40,83 @@
 
   @MainActor private final class TerminalClock {
     var date = Date(timeIntervalSince1970: 1_800_000_000)
+  }
+
+  private final class NativeTerminalProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var codes: [Int32]
+    private var processID: Int32 = 101
+    private var events: [String] = []
+    private var commandFlags: [Bool] = []
+    private var ranOnMainThread = false
+
+    init(_ codes: [Int32]) { self.codes = codes }
+    func pid() -> Int32 { lock.withLock { processID } }
+    func restart() { lock.withLock { processID = 202 } }
+    func pidThenRestart() -> Int32 {
+      lock.withLock {
+        let previous = processID
+        processID = 202
+        return previous
+      }
+    }
+    func status(pid: Int32, ask: Bool) -> Int32 {
+      lock.withLock {
+        events.append(ask ? "request:\(pid)" : "check:\(pid)")
+        ranOnMainThread = ranOnMainThread || Thread.isMainThread
+        return codes.isEmpty ? -1 : codes.removeFirst()
+      }
+    }
+    func execute(commandRequested: Bool) {
+      lock.withLock {
+        events.append("script")
+        commandFlags.append(commandRequested)
+        ranOnMainThread = ranOnMainThread || Thread.isMainThread
+      }
+    }
+    func snapshot() -> (events: [String], commands: [Bool], onMainThread: Bool) {
+      lock.withLock { (events, commandFlags, ranOnMainThread) }
+    }
+  }
+
+  private actor TerminalReadGate {
+    private var entered = false
+    private var entryWaiter: CheckedContinuation<Void, Never>?
+    private var releaseWaiter: CheckedContinuation<Void, Never>?
+    private var permissionAttempts = 0
+
+    func beforePermission(ignoreCancellation: Bool = false) async throws {
+      entered = true
+      entryWaiter?.resume()
+      entryWaiter = nil
+      await withCheckedContinuation { releaseWaiter = $0 }
+      if !ignoreCancellation { try Task.checkCancellation() }
+      permissionAttempts += 1
+    }
+    func waitUntilEntered() async {
+      if entered { return }
+      await withCheckedContinuation { entryWaiter = $0 }
+    }
+    func release() {
+      releaseWaiter?.resume()
+      releaseWaiter = nil
+    }
+    func attempts() -> Int { permissionAttempts }
+  }
+
+  private struct GatedTerminalService: MacTerminalServing {
+    let gate: TerminalReadGate
+    let observed: MacTerminalSession
+    var ignoreCancellation = false
+    func listSessions() async throws -> [MacTerminalSession] {
+      try await gate.beforePermission(ignoreCancellation: ignoreCancellation)
+      return [observed]
+    }
+    func readSession(id: String, mayRequestConsent: Bool) async throws -> MacTerminalSession {
+      try await gate.beforePermission(ignoreCancellation: ignoreCancellation)
+      return observed
+    }
+    func submit(command: String, to session: MacTerminalSession) async throws {}
   }
 
   @MainActor final class MacTerminalTests: XCTestCase {
@@ -73,12 +150,23 @@
         requestDigest: "digest", expiresAt: "2099-01-01T00:00:00Z")
     }
 
-    private func enabled(_ fixture: TerminalFixture, clock: TerminalClock? = nil) -> MacTerminalCoordinator {
+    private func enabled(_ fixture: any MacTerminalServing, clock: TerminalClock? = nil) -> MacTerminalCoordinator {
       let coordinator = MacTerminalCoordinator(defaults: defaults, terminal: fixture,
         now: { clock?.date ?? Date() })
       coordinator.isEnabled = true
       coordinator.setEnabled(true, for: "bot-a")
       return coordinator
+    }
+
+    private func nativeService(_ probe: NativeTerminalProbe) -> AppleTerminalService {
+      let observed = session()
+      return AppleTerminalService(
+        permission: MacTerminalPermissionPreflight(status: { probe.status(pid: $0, ask: $1) }),
+        processIDProvider: { probe.pid() },
+        scriptRunner: { _, _, commandRequested in
+          probe.execute(commandRequested: commandRequested)
+          return [observed]
+        })
     }
 
     private func read(_ coordinator: MacTerminalCoordinator, _ session: MacTerminalSession) async throws -> String {
@@ -243,6 +331,153 @@
         var details: NSDictionary?
         XCTAssertTrue(script?.compileAndReturnError(&details) == true, "\(details ?? [:])")
       }
+      let metadata = AppleTerminalService.sessionScript()
+      XCTAssertFalse(metadata.contains("contents of terminalTab"))
+      XCTAssertFalse(metadata.contains("do script"))
+      for stage in ["windows", "tabs", "window-id", "tty", "title", "busy", "processes"] {
+        XCTAssertTrue(metadata.contains("set requestStage to \"\(stage)\""))
+      }
+    }
+
+    func testNativePermissionPreflightRunsOffMainBeforeMetadata() async {
+      for codes: [Int32] in [[0], [-1744, 0]] {
+        let probe = NativeTerminalProbe(codes)
+        let outcome = await enabled(nativeService(probe)).execute(call("mac_terminal_list_sessions"))
+        guard case .success = outcome else { return XCTFail("Authorized listing failed: \(outcome)") }
+        let trace = probe.snapshot()
+        XCTAssertEqual(trace.events, codes.count == 1
+          ? ["check:101", "script"] : ["check:101", "request:101", "script"])
+        XCTAssertEqual(trace.commands, [false])
+        XCTAssertFalse(trace.onMainThread)
+      }
+    }
+
+    func testNativePermissionFailuresStopBeforeMetadataAndExposeSafeDiagnostics() async {
+      for codes: [Int32] in [[-1743], [-1744, -1744], [-1712], [-600]] {
+        let probe = NativeTerminalProbe(codes)
+        let outcome = await enabled(nativeService(probe)).execute(call("mac_terminal_list_sessions"))
+        guard case .failure(let message) = outcome else { return XCTFail("Permission failure ran metadata") }
+        XCTAssertTrue(message.contains("code=\(codes.last!), pid=101"))
+        XCTAssertTrue(message.contains(codes.count == 1 ? "stage=permission-check" : "stage=permission-request"))
+        XCTAssertTrue(probe.snapshot().commands.isEmpty)
+        if codes == [-1712] { XCTAssertTrue(message.contains("permission check")) }
+      }
+    }
+
+    func testEntireCommandFlowNeverRequestsAutomationConsent() async throws {
+      for codes: [Int32] in [[0, -1744], [0, 0, -1744], [0, 0, 0, -1744]] {
+        let probe = NativeTerminalProbe(codes)
+        let coordinator = enabled(nativeService(probe))
+        let observed = session()
+        let revision = try await read(coordinator, observed)
+        let outcome = await coordinator.execute(command(observed, revision: revision))
+        let trace = probe.snapshot()
+        XCTAssertFalse(trace.events.contains(where: { $0.hasPrefix("request:") }))
+        XCTAssertEqual(trace.commands, codes.count == 2 ? [false]
+          : codes.count == 3 ? [false, false] : [false, false, true])
+        if codes.count == 4 {
+          guard case .success(let result) = outcome else { return XCTFail("Lost submission receipt") }
+          XCTAssertEqual(result.objectValue?["submitted"], .bool(true))
+          XCTAssertTrue(result.objectValue?["outputNote"]?.stringValue?.contains("consent") == true)
+        } else if case .success = outcome { XCTFail("A command ran without permission") }
+      }
+    }
+
+    func testCancellationDuringNativeConsentPreventsScriptExecution() async {
+      let probe = NativeTerminalProbe([-1744, 0])
+      var service = nativeService(probe)
+      service.permission.status = { pid, ask in
+        let code = probe.status(pid: pid, ask: ask)
+        if ask { withUnsafeCurrentTask { $0?.cancel() } }
+        return code
+      }
+      let outcome = await enabled(service).execute(call("mac_terminal_list_sessions"))
+      guard case .failure = outcome else { return XCTFail("Cancelled consent ran metadata") }
+      XCTAssertEqual(probe.snapshot().events, ["check:101", "request:101"])
+      XCTAssertTrue(probe.snapshot().commands.isEmpty)
+    }
+
+    func testTerminalRestartDuringNativeConsentPreventsScriptExecution() async {
+      let probe = NativeTerminalProbe([-1744, 0])
+      var service = nativeService(probe)
+      service.permission.status = { pid, ask in
+        let code = probe.status(pid: pid, ask: ask)
+        if ask { probe.restart() }
+        return code
+      }
+      let outcome = await enabled(service).execute(call("mac_terminal_list_sessions"))
+      guard case .failure(let message) = outcome else { return XCTFail("Restarted Terminal ran metadata") }
+      XCTAssertTrue(message.contains("restarted while checking permission"))
+      XCTAssertTrue(probe.snapshot().commands.isEmpty)
+    }
+
+    func testTerminalRestartBeforePreflightNeverRequestsPermission() async {
+      let probe = NativeTerminalProbe([-1744, 0])
+      var service = nativeService(probe)
+      service.processIDProvider = { probe.pidThenRestart() }
+      let outcome = await enabled(service).execute(call("mac_terminal_list_sessions"))
+      guard case .failure(let message) = outcome else { return XCTFail("Stale PID ran metadata") }
+      XCTAssertTrue(message.contains("restarted before checking permission"))
+      XCTAssertTrue(probe.snapshot().events.isEmpty)
+    }
+
+    func testRevokingGrantCancelsQueuedListAndReadBeforePermissionStage() async {
+      for operation in ["mac_terminal_list_sessions", "mac_terminal_read_session"] {
+        for revokeGlobally in [false, true] {
+          let gate = TerminalReadGate()
+          let observed = session()
+          let coordinator = enabled(GatedTerminalService(gate: gate, observed: observed))
+          let arguments: [String: JSONValue] = operation == "mac_terminal_list_sessions"
+            ? [:] : ["sessionId": .string(observed.id)]
+          let request = Task { await coordinator.execute(call(operation, arguments)) }
+          await gate.waitUntilEntered()
+          if revokeGlobally { coordinator.isEnabled = false }
+          else { coordinator.setEnabled(false, for: "bot-a") }
+          await gate.release()
+          if case .success = await request.value { XCTFail("Revoked queued read succeeded") }
+          let attempts = await gate.attempts()
+          XCTAssertEqual(attempts, 0, "Revoked read reached the permission stage")
+        }
+      }
+    }
+
+    func testReenabledGrantDoesNotShareARevokedNoncooperativeReadResult() async {
+      for operation in ["mac_terminal_list_sessions", "mac_terminal_read_session"] {
+        let gate = TerminalReadGate()
+        let observed = session()
+        let coordinator = enabled(GatedTerminalService(
+          gate: gate, observed: observed, ignoreCancellation: true))
+        let arguments: [String: JSONValue] = operation == "mac_terminal_list_sessions"
+          ? [:] : ["sessionId": .string(observed.id)]
+        let request = Task { await coordinator.execute(call(operation, arguments)) }
+        await gate.waitUntilEntered()
+        coordinator.setEnabled(false, for: "bot-a")
+        coordinator.setEnabled(true, for: "bot-a")
+        await gate.release()
+        if case .success = await request.value { XCTFail("A revoked result or revision was shared") }
+        let attempts = await gate.attempts()
+        XCTAssertEqual(attempts, 1, "Fixture must return despite child cancellation")
+      }
+    }
+
+    func testAppleScriptDiagnosticsNeverEchoRawErrorAndPreserveSubmissionUncertainty() {
+      let secret = "PRIVATE_TERMINAL_CONTENTS"
+      let tagged: NSDictionary = [NSAppleScript.errorMessage:
+        "\(secret) \(MacTerminalDiagnostics.stagePrefix)processes"]
+      XCTAssertEqual(MacTerminalDiagnostics.stage(from: tagged), .processes)
+      let message = MacTerminalDiagnostics.message(code: -1712,
+        stage: MacTerminalDiagnostics.stage(from: tagged), processID: 101)
+      XCTAssertTrue(message.contains("stage=processes, code=-1712, pid=101"))
+      XCTAssertFalse(message.contains(secret))
+      let untrusted: NSDictionary = [NSAppleScript.errorMessage:
+        "\(MacTerminalDiagnostics.stagePrefix)processes \(secret)"]
+      XCTAssertEqual(MacTerminalDiagnostics.stage(from: untrusted), .script)
+      for stage in [MacTerminalStage.command, .script] {
+        XCTAssertTrue(MacTerminalDiagnostics.message(code: -1712, stage: stage, processID: 101)
+          .contains("may have been submitted"))
+      }
+      XCTAssertTrue(MacTerminalDiagnostics.message(code: -1712, stage: .script,
+        processID: 101, commandRequested: false).contains("No command was submitted"))
     }
   }
 #endif

@@ -7,10 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		836BC6222EA64903E09A0F79 /* DesktopAXCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5310BCE638EFA4FCB16DC715 /* DesktopAXCapture.swift */; };
 		05BD95F8F50C045003931460 /* DesktopControlCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 615956E4B101703773EFB1B3 /* DesktopControlCoordinator.swift */; };
 		0CC3E581B91B8E94B3A09A97 /* ShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA506021C08A8F2664A68D44 /* ShareView.swift */; };
 		10644D7A5B080BCFF5BE514F /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4809877034C276EC56CBA954 /* Foundation.framework */; };
 		13D0DDC1DE908EA8BC437975 /* WebhookModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43D6E97CF20C9A0C11033FDD /* WebhookModels.swift */; };
+		30541A79AB34CAFB59359F8E /* MacTerminalDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 640098B423BE6F59119B983F /* MacTerminalDiagnostics.swift */; };
 		1405D75A0F79F463D5AF0258 /* MacTerminalCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B3A497F9ABB60D2F7C3A284 /* MacTerminalCoordinator.swift */; };
 		1529E7C19BC5B8061A64E54F /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4809877034C276EC56CBA954 /* Foundation.framework */; };
 		1615EBEED964EB5127AF62B9 /* MCPSetupLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFE8EA83F7F04628ACD1363 /* MCPSetupLink.swift */; };
@@ -131,6 +133,7 @@
 		57CFC494052640516C00DD34 /* WorkspaceSettingsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WorkspaceSettingsSection.swift; path = Sources/HeyTimUI/WorkspaceSettingsSection.swift; sourceTree = "<group>"; };
 		5DBB05921EB14CE2E31C5840 /* GoogleConnectionDisclosure.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GoogleConnectionDisclosure.swift; path = Sources/HeyTimUI/GoogleConnectionDisclosure.swift; sourceTree = "<group>"; };
 		606D6A903CD45FECAD08B264 /* AppModel+AISharingConsent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AppModel+AISharingConsent.swift"; path = "Sources/HeyTimCore/AppModel+AISharingConsent.swift"; sourceTree = "<group>"; };
+		5310BCE638EFA4FCB16DC715 /* DesktopAXCapture.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesktopAXCapture.swift; path = Sources/HeyTimPlatform/DesktopAXCapture.swift; sourceTree = "<group>"; };
 		615956E4B101703773EFB1B3 /* DesktopControlCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesktopControlCoordinator.swift; path = Sources/HeyTimPlatform/DesktopControlCoordinator.swift; sourceTree = "<group>"; };
 		63D5215DC2726423AA66050F /* BrowserModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BrowserModels.swift; path = Sources/HeyTimCore/BrowserModels.swift; sourceTree = "<group>"; };
 		6D820A9745C17521C7B692C3 /* ButtonStyles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ButtonStyles.swift; path = Sources/HeyTimUI/ButtonStyles.swift; sourceTree = "<group>"; };
@@ -150,6 +153,7 @@
 		8D68077E008F4D1364294B96 /* AISharingConsentDisclosure.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AISharingConsentDisclosure.swift; path = Sources/HeyTimUI/AISharingConsentDisclosure.swift; sourceTree = "<group>"; };
 		939C5F0D20239028DA117066 /* Theme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Theme.swift; path = Sources/HeyTimUI/Theme.swift; sourceTree = "<group>"; };
 		996197C3BA149BAA6E0FCD7A /* InvitationParser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InvitationParser.swift; path = Sources/HeyTimCore/InvitationParser.swift; sourceTree = "<group>"; };
+		640098B423BE6F59119B983F /* MacTerminalDiagnostics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MacTerminalDiagnostics.swift; path = Sources/HeyTimPlatform/MacTerminalDiagnostics.swift; sourceTree = "<group>"; };
 		9B3A497F9ABB60D2F7C3A284 /* MacTerminalCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MacTerminalCoordinator.swift; path = Sources/HeyTimPlatform/MacTerminalCoordinator.swift; sourceTree = "<group>"; };
 		9E64C2030091F4D72BAB17DD /* DesktopUpdateController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesktopUpdateController.swift; path = Sources/HeyTimPlatform/DesktopUpdateController.swift; sourceTree = "<group>"; };
 		A2361222F33B6A4471578EDC /* DemoData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DemoData.swift; path = Sources/HeyTimCore/DemoData.swift; sourceTree = "<group>"; };
@@ -248,11 +252,13 @@
 				173F52180B03634C1EBB3BB6 /* AppleDeviceToolCoordinator.swift */,
 				A26544B4FC1631D8DF604348 /* AppleHealthCoordinator.swift */,
 				038DBC42DCBAFBA91D372C57 /* AuthSession.swift */,
+				5310BCE638EFA4FCB16DC715 /* DesktopAXCapture.swift */,
 				615956E4B101703773EFB1B3 /* DesktopControlCoordinator.swift */,
 				9E64C2030091F4D72BAB17DD /* DesktopUpdateController.swift */,
 				17EAEE16E22DEEFC9B7BC100 /* DictationModel.swift */,
 				C0410BDCB16DF19F1FCC998E /* LocalDeciderProcess.swift */,
 				FF8573828EAF59681DB67C01 /* LocalRoutingCoordinator.swift */,
+				640098B423BE6F59119B983F /* MacTerminalDiagnostics.swift */,
 				9B3A497F9ABB60D2F7C3A284 /* MacTerminalCoordinator.swift */,
 				361A32BE3841FBF5F07BA692 /* NativeNotifications.swift */,
 				8D68077E008F4D1364294B96 /* AISharingConsentDisclosure.swift */,
@@ -539,11 +545,13 @@
 				86DC2ABB753B828CD65D6D10 /* AppleDeviceToolCoordinator.swift in Sources */,
 				7E38C4906612D397A97CCE90 /* AppleHealthCoordinator.swift in Sources */,
 				CCAA9C1A8285933ED090CB89 /* AuthSession.swift in Sources */,
+				836BC6222EA64903E09A0F79 /* DesktopAXCapture.swift in Sources */,
 				05BD95F8F50C045003931460 /* DesktopControlCoordinator.swift in Sources */,
 				BCE01BB2FB614B775550B51E /* DesktopUpdateController.swift in Sources */,
 				B14270C503F9242F5E319C02 /* DictationModel.swift in Sources */,
 				A74636115A20D2C97ADB2F41 /* LocalDeciderProcess.swift in Sources */,
 				24E136BACCB4CAC53923C95B /* LocalRoutingCoordinator.swift in Sources */,
+				30541A79AB34CAFB59359F8E /* MacTerminalDiagnostics.swift in Sources */,
 				1405D75A0F79F463D5AF0258 /* MacTerminalCoordinator.swift in Sources */,
 				3F4F332F62BD1D972BEA09A1 /* NativeNotifications.swift in Sources */,
 				9D108E942FFDC3FA38745861 /* AISharingConsentDisclosure.swift in Sources */,
