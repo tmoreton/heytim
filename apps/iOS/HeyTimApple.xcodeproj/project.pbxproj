@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C6A9D1F2035C4D0FA7BD5102 /* MacApplicationProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6A9D1F2035C4D0FA7BD5101 /* MacApplicationProcess.swift */; };
 		836BC6222EA64903E09A0F79 /* DesktopAXCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5310BCE638EFA4FCB16DC715 /* DesktopAXCapture.swift */; };
 		05BD95F8F50C045003931460 /* DesktopControlCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 615956E4B101703773EFB1B3 /* DesktopControlCoordinator.swift */; };
 		0CC3E581B91B8E94B3A09A97 /* ShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA506021C08A8F2664A68D44 /* ShareView.swift */; };
@@ -101,6 +102,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		C6A9D1F2035C4D0FA7BD5101 /* MacApplicationProcess.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MacApplicationProcess.swift; path = Sources/HeyTimPlatform/MacApplicationProcess.swift; sourceTree = "<group>"; };
 		038DBC42DCBAFBA91D372C57 /* AuthSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthSession.swift; path = Sources/HeyTimPlatform/AuthSession.swift; sourceTree = "<group>"; };
 		04C0549E150C94ABA48CB50C /* WebhooksView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhooksView.swift; path = Sources/HeyTimUI/WebhooksView.swift; sourceTree = "<group>"; };
 		05BD37BB8A409905606AC08C /* ChatUsageSummary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatUsageSummary.swift; path = Sources/HeyTimCore/ChatUsageSummary.swift; sourceTree = "<group>"; };
@@ -258,6 +260,7 @@
 				17EAEE16E22DEEFC9B7BC100 /* DictationModel.swift */,
 				C0410BDCB16DF19F1FCC998E /* LocalDeciderProcess.swift */,
 				FF8573828EAF59681DB67C01 /* LocalRoutingCoordinator.swift */,
+				C6A9D1F2035C4D0FA7BD5101 /* MacApplicationProcess.swift */,
 				640098B423BE6F59119B983F /* MacTerminalDiagnostics.swift */,
 				9B3A497F9ABB60D2F7C3A284 /* MacTerminalCoordinator.swift */,
 				361A32BE3841FBF5F07BA692 /* NativeNotifications.swift */,
@@ -551,6 +554,7 @@
 				B14270C503F9242F5E319C02 /* DictationModel.swift in Sources */,
 				A74636115A20D2C97ADB2F41 /* LocalDeciderProcess.swift in Sources */,
 				24E136BACCB4CAC53923C95B /* LocalRoutingCoordinator.swift in Sources */,
+				C6A9D1F2035C4D0FA7BD5102 /* MacApplicationProcess.swift in Sources */,
 				30541A79AB34CAFB59359F8E /* MacTerminalDiagnostics.swift in Sources */,
 				1405D75A0F79F463D5AF0258 /* MacTerminalCoordinator.swift in Sources */,
 				3F4F332F62BD1D972BEA09A1 /* NativeNotifications.swift in Sources */,

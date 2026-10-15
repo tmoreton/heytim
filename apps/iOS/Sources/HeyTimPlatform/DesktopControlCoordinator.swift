@@ -436,20 +436,28 @@
       permissionGranted = AXIsProcessTrusted()
       let currentPID = ProcessInfo.processInfo.processIdentifier
       applications = NSWorkspace.shared.runningApplications.compactMap { application in
-        guard application.processIdentifier != currentPID,
-          application.activationPolicy == .regular,
+        guard application.activationPolicy == .regular,
           !application.isTerminated,
-          let name = application.localizedName
+          let name = application.localizedName,
+          let processID = MacApplicationProcess.resolve(application), processID != currentPID
         else { return nil }
         return DesktopApplication(
-          id: application.processIdentifier, name: name,
+          id: processID, name: name,
           bundleIdentifier: application.bundleIdentifier)
       }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 
       if !applications.contains(where: { $0.id == selectedApplicationID }) {
-        let frontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let frontmost = NSWorkspace.shared.frontmostApplication.flatMap(MacApplicationProcess.resolve)
         selectedApplicationID = applications.first(where: { $0.id == frontmost })?.id
       }
+    }
+
+    private func isCurrentApplication(_ application: DesktopApplication) -> Bool {
+      guard application.id > 0,
+        let running = NSRunningApplication(processIdentifier: application.id), !running.isTerminated,
+        running.bundleIdentifier == application.bundleIdentifier
+      else { return false }
+      return MacApplicationProcess.resolve(running) == application.id
     }
 
     func capture() {
@@ -476,6 +484,10 @@
         message = "Choose a running application first."
         return
       }
+      guard isCurrentApplication(application) else {
+        message = "The Mac app process changed or could not be identified. Observe it again."
+        return
+      }
 
       let root = AXUIElementCreateApplication(application.id)
       AXUIElementSetMessagingTimeout(root, 1.0)
@@ -487,7 +499,7 @@
           message = "No actionable controls were found in the accessible window."
         }
       } catch {
-        message = error.localizedDescription
+        message = error.localizedDescription + " [pid=\(application.id)]"
       }
     }
 
@@ -564,7 +576,7 @@
         (stringAttribute(kAXTitleAttribute, from: element)
           ?? stringAttribute(kAXDescriptionAttribute, from: element)) == control.label,
         let application = applications.first(where: { $0.id == selectedApplicationID }),
-        NSRunningApplication(processIdentifier: application.id) != nil
+        isCurrentApplication(application)
       else {
         proposal = nil
         message = "The app or control changed. Capture a fresh snapshot before trying again."
@@ -707,12 +719,12 @@
         guard matches.count == 1 else {
           return .failure(
             matches.isEmpty
-              ? "That Mac app is not currently running."
+              ? "macOS could not identify a running copy of that Mac app."
               : "More than one running Mac app matched that name.")
         }
         application = matches.first
       } else {
-        let frontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let frontmost = NSWorkspace.shared.frontmostApplication.flatMap(MacApplicationProcess.resolve)
         application = applications.first { $0.id == frontmost }
           ?? applications.first { $0.id == selectedApplicationID }
       }
@@ -902,7 +914,7 @@
       guard let captured = snapshot, captured.revision == revision,
         Date().timeIntervalSince(captured.capturedAt) < 60,
         selectedApplicationID == captured.application.id,
-        NSRunningApplication(processIdentifier: captured.application.id) != nil
+        isCurrentApplication(captured.application)
       else { return nil }
       let root = AXUIElementCreateApplication(captured.application.id)
       guard let window = activeWindow(in: root),
