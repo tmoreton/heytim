@@ -6,6 +6,57 @@ was recorded, including legacy repository, cloud-resource, secret, and bundle ID
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-10-15 — live native-tool dispatch follow-up
+
+- The owner approved Chief's persistent Mac Terminal and Accessibility grants. The installed signed Mac app
+  remained connected with its existing owner login, Chief prompt/model, 12 tools, and 17 skills preserved.
+- The first live request exposed an SDK invocation mismatch: the model-visible flat device-tool schema did not
+  match Strands' inferred required `arguments` parameter. [PR #139](https://github.com/tmoreton/heytim/pull/139),
+  merged as `8fd15dc27c585bcaa9fda0cf47f2a77179286e76`, validates the original flat input against the public closed
+  JSON schema before interruption. Twenty-five SDK-path regressions cover all eight native operations and invalid
+  input. Runtime `jsonschema` uses the already-locked version.
+- [Backend rollout 38798257566](https://github.com/tmoreton/heytim/actions/runs/38798257566) succeeded from that
+  exact merge: runtime 518, API 718, evaluator two, CDK ten, and Node 38 checks passed. Production resource
+  validation, authenticated workflow, webhook smoke, and Chief create/edit/routing smoke passed with cleanup.
+  All five managed sessions completed without failures; both GoalSuccessRate and ResponseRelevance averaged
+  1.0 over five evaluations. Artifact `12004291355` retains managed regression evidence. The SDK validation
+  failure no longer occurred in fresh installed-app turns; requests reached the native Mac adapter.
+- Native follow-up [PR #141](https://github.com/tmoreton/heytim/pull/141), source
+  `21d09fd8b1563ea63c8f650ad58b5cbf473ce9a6`, requires an actual accessible AX window, preserves safe read errors,
+  and clears stale captures. Terminal checks/requests normal macOS consent off-main before list/read, never prompts
+  anywhere in execute, and cancels pending reads on grant revocation/sign-out. Delayed results cannot be shared after
+  revoke/re-enable. Errors retain only trusted stage/code/PID diagnostics and preserve ambiguous submission status.
+  Sixteen new injected regressions accompany existing compile-only AppleScript checks. Final-source
+  `./scripts/apple-app.sh build` passed for both iPhone and Mac; architecture/source-size/diff checks and independent
+  review passed. This PR remains unmerged; the installed Mac remains **1.1.1 / 20261015172350** while its shared
+  Apple gate is blocked. No new private candidate was built or installed from this follow-up.
+- [Apple CI 38805258705](https://github.com/tmoreton/heytim/actions/runs/38805258705), attempts one and three,
+  each passed all **144 Mac unit tests, zero failures/skips/expected failures**. Both then failed before any Mac UI
+  case ran: XCTest runner initialization timed out enabling Automation Mode (XCTFuture code 1000, xcodebuild 65).
+  The runner-initialization entry is not an executed UI test case. Neither attempt reached iPhone verification.
+  Artifacts `12006182656` and `12005974104` retain the separate failures; local copies are under
+  `/tmp/heytim-ci-38805258705` and `/tmp/heytim-ci-38805258705-attempt3`.
+- An idle user-owned `testmanagerd` sample showed a synchronous LocalAuthentication/XPC wait in
+  `XAMEnableAutomationMode`; its main thread was idle. Ordinary SIGTERM to exact PID `38632` did not exit it.
+  Attempt two was canceled before a completed suite; only after all test clients exited, one guarded SIGKILL
+  removed that exact daemon. Attempt three used a new daemon, PID `90564`, and reproduced the same initialization
+  failure. No further retry was launched. `/usr/bin/automationmodetool` with no arguments reported Automation Mode
+  disabled and user authentication required. Authentication was not disabled; TCC, SIP and credentials were not
+  modified by this recovery. Xcode's GUI also requested its required system components; normal installation was
+  started and remained waiting for other installation tasks. Computer-use safety blocked `com.apple.SecurityAgent`,
+  so the local authentication window was handed off to the owner. Approval for HeyTim access was already recorded;
+  the remaining authentication request is not a renewed permission question.
+- **PENDING — native execution:** Terminal metadata discovery returned Apple Event timeout `-1712`; no command
+  was submitted. An isolated unsaved TextEdit fixture remained unchanged because native Accessibility observation
+  returned zero controls with fallback title `Untitled window`. Independent computer-use observation still read
+  its exact seed text. System Settings accepted a signed HeyTim→Terminal Allow record, but showed the switch off
+  after subsequent discovery requests; that observation does not establish the cause of the timeouts. Native
+  diagnostics/error-reporting corrections are prepared in PR #141, pending the shared gate and a new signed
+  candidate. Direct computer-use control of Terminal was also blocked by tool safety; it was not bypassed to run a
+  command. These observations supersede the earlier unanswered-grant status below, but do not establish successful
+  Terminal execution or desktop editing. Public Apple publication and physical iPhone/APNS verification remain
+  unchanged from the initial rollout below.
+
 ## 2026-10-15 — Chief defaults, teammate routing, and Mac Terminal
 
 - [PR #136](https://github.com/tmoreton/heytim/pull/136) merged as
