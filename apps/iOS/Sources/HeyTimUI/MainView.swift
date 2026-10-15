@@ -579,31 +579,26 @@ private struct ConversationView: View {
     case delete
   }
 
-  private var messageRevisions: [ConversationMessageRevision] {
-    transcriptMessages.map(ConversationMessageRevision.init)
-  }
-
-  private var transcriptMessages: [ChatMessage] {
-    model.messages
-  }
-
   var body: some View {
+    // Observe one transcript snapshot before ScrollViewReader's escaping closure.
+    let messages = model.messages
     #if os(macOS)
       ConversationBrowserLayout(model: model, isPresented: $showBrowserPanel) {
-        conversationContent
+        conversationContent(messages: messages)
       }
     #else
-      conversationContent
+      conversationContent(messages: messages)
     #endif
   }
 
-  private var conversationContent: some View {
-    ScrollViewReader { proxy in
+  private func conversationContent(messages: [ChatMessage]) -> some View {
+    let messageRevisions = messages.map(ConversationMessageRevision.init)
+    return ScrollViewReader { proxy in
       ScrollView {
-        transcriptStack
+        transcriptStack(messages: messages)
           .padding(.horizontal, 14)
-          .padding(.top, transcriptMessages.isEmpty ? 0 : 24)
-          .padding(.bottom, transcriptMessages.isEmpty ? 0 : 16)
+          .padding(.top, messages.isEmpty ? 0 : 24)
+          .padding(.bottom, messages.isEmpty ? 0 : 16)
           #if os(macOS)
             .frame(maxWidth: 780)
           #endif
@@ -635,7 +630,7 @@ private struct ConversationView: View {
       .onChange(of: messageRevisions) { previous, current in
         let update = ConversationTranscriptUpdate.classify(previous: previous, current: current)
         guard update != .none else { return }
-        let userSentMessage = update == .newLatest && transcriptMessages.last?.isUser == true
+        let userSentMessage = update == .newLatest && messages.last?.isUser == true
         if isFollowingLatest || update == .initial || userSentMessage {
           isFollowingLatest = true
           scheduleScrollToBottom(using: proxy, animated: update == .newLatest)
@@ -644,7 +639,7 @@ private struct ConversationView: View {
         }
       }
       .onChange(of: model.isLoadingMessages) { wasLoading, isLoading in
-        if wasLoading && !isLoading && !model.messages.isEmpty && isFollowingLatest {
+        if wasLoading && !isLoading && !messages.isEmpty && isFollowingLatest {
           scheduleScrollToBottom(using: proxy, animated: false, settleAfterLoad: true)
         }
       }
@@ -771,15 +766,15 @@ private struct ConversationView: View {
     }
   }
 
-  @ViewBuilder private var transcriptStack: some View {
+  @ViewBuilder private func transcriptStack(messages: [ChatMessage]) -> some View {
     #if os(iOS)
-      VStack(spacing: 0) { transcriptContent }
+      VStack(spacing: 0) { transcriptContent(messages: messages) }
     #else
-      LazyVStack(spacing: 0) { transcriptContent }
+      LazyVStack(spacing: 0) { transcriptContent(messages: messages) }
     #endif
   }
 
-  @ViewBuilder private var transcriptContent: some View {
+  @ViewBuilder private func transcriptContent(messages: [ChatMessage]) -> some View {
     if let error = model.messagesLoadError {
       HStack(spacing: 12) {
         Label("Couldn’t load chat", systemImage: "wifi.exclamationmark")
@@ -800,15 +795,15 @@ private struct ConversationView: View {
       .frame(minHeight: 44)
       .padding(.bottom, 8)
     }
-    if model.isLoadingMessages && transcriptMessages.isEmpty {
+    if model.isLoadingMessages && messages.isEmpty {
       ProgressView("Loading conversation…")
         .tint(FrogTheme.activity)
         .containerRelativeFrame(.vertical, alignment: .center)
-    } else if transcriptMessages.isEmpty && model.messagesLoadError == nil {
+    } else if messages.isEmpty && model.messagesLoadError == nil {
       emptyConversation
         .containerRelativeFrame(.vertical, alignment: .center)
     }
-    ForEach(transcriptMessages) { message in
+    ForEach(messages) { message in
       MessageBubble(
         message: message, model: model, preview: preview,
         revise: { element in beginVisualRevision(element, from: message) },
@@ -872,7 +867,7 @@ private struct ConversationView: View {
         #if os(iOS)
           proxy.scrollTo(bottomID, anchor: .bottom)
         #else
-        if let latestMessageID = transcriptMessages.last?.id {
+        if let latestMessageID = model.messages.last?.id {
           proxy.scrollTo(latestMessageID, anchor: .bottom)
         } else {
           proxy.scrollTo(bottomID, anchor: .bottom)

@@ -429,6 +429,29 @@ import XCTest
     XCTAssertTrue(
       app.staticTexts["This is the native app’s offline test reply."].waitForExistence(timeout: 5))
     XCTAssertFalse(app.buttons["Jump to Latest"].exists)
+    #if os(iOS)
+      func waitUntilReplyIsVisible(_ reply: XCUIElement) {
+        let visible = XCTNSPredicateExpectation(
+          predicate: NSPredicate { _, _ in
+            reply.exists && reply.isHittable && reply.frame.maxY < composer.frame.minY
+          }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 5), .completed)
+      }
+      waitUntilReplyIsVisible(app.staticTexts["This is the native app’s offline test reply."])
+
+      composer.tap()
+      composer.typeText("Second native smoke test")
+      XCTAssertTrue(sendButton.waitForExistence(timeout: 5))
+      sendButton.tap()
+      let replies = app.staticTexts.matching(
+        NSPredicate(format: "label == %@", "This is the native app’s offline test reply."))
+      let secondReplyCount = XCTNSPredicateExpectation(
+        predicate: NSPredicate { _, _ in replies.count == 2 }, object: nil)
+      XCTAssertEqual(XCTWaiter.wait(for: [secondReplyCount], timeout: 5), .completed)
+      XCTAssertTrue(app.staticTexts["Second native smoke test"].exists)
+      waitUntilReplyIsVisible(replies.element(boundBy: 1))
+      XCTAssertFalse(app.buttons["Jump to Latest"].exists)
+    #endif
   }
 
   func testEmptyConversationIsCenteredInTheAvailableSpace() {
