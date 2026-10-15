@@ -41,6 +41,8 @@ def messages_from_turns(turns: list[dict]) -> list[dict]:
                     if turn.get("source") == "email"
                     else {"source": "desktop_action"}
                     if turn.get("source") == "desktop_action"
+                    else {"source": "bot_route", "authorName": "Chief"}
+                    if turn.get("source") == "bot_route"
                     else {}
                 ),
                 **(

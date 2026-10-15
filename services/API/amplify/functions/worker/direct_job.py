@@ -256,7 +256,7 @@ def _process_agent_reply(record: dict, request: dict) -> None:
             on_progress=progress_updater(turn_key, lease_owner),
             runtime_result=turn.get("runtimeResult"),
             work_key=turn_key, lease_owner=lease_owner, resume_request=request,
-            allow_bot_management=turn.get("source") not in {"schedule", "webhook"},
+            allow_bot_management=turn.get("source") not in {"schedule", "webhook", "bot_route"},
             workspace_files=turn.get("attachments", []),
             action_approval=(
                 {key: decision[key] for key in ("id", "digest", "toolUseId")}

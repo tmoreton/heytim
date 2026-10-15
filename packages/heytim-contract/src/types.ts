@@ -347,6 +347,7 @@ export type AppConstraints = {
   memoryMaxLength: number;
   maxAttachmentsPerMessage: number;
   maxToolsPerBot?: number;
+  maxSkillsPerBot?: number;
   imageMaxBytes: number;
   documentMaxBytes: number;
   maxPhotoDimension: number;

@@ -55,6 +55,27 @@ jobs:
             npm --prefix services/API run workflow:test
           HEYTIM_API_URL="$api_url" HEYTIM_ID_TOKEN="$id_token" \
             npm --prefix services/API run webhook:test
+      - name: Verify Chief defaults, management, and teammate routing
+        env:
+          HEYTIM_RELEASE_TEST_REFRESH_TOKEN: ${{ secrets.HEYTIM_RELEASE_TEST_REFRESH_TOKEN }}
+        run: |
+          set +x
+          outputs='services/API/amplify_outputs.json'
+          api_url="$(jq -r '.custom.apiUrl // empty' "$outputs")"
+          client_id="$(jq -r '.auth.user_pool_client_id // empty' "$outputs")"
+          region="$(jq -r '.auth.aws_region // empty' "$outputs")"
+          auth_parameters="$(jq -nc --arg refreshToken "$HEYTIM_RELEASE_TEST_REFRESH_TOKEN" '{REFRESH_TOKEN:$refreshToken}')"
+          if ! id_token="$(aws cognito-idp initiate-auth --region "$region" --auth-flow REFRESH_TOKEN_AUTH \
+            --client-id "$client_id" --auth-parameters "$auth_parameters" \
+            --query 'AuthenticationResult.IdToken' --output text 2>/dev/null)" \
+            || [[ -z "$id_token" || "$id_token" == None ]]; then
+            printf '{"passed":false,"code":"chief_auth_failed"}\n' >&2
+            exit 1
+          fi
+          echo "::add-mask::$id_token"
+          HEYTIM_API_URL="$api_url" HEYTIM_ID_TOKEN="$id_token" \
+            npm --prefix services/API run test:chief
+
       - name: Summarize sanitized runtime failures
         if: ${{ always() }}
         run: python3 services/API/scripts/runtime-error-summary.py

@@ -151,4 +151,31 @@
       }
     }
   }
+
+#endif
+
+#if os(macOS)
+  struct MacTerminalSettingsSection: View {
+    @Bindable var coordinator: MacTerminalCoordinator
+    @Environment(AppleDeviceToolCoordinator.self) private var deviceTools
+
+    var body: some View {
+      Section {
+        Toggle("Enable Mac terminal access", isOn: $coordinator.isEnabled)
+          .accessibilityIdentifier("settings.mac-terminal.enabled")
+        LabeledContent("Desktop connection") {
+          Text(deviceTools.isConnected ? "Connected" : "Disconnected")
+            .foregroundStyle(.secondary)
+        }
+        if let error = deviceTools.lastError {
+          Text(error).foregroundStyle(.secondary)
+        }
+      } header: {
+        Text("Mac Terminal")
+      } footer: {
+        Text("Enable the Mac terminal tool and grant this Mac in each bot’s Tools list. Terminal text is shared with the bot and its AI provider. Bots can submit commands in the same local or SSH session while Hey Tim is running. macOS asks you to allow Hey Tim to control Terminal on first use. Commands follow the bot’s action approval setting.")
+      }
+      .onChange(of: coordinator.isEnabled) { _, _ in deviceTools.refreshNow() }
+    }
+  }
 #endif

@@ -583,6 +583,7 @@ struct BotToolsAndSkillsEditor: View {
   @Environment(AppleDeviceToolCoordinator.self) private var deviceTools
   #if os(macOS)
     @Environment(DesktopControlCoordinator.self) private var desktopControl
+    @Environment(MacTerminalCoordinator.self) private var macTerminal
     @Environment(\.scenePhase) private var scenePhase
   #endif
   @State private var jiraProjectText: [String: String] = [:]
@@ -602,6 +603,7 @@ struct BotToolsAndSkillsEditor: View {
   }
 
   private var maxTools: Int { model.constraints.maxToolsPerBot ?? 13 }
+  private var maxSkills: Int { model.constraints.maxSkillsPerBot ?? 20 }
   private var effectiveToolIDs: Set<String> {
     effectiveCatalogToolIDs(draft: draft, skills: skills)
   }
@@ -666,7 +668,7 @@ struct BotToolsAndSkillsEditor: View {
       }
 
       if selectedSection == .skills {
-        Section("Skills") {
+        Section {
           FeatureLink {
             SkillsView(model: model, showsDismissButton: false)
           } label: {
@@ -682,6 +684,13 @@ struct BotToolsAndSkillsEditor: View {
           if skills.isEmpty {
             ContentUnavailableView("No Skills", systemImage: "sparkles")
               .frame(maxWidth: .infinity, minHeight: 180)
+          }
+        } header: {
+          HStack {
+            Text("Skills")
+            Spacer()
+            Text("\(draft.skillIds.count) of \(maxSkills) enabled")
+              .foregroundStyle(draft.skillIds.count > maxSkills ? Color.red : Color.secondary)
           }
         }
       } else {
@@ -761,10 +770,37 @@ struct BotToolsAndSkillsEditor: View {
                 deviceTools.refreshNow()
               }
             }
+            Toggle(isOn: Binding(
+              get: { botID.map { macTerminal.enabledBotIDs.contains($0) } ?? false },
+              set: { enabled in
+                guard let botID else { return }
+                macTerminal.setEnabled(enabled, for: botID)
+                deviceTools.refreshNow()
+              })) {
+                VStack(alignment: .leading, spacing: 3) {
+                  Text("Mac terminal access")
+                  Text("Read Terminal tabs and run commands in existing local or SSH sessions.")
+                    .froggyFont(.caption).foregroundStyle(.secondary)
+                }
+              }
+              .disabled(botID == nil || !effectiveToolIDs.contains("mac_terminal"))
+              .accessibilityIdentifier("bot.tool.mac-terminal")
+            if botID == nil {
+              Text("Save this bot first to grant terminal access.")
+                .froggyFont(.caption).foregroundStyle(.secondary)
+            } else if !effectiveToolIDs.contains("mac_terminal") {
+              Text("Enable the Mac terminal tool above before granting this Mac.")
+                .froggyFont(.caption).foregroundStyle(.secondary)
+            } else if !macTerminal.isEnabled {
+              Button("Enable Mac terminal access") {
+                macTerminal.isEnabled = true
+                deviceTools.refreshNow()
+              }
+            }
           } header: {
             Text("On this Mac")
           } footer: {
-            Text("The bot receives semantic controls and optional on-device OCR text, not a continuous screen feed. Your keyboard, mouse, or trackpad input pauses an active session; action approvals below still apply.")
+            Text("App actions use semantic controls and pause when you take over. Terminal access shares text from existing Apple Terminal tabs, including SSH sessions. Commands follow the action approval setting below.")
           }
         #endif
 
@@ -868,6 +904,10 @@ struct BotToolsAndSkillsEditor: View {
         desktopControl.setEnabled(false, for: botID)
         deviceTools.refreshNow()
       }
+      if !effectiveToolIDs.contains("mac_terminal") {
+        macTerminal.setEnabled(false, for: botID)
+        deviceTools.refreshNow()
+      }
     #endif
   }
 
@@ -879,6 +919,7 @@ struct BotToolsAndSkillsEditor: View {
     let exceedsLimit = !selected
       && Set(effectiveCatalogToolIDs(draft: draft, skills: skills))
         .union(requiredIfEnabled).count > maxTools
+    let exceedsSkillLimit = !selected && draft.skillIds.count >= maxSkills
     Toggle(
       isOn: Binding(
         get: { values.wrappedValue.contains(id) },
@@ -886,7 +927,9 @@ struct BotToolsAndSkillsEditor: View {
           if enabled {
             var candidate = draft
             candidate.skillIds.append(id)
-            guard effectiveCatalogToolIDs(draft: candidate, skills: skills).count <= maxTools else { return }
+            guard candidate.skillIds.count <= maxSkills,
+              effectiveCatalogToolIDs(draft: candidate, skills: skills).count <= maxTools
+            else { return }
           }
           set(enabled, id: id, in: &values.wrappedValue)
         })
@@ -898,8 +941,11 @@ struct BotToolsAndSkillsEditor: View {
     }
     .accessibilityLabel(name)
     .accessibilityValue(values.wrappedValue.contains(id) ? "On" : "Off")
-    .disabled(exceedsLimit)
-    if exceedsLimit {
+    .disabled(exceedsLimit || exceedsSkillLimit)
+    if exceedsSkillLimit {
+      Text("Disable another skill before enabling this one.")
+        .froggyFont(.caption).foregroundStyle(.secondary)
+    } else if exceedsLimit {
       Text("Disable another tool before enabling this skill.")
         .froggyFont(.caption).foregroundStyle(.secondary)
     }

@@ -8,6 +8,7 @@ from shared.bot_inbox import validated_email_recipient
 from shared.catalog import CatalogError
 from shared.catalog_rules import MAX_SKILLS_PER_BOT
 
+from .bot_routing import route_bot_task
 from .support import _bot_key, catalog, table
 
 MAX_MUTATIONS = 1
@@ -56,6 +57,7 @@ def _mutation(value: Any) -> tuple[str, str, dict]:
         "create_memory",
         "send_email",
         "create_email_schedule",
+        "route_bot",
     }:
         raise ValueError("Bot mutation action is unsupported")
     if not isinstance(body, dict):
@@ -349,6 +351,8 @@ def apply_bot_mutations(
         raise ValueError(
             "Bot, skill, and memory changes are unavailable during scheduled runs"
         )
+    if turn.get("source") == "bot_route":
+        raise ValueError("Bot, skill, memory, and routing changes are unavailable during routed tasks")
     if action == "create_skill":
         _create_skill(user_id, invoking_bot, mutation_id, value)
         return
@@ -368,6 +372,8 @@ def apply_bot_mutations(
         raise ValueError("Bot changes are allowed only from a direct Chief chat")
     if action == "create":
         _create(user_id, mutation_id, value)
+    elif action == "route_bot":
+        route_bot_task(user_id, invoking_bot, turn, mutation_id, value)
     elif action == "install_template":
         _install(user_id, value)
     else:

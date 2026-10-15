@@ -47,6 +47,7 @@ struct BotEditor: View {
     identityIssue == nil && instructionsIssue == nil
       && effectiveCatalogToolIDs(draft: draft, skills: model.bootstrap?.skills ?? []).count
         <= (model.constraints.maxToolsPerBot ?? 13)
+      && draft.skillIds.count <= (model.constraints.maxSkillsPerBot ?? 20)
       && !saving
   }
 
@@ -144,7 +145,9 @@ struct BotEditor: View {
           effectiveCatalogToolIDs(draft: draft, skills: model.bootstrap?.skills ?? []).count
             > (model.constraints.maxToolsPerBot ?? 13)
             ? "Choose at most \(model.constraints.maxToolsPerBot ?? 13) tools, including those required by skills."
-            : "Choose optional playbooks and the actions this bot can use.")
+            : selectedSkillCount > (model.constraints.maxSkillsPerBot ?? 20)
+              ? "Choose at most \(model.constraints.maxSkillsPerBot ?? 20) skills."
+              : "Choose optional playbooks and the actions this bot can use.")
       }
       Section {
         Picker("Model", selection: $draft.modelPreference) {

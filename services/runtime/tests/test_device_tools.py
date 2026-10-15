@@ -3,11 +3,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+from jsonschema import ValidationError, validate
 
 from heytim_runtime.device_tools import (
     DEVICE_TOOL_SPECS,
     _device_result,
     _request,
+    device_tools,
     has_device_tools,
     pending_device_call,
     validated_device_resume,
@@ -156,3 +158,58 @@ def test_mac_computer_v2_operations_are_closed_and_bounded() -> None:
         "right",
     ]
     assert scroll["properties"]["amount"]["enum"] == ["line", "page"]
+
+
+def test_mac_terminal_schemas_bind_commands_to_an_existing_fresh_session() -> None:
+    listing = DEVICE_TOOL_SPECS["mac_terminal_list_sessions"]["inputSchema"]["json"]
+    reading = DEVICE_TOOL_SPECS["mac_terminal_read_session"]["inputSchema"]["json"]
+    executing = DEVICE_TOOL_SPECS["mac_terminal_execute_command"]["inputSchema"]["json"]
+    valid = {"sessionId": "terminal-tab-1", "revision": "revision-1", "command": "pwd"}
+
+    validate({}, listing)
+    validate({"sessionId": "terminal-tab-1"}, reading)
+    validate(valid, executing)
+    validate({**valid, "waitSeconds": 0}, executing)
+    assert reading["properties"]["maxCharacters"]["default"] == 12_000
+    assert executing["properties"]["waitSeconds"]["default"] == 1
+    with pytest.raises(ValidationError):
+        validate({"command": "pwd"}, executing)
+    with pytest.raises(ValidationError):
+        validate({"sessionId": "terminal-tab-1", "maxCharacters": 20_001}, reading)
+    with pytest.raises(ValidationError):
+        validate({**valid, "waitSeconds": 11}, executing)
+    with pytest.raises(ValidationError):
+        validate({**valid, "command": "x" * 4_001}, executing)
+    for command in ("pwd\n", "pwd\rwhoami", "pwd\t", "pwd\x03", "pwd\x7f", "pwd\u2028"):
+        with pytest.raises(ValidationError):
+            validate({**valid, "command": command}, executing)
+    for schema in (listing, reading, executing):
+        with pytest.raises(ValidationError):
+            validate({"unexpected": True}, schema)
+
+
+def test_mac_terminal_uses_the_device_interrupt_bridge() -> None:
+    tools = device_tools([
+        {
+            "id": "mac_terminal", "kind": "device", "platform": "macos",
+            "operations": ["mac_terminal_list_sessions", "mac_terminal_read_session", "mac_terminal_execute_command"],
+        }
+    ])
+    assert {item.tool_name for item in tools} == {
+        "mac_terminal_list_sessions", "mac_terminal_read_session", "mac_terminal_execute_command",
+    }
+    first = _request(
+        {"toolUseId": "execute-1", "name": "mac_terminal_execute_command", "input": {
+            "sessionId": "tab-1", "revision": "revision-1", "command": "pwd",
+        }}, platform="macos", tool_id="mac_terminal",
+    )
+    changed = _request(
+        {"toolUseId": "execute-1", "name": "mac_terminal_execute_command", "input": {
+            **first["input"], "revision": "revision-2",
+        }}, platform="macos", tool_id="mac_terminal",
+    )
+    assert first["digest"] != changed["digest"]
+    assert _device_result(first, {
+        "digest": first["digest"], "toolUseId": "execute-1", "status": "success",
+        "result": {"submitted": True, "sessionId": "tab-1"},
+    }) == {"submitted": True, "sessionId": "tab-1"}

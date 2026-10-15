@@ -4,6 +4,7 @@ import re
 
 from strands.vended_plugins.skills import Skill
 
+from .client_contract import MAX_SKILLS_PER_BOT
 from .device_tools import DEVICE_TOOL_SPECS
 from .local_tools import CUSTOM_TOOLS
 from .mcp_connections import (
@@ -13,7 +14,7 @@ from .mcp_connections import (
 from .provider_connections import validated_provider_binding
 
 MAX_SKILL_INSTRUCTIONS_CHARS = 20_000
-MAX_SKILLS = 12
+MAX_SKILLS = MAX_SKILLS_PER_BOT
 MAX_TOOLS = 13
 STAN_BUILTIN_TOOLS = {"web_fetch"}
 STAN_PLUGINS = {"todos"}

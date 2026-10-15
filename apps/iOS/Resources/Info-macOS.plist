@@ -22,6 +22,8 @@
   <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>Hey Tim uses the microphone only while you dictate a message. Speech recognition stays on this device.</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>When you enable terminal access for a bot, Hey Tim can read existing Terminal tabs and submit your requested commands, including through an existing SSH connection.</string>
   <key>NSUserNotificationUsageDescription</key>
   <string>Hey Tim can notify you when a bot finishes a reply or scheduled task.</string>
   <key>SUEnableAutomaticChecks</key><true/>

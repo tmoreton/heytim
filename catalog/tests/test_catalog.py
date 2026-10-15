@@ -95,7 +95,7 @@ class CatalogTests(unittest.TestCase):
                 bot["id"],
             )
 
-    def test_chief_is_a_minimal_public_bot(self) -> None:
+    def test_chief_has_every_compatible_builtin_tool_and_official_skill(self) -> None:
         catalog = json.loads((ROOT / "catalog.json").read_text())
         chief = next(bot for bot in catalog["bots"] if bot["id"] == "chief")
         skill_builder = next(
@@ -103,9 +103,21 @@ class CatalogTests(unittest.TestCase):
         )
 
         self.assertEqual(chief["name"], "Chief")
-        self.assertEqual(chief["version"], 8)
+        self.assertEqual(chief["version"], 9)
         self.assertEqual(chief["color"], "#FFBC3B")
-        self.assertEqual(chief["toolIds"], ["current_time", "bot_manager"])
+        expected_tools = {
+            tool["id"] for tool in catalog["tools"]
+            if tool.get("enabled") and tool["id"] != "delegate"
+        }
+        self.assertEqual(set(chief["toolIds"]), expected_tools)
+        expected_skills = {
+            skill["id"] for skill in catalog["skills"]
+            if skill["id"] != "health-coach"
+            and set(skill["requiredToolIds"]).issubset(expected_tools)
+        }
+        self.assertEqual(set(chief["skillIds"]), expected_skills)
+        self.assertEqual(len(chief["toolIds"]), 12)
+        self.assertEqual(len(chief["skillIds"]), 17)
         self.assertIn("skill-builder", chief["skillIds"])
         self.assertIn("connect-integration", chief["skillIds"])
         self.assertEqual(skill_builder["requiredToolIds"], [])
@@ -242,6 +254,18 @@ class CatalogTests(unittest.TestCase):
             "mac_computer_scroll",
             tools["mac_computer"]["runtime"]["interactiveOperations"],
         )
+        self.assertEqual(operator["toolIds"], ["mac_terminal"])
+        self.assertIn("Never execute terminal commands through the Mac computer UI workflow", operator["prompt"])
+
+    def test_mac_terminal_is_separate_and_requires_approval_only_for_commands(self) -> None:
+        catalog = json.loads((ROOT / "catalog.json").read_text())
+        terminal = next(tool for tool in catalog["tools"] if tool["id"] == "mac_terminal")
+        self.assertEqual(terminal["risk"], "interactive")
+        self.assertEqual(terminal["runtime"], {
+            "kind": "device", "platform": "macos",
+            "operations": ["mac_terminal_list_sessions", "mac_terminal_read_session", "mac_terminal_execute_command"],
+            "interactiveOperations": ["mac_terminal_execute_command"],
+        })
 
     def test_build_publishes_every_skill_document(self) -> None:
         source_skills = sorted(

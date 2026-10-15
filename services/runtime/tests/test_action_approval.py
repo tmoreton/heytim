@@ -204,3 +204,34 @@ def test_device_binding_approves_only_declared_interactive_operations(
     approval.before_tool(press)
     press.interrupt.assert_called_once()
     assert press.cancel_tool == "This tool call was not approved."
+
+
+def test_mac_terminal_reads_are_free_and_commands_follow_bot_approval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(action_approval_module, "interrupt_session_manager", lambda *_: "snapshot-manager")
+    payload = {"bot": {"tools": [{
+        "id": "mac_terminal", "risk": "interactive", "runtime": {
+            "kind": "device", "platform": "macos",
+            "operations": ["mac_terminal_list_sessions", "mac_terminal_read_session", "mac_terminal_execute_command"],
+            "interactiveOperations": ["mac_terminal_execute_command"],
+        },
+    }], "alwaysAllowedToolIds": []}}
+    approval, _manager = approval_configuration(payload, "owner")
+    for name, arguments in (
+        ("mac_terminal_list_sessions", {}),
+        ("mac_terminal_read_session", {"sessionId": "tab-1"}),
+    ):
+        event = SimpleNamespace(tool_use={"toolUseId": name, "name": name, "input": arguments}, interrupt=Mock())
+        approval.before_tool(event)
+        event.interrupt.assert_not_called()
+    command = SimpleNamespace(tool_use={
+        "toolUseId": "execute-1", "name": "mac_terminal_execute_command",
+        "input": {"sessionId": "tab-1", "revision": "revision-1", "command": "pwd"},
+    }, interrupt=Mock(return_value=None), cancel_tool=None)
+    approval.before_tool(command)
+    command.interrupt.assert_called_once()
+    assert command.cancel_tool == "This tool call was not approved."
+
+    payload["bot"]["alwaysAllowedToolIds"] = ["mac_terminal"]
+    assert approval_configuration(payload, "owner") is None

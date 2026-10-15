@@ -7,6 +7,7 @@ from shared.catalog import CatalogError
 from shared.catalog_rules import MAX_SKILLS_PER_BOT
 
 from .bot_roles import CHIEF_COLOR, CHIEF_SYSTEM_ROLE, CHIEF_TEMPLATE_ID
+from .chief_defaults import upgrade_chief_defaults
 from .support import ApiError, _bot_sk, _now, _user_pk, catalog, table
 
 LEGACY_BOT_TEMPLATE_IDS = {
@@ -165,6 +166,10 @@ def _create_template_bot(
     )
 
 
+def _upgrade_chief(user_id: str, bot: dict, bot_values: Callable[..., dict]) -> dict:
+    return upgrade_chief_defaults(user_id, _add_chief_default_skill(user_id, bot), bot_values)
+
+
 def ensure_chief(
     user_id: str,
     bots: list[dict],
@@ -178,7 +183,7 @@ def ensure_chief(
         if existing.get("templateId") == CHIEF_TEMPLATE_ID:
             return sorted(
                 [
-                    _add_chief_default_skill(user_id, bot)
+                    _upgrade_chief(user_id, bot, bot_values)
                     if bot["id"] == existing["id"]
                     else bot
                     for bot in bots
@@ -201,13 +206,14 @@ def ensure_chief(
         )
         return sorted(
             [
-                _add_chief_default_skill(
+                _upgrade_chief(
                     user_id,
                     {
                         **bot,
                         "templateId": template["id"],
                         "templateVersion": linked_version,
                     },
+                    bot_values,
                 )
                 if bot["id"] == existing["id"]
                 else bot
@@ -241,7 +247,7 @@ def ensure_chief(
         )
         return sorted(
             [
-                _add_chief_default_skill(
+                _upgrade_chief(
                     user_id,
                     {
                         **bot,
@@ -250,6 +256,7 @@ def ensure_chief(
                         "templateId": template["id"],
                         "templateVersion": linked_version,
                     },
+                    bot_values,
                 )
                 if bot["id"] == legacy["id"]
                 else bot

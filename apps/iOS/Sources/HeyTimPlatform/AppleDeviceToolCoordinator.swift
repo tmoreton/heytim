@@ -10,18 +10,29 @@ final class AppleDeviceToolCoordinator {
     var result: JSONValue?
     var error: String?
     var expiresAt: String
+    var terminalResult: Bool?
 
     var outcome: DeviceCallOutcome {
       if let result { return .success(result) }
       return .failure(error ?? "The device action could not be completed.")
     }
 
-    init(outcome: DeviceCallOutcome, expiresAt: String) {
+    init(outcome: DeviceCallOutcome, expiresAt: String, terminalResult: Bool = false) {
       self.expiresAt = expiresAt
+      self.terminalResult = terminalResult ? true : nil
       switch outcome {
       case .success(let result): self.result = result
       case .failure(let error): self.error = error
       }
+    }
+
+    var durableValue: CachedOutcome {
+      guard terminalResult == true else { return self }
+      // Keep the replay-prevention claim, never a terminal transcript, on disk.
+      return CachedOutcome(
+        outcome: .failure(
+          "A previous terminal attempt may have been interrupted. Hey Tim did not replay it; read the session again to verify its state."),
+        expiresAt: expiresAt)
     }
   }
 
@@ -63,7 +74,7 @@ final class AppleDeviceToolCoordinator {
     } else {
       outcomes = [:]
     }
-    if let cleaned = try? JSONEncoder().encode(outcomes) {
+    if let cleaned = try? JSONEncoder().encode(outcomes.mapValues(\.durableValue)) {
       defaults.set(cleaned, forKey: Self.resultCacheKey)
     }
   }
@@ -199,7 +210,8 @@ final class AppleDeviceToolCoordinator {
 
   @discardableResult
   private func remember(_ outcome: DeviceCallOutcome, for call: DeviceCall) -> Bool {
-    outcomes[call.id] = CachedOutcome(outcome: outcome, expiresAt: call.expiresAt)
+    outcomes[call.id] = CachedOutcome(
+      outcome: outcome, expiresAt: call.expiresAt, terminalResult: call.toolId == "mac_terminal")
     outcomes = Dictionary(
       uniqueKeysWithValues: outcomes
         .filter { !Self.isExpired($0.value.expiresAt) }
@@ -211,7 +223,8 @@ final class AppleDeviceToolCoordinator {
 
   @discardableResult
   private func saveOutcomes() -> Bool {
-    guard let data = try? JSONEncoder().encode(outcomes) else { return false }
+    guard let data = try? JSONEncoder().encode(outcomes.mapValues(\.durableValue))
+    else { return false }
     defaults.set(data, forKey: Self.resultCacheKey)
     return true
   }

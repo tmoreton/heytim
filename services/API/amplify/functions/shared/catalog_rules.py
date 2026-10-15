@@ -8,6 +8,7 @@ from typing import Any
 
 from shared.client_contract import (
     BOT_PROMPT_MAX_LENGTH,
+    MAX_SKILLS_PER_BOT,  # noqa: F401 - re-exported for catalog and bot validators
     MAX_TOOLS_PER_BOT,
     SKILL_INSTRUCTIONS_MAX_LENGTH,
 )
@@ -23,7 +24,6 @@ from shared.provider_contract import (
 from .finance_bindings import validate_plaid_binding
 from .mcp_permissions import public_mcp_metadata, reviewed_binding
 
-MAX_SKILLS_PER_BOT = 12
 MAX_SKILL_INSTRUCTIONS = SKILL_INSTRUCTIONS_MAX_LENGTH
 RETIRED_TOOL_IDS = frozenset({"meme_composer", "x_search", "youtube_search"})
 MAX_CATALOG_TAGS = 6

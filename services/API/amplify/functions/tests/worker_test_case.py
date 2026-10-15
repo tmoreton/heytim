@@ -280,6 +280,8 @@ class WorkerTestCase(unittest.TestCase):
             cls.work = importlib.import_module("worker.work")
             cls.artifacts = importlib.import_module("worker.artifacts")
             cls.direct_job = importlib.import_module("worker.direct_job")
+            cls.bot_routing = importlib.import_module("worker.bot_routing")
+            cls.bot_mutations = importlib.import_module("worker.bot_mutations")
             cls.group_job = importlib.import_module("worker.group_job")
             cls.usage_controls = importlib.import_module("worker.usage_controls")
             cls.youtube_quota = importlib.import_module("worker.youtube_quota")

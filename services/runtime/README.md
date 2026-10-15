@@ -41,6 +41,11 @@ Tools:
 - `task_list` - Strands harness todos
 - `delegate` - Strands harness generalist subagent
 - `code_interpreter` - persistent AgentCore sandbox
+- `mac_terminal` - existing Apple Terminal tabs on a running, signed-in HeyTim Mac;
+  requires tool assignment and a per-bot local grant. Reads return short-lived session
+  revisions; command submission uses the bot's action approval setting and preserves
+  existing local or SSH sessions. This runs on the authorized Mac, separately from
+  the cloud code-interpreter sandbox
 - `browser` - persistent AgentCore browser; the first interactive use asks the bot owner for an
   Always Allow grant covering its currently enabled tools. With artifact
   storage, it also exposes first-party airline/hotel points-card screenshots for rich newsletter drafts

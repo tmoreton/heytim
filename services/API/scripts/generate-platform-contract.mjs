@@ -9,6 +9,7 @@ const outputs = {
   typescript: resolve(repositoryRoot, 'packages/heytim-contract/src/platform-contract.generated.ts'),
   swift: resolve(repositoryRoot, 'apps/iOS/Sources/HeyTimCore/PlatformContract.generated.swift'),
   apiPython: resolve(serviceRoot, 'amplify/functions/shared/client_contract.py'),
+  runtimeClientPython: resolve(repositoryRoot, 'services/runtime/runtime/heytim_runtime/client_contract.py'),
   devicePython: resolve(serviceRoot, 'amplify/functions/shared/device_contract.py'),
   apiProviderPython: resolve(serviceRoot, 'amplify/functions/shared/provider_contract.py'),
   runtimePython: resolve(
@@ -245,6 +246,7 @@ const rendered = new Map([
   [outputs.typescript, typescript],
   [outputs.swift, swift],
   [outputs.apiPython, pythonConstraints],
+  [outputs.runtimeClientPython, pythonConstraints],
   [outputs.devicePython, pythonDevice],
   [outputs.runtimePython, pythonDevice],
   [outputs.apiProviderPython, pythonProvider],
