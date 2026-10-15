@@ -429,6 +429,29 @@ import XCTest
     XCTAssertTrue(
       app.staticTexts["This is the native app’s offline test reply."].waitForExistence(timeout: 5))
     XCTAssertFalse(app.buttons["Jump to Latest"].exists)
+    #if os(iOS)
+      func waitUntilReplyIsVisible(_ reply: XCUIElement) {
+        let visible = XCTNSPredicateExpectation(
+          predicate: NSPredicate { _, _ in
+            reply.exists && reply.isHittable && reply.frame.maxY < composer.frame.minY
+          }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 5), .completed)
+      }
+      waitUntilReplyIsVisible(app.staticTexts["This is the native app’s offline test reply."])
+
+      composer.tap()
+      composer.typeText("Second native smoke test")
+      XCTAssertTrue(sendButton.waitForExistence(timeout: 5))
+      sendButton.tap()
+      let replies = app.staticTexts.matching(
+        NSPredicate(format: "label == %@", "This is the native app’s offline test reply."))
+      let secondReplyCount = XCTNSPredicateExpectation(
+        predicate: NSPredicate { _, _ in replies.count == 2 }, object: nil)
+      XCTAssertEqual(XCTWaiter.wait(for: [secondReplyCount], timeout: 5), .completed)
+      XCTAssertTrue(app.staticTexts["Second native smoke test"].exists)
+      waitUntilReplyIsVisible(replies.element(boundBy: 1))
+      XCTAssertFalse(app.buttons["Jump to Latest"].exists)
+    #endif
   }
 
   func testEmptyConversationIsCenteredInTheAvailableSpace() {
@@ -932,6 +955,13 @@ import XCTest
     let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
     let latestBeforeSend = app.staticTexts["Latest message before send."].firstMatch
     let scrollToLatest = app.buttons["chat.scroll-to-latest"]
+    func scrollTowardEarlierMessages() {
+      #if os(macOS)
+        transcript.scroll(byDeltaX: 0, deltaY: 600)
+      #else
+        transcript.swipeDown(velocity: .fast)
+      #endif
+    }
     func waitUntilVisible(_ element: XCUIElement) {
       #if os(macOS)
         // macOS exposes both a noninteractive message container and its text.
@@ -951,8 +981,8 @@ import XCTest
     XCTAssertTrue(latestBeforeSend.waitForExistence(timeout: 5))
     waitUntilVisible(latestBeforeSend)
 
-    transcript.swipeDown(velocity: .fast)
-    transcript.swipeDown(velocity: .fast)
+    scrollTowardEarlierMessages()
+    scrollTowardEarlierMessages()
     XCTAssertTrue(scrollToLatest.waitForExistence(timeout: 5))
     XCTAssertTrue(scrollToLatest.isHittable)
     #if os(macOS)
@@ -963,8 +993,8 @@ import XCTest
     XCTAssertTrue(latestBeforeSend.waitForExistence(timeout: 5))
     waitUntilVisible(latestBeforeSend)
 
-    transcript.swipeDown(velocity: .fast)
-    transcript.swipeDown(velocity: .fast)
+    scrollTowardEarlierMessages()
+    scrollTowardEarlierMessages()
     XCTAssertTrue(scrollToLatest.waitForExistence(timeout: 5))
     #if os(macOS)
       composer.click()
