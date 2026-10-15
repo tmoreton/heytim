@@ -103,6 +103,11 @@ struct HeyTimAppleApp: App {
   }
 }
 
+private struct ForegroundSyncIdentity: Hashable {
+  var active: Bool
+  var session: UInt
+}
+
 private struct AppRoot: View {
   let configuration: AppConfiguration
   @Bindable var auth: AuthSession
@@ -167,6 +172,14 @@ private struct AppRoot: View {
       capturePendingPushSelection()
       await connectIfNeeded()
       await openPendingPushSelectionIfReady()
+    }
+    .task(id: ForegroundSyncIdentity(
+      active: scenePhase == .active && auth.phase == .signedIn && connected && model.bootstrap != nil,
+      session: auth.sessionIdentifier)
+    ) {
+      guard !Self.isUnitTestHost, scenePhase == .active,
+        auth.phase == .signedIn, connected, model.bootstrap != nil else { return }
+      await model.synchronizeForegroundConversation()
     }
     .onChange(of: auth.phase) { _, phase in
       if phase == .signedIn {

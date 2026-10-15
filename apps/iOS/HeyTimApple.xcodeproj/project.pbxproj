@@ -29,12 +29,14 @@
 		3A9E932CCEE9B1044E2CDF8A /* APIRoutes.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09AF27F6083DC124317E2D20 /* APIRoutes.generated.swift */; };
 		3F4F332F62BD1D972BEA09A1 /* NativeNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 361A32BE3841FBF5F07BA692 /* NativeNotifications.swift */; };
 		4D541F8B585ADBCD5196ED9D /* BotInboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F848D6A7DD3D5C9E0105517 /* BotInboxView.swift */; };
+		4FC766054909E8F329AACF40 /* ForegroundConversationSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 634AF5FDDD5FDD8D0853C02D /* ForegroundConversationSyncTests.swift */; };
 		5559F2252037F17AA76FE29D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 74D1E3E45CE4C14E26CA4701 /* PrivacyInfo.xcprivacy */; };
 		5A257AC4A407471946E63BC1 /* CommonPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 756A362B38A4E186819057E7 /* CommonPanels.swift */; };
 		61E689FCB497D4252B1D1265 /* HeyTimParakeet in Frameworks */ = {isa = PBXBuildFile; productRef = A589221CE1A664D3FE4E9AB9 /* HeyTimParakeet */; };
 		65107649FC09AD982A1AC7B6 /* WorkspaceSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57CFC494052640516C00DD34 /* WorkspaceSettingsSection.swift */; };
 		6771A66E7A7828DAC8A13C34 /* HeyTimAppleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73F8FA5F9528EF8F00EFFC6 /* HeyTimAppleApp.swift */; };
 		70E5CD3CF500570B5FCFB7E1 /* WebhookAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 766421B09C5A603DDB13BBA1 /* WebhookAPI.swift */; };
+		7428CE4B4E46A0AE6D40B5CE /* AppModel+ForegroundSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13744F4FFAE267DB6E5CAFF /* AppModel+ForegroundSync.swift */; };
 		77855CC614CFA5A305077353 /* BotSettingsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB0DD71A938C984105B104B /* BotSettingsModels.swift */; };
 		7E38C4906612D397A97CCE90 /* AppleHealthCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A26544B4FC1631D8DF604348 /* AppleHealthCoordinator.swift */; };
 		7FD13430D5C3B4E34A9B0F66 /* ChatUsageSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05BD37BB8A409905606AC08C /* ChatUsageSummary.swift */; };
@@ -132,6 +134,7 @@
 		5DBB05921EB14CE2E31C5840 /* GoogleConnectionDisclosure.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GoogleConnectionDisclosure.swift; path = Sources/HeyTimUI/GoogleConnectionDisclosure.swift; sourceTree = "<group>"; };
 		606D6A903CD45FECAD08B264 /* AppModel+AISharingConsent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AppModel+AISharingConsent.swift"; path = "Sources/HeyTimCore/AppModel+AISharingConsent.swift"; sourceTree = "<group>"; };
 		615956E4B101703773EFB1B3 /* DesktopControlCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesktopControlCoordinator.swift; path = Sources/HeyTimPlatform/DesktopControlCoordinator.swift; sourceTree = "<group>"; };
+		634AF5FDDD5FDD8D0853C02D /* ForegroundConversationSyncTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ForegroundConversationSyncTests.swift; path = Tests/ForegroundConversationSyncTests.swift; sourceTree = "<group>"; };
 		63D5215DC2726423AA66050F /* BrowserModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BrowserModels.swift; path = Sources/HeyTimCore/BrowserModels.swift; sourceTree = "<group>"; };
 		6D820A9745C17521C7B692C3 /* ButtonStyles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ButtonStyles.swift; path = Sources/HeyTimUI/ButtonStyles.swift; sourceTree = "<group>"; };
 		6DACD2CAACD8CC9757958B12 /* DesktopControlView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesktopControlView.swift; path = Sources/HeyTimUI/DesktopControlView.swift; sourceTree = "<group>"; };
@@ -164,6 +167,7 @@
 		C0410BDCB16DF19F1FCC998E /* LocalDeciderProcess.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LocalDeciderProcess.swift; path = Sources/HeyTimPlatform/LocalDeciderProcess.swift; sourceTree = "<group>"; };
 		C27140C7FADC64A23E90639F /* WebhookTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookTests.swift; path = Tests/WebhookTests.swift; sourceTree = "<group>"; };
 		CBEA9B1DC31ACC265AFA5DA5 /* AuthView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthView.swift; path = Sources/HeyTimUI/AuthView.swift; sourceTree = "<group>"; };
+		D13744F4FFAE267DB6E5CAFF /* AppModel+ForegroundSync.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AppModel+ForegroundSync.swift"; path = "Sources/HeyTimCore/AppModel+ForegroundSync.swift"; sourceTree = "<group>"; };
 		D2ED0CBEBF731384C15C4EFD /* HeyTimAppleUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HeyTimAppleUITests.swift; path = UITests/HeyTimAppleUITests.swift; sourceTree = "<group>"; };
 		D68E561C4032ACD2B34947CD /* MCPModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MCPModels.swift; path = Sources/HeyTimCore/MCPModels.swift; sourceTree = "<group>"; };
 		DA506021C08A8F2664A68D44 /* ShareView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareView.swift; path = Sources/HeyTimUI/ShareView.swift; sourceTree = "<group>"; };
@@ -298,6 +302,8 @@
 				F8CE78F1737BB2B3D0DB281D /* MacTerminalTests.swift */,
 				C27140C7FADC64A23E90639F /* WebhookTests.swift */,
 				D2ED0CBEBF731384C15C4EFD /* HeyTimAppleUITests.swift */,
+				D13744F4FFAE267DB6E5CAFF /* AppModel+ForegroundSync.swift */,
+				634AF5FDDD5FDD8D0853C02D /* ForegroundConversationSyncTests.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -573,6 +579,7 @@
 				AEFEF88B305F08446B5931A1 /* Theme.swift in Sources */,
 				33F5BC223C3998BCF7850472 /* WebhooksView.swift in Sources */,
 				65107649FC09AD982A1AC7B6 /* WorkspaceSettingsSection.swift in Sources */,
+				7428CE4B4E46A0AE6D40B5CE /* AppModel+ForegroundSync.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -585,6 +592,7 @@
 				ECC11DF48F582C8D28F50835 /* MCPSetupTests.swift in Sources */,
 				B54E8F2239D549E034192E34 /* MacTerminalTests.swift in Sources */,
 				2BC80E5413F576AE99F28379 /* WebhookTests.swift in Sources */,
+				4FC766054909E8F329AACF40 /* ForegroundConversationSyncTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
