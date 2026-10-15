@@ -955,6 +955,13 @@ import XCTest
     let composer = app.descendants(matching: .any)["chat.composer"].firstMatch
     let latestBeforeSend = app.staticTexts["Latest message before send."].firstMatch
     let scrollToLatest = app.buttons["chat.scroll-to-latest"]
+    func scrollTowardEarlierMessages() {
+      #if os(macOS)
+        transcript.scroll(byDeltaX: 0, deltaY: 600)
+      #else
+        transcript.swipeDown(velocity: .fast)
+      #endif
+    }
     func waitUntilVisible(_ element: XCUIElement) {
       #if os(macOS)
         // macOS exposes both a noninteractive message container and its text.
@@ -974,8 +981,8 @@ import XCTest
     XCTAssertTrue(latestBeforeSend.waitForExistence(timeout: 5))
     waitUntilVisible(latestBeforeSend)
 
-    transcript.swipeDown(velocity: .fast)
-    transcript.swipeDown(velocity: .fast)
+    scrollTowardEarlierMessages()
+    scrollTowardEarlierMessages()
     XCTAssertTrue(scrollToLatest.waitForExistence(timeout: 5))
     XCTAssertTrue(scrollToLatest.isHittable)
     #if os(macOS)
@@ -986,8 +993,8 @@ import XCTest
     XCTAssertTrue(latestBeforeSend.waitForExistence(timeout: 5))
     waitUntilVisible(latestBeforeSend)
 
-    transcript.swipeDown(velocity: .fast)
-    transcript.swipeDown(velocity: .fast)
+    scrollTowardEarlierMessages()
+    scrollTowardEarlierMessages()
     XCTAssertTrue(scrollToLatest.waitForExistence(timeout: 5))
     #if os(macOS)
       composer.click()
