@@ -6,6 +6,78 @@ was recorded, including legacy repository, cloud-resource, secret, and bundle ID
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-10-15 — Pebble webhooks and Mac-local routing
+
+Software is deployed, and the installed-app signed-webhook/duplicate-replay smoke passed with a persisted answer.
+Physical Pebble voice capture remains **PENDING**; the full hardware objective is not yet verified.
+
+- [PR #130](https://github.com/tmoreton/heytim/pull/130), merged as `a1666c2`, added secure account-owned
+  Pebble/generic JSON sources, durable dispatch and Mac-local bot/reasoning routing. Fixed routes can answer
+  without the Mac; local routes wait for it, with an optional owner-selected fallback preserving saved reasoning.
+  [PR #133](https://github.com/tmoreton/heytim/pull/133) (`f920eadc`) refreshes already-selected conversations.
+  [PR #134](https://github.com/tmoreton/heytim/pull/134) finalized explicit transcript-snapshot observation and
+  reply-visibility regressions at `15bc18fc2630a55875d915456680f7908656a2ba`; its Mac wheel-test change preserves
+  all original assertions, waits and iPhone gestures.
+- [Backend rollout 38630219572](https://github.com/tmoreton/heytim/actions/runs/38630219572) passed deployment
+  checks, five managed regression sessions (both evaluators averaged 1.0), the normal four-turn workflow and three
+  webhook turns covering signed nested JSON, simulated Mac selection, fallback, replay/test suppression,
+  disable/rotation and cleanup. Checks included 700 Python tests, nine smoke mocks and four token-vault policy
+  checks; API/Apple production configuration matched. The deployed backend remains unchanged at `a1666c2`.
+  Those cloud-routing choices were simulated; the installed-app evidence below is separate.
+- Final [Apple CI 38666369388](https://github.com/tmoreton/heytim/actions/runs/38666369388) passed
+  **150/150, zero failures/skips**: 117 Mac units, seven Mac UI and 26 iPhone UI tests; artifact `11942482123`
+  retains xcresults. Merged tree `f89d8649cf3032c0c7cc5e70ca0725d1e017a142` exactly matches verified `389f214`.
+  [Services 38666369411](https://github.com/tmoreton/heytim/actions/runs/38666369411) passed its classifier;
+  five unchanged product jobs were **skipped**, not newly executed suite passes. GitGuardian passed.
+- **Installed Mac:** [candidate 38668374255](https://github.com/tmoreton/heytim/actions/runs/38668374255),
+  `1.1.0` build `20261015015721`, exact source `15bc18f`, passed its 150-test native gate, signing and
+  notarization. Independent DMG verification passed 61 native signatures, 57 distribution versions/provenance
+  checks, frozen helper/model identity and production configuration, stapling and Gatekeeper. Installation exited 0;
+  rollback is retained with no remaining staging app or mount. Owner sign-in and Local Routing **On / Ready**
+  were observed. The permanent Pebble Index source uses local routing, the current sole permitted bot Chief,
+  and an explicit Chief fallback. The older signed `a1666c2` candidate is historical and superseded.
+- **Internal iPhone software:** [upload 38671650776](https://github.com/tmoreton/heytim/actions/runs/38671650776)
+  succeeded after 150 native tests with zero skips. Version `1.1.0`, build `20261015023422`, uploaded at
+  02:53:20 UTC; receipt artifact `11945226974` is retained. [Inventory 38673872086](https://github.com/tmoreton/heytim/actions/runs/38673872086)
+  returned the exact build as **VALID / INTERNAL_ONLY** and the sole accepted/installed Apple Account Holder in
+  an all-builds group, with zero other testers. Preflight inventory `38671489984` passed; earlier target-absent
+  inventory `38673488945` remains retained. These fields do not prove physical installation or additional
+  beta-detail availability.
+- **Installed-app smoke:** a signed Pebble-format request and its exact duplicate both returned HTTP 202 for
+  event `f06e9b6f-7b30-5b2f-91cb-67b00e5ba88d`. One incoming row progressed **Routing → Queued** without manual
+  intervention or a fallback badge, using the unchanged local source. The bundled helper's RSS grew from
+  approximately 22 MB during health-only operation to 797 MiB during delivery. Opening Chief showed **42**, the
+  unique test marker and effective **Low** reasoning; Chief's saved **High** preference remained unchanged.
+  Reopening through Webhooks forced a fresh load and still showed one event, one assistant node
+  (`3a9ca1bd-0bf9-510d-ab30-fd688d33912c`) and exactly two marker copies (question/answer), with the same 42/Low
+  result. Local acceptance and the Low override are inferred from source policy and UI evidence; raw decision
+  method/probabilities were not exposed. This protocol smoke does not prove physical ring capture.
+- Credentials were saved in the canonical private bundle with directory/file modes 0700/0600 using data-only
+  TextEdit and linked privately to the owner. The editor and one-time credential sheet are closed. The sender
+  consumed credentials through stdin, without secret argv/output. Terminal-app automation was denied by tool
+  safety review and never used or bypassed. No credentials are included in this entry.
+- Prior failures remain retained: iPhone candidate `38641755423` stopped at 25/26 before upload; Mac candidate
+  `38657614616` stopped before signing after an omitted offline reply. Diagnostics reproduced four model
+  messages but no fourth-message transcript update; temporary hooks were removed before the snapshot fix.
+  Earlier OS-alert failures and both Mac swipe-synthesis failures in Apple `38663623484` are separate evidence.
+  Native wheel input then passed three focused runs with 12 positive-600-pixel actions, all original assertions
+  and no fallback/retry before final CI passed.
+- Model/helper/weights/fixtures remain frozen: route and effort concentration cutoffs `0.60`, route margin `0.15`.
+  Across 53 development/calibration cases, 42 accepted routes and 28 automatic effort choices were correct,
+  but two subsets failed effort coverage. The independent final eight-case set failed both coverage gates:
+  only two of six routable requests were accepted, both correct, with one correct automatic effort choice.
+  No retuning followed. Limited coverage does not establish production accuracy; uncertainty retains explicit
+  fallback or manual review.
+- The advisory audit found no known advisories among 55 locked registry dependencies, including Torch `2.13.0`.
+  It excludes the pinned Strands Git archive and bootstrap `pip 26.0.1`, which has four recorded CVEs in
+  installation/download/self-update paths. App execution does not invoke/import pip; official-wheel provenance
+  was verified. This is not a whole-bundle zero-advisory claim; the existing CDK finding remains documented.
+- **PENDING — physical voice:** the owner was asked to configure Pebble from the private bundle and send
+  “17 plus 25, include pebble amber seven”; the response is awaited. Phone notifications are optional per the
+  latest instruction, and physical APNs display/tap remains unverified. Public distribution approvals are
+  unchanged. Private receipts/failure evidence remain under `output/webhook-routing/`. Update this entry after physical
+  voice verification; the full objective remains incomplete until that result is recorded.
+
 ## 2026-10-09 — verified production recovery
 
 - Merged [PR #123](https://github.com/tmoreton/heytim/pull/123) and
