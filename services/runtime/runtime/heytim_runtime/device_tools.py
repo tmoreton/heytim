@@ -6,6 +6,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from jsonschema import Draft202012Validator
 from strands import tool
 from strands.agent.agent_result import AgentResult
 from strands.types.tools import ToolContext
@@ -292,6 +293,7 @@ def _device_result(proposal: dict, response: Any) -> Any:
 
 def _device_tool(operation: str, platform: str, tool_id: str) -> Any:
     spec = DEVICE_TOOL_SPECS[operation]
+    input_validator = Draft202012Validator(spec["inputSchema"]["json"])
 
     @tool(
         name=operation,
@@ -299,14 +301,19 @@ def _device_tool(operation: str, platform: str, tool_id: str) -> Any:
         inputSchema=spec["inputSchema"],
         context=True,
     )
-    def invoke_device(tool_context: ToolContext, **arguments) -> Any:
-        # Strands supplies the validated public arguments in tool_use. Use
-        # those exact bytes for the digest rather than closure kwargs.
+    def invoke_device(tool_context: ToolContext) -> Any:
+        # Strands validates the Python signature separately from inputSchema;
+        # **kwargs would become a required SDK validation field. Validate the
+        # raw flat input here and retain it unchanged for digest/resume matching.
         proposal = _request(
             tool_context.tool_use,
             platform=platform,
             tool_id=tool_id,
         )
+        error = next(input_validator.iter_errors(proposal["input"]), None)
+        if error is not None:
+            # Report the failed rule without echoing command text or UI input.
+            raise ValueError(f"Invalid device tool input: {error.validator}")
         response = tool_context.interrupt("heytim_device_call", reason=proposal)
         return _device_result(proposal, response)
 

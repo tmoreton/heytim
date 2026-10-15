@@ -836,6 +836,7 @@ dependencies = [
     { name = "httpx" },
     { name = "idna" },
     { name = "jiter" },
+    { name = "jsonschema" },
     { name = "mcp" },
     { name = "mcp-proxy-for-aws" },
     { name = "more-itertools" },
@@ -879,7 +880,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "jsonschema" },
     { name = "pytest" },
     { name = "requests" },
     { name = "ruff" },
@@ -908,6 +908,7 @@ requires-dist = [
     { name = "httpx", specifier = "==0.28.1" },
     { name = "idna", specifier = "==3.19" },
     { name = "jiter", specifier = "==0.16.0" },
+    { name = "jsonschema", specifier = "==4.26.0" },
     { name = "mcp", specifier = ">=1.29.1,<2.0.0" },
     { name = "mcp-proxy-for-aws", specifier = ">=1.6.0,<2.0.0" },
     { name = "more-itertools", specifier = "==11.1.0" },
@@ -951,7 +952,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "jsonschema", specifier = ">=4.26.0,<5.0.0" },
     { name = "pytest", specifier = ">=8.4.0,<10.0.0" },
     { name = "requests", specifier = "==2.34.2" },
     { name = "ruff", specifier = ">=0.14.0,<1.0.0" },
