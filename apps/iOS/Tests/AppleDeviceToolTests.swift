@@ -3,15 +3,22 @@ import XCTest
 @testable import HeyTimApple
 
 @MainActor final class AppleDeviceToolTests: XCTestCase {
-  override func tearDown() {
+  private var coordinators: [AppleDeviceToolCoordinator] = []
+  private var fixtureSession: URLSession?
+  private var fixtureDefaults: (UserDefaults, String)?
+
+  override func tearDown() async throws {
+    for coordinator in coordinators { await coordinator.disconnectAndWait() }
+    fixtureSession?.invalidateAndCancel()
     DeviceToolURLProtocol.handler = nil
-    super.tearDown()
+    if let (defaults, suite) = fixtureDefaults { defaults.removePersistentDomain(forName: suite) }
+    try await super.tearDown()
   }
 
   func testTerminalOutputStaysInMemoryAndRestartDoesNotReplayAnUnuploadedCommand() async throws {
     let suite = "AppleDeviceToolTests.\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
+    fixtureDefaults = (defaults, suite)
     let firstUpload = expectation(description: "Terminal result upload failed")
     let restoredUpload = expectation(description: "Restored replay-prevention result uploaded")
     let transcript = "private-terminal-transcript-\(UUID().uuidString)"
@@ -29,7 +36,7 @@ import XCTest
     let configuration = URLSessionConfiguration.ephemeral
     configuration.protocolClasses = [DeviceToolURLProtocol.self]
     let session = URLSession(configuration: configuration)
-    defer { session.invalidateAndCancel() }
+    fixtureSession = session
     let api = HeyTimAPI(baseURL: URL(string: "https://example.invalid")!, session: session) {
       "fixture-token"
     }
@@ -39,7 +46,7 @@ import XCTest
       ], botGrants: [DeviceBotGrant(botId: call.botId, toolIds: ["mac_terminal"])])
     let executions = DeviceExecutionCount()
     let coordinator = AppleDeviceToolCoordinator(defaults: defaults)
-    defer { coordinator.disconnect() }
+    coordinators.append(coordinator)
     coordinator.connect(api: api, registration: { registration }) { _ in
       executions.value += 1
       return .success(.object(["submitted": .bool(true), "contents": .string(transcript)]))
@@ -53,10 +60,11 @@ import XCTest
     let claim = try XCTUnwrap(cache[call.id])
     XCTAssertNil(claim["result"])
     XCTAssertTrue((claim["error"] as? String)?.contains("did not replay") == true)
-    coordinator.disconnect()
+    await coordinator.disconnectAndWait()
+    XCTAssertEqual(fixture.unregistrations, 1)
 
     let restored = AppleDeviceToolCoordinator(defaults: defaults)
-    defer { restored.disconnect() }
+    coordinators.append(restored)
     XCTAssertEqual(restored.deviceID, coordinator.deviceID)
     restored.connect(api: api, registration: { registration }) { _ in
       executions.value += 1
@@ -75,6 +83,8 @@ import XCTest
     XCTAssertNil(replayPrevention["result"])
     XCTAssertTrue((replayPrevention["error"] as? String)?.contains("did not replay") == true)
     XCTAssertFalse(String(decoding: uploads[1], as: UTF8.self).contains(transcript))
+    await restored.disconnectAndWait()
+    XCTAssertEqual(fixture.unregistrations, 2)
   }
 
   private func waitUntil(_ condition: @MainActor () -> Bool) async throws {
@@ -96,6 +106,7 @@ private final class DeviceToolHTTPFixture: @unchecked Sendable {
   private let firstUpload: XCTestExpectation
   private let restoredUpload: XCTestExpectation
   private var storedUploads: [Data] = []
+  private var storedUnregistrations = 0
 
   init(call: DeviceCall, firstUpload: XCTestExpectation, restoredUpload: XCTestExpectation) {
     self.call = call
@@ -104,6 +115,7 @@ private final class DeviceToolHTTPFixture: @unchecked Sendable {
   }
 
   var uploads: [Data] { lock.withLock { storedUploads } }
+  var unregistrations: Int { lock.withLock { storedUnregistrations } }
 
   func handle(_ request: URLRequest) throws -> (Int, Data) {
     XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer fixture-token")
@@ -113,7 +125,10 @@ private final class DeviceToolHTTPFixture: @unchecked Sendable {
         "registered": true, "deviceId": deviceID, "leaseExpiresAt": 4_000_000_000
       ]))
     }
-    if request.httpMethod == "DELETE" { return (200, Data("{}".utf8)) }
+    if request.httpMethod == "DELETE" {
+      lock.withLock { storedUnregistrations += 1 }
+      return (200, Data("{}".utf8))
+    }
     if request.httpMethod == "GET", request.url?.path.hasSuffix("/calls") == true {
       return (200, try JSONEncoder().encode(DeviceCallPage(calls: [call])))
     }
