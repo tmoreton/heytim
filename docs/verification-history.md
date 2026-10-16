@@ -6,6 +6,50 @@ was recorded, including legacy repository, cloud-resource, secret, and bundle ID
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-10-15 — private Mac 1.1.4 installed; live smoke blocked by provider authentication
+
+- After the owner confirmed normal unlock, a normal CUA quit followed by the guarded installer replaced
+  **1.1.3 / 20261015233310** with **1.1.4 / 20261016004703** at `/Applications/HeyTim.app`. No AX query followed
+  the quit. The release receipt identifies source `34394373dc217c5c03a9768c30d4a4bb12211c1c` from
+  [private run 38831274703](https://github.com/tmoreton/heytim/actions/runs/38831274703).
+  Rollback is retained at
+  `/Users/homelab/Library/Application Support/HeyTim/Rollbacks/1.1.3-20261015233310-before-20261016004703/HeyTim.app`.
+- Independent installed-app validation passed **67/67 Mach-O signatures** and all checks, including exact
+  version/build, signing team/bundle identity, receipt source, generated production resource, staple,
+  Gatekeeper, and Apple Events entitlement. Evidence is
+  `/tmp/heytim-native-installed-validation-20261016004703.json`. The DMG was hash-verified during staging;
+  it was not rehashed after installation. `Info.plist` has no embedded source commit; the unsigned receipt
+  and CI checkout provide source/hash consistency, not independent binary-source proof.
+- The installed UI confirmed **1.1.4 / 20261016004703**, **Connected**, **Ready**, Accessibility **Granted**,
+  global Mac app actions and Terminal **On**, with the existing owner login retained.
+- Two owner Chief turns, around **2026-10-16 01:31 UTC** and **01:39 UTC**, ended with
+  `OpenRouter authentication is unavailable. No completion was recorded; please try again after the service connection is restored.`
+  Both ended before native action. The installed app remained Connected with the owner login and native
+  grants intact. The same saved DeepSeek / High configuration had completed a turn around **00:12 UTC**.
+  Backend source `8fd15dc27c585bcaa9fda0cf47f2a77179286e76` remained deployed unchanged.
+- The existing authenticated [production smoke 38837125623](https://github.com/tmoreton/heytim/actions/runs/38837125623)
+  failed without redeployment: the synthetic workflow reported `passed: false`, and its Chief stage was skipped.
+  Its successful sanitized CloudWatch summary for the preceding hour contained exactly:
+  `provider / AuthenticationError / _base_client.py:request:1777 / count 1` and
+  `provider / EventLoopException / event_loop.py:event_loop_cycle:410 / count 1`.
+  The pinned OpenAI SDK maps `AuthenticationError` to HTTP **401**; the Strands event-loop location wraps
+  an underlying exception. This supports a direct provider authentication rejection within that aggregate
+  window, rather than a demonstrated AgentCore credential-lookup failure. The summary does not attribute
+  either marker to an individual owner turn or prove the reason the provider rejected authentication.
+- Read-only metadata showed the runtime Ready at version 12, last updated **2026-10-15 20:07:05 UTC**,
+  referencing the existing `HeyTim_OpenRouter` provider. That provider was created and last updated
+  **2026-09-26 11:10:55 UTC**. Its service-owned secret metadata reported AWSCURRENT created
+  **2026-10-15 20:05:23.885 UTC**, with last change **20:05:23.890 UTC**; both precede the known successful
+  00:12 UTC turn. No deletion or rotation date was set. Metadata cannot establish provider-side key validity
+  or revocation. No secret values were retrieved, and no stored provider credential, key limit, IAM policy,
+  or infrastructure was changed during this diagnosis. The owner's existing OpenRouter tab showed a masked
+  key-creation modal; no key value was read or copied and no replacement was performed. Owner authorization
+  for replacement remains pending.
+- **PENDING — real native smoke:** no successful Chief TextEdit observation/edit/readback has been
+  established on 1.1.4. Installation, permission indicators, automated tests, and these provider failures do
+  not establish successful editing. Live Terminal execution also remains unverified: the CUA block was
+  not bypassed and no Terminal command ran.
+
 ## 2026-10-15 — native diagnostics, process identity, and private Mac candidates
 
 - [PR #141](https://github.com/tmoreton/heytim/pull/141) merged as
