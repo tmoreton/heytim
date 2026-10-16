@@ -6,6 +6,95 @@ was recorded, including legacy repository, cloud-resource, secret, and bundle ID
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-10-16 — OpenRouter restored and native edit proved; final Chief routing gate failed
+
+- After two owner Chief turns ended before native action with the OpenRouter authentication-unavailable
+  message, existing [production smoke 38837125623](https://github.com/tmoreton/heytim/actions/runs/38837125623)
+  failed without redeployment. Its sanitized preceding-hour summary contained one provider
+  `AuthenticationError` at `_base_client.py:request:1777` and one provider `EventLoopException` at
+  `event_loop.py:event_loop_cycle:410`. The pinned SDK maps `AuthenticationError` to HTTP 401. This is
+  aggregate evidence of provider authentication rejection, not per-owner-turn attribution or proof of the
+  rejection's specific cause. Earlier installed-app validation and failure records remain intact.
+- The owner explicitly approved replacing HeyTim's deployed OpenRouter key and supplied it on the clipboard.
+  The coordinator validated the supplied key using **GET `/api/v1/key`: HTTP 200** and transferred it through
+  GitHub CLI standard input to the existing protected production environment secret
+  `AGENTCORE_CREDENTIAL_FROGBOT_OPENROUTER`, whose updated-at metadata became
+  **2026-10-16 02:01:04 UTC**. During the canonical Mac clipboard-to-GitHub transfer, no key value was printed
+  or placed in a local disk file. The existing CI workflow separately creates its owner-only plaintext
+  `.env.local` temporarily on the ephemeral runner and removes it on step exit. No key-limit or IAM changes
+  were made. The HTTP 200 establishes acceptance of the supplied key by the provider; the later native smoke
+  establishes restoration of completion through HeyTim. Credential-setup log evidence and its scope are
+  recorded below.
+- The coordinator dispatched the existing backend-only
+  [production deployment 38838245820](https://github.com/tmoreton/heytim/actions/runs/38838245820) from exact
+  main source `71a595bf86ec5f3ad8ca38061af0e7b2b80426d2`. The coordinator confirmed the diff from previously
+  deployed backend source `8fd15dc27c585bcaa9fda0cf47f2a77179286e76` contains native app/tests and documentation
+  changes, with runtime, API, and infrastructure code unchanged. Draft preflight passed and the Ubuntu
+  deployment job began **02:01:31 UTC**. Apple publication is excluded by this scope.
+- The workflow's pinned AgentCore CLI **0.29.0** reads the protected secret as
+  `AGENTCORE_CREDENTIAL_HEYTIM_OPENROUTER` from an owner-only temporary `agentcore/.env.local`, deleted on step
+  exit. Source inspection confirms that an existing `HeyTim_OpenRouter` API-key provider is updated in place
+  through `UpdateApiKeyCredentialProvider`, then read back for its provider ARN. The established deployment
+  path also reconciles the existing X/YouTube API-key providers and runs the normal server verification,
+  dependency audit, AgentCore/Amplify deployment, resource validation, managed evaluation, and authenticated
+  workflow/webhook/Chief checks. The AgentCore deployment and deployed-resource resolution steps passed;
+  Amplify deployment began **02:07:15 UTC** and passed. The resource-validation step began
+  **02:09:36 UTC**. Completed job logs show aggregate `Creating credentials...` from
+  **02:06:35.2001432 UTC** through success at **02:06:36.3138614 UTC**. The pinned noninteractive CLI emits
+  this aggregate setup status, not the per-provider `Updated API key provider` message emitted by its
+  interactive UI. Source inspection plus successful aggregate setup supports in-place reconciliation;
+  there is no directly logged provider-specific update timestamp or independently compared key material.
+- The installed **Mac 1.1.4 / 20261016004703** settings showed **Connected**, Computer use **Ready**, and
+  Accessibility **Granted** after the coordinator resumed the paused session. Existing grants remained
+  unchanged. These indicators do not establish successful native observation or editing.
+- After the successful AgentCore deployment, the coordinator ran a fresh Chief smoke in the installed 1.1.4 app.
+  Chief's returned final report listed **three native calls**: observe TextEdit, type the requested fixture text,
+  and observe TextEdit again. That report listed the initial `Untitled` revision
+  `2687af6c-cb1b-49c4-944c-fbc8fa469f1e`, target `control_2` / `AXTextArea`, and exact READY seed; it reported
+  `actionPerformed: typed`, `verifiedAfterAction: true`, and fresh observation revision
+  `38a4f436-bc6f-4f83-9475-8b60ae80b84e` with the OK marker. These counts, revisions, and action flags were read
+  from the assistant report, not independently inspected inner tool payloads. Independently, CUA TextEdit
+  accessibility readback proved the fixture changed from READY to exactly `HEYTIM_DESKTOP_20261015172350_OK`
+  after the chain, with no other local input during it. This establishes an actual edit and readback beyond
+  Chief's completion claim. Separately, the UI showed one background progress group; that label was not used
+  to count native calls. Chief did not use Terminal, save, or close the fixture.
+- The coordinator then closed only the owned fixture through the normal UI. When TextEdit offered Save/Delete,
+  the coordinator did not click Delete; it saved the test result to
+  `/private/tmp/heytim-desktop-smoke-20261016-cvz0o1ws/HeyTim-desktop-smoke-20261016.rtf` and completed the close.
+  CUA subsequently reported no TextEdit window. An independent filesystem check confirmed the file contains
+  the exact OK marker with READY absent, owner UID 501, directory mode 0700, and file mode 0600. Chief itself
+  performed no save or close. Fresh HeyTim settings around **02:12 UTC** confirmed version/build unchanged,
+  Computer use Ready, Accessibility Granted, Connected, and both global Mac app actions and Terminal On;
+  no resume action was needed after cleanup.
+- Deployment resource validation passed; the managed regression gate began **02:11:09 UTC**.
+- Managed evaluation completed successfully with **5/5 sessions**, zero invocation/session/evaluator failures,
+  and mean **1.0** for both `Builtin.GoalSuccessRate` and `Builtin.ResponseRelevance` (five evaluated each).
+  Artifact **12020640933**, `heytim-agentcore-evaluation-71a595bf86ec5f3ad8ca38061af0e7b2b80426d2`, was
+  preserved at **02:16:01 UTC** and expires **2026-11-15 02:16:01 UTC**. Its result JSON was independently
+  read in memory and only scalar evaluation counts/scores were emitted. Authenticated production workflow
+  verification began **02:16:02 UTC**.
+- Server verification passed: **518 runtime tests**, **718 API tests**, **2 evaluator tests**, **10 CDK tests**,
+  and **38 Node tests** across the script suites. Dependency audit emitted zero-vulnerability results.
+  The authenticated workflow passed bootstrap, attachment read, schedule lifecycle, share revocation,
+  approval deny/allow/cancel, and temporary-bot cleanup. The webhook check passed all four fixed stages,
+  reported three model turns, and confirmed `cleanupSucceeded: true`.
+- The final Chief gate began **02:19:17 UTC**. Its fixed result was `passed: false`, `code: routing_timeout`,
+  `completed: [chief_defaults, credit_preflight, chief_create, chief_edit]`, `chiefTurns: 3`,
+  `routedTurnsVerified: 0`, and `cleanupSucceeded: true`. The completed create/edit stages verify actual bot
+  state through the API. Source inspection shows `routing_timeout` means the 240-second poll did not observe
+  a target user turn with `source: bot_route` after the third Chief turn completed. It is distinct from waiting
+  for a routed child reply and does not establish whether Chief invoked the routing tool or why no target turn
+  was observed. Scoped smoke cleanup succeeded.
+- The overall production run ended **FAILURE at 02:24:38 UTC** on that final Chief gate. AgentCore/Amplify
+  deployment and resource validation had already passed; the workflow does not automatically roll them back.
+  No retry, rollback, or additional mutation was performed during diagnosis. The managed-evaluation artifact
+  above remains retained; no production-client-configuration artifact was created after the failed gate.
+  This deployment workflow does not include the standalone smoke's sanitized runtime-failure-summary step,
+  so no new such summary is available from this run. Routing diagnosis and any further action remain pending.
+- Native TextEdit editing and provider completion restoration are proved at this checkpoint; the release gate
+  is not fully passing. Live Terminal execution remains unverified: the hard CUA block was not bypassed and
+  no Terminal command ran.
+
 ## 2026-10-15 — private Mac 1.1.4 installed; live smoke blocked by provider authentication
 
 - After the owner confirmed normal unlock, a normal CUA quit followed by the guarded installer replaced
