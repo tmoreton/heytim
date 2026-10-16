@@ -24,8 +24,10 @@ the current checkout or environment still has the same status.
   global Mac app actions and Terminal **On**, with the existing owner login retained.
 - Two owner Chief turns, around **2026-10-16 01:31 UTC** and **01:39 UTC**, ended with
   `OpenRouter authentication is unavailable. No completion was recorded; please try again after the service connection is restored.`
-  Both ended before native action. The installed app remained Connected with the owner login and native
-  grants intact. The same saved DeepSeek / High configuration had completed a turn around **00:12 UTC**.
+  Both ended before native action. Independent CUA readback confirmed the disposable TextEdit fixture
+  retained its exact seed; it remains open for a later bounded retry. The installed app remained Connected
+  with the owner login and native grants intact. The same saved DeepSeek / High configuration had completed
+  a turn around **00:12 UTC**.
   Backend source `8fd15dc27c585bcaa9fda0cf47f2a77179286e76` remained deployed unchanged.
 - The existing authenticated [production smoke 38837125623](https://github.com/tmoreton/heytim/actions/runs/38837125623)
   failed without redeployment: the synthetic workflow reported `passed: false`, and its Chief stage was skipped.
