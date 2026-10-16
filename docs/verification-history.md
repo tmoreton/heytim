@@ -6,6 +6,112 @@ was recorded, including legacy repository, cloud-resource, secret, and bundle ID
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-10-15 — native diagnostics, process identity, and private Mac candidates
+
+- [PR #141](https://github.com/tmoreton/heytim/pull/141) merged as
+  `78247cc13dc2475a645d30108af071549bca1ea2`. Its product code matches tested source
+  `21d09fd8b1563ea63c8f650ad58b5cbf473ce9a6`; the intervening difference is earlier verification-history
+  documentation. The patch changes Mac-native diagnostics, permission handling, and injected regressions.
+- [Apple CI 38805258705, attempt four](https://github.com/tmoreton/heytim/actions/runs/38805258705/attempts/4)
+  passed **177/177 tests: 144 Mac unit, seven Mac UI, and 26 iPhone UI**, with zero failures, skips, or expected
+  failures. [Artifact 12009888690](https://github.com/tmoreton/heytim/actions/runs/38805258705/artifacts/12009888690)
+  retains the results. The owner completed the normal authentication required for Xcode setup and Automation Mode;
+  the authentication requirement remained enabled. This successful follow-up does not replace the earlier
+  point-in-time runner-failure entries.
+- Production backend source remains `8fd15dc27c585bcaa9fda0cf47f2a77179286e76`, deployed by successful
+  [rollout 38798257566](https://github.com/tmoreton/heytim/actions/runs/38798257566). Runtime, API, AgentCore,
+  catalog, and contract files are unchanged by this native patch.
+- [Private Mac candidate 38815676122](https://github.com/tmoreton/heytim/actions/runs/38815676122) succeeded from
+  source `78247cc13dc2475a645d30108af071549bca1ea2` and produced **1.1.2 / 20261015221541**. Its own shared gate
+  passed the same **177/177 tests**, with zero failures/skips/expected failures; the captured summary is
+  `/tmp/heytim-mac-candidate-38815676122-native-summary.json`.
+  [Receipt artifact 12011453879](https://github.com/tmoreton/heytim/actions/runs/38815676122/artifacts/12011453879)
+  retains the candidate evidence. The DMG SHA-256 is
+  `11bf33477ac24256caeb93178d4e8ecd86dc102553597c6119a0edf6a2e40d2e`.
+- Independent staged and installed validators passed all **67 Mach-O signatures**, app signature, Gatekeeper,
+  staple, production configuration, and Apple Events entitlement checks, with no invalid symlinks. Results are
+  `/tmp/heytim-native-stage-validation-20261015221541.json` and
+  `/tmp/heytim-native-installed-validation-20261015221541.json`.
+  At that checkpoint, `/Applications/HeyTim.app` showed **1.1.2**, **Connected**, computer use **Ready**, and
+  Accessibility **Granted**, with the owner session retained. The previous 1.1.1 installation was retained for rollback.
+- **FAILED — real TextEdit smoke on 1.1.2:** both the initial/background observation and a focused retry failed
+  at `AXFocusedWindow` with AX error `-25202`. Neither produced a snapshot or edited the disposable unsaved fixture;
+  independent CUA observation still read its exact seed text. Read-only process diagnostics reported TextEdit PID
+  `-1` through all inspected AppKit APIs despite live PID `48568`; Terminal metadata reported positive PID `523`.
+  The installed adapter's chosen PID was not logged, so this discrepancy is consistent with a process-identity
+  cause but does not prove it occurred in the installed process.
+- Process-identity follow-up [PR #143](https://github.com/tmoreton/heytim/pull/143) merged as
+  `b4bff30151c78f379d37ab4c59b03581617c7209`, whose complete Git tree matches tested source
+  `3328d22637ab9d9509be8efb6921439cbbd06db1`. Nine focused XCTest regressions passed and are retained at
+  `/tmp/HeyTimNativeProcessUnit-20261015.xcresult`. Both-platform build verification and architecture checks passed.
+  Independent review found no blocker within the selection-time scope: owner, canonical executable path, and
+  start-time metadata are rechecked during selection; the patch does not claim process epoch binding across
+  an existing snapshot's lifetime. The actual compiled metadata resolver proved TextEdit `-1 → 48568` and
+  Terminal `523 → 523`, without AX queries, AppleEvents, or UI actions.
+- [Shared Apple CI 38821974879](https://github.com/tmoreton/heytim/actions/runs/38821974879) passed
+  **186/186 tests: 153 Mac unit, seven Mac UI, and 26 iPhone UI**, with zero failures/skips/expected failures.
+  [Artifact 12014250980](https://github.com/tmoreton/heytim/actions/runs/38821974879/artifacts/12014250980)
+  retains the results; the scalar summary is `/tmp/heytim-ci-38821974879/native-summary.json`.
+- [Private Mac 1.1.3 candidate 38824067697](https://github.com/tmoreton/heytim/actions/runs/38824067697), build
+  **20261015233310**, succeeded after its own **186/186 tests**. App notarization was **Accepted** at
+  **2026-10-16 00:01:44 UTC** and DMG notarization at **00:08:45 UTC**.
+  [Receipt artifact 12015557933](https://github.com/tmoreton/heytim/actions/runs/38824067697/artifacts/12015557933)
+  retains the release evidence. The retained DMG is **886,492,478 bytes**, SHA-256
+  `7fe9dcc0d6d66ceba284bf9516a86190863a5ce6f9ba50c977e444d9a0c968fe`.
+  Independent receipt/source, production destination/API/user-pool, size/hash, and private storage checks passed
+  (owner UID `501`, directories `0700`, files `0600`). Unretained ZIP and appcast hashes were not independently
+  verified. Independent staged and installed validators subsequently passed all **67 Mach-O signatures**,
+  exact version/build, production resource, staple, Gatekeeper, and Apple Events entitlement checks. The previous
+  **1.1.2** installation was retained for rollback. The installed UI confirmed **1.1.3 / 20261015233310**,
+  **Connected**, **Ready**, Accessibility **Granted**, global Mac app actions and Terminal **On**, with the owner
+  login preserved. These installation and permission results do not establish successful native editing.
+- **FAILED — real TextEdit smoke on 1.1.3:** native observation returned
+  `AXDescription -25200 [pid=48568]`. The correct TextEdit PID is now proved in the installed adapter, but no
+  snapshot or edit occurred; independent CUA observation confirmed the fixture seed was unchanged.
+- Optional-label follow-up [PR #144](https://github.com/tmoreton/heytim/pull/144) merged as
+  `34394373dc217c5c03a9768c30d4a4bb12211c1c`, whose complete Git tree matches reviewed source
+  `06f59183beb8a8798ede8b0629ce2f99f58d0847`. It tolerates generic `.failure` only for optional cosmetic control
+  labels. Window, role, tree, safety, and value reads remain strict. Button actions and scrolling are withheld
+  when their labels are incompletely read; the fallback for known-absent scroll labels is preserved. Six new
+  injected cases accompany the existing capture regressions; all **12 focused tests passed**, with zero
+  failures/skips/expected failures.
+  Both-platform builds, architecture checks, and independent review passed.
+- [Shared Apple CI 38829516158](https://github.com/tmoreton/heytim/actions/runs/38829516158) passed
+  **192/192 tests: 159 Mac unit, seven Mac UI, and 26 iPhone UI**, with zero failures/skips/expected failures.
+  [Artifact 12016948645](https://github.com/tmoreton/heytim/actions/runs/38829516158/artifacts/12016948645)
+  expires **2026-10-19 00:44:28 UTC**; the scalar summary is
+  `/tmp/heytim-ci-38829516158/native-summary.json`. All applicable PR security/classifier checks passed;
+  unchanged service suites were correctly skipped.
+- [Private Mac 1.1.4 candidate 38831274703](https://github.com/tmoreton/heytim/actions/runs/38831274703) succeeded
+  from source `34394373dc217c5c03a9768c30d4a4bb12211c1c`, build **20261016004703**, with its own **192/192 tests:
+  159 Mac unit, seven Mac UI, and 26 iPhone UI**, zero failures/skips/expected failures. The scalar summary was
+  captured before cleanup at `/tmp/heytim-mac-candidate-38831274703-native-summary.json`. Duplicate main Apple run
+  [38831264897](https://github.com/tmoreton/heytim/actions/runs/38831264897) completed as **Cancelled**.
+  On **2026-10-16 UTC**, app ZIP notarization upload completed at **01:09:37**, with **Accepted** at **01:13:07**;
+  DMG upload completed at **01:16:16**, with **Accepted** at **01:19:45**.
+  [Receipt artifact 12018234832](https://github.com/tmoreton/heytim/actions/runs/38831274703/artifacts/12018234832)
+  retains the release evidence. The retained DMG is **891,200,911 bytes**, SHA-256
+  `44208bae63971e9b135f8327688cb6f820480c939275a9390d40c1ede0e09b76`.
+  Independent receipt/source, production destination/API/user-pool, ownership, and stable size/hash checks passed.
+  Unretained ZIP and appcast hashes were not independently verified.
+- Independent **staged-app** validation passed **67/67 Mach-O signatures** and every signature, resource, staple,
+  Gatekeeper, and entitlement check; results are `/tmp/heytim-native-stage-validation-20261016004703.json`.
+  **NOT INSTALLED:** CUA reported the Mac locked and automatic unlock failed. The owner was asked to unlock normally
+  through local access or Screen Sharing. No further UI retry, bypass, CLI quit, or installation was attempted.
+  The active installed app remains **1.1.3**; the validated 1.1.4 stage is retained for later installation.
+  **TODO:** complete owner unlock, guarded installation and independent installed-app validation, then real
+  TextEdit observation/edit/readback. Native editing on 1.1.4 remains **PENDING**.
+- The approved existing HeyTim → Terminal Automation switch was toggled **On** through normal System Settings
+  at **23:53 UTC**. TCC verification at **23:53:23.129 UTC** confirmed team `GVXC5FQ2RP` for
+  `/Applications/HeyTim.app`. Read-only System Settings observation at **2026-10-16 01:06:45 UTC** confirmed
+  HeyTim → Terminal remained **On** after the 1.1.3 update. These permission checkpoints do not establish
+  successful Terminal execution; no Terminal UI or control was used.
+- **Artifact provenance limitation:** `Info.plist` does not embed the source commit. The unsigned receipt records
+  source/hash consistency alongside CI checkout provenance; it is not independent proof that the binary was built
+  from that source.
+- **LIMITATION — live Terminal execution:** direct computer-use control of Terminal was blocked by CUA safety.
+  The block was not bypassed, and no Terminal command was submitted. Live Terminal execution remains unverified.
+
 ## 2026-10-15 — live native-tool dispatch follow-up
 
 - The owner approved Chief's persistent Mac Terminal and Accessibility grants. The installed signed Mac app
