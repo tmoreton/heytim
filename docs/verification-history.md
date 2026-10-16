@@ -6,6 +6,51 @@ was recorded, including legacy repository, cloud-resource, secret, and bundle ID
 This file records dated checks against deployed environments. It is evidence from a point in time, not a statement that
 the current checkout or environment still has the same status.
 
+## 2026-10-16 — bounded Chief routing repeat passed; earlier timeout remains unexplained
+
+- PR [147](https://github.com/tmoreton/heytim/pull/147) merged at **02:45:02 UTC** as
+  `1a2f2c226da3e3e61794f82472abc612e47bab36`, after review and passing applicable checks: JavaScript/TypeScript
+  and Python CodeQL, change classification, dependency audit, application-backend verification, GitGuardian,
+  and the aggregate CodeQL check. Website/catalog, AgentCore runtime, and AgentCore configuration suites were
+  skipped as unaffected. The change adds bounded, sanitized read-only routing diagnostics and scopes to the
+  existing production-smoke workflow; it does not redeploy or modify the running backend.
+- The existing read-only diagnostic [run 38842026243](https://github.com/tmoreton/heytim/actions/runs/38842026243)
+  succeeded on that exact merge source, running from **02:45:12–02:45:37 UTC**. Its **10 diagnostic tests passed**
+  with zero failures, cancellations, skips, or TODOs. The fixed diagnostic result at **02:45:31.7475330 UTC** was:
+  `diagnosticsCompleted: true`, `syntheticRouteFound: true`, `assistantStatus: complete`,
+  `configurationChanged: false`, `routeToolActivityObserved: false`, `listBotOptionsActivityObserved: false`,
+  `assistantTextClassification: none_recognized`, `targetListed: false`, `targetDeleted: false`,
+  `targetHandoffState: target_not_listed`, `targetHandoffCount: 0`, `targetMatchingTaskCount: 0`, and
+  `targetHandoffAssistantStatus: missing`.
+- These results establish that the latest synthetic routing turn's assistant completed and the target was
+  absent from that later listing after smoke cleanup. They do not establish deletion, explain the routing
+  failure, or prove that the routing/list-options tools were absent or unused. Activity may contain narration
+  instead of exact tool labels; unrecognized assistant text is not proof of successful routing. The zero
+  handoff counts were not measured from the absent target's messages.
+- Under the owner's deployment/test authorization, the coordinator dispatched **one** bounded Chief-only repeat,
+  [run 38842175113](https://github.com/tmoreton/heytim/actions/runs/38842175113), from the same exact source.
+  It was created **02:46:50 UTC**, and the Chief defaults/create/edit/routing step began **02:47:17 UTC**.
+  The unrelated authenticated workflow/webhook step was skipped. The repeat uses a fresh temporary fixture
+  through the existing scoped smoke harness, without redeployment or IAM changes.
+- The single repeat completed **SUCCESS at 02:49:07 UTC**. Its fixed Chief summary at
+  **02:49:02.0587243 UTC** was `passed: true`,
+  `completed: [chief_defaults, credit_preflight, chief_create, chief_edit, chief_routing]`,
+  `cleanupSucceeded: true`, `chiefTurns: 3`, and `routedTurnsVerified: 1`. The strict smoke verifies defaults,
+  actual created/edited bot state, exactly one target user turn with `source: bot_route` and the supplied task,
+  a completed corresponding child turn with the exact required marker reply, and no duplicate routed turn.
+  Scoped cleanup of its created temporary fixture succeeded; it does not delete Chief or the fixture account.
+- The repeat used unchanged routing runtime, saved Chief model/system-prompt settings, and permissions; PR 147 added diagnostics and
+  workflow scope selection, not a routing implementation fix. The earlier timeout remains unexplained and
+  did not reproduce in this one bounded recheck. This supports an intermittent observed failure, not a
+  demonstrated cause or definitive routing repair. No further paid calls or redeployment were performed after that repeat.
+- The repeat's successful sanitized preceding-hour diagnostic step listed one aggregate provider
+  `AuthenticationError` at `_base_client.py:request:1777`. That window includes pre-restoration time; the
+  summary does not attribute the marker to this successful repeat or establish its event time/cause.
+  The fixed Chief pass and verified child reply are separate evidence.
+- The prior provider restoration, independent native TextEdit proof, and failed routing checkpoint remain
+  preserved in the following dated entry. Live Terminal execution remains blocked and unverified; no
+  Terminal command ran and the CUA block was not bypassed.
+
 ## 2026-10-16 — OpenRouter restored and native edit proved; final Chief routing gate failed
 
 - After two owner Chief turns ended before native action with the OpenRouter authentication-unavailable
