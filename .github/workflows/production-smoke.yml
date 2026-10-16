@@ -4,12 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       verification_scope:
-        description: Full authenticated checks or read-only inspection of the latest synthetic Chief routing turn
+        description: Full checks, Chief checks only, or read-only inspection of the latest synthetic routing turn
         required: true
         default: full
         type: choice
         options:
           - full
+          - chief-only
           - routing-diagnostics
 
 concurrency:
@@ -70,7 +71,7 @@ jobs:
           HEYTIM_API_URL="$api_url" HEYTIM_ID_TOKEN="$id_token" \
             npm --prefix services/API run diagnose:chief-routing
       - name: Run authenticated synthetic workflow without redeployment
-        if: ${{ inputs.verification_scope != 'routing-diagnostics' }}
+        if: ${{ inputs.verification_scope != 'routing-diagnostics' && inputs.verification_scope != 'chief-only' }}
         env:
           HEYTIM_RELEASE_TEST_REFRESH_TOKEN: ${{ secrets.HEYTIM_RELEASE_TEST_REFRESH_TOKEN }}
         run: |
