@@ -2,6 +2,16 @@ name: Verify deployed HeyTim production workflow
 
 on:
   workflow_dispatch:
+    inputs:
+      verification_scope:
+        description: Full checks, Chief checks only, or read-only inspection of the latest synthetic routing turn
+        required: true
+        default: full
+        type: choice
+        options:
+          - full
+          - chief-only
+          - routing-diagnostics
 
 concurrency:
   group: heytim-production-release
@@ -36,8 +46,32 @@ jobs:
           test "$(aws sts get-caller-identity --query Account --output text)" = 820323452649
           npm --prefix services/API run outputs:apple:production:check
       - name: Verify diagnostic redaction
-        run: python3 -m unittest discover -s services/API/amplify/functions/tests -p test_runtime_error_summary.py
+        run: |
+          python3 -m unittest discover -s services/API/amplify/functions/tests -p test_runtime_error_summary.py
+          npm --prefix services/API run test:chief-routing-diagnostics
+      - name: Inspect the latest synthetic Chief routing turn without mutations
+        if: ${{ inputs.verification_scope == 'routing-diagnostics' }}
+        env:
+          HEYTIM_RELEASE_TEST_REFRESH_TOKEN: ${{ secrets.HEYTIM_RELEASE_TEST_REFRESH_TOKEN }}
+        run: |
+          set +x
+          outputs='services/API/amplify_outputs.json'
+          api_url="$(jq -r '.custom.apiUrl // empty' "$outputs")"
+          client_id="$(jq -r '.auth.user_pool_client_id // empty' "$outputs")"
+          region="$(jq -r '.auth.aws_region // empty' "$outputs")"
+          auth_parameters="$(jq -nc --arg refreshToken "$HEYTIM_RELEASE_TEST_REFRESH_TOKEN" '{REFRESH_TOKEN:$refreshToken}')"
+          if ! id_token="$(aws cognito-idp initiate-auth --region "$region" --auth-flow REFRESH_TOKEN_AUTH \
+            --client-id "$client_id" --auth-parameters "$auth_parameters" \
+            --query 'AuthenticationResult.IdToken' --output text 2>/dev/null)" \
+            || [[ -z "$id_token" || "$id_token" == None ]]; then
+            printf '{"passed":false,"code":"chief_auth_failed"}\n' >&2
+            exit 1
+          fi
+          echo "::add-mask::$id_token"
+          HEYTIM_API_URL="$api_url" HEYTIM_ID_TOKEN="$id_token" \
+            npm --prefix services/API run diagnose:chief-routing
       - name: Run authenticated synthetic workflow without redeployment
+        if: ${{ inputs.verification_scope != 'routing-diagnostics' && inputs.verification_scope != 'chief-only' }}
         env:
           HEYTIM_RELEASE_TEST_REFRESH_TOKEN: ${{ secrets.HEYTIM_RELEASE_TEST_REFRESH_TOKEN }}
         run: |
@@ -56,6 +90,7 @@ jobs:
           HEYTIM_API_URL="$api_url" HEYTIM_ID_TOKEN="$id_token" \
             npm --prefix services/API run webhook:test
       - name: Verify Chief defaults, management, and teammate routing
+        if: ${{ inputs.verification_scope != 'routing-diagnostics' }}
         env:
           HEYTIM_RELEASE_TEST_REFRESH_TOKEN: ${{ secrets.HEYTIM_RELEASE_TEST_REFRESH_TOKEN }}
         run: |
