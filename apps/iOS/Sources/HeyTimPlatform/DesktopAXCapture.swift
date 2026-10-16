@@ -20,7 +20,7 @@
     }
   }
 
-  /// Captures AX errors separately from optional attributes that an app does not expose.
+  /// Only cosmetic control-label .failure may be omitted; window, identity, tree and safety reads stay strict.
   /// Injection keeps capture tests independent of running apps and macOS permissions.
   @MainActor struct DesktopAXReader {
     var copyAttribute: (AXUIElement, String) -> (AXError, CFTypeRef?)
@@ -57,6 +57,20 @@
         throw DesktopAXCaptureError.unexpectedType(attribute: name)
       }
       return string
+    }
+
+    /// A failed cosmetic label must not hide readable text or become an action label.
+    /// Stale elements, permission/messaging failures and malformed values still fail capture.
+    func controlLabel(on element: AXUIElement) throws -> (text: String?, incomplete: Bool) {
+      var incomplete = false
+      for name in [kAXTitleAttribute as String, kAXDescriptionAttribute as String, kAXHelpAttribute as String] {
+        do {
+          if let text = try string(name, from: element) { return (text, incomplete) }
+        } catch DesktopAXCaptureError.read(_, let code) where code == .failure {
+          incomplete = true
+        }
+      }
+      return (nil, incomplete)
     }
 
     func bool(_ name: String, from element: AXUIElement) throws -> Bool? {
@@ -163,26 +177,28 @@
       guard role != "AXSecureTextField", try reader.bool("AXVisible", from: element) != false else {
         return
       }
-      let label = try reader.string(kAXTitleAttribute, from: element)
-        ?? reader.string(kAXDescriptionAttribute, from: element)
-        ?? reader.string(kAXHelpAttribute, from: element)
       let editable = try [kAXTextFieldRole as String, kAXTextAreaRole as String].contains(role)
         && reader.editable(kAXValueAttribute, on: element)
       let semanticActions = semanticActions(try reader.actions(on: element))
       let scrollable = ["AXScrollArea", "AXTable", "AXList", "AXOutline", "AXWebArea"].contains(role)
       if (editable || !semanticActions.isEmpty || scrollable),
-        try reader.bool(kAXEnabledAttribute, from: element) != false,
-        let resolvedLabel = label?.isEmpty == false ? label : friendlyRoleName(role)
+        try reader.bool(kAXEnabledAttribute, from: element) != false
       {
-        let id = "control_\(controls.count + 1)"
-        let value = try reader.attribute(kAXValueAttribute, from: element)
-        let valueText = (value as? String) ?? (value as? NSNumber)?.stringValue
-        controls.append(DesktopControlSummary(
-          id: id, role: role, label: clean(resolvedLabel, limit: 100),
-          blockedByPolicy: !editable && isHighImpact(label: resolvedLabel), editable: editable,
-          value: valueText.map { clean($0, limit: 500) },
-          supportedActions: semanticActions + (scrollable ? ["scroll"] : [])))
-        resolved[id] = element
+        let label = try reader.controlLabel(on: element)
+        let readableLabel = label.text?.isEmpty == false ? label.text : nil
+        if editable || (!label.incomplete && (readableLabel != nil || scrollable)) {
+          let resolvedLabel = readableLabel ?? friendlyRoleName(role)
+          let id = "control_\(controls.count + 1)"
+          let value = try reader.attribute(kAXValueAttribute, from: element)
+          let valueText = (value as? String) ?? (value as? NSNumber)?.stringValue
+          controls.append(DesktopControlSummary(
+            id: id, role: role, label: clean(resolvedLabel, limit: 100),
+            blockedByPolicy: !editable && isHighImpact(label: resolvedLabel), editable: editable,
+            value: valueText.map { clean($0, limit: 500) },
+            supportedActions: (readableLabel == nil || label.incomplete ? [] : semanticActions)
+              + (scrollable && !label.incomplete ? ["scroll"] : [])))
+          resolved[id] = element
+        }
       }
       let children = try reader.elements(kAXChildrenAttribute, from: element)
       // Large document/list subtrees must not crowd out the window toolbar.

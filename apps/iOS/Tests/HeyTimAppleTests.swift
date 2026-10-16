@@ -54,6 +54,7 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
     let application = AXUIElementCreateApplication(91001)
     let window = AXUIElementCreateApplication(91002)
     let text = AXUIElementCreateApplication(91003)
+    let group = AXUIElementCreateApplication(91004)
     var attributes: [String: (AXError, CFTypeRef?)] = [:]
     var actionError = AXError.success
 
@@ -70,7 +71,7 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
       DesktopAXReader(
         copyAttribute: { element, name in
           let scope = CFEqual(element, application) ? "application"
-            : CFEqual(element, window) ? "window" : "text"
+            : CFEqual(element, window) ? "window" : CFEqual(element, group) ? "group" : "text"
           return attributes["\(scope).\(name)"] ?? (.attributeUnsupported, nil)
         },
         copyActions: { _ in (actionError, [] as [String] as CFArray) },
@@ -79,10 +80,12 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
         })
     }
 
-    func capture() throws -> (snapshot: DesktopSnapshot, elements: [String: AXUIElement]) {
+    func capture(reader: DesktopAXReader? = nil) throws
+      -> (snapshot: DesktopSnapshot, elements: [String: AXUIElement])
+    {
       try DesktopControlCoordinator.readAccessibility(
         application: DesktopApplication(id: 91001, name: "Fixture", bundleIdentifier: nil),
-        root: application, reader: reader)
+        root: application, reader: reader ?? self.reader)
     }
   }
 #endif
@@ -248,6 +251,136 @@ private final class InMemoryAuthTokenStore: AuthTokenStore {
       XCTAssertEqual(control.value, "READY seed")
       XCTAssertEqual(control.source, "accessibility")
       XCTAssertTrue(CFEqual(captured.elements[control.id], fixture.text))
+    }
+
+    func testDesktopCaptureDoesNotReadCosmeticLabelsOnStructuralParents() throws {
+      var fixture = DesktopAXFixture()
+      fixture.attributes["window.AXChildren"] = (.success, [fixture.group] as CFArray)
+      fixture.attributes["group.AXRole"] = (.success, kAXGroupRole as CFString)
+      fixture.attributes["group.AXDescription"] = (.failure, nil)
+      fixture.attributes["group.AXChildren"] = (.success, [fixture.text] as CFArray)
+      fixture.attributes["text.AXRole"] = (.success, kAXTextAreaRole as CFString)
+      fixture.attributes["text.AXDescription"] = (.success, "First Text View" as CFString)
+      fixture.attributes["text.AXValue"] = (.success, "READY seed" as CFString)
+      let captured = try fixture.capture()
+      XCTAssertEqual(captured.snapshot.controls.count, 1)
+      XCTAssertEqual(captured.snapshot.controls.first?.label, "First Text View")
+      XCTAssertEqual(captured.snapshot.controls.first?.value, "READY seed")
+    }
+
+    func testDesktopCaptureKeepsReadableEditableTextWhenCosmeticLabelsFail() throws {
+      var fixture = DesktopAXFixture()
+      fixture.attributes["window.AXChildren"] = (.success, [fixture.text] as CFArray)
+      fixture.attributes["text.AXRole"] = (.success, kAXTextAreaRole as CFString)
+      for name in ["AXTitle", "AXDescription", "AXHelp"] {
+        fixture.attributes["text.\(name)"] = (.failure, nil)
+      }
+      fixture.attributes["text.AXValue"] = (.success, "READY seed" as CFString)
+      var reader = fixture.reader
+      reader.copyActions = { element in
+        (.success, (CFEqual(element, fixture.text) ? [kAXPressAction as String] : []) as CFArray)
+      }
+      let captured = try fixture.capture(reader: reader)
+      let control = try XCTUnwrap(captured.snapshot.controls.first)
+      XCTAssertEqual(control.label, "Text Area")
+      XCTAssertEqual(control.value, "READY seed")
+      XCTAssertTrue(control.editable)
+      XCTAssertTrue(control.supportedActions.isEmpty)
+      XCTAssertTrue(CFEqual(captured.elements[control.id], fixture.text))
+    }
+
+    func testDesktopCaptureWithholdsUnlabeledOrPartlyUnreadableButtonsAndStillTraversesChildren() throws {
+      for titleError in [AXError.failure, .attributeUnsupported] {
+        var fixture = DesktopAXFixture()
+        fixture.attributes["window.AXChildren"] = (.success, [fixture.group] as CFArray)
+        fixture.attributes["group.AXRole"] = (.success, kAXButtonRole as CFString)
+        fixture.attributes["group.AXTitle"] = (titleError, nil)
+        if titleError == .failure {
+          fixture.attributes["group.AXDescription"] = (.success, "Continue" as CFString)
+        }
+        fixture.attributes["group.AXChildren"] = (.success, [fixture.text] as CFArray)
+        fixture.attributes["text.AXRole"] = (.success, kAXTextAreaRole as CFString)
+        fixture.attributes["text.AXValue"] = (.success, "READY seed" as CFString)
+        var reader = fixture.reader
+        reader.copyActions = { element in
+          (.success, (CFEqual(element, fixture.group) ? [kAXPressAction as String] : []) as CFArray)
+        }
+        let captured = try fixture.capture(reader: reader)
+        XCTAssertEqual(captured.snapshot.controls.count, 1)
+        XCTAssertEqual(captured.snapshot.controls.first?.role, kAXTextAreaRole as String)
+        XCTAssertEqual(captured.snapshot.controls.first?.value, "READY seed")
+        XCTAssertFalse(captured.elements.values.contains { CFEqual($0, fixture.group) })
+      }
+    }
+
+    func testDesktopCaptureOptionalLabelsPreserveLivenessPermissionAndTypeFailures() {
+      for code in [AXError.cannotComplete, .apiDisabled, .invalidUIElement, .illegalArgument, .notImplemented] {
+        var fixture = DesktopAXFixture()
+        fixture.attributes["window.AXChildren"] = (.success, [fixture.text] as CFArray)
+        fixture.attributes["text.AXRole"] = (.success, kAXTextAreaRole as CFString)
+        fixture.attributes["text.AXDescription"] = (code, nil)
+        XCTAssertThrowsError(try fixture.capture()) { error in
+          XCTAssertTrue(error.localizedDescription.contains("AXDescription"))
+          XCTAssertTrue(error.localizedDescription.contains(String(code.rawValue)))
+        }
+      }
+      var fixture = DesktopAXFixture()
+      fixture.attributes["window.AXChildren"] = (.success, [fixture.text] as CFArray)
+      fixture.attributes["text.AXRole"] = (.success, kAXTextAreaRole as CFString)
+      fixture.attributes["text.AXDescription"] = (.success, [] as CFArray)
+      XCTAssertThrowsError(try fixture.capture()) { error in
+        XCTAssertTrue(error.localizedDescription.contains("unexpected value for AXDescription"))
+      }
+    }
+
+    func testDesktopCapturePreservesKnownAbsentScrollLabelsButWithholdsUnreadableScroll() throws {
+      for code in [AXError.noValue, .attributeUnsupported, .failure] {
+        var fixture = DesktopAXFixture()
+        fixture.attributes["window.AXChildren"] = (.success, [fixture.group] as CFArray)
+        fixture.attributes["group.AXRole"] = (.success, "AXScrollArea" as CFString)
+        fixture.attributes["group.AXDescription"] = (code, nil)
+        let controls = try fixture.capture().snapshot.controls
+        if code == .failure {
+          XCTAssertTrue(controls.isEmpty)
+        } else {
+          XCTAssertEqual(controls.count, 1)
+          XCTAssertEqual(controls.first?.label, "Scroll Area")
+          XCTAssertEqual(controls.first?.supportedActions, ["scroll"])
+        }
+      }
+    }
+
+    func testDesktopCaptureStillRejectsGenericFailureForRequiredAndSafetyAttributes() {
+      for name in ["AXTitle", "AXRole", "AXChildren", "AXVisible"] {
+        var fixture = DesktopAXFixture()
+        fixture.attributes["window.\(name)"] = (.failure, nil)
+        XCTAssertThrowsError(try fixture.capture()) { error in
+          XCTAssertTrue(error.localizedDescription.contains(name))
+          XCTAssertTrue(error.localizedDescription.contains(String(AXError.failure.rawValue)))
+        }
+      }
+      for name in ["AXEnabled", "AXValue"] {
+        var fixture = DesktopAXFixture()
+        fixture.attributes["window.AXChildren"] = (.success, [fixture.text] as CFArray)
+        fixture.attributes["text.AXRole"] = (.success, kAXTextAreaRole as CFString)
+        fixture.attributes["text.\(name)"] = (.failure, nil)
+        XCTAssertThrowsError(try fixture.capture()) { error in
+          XCTAssertTrue(error.localizedDescription.contains(name))
+        }
+      }
+      var fixture = DesktopAXFixture()
+      fixture.actionError = .failure
+      XCTAssertThrowsError(try fixture.capture()) { error in
+        XCTAssertTrue(error.localizedDescription.contains("AXActions"))
+      }
+      fixture.actionError = .success
+      fixture.attributes["window.AXChildren"] = (.success, [fixture.text] as CFArray)
+      fixture.attributes["text.AXRole"] = (.success, kAXTextAreaRole as CFString)
+      var reader = fixture.reader
+      reader.isSettable = { _, _ in (.failure, false) }
+      XCTAssertThrowsError(try fixture.capture(reader: reader)) { error in
+        XCTAssertTrue(error.localizedDescription.contains("AXValue settable"))
+      }
     }
 
     func testDesktopCaptureReportsUnreadableTitleAndChildren() {
