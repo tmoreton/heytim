@@ -815,6 +815,8 @@ name = "heytim"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "anyio" },
+    { name = "asgiref" },
     { name = "authlib" },
     { name = "aws-opentelemetry-distro" },
     { name = "beartype" },
@@ -822,6 +824,7 @@ dependencies = [
     { name = "boto3" },
     { name = "botocore" },
     { name = "caio" },
+    { name = "certifi" },
     { name = "charset-normalizer" },
     { name = "cryptography" },
     { name = "cyclopts" },
@@ -836,6 +839,7 @@ dependencies = [
     { name = "httpx" },
     { name = "idna" },
     { name = "jiter" },
+    { name = "joserfc" },
     { name = "jsonschema" },
     { name = "mcp" },
     { name = "mcp-proxy-for-aws" },
@@ -856,10 +860,12 @@ dependencies = [
     { name = "pyjwt" },
     { name = "python-docx" },
     { name = "python-dotenv" },
+    { name = "python-multipart" },
     { name = "python-pptx" },
     { name = "reportlab" },
     { name = "rich-rst" },
     { name = "rpds-py" },
+    { name = "s3transfer" },
     { name = "slack-sdk" },
     { name = "soupsieve" },
     { name = "sse-starlette" },
@@ -868,6 +874,7 @@ dependencies = [
     { name = "strands-agents-tools", extra = ["agent-core-browser", "agent-core-code-interpreter"] },
     { name = "strands-harness" },
     { name = "tenacity" },
+    { name = "typing-inspection" },
     { name = "uncalled-for" },
     { name = "urllib3" },
     { name = "uvicorn" },
@@ -875,6 +882,7 @@ dependencies = [
     { name = "wcwidth" },
     { name = "websockets" },
     { name = "wrapt" },
+    { name = "xlsxwriter" },
     { name = "yarl" },
 ]
 
@@ -887,6 +895,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = "==4.15.1" },
+    { name = "asgiref", specifier = "==3.12.1" },
     { name = "authlib", specifier = "==1.8.0" },
     { name = "aws-opentelemetry-distro", specifier = "==0.19.0" },
     { name = "beartype", specifier = "==0.22.9" },
@@ -894,6 +904,7 @@ requires-dist = [
     { name = "boto3", specifier = "==1.43.90" },
     { name = "botocore", specifier = "==1.43.92" },
     { name = "caio", specifier = "==0.12.5" },
+    { name = "certifi", specifier = "==2026.7.22" },
     { name = "charset-normalizer", specifier = "==3.5.1" },
     { name = "cryptography", specifier = "==50.0.1" },
     { name = "cyclopts", specifier = "==4.25.2" },
@@ -908,9 +919,10 @@ requires-dist = [
     { name = "httpx", specifier = "==0.28.1" },
     { name = "idna", specifier = "==3.19" },
     { name = "jiter", specifier = "==0.16.0" },
+    { name = "joserfc", specifier = "==1.7.5" },
     { name = "jsonschema", specifier = "==4.26.0" },
     { name = "mcp", specifier = ">=1.29.1,<2.0.0" },
-    { name = "mcp-proxy-for-aws", specifier = ">=1.6.0,<2.0.0" },
+    { name = "mcp-proxy-for-aws", specifier = "==1.7.0" },
     { name = "more-itertools", specifier = "==11.1.0" },
     { name = "multidict", specifier = "==6.9.1" },
     { name = "openapi-pydantic", specifier = "==0.5.1" },
@@ -928,10 +940,12 @@ requires-dist = [
     { name = "pyjwt", specifier = "==2.15.0" },
     { name = "python-docx", specifier = ">=1.2.0,<2.0.0" },
     { name = "python-dotenv", specifier = "==1.2.3" },
+    { name = "python-multipart", specifier = "==0.0.32" },
     { name = "python-pptx", specifier = ">=1.0.2,<2.0.0" },
-    { name = "reportlab", specifier = ">=4.4.4,<6.0.0" },
+    { name = "reportlab", specifier = "==5.0.1" },
     { name = "rich-rst", specifier = "==2.1.0" },
     { name = "rpds-py", specifier = "==2026.6.3" },
+    { name = "s3transfer", specifier = "==0.19.2" },
     { name = "slack-sdk", specifier = "==3.44.1" },
     { name = "soupsieve", specifier = "==2.9.2" },
     { name = "sse-starlette", specifier = "==3.4.11" },
@@ -940,6 +954,7 @@ requires-dist = [
     { name = "strands-agents-tools", extras = ["agent-core-browser", "agent-core-code-interpreter"], specifier = "==0.8.8" },
     { name = "strands-harness", specifier = "==0.1.1" },
     { name = "tenacity", specifier = "==9.1.4" },
+    { name = "typing-inspection", specifier = "==0.4.4" },
     { name = "uncalled-for", specifier = "==0.4.0" },
     { name = "urllib3", specifier = "==2.8.0" },
     { name = "uvicorn", specifier = "==0.52.4" },
@@ -947,6 +962,7 @@ requires-dist = [
     { name = "wcwidth", specifier = "==0.8.3" },
     { name = "websockets", specifier = "==17.1" },
     { name = "wrapt", specifier = "==2.4.1" },
+    { name = "xlsxwriter", specifier = "==3.2.9" },
     { name = "yarl", specifier = "==1.24.5" },
 ]
 
