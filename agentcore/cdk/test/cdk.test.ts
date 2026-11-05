@@ -126,6 +126,7 @@ test('runtime roles can use the configured memory encryption key', async () => {
     spec,
     filesBucketName: 'heytim-production-user-files-123456789012-us-east-1',
     filesKeyAlias: 'alias/heytim-production-user-files',
+    filesKeyArn: memoryKeyArn,
   });
   const template = Template.fromStack(stack).toJSON();
   const statements = Object.values(
@@ -144,6 +145,15 @@ test('runtime roles can use the configured memory encryption key', async () => {
       Resource: memoryKeyArn,
     })
   );
+  const fileKeyGrant = statements.find(statement => {
+    const condition = statement.Condition as Record<string, Record<string, unknown>> | undefined;
+    return statement.Resource === memoryKeyArn
+      && condition?.StringEquals?.['kms:ViaService'] === 's3.us-east-1.amazonaws.com';
+  });
+  expect(fileKeyGrant).toBeDefined();
+  expect(JSON.stringify(fileKeyGrant?.Condition)).toContain('heytim-production-user-files-123456789012-us-east-1');
+  expect(JSON.stringify(fileKeyGrant?.Condition)).toContain('kms:EncryptionContext:aws:s3:arn');
+  expect(JSON.stringify(fileKeyGrant?.Condition)).not.toContain('kms:ResourceAliases');
   const taggingGrant = statements.find(statement =>
     statement.Effect === 'Allow' && [statement.Action].flat().includes('s3:PutObjectTagging')
   );

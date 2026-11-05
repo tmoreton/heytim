@@ -37,6 +37,7 @@ import { addBotEmailReceiving } from './infrastructure/bot-email';
 import { addProductionAutofix } from './infrastructure/autofix';
 import { addGithubDeploymentRole } from './infrastructure/deployment-role';
 import { addHttpApi } from './infrastructure/http-api';
+import { consolidateFileEncryption } from './infrastructure/file-encryption';
 import { addMemoryAccess } from './infrastructure/memory-access';
 import {
   addNativePushAccess,
@@ -605,3 +606,5 @@ backend.addOutput({
     monthlyBudgetName,
   },
 });
+
+consolidateFileEncryption(stack, dataKey, memoryKmsKeyArn, [legacyFilesBucket, heytimFilesBucket], filesKeyAlias);
