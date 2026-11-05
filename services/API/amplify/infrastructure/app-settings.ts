@@ -197,7 +197,7 @@ if (deploymentEnvironment === 'production' && !apnsApplicationArn) {
 if (deploymentEnvironment === 'production' && !process.env.HEYTIM_MONTHLY_BUDGET_USD) {
   throw new Error('HEYTIM_MONTHLY_BUDGET_USD must be set before deploying production.');
 }
-export const monthlyBudgetUsd = Number(process.env.HEYTIM_MONTHLY_BUDGET_USD ?? '100');
+export const monthlyBudgetUsd = Number(process.env.HEYTIM_MONTHLY_BUDGET_USD ?? '9');
 if (!Number.isFinite(monthlyBudgetUsd) || monthlyBudgetUsd <= 0) {
   throw new Error('HEYTIM_MONTHLY_BUDGET_USD must be a positive number.');
 }

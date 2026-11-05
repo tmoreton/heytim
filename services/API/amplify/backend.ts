@@ -110,12 +110,8 @@ const inviteAccess = new Table(backend.auth.stack, 'InviteAccess', {
   timeToLiveAttribute: 'expiresAt',
   removalPolicy: RemovalPolicy.RETAIN,
   deletionProtection: deploymentEnvironment === 'production',
-  encryption: TableEncryption.CUSTOMER_MANAGED,
-  encryptionKey: new Key(backend.auth.stack, 'InviteDataKey', {
-    description: 'Encrypts HeyTim invitation records.',
-    enableKeyRotation: true,
-    removalPolicy: RemovalPolicy.RETAIN,
-  }),
+  // AWS-owned encryption protects records without a dedicated monthly key fee.
+  encryption: TableEncryption.DEFAULT,
 });
 backend.preSignUp.addEnvironment('INVITE_TABLE_NAME', inviteAccess.tableName);
 inviteAccess.grantReadData(backend.preSignUp.resources.lambda);
@@ -153,8 +149,7 @@ const table = new Table(stack, 'Data', {
   timeToLiveAttribute: 'expiresAt',
   removalPolicy: RemovalPolicy.RETAIN,
   deletionProtection: deploymentEnvironment === 'production',
-  encryption: TableEncryption.CUSTOMER_MANAGED,
-  encryptionKey: dataKey,
+  encryption: TableEncryption.DEFAULT,
 });
 
 const legacyFilesBucketPrefix = deploymentEnvironment === 'production'
