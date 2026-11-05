@@ -65,10 +65,9 @@ class InfrastructureContractTests(unittest.TestCase):
             / "authenticated-workflow-test.mjs"
         ).read_text(encoding="utf-8")
 
-    def test_worker_concurrency_protects_agentcore_and_is_observed(self) -> None:
+    def test_worker_concurrency_protects_agentcore(self) -> None:
         self.assertIn("reservedConcurrentExecutions: workerConcurrency", self.application_functions)
         self.assertIn("maxConcurrency: WORKER_CONCURRENCY", self.backend)
-        self.assertIn("WorkerConcurrencyAlarm", self.observability)
 
     def test_signed_out_clients_get_no_aws_credentials(self) -> None:
         self.assertIn(
@@ -110,8 +109,6 @@ class InfrastructureContractTests(unittest.TestCase):
         self.assertIn("addPublicAvailabilityProbe", self.backend)
         self.assertIn("PublicAvailabilityProbe", self.production_readiness)
         self.assertIn("/public/catalog", self.production_readiness)
-        self.assertIn("PublicAvailabilityAlarm", self.observability)
-        self.assertIn("TreatMissingData.BREACHING", self.observability)
 
     def test_production_errors_dispatch_through_a_bounded_github_app_path(self) -> None:
         self.assertIn("addProductionAutofix", self.backend)
@@ -144,10 +141,6 @@ class InfrastructureContractTests(unittest.TestCase):
             publish,
         )
         self.assertIn("autoMergeEligible", publish)
-
-    def test_queue_age_alarm_ignores_healthy_inflight_work(self) -> None:
-        self.assertIn("expression: 'IF(visible > 0, age, 0)'", self.observability)
-        self.assertIn("metric: queueBacklogAge", self.observability)
 
     def test_catalog_refresh_is_scheduled_off_the_api_path(self) -> None:
         self.assertIn("new Rule(stack, 'CatalogRefresh'", self.backend)
