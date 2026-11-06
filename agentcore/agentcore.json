@@ -130,7 +130,7 @@
     {
       "name": "HeyTimMemory",
       "eventExpiryDuration": 30,
-      "encryptionKeyArn": "arn:aws:kms:us-east-1:188757775631:key/e9929d3a-9dec-4f34-8c83-dd0586cb0ef8",
+      "encryptionKeyArn": "arn:aws:kms:us-east-1:188757775631:key/2dd110d7-e822-44c6-adeb-352151a88bb4",
       "strategies": [
         {
           "type": "SEMANTIC",

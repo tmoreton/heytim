@@ -79,6 +79,8 @@ export interface AgentCoreStackProps extends StackProps {
   filesBucketName?: string;
   /** KMS alias used to encrypt this target's user-file bucket. */
   filesKeyAlias?: string;
+  /** Existing consolidated key; access remains restricted to the file bucket. */
+  filesKeyArn?: string;
   /** Allow the destination's retained legacy application OAuth secret names. */
   allowLegacyProviderSecrets?: boolean;
 }
@@ -152,6 +154,7 @@ export class AgentCoreStack extends Stack {
       paymentSpec,
       filesBucketName,
       filesKeyAlias,
+      filesKeyArn,
       allowLegacyProviderSecrets,
     } = props;
 
@@ -187,7 +190,7 @@ export class AgentCoreStack extends Stack {
       }
     }
 
-    if (filesBucketName && filesKeyAlias) {
+    if (filesBucketName && (filesKeyArn || filesKeyAlias)) {
       const bucketArn = this.formatArn({
         service: 's3',
         region: '',
@@ -267,8 +270,11 @@ export class AgentCoreStack extends Stack {
         environment.runtime.role.addToPrincipalPolicy(
           new iam.PolicyStatement({
             actions: ['kms:Decrypt', 'kms:DescribeKey', 'kms:Encrypt', 'kms:GenerateDataKey'],
-            resources: ['*'],
-            conditions: {
+            resources: filesKeyArn ? [filesKeyArn] : ['*'],
+            conditions: filesKeyArn ? {
+              StringEquals: { 'kms:ViaService': `s3.${this.region}.amazonaws.com` },
+              ArnLike: { 'kms:EncryptionContext:aws:s3:arn': [bucketArn, `${bucketArn}/*`] },
+            } : {
               'ForAnyValue:StringEquals': { 'kms:ResourceAliases': filesKeyAlias },
             },
           })
@@ -279,6 +285,13 @@ export class AgentCoreStack extends Stack {
             resources: [connectionSecretsArn, ...providerConfigurationArns],
           })
         );
+        environment.runtime.role.addToPrincipalPolicy(new iam.PolicyStatement({
+          actions: ['ssm:GetParameter'],
+          resources: ['google', 'github', 'x', 'slack', 'notion', 'plaid'].map(provider =>
+            this.formatArn({ service: 'ssm', resource: 'parameter',
+              resourceName: `heytim/oauth/${provider}-production`,
+              arnFormat: ArnFormat.SLASH_RESOURCE_NAME }))
+        }));
         environment.runtime.role.addToPrincipalPolicy(
           new iam.PolicyStatement({
             actions: ['secretsmanager:PutSecretValue'],

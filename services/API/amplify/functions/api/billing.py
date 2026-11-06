@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from shared.static_credentials import credential_client
+
 import base64
 import hashlib
 import hmac
@@ -71,14 +73,14 @@ def _stripe_configuration() -> dict[str, str]:
     secret_id = os.environ.get("STRIPE_SECRET_ID", "")
     if not secret_id:
         raise ApiError(503, "Subscriptions are not configured")
-    client = boto3.client(
+    client = credential_client(boto3.client(
         "secretsmanager",
         config=Config(
             retries={"total_max_attempts": 4, "mode": "adaptive"},
             connect_timeout=3,
             read_timeout=10,
         ),
-    )
+    ))
     try:
         raw = client.get_secret_value(SecretId=secret_id).get("SecretString", "")
         value = json.loads(raw)

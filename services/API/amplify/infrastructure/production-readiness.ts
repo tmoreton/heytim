@@ -15,12 +15,10 @@ type AvailabilityProbeResources = {
 export function addPublicAvailabilityProbe({
   stack,
   apiEndpoint,
-  logsKey,
   enabled,
 }: AvailabilityProbeResources): LambdaFunction | undefined {
   if (!enabled) return undefined;
   const logGroup = new LogGroup(stack, 'PublicAvailabilityProbeLogs', {
-    encryptionKey: logsKey,
     retention: RetentionDays.ONE_MONTH,
     removalPolicy: RemovalPolicy.RETAIN,
   });

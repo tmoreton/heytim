@@ -37,6 +37,7 @@ import { addBotEmailReceiving } from './infrastructure/bot-email';
 import { addProductionAutofix } from './infrastructure/autofix';
 import { addGithubDeploymentRole } from './infrastructure/deployment-role';
 import { addHttpApi } from './infrastructure/http-api';
+import { consolidateFileEncryption } from './infrastructure/file-encryption';
 import { addMemoryAccess } from './infrastructure/memory-access';
 import {
   addNativePushAccess,
@@ -110,12 +111,8 @@ const inviteAccess = new Table(backend.auth.stack, 'InviteAccess', {
   timeToLiveAttribute: 'expiresAt',
   removalPolicy: RemovalPolicy.RETAIN,
   deletionProtection: deploymentEnvironment === 'production',
-  encryption: TableEncryption.CUSTOMER_MANAGED,
-  encryptionKey: new Key(backend.auth.stack, 'InviteDataKey', {
-    description: 'Encrypts HeyTim invitation records.',
-    enableKeyRotation: true,
-    removalPolicy: RemovalPolicy.RETAIN,
-  }),
+  // AWS-owned encryption protects records without a dedicated monthly key fee.
+  encryption: TableEncryption.DEFAULT,
 });
 backend.preSignUp.addEnvironment('INVITE_TABLE_NAME', inviteAccess.tableName);
 inviteAccess.grantReadData(backend.preSignUp.resources.lambda);
@@ -153,8 +150,7 @@ const table = new Table(stack, 'Data', {
   timeToLiveAttribute: 'expiresAt',
   removalPolicy: RemovalPolicy.RETAIN,
   deletionProtection: deploymentEnvironment === 'production',
-  encryption: TableEncryption.CUSTOMER_MANAGED,
-  encryptionKey: dataKey,
+  encryption: TableEncryption.DEFAULT,
 });
 
 const legacyFilesBucketPrefix = deploymentEnvironment === 'production'
@@ -289,7 +285,7 @@ const auditBucket = new Bucket(stack, 'AuditLogs', {
 });
 const auditLogGroup = deploymentEnvironment === 'production'
   ? new LogGroup(stack, 'AuditCloudWatchLogs', {
-      encryptionKey: logsKey,
+      // CloudWatch encrypts new log events with its default AWS-owned key.
       retention: RetentionDays.ONE_YEAR,
       removalPolicy: RemovalPolicy.RETAIN,
     })
@@ -610,3 +606,5 @@ backend.addOutput({
     monthlyBudgetName,
   },
 });
+
+consolidateFileEncryption(stack, dataKey, memoryKmsKeyArn, [legacyFilesBucket, heytimFilesBucket], filesKeyAlias);

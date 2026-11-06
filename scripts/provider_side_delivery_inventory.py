@@ -311,7 +311,7 @@ def inventory(session: Any, start: datetime, end: datetime, table_name: str,
     if datetime.now(UTC) - start > timedelta(days=3):
         raise ValueError("GitHub's three-day history cannot cover this interval")
     stripe_key = _stripe_key(_secret(session, "heytim/stripe/production"))
-    github_token = _github_jwt(_secret(session, "frogbot/oauth/github-production"))
+    github_token = _github_jwt(_secret(session, "heytim/oauth/github-production"))
     stripe_endpoint, _ = fetch(f"https://api.stripe.com/v1/webhook_endpoints/{STRIPE_ENDPOINT}", stripe_key, "stripe")
     if not isinstance(stripe_endpoint, dict) or stripe_endpoint.get("id") != STRIPE_ENDPOINT:
         raise ValueError("Stripe endpoint does not match")

@@ -1,13 +1,12 @@
 import { createHash, createPublicKey, timingSafeEqual, verify, type JsonWebKey } from 'node:crypto';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
-import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+import { readStaticCredential } from '../shared/static-credentials';
 import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 
 const region = process.env.AWS_REGION;
 const table = DynamoDBDocumentClient.from(new DynamoDBClient({ region, maxAttempts: 3 }));
-const secrets = new SecretsManagerClient({ region, maxAttempts: 3 });
 const sqs = new SQSClient({ region, maxAttempts: 3 });
 const plaidUrls: Record<string, string> = {
   sandbox: 'https://sandbox.plaid.com',
@@ -29,8 +28,7 @@ async function configuration(): Promise<PlaidConfig> {
   if (cachedConfig && cachedConfig.expiresAt > Date.now()) return cachedConfig.value;
   const arn = process.env.PLAID_SECRET_ARN;
   if (!arn) throw new Error('Plaid is not configured');
-  const value = await secrets.send(new GetSecretValueCommand({ SecretId: arn }));
-  const config: unknown = JSON.parse(value.SecretString ?? '{}');
+  const config: unknown = JSON.parse(await readStaticCredential(arn));
   if (!config || typeof config !== 'object') throw new Error('Plaid is not configured');
   const fields = config as Record<string, unknown>;
   if (typeof fields.clientId !== 'string' || typeof fields.secret !== 'string'

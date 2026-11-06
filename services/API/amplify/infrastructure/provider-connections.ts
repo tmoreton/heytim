@@ -1,3 +1,4 @@
+import { addStaticCredentialAccess } from './static-credentials';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { Function as LambdaFunction } from 'aws-cdk-lib/aws-lambda';
 
@@ -89,6 +90,7 @@ export function addProviderConnectionAccess(
   apiFunction.addEnvironment('PLAID_WEBHOOK_URL', apiEndpoint + '/public/webhooks/plaid');
   apiFunction.addEnvironment('PLAID_OAUTH_REDIRECT_URI', 'https://heytim.ai/plaid-oauth');
   const configuredSecrets = Object.values(secrets).filter((value) => value.length > 0);
+  addStaticCredentialAccess(apiFunction, configuredSecrets);
   if (configuredSecrets.length) {
     apiFunction.addToRolePolicy(new PolicyStatement({
       actions: ['secretsmanager:GetSecretValue'],

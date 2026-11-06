@@ -27,7 +27,7 @@ export type BotEmailResources = {
 };
 
 export function addBotEmailReceiving(
-  { stack, table, logsKey, jobs }: BotEmailProps,
+  { stack, table, jobs }: BotEmailProps,
 ): BotEmailResources | undefined {
   const domain = 'bots.heytim.ai';
   const mailFromDomain = `mail.${domain}`;
@@ -164,7 +164,6 @@ export function addBotEmailReceiving(
     tracing: Tracing.ACTIVE,
     deadLetterQueue: deliveryFailures,
     logGroup: new LogGroup(stack, 'BotEmailReceiverLogs', {
-      encryptionKey: logsKey,
       retention: RetentionDays.ONE_MONTH,
       removalPolicy: RemovalPolicy.RETAIN,
     }),
@@ -213,7 +212,6 @@ export function addBotEmailReceiving(
     timeout: Duration.seconds(20),
     tracing: Tracing.ACTIVE,
     logGroup: new LogGroup(stack, 'BotEmailSenderLogs', {
-      encryptionKey: logsKey,
       retention: RetentionDays.ONE_MONTH,
       removalPolicy: RemovalPolicy.RETAIN,
     }),

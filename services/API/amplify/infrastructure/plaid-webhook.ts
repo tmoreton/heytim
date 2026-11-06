@@ -1,3 +1,4 @@
+import { addStaticCredentialAccess } from './static-credentials';
 import { Duration, type Stack } from 'aws-cdk-lib';
 import type { Table } from 'aws-cdk-lib/aws-dynamodb';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
@@ -42,6 +43,8 @@ export function addPlaidWebhook({
   table.grantReadData(webhook);
   jobs.grantSendMessages(webhook);
   if (secretArn) {
+    addStaticCredentialAccess(webhook, [secretArn]);
+    addStaticCredentialAccess(workerFunction, [secretArn]);
     const readSecret = new PolicyStatement({
       actions: ['secretsmanager:GetSecretValue'], resources: [secretArn],
     });

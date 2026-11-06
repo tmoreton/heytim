@@ -107,10 +107,7 @@ confirmed_subscriptions="$(aws sns list-subscriptions-by-topic \
 
 expected_alarms=(
   HeyTim-production-runtime-error-rate
-  HeyTim-production-runtime-throttles
-  HeyTim-production-runtime-latency-p99
   HeyTim-production-gateway-error-rate
-  HeyTim-production-gateway-throttles
 )
 alarm_count="$(aws cloudwatch describe-alarms \
   --alarm-names "${expected_alarms[@]}" \

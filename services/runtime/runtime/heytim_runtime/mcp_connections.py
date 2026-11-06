@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from heytim_runtime.static_credentials import credential_client
+
 import ipaddress
 import json
 import re
@@ -312,14 +314,14 @@ def validated_connection_bundle_binding(tool_id: str, runtime: dict) -> dict:
 def _secret_value(secret_arn: str) -> str:
     global _secrets_manager
     if _secrets_manager is None:
-        _secrets_manager = boto3.client(
+        _secrets_manager = credential_client(boto3.client(
             "secretsmanager",
             config=Config(
                 retries={"total_max_attempts": 4, "mode": "adaptive"},
                 connect_timeout=3,
                 read_timeout=10,
             ),
-        )
+        ))
     response = _secrets_manager.get_secret_value(SecretId=secret_arn)
     value = response.get("SecretString")
     if not isinstance(value, str) or not value:
