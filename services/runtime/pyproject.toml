@@ -13,7 +13,7 @@ dependencies = [
     "anyio == 4.15.1",
     "asgiref == 3.12.1",
     "certifi == 2026.7.22",
-    "joserfc == 1.7.5",
+    "joserfc==1.7.6",
     "python-multipart == 0.0.32",
     "s3transfer == 0.19.2",
     "typing-inspection == 0.4.4",
