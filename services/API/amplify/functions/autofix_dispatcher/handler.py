@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import boto3
+from shared.static_credentials import credential_client
 from boto3.dynamodb.conditions import Attr
 from botocore.config import Config
 from shared.github_app import (
@@ -32,7 +33,7 @@ _AWS_CONFIG = Config(
     retries={"total_max_attempts": 3, "mode": "adaptive"},
 )
 _dynamodb = boto3.resource("dynamodb", config=_AWS_CONFIG)
-_secrets = boto3.client("secretsmanager", config=_AWS_CONFIG)
+_secrets = credential_client(boto3.client("secretsmanager", config=_AWS_CONFIG))
 _table = _dynamodb.Table(os.environ.get("TABLE_NAME", "missing"))
 
 _MARKER = "HEYTIM_TERMINAL_ERROR "

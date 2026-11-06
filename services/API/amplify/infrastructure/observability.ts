@@ -35,7 +35,6 @@ type ObservabilityResources = {
 
 export function createApplicationLogGroups(stack: Stack, logsKey: Key) {
   const create = (id: string) => new LogGroup(stack, id, {
-    encryptionKey: logsKey,
     retention: RetentionDays.ONE_MONTH,
     removalPolicy: RemovalPolicy.RETAIN,
   });

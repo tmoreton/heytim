@@ -285,7 +285,7 @@ const auditBucket = new Bucket(stack, 'AuditLogs', {
 });
 const auditLogGroup = deploymentEnvironment === 'production'
   ? new LogGroup(stack, 'AuditCloudWatchLogs', {
-      encryptionKey: logsKey,
+      // CloudWatch encrypts new log events with its default AWS-owned key.
       retention: RetentionDays.ONE_YEAR,
       removalPolicy: RemovalPolicy.RETAIN,
     })

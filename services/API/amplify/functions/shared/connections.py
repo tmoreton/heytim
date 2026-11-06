@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from shared.static_credentials import credential_client
+
 import hashlib
 import json
 import logging
@@ -73,14 +75,14 @@ class ConnectionMixin(MCPServerConnectionMixin, FinanceConnectionMixin, Connecti
             import boto3
             from botocore.config import Config
 
-            self.secrets_manager = boto3.client(
+            self.secrets_manager = credential_client(boto3.client(
                 "secretsmanager",
                 config=Config(
                     retries={"total_max_attempts": 4, "mode": "adaptive"},
                     connect_timeout=3,
                     read_timeout=10,
                 ),
-            )
+            ))
         return self.secrets_manager
 
     def _connection_items(self, user_id: str) -> list[dict]:

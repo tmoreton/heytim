@@ -1,3 +1,4 @@
+import { addStaticCredentialAccess } from './static-credentials';
 import { ArnFormat, Stack } from 'aws-cdk-lib';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { Function as LambdaFunction } from 'aws-cdk-lib/aws-lambda';
@@ -38,6 +39,7 @@ export function addStripeBilling(
     fn.addEnvironment('STRIPE_API_VERSION', '2026-08-26.dahlia');
   }
   if (stripeSecretId) {
+    for (const fn of [apiFunction, publicApiFunction]) addStaticCredentialAccess(fn, [stripeSecretId]);
     const stack = Stack.of(apiFunction);
     const stripeSecretArn = stack.formatArn({
       service: 'secretsmanager',

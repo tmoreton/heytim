@@ -285,6 +285,13 @@ export class AgentCoreStack extends Stack {
             resources: [connectionSecretsArn, ...providerConfigurationArns],
           })
         );
+        environment.runtime.role.addToPrincipalPolicy(new iam.PolicyStatement({
+          actions: ['ssm:GetParameter'],
+          resources: ['google', 'github', 'x', 'slack', 'notion', 'plaid'].map(provider =>
+            this.formatArn({ service: 'ssm', resource: 'parameter',
+              resourceName: `heytim/oauth/${provider}-production`,
+              arnFormat: ArnFormat.SLASH_RESOURCE_NAME }))
+        }));
         environment.runtime.role.addToPrincipalPolicy(
           new iam.PolicyStatement({
             actions: ['secretsmanager:PutSecretValue'],

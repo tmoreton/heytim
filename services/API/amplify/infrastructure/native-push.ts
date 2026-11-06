@@ -76,7 +76,6 @@ export function addNativePushFeedbackRole(
     for (const status of ['Success', 'Failure'] as const) {
       new LogGroup(stack, `NativePush${index}${status}Logs`, {
         logGroupName: `/aws/sns/${stack.region}/${stack.account}/${applicationName}/${status}`,
-        encryptionKey: logsKey,
         retention: RetentionDays.ONE_MONTH,
         removalPolicy: RemovalPolicy.RETAIN,
       });

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from shared.static_credentials import credential_client
+
 import base64
 import hashlib
 import json
@@ -55,14 +57,14 @@ logger = logging.getLogger(__name__)
 def _secret_client():
     global _secrets_manager
     if _secrets_manager is None:
-        _secrets_manager = boto3.client(
+        _secrets_manager = credential_client(boto3.client(
             "secretsmanager",
             config=Config(
                 retries={"total_max_attempts": 4, "mode": "adaptive"},
                 connect_timeout=2,
                 read_timeout=3,
             ),
-        )
+        ))
     return _secrets_manager
 
 

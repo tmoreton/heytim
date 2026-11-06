@@ -1,3 +1,4 @@
+import { addStaticCredentialAccess } from './static-credentials';
 import { ArnFormat, Duration, RemovalPolicy, type Stack } from 'aws-cdk-lib';
 import type { Table } from 'aws-cdk-lib/aws-dynamodb';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
@@ -52,7 +53,6 @@ export function addProductionAutofix({
 
   const runtimeLogGroupName = `/aws/bedrock-agentcore/runtimes/${runtimeId(runtimeArn)}-${runtimeQualifier}`;
   const dispatcherLogGroup = new LogGroup(stack, 'AutofixDispatcherLogs', {
-    encryptionKey: logsKey,
     retention: RetentionDays.ONE_MONTH,
     removalPolicy: RemovalPolicy.RETAIN,
   });
@@ -78,6 +78,7 @@ export function addProductionAutofix({
     },
   });
   table.grantReadWriteData(dispatcher);
+  addStaticCredentialAccess(dispatcher, [githubAppSecretArn]);
   dispatcher.addToRolePolicy(new PolicyStatement({
     actions: ['secretsmanager:GetSecretValue'],
     resources: [githubAppSecretArn],
