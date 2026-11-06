@@ -67,7 +67,7 @@ dependencies = [
     # already-verified versions instead of accepting fresh packaging drift.
     "authlib == 1.8.0",
     "beartype == 0.22.9",
-    "dnspython == 2.8.0",
+    "dnspython==2.9.0",
     "fastmcp == 3.4.7",
     "fastmcp-slim == 3.4.7",
     "griffelib == 2.3.0",
