@@ -43,7 +43,6 @@ export function addProductionAutofix({
   stack,
   table,
   workerLogGroup,
-  logsKey,
   githubAppSecretArn,
   runtimeArn,
   runtimeQualifier,

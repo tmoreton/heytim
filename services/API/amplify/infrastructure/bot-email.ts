@@ -27,7 +27,7 @@ export type BotEmailResources = {
 };
 
 export function addBotEmailReceiving(
-  { stack, table, logsKey, jobs }: BotEmailProps,
+  { stack, table, jobs }: BotEmailProps,
 ): BotEmailResources | undefined {
   const domain = 'bots.heytim.ai';
   const mailFromDomain = `mail.${domain}`;

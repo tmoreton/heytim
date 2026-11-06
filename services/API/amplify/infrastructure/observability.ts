@@ -33,7 +33,7 @@ type ObservabilityResources = {
   availabilityProbe?: LambdaFunction;
 };
 
-export function createApplicationLogGroups(stack: Stack, logsKey: Key) {
+export function createApplicationLogGroups(stack: Stack, _logsKey: Key) {
   const create = (id: string) => new LogGroup(stack, id, {
     retention: RetentionDays.ONE_MONTH,
     removalPolicy: RemovalPolicy.RETAIN,

@@ -15,7 +15,6 @@ type AvailabilityProbeResources = {
 export function addPublicAvailabilityProbe({
   stack,
   apiEndpoint,
-  logsKey,
   enabled,
 }: AvailabilityProbeResources): LambdaFunction | undefined {
   if (!enabled) return undefined;

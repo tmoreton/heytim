@@ -67,7 +67,7 @@ export function addNativePushAccess(
 export function addNativePushFeedbackRole(
   stack: Stack,
   applicationArns: string[],
-  logsKey: Key,
+  _logsKey: Key,
 ): Role | undefined {
   const applications = applicationArns.filter(Boolean);
   if (applications.length === 0) return undefined;
