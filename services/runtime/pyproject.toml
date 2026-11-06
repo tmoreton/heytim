@@ -65,7 +65,7 @@ dependencies = [
     "multidict==6.9.1",
     # CodeZip resolves these transitives independently of uv.lock. Retain the
     # already-verified versions instead of accepting fresh packaging drift.
-    "authlib == 1.8.0",
+    "authlib==1.9.1",
     "beartype == 0.22.9",
     "dnspython == 2.8.0",
     "fastmcp == 3.4.7",
