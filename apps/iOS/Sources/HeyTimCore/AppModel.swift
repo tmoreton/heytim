@@ -73,13 +73,15 @@ public final class AppModel {
       if selection != oldValue { selectionGeneration &+= 1 }
     }
   }
-  public var messages: [ChatMessage] = []
-  public private(set) var loadedMessagesSelection: ConversationSelection?
-  public var nextToken: String?
+  public var messages: [ChatMessage] = [] { didSet { messageStateRevision &+= 1 } }
+  public private(set) var loadedMessagesSelection: ConversationSelection? {
+    didSet { messageStateRevision &+= 1 }
+  }
+  public var nextToken: String? { didSet { messageStateRevision &+= 1 } }
   public var isLoading = false
   public private(set) var isLoadingMessages = false
   public private(set) var messagesLoadError: String?
-  public var isSending = false
+  public var isSending = false { didSet { messageStateRevision &+= 1 } }
   public private(set) var sendingSelection: ConversationSelection?
   public private(set) var messageQueues: [ConversationSelection: [QueuedChatMessage]] = [:]
   public var errorMessage: String?
@@ -94,7 +96,7 @@ public final class AppModel {
   public var composerText = ""
   public var composerInboxMessageId: String?
   public var groupReplyBotId: String? = "all"
-  public private(set) var uploadsInProgress = 0
+  public private(set) var uploadsInProgress = 0 { didSet { messageStateRevision &+= 1 } }
   public var deepLinkInvite: (kind: String, token: String)?
   public private(set) var pushRegistrationState: PushRegistrationState = .idle
   public private(set) var notificationFocusRevision: UInt = 0
@@ -109,6 +111,8 @@ public final class AppModel {
   @ObservationIgnored private var composerDrafts: [ConversationSelection: ComposerDraft] = [:]
   @ObservationIgnored private var selectionGeneration: UInt = 0
   @ObservationIgnored var sessionGeneration: UInt = 0
+  @ObservationIgnored private var messageStateRevision: UInt = 0
+  @ObservationIgnored var foregroundRefreshOwner: UUID?
   @ObservationIgnored var browserStateRevisions: [String: UInt] = [:]
   @ObservationIgnored private var refreshedConfigurationMessageIDs: Set<String> = []
 
@@ -229,6 +233,7 @@ public final class AppModel {
 
   public func connect(_ api: HeyTimAPI) {
     sessionGeneration &+= 1
+    foregroundRefreshOwner = nil
     pollTask?.cancel()
     pollTask = nil
     sidebarPollTask?.cancel()
@@ -238,6 +243,7 @@ public final class AppModel {
 
   public func resetSession() {
     sessionGeneration &+= 1
+    foregroundRefreshOwner = nil
     pollTask?.cancel()
     pollTask = nil
     sidebarPollTask?.cancel()
@@ -347,18 +353,20 @@ public final class AppModel {
     }
   }
 
-  @discardableResult public func refreshBootstrap() async -> Bool {
+  @discardableResult public func refreshBootstrap(reportErrors: Bool = true) async -> Bool {
     guard !demoMode, let api else { return false }
+    guard reportErrors || !Task.isCancelled else { return false }
     let requestedSession = sessionGeneration
     do {
       let value = try await api.bootstrap()
       guard sessionIsCurrent(requestedSession, api: api) else { return false }
+      guard reportErrors || !Task.isCancelled else { return false }
       bootstrap = value
       configureSidebarPolling()
       if chooseAvailableSelection() { try await loadMessages() }
       return true
     } catch {
-      if sessionIsCurrent(requestedSession, api: api) { present(error) }
+      if reportErrors, sessionIsCurrent(requestedSession, api: api) { present(error) }
       return false
     }
   }
@@ -404,11 +412,15 @@ public final class AppModel {
   }
 
   @discardableResult public func loadMessages(
-    drainQueuedMessages: Bool = true
+    drainQueuedMessages: Bool = true, passiveRefresh: Bool = false
   ) async throws -> Bool {
     guard let requestedSelection = selection else { return false }
+    if passiveRefresh {
+      guard !Task.isCancelled, !isSending, !isUploading, !isLoadingMessages else { return false }
+    }
     let requestedGeneration = selectionGeneration
     let requestedSession = sessionGeneration
+    let requestedMessageRevision = messageStateRevision
     let previousMessages = messages
     let previousNextToken = nextToken
     #if DEBUG
@@ -445,9 +457,9 @@ public final class AppModel {
       isLoadingMessages = false
       throw APIError.configuration("The service is not connected.")
     }
-    if messages.isEmpty { isLoadingMessages = true }
+    if !passiveRefresh, messages.isEmpty { isLoadingMessages = true }
     defer {
-      if selection == requestedSelection, selectionGeneration == requestedGeneration,
+      if !passiveRefresh, selection == requestedSelection, selectionGeneration == requestedGeneration,
         sessionIsCurrent(requestedSession, api: api)
       {
         isLoadingMessages = false
@@ -459,7 +471,7 @@ public final class AppModel {
         ? try await api.messages(bot: requestedSelection.id)
         : try await api.messages(group: requestedSelection.id)
     } catch {
-      if selection == requestedSelection, selectionGeneration == requestedGeneration,
+      if !passiveRefresh, selection == requestedSelection, selectionGeneration == requestedGeneration,
         sessionIsCurrent(requestedSession, api: api)
       {
         messagesLoadError = error.localizedDescription
@@ -470,6 +482,10 @@ public final class AppModel {
       sessionIsCurrent(requestedSession, api: api)
     else {
       return false
+    }
+    if passiveRefresh {
+      guard !Task.isCancelled, !isLoading, !isLoadingMessages,
+        messageStateRevision == requestedMessageRevision else { return false }
     }
     loadedMessagesSelection = requestedSelection
     messagesLoadError = nil
@@ -482,12 +498,17 @@ public final class AppModel {
       listedProcessing = bootstrap?.groups.first { $0.id == requestedSelection.id }?.processing == true
     }
     let mergedMessages = Self.mergeLatest(current: messages, latest: page.messages)
-    let changed = mergedMessages != messages || page.nextToken != nextToken
+    // Older history stays loaded when the latest page moves. Retain the
+    // continuation that follows that history instead of restarting pagination.
+    let updatedNextToken = passiveRefresh && !previousMessages.isEmpty
+      ? previousNextToken : page.nextToken
+    let changed = mergedMessages != messages || updatedNextToken != nextToken
     messages = mergedMessages
-    nextToken = page.nextToken
+    nextToken = updatedNextToken
     if !messages.contains(where: \.isActive), wasProcessing || listedProcessing {
-      _ = await refreshBootstrap()
-      guard selection == requestedSelection, selectionGeneration == requestedGeneration,
+      _ = await refreshBootstrap(reportErrors: !passiveRefresh)
+      guard !passiveRefresh || !Task.isCancelled,
+        selection == requestedSelection, selectionGeneration == requestedGeneration,
         sessionIsCurrent(requestedSession, api: api)
       else { return false }
     }
@@ -498,7 +519,11 @@ public final class AppModel {
     )
     let unrefreshedMessageIDs = changedMessageIDs.subtracting(refreshedConfigurationMessageIDs)
     if !unrefreshedMessageIDs.isEmpty {
-      if await refreshBootstrap() {
+      let refreshed = await refreshBootstrap(reportErrors: !passiveRefresh)
+      guard !passiveRefresh || !Task.isCancelled,
+        selection == requestedSelection, selectionGeneration == requestedGeneration,
+        sessionIsCurrent(requestedSession, api: api) else { return false }
+      if refreshed {
         refreshedConfigurationMessageIDs.formUnion(unrefreshedMessageIDs)
       }
     }
