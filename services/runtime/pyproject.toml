@@ -109,7 +109,7 @@ dependencies = [
     "slack-sdk == 3.44.1",
     # CodeZip resolves Beautiful Soup transitives afresh; keep its selector
     # parser aligned with the version exercised by the locked runtime.
-    "soupsieve == 2.9.2",
+    "soupsieve==4.0",
     # Keep the packaged AgentCore event-stream dependency on the tested lock version.
     "sse-starlette == 3.4.11",
     # CodeZip resolves transitives independently; keep it on the tested lock.
